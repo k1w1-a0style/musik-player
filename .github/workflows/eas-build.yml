@@ -1,6 +1,4 @@
-# .github/workflows/eas-build.yml
-# KORRIGIERTE Version (V3) für "Variante A"
-
+# KORRIGIERT: (V4) Behebt den '--output' Fehler.
 name: EAS Build (Variante A)
 
 on:
@@ -31,11 +29,11 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm install
 
-      - name: EAS Build starten (und warten)
-        # KORREKTUR: Die Flags --output und --wait wurden entfernt.
-        # --wait wird durch den Link zum EAS-Dashboard ersetzt.
-        # --non-interactive bleibt.
+      - name: EAS Build starten (KORRIGIERT)
+        # --no-wait: Startet den Build und beendet die Action sofort.
+        # Das Polling in der App (CustomHeader) übernimmt die Statusprüfung.
         run: |
           eas build \
             --platform android \
-            --non-interactive
+            --non-interactive \
+            --no-wait
