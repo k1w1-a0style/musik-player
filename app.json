@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Musik Player",
+    "slug": "musik-player",
+    "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "a2d62be0-f3dc-412c-9db0-31adb3872b02"
+      }
+    },
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.k1w1.musikplayer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.k1w1.musikplayer"
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    }
+  }
+}
