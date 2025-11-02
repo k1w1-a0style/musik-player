@@ -1,0 +1,41 @@
+# .github/workflows/eas-build.yml
+# KORRIGIERTE Version (V3) für "Variante A"
+
+name: EAS Build (Variante A)
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Job ID from K1W1 App'
+        required: false
+
+jobs:
+  run-eas-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Expo und EAS einrichten
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: EAS Build starten (und warten)
+        # KORREKTUR: Die Flags --output und --wait wurden entfernt.
+        # --wait wird durch den Link zum EAS-Dashboard ersetzt.
+        # --non-interactive bleibt.
+        run: |
+          eas build \
+            --platform android \
+            --non-interactive
