@@ -1,19 +1,25 @@
 {
   "cli": {
-    "version": ">= 0.24.0"
+    "version": ">= 5.9.0"
   },
   "build": {
     "development": {
+      "developmentClient": true,
       "distribution": "internal"
     },
-    "production": {}
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      }
+    }
   },
   "submit": {
-    "ios": {
-      "bundleIdentifier": "com.musikplayer"
-    },
-    "android": {
-      "package": "com.musikplayer"
-    }
+    "production": {}
   }
 }
