@@ -1,18 +1,26 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { PlayerScreen } from './player';
-import { PlaylistScreen } from './playlist';
-import { MusicLibraryScreen } from './music-library';
-const Tab = createBottomTabNavigator();
-export default function App() {
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import MusicPlayer from './screens/MusicPlayer';
+import Playlists from './screens/Playlists';
+import Id3TagEditor from './screens/Id3TagEditor';
+import Covers from './screens/Covers';
+import Equalizer from './screens/Equalizer';
+
+const Stack = createNativeStackNavigator();
+
+const App = () => {
   return (
     <NavigationContainer>
-      <Tab.Navigator>
-        <Tab.Screen name='Player' component={PlayerScreen} />
-        <Tab.Screen name='Playlist' component={PlaylistScreen} />
-        <Tab.Screen name='Music Library' component={MusicLibraryScreen} />
-      </Tab.Navigator>
+      <Stack.Navigator>
+        <Stack.Screen name='MusicPlayer' component={MusicPlayer} />
+        <Stack.Screen name='Playlists' component={Playlists} />
+        <Stack.Screen name='Id3TagEditor' component={Id3TagEditor} />
+        <Stack.Screen name='Covers' component={Covers} />
+        <Stack.Screen name='Equalizer' component={Equalizer} />
+      </Stack.Navigator>
     </NavigationContainer>
   );
-}
+};
+
+export default App;

@@ -1,0 +1,78 @@
+name: K1W1 Build Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Die Supabase job_id'
+        required: true
+        type: string
+
+jobs:
+  run-eas-build:
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      JOB_ID: ${{ github.event.inputs.job_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Job ID
+        run: |
+          if [ -z "$JOB_ID" ]; then
+            echo "::error::Job ID fehlt!"
+            exit 1
+          fi
+          echo "✓ Job ID: $JOB_ID"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Update Build Status - Building
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\"}"
+
+      - name: Run EAS Build
+        id: eas
+        run: |
+          BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
+          echo "$BUILD_OUTPUT"
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Update Build Status - Success
+        if: success()
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}"
+
+      - name: Update Build Status - Failed
+        if: failure()
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\"}"
