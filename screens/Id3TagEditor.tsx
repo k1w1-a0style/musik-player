@@ -44,8 +44,8 @@ const Id3TagEditor = () => {
         value={album}
         onChangeText={(text) => setAlbum(text)}
       />
-      <TouchableOpacity onPress={handleSave}>
-        <Text style={styles.saveButton}>Save</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSave}>
+        <Text style={styles.buttonText}>Save</Text>
       </TouchableOpacity>
     </View>
   );
@@ -55,24 +55,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    padding: theme.spacing.md,
   },
   title: {
     fontSize: 24,
     color: theme.palette.text.primary,
-    padding: 16,
+    marginBottom: theme.spacing.md,
   },
   input: {
-    height: 40,
-    borderColor: theme.palette.border,
-    borderWidth: 1,
-    padding: 10,
-    margin: 10,
+    backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    color: theme.palette.text.primary,
   },
-  saveButton: {
+  button: {
+    backgroundColor: theme.palette.primary,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  buttonText: {
+    color: theme.palette.text.primary,
     fontSize: 18,
-    color: theme.palette.primary,
-    padding: 10,
-    margin: 10,
   },
 });
 
