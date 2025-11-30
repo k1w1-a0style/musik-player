@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList } from 'react-native';
 import { theme } from '../theme';
 
 const Covers = () => {
@@ -38,17 +38,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    padding: theme.spacing.md,
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     color: theme.palette.text.primary,
-    padding: 16,
+    marginBottom: theme.spacing.md,
   },
   cover: {
     width: 100,
     height: 100,
-    borderRadius: 10,
-    margin: 10,
+    borderRadius: theme.borderRadius.sm,
+    margin: theme.spacing.sm,
   },
 });
 
