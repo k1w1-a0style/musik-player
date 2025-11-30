@@ -17,9 +17,11 @@ const Controls = ({ playing, onPause, onStop }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    padding: theme.spacing.md,
+    backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.sm,
   },
   playPauseButton: {
     fontSize: 18,
