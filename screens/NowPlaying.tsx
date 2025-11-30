@@ -16,11 +16,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cover: {
     width: 200,
     height: 200,
     borderRadius: 10,
+    marginBottom: theme.spacing.md,
   },
   title: {
     fontSize: 24,
