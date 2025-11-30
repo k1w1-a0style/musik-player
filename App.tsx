@@ -13,11 +13,11 @@ const App = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator>
-        <Stack.Screen name='MusicPlayer' component={MusicPlayer} />
-        <Stack.Screen name='Playlists' component={Playlists} />
-        <Stack.Screen name='Id3TagEditor' component={Id3TagEditor} />
-        <Stack.Screen name='Covers' component={Covers} />
-        <Stack.Screen name='Equalizer' component={Equalizer} />
+        <Stack.Screen name="MusicPlayer" component={MusicPlayer} />
+        <Stack.Screen name="Playlists" component={Playlists} />
+        <Stack.Screen name="Id3TagEditor" component={Id3TagEditor} />
+        <Stack.Screen name="Covers" component={Covers} />
+        <Stack.Screen name="Equalizer" component={Equalizer} />
       </Stack.Navigator>
     </NavigationContainer>
   );
