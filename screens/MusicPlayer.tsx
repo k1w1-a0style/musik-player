@@ -52,11 +52,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    padding: theme.spacing.md,
   },
   title: {
     fontSize: 24,
     color: theme.palette.text.primary,
-    padding: 16,
+    marginBottom: theme.spacing.md,
   },
 });
 
