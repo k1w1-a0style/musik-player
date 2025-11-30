@@ -18,10 +18,14 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.sm,
   },
   title: {
     fontSize: 18,
     color: theme.palette.text.primary,
+    marginBottom: 4,
   },
   artist: {
     fontSize: 16,
