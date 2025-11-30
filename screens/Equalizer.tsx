@@ -38,30 +38,30 @@ const Equalizer = () => {
       <Slider
         style={styles.slider}
         value={bass}
+        onValueChange={handleBassChange}
         minimumValue={-10}
         maximumValue={10}
         step={1}
-        onValueChange={handleBassChange}
       />
-      <Text style={styles.label}>Bass</Text>
+      <Text>Bass: {bass}</Text>
       <Slider
         style={styles.slider}
         value={mid}
+        onValueChange={handleMidChange}
         minimumValue={-10}
         maximumValue={10}
         step={1}
-        onValueChange={handleMidChange}
       />
-      <Text style={styles.label}>Mid</Text>
+      <Text>Mid: {mid}</Text>
       <Slider
         style={styles.slider}
         value={treble}
+        onValueChange={handleTrebleChange}
         minimumValue={-10}
         maximumValue={10}
         step={1}
-        onValueChange={handleTrebleChange}
       />
-      <Text style={styles.label}>Treble</Text>
+      <Text>Treble: {treble}</Text>
     </View>
   );
 };
@@ -70,21 +70,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    padding: theme.spacing.md,
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     color: theme.palette.text.primary,
-    padding: 16,
+    marginBottom: theme.spacing.md,
   },
   slider: {
-    width: '100%',
-    height: 40,
-    margin: 10,
-  },
-  label: {
-    fontSize: 18,
-    color: theme.palette.text.secondary,
-    padding: 10,
+    width: '80%',
+    marginVertical: theme.spacing.sm,
   },
 });
 
