@@ -2,34 +2,62 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { theme } from '../theme';
 
-const SongCard = ({ song, onPress }) => {
+type SongCardProps = {
+  song: {
+    id: number;
+    title: string;
+    artist: string;
+  };
+  onPress: () => void;
+  isCurrent: boolean;
+};
+
+const SongCard: React.FC<SongCardProps> = ({ song, onPress, isCurrent }) => {
   return (
-    <TouchableOpacity onPress={onPress}>
-      <View style={styles.container}>
-        <Text style={styles.title}>{song.title}</Text>
-        <Text style={styles.artist}>{song.artist}</Text>
+    <TouchableOpacity onPress={onPress} style={[styles.container, isCurrent && styles.currentSong]}>
+      <View style={styles.infoContainer}>
+        <Text style={[styles.title, isCurrent && styles.currentSongText]}>{song.title}</Text>
+        <Text style={[styles.artist, isCurrent && styles.currentSongText]}>{song.artist}</Text>
       </View>
+      {isCurrent && <Text style={styles.playingIndicator}>▶</Text>}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
     backgroundColor: theme.palette.card,
     borderRadius: theme.borderRadius.sm,
-    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  currentSong: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+  },
+  infoContainer: {
+    flex: 1,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     color: theme.palette.text.primary,
-    marginBottom: 4,
+    fontWeight: 'bold',
   },
   artist: {
-    fontSize: 16,
+    fontSize: 14,
     color: theme.palette.text.secondary,
+  },
+  currentSongText: {
+    color: theme.palette.background,
+  },
+  playingIndicator: {
+    fontSize: 20,
+    color: theme.palette.background,
+    marginLeft: theme.spacing.md,
   },
 });
 
