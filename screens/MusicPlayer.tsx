@@ -1,52 +1,112 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { Audio } from 'expo-av';
 import { theme } from '../theme';
-import SongCard from '../components/SongCard';
 import Controls from '../components/Controls';
 
-const MusicPlayer = () => {
-  const [audio, setAudio] = useState(new Audio.Sound());
-  const [songs, setSongs] = useState([
-    { id: 1, title: 'Song 1', artist: 'Artist 1', uri: 'https://example.com/song1.mp3' },
-    { id: 2, title: 'Song 2', artist: 'Artist 2', uri: 'https://example.com/song2.mp3' },
-    { id: 3, title: 'Song 3', artist: 'Artist 3', uri: 'https://example.com/song3.mp3' },
-  ]);
-  const [currentSong, setCurrentSong] = useState(null);
+interface Song { id: number; title: string; artist: string; uri: string; duration?: number; }
+
+const MusicPlayer: React.FC = () => {
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [index, setIndex] = useState(0);
 
-  const playSong = async (song) => {
-    await audio.unloadAsync();
-    await audio.loadAsync({ uri: song.uri });
-    await audio.playAsync();
-    setPlaying(true);
-    setCurrentSong(song);
-  };
+  useEffect(() => {
+    const fetchSongs = async () => {
+      try {
+        const response = await fetch('https://api.example.com/songs');
+        const data = await response.json();
+        setSongs(data);
+      } catch (error) {
+        console.error('Fehler beim Abrufen der Songs:', error);
+      }
+    }
+    fetchSongs();
+  }, []);
 
-  const pauseSong = async () => {
-    await audio.pauseAsync();
-    setPlaying(false);
-  };
+  const loadAndPlay = async (song: Song) => {
+    if (!song) return;
+    setIsLoading(true);
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+      const { sound, status } = await Audio.Sound.createAsync(
+        { uri: song.uri },
+        { shouldPlay: true },
+        onPlaybackStatusUpdate
+      );
+      soundRef.current = sound;
+      setPlaying(true);
+      setDuration(song.duration || 0);
+      setCurrentTime(0);
+    } catch (error) {
+      console.error('Fehler beim Laden und Abspielen:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-  const stopSong = async () => {
-    await audio.stopAsync();
-    setPlaying(false);
-  };
+  const onPlaybackStatusUpdate = (status) => {
+    if (status.isLoaded) {
+      soundRef.current?.setVolume(0.5);
+      soundRef.current?.setPositionAsync(0);
+      soundRef.current?.playAsync();
+    }
+  }
+
+  const handleNextSong = () => {
+    setIndex((prevIndex) => (prevIndex + 1) % songs.length);
+    setCurrentSong(songs[index]);
+    loadAndPlay(songs[index]);
+  }
+
+  const handlePreviousSong = () => {
+    setIndex((prevIndex) => (prevIndex - 1 + songs.length) % songs.length);
+    setCurrentSong(songs[index]);
+    loadAndPlay(songs[index]);
+  }
+
+  const handlePause = () => {
+    if (soundRef.current) {
+      soundRef.current.pauseAsync();
+      setPlaying(false);
+    }
+  }
+
+  const handleStop = () => {
+    if (soundRef.current) {
+      soundRef.current.stopAsync();
+      setPlaying(false);
+      setCurrentTime(0);
+    }
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Musikplayer</Text>
       <FlatList
         data={songs}
-        renderItem={({ item }) => (
-          <SongCard song={item} onPress={() => playSong(item)} />
-        )}
         keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <TouchableOpacity onPress={() => loadAndPlay(item)} style={styles.songItem}>
+            <Text style={styles.songText}>{item.title}</Text>
+          </TouchableOpacity>
+        )}
       />
-      <Controls playing={playing} onPause={pauseSong} onStop={stopSong} />
+      <Controls
+        playing={playing}
+        onPause={handlePause}
+        onStop={handleStop}
+      />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -54,11 +114,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
     padding: theme.spacing.md,
   },
-  title: {
-    fontSize: 24,
-    color: theme.palette.text.primary,
-    marginBottom: theme.spacing.md,
+  songItem: {
+    padding: theme.spacing.sm,
+    backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.md,
+    marginVertical: theme.spacing.sm,
   },
+  songText: {
+    fontSize: 18,
+    color: theme.palette.text.primary,
+  }
 });
-
-export default MusicPlayer;
