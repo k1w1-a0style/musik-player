@@ -1,35 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../theme';
 
-const Covers = () => {
-  const [covers, setCovers] = useState([]);
-
-  useEffect(() => {
-    // Load covers from storage
-    setCovers([
-      { id: 1, image: require('../assets/cover1.jpg') },
-      { id: 2, image: require('../assets/cover2.jpg') },
-      { id: 3, image: require('../assets/cover3.jpg') },
-    ]);
-  }, []);
-
-  const handleSelectCover = (cover) => {
-    // Select cover
-  };
-
+const Covers: React.FC = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Covers</Text>
-      <FlatList
-        data={covers}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleSelectCover(item)}>
-            <Image source={item.image} style={styles.cover} />
-          </TouchableOpacity>
-        )}
-        keyExtractor={(item) => item.id.toString()}
-      />
+      <Text style={styles.placeholderText}>Cover-Anzeige Funktionalität wird hier implementiert.</Text>
     </View>
   );
 };
@@ -39,18 +16,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.palette.background,
     padding: theme.spacing.md,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
     fontSize: 24,
+    fontWeight: 'bold',
     color: theme.palette.text.primary,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
-  cover: {
-    width: 100,
-    height: 100,
-    borderRadius: theme.borderRadius.sm,
-    margin: theme.spacing.sm,
+  placeholderText: {
+    fontSize: 16,
+    color: theme.palette.text.secondary,
   },
 });
 
