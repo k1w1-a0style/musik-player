@@ -1,127 +1,147 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { Audio } from 'expo-av';
 import { theme } from '../theme';
-import Controls from '../components/Controls';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import * as Permissions from 'expo-permissions';
 
-interface Song { id: number; title: string; artist: string; uri: string; duration?: number; }
+const { width } = Dimensions.get('window');
+
+type Song = {
+  uri: string;
+  filename: string;
+  duration?: number;
+};
 
 const MusicPlayer: React.FC = () => {
-  const soundRef = useRef<Audio.Sound | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [index, setIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
-    const fetchSongs = async () => {
-      try {
-        const response = await fetch('https://api.example.com/songs');
-        const data = await response.json();
-        setSongs(data);
-      } catch (error) {
-        console.error('Fehler beim Abrufen der Songs:', error);
-      }
-    }
-    fetchSongs();
+    requestPermissions();
+    loadSongs();
   }, []);
 
-  const loadAndPlay = async (song: Song) => {
-    if (!song) return;
-    setIsLoading(true);
+  const requestPermissions = async () => {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      console.error('Permission to read media library not granted');
+    }
+  };
+
+  const loadSongs = async () => {
+    try {
+      const { assets } = await MediaLibrary.getAssetsAsync({
+        mediaType: 'audio',
+        first: 1000 // Limit to first 1000 songs
+      });
+
+      const audioSongs: Song[] = assets.map(asset => ({
+        uri: asset.uri,
+        filename: asset.filename,
+        duration: asset.duration
+      }));
+
+      setSongs(audioSongs);
+    } catch (error) {
+      console.error('Error loading songs:', error);
+    }
+  };
+
+  const playSong = async (song: Song) => {
     try {
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
-        soundRef.current = null;
       }
-      const { sound, status } = await Audio.Sound.createAsync(
+
+      const { sound } = await Audio.Sound.createAsync(
         { uri: song.uri },
-        { shouldPlay: true },
-        onPlaybackStatusUpdate
+        { shouldPlay: true }
       );
+
       soundRef.current = sound;
-      setPlaying(true);
-      setDuration(song.duration || 0);
-      setCurrentTime(0);
+      setCurrentSong(song);
+      setIsPlaying(true);
     } catch (error) {
-      console.error('Fehler beim Laden und Abspielen:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error playing song:', error);
     }
-  }
+  };
 
-  const onPlaybackStatusUpdate = (status) => {
-    if (status.isLoaded) {
-      soundRef.current?.setVolume(0.5);
-      soundRef.current?.setPositionAsync(0);
-      soundRef.current?.playAsync();
+  const togglePlayPause = async () => {
+    if (!soundRef.current) return;
+
+    if (isPlaying) {
+      await soundRef.current.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      await soundRef.current.playAsync();
+      setIsPlaying(true);
     }
-  }
+  };
 
-  const handleNextSong = () => {
-    setIndex((prevIndex) => (prevIndex + 1) % songs.length);
-    setCurrentSong(songs[index]);
-    loadAndPlay(songs[index]);
-  }
-
-  const handlePreviousSong = () => {
-    setIndex((prevIndex) => (prevIndex - 1 + songs.length) % songs.length);
-    setCurrentSong(songs[index]);
-    loadAndPlay(songs[index]);
-  }
-
-  const handlePause = () => {
-    if (soundRef.current) {
-      soundRef.current.pauseAsync();
-      setPlaying(false);
-    }
-  }
-
-  const handleStop = () => {
-    if (soundRef.current) {
-      soundRef.current.stopAsync();
-      setPlaying(false);
-      setCurrentTime(0);
-    }
-  }
+  const renderSongItem = ({ item }: { item: Song }) => (
+    <TouchableOpacity 
+      style={styles.songItem} 
+      onPress={() => playSong(item)}
+    >
+      <Text style={styles.songTitle}>{item.filename}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Meine Musikbibliothek</Text>
+      
+      {currentSong && (
+        <View style={styles.nowPlaying}>
+          <Text style={styles.nowPlayingText}>
+            Aktuell: {currentSong.filename}
+          </Text>
+          <TouchableOpacity onPress={togglePlayPause}>
+            <Text>{isPlaying ? 'Pause' : 'Play'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         data={songs}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => loadAndPlay(item)} style={styles.songItem}>
-            <Text style={styles.songText}>{item.title}</Text>
-          </TouchableOpacity>
-        )}
-      />
-      <Controls
-        playing={playing}
-        onPause={handlePause}
-        onStop={handleStop}
+        renderItem={renderSongItem}
+        keyExtractor={(item, index) => index.toString()}
       />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
-    padding: theme.spacing.md,
+    padding: theme.spacing.md
+  },
+  title: {
+    fontSize: 24,
+    color: theme.palette.text.primary,
+    marginBottom: theme.spacing.lg
   },
   songItem: {
-    padding: theme.spacing.sm,
-    backgroundColor: theme.palette.card,
-    borderRadius: theme.borderRadius.md,
-    marginVertical: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border
   },
-  songText: {
-    fontSize: 18,
-    color: theme.palette.text.primary,
+  songTitle: {
+    color: theme.palette.text.primary
+  },
+  nowPlaying: {
+    backgroundColor: theme.palette.card,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md
+  },
+  nowPlayingText: {
+    color: theme.palette.text.primary
   }
 });
+
+export default MusicPlayer;
