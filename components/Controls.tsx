@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
   stopButton: {
     fontSize: 16,
     color: theme.palette.error,
-  }
+  },
 });
 
 export default Controls;
