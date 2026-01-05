@@ -1,26 +1,41 @@
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { MusicProvider } from './contexts/MusicContext';
 import MusicPlayer from './screens/MusicPlayer';
-// import Playlists from './screens/Playlists'; // Nicht implementiert
-// import Id3TagEditor from './screens/Id3TagEditor'; // Nicht implementiert
-// import Covers from './screens/Covers'; // Nicht implementiert
-// import Equalizer from './screens/Equalizer'; // Nicht implementiert
+import Playlists from './screens/Playlists';
+import Equalizer from './screens/Equalizer';
+import Library from './screens/Library';
+import { registerForPushNotificationsAsync } from './utils/pushNotifications';
 
 const Stack = createNativeStackNavigator();
 
 const App = () => {
+  useEffect(() => {
+    // Register for push notifications on app start
+    registerForPushNotificationsAsync();
+  }, []);
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="MusicPlayer">
-        <Stack.Screen name="MusicPlayer" component={MusicPlayer} options={{ title: 'Musik Player' }} />
-        {/*
-        <Stack.Screen name="Playlists" component={Playlists} />
-        <Stack.Screen name="Id3TagEditor" component={Id3TagEditor} />
-        <Stack.Screen name="Covers" component={Covers} />
-        <Stack.Screen name="Equalizer" component={Equalizer} />
-        */}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <MusicProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="MusicPlayer"
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="MusicPlayer" component={MusicPlayer} />
+            <Stack.Screen name="Library" component={Library} />
+            <Stack.Screen name="Playlists" component={Playlists} />
+            <Stack.Screen name="Equalizer" component={Equalizer} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </MusicProvider>
+    </GestureHandlerRootView>
   );
 };
 
