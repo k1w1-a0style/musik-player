@@ -1,13 +1,11 @@
 # Musikplayer-App
 
-Eine Musikplayer-App mit Playlisten, ID3-Tag-Editor, Covers und Equalizer.
+Eine Musikplayer-App mit Musikwiedergabe und Kontrollfunktionen.
 
 ## Features
 
-* Playlisten: Erstellen und Verwalten von Playlisten
-* ID3-Tag-Editor: Bearbeiten von ID3-Tags für Musikdateien
-* Covers: Anzeigen von Album-Covern
-* Equalizer: Anpassen der Audio-Einstellungen
+* Musikwiedergabe: Wiedergeben von Musiktiteln
+* Kontrollfunktionen: Play, Pause, Stop
 
 ## Installation
 
@@ -18,7 +16,7 @@ Eine Musikplayer-App mit Playlisten, ID3-Tag-Editor, Covers und Equalizer.
 ## Nutzung
 
 1. Öffnen der App
-2. Navigation zu den verschiedenen Funktionen
+2. Navigation zur Musikwiedergabe
 
 ## Lizenz
 
