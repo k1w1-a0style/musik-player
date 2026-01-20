@@ -4,15 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       eas_project_id:
-        description: "Optional: existing EAS Project ID (UUID). Leave empty to let EAS try to create/link automatically."
+        description: "Existing EAS Project ID (optional)"
+        required: false
+        type: string
+      expo_owner:
+        description: "Expo account/organization (optional)"
         required: false
         type: string
 
 jobs:
   link:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID_INPUT: ${{ github.event.inputs.eas_project_id }}
+      EXPO_OWNER_INPUT: ${{ github.event.inputs.expo_owner }}
 
     steps:
       - name: Checkout
@@ -22,24 +28,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Fail if EXPO_TOKEN missing
+        run: |
+          set -e
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "::error::Missing EXPO_TOKEN secret. Add GitHub Secret EXPO_TOKEN (or run Secrets Sync in the app)."
+            exit 1
+          fi
 
       - name: Setup Expo / EAS
         uses: expo/expo-github-action@v8
         with:
-          expo-token: ${{ secrets.EXPO_TOKEN }}
+          expo-version: latest
           eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install deps
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          set -e
+          npm ci || npm install
 
       - name: EAS project:init (link / create)
         env:
-          EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -e
           if [ -n "$EAS_PROJECT_ID_INPUT" ]; then
@@ -53,13 +66,12 @@ jobs:
       - name: Commit changes (if any)
         run: |
           set -e
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(eas): link/init project"
+            git push
+          else
+            echo "Commit changes (if any): skipped"
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(eas): link/init project"
-          git push
-
