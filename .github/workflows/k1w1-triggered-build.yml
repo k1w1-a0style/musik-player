@@ -1,22 +1,32 @@
-name: K1W1 App Build
+name: K1W1 Triggered Build
 
 on:
-  # Triggered by Supabase Edge Function via repository_dispatch
   repository_dispatch:
     types: [trigger-eas-build]
-
-  # Manual trigger from GitHub UI (optional)
   workflow_dispatch:
     inputs:
-      job_id:
-        description: "Optional Job ID from K1W1 App (for status tracking)"
+      ref:
+        description: "Branch/Ref to build (e.g. main, dev, feature-x)"
         required: false
-        type: string
+        default: "main"
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
         default: "preview"
-        type: string
+      job_id:
+        description: "Supabase build job id"
+        required: false
+        default: ""
+
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-
+    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref }}-
+    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -25,103 +35,139 @@ jobs:
     timeout-minutes: 60
 
     env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.0.0"
+
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      # repo_dispatch sends github.event.client_payload.job_id
-      # workflow_dispatch sends inputs.job_id
-      JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
+
+      JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Determine build profile
+      - name: Determine checkout ref
         shell: bash
         run: |
           set -euo pipefail
+          REF="${{ github.event.client_payload.branch }}"
+          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
+          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
+          if [ -z "$REF" ]; then REF="main"; fi
+          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
+          echo "📌 Checkout ref: $REF"
 
+      - name: Determine build profile + artifact extension
+        shell: bash
+        run: |
+          set -euo pipefail
           PROFILE="${{ github.event.client_payload.build_profile }}"
-          if [ -z "${PROFILE}" ]; then
-            PROFILE="${{ github.event.client_payload.buildProfile }}"
-          fi
-          if [ -z "${PROFILE}" ]; then
-            PROFILE="${{ inputs.profile }}"
-          fi
-          if [ -z "${PROFILE}" ]; then
-            PROFILE="preview"
-          fi
+          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi
+          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi
+          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
 
-          if [[ ! "${PROFILE}" =~ ^(development|preview|production)$ ]]; then
-            echo "::warning::Invalid PROFILE='${PROFILE}', defaulting to preview"
-            PROFILE="preview"
-          fi
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *)
+              echo "::warning::Invalid PROFILE='$PROFILE', defaulting to preview"
+              PROFILE="preview"
+              ;;
+          esac
 
-          echo "PROFILE=${PROFILE}" >> "${GITHUB_ENV}"
-          echo "✅ Using build profile: ${PROFILE}"
+          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
 
-      - name: Validate Job ID
+          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
+          echo "ARTIFACT_EXT=$EXT" >> "$GITHUB_ENV"
+          echo "✅ Using build profile: $PROFILE (artifact: .$EXT)"
+
+      - name: Validate secrets / optional JOB_ID
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${JOB_ID}" ]; then
-            echo "has_job_id=false" >> "${GITHUB_ENV}"
-            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
-          else
-            echo "has_job_id=true" >> "${GITHUB_ENV}"
-            echo "✅ JOB_ID: ${JOB_ID}"
-          fi
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Ensure EXPO_TOKEN exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+          if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
-          echo "✅ EXPO_TOKEN secret is set"
 
-      - name: Setup Expo & EAS
-        uses: expo/expo-github-action@v8
+          if [ -z "${JOB_ID:-}" ]; then
+            echo "has_job_id=false" >> "$GITHUB_ENV"
+            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
+          else
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
+              echo "has_job_id=false" >> "$GITHUB_ENV"
+            else
+              echo "has_job_id=true" >> "$GITHUB_ENV"
+              echo "✅ JOB_ID: ${JOB_ID}"
+            fi
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-          packager: npm
-          expo-cache: true
-          eas-cache: true
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
 
-      - name: Verify EAS authentication
+      - name: Detect lockfile (for cache + install strategy)
+        id: lock
         shell: bash
         run: |
           set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Repo root: $(pwd)"
+          echo "Files:"; ls -lah
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (frozen if possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
-          eas whoami
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Update Build Status - Building
-        if: env.has_job_id == 'true'
+      - name: Verify EAS auth
         shell: bash
         run: |
           set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"building\",\"build_profile\":\"${PROFILE}\",\"github_run_id\":\"${{ github.run_id }}\",\"started_at\":\"${TS}\"}" \
-            || echo "::warning::Failed to update Supabase status"
+          eas whoami
 
       - name: Run EAS Build (WAIT)
         id: eas
@@ -130,12 +176,7 @@ jobs:
           set -euo pipefail
           echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
 
-          BUILD_OUTPUT="$(eas build \
-            --platform android \
-            --profile "${PROFILE}" \
-            --non-interactive \
-            --wait \
-            2>&1)" || {
+          BUILD_OUTPUT="$(eas build             --platform android             --profile "${PROFILE}"             --non-interactive             --wait             2>&1)" || {
               CODE=$?
               echo "${BUILD_OUTPUT}"
               echo "::error::EAS build failed (exit ${CODE})"
@@ -144,25 +185,23 @@ jobs:
 
           echo "${BUILD_OUTPUT}"
 
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\\s*\\K[a-fA-F0-9-]+' | head -n1 || true)"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oP 'https://expo\\.dev/accounts/[^/]+/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
-      - name: Download Android Artifact (APK)
+      - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
-          echo "📦 Downloading APK for build: ${{ steps.eas.outputs.build_id }}"
-          eas build:download \
-            --id "${{ steps.eas.outputs.build_id }}" \
-            --output "build/k1w1-${PROFILE}.apk" || {
-              echo "::warning::Failed to download APK"
+          OUT="build/k1w1-${PROFILE}.${ARTIFACT_EXT}"
+          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
+              echo "::warning::Failed to download artifact"
               exit 0
             }
           ls -lah build || true
@@ -170,42 +209,30 @@ jobs:
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
-          path: build/*.apk
+          path: build/*
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Update Build Status - Success
-        if: success() && env.has_job_id == 'true'
+      - name: Summary
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Triggered Build Summary
 
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\",\"completed_at\":\"${TS}\"}" \
-            || echo "::warning::Failed to update Supabase status"
+          - Repo: ${{ github.repository }}
+          - Event: ${{ github.event_name }}
+          - Checkout ref: ${CHECKOUT_REF}
+          - Profile: ${PROFILE}
+          - Checked out: $(git rev-parse HEAD)
+          - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
+          - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
+          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
+          - Build ID: ${{ steps.eas.outputs.build_id }}
+          - Build URL: ${{ steps.eas.outputs.build_url }}
 
-      - name: Update Build Status - Failed
-        if: failure() && env.has_job_id == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          ERR="Build failed. Check GitHub Actions logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\",\"error_message\":\"${ERR}\",\"completed_at\":\"${TS}\"}" \
-            || echo "::warning::Failed to update Supabase status"
+          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
