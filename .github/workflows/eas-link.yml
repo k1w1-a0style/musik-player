@@ -12,66 +12,127 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   link:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.0.0"
       EAS_PROJECT_ID_INPUT: ${{ github.event.inputs.eas_project_id }}
       EXPO_OWNER_INPUT: ${{ github.event.inputs.expo_owner }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Fail if EXPO_TOKEN missing
+      - name: Diagnostics (commit + branch + token presence)
+        shell: bash
         run: |
-          set -e
-          if [ -z "${EXPO_TOKEN}" ]; then
-            echo "::error::Missing EXPO_TOKEN secret. Add GitHub Secret EXPO_TOKEN (or run Secrets Sync in the app)."
+          set -euo pipefail
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "Checked out: $(git rev-parse HEAD)"
+
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing EXPO_TOKEN secret. Add GitHub Secret EXPO_TOKEN."
             exit 1
           fi
+          echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
 
-      - name: Setup Expo / EAS
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          echo "" 
+          echo "Workflow sanity (first 80 lines):"
+          sed -n '1,80p' .github/workflows/eas-link.yml
 
-      - name: Install deps
+      - name: Install deps (frozen)
+        run: npm ci --no-audit --no-fund
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
         run: |
-          set -e
-          npm ci || npm install
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          eas --version
+
+      - name: Verify EAS auth (whoami)
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
 
       - name: EAS project:init (link / create)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        shell: bash
         run: |
-          set -e
-          if [ -n "$EAS_PROJECT_ID_INPUT" ]; then
-            echo "Linking with EAS Project ID: $EAS_PROJECT_ID_INPUT"
-            npx --yes eas-cli@latest project:init --id "$EAS_PROJECT_ID_INPUT" --non-interactive --force
-          else
-            echo "No EAS Project ID provided. Trying project:init without --id."
-            npx --yes eas-cli@latest project:init --non-interactive --force
+          set -euo pipefail
+
+          OWNER_ARGS=()
+          if [ -n "${EXPO_OWNER_INPUT:-}" ]; then
+            OWNER_ARGS=(--owner "${EXPO_OWNER_INPUT}")
           fi
 
-      - name: Commit changes (if any)
+          if [ -n "${EAS_PROJECT_ID_INPUT:-}" ]; then
+            echo "Linking with EAS Project ID: ${EAS_PROJECT_ID_INPUT}"
+            eas project:init --id "${EAS_PROJECT_ID_INPUT}" --non-interactive --force "${OWNER_ARGS[@]}"
+            node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${EAS_PROJECT_ID_INPUT}"
+          else
+            echo "No EAS Project ID provided. Running project:init and extracting projectId from expo config..."
+            eas project:init --non-interactive --force "${OWNER_ARGS[@]}"
+
+            npx --no-install expo config --json > /tmp/expo-config.json
+            PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
+
+            if [ -z "${PROJECT_ID}" ]; then
+              echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."
+              exit 1
+            fi
+
+            node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${PROJECT_ID}"
+            echo "✅ Wrote eas-project.json with projectId=${PROJECT_ID}"
+          fi
+
+      - name: Summary
+        if: always()
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          {
+            echo "## EAS Link / Init Summary"
+            echo ""
+            echo "- Ref: ${GITHUB_REF}"
+            echo "- SHA: ${GITHUB_SHA}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Has EXPO_TOKEN: $([ -n \"${EXPO_TOKEN:-}\" ] && echo yes || echo no)"
+            echo ""
+            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit changes (if any)
+        shell: bash
+        run: |
+          set -euo pipefail
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "chore(eas): link/init project"
+            git commit -m "chore(eas): link/init projectId"
             git push
           else
-            echo "Commit changes (if any): skipped"
+            echo "No changes to commit."
           fi
