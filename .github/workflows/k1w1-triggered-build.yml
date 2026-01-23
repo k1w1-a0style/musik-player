@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -168,6 +168,41 @@ jobs:
         run: |
           set -euo pipefail
           eas whoami
+
+      - name: Self-heal repo (lockfile + dev client) [commit back]
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ env.CHECKOUT_REF }}
+          PROFILE: ${{ env.PROFILE }}
+        run: |
+          set -euo pipefail
+
+          echo "🧯 Self-heal: ensure lockfile + expo-dev-client (if development)."
+          npm config set package-lock true
+
+          if [ "${PROFILE}" = "development" ]; then
+            echo "📦 Ensuring expo-dev-client for development builds..."
+            npx expo install expo-dev-client --fix || npx expo install expo-dev-client
+          fi
+
+          if [ ! -f package-lock.json ]; then
+            echo "📌 Generating package-lock.json..."
+            npm install --package-lock-only --no-audit --no-fund
+          fi
+
+          if git status --porcelain | grep -qE '^( M|??) (package.json|package-lock.json|.npmrc)$'; then
+            echo "✅ Changes detected -> committing back to repo."
+            git config user.email "actions@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add package.json package-lock.json .npmrc 2>/dev/null || true
+            git commit -m "chore(ci): self-heal lockfile/dev-client" || true
+            BR="${TARGET_BRANCH:-}"
+            if [ -z "$BR" ]; then BR="$(git rev-parse --abbrev-ref HEAD)"; fi
+            echo "🚀 Pushing to origin $BR (best effort)..."
+            git push origin "HEAD:$BR" || echo "::warning::Could not push self-heal commit (branch may be protected or ref is not a branch)."
+          else
+            echo "ℹ️ No relevant changes to commit."
+          fi
 
       - name: Run EAS Build (WAIT)
         id: eas
