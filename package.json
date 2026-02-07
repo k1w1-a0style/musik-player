@@ -21,7 +21,8 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~18.3.12",
     "typescript": "^5.3.3",
-    "jest-expo": "~54.0.16"
+    "jest-expo": "~54.0.16",
+    "eslint": "*"
   },
   "private": true
 }
