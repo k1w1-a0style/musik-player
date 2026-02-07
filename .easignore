@@ -1,0 +1,9 @@
+.git
+node_modules
+android
+ios
+.expo
+.cache
+dist
+build
+.DS_Store
