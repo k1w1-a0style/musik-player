@@ -32,6 +32,10 @@
     },
     "web": {
       "favicon": "./assets/icon.png"
-    }
+    },
+    "platforms": [
+      "android"
+    ],
+    "newArchEnabled": true
   }
 }
