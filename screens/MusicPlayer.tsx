@@ -1,117 +1,132 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions } from 'react-native';
-import { Audio } from 'expo-av';
+import React, { useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
 import { theme } from '../theme';
-import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
-import * as Permissions from 'expo-permissions';
-
-const { width } = Dimensions.get('window');
-
-type Song = {
-  uri: string;
-  filename: string;
-  duration?: number;
-};
+import { useMusicContext } from '../src/contexts/MusicContext';
+import Controls from '../components/Controls';
+import ProgressBar from '../components/ProgressBar';
+import type { Song } from '../src/types/Song';
 
 const MusicPlayer: React.FC = () => {
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const {
+    queue,
+    currentIndex,
+    setQueue,
+    currentPosition,
+    duration,
+    seekTo,
+  } = useMusicContext();
 
   useEffect(() => {
-    requestPermissions();
     loadSongs();
   }, []);
 
-  const requestPermissions = async () => {
+  const loadSongs = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') {
       console.error('Permission to read media library not granted');
+      return;
     }
-  };
 
-  const loadSongs = async () => {
     try {
       const { assets } = await MediaLibrary.getAssetsAsync({
         mediaType: 'audio',
-        first: 1000 // Limit to first 1000 songs
+        first: 100,
       });
 
-      const audioSongs: Song[] = assets.map(asset => ({
+      const songs: Song[] = assets.map((asset) => ({
         uri: asset.uri,
         filename: asset.filename,
-        duration: asset.duration
+        duration: asset.duration,
       }));
 
-      setSongs(audioSongs);
+      setQueue(songs);
     } catch (error) {
       console.error('Error loading songs:', error);
     }
   };
 
-  const playSong = async (song: Song) => {
-    try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
+  const currentSong = useMemo(() => queue[currentIndex], [queue, currentIndex]);
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: song.uri },
-        { shouldPlay: true }
-      );
-
-      soundRef.current = sound;
-      setCurrentSong(song);
-      setIsPlaying(true);
-    } catch (error) {
-      console.error('Error playing song:', error);
-    }
+  const renderSongItem = ({ item, index }: { item: Song; index: number }) => {
+    const isActive = index === currentIndex;
+    return (
+      <TouchableOpacity
+        style={[styles.songItem, isActive && styles.activeSongItem]}
+        onPress={() => setQueue(queue, index)}
+      >
+        <Image
+          source={{ uri: 'https://via.placeholder.com/50' }}
+          style={styles.thumbnail}
+        />
+        <View style={styles.songInfo}>
+          <Text
+            style={[styles.songTitle, isActive && styles.activeSongTitle]}
+            numberOfLines={1}
+          >
+            {item.filename}
+          </Text>
+          {item.duration && (
+            <Text style={styles.songDuration}>
+              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
   };
-
-  const togglePlayPause = async () => {
-    if (!soundRef.current) return;
-
-    if (isPlaying) {
-      await soundRef.current.pauseAsync();
-      setIsPlaying(false);
-    } else {
-      await soundRef.current.playAsync();
-      setIsPlaying(true);
-    }
-  };
-
-  const renderSongItem = ({ item }: { item: Song }) => (
-    <TouchableOpacity 
-      style={styles.songItem} 
-      onPress={() => playSong(item)}
-    >
-      <Text style={styles.songTitle}>{item.filename}</Text>
-    </TouchableOpacity>
-  );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Meine Musikbibliothek</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
       
-      {currentSong && (
-        <View style={styles.nowPlaying}>
-          <Text style={styles.nowPlayingText}>
-            Aktuell: {currentSong.filename}
-          </Text>
-          <TouchableOpacity onPress={togglePlayPause}>
-            <Text>{isPlaying ? 'Pause' : 'Play'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.nowPlayingContainer}>
+        <Image
+          source={{ uri: 'https://via.placeholder.com/200' }}
+          style={styles.albumArt}
+        />
+        <Text style={styles.nowPlayingTitle} numberOfLines={1}>
+          {currentSong?.filename || 'No song selected'}
+        </Text>
+        <Text style={styles.nowPlayingArtist}>Unknown Artist</Text>
+      </View>
+
+      <ProgressBar
+        currentPosition={currentPosition}
+        duration={duration}
+        onSeek={seekTo}
+      />
+
+      <Controls />
+
+      <View style={styles.queueHeader}>
+        <Text style={styles.queueTitle}>Queue ({queue.length})</Text>
+      </View>
 
       <FlatList
-        data={songs}
+        data={queue}
         renderItem={renderSongItem}
-        keyExtractor={(item, index) => index.toString()}
+        keyExtractor={(item, index) => `${item.uri}-${index}`}
+        style={styles.songList}
+        contentContainerStyle={styles.songListContent}
+        showsVerticalScrollIndicator={false}
+        initialScrollIndex={currentIndex}
+        getItemLayout={(data, index) => ({
+          length: 70,
+          offset: 70 * index,
+          index,
+        })}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -119,29 +134,78 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.palette.background,
-    padding: theme.spacing.md
   },
-  title: {
-    fontSize: 24,
+  nowPlayingContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+  },
+  albumArt: {
+    width: 200,
+    height: 200,
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: theme.spacing.md,
+  },
+  nowPlayingTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: theme.palette.text.primary,
-    marginBottom: theme.spacing.lg
+    marginBottom: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  nowPlayingArtist: {
+    fontSize: 16,
+    color: theme.palette.text.secondary,
+  },
+  queueHeader: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  queueTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  songList: {
+    flex: 1,
+  },
+  songListContent: {
+    paddingBottom: theme.spacing.lg,
   },
   songItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border
+    borderBottomColor: theme.palette.border,
+  },
+  activeSongItem: {
+    backgroundColor: theme.palette.card,
+  },
+  thumbnail: {
+    width: 50,
+    height: 50,
+    borderRadius: theme.borderRadius.sm,
+    marginRight: theme.spacing.md,
+  },
+  songInfo: {
+    flex: 1,
   },
   songTitle: {
-    color: theme.palette.text.primary
+    fontSize: 16,
+    color: theme.palette.text.primary,
+    marginBottom: theme.spacing.xs,
   },
-  nowPlaying: {
-    backgroundColor: theme.palette.card,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md
+  activeSongTitle: {
+    color: theme.palette.primary,
+    fontWeight: '600',
   },
-  nowPlayingText: {
-    color: theme.palette.text.primary
-  }
+  songDuration: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
 });
 
 export default MusicPlayer;
