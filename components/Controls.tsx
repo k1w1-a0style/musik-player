@@ -1,43 +1,98 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
+import { useMusicContext } from '../src/contexts/MusicContext';
 
-interface ControlsProps { playing: boolean; onPause: () => void; onStop: () => void; }
+const Controls: React.FC = () => {
+  const {
+    isPlaying,
+    isLoading,
+    togglePlayPause,
+    playNext,
+    playPrev,
+    shuffle,
+    repeatMode,
+    setRepeatMode,
+  } = useMusicContext();
 
-const Controls: React.FC<ControlsProps> = ({ playing, onPause, onStop }) => {
+  const handleRepeatPress = () => {
+    const modes: Array<'off' | 'one' | 'all'> = ['off', 'one', 'all'];
+    const currentIndex = modes.indexOf(repeatMode);
+    const nextMode = modes[(currentIndex + 1) % modes.length];
+    setRepeatMode(nextMode);
+  };
+
+  const getRepeatIcon = () => {
+    if (repeatMode === 'one') return 'repeat-outline';
+    if (repeatMode === 'all') return 'repeat';
+    return 'repeat-outline';
+  };
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={onPause} style={styles.button}>
-        <Text style={styles.playPauseButton}>{playing ? 'Pause' : 'Play'}</Text>
+      <TouchableOpacity onPress={shuffle} style={styles.button}>
+        <Ionicons name="shuffle" size={24} color={theme.palette.text.secondary} />
       </TouchableOpacity>
-      <TouchableOpacity onPress={onStop} style={styles.button}>
-        <Text style={styles.stopButton}>Stop</Text>
+
+      <TouchableOpacity onPress={playPrev} style={styles.button}>
+        <Ionicons name="play-skip-back" size={32} color={theme.palette.text.primary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={togglePlayPause}
+        style={[styles.button, styles.playButton]}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="large" color={theme.palette.primary} />
+        ) : (
+          <Ionicons
+            name={isPlaying ? 'pause' : 'play'}
+            size={40}
+            color={theme.palette.primary}
+          />
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={playNext} style={styles.button}>
+        <Ionicons name="play-skip-forward" size={32} color={theme.palette.text.primary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={handleRepeatPress} style={styles.button}>
+        <Ionicons
+          name={getRepeatIcon()}
+          size={24}
+          color={repeatMode !== 'off' ? theme.palette.primary : theme.palette.text.secondary}
+        />
       </TouchableOpacity>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    padding: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.palette.card,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius.lg,
     marginVertical: theme.spacing.md,
   },
   button: {
     padding: theme.spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  playPauseButton: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.palette.primary,
-  },
-  stopButton: {
-    fontSize: 16,
-    color: theme.palette.error,
+  playButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: theme.palette.background,
+    borderWidth: 2,
+    borderColor: theme.palette.primary,
   },
 });
 
