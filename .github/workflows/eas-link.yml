@@ -110,7 +110,7 @@ jobs:
           set -euo pipefail
           eas whoami
 
-      - name: EAS project:init (link/create)
+      - name: "EAS project:init (link/create)"
         shell: bash
         run: |
           set -euo pipefail
