@@ -215,7 +215,7 @@ jobs:
           set -euo pipefail
           eas whoami
 
-      - name: "Update Supabase job: running"
+      - name: Update Supabase job: running
         if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
         shell: bash
         run: |
