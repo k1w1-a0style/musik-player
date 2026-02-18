@@ -148,8 +148,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${JOB_ID:-}" ] && ! [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then
-            echo "⚠️ Invalid JOB_ID from payload; clearing"
+          UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          if [ -n "${JOB_ID:-}" ] && ! [[ "$JOB_ID" =~ $UUID_RE ]]; then
+            echo "⚠️ Invalid JOB_ID (UUID expected) from payload; clearing"
             echo "JOB_ID=" >> "$GITHUB_ENV"
           fi
 
@@ -231,14 +232,19 @@ jobs:
             "github_repo": os.environ.get("GITHUB_REPOSITORY",""),
             "github_run_id": os.environ.get("GITHUB_RUN_ID",""),
           }
-          subprocess.check_call([
+          try:
+            p = subprocess.run([
             "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
             "-H",f"apikey: {key}",
             "-H",f"Authorization: Bearer {key}",
             "-H","Content-Type: application/json",
             "-H","Prefer: return=minimal",
             "--data",json.dumps(body)
-          ])
+            ], check=False)
+            if p.returncode != 0:
+              print(f"::warning::Supabase update failed (running) rc={p.returncode}")
+          except Exception as e:
+            print(f"::warning::Supabase update crashed (running): {e}")
           PY
 
       - name: Run EAS Build (WAIT)
@@ -317,14 +323,19 @@ jobs:
           bu=os.environ.get("EAS_BUILD_URL","").strip()
           if bu:
             body["build_url"]=bu
-          subprocess.check_call([
+          try:
+            p = subprocess.run([
             "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
             "-H",f"apikey: {key}",
             "-H",f"Authorization: Bearer {key}",
             "-H","Content-Type: application/json",
             "-H","Prefer: return=minimal",
             "--data",json.dumps(body)
-          ])
+            ], check=False)
+            if p.returncode != 0:
+              print(f"::warning::Supabase update failed (success) rc={p.returncode}")
+          except Exception as e:
+            print(f"::warning::Supabase update crashed (success): {e}")
           PY
 
       - name: "Update Supabase job: failure"
@@ -345,14 +356,19 @@ jobs:
           bu=os.environ.get("EAS_BUILD_URL","").strip()
           if bu:
             body["build_url"]=bu
-          subprocess.check_call([
+          try:
+            p = subprocess.run([
             "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
             "-H",f"apikey: {key}",
             "-H",f"Authorization: Bearer {key}",
             "-H","Content-Type: application/json",
             "-H","Prefer: return=minimal",
             "--data",json.dumps(body)
-          ])
+            ], check=False)
+            if p.returncode != 0:
+              print(f"::warning::Supabase update failed (failure) rc={p.returncode}")
+          except Exception as e:
+            print(f"::warning::Supabase update crashed (failure): {e}")
           PY
 
       - name: Summary
