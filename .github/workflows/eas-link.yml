@@ -1,0 +1,22 @@
+name: EAS Link
+
+on: workflow_dispatch
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Link EAS Project
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas --non-interactive link --id a2d62be0-f3dc-412c-9db0-31adb3872b02
