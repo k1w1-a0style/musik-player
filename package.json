@@ -1,12 +1,10 @@
 {
-  "name": "neues-projekt",
+  "name": "app",
   "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint:ci": "eslint . --quiet",
     "test:silent": "jest --runInBand"
@@ -18,11 +16,8 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@types/react": "~18.3.12",
-    "typescript": "^5.3.3",
     "jest-expo": "~54.0.16",
-    "eslint": "*"
-  },
-  "private": true
+    "typescript": "^5.8.0",
+    "@types/react": "^19.0.0"
+  }
 }
