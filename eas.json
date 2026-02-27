@@ -5,12 +5,18 @@
   "build": {
     "preview": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "withoutCredentials": true
       }
     },
     "production": {
       "android": {
         "buildType": "apk"
+      }
+    },
+    "development": {
+      "android": {
+        "withoutCredentials": true
       }
     }
   }
