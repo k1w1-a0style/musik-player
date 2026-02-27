@@ -16,7 +16,8 @@
     },
     "development": {
       "android": {
-        "withoutCredentials": true
+        "withoutCredentials": true,
+        "buildType": "apk"
       }
     }
   }
