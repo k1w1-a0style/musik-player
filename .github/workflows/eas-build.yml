@@ -6,7 +6,7 @@ on:
       ref:
         description: "Branch/Tag/SHA to build"
         required: false
-        default: ""
+        default: "main"
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
