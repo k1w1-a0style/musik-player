@@ -1,37 +1,19 @@
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { theme } from '../theme';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
-const PlaylistCard = ({ playlist }) => {
+const PlaylistCard: React.FC<{ playlist: any }> = ({ playlist }) => {
   return (
     <View style={styles.container}>
-      <Image source={{ uri: playlist.cover }} style={styles.cover} />
-      <Text style={styles.title}>{playlist.title}</Text>
-      <Text style={styles.description}>{playlist.description}</Text>
+      <Text>{playlist.name}</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: theme.palette.background,
-    borderRadius: theme.borderRadius.sm,
-    padding: theme.spacing.md,
-  },
-  cover: {
-    width: '100%',
-    height: 150,
-    resizeMode: 'cover',
-    borderRadius: theme.borderRadius.sm,
-  },
-  title: {
-    fontSize: 18,
-    color: theme.palette.primary,
-    fontWeight: 'bold',
-  },
-  description: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
   },
 });
 
