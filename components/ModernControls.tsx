@@ -1,22 +1,14 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import Slider from '@react-native-community/slider';
 
 const ModernControls: React.FC = () => {
   return (
-    <View style={styles.container}>
-      <Slider style={styles.slider} />
+    <View>
+      <Text>Volume Control</Text>
+      <Slider minimumValue={0} maximumValue={100} />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  slider: {
-    width: '100%',
-  },
-});
 
 export default ModernControls;
