@@ -5,8 +5,8 @@ import { BlurView } from 'expo-blur';
 
 const Library: React.FC = () => {
   return (
-    <LinearGradient colors={['#e0e0e0', '#ffffff']}>
-      <BlurView intensity={50} style={{ borderRadius: 10 }}>
+    <LinearGradient colors={['#ff7e5f', '#feb47b']}>
+      <BlurView intensity={50} style={{ flex: 1 }}>
         <Text>Library</Text>
       </BlurView>
     </LinearGradient>
