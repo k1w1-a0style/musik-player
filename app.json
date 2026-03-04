@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "My App",
-    "slug": "musik-player",
+    "slug": "my-app",
     "version": "1.0.0",
     "platforms": [
       "android"
@@ -22,12 +22,6 @@
     },
     "assetBundlePatterns": [
       "**/*"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "a2d62be0-f3dc-412c-9db0-31adb3872b02"
-      }
-    },
-    "owner": "a0style"
+    ]
   }
 }
