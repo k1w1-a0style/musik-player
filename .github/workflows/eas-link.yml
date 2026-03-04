@@ -1,22 +1,182 @@
-name: EAS Link
+name: EAS Link / Init
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA (optional)"
+        required: false
+        default: "main"
+      eas_project_id:
+        description: "Existing EAS Project ID (optional)"
+        required: false
+        type: string
+      expo_owner:
+        description: "Expo account/organization (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref }}
+  cancel-in-progress: false
 
 jobs:
   link:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.0.0"
+      EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
+      EXPO_OWNER_INPUT: ${{ inputs.expo_owner }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 18.x
+          node-version: 20
 
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
+      - name: Validate secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
+          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+          echo "Ref: ${{ inputs.ref }}"
+          echo "EAS_PROJECT_ID_INPUT: ${EAS_PROJECT_ID_INPUT:-<empty>}"
+          echo "EXPO_OWNER_INPUT: ${EXPO_OWNER_INPUT:-<empty>}"
 
-      - name: Link EAS Project
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas --non-interactive link --id a2d62be0-f3dc-412c-9db0-31adb3872b02
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install deps (reproducible when possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          else
+            echo "::warning::No lockfile found. Falling back to npm install."
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            if [ ! -f package-lock.json ]; then
+              npm install --package-lock-only --no-audit --no-fund || true
+            fi
+          fi
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          eas --version
+
+      - name: Verify EAS auth (whoami)
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
+
+      - name: "EAS project:init (link/create)"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OWNER_ARGS=()
+          if [ -n "${EXPO_OWNER_INPUT:-}" ]; then
+            OWNER_ARGS=(--owner "${EXPO_OWNER_INPUT}")
+          fi
+
+          if [ -n "${EAS_PROJECT_ID_INPUT:-}" ]; then
+            echo "Linking with EAS Project ID: ${EAS_PROJECT_ID_INPUT}"
+            eas project:init --id "${EAS_PROJECT_ID_INPUT}" --non-interactive --force "${OWNER_ARGS[@]}"
+            node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${EAS_PROJECT_ID_INPUT}"
+          else
+            echo "No EAS Project ID provided. Running project:init and keeping generated eas-project.json..."
+            eas project:init --non-interactive --force "${OWNER_ARGS[@]}"
+            if [ ! -f eas-project.json ]; then
+              echo "::warning::eas-project.json not found after project:init. Trying to read projectId from expo config..."
+              npx --yes expo config --json > /tmp/expo-config.json
+              PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
+              if [ -z "${PROJECT_ID}" ]; then
+                echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."
+                exit 1
+              fi
+              node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${PROJECT_ID}"
+            fi
+          fi
+
+          echo "eas-project.json:"
+          cat eas-project.json || true
+
+      - name: Commit changes (if any)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
+          if [ -z "$BRANCH" ]; then
+            echo "::warning::Detached HEAD -> not pushing changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(eas): link/init projectId [skip ci]" || true
+          git push origin "$BRANCH" || true
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## EAS Link / Init Summary"
+            echo ""
+            echo "- Ref: ${{ inputs.ref }}"
+            echo "- SHA: ${GITHUB_SHA}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"
+            echo ""
+            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
