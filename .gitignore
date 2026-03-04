@@ -17,3 +17,11 @@ yarn-error.log
 
 .vscode/
 .idea/
+
+# --- k1w1 apk-builder: ignore patch zips ---
+k1w1-*.zip
+*_patch*.zip
+project_src_*.zip
+project_dump_*.zip
+k1w1-*-patch.zip
+k1w1-*-hotfix*.zip
