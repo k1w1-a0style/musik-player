@@ -1,0 +1,55 @@
+name: K1W1 CI Lite (Lint + Typecheck)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Ref to check (e.g. work, main, dev)"
+        required: false
+        default: ""
+      job_id:
+        description: "Client job id (UUID) for log correlation"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    k1w1-ci-lite-
+    ${{ github.event.inputs.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Lint + Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    env:
+      JOB_ID: ${{ github.event.inputs.job_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint:ci
+
