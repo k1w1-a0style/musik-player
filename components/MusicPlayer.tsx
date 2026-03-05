@@ -1,6 +1,7 @@
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-const MusicPlayer = () => {
+const MusicPlayer: React.FC = () => {
   return (
     <View style={styles.container}>
       <Text>Music Player</Text>
