@@ -8,8 +8,6 @@ import { Platform } from 'react-native';
  * Returns the token string or undefined if registration fails.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | undefined> {
-  let token: string | undefined;
-
   // Push notifications only work on a physical device
   if (!Device.isDevice) {
     console.warn('Push notifications are only supported on physical devices');
@@ -34,8 +32,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | unde
 
   // Get the Expo push token
   const response = await Notifications.getExpoPushTokenAsync();
-  token = response.data;
-  console.log('Expo Push Token:', token);
+  const token = response.data;
 
   // Android specific configuration
   if (Platform.OS === 'android') {

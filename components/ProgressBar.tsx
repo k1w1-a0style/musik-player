@@ -1,5 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  GestureResponderEvent,
+  LayoutChangeEvent,
+  Pressable,
+} from 'react-native';
 import { theme } from '../theme';
 
 interface ProgressBarProps {
@@ -9,6 +16,7 @@ interface ProgressBarProps {
 }
 
 const formatTime = (millis: number): string => {
+  if (!isFinite(millis) || millis < 0) return '0:00';
   const totalSeconds = Math.floor(millis / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -16,27 +24,38 @@ const formatTime = (millis: number): string => {
 };
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek }) => {
-  const progress = duration > 0 ? (currentPosition / duration) * 100 : 0;
+  const [barWidth, setBarWidth] = useState(0);
+  const progress = duration > 0 ? Math.min(100, (currentPosition / duration) * 100) : 0;
 
-  const handlePress = (event: any) => {
-    const { locationX } = event.nativeEvent;
-    const barWidth = event.currentTarget.offsetWidth || 300;
-    const newPosition = (locationX / barWidth) * duration;
-    onSeek(newPosition);
-  };
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    setBarWidth(e.nativeEvent.layout.width);
+  }, []);
+
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      if (barWidth <= 0 || duration <= 0) return;
+      const { locationX } = event.nativeEvent;
+      const ratio = Math.max(0, Math.min(1, locationX / barWidth));
+      onSeek(ratio * duration);
+    },
+    [barWidth, duration, onSeek],
+  );
 
   return (
     <View style={styles.container}>
       <Text style={styles.time}>{formatTime(currentPosition)}</Text>
-      <TouchableOpacity
+      <Pressable
+        testID="progress-bar"
+        accessibilityRole="adjustable"
+        accessibilityValue={{ now: Math.round(progress), min: 0, max: 100 }}
         style={styles.progressBarContainer}
-        activeOpacity={1}
+        onLayout={handleLayout}
         onPress={handlePress}
       >
         <View style={styles.progressBarBackground}>
           <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
         </View>
-      </TouchableOpacity>
+      </Pressable>
       <Text style={styles.time}>{formatTime(duration)}</Text>
     </View>
   );
@@ -58,6 +77,7 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     flex: 1,
     marginHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
   },
   progressBarBackground: {
     height: 4,

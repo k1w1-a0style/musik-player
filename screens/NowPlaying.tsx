@@ -1,75 +1,57 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { Audio } from 'expo-av';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useMusicContext } from '../contexts/MusicContext';
+import Controls from '../components/Controls';
+import ProgressBar from '../components/ProgressBar';
 import { theme } from '../theme';
 
-const NowPlaying = () => {
-  const [audio, setAudio] = useState(new Audio.Sound());
-  const [songs, setSongs] = useState([
-    { id: 1, title: 'Song 1', artist: 'Artist 1', uri: 'https://example.com/song1.mp3' },
-    { id: 2, title: 'Song 2', artist: 'Artist 2', uri: 'https://example.com/song2.mp3' },
-    { id: 3, title: 'Song 3', artist: 'Artist 3', uri: 'https://example.com/song3.mp3' }
-  ]);
-  const [currentSong, setCurrentSong] = useState(null);
-  const [playing, setPlaying] = useState(false);
-
-  const playSong = async (song) => {
-    await audio.unloadAsync();
-    await audio.loadAsync({ uri: song.uri });
-    await audio.playAsync();
-    setPlaying(true);
-    setCurrentSong(song);
-  };
-
-  const pauseSong = async () => {
-    await audio.pauseAsync();
-    setPlaying(false);
-  };
-
-  const stopSong = async () => {
-    await audio.stopAsync();
-    setPlaying(false);
-  };
+const NowPlaying: React.FC = () => {
+  const { currentSong, position, duration, seekTo } = useMusicContext();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Now Playing</Text>
-      <FlatList
-        data={songs}
-        renderItem={({ item }) => (
-          <View style={styles.item}>
-            <Text style={styles.itemTitle}>{item.title}</Text>
-            <Text style={styles.itemArtist}>{item.artist}</Text>
-          </View>
-        )}
-        keyExtractor={(item) => item.id.toString()}
-      />
-    </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.artwork} testID="now-playing-artwork">
+        <Text style={styles.artworkPlaceholder}>♫</Text>
+      </View>
+      <Text style={styles.title} numberOfLines={2} testID="now-playing-title">
+        {currentSong?.title ?? 'Kein Titel ausgewählt'}
+      </Text>
+      <Text style={styles.artist} numberOfLines={1} testID="now-playing-artist">
+        {currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}
+      </Text>
+      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} />
+      <Controls />
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f0f0'
+  container: { flex: 1, backgroundColor: theme.palette.background },
+  content: { padding: theme.spacing.lg, alignItems: 'center' },
+  artwork: {
+    width: 260,
+    height: 260,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: theme.spacing.xl,
   },
+  artworkPlaceholder: { color: theme.palette.primary, fontSize: 96 },
   title: {
-    fontSize: 24,
-    marginBottom: 16
+    color: theme.palette.text.primary,
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
   },
-  item: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc'
-  },
-  itemTitle: {
-    fontSize: 18,
-    marginBottom: 8
-  },
-  itemArtist: {
+  artist: {
+    color: theme.palette.text.secondary,
     fontSize: 14,
-    color: '#666'
-  }
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
 });
 
 export default NowPlaying;

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "My App",
-    "slug": "my-app",
+    "name": "Musikplayer",
+    "slug": "musikplayer",
     "version": "1.0.0",
     "platforms": [
       "android"
@@ -11,15 +11,18 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A0A"
     },
     "android": {
       "package": "com.example.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0A0A"
       }
     },
+    "plugins": [
+      "expo-audio"
+    ],
     "assetBundlePatterns": [
       "**/*"
     ]

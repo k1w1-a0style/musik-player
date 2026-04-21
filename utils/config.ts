@@ -13,11 +13,13 @@ const parsed = schema.safeParse({
 });
 
 if (!parsed.success) {
+  // eslint-disable-next-line no-console
   console.warn('[env] Ungültige Variablen', parsed.error.flatten().fieldErrors);
 }
 
 export const env = {
   apiUrl: (parsed.success && parsed.data.EXPO_PUBLIC_API_URL) || undefined,
   supabaseUrl: (parsed.success && parsed.data.EXPO_PUBLIC_SUPABASE_URL) || undefined,
-  supabaseAnonKey: (parsed.success && parsed.data.EXPO_PUBLIC_SUPABASE_ANON_KEY) || undefined,
+  supabaseAnonKey:
+    (parsed.success && parsed.data.EXPO_PUBLIC_SUPABASE_ANON_KEY) || undefined,
 };
