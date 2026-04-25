@@ -13,6 +13,7 @@ module.exports = {
     '^react-native-track-player$': '<rootDir>/__mocks__/react-native-track-player.js',
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.js',
+    '^expo-system-audio$': '<rootDir>/__mocks__/expo-system-audio.js',
   },
   testMatch: ['**/__tests__/**/*.test.ts?(x)', '**/?(*.)+(test).ts?(x)'],
   collectCoverageFrom: [

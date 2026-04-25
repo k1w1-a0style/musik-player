@@ -25,6 +25,10 @@ import {
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
+import SystemAudio, {
+  type EqInitResult,
+  type PaletteResult,
+} from 'expo-system-audio';
 
 interface MusicContextValue {
   // Library
@@ -62,6 +66,16 @@ interface MusicContextValue {
   setEqBand: (i: number, v: number) => void;
   eqPreset: EqPresetName | 'custom';
   applyEqPreset: (p: EqPresetName) => void;
+  /** Native equalizer info — null while unsupported / loading */
+  eqNative: EqInitResult | null;
+
+  // Visualizer
+  fftBins: number[];
+  visualizerRunning: boolean;
+  visualizerError: string | null;
+
+  // Album palette of the currently playing track
+  palette: PaletteResult | null;
 
   // Playlists
   playlists: Playlist[];
@@ -102,6 +116,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [eqEnabled, setEqEnabledState] = useState(false);
   const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
+  const [eqNative, setEqNative] = useState<EqInitResult | null>(null);
+
+  // Visualizer + palette
+  const [fftBins, setFftBins] = useState<number[]>(() => new Array(16).fill(0));
+  const [visualizerRunning, setVisualizerRunning] = useState(false);
+  const [visualizerError, setVisualizerError] = useState<string | null>(null);
+  const [palette, setPalette] = useState<PaletteResult | null>(null);
 
   const songsRef = useRef(songs);
   songsRef.current = songs;
@@ -197,6 +218,83 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
     return () => sub.remove();
   }, []);
+
+  // ---- Native equalizer init ----
+  useEffect(() => {
+    let cancelled = false;
+    SystemAudio.eqInit().then(info => {
+      if (!cancelled) setEqNative(info);
+    });
+    return () => {
+      cancelled = true;
+      SystemAudio.eqRelease();
+    };
+  }, []);
+
+  // Apply native EQ enable + bands whenever they change. The 10 UI bands
+  // are mapped onto the device's actual band count (typically 5) by
+  // sampling the closest UI band for each native center frequency.
+  useEffect(() => {
+    if (!eqNative || !eqNative.available) return;
+    SystemAudio.eqSetEnabled(eqEnabled);
+  }, [eqEnabled, eqNative]);
+
+  useEffect(() => {
+    if (!eqNative || !eqNative.available) return;
+    if (!eqEnabled) return;
+    const UI_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+    eqNative.bands.forEach(band => {
+      // Find the closest UI band by center freq
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      UI_FREQS.forEach((f, i) => {
+        const d = Math.abs(f - band.centerFreqHz);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      });
+      const dB = eqBands[bestIdx] ?? 0;
+      const millibel = Math.round(dB * 100); // 1 dB = 100 mB
+      SystemAudio.eqSetBandLevel(band.index, millibel);
+    });
+  }, [eqBands, eqEnabled, eqNative]);
+
+  // ---- Visualizer ----
+  useEffect(() => {
+    const subFft = SystemAudio.onFft(data => setFftBins(data));
+    const subState = SystemAudio.onVisualizerState(e => {
+      setVisualizerRunning(e.running);
+      setVisualizerError(e.running ? null : e.reason);
+    });
+    return () => {
+      subFft.remove();
+      subState.remove();
+      SystemAudio.visualizerStop();
+    };
+  }, []);
+
+  // Start/stop visualizer with playback
+  useEffect(() => {
+    if (isPlaying) {
+      SystemAudio.visualizerStart(16);
+    } else {
+      SystemAudio.visualizerStop();
+    }
+  }, [isPlaying]);
+
+  // ---- Palette extraction for current track cover ----
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentSong?.cover) {
+      setPalette(null);
+      return;
+    }
+    SystemAudio.extractPalette(currentSong.cover).then(p => {
+      if (!cancelled) setPalette(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSong?.cover]);
+
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
@@ -420,6 +518,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setEqBand,
       eqPreset,
       applyEqPreset,
+      eqNative,
+      fftBins,
+      visualizerRunning,
+      visualizerError,
+      palette,
       playlists,
       createPlaylist,
       deletePlaylist,
@@ -456,6 +559,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setEqBand,
       eqPreset,
       applyEqPreset,
+      eqNative,
+      fftBins,
+      visualizerRunning,
+      visualizerError,
+      palette,
       playlists,
       createPlaylist,
       deletePlaylist,

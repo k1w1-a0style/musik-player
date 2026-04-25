@@ -10,6 +10,7 @@ interface GlassCardProps {
   intensity?: number;
   tint?: 'light' | 'dark' | 'default';
   glow?: boolean;
+  testID?: string;
 }
 
 const GlassCard: React.FC<GlassCardProps> = ({
@@ -18,9 +19,10 @@ const GlassCard: React.FC<GlassCardProps> = ({
   intensity = 40,
   tint = 'dark',
   glow = false,
+  testID,
 }) => {
   return (
-    <View style={[styles.wrapper, glow && styles.glow, style]}>
+    <View style={[styles.wrapper, glow && styles.glow, style]} testID={testID}>
       <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
       <LinearGradient
         colors={theme.gradients.glass}

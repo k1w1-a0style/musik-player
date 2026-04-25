@@ -19,8 +19,10 @@ const PRESET_LABELS: Record<EqPresetName, string> = {
 
 const PRESET_KEYS = Object.keys(EQ_PRESETS) as EqPresetName[];
 
+const formatHz = (hz: number): string => (hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`);
+
 const Equalizer: React.FC = () => {
-  const { eqEnabled, setEqEnabled, eqBands, setEqBand, eqPreset, applyEqPreset } =
+  const { eqEnabled, setEqEnabled, eqBands, setEqBand, eqPreset, applyEqPreset, eqNative } =
     useMusicContext();
 
   return (
@@ -38,13 +40,27 @@ const Equalizer: React.FC = () => {
           />
         </View>
 
-        <GlassCard style={styles.hintCard}>
-          <Text style={styles.hintTitle}>Hinweis</Text>
-          <Text style={styles.hint}>
-            Die EQ-Einstellungen werden gespeichert und im UI dargestellt. Echte DSP-Verarbeitung
-            erfordert ein eigenes Native-Modul (z.B. <Text style={styles.code}>react-native-audio-api</Text>),
-            das im Managed-Workflow nicht ohne weiteres möglich ist.
-          </Text>
+        <GlassCard style={styles.statusCard} testID="eq-status-card">
+          {eqNative?.available ? (
+            <>
+              <Text style={styles.statusBadge}>● DSP AKTIV</Text>
+              <Text style={styles.statusText}>
+                Native System-Equalizer mit {eqNative.bands.length} Bändern aktiv. Filtert
+                den globalen Audio-Output deines Geräts.
+              </Text>
+              <Text style={styles.statusFreq}>
+                {eqNative.bands.map(b => formatHz(b.centerFreqHz)).join(' · ')} Hz
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statusBadge, styles.statusBadgeOff]}>○ NUR UI</Text>
+              <Text style={styles.statusText}>
+                Native Equalizer-API nicht verfügbar. Werte werden nur visuell dargestellt
+                und gespeichert. Auf Custom-Dev-Client / EAS-Build aktiv.
+              </Text>
+            </>
+          )}
         </GlassCard>
 
         <Text style={styles.sectionTitle}>Presets</Text>
@@ -134,25 +150,28 @@ const styles = StyleSheet.create({
     letterSpacing: -1.0,
     color: theme.palette.text.primary,
   },
-  hintCard: {
+  statusCard: {
     marginBottom: theme.spacing.lg,
   },
-  hintTitle: {
-    color: theme.palette.primary,
+  statusBadge: {
+    color: theme.palette.success,
     fontSize: 11,
     letterSpacing: 1.6,
-    fontFamily: theme.fonts.body,
-    marginBottom: 4,
+    fontFamily: theme.fonts.heading,
+    marginBottom: 6,
   },
-  hint: {
+  statusBadgeOff: { color: theme.palette.warning },
+  statusText: {
     color: theme.palette.text.secondary,
     fontSize: 12,
     fontFamily: theme.fonts.body,
     lineHeight: 18,
   },
-  code: {
+  statusFreq: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
     fontFamily: theme.fonts.mono,
-    color: theme.palette.text.primary,
+    marginTop: 6,
   },
   sectionTitle: {
     color: theme.palette.text.muted,
