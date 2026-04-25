@@ -7,6 +7,7 @@ import Animated, {
   Easing,
   withRepeat,
   useDerivedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { theme } from '../theme';
 
@@ -18,7 +19,7 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
-const Bar: React.FC<{ idx: number; total: number; activeBlend: Animated.SharedValue<number>; value: number; phase: Animated.SharedValue<number>; color: string }> = ({ idx, total, activeBlend, value, phase, color }) => {
+const Bar: React.FC<{ idx: number; total: number; activeBlend: SharedValue<number>; value: number; phase: SharedValue<number>; color: string }> = ({ idx, total, activeBlend, value, phase, color }) => {
   const live = useSharedValue(0.2);
   useEffect(() => {
     live.value = withTiming(Math.max(0.04, value), { duration: 140, easing: Easing.out(Easing.quad) });
