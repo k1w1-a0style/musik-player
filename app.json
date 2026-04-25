@@ -34,7 +34,8 @@
         {
           "color": "#F5B301"
         }
-      ]
+      ],
+      "./modules/expo-system-audio"
     ],
     "assetBundlePatterns": [
       "**/*"
