@@ -53,7 +53,7 @@ const Visualizer: React.FC<Props> = ({ bins, active, color, height = 56, style }
     activeBlend.value = withTiming(active && bins.length > 0 ? 1 : 0, { duration: 280 });
   }, [active, bins.length, activeBlend]);
 
-  const data = active && bins.length > 0 ? bins : new Array(16).fill(0.2);
+  const data = active && bins.length > 0 ? bins : Array.from({ length: 16 }, () => 0.2);
 
   return (
     <View style={[styles.row, { height }, style]} testID="visualizer">
@@ -66,7 +66,7 @@ const Visualizer: React.FC<Props> = ({ bins, active, color, height = 56, style }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', width: '100%' },
-  bar: { flex: 1, height: '100%', borderRadius: 2, transformOrigin: 'bottom' },
+  bar: { flex: 1, height: '100%', borderRadius: 2 },
 });
 
 export default Visualizer;

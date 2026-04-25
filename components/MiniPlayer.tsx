@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Disc3, SkipForward } from 'lucide-react-native';
+import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
@@ -47,7 +47,7 @@ const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   return (
     <Animated.View style={[styles.wrap, { bottom: 64 + insets.bottom + 8 }, animatedStyle]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open">
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={styles.left}>
           <View style={styles.thumb}>
             {currentSong.cover ? (
@@ -69,10 +69,26 @@ const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <Pressable onPress={togglePlayPause} style={styles.playBtn}>
-            <Disc3 color={theme.palette.text.onPrimary} size={18} />
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              void togglePlayPause();
+            }}
+            style={styles.playBtn}
+          >
+            {isPlaying ? (
+              <Pause color={theme.palette.text.onPrimary} size={18} />
+            ) : (
+              <Play color={theme.palette.text.onPrimary} size={18} />
+            )}
           </Pressable>
-          <Pressable onPress={next} style={styles.skipBtn}>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              void next();
+            }}
+            style={styles.skipBtn}
+          >
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>

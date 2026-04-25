@@ -1,6 +1,13 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Dimensions, FlatList, ViewToken, Pressable } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing, cancelAnimation, interpolate } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+  cancelAnimation,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
@@ -58,14 +65,24 @@ const NowPlaying: React.FC = () => {
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
 
-  const renderCover = useCallback(({ item }: { item: Song; index: number }) => {
-    const isActive = currentSong?.id === item.id;
-    return (
-      <View style={styles.coverSlide}>
-        <CoverArtwork song={item} isActive={isActive} isPlaying={isActive && isPlaying} discStyle={discStyle} coverScale={coverScale} accent={palette?.vibrant ?? palette?.dominant ?? accent} />
-      </View>
-    );
-  }, [currentSong?.id, isPlaying, discStyle, coverScale, accent, palette]);
+  const renderCover = useCallback(
+    ({ item }: { item: Song; index: number }) => {
+      const isActive = currentSong?.id === item.id;
+      return (
+        <View style={styles.coverSlide}>
+          <CoverArtwork
+            song={item}
+            isActive={isActive}
+            isPlaying={isActive && isPlaying}
+            discStyle={discStyle}
+            coverScale={coverScale}
+            accent={palette?.vibrant ?? palette?.dominant ?? accent}
+          />
+        </View>
+      );
+    },
+    [currentSong?.id, isPlaying, discStyle, coverScale, accent, palette],
+  );
 
   return (
     <View style={styles.root} testID="now-playing-screen">
@@ -113,13 +130,28 @@ const NowPlaying: React.FC = () => {
         <Pressable style={styles.heartBtn}><Heart color={theme.palette.text.primary} size={20} /></Pressable>
       </View>
 
-      <View style={styles.visualizerWrap}><Visualizer bins={fftBins} active={visualizerRunning && isPlaying} color={palette?.vibrant ?? theme.palette.primary} height={44} /></View>
-      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} />
+      <View style={styles.visualizerWrap}>
+        <Visualizer
+          bins={fftBins}
+          active={visualizerRunning && isPlaying}
+          color={palette?.vibrant ?? theme.palette.primary}
+          height={44}
+        />
+      </View>
+      <ProgressBar
+        currentPosition={position}
+        duration={duration}
+        onSeek={seekTo}
+        accent={palette?.vibrant ?? theme.palette.primary}
+        accentDark={palette?.lightVibrant ?? theme.palette.primaryDark}
+      />
       <Controls />
 
       <View style={styles.bottomRow}>
         <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
-        <GlassCard style={styles.glassRow} intensity={theme.blur.medium}><ModernControls volume={volume} onVolumeChange={setVolume} /></GlassCard>
+        <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
+          <ModernControls volume={volume} onVolumeChange={setVolume} />
+        </GlassCard>
         <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
       </View>
     </View>
@@ -127,16 +159,31 @@ const NowPlaying: React.FC = () => {
 };
 
 interface CoverProps {
-  song: Song; isActive: boolean; isPlaying: boolean; discStyle: ReturnType<typeof useAnimatedStyle>; coverScale: ReturnType<typeof useSharedValue<number>>; accent: string;
+  song: Song;
+  isActive: boolean;
+  isPlaying: boolean;
+  discStyle: ReturnType<typeof useAnimatedStyle>;
+  coverScale: ReturnType<typeof useSharedValue<number>>;
+  accent: string;
 }
 
 const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, discStyle, coverScale, accent }) => {
-  const animated = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(isActive ? 1 : 0, [0, 1], [0.85, coverScale.value]) }],
-    opacity: withTiming(isActive ? 1 : 0.45, { duration: 240 }),
-  }));
+  const activeProgress = useSharedValue(isActive ? 1 : 0);
+  React.useEffect(() => {
+    activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 220 });
+  }, [isActive, activeProgress]);
+  const animated = useAnimatedStyle(() => {
+    const inactiveScale = 0.85;
+    const playingScale = coverScale.value;
+    const scale = inactiveScale + (playingScale - inactiveScale) * activeProgress.value;
+    const opacity = 0.45 + (1 - 0.45) * activeProgress.value;
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
   return (
-    <Animated.View style={[styles.coverCard, animated, { shadowColor: accent }]}> 
+    <Animated.View style={[styles.coverCard, animated, { shadowColor: accent }]}>
       {song.cover ? (
         <Image source={{ uri: song.cover }} style={styles.coverImage} />
       ) : (

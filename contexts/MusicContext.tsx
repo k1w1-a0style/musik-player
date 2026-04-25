@@ -280,16 +280,18 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return;
       }
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
+        const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+        let granted = await PermissionsAndroid.check(permission);
+        if (!granted) {
+          const requestResult = await PermissionsAndroid.request(permission, {
             title: 'Mikrofon-Berechtigung',
             message: 'Für den Audio-Visualizer wird RECORD_AUDIO benötigt.',
             buttonPositive: 'Erlauben',
             buttonNegative: 'Ablehnen',
-          },
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) return;
+          });
+          granted = requestResult === PermissionsAndroid.RESULTS.GRANTED;
+        }
+        if (!granted) return;
       }
       SystemAudio.visualizerStart(16);
     };
