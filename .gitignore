@@ -9,49 +9,32 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.*
+*.env
 
-# OS files
+# Credentials
+credentials.json
+*.pem
+*.key
+.credentials
+
+# Build artifacts
+dist/
+build/
+web-build/
+
+# Logs
+*.log
+
+# OS / Editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-dist/
-build/
-web-build/
-*.log
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
+
+# Emergent
+.emergent/
+preview.html
+
+# Local git config
+.gitconfig

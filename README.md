@@ -143,6 +143,19 @@ eas build -p android --profile production
 Standardmäßig auf `apk` konfiguriert; für Play-Store-Upload `"buildType": "app-bundle"`
 in `eas.json` setzen.
 
+### Custom Dev Client (für nativen DSP-EQ + Visualizer)
+
+Das lokale Modul `expo-system-audio` (Equalizer, Visualizer, Palette-Extraction)
+erfordert einen Custom Dev Client — Expo Go reicht nicht.
+
+```bash
+# Einmalig Custom Dev Client bauen:
+eas build -p android --profile development
+
+# Danach Dev-Server starten:
+npx expo start --dev-client
+```
+
 ### Lokale Voraussetzungen für die App selbst
 
 - Bei der ersten Ausführung **Berechtigung** „Audio/Mediendateien lesen" zulassen,

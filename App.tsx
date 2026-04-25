@@ -3,6 +3,7 @@ import React from 'react';
 import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -11,25 +12,19 @@ import {
   BricolageGrotesque_600SemiBold,
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
-import {
-  Library as LibraryIcon,
-  Disc3,
-  ListMusic,
-  Sliders,
-  Tag,
-  Image as ImageIcon,
-} from 'lucide-react-native';
+import { Library as LibraryIcon, ListMusic, Sliders, Image as ImageIcon } from 'lucide-react-native';
 
 import { MusicProvider } from './contexts/MusicContext';
 import Library from './screens/Library';
 import NowPlaying from './screens/NowPlaying';
 import Playlists from './screens/Playlists';
 import Equalizer from './screens/Equalizer';
-import Id3TagEditor from './screens/Id3TagEditor';
 import Covers from './screens/Covers';
+import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 const navTheme = {
   ...DefaultTheme,
@@ -44,6 +39,47 @@ const navTheme = {
     notification: theme.palette.accent,
   },
 };
+
+const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying }) => (
+  <View style={{ flex: 1 }}>
+    <Tab.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.palette.background,
+          shadowColor: 'transparent',
+          elevation: 0,
+          borderBottomWidth: 0,
+        },
+        headerTitleStyle: {
+          color: theme.palette.text.primary,
+          fontFamily: theme.fonts.heading,
+          fontSize: 18,
+          letterSpacing: -0.3,
+        },
+        tabBarStyle: {
+          backgroundColor: theme.palette.surface,
+          borderTopColor: theme.palette.border,
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: {
+          fontFamily: theme.fonts.body,
+          fontSize: 10,
+          letterSpacing: 0.4,
+        },
+        tabBarActiveTintColor: theme.palette.primary,
+        tabBarInactiveTintColor: theme.palette.text.muted,
+      }}
+    >
+      <Tab.Screen name="Bibliothek" component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
+      <Tab.Screen name="Playlists" component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
+      <Tab.Screen name="Equalizer" component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
+      <Tab.Screen name="Cover" component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
+    </Tab.Navigator>
+    <MiniPlayer onOpen={openNowPlaying} />
+  </View>
+);
 
 export default function App(): React.ReactElement {
   const [fontsLoaded] = useFonts({
@@ -66,79 +102,16 @@ export default function App(): React.ReactElement {
       <MusicProvider>
         <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
         <NavigationContainer theme={navTheme}>
-          <Tab.Navigator
-            screenOptions={{
-              headerStyle: {
-                backgroundColor: theme.palette.background,
-                shadowColor: 'transparent',
-                elevation: 0,
-                borderBottomWidth: 0,
-              },
-              headerTitleStyle: {
-                color: theme.palette.text.primary,
-                fontFamily: theme.fonts.heading,
-                fontSize: 18,
-                letterSpacing: -0.3,
-              },
-              tabBarStyle: {
-                backgroundColor: theme.palette.surface,
-                borderTopColor: theme.palette.border,
-                height: 64,
-                paddingBottom: 8,
-                paddingTop: 6,
-              },
-              tabBarLabelStyle: {
-                fontFamily: theme.fonts.body,
-                fontSize: 10,
-                letterSpacing: 0.4,
-              },
-              tabBarActiveTintColor: theme.palette.primary,
-              tabBarInactiveTintColor: theme.palette.text.muted,
-            }}
-          >
-            <Tab.Screen
-              name="Bibliothek"
-              component={Library}
-              options={{
-                tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} />,
-              }}
-            />
-            <Tab.Screen
-              name="Wiedergabe"
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="MainTabs">
+              {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
+            </Stack.Screen>
+            <Stack.Screen
+              name="NowPlaying"
               component={NowPlaying}
-              options={{
-                tabBarIcon: ({ color, size }) => <Disc3 color={color} size={size} />,
-              }}
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
-            <Tab.Screen
-              name="Playlists"
-              component={Playlists}
-              options={{
-                tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} />,
-              }}
-            />
-            <Tab.Screen
-              name="Equalizer"
-              component={Equalizer}
-              options={{
-                tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} />,
-              }}
-            />
-            <Tab.Screen
-              name="Tags"
-              component={Id3TagEditor}
-              options={{
-                tabBarIcon: ({ color, size }) => <Tag color={color} size={size} />,
-              }}
-            />
-            <Tab.Screen
-              name="Cover"
-              component={Covers}
-              options={{
-                tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} />,
-              }}
-            />
-          </Tab.Navigator>
+          </Stack.Navigator>
         </NavigationContainer>
       </MusicProvider>
     </SafeAreaProvider>

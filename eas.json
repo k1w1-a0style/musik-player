@@ -18,7 +18,8 @@
       "android": {
         "withoutCredentials": true,
         "buildType": "apk"
-      }
+      },
+      "developmentClient": true
     }
   }
 }

@@ -1,14 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  Dimensions,
-  FlatList,
-  ViewToken,
-  Pressable,
-} from 'react-native';
+import { View, Text, StyleSheet, Image, Dimensions, FlatList, ViewToken, Pressable } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -16,11 +7,11 @@ import Animated, {
   withTiming,
   Easing,
   cancelAnimation,
-  interpolate,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useMusicContext } from '../contexts/MusicContext';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
@@ -31,32 +22,14 @@ import type { Song } from '../types/Song';
 import { theme } from '../theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_W - theme.spacing.lg * 2, 380);
+const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
 const NowPlaying: React.FC = () => {
-  const {
-    songs,
-    currentSong,
-    position,
-    duration,
-    seekTo,
-    isPlaying,
-    volume,
-    setVolume,
-    palette,
-    fftBins,
-    visualizerRunning,
-    playSong,
-  } = useMusicContext();
+  const navigation = useNavigation();
+  const { songs, currentSong, position, duration, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
 
-  // Carousel
-  const queue: Song[] = useMemo(() => {
-    if (songs.length === 0 && currentSong) return [currentSong];
-    return songs;
-  }, [songs, currentSong]);
-  const currentIdx = currentSong
-    ? Math.max(0, queue.findIndex(s => s.id === currentSong.id))
-    : 0;
+  const queue: Song[] = useMemo(() => (songs.length === 0 && currentSong ? [currentSong] : songs), [songs, currentSong]);
+  const currentIdx = currentSong ? Math.max(0, queue.findIndex(s => s.id === currentSong.id)) : 0;
   const flatRef = useRef<FlatList<Song>>(null);
   const lastReportedId = useRef<string | null>(currentSong?.id ?? null);
 
@@ -66,53 +39,34 @@ const NowPlaying: React.FC = () => {
     }
   }, [currentIdx]);
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const v = viewableItems[0];
-      if (!v?.item) return;
-      const item = v.item as Song;
-      if (item.id === lastReportedId.current) return;
-      lastReportedId.current = item.id;
-      // Only switch if user actually swiped (not on programmatic scroll)
-      if (currentSong && item.id !== currentSong.id) {
-        playSong(item, queue);
-      }
-    },
-  ).current;
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const v = viewableItems[0];
+    if (!v?.item) return;
+    const item = v.item as Song;
+    if (item.id === lastReportedId.current) return;
+    lastReportedId.current = item.id;
+    if (currentSong && item.id !== currentSong.id) playSong(item, queue);
+  }).current;
 
-  // Disc rotation while playing (only on placeholder)
   const rotation = useSharedValue(0);
   React.useEffect(() => {
-    if (isPlaying) {
-      rotation.value = withRepeat(
-        withTiming(360, { duration: 14000, easing: Easing.linear }),
-        -1,
-      );
-    } else {
-      cancelAnimation(rotation);
-    }
+    if (isPlaying) rotation.value = withRepeat(withTiming(360, { duration: 14000, easing: Easing.linear }), -1);
+    else cancelAnimation(rotation);
     return () => cancelAnimation(rotation);
   }, [isPlaying, rotation]);
-  const discStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
+  const discStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }));
 
-  // Subtle scale-on-play for cover
   const coverScale = useSharedValue(1);
   React.useEffect(() => {
     coverScale.value = withTiming(isPlaying ? 1 : 0.94, { duration: 350 });
   }, [isPlaying, coverScale]);
 
-  // Backdrop palette
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
-  const gradientColors = useMemo(
-    () => [accentDark, theme.palette.background, theme.palette.background] as const,
-    [accentDark],
-  );
+  const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
 
   const renderCover = useCallback(
-    ({ item, index }: { item: Song; index: number }) => {
+    ({ item }: { item: Song; index: number }) => {
       const isActive = currentSong?.id === item.id;
       return (
         <View style={styles.coverSlide}>
@@ -122,57 +76,30 @@ const NowPlaying: React.FC = () => {
             isPlaying={isActive && isPlaying}
             discStyle={discStyle}
             coverScale={coverScale}
-            accent={accent}
+            accent={palette?.vibrant ?? palette?.dominant ?? accent}
           />
         </View>
       );
     },
-    [currentSong?.id, isPlaying, discStyle, coverScale, accent],
+    [currentSong?.id, isPlaying, discStyle, coverScale, accent, palette],
   );
 
   return (
     <View style={styles.root} testID="now-playing-screen">
-      {/* Dynamic gradient backdrop */}
-      <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Soft glowing accent orb behind the cover */}
-      <View
-        pointerEvents="none"
-        style={[styles.glowOrb, { backgroundColor: accent }]}
-      />
-      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
-      {/* Subtle vignette to keep text readable */}
-      <LinearGradient
-        colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <LinearGradient colors={gradientColors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent }]} />
+      <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
       <View style={styles.headerBar}>
-        <Pressable
-          testID="now-playing-close"
-          accessibilityRole="button"
-          accessibilityLabel="Schließen"
-          style={styles.headerBtn}
-        >
+        <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={() => navigation.goBack()}>
           <ChevronDown color={theme.palette.text.primary} size={22} />
         </Pressable>
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {currentSong?.album ?? 'Aus deiner Bibliothek'}
-          </Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{currentSong?.album ?? 'Aus deiner Bibliothek'}</Text>
         </View>
-        <Pressable
-          testID="now-playing-more"
-          accessibilityRole="button"
-          accessibilityLabel="Mehr"
-          style={styles.headerBtn}
-        >
+        <Pressable testID="now-playing-more" style={styles.headerBtn}>
           <MoreHorizontal color={theme.palette.text.primary} size={22} />
         </Pressable>
       </View>
@@ -187,60 +114,45 @@ const NowPlaying: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         snapToInterval={SCREEN_W}
         decelerationRate="fast"
-        initialScrollIndex={Math.max(0, currentIdx)}
-        getItemLayout={(_, index) => ({
-          length: SCREEN_W,
-          offset: SCREEN_W * index,
-          index,
-        })}
+        initialScrollIndex={currentIdx > 0 ? currentIdx : undefined}
+        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         style={styles.carousel}
         contentContainerStyle={{ alignItems: 'center' }}
-        testID="now-playing-carousel"
       />
 
-      <View style={styles.titleBlock}>
-        <Text style={styles.title} numberOfLines={2} testID="now-playing-title">
-          {currentSong?.title ?? 'Kein Titel ausgewählt'}
-        </Text>
-        <Text style={styles.artist} numberOfLines={1} testID="now-playing-artist">
-          {currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}
-        </Text>
+      <View style={styles.titleRow}>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
+          <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
+        </View>
+        <Pressable style={styles.heartBtn}><Heart color={theme.palette.text.primary} size={20} /></Pressable>
       </View>
 
       <View style={styles.visualizerWrap}>
         <Visualizer
           bins={fftBins}
           active={visualizerRunning && isPlaying}
-          color={accent}
+          color={palette?.vibrant ?? theme.palette.primary}
           height={44}
         />
       </View>
-
-      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} />
+      <ProgressBar
+        currentPosition={position}
+        duration={duration}
+        onSeek={seekTo}
+        accent={palette?.vibrant ?? theme.palette.primary}
+        accentDark={palette?.lightVibrant ?? theme.palette.primaryDark}
+      />
       <Controls />
 
       <View style={styles.bottomRow}>
-        <Pressable
-          testID="now-playing-fav"
-          accessibilityRole="button"
-          accessibilityLabel="Als Favorit markieren"
-          style={styles.bottomBtn}
-        >
-          <Heart color={theme.palette.text.muted} size={20} />
-        </Pressable>
-        <GlassCard style={styles.glassRow} intensity={30}>
+        <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
+        <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
           <ModernControls volume={volume} onVolumeChange={setVolume} />
         </GlassCard>
-        <Pressable
-          testID="now-playing-disc"
-          accessibilityRole="button"
-          accessibilityLabel="Ausgabegerät"
-          style={styles.bottomBtn}
-        >
-          <Disc3 color={theme.palette.text.muted} size={20} />
-        </Pressable>
+        <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
       </View>
     </View>
   );
@@ -255,36 +167,28 @@ interface CoverProps {
   accent: string;
 }
 
-const CoverArtwork: React.FC<CoverProps> = ({
-  song,
-  isActive,
-  isPlaying: _playing,
-  discStyle,
-  coverScale,
-  accent,
-}) => {
-  const wrapStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: isActive ? coverScale.value : 0.86 }],
-    opacity: isActive ? 1 : 0.5,
-  }));
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(coverScale.value, [0.94, 1], [0.0, 0.55]),
-  }));
+const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, discStyle, coverScale, accent }) => {
+  const activeProgress = useSharedValue(isActive ? 1 : 0);
+  React.useEffect(() => {
+    activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 220 });
+  }, [isActive, activeProgress]);
+  const animated = useAnimatedStyle(() => {
+    const inactiveScale = 0.85;
+    const playingScale = coverScale.value;
+    const scale = inactiveScale + (playingScale - inactiveScale) * activeProgress.value;
+    const opacity = 0.45 + (1 - 0.45) * activeProgress.value;
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
   return (
-    <Animated.View style={[styles.coverOuter, wrapStyle]}>
-      <Animated.View
-        style={[
-          styles.coverGlow,
-          { backgroundColor: accent, shadowColor: accent },
-          glowStyle,
-        ]}
-        pointerEvents="none"
-      />
+    <Animated.View style={[styles.coverCard, animated, { shadowColor: accent }]}>
       {song.cover ? (
         <Image source={{ uri: song.cover }} style={styles.coverImage} />
       ) : (
-        <Animated.View style={[styles.coverImage, styles.coverPlaceholder, discStyle]}>
-          <Disc3 color={accent} size={140} strokeWidth={1.1} />
+        <Animated.View style={[styles.discFallback, isPlaying && discStyle]}>
+          <Disc3 color={theme.palette.primary} size={120} />
         </Animated.View>
       )}
     </Animated.View>
@@ -292,124 +196,35 @@ const CoverArtwork: React.FC<CoverProps> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.palette.background },
-  glowOrb: {
-    position: 'absolute',
-    top: 100,
-    left: SCREEN_W / 2 - 200,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    opacity: 0.35,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    gap: theme.spacing.sm,
-  },
-  headerBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: theme.borderRadius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.palette.surfaceGlass,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  headerEyebrow: {
-    color: theme.palette.text.muted,
-    fontSize: 9,
-    letterSpacing: 2.2,
-    fontFamily: theme.fonts.body,
-  },
-  headerTitle: {
-    color: theme.palette.text.primary,
-    fontSize: 13,
-    fontFamily: theme.fonts.heading,
-    letterSpacing: -0.2,
-    marginTop: 2,
-    maxWidth: SCREEN_W - 120,
-  },
-  carousel: { flexGrow: 0 },
-  coverSlide: {
-    width: SCREEN_W,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.lg,
-  },
-  coverOuter: {
+  root: { flex: 1, paddingTop: 52, paddingBottom: 24 },
+  glowOrb: { position: 'absolute', width: 340, height: 340, borderRadius: 170, top: 110, left: SCREEN_W / 2 - 170, opacity: 0.18 },
+  headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 8 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  headerEyebrow: { color: theme.palette.text.muted, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
+  headerTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, marginTop: 2 },
+  carousel: { flexGrow: 0, height: COVER_SIZE + 10 },
+  coverSlide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
+  coverCard: {
     width: COVER_SIZE,
     height: COVER_SIZE,
-    borderRadius: theme.borderRadius.xl,
-  },
-  coverGlow: {
-    position: 'absolute',
-    top: -24,
-    left: -24,
-    right: -24,
-    bottom: -24,
-    borderRadius: theme.borderRadius.xl + 24,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 60,
-    elevation: 30,
-  },
-  coverImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: 24,
+    overflow: 'hidden',
     backgroundColor: theme.palette.surface,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 28,
+    elevation: 16,
   },
-  coverPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleBlock: {
-    paddingHorizontal: theme.spacing.lg,
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  title: {
-    color: theme.palette.text.primary,
-    fontSize: 26,
-    textAlign: 'center',
-    fontFamily: theme.fonts.display,
-    letterSpacing: -0.7,
-  },
-  artist: {
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-    marginTop: 4,
-    fontFamily: theme.fonts.body,
-  },
-  visualizerWrap: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    width: '100%',
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  bottomBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: theme.borderRadius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.palette.surfaceGlass,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
+  coverImage: { width: '100%', height: '100%' },
+  discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
+  titleBlock: { flex: 1 },
+  title: { color: theme.palette.text.primary, fontSize: 28, letterSpacing: -0.7, fontFamily: theme.fonts.display },
+  artist: { color: theme.palette.text.secondary, fontSize: 15, marginTop: 3, fontFamily: theme.fonts.body },
+  heartBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  visualizerWrap: { paddingHorizontal: 20, marginTop: 4 },
+  bottomRow: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
+  bottomBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.palette.surfaceElevated },
   glassRow: { flex: 1 },
 });
 

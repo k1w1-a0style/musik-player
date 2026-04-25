@@ -8,6 +8,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
@@ -273,11 +274,28 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Start/stop visualizer with playback
   useEffect(() => {
-    if (isPlaying) {
+    const syncVisualizer = async (): Promise<void> => {
+      if (!isPlaying) {
+        SystemAudio.visualizerStop();
+        return;
+      }
+      if (Platform.OS === 'android') {
+        const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+        let granted = await PermissionsAndroid.check(permission);
+        if (!granted) {
+          const requestResult = await PermissionsAndroid.request(permission, {
+            title: 'Mikrofon-Berechtigung',
+            message: 'Für den Audio-Visualizer wird RECORD_AUDIO benötigt.',
+            buttonPositive: 'Erlauben',
+            buttonNegative: 'Ablehnen',
+          });
+          granted = requestResult === PermissionsAndroid.RESULTS.GRANTED;
+        }
+        if (!granted) return;
+      }
       SystemAudio.visualizerStart(16);
-    } else {
-      SystemAudio.visualizerStop();
-    }
+    };
+    syncVisualizer();
   }, [isPlaying]);
 
   // ---- Palette extraction for current track cover ----
