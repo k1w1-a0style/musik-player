@@ -18,6 +18,7 @@ module.exports = [
       'eslint.config.js',
       'jest.config.js',
       'jest.setup.js',
+      '**/app.plugin.js',
       '__mocks__/**',
     ],
   },
