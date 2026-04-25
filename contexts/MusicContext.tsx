@@ -198,31 +198,40 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return () => sub.remove();
   }, []);
 
-  // Persist settings
+  // Persist settings — but only AFTER hydration to avoid the initial state
+  // (e.g. volume=1) overwriting persisted values from a previous session.
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.VOLUME, volume);
-  }, [volume]);
+  }, [volume, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.SHUFFLE, shuffle);
-  }, [shuffle]);
+  }, [shuffle, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.REPEAT_MODE, repeatMode);
-  }, [repeatMode]);
+  }, [repeatMode, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.EQ_ENABLED, eqEnabled);
-  }, [eqEnabled]);
+  }, [eqEnabled, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.EQ_BANDS, eqBands);
-  }, [eqBands]);
+  }, [eqBands, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.EQ_PRESET, eqPreset);
-  }, [eqPreset]);
+  }, [eqPreset, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.PLAYLISTS, playlists);
-  }, [playlists]);
+  }, [playlists, isReady]);
   useEffect(() => {
+    if (!isReady) return;
     storage.set(StorageKeys.SONGS, songs);
-  }, [songs]);
+  }, [songs, isReady]);
 
   // ---- Library ----
   const setSongs = useCallback((s: Song[]) => setSongsState(s), []);

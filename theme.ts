@@ -13,6 +13,10 @@ export const theme = {
     surface: '#10131F',
     surfaceElevated: '#181C2B',
     surfaceGlass: 'rgba(24, 28, 43, 0.6)',
+    /** Alias for `surface` — kept for backwards compatibility. */
+    card: '#10131F',
+    /** Alias for `surfaceElevated` — kept for backwards compatibility. */
+    cardElevated: '#181C2B',
     border: 'rgba(255, 255, 255, 0.08)',
     borderStrong: 'rgba(255, 255, 255, 0.14)',
 

@@ -43,7 +43,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
 
   return (
     <View style={styles.container}>
-      <Text style={styles.time}>{formatTime(currentPosition)}</Text>
       <Pressable
         testID="progress-bar"
         accessibilityRole="adjustable"
@@ -54,40 +53,59 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
       >
         <View style={styles.progressBarBackground}>
           <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+          <View style={[styles.thumb, { left: `${progress}%` }]} />
         </View>
       </Pressable>
-      <Text style={styles.time}>{formatTime(duration)}</Text>
+      <View style={styles.timeRow}>
+        <Text style={styles.time} testID="progress-current">
+          {formatTime(currentPosition)}
+        </Text>
+        <Text style={styles.time} testID="progress-duration">
+          {formatTime(duration)}
+        </Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.md,
     marginVertical: theme.spacing.sm,
-  },
-  time: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    minWidth: 45,
-    textAlign: 'center',
+    width: '100%',
   },
   progressBarContainer: {
-    flex: 1,
-    marginHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
   },
   progressBarBackground: {
     height: 4,
     backgroundColor: theme.palette.border,
     borderRadius: 2,
-    overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: theme.palette.primary,
+    borderRadius: 2,
+  },
+  thumb: {
+    position: 'absolute',
+    top: -5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.palette.primary,
+    marginLeft: -7,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.xs,
+  },
+  time: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    letterSpacing: 0.5,
   },
 });
 

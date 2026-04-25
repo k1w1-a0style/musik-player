@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { Volume2, VolumeX } from 'lucide-react-native';
 import { theme } from '../theme';
 
 interface Props {
@@ -10,32 +11,48 @@ interface Props {
 
 const ModernControls: React.FC<Props> = ({ volume, onVolumeChange }) => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Lautstärke</Text>
-      <Slider
-        testID="volume-slider"
-        style={styles.slider}
-        minimumValue={0}
-        maximumValue={1}
-        value={volume}
-        onValueChange={onVolumeChange}
-        minimumTrackTintColor={theme.palette.primary}
-        maximumTrackTintColor={theme.palette.border}
-        thumbTintColor={theme.palette.primary}
-      />
-      <Text style={styles.value}>{Math.round(volume * 100)}%</Text>
+    <View style={styles.container} testID="modern-controls">
+      <View style={styles.row}>
+        {volume <= 0.01 ? (
+          <VolumeX color={theme.palette.text.muted} size={18} />
+        ) : (
+          <Volume2 color={theme.palette.primary} size={18} />
+        )}
+        <Slider
+          testID="volume-slider"
+          accessibilityLabel="Lautstärke"
+          style={styles.slider}
+          minimumValue={0}
+          maximumValue={1}
+          value={volume}
+          onValueChange={onVolumeChange}
+          minimumTrackTintColor={theme.palette.primary}
+          maximumTrackTintColor={theme.palette.border}
+          thumbTintColor={theme.palette.primary}
+        />
+        <Text style={styles.value}>{Math.round(volume * 100)}%</Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
-  label: { color: theme.palette.text.secondary, fontSize: 12 },
-  slider: { width: '100%', height: 40 },
-  value: { color: theme.palette.text.primary, textAlign: 'right', fontSize: 12 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  slider: { flex: 1, height: 40 },
+  value: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    minWidth: 40,
+    textAlign: 'right',
+    fontFamily: theme.fonts.mono,
+  },
 });
 
 export default ModernControls;
