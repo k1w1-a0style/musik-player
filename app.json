@@ -21,7 +21,13 @@
       }
     },
     "plugins": [
-      "expo-audio"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#F5B301"
+        }
+      ]
     ],
     "assetBundlePatterns": [
       "**/*"

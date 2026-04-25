@@ -8,147 +8,453 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { createAudioPlayer, type AudioPlayer, setAudioModeAsync } from 'expo-audio';
-import type { Song } from '../types/Song';
+import TrackPlayer, {
+  AppKilledPlaybackBehavior,
+  Capability,
+  Event,
+  RepeatMode as RNTPRepeatMode,
+  State,
+  usePlaybackState,
+  useProgress,
+} from 'react-native-track-player';
+import {
+  EQ_PRESETS,
+  type EqPresetName,
+  type Playlist,
+  type RepeatMode,
+  type Song,
+} from '../types/Song';
+import { StorageKeys, storage } from '../utils/storage';
 
 interface MusicContextValue {
+  // Library
   songs: Song[];
   setSongs: (s: Song[]) => void;
+  addSongs: (s: Song[]) => void;
+
+  // Playback
   currentSong: Song | null;
   isPlaying: boolean;
+  isBuffering: boolean;
   position: number;
   duration: number;
-  playSong: (song: Song) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
   togglePlayPause: () => Promise<void>;
   stop: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
+
+  // Queue / modes
+  shuffle: boolean;
+  toggleShuffle: () => Promise<void>;
+  repeatMode: RepeatMode;
+  cycleRepeatMode: () => Promise<void>;
+
+  // Volume
+  volume: number;
+  setVolume: (v: number) => Promise<void>;
+
+  // EQ (UI-only, persisted as preset)
+  eqEnabled: boolean;
+  setEqEnabled: (v: boolean) => void;
+  eqBands: number[];
+  setEqBand: (i: number, v: number) => void;
+  eqPreset: EqPresetName | 'custom';
+  applyEqPreset: (p: EqPresetName) => void;
+
+  // Playlists
+  playlists: Playlist[];
+  createPlaylist: (name: string) => Playlist;
+  deletePlaylist: (id: string) => void;
+  renamePlaylist: (id: string, name: string) => void;
+  addSongToPlaylist: (playlistId: string, songId: string) => void;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
+  playPlaylist: (playlistId: string) => Promise<void>;
+
+  // Lifecycle
+  isReady: boolean;
 }
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 
+const toTrack = (s: Song) => ({
+  id: s.id,
+  url: s.uri ?? '',
+  title: s.title,
+  artist: s.artist,
+  album: s.album,
+  artwork: s.cover,
+  duration: s.duration ? s.duration / 1000 : undefined,
+});
+
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
   const [songs, setSongsState] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
-  useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true }).catch(
-      () => undefined,
-    );
-  }, []);
+  const [shuffle, setShuffle] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
+  const [volume, setVolumeState] = useState(1);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      const p = playerRef.current;
-      if (!p) return;
-      const status = p.currentStatus;
-      if (!status) return;
-      setPosition((status.currentTime ?? 0) * 1000);
-      setDuration((status.duration ?? 0) * 1000);
-      setIsPlaying(!!status.playing);
-    }, 500);
-    return () => clearInterval(id);
-  }, []);
+  const [eqEnabled, setEqEnabledState] = useState(false);
+  const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
+  const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
 
+  const songsRef = useRef(songs);
+  songsRef.current = songs;
+
+  const playback = usePlaybackState();
+  const progress = useProgress(500);
+
+  const isPlaying = playback.state === State.Playing;
+  const isBuffering =
+    playback.state === State.Buffering || playback.state === State.Loading;
+
+  // ---- Setup + Hydration ----
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
+        await TrackPlayer.updateOptions({
+          android: {
+            appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+          },
+          capabilities: [
+            Capability.Play,
+            Capability.Pause,
+            Capability.SkipToNext,
+            Capability.SkipToPrevious,
+            Capability.SeekTo,
+            Capability.Stop,
+          ],
+          compactCapabilities: [
+            Capability.Play,
+            Capability.Pause,
+            Capability.SkipToNext,
+          ],
+          notificationCapabilities: [
+            Capability.Play,
+            Capability.Pause,
+            Capability.SkipToNext,
+            Capability.SkipToPrevious,
+            Capability.SeekTo,
+          ],
+          progressUpdateEventInterval: 2,
+        });
+      } catch {
+        // Already set up
+      }
+
+      const [
+        storedSongs,
+        storedPlaylists,
+        storedEqEnabled,
+        storedEqBands,
+        storedEqPreset,
+        storedVolume,
+        storedRepeat,
+        storedShuffle,
+      ] = await Promise.all([
+        storage.get<Song[]>(StorageKeys.SONGS),
+        storage.get<Playlist[]>(StorageKeys.PLAYLISTS),
+        storage.get<boolean>(StorageKeys.EQ_ENABLED),
+        storage.get<number[]>(StorageKeys.EQ_BANDS),
+        storage.get<EqPresetName | 'custom'>(StorageKeys.EQ_PRESET),
+        storage.get<number>(StorageKeys.VOLUME),
+        storage.get<RepeatMode>(StorageKeys.REPEAT_MODE),
+        storage.get<boolean>(StorageKeys.SHUFFLE),
+      ]);
+      if (cancelled) return;
+      if (storedSongs) setSongsState(storedSongs);
+      if (storedPlaylists) setPlaylists(storedPlaylists);
+      if (storedEqEnabled != null) setEqEnabledState(storedEqEnabled);
+      if (storedEqBands) setEqBandsState(storedEqBands);
+      if (storedEqPreset) setEqPreset(storedEqPreset);
+      if (storedVolume != null) {
+        setVolumeState(storedVolume);
+        TrackPlayer.setVolume(storedVolume).catch(() => undefined);
+      }
+      if (storedRepeat) setRepeatMode(storedRepeat);
+      if (storedShuffle != null) setShuffle(storedShuffle);
+      setIsReady(true);
+    })();
     return () => {
-      playerRef.current?.remove();
-      playerRef.current = null;
+      cancelled = true;
     };
   }, []);
 
-  const playSong = useCallback(async (song: Song) => {
-    if (!song.uri) return;
-    playerRef.current?.remove();
-    const p = createAudioPlayer({ uri: song.uri });
-    playerRef.current = p;
+  // Keep "currentSong" in sync with active track
+  useEffect(() => {
+    const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async data => {
+      const track = data.track;
+      if (!track) return;
+      const s = songsRef.current.find(x => x.id === track.id);
+      if (s) setCurrentSong(s);
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Persist settings
+  useEffect(() => {
+    storage.set(StorageKeys.VOLUME, volume);
+  }, [volume]);
+  useEffect(() => {
+    storage.set(StorageKeys.SHUFFLE, shuffle);
+  }, [shuffle]);
+  useEffect(() => {
+    storage.set(StorageKeys.REPEAT_MODE, repeatMode);
+  }, [repeatMode]);
+  useEffect(() => {
+    storage.set(StorageKeys.EQ_ENABLED, eqEnabled);
+  }, [eqEnabled]);
+  useEffect(() => {
+    storage.set(StorageKeys.EQ_BANDS, eqBands);
+  }, [eqBands]);
+  useEffect(() => {
+    storage.set(StorageKeys.EQ_PRESET, eqPreset);
+  }, [eqPreset]);
+  useEffect(() => {
+    storage.set(StorageKeys.PLAYLISTS, playlists);
+  }, [playlists]);
+  useEffect(() => {
+    storage.set(StorageKeys.SONGS, songs);
+  }, [songs]);
+
+  // ---- Library ----
+  const setSongs = useCallback((s: Song[]) => setSongsState(s), []);
+  const addSongs = useCallback((s: Song[]) => {
+    setSongsState(prev => {
+      const existing = new Set(prev.map(x => x.id));
+      return [...prev, ...s.filter(x => !existing.has(x.id))];
+    });
+  }, []);
+
+  // ---- Playback ----
+  const playSong = useCallback(async (song: Song, queue?: Song[]) => {
+    const q = queue && queue.length > 0 ? queue : songsRef.current;
+    const idx = q.findIndex(x => x.id === song.id);
+    const orderedQueue = idx >= 0 ? [...q.slice(idx), ...q.slice(0, idx)] : [song, ...q];
+    await TrackPlayer.reset();
+    await TrackPlayer.add(orderedQueue.filter(x => !!x.uri).map(toTrack));
     setCurrentSong(song);
-    p.play();
-    setIsPlaying(true);
+    await TrackPlayer.play();
+    await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
   }, []);
 
   const togglePlayPause = useCallback(async () => {
-    const p = playerRef.current;
-    if (!p) return;
-    if (p.playing) {
-      p.pause();
-      setIsPlaying(false);
+    const state = (await TrackPlayer.getPlaybackState()).state;
+    if (state === State.Playing) {
+      await TrackPlayer.pause();
     } else {
-      p.play();
-      setIsPlaying(true);
+      await TrackPlayer.play();
     }
   }, []);
 
   const stop = useCallback(async () => {
-    const p = playerRef.current;
-    if (!p) return;
-    p.pause();
-    await p.seekTo(0);
-    setIsPlaying(false);
-    setPosition(0);
+    await TrackPlayer.stop();
   }, []);
 
   const seekTo = useCallback(async (millis: number) => {
-    const p = playerRef.current;
-    if (!p) return;
-    await p.seekTo(millis / 1000);
-    setPosition(millis);
+    await TrackPlayer.seekTo(millis / 1000);
   }, []);
 
-  const getIndex = useCallback(() => {
-    if (!currentSong) return -1;
-    return songs.findIndex(s => s.id === currentSong.id);
-  }, [songs, currentSong]);
-
   const next = useCallback(async () => {
-    if (songs.length === 0) return;
-    const i = getIndex();
-    const nextIdx = (i + 1) % songs.length;
-    await playSong(songs[nextIdx]);
-  }, [songs, getIndex, playSong]);
-
+    try {
+      await TrackPlayer.skipToNext();
+    } catch {
+      /* end of queue */
+    }
+  }, []);
   const previous = useCallback(async () => {
-    if (songs.length === 0) return;
-    const i = getIndex();
-    const prevIdx = (i - 1 + songs.length) % songs.length;
-    await playSong(songs[prevIdx]);
-  }, [songs, getIndex, playSong]);
+    try {
+      await TrackPlayer.skipToPrevious();
+    } catch {
+      /* at start */
+    }
+  }, []);
 
-  const setSongs = useCallback((s: Song[]) => setSongsState(s), []);
+  const toggleShuffle = useCallback(async () => {
+    setShuffle(prev => !prev);
+    // Re-queue with shuffled order
+    const current = await TrackPlayer.getActiveTrack();
+    const list = songsRef.current.slice();
+    if (!shuffle) {
+      for (let i = list.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+    }
+    if (current) {
+      const curIdx = list.findIndex(x => x.id === current.id);
+      if (curIdx > 0) {
+        list.splice(0, 0, ...list.splice(curIdx, 1));
+      }
+    }
+    try {
+      const pos = await TrackPlayer.getProgress();
+      await TrackPlayer.reset();
+      await TrackPlayer.add(list.filter(x => !!x.uri).map(toTrack));
+      if (pos.position) await TrackPlayer.seekTo(pos.position);
+      await TrackPlayer.play();
+    } catch {
+      /* ignore */
+    }
+  }, [shuffle]);
+
+  const cycleRepeatMode = useCallback(async () => {
+    const next: RepeatMode =
+      repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    setRepeatMode(next);
+    await TrackPlayer.setRepeatMode(
+      next === 'off'
+        ? RNTPRepeatMode.Off
+        : next === 'one'
+          ? RNTPRepeatMode.Track
+          : RNTPRepeatMode.Queue,
+    );
+  }, [repeatMode]);
+
+  const setVolume = useCallback(async (v: number) => {
+    setVolumeState(v);
+    await TrackPlayer.setVolume(v);
+  }, []);
+
+  // ---- EQ (UI preset) ----
+  const setEqBand = useCallback((i: number, v: number) => {
+    setEqBandsState(prev => {
+      const next = prev.slice();
+      next[i] = v;
+      return next;
+    });
+    setEqPreset('custom');
+  }, []);
+  const applyEqPreset = useCallback((p: EqPresetName) => {
+    setEqBandsState(EQ_PRESETS[p].slice());
+    setEqPreset(p);
+  }, []);
+  const setEqEnabled = useCallback((v: boolean) => setEqEnabledState(v), []);
+
+  // ---- Playlists ----
+  const createPlaylist = useCallback((name: string) => {
+    const playlist: Playlist = {
+      id: `pl-${Date.now()}`,
+      name,
+      songIds: [],
+      createdAt: Date.now(),
+    };
+    setPlaylists(prev => [...prev, playlist]);
+    return playlist;
+  }, []);
+  const deletePlaylist = useCallback((id: string) => {
+    setPlaylists(prev => prev.filter(p => p.id !== id));
+  }, []);
+  const renamePlaylist = useCallback((id: string, name: string) => {
+    setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, name } : p)));
+  }, []);
+  const addSongToPlaylist = useCallback((playlistId: string, songId: string) => {
+    setPlaylists(prev =>
+      prev.map(p =>
+        p.id === playlistId && !p.songIds.includes(songId)
+          ? { ...p, songIds: [...p.songIds, songId] }
+          : p,
+      ),
+    );
+  }, []);
+  const removeSongFromPlaylist = useCallback((playlistId: string, songId: string) => {
+    setPlaylists(prev =>
+      prev.map(p =>
+        p.id === playlistId ? { ...p, songIds: p.songIds.filter(s => s !== songId) } : p,
+      ),
+    );
+  }, []);
+  const playPlaylist = useCallback(
+    async (playlistId: string) => {
+      const p = playlists.find(x => x.id === playlistId);
+      if (!p) return;
+      const queue = p.songIds
+        .map(id => songsRef.current.find(s => s.id === id))
+        .filter((x): x is Song => !!x);
+      if (queue.length > 0) await playSong(queue[0], queue);
+    },
+    [playlists, playSong],
+  );
 
   const value = useMemo<MusicContextValue>(
     () => ({
       songs,
       setSongs,
+      addSongs,
       currentSong,
       isPlaying,
-      position,
-      duration,
+      isBuffering,
+      position: progress.position * 1000,
+      duration: progress.duration * 1000,
       playSong,
       togglePlayPause,
       stop,
       seekTo,
       next,
       previous,
+      shuffle,
+      toggleShuffle,
+      repeatMode,
+      cycleRepeatMode,
+      volume,
+      setVolume,
+      eqEnabled,
+      setEqEnabled,
+      eqBands,
+      setEqBand,
+      eqPreset,
+      applyEqPreset,
+      playlists,
+      createPlaylist,
+      deletePlaylist,
+      renamePlaylist,
+      addSongToPlaylist,
+      removeSongFromPlaylist,
+      playPlaylist,
+      isReady,
     }),
     [
       songs,
       setSongs,
+      addSongs,
       currentSong,
       isPlaying,
-      position,
-      duration,
+      isBuffering,
+      progress.position,
+      progress.duration,
       playSong,
       togglePlayPause,
       stop,
       seekTo,
       next,
       previous,
+      shuffle,
+      toggleShuffle,
+      repeatMode,
+      cycleRepeatMode,
+      volume,
+      setVolume,
+      eqEnabled,
+      setEqEnabled,
+      eqBands,
+      setEqBand,
+      eqPreset,
+      applyEqPreset,
+      playlists,
+      createPlaylist,
+      deletePlaylist,
+      renamePlaylist,
+      addSongToPlaylist,
+      removeSongFromPlaylist,
+      playPlaylist,
+      isReady,
     ],
   );
 
