@@ -4,6 +4,7 @@
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "expo-system-audio": ["./modules/expo-system-audio/index.ts"]
     }
