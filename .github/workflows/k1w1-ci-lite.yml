@@ -1,12 +1,19 @@
-name: K1W1 CI Lite (Lint + Typecheck)
+
+# managed-by: k1w1
+# workflow-version: 399
+name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
+
+run-name: >-
+  CI Lite • run-${{ github.run_id }}-${{ github.run_attempt }}
 
 on:
+  repository_dispatch:
+    types: [trigger-ci-lite]
   workflow_dispatch:
     inputs:
       ref:
         description: "Branch/Ref to check (e.g. work, main, dev)"
-        required: false
-        default: ""
+        required: true
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false
@@ -16,40 +23,323 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    k1w1-ci-lite-
-    ${{ github.event.inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref') }}
   cancel-in-progress: false
 
 jobs:
   checks:
-    name: Lint + Typecheck
+    name: Lint + Typecheck + Expo preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
     env:
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
+      WORKFLOW_VERSION: "399"
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Determine target ref
+        id: target_ref
+        uses: ./.github/actions/determine-ref
         with:
-          ref: ${{ github.event.inputs.ref || github.ref_name }}
+          payload_branch: ${{ github.event.client_payload.branch || '' }}
+          payload_ref: ${{ github.event.client_payload.ref || '' }}
+          input_ref: ${{ inputs.ref || '' }}
+          github_ref_name: ${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
+          default_ref: ""
+          allowed_refs_csv: work,codex,dev,develop
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Sanitize run metadata
+        env:
+          RAW_TARGET_REF: ${{ steps.target_ref.outputs.checkout_ref }}
+          RAW_TRIGGER_MODE: ${{ github.event_name }}
+          RAW_JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
+          RAW_SOURCE_WORKFLOW: ${{ github.event.client_payload.source_workflow || '' }}
+          RAW_SOURCE_RUN_ID: ${{ github.event.client_payload.source_run_id || '' }}
+          RAW_SOURCE_SHA: ${{ github.event.client_payload.source_sha || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          JOB_ID=""
+          TARGET_REF=""
+          TRIGGER_MODE=""
+          SOURCE_WORKFLOW=""
+          SOURCE_RUN_ID=""
+          SOURCE_SHA=""
+
+          if [[ "$RAW_TARGET_REF" =~ ^[A-Za-z0-9._/-]{1,120}$ ]] && [[ "$RAW_TARGET_REF" != -* ]]; then
+            TARGET_REF="$RAW_TARGET_REF"
+          else
+            echo "::error::Invalid TARGET_REF from determine-ref output"
+            exit 1
+          fi
+
+          if [[ "$RAW_TRIGGER_MODE" == "repository_dispatch" || "$RAW_TRIGGER_MODE" == "workflow_dispatch" ]]; then
+            TRIGGER_MODE="$RAW_TRIGGER_MODE"
+          else
+            echo "::error::Invalid trigger mode"
+            exit 1
+          fi
+
+          if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            JOB_ID="${RAW_JOB_ID,,}"
+          fi
+
+          if [[ "$RAW_SOURCE_WORKFLOW" =~ ^[A-Za-z0-9._/-]{1,120}$ ]]; then
+            SOURCE_WORKFLOW="$RAW_SOURCE_WORKFLOW"
+          fi
+
+          if [[ "$RAW_SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]]; then
+            SOURCE_RUN_ID="$RAW_SOURCE_RUN_ID"
+          fi
+
+          if [[ "$RAW_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            SOURCE_SHA="${RAW_SOURCE_SHA,,}"
+          fi
+
+          {
+            printf 'TARGET_REF=%s
+' "$TARGET_REF"
+            printf 'JOB_ID=%s
+' "$JOB_ID"
+            printf 'TRIGGER_MODE=%s
+' "$TRIGGER_MODE"
+            printf 'SOURCE_WORKFLOW=%s
+' "$SOURCE_WORKFLOW"
+            printf 'SOURCE_RUN_ID=%s
+' "$SOURCE_RUN_ID"
+            printf 'SOURCE_SHA=%s
+' "$SOURCE_SHA"
+          } >> "$GITHUB_ENV"
+
+      - name: Run info
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CI Lite start (job_id=${JOB_ID:-}, ref=${TARGET_REF:-}, trigger=${TRIGGER_MODE:-})"
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.TARGET_REF }}
+          fetch-depth: 0
+
+      - name: Detect package manager + lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=pnpm" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with package manager cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-          cache: npm
+          cache: ${{ steps.lock.outputs.cache_kind }}
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
-      - name: Install
-        run: npm ci
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Enable Corepack for Yarn / pnpm
+        if: steps.lock.outputs.package_manager == 'yarn' || steps.lock.outputs.package_manager == 'pnpm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
 
-      - name: Lint
-        run: npm run lint:ci
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=${WORKFLOW_VERSION}"
+            echo "github_repository=${GITHUB_REPOSITORY}"
+            echo "github_run_id=${GITHUB_RUN_ID}"
+            echo "github_run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=${GITHUB_SHA}"
+            echo "target_ref=${TARGET_REF:-}"
+            echo "job_id=${JOB_ID:-}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "package_manager=${{ steps.lock.outputs.package_manager }}"
+            echo "trigger_mode=${TRIGGER_MODE:-}"
+            echo "source_workflow=${SOURCE_WORKFLOW:-}"
+            echo "source_run_id=${SOURCE_RUN_ID:-}"
+            echo "source_sha=${SOURCE_SHA:-}"
+            echo "package_manager=${{ steps.lock.outputs.package_manager }}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
 
+      - name: Install dependencies (policy-aware)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
+            echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund
+            exit 0
+          fi
+
+          case "${{ steps.lock.outputs.package_manager }}" in
+            npm)
+              npm ci --no-audit --no-fund
+              ;;
+            yarn)
+              yarn install --immutable || yarn install --frozen-lockfile
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "::error::Unsupported package manager '${{ steps.lock.outputs.package_manager }}'"
+              exit 1
+              ;;
+          esac
+
+      - name: Lint + Typecheck + Expo preflight (robust, capture)
+        id: run
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          mkdir -p ci-logs
+
+          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          ESL=$?
+
+          (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
+          TSC=$?
+
+          (
+            npx --no-install expo config --json > ci-logs/expo-config.json &&
+            node -e '
+              const fs = require("fs");
+              const p = "ci-logs/expo-config.json";
+              const data = JSON.parse(fs.readFileSync(p, "utf8"));
+              const projectId = (data?.expo ?? data)?.extra?.eas?.projectId;
+              if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+                console.error("Missing expo.extra.eas.projectId");
+                process.exit(1);
+              }
+              console.log(`expo.extra.eas.projectId OK: ${projectId}`);
+            '
+          ) 2>&1 | tee ci-logs/expo-preflight.log
+          EXPO=$?
+
+          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
+          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
+
+          cat > ci-logs/ci-lite-result.json <<JSON
+          {
+            "workflow_version": "${WORKFLOW_VERSION}",
+            "job_id": "${JOB_ID:-}",
+            "ref": "${TARGET_REF:-}",
+            "github_run_id": "${GITHUB_RUN_ID}",
+            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "${GITHUB_SHA}",
+            "eslint_exit": $ESL,
+            "tsc_exit": $TSC,
+            "expo_exit": $EXPO,
+            "trigger_mode": "${TRIGGER_MODE:-}",
+            "workflow_ref": "${GITHUB_WORKFLOW_REF:-}",
+            "workflow_sha": "${GITHUB_WORKFLOW_SHA:-}",
+            "source_workflow": "${SOURCE_WORKFLOW:-}",
+            "source_run_id": "${SOURCE_RUN_ID:-}",
+            "source_sha": "${SOURCE_SHA:-}",
+            "package_manager": "${{ steps.lock.outputs.package_manager }}",
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
+          }
+          JSON
+
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ] || [ "$EXPO" -ne 0 ]; then
+            echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC, expo=$EXPO)"
+            exit 1
+          fi
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## CI Lite"
+            echo ""
+            echo "- ref: `${TARGET_REF}`"
+            echo "- job_id: `${JOB_ID:-}`"
+            echo "- workflow version: `${WORKFLOW_VERSION}`"
+            echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
+            echo "- sha: `${GITHUB_SHA}`"
+            echo "- trigger: `${TRIGGER_MODE:-}`"
+            echo "- workflow ref: `${GITHUB_WORKFLOW_REF:-}`"
+            echo "- source workflow: `${SOURCE_WORKFLOW:-}`"
+            echo "- source run: `${SOURCE_RUN_ID:-}`"
+            echo "- source sha: `${SOURCE_SHA:-}`"
+            echo "- eslint: `${{ steps.run.outputs.eslint_exit }}`"
+            echo "- tsc: `${{ steps.run.outputs.tsc_exit }}`"
+            echo "- expo preflight: `${{ steps.run.outputs.expo_exit }}`"
+            echo ""
+            echo "Artifacts:"
+            echo "- `ci-logs/ci-lite-result.json` (für Header-Polling)"
+            echo "- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`"
+            echo "- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI Lite logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-lite-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-logs/ci-lite-result.json
+            ci-logs/lint.log
+            ci-logs/typecheck.log
+            ci-logs/expo-preflight.log
+            ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Done
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "✅ CI Lite passed (job_id=${JOB_ID:-})"
