@@ -1,3 +1,6 @@
+# managed-by: k1w1
+# workflow-version: 405
+# manual-fallback-only: true
 name: Release Build (WAIT)
 
 on:
@@ -10,12 +13,17 @@ on:
         options: [production, preview, development]
         default: production
       ref:
-        description: "Branch/Tag/SHA (optional)"
+        description: "Branch/Tag/SHA to build"
+        required: true
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
         required: false
-        default: "main"
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.ref }}-${{ inputs.profile }}
@@ -29,7 +37,11 @@ jobs:
 
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
+      EAS_CLI_VERSION: "16.32.0"
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
+      WORKFLOW_VERSION: "405"
 
     steps:
       - name: Checkout repository
@@ -37,38 +49,94 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Detect lockfile (for cache + install strategy)
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Validate secrets + inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.profile }}" in
+            development|preview|production) ;;
+            *) echo "::error::Invalid profile: '${{ inputs.profile }}'"; exit 1 ;;
+          esac
+
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
+
+          if [ "${{ inputs.profile }}" = "production" ]; then
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+              echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
+              exit 1
+            fi
+          fi
+
+      - name: Detect package manager / lockfile
         id: lock
         shell: bash
         run: |
           set -euo pipefail
           if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=package-lock.json"
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=npm-shrinkwrap.json"
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=yarn.lock"
+              echo "package_manager=yarn"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=pnpm-lock.yaml"
+              echo "package_manager=pnpm"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=false"
+              echo "lockfile_path="
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
           fi
-          echo "Repo root: $(pwd)"
-          echo "Files:"; ls -lah
 
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
+      - name: Setup Node (npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (yarn cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (pnpm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
@@ -77,56 +145,154 @@ jobs:
         with:
           node-version: 20
 
-      - name: Validate secrets
+      - name: Determine strict lockfile policy
+        id: strict_lock
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
-          echo "Using profile='${{ inputs.profile }}', ref='${{ inputs.ref }}'"
+          PROFILE="${{ inputs.profile }}"
+          OVERRIDE="${{ inputs.strict_lockfile }}"
+          case "$OVERRIDE" in
+            true)
+              echo "strict=true" >> "$GITHUB_OUTPUT"
+              ;;
+            false)
+              if [ "$PROFILE" != "development" ]; then
+                echo "::error::strict_lockfile=false is only allowed for development profile in release workflow. Preview/production remain fail-closed."
+                exit 1
+              fi
+              echo "strict=false" >> "$GITHUB_OUTPUT"
+              ;;
+            ""|auto)
+              case "$PROFILE" in
+                preview|production)
+                  echo "strict=true" >> "$GITHUB_OUTPUT"
+                  ;;
+                development)
+                  echo "strict=false" >> "$GITHUB_OUTPUT"
+                  ;;
+                *)
+                  echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "::error::Invalid strict_lockfile override '$OVERRIDE' (allowed: auto|true|false)"
+              exit 1
+              ;;
+          esac
 
-      - name: Install deps (reproducible when possible)
+      - name: Install deps (package-manager-aware)
+        id: install_deps
         shell: bash
+        env:
+          STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
         run: |
           set -euo pipefail
+
+          PROFILE="${{ inputs.profile }}"
+          PM="${{ steps.lock.outputs.package_manager }}"
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+            case "$PM" in
+              npm)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                npm ci --no-audit --no-fund
+                ;;
+              yarn)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                corepack enable || true
+                yarn install --immutable
+                ;;
+              pnpm)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                corepack enable || true
+                pnpm install --frozen-lockfile
+                ;;
+              *)
+                echo "::error::Unknown package manager '$PM'"
+                exit 1
+                ;;
+            esac
+          elif [ "${STRICT_LOCKFILE}" = "true" ]; then
+            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running preview/production builds."
+            exit 1
           else
-            echo "::warning::No lockfile found. Falling back to npm install."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-            if [ ! -f package-lock.json ]; then
-              npm install --package-lock-only --no-audit --no-fund || true
-            fi
+            echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
+            echo "mode=fallback-npm-install" >> "$GITHUB_OUTPUT"
+            npm install --no-audit --no-fund
           fi
 
-      - name: Ensure expo-dev-client for development builds
-        if: inputs.profile == 'development'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if node -e 'const p=require("./package.json"); const d={...(p.dependencies||{}),...(p.devDependencies||{})}; process.exit(d["expo-dev-client"]?0:1)'; then
-            echo "expo-dev-client already present."
-          else
-            echo "::warning::expo-dev-client missing -> installing via expo install"
-            npx --yes expo install expo-dev-client
-          fi
-
-      - name: Install EAS CLI (pinned)
+      - name: Install EAS CLI
         shell: bash
         run: |
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
+          eas whoami
 
-      - name: Verify EAS authentication
+      - name: Export Android signing files (production only)
+        if: inputs.profile == 'production'
         shell: bash
         run: |
           set -euo pipefail
-          eas whoami
+
+          BODY="$(node - <<'NODE'
+          const payload = { repo: process.env.GITHUB_REPOSITORY, mode: "production" };
+          process.stdout.write(JSON.stringify(payload));
+          NODE
+          )"
+
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"} \
+            --data "${BODY}")"
+
+          RESP_JSON="$RESP" node - <<'NODE'
+          const fs = require("fs");
+
+          function mask(s) {
+            if (!s) return "";
+            if (typeof s !== "string") s = String(s);
+            if (s.length <= 6) return "***";
+            return s.slice(0, 2) + "***" + s.slice(-2);
+          }
+
+          const resp = JSON.parse(process.env.RESP_JSON || "{}");
+          if (!resp.ok) {
+            console.error("❌ export failed:", resp.error || "unknown error");
+            process.exit(1);
+          }
+
+          fs.writeFileSync(
+            "android-upload-keystore.p12",
+            Buffer.from(resp.keystoreBase64, "base64"),
+            { mode: 0o600 }
+          );
+
+          const creds = {
+            android: {
+              keystore: {
+                keystorePath: "android-upload-keystore.p12",
+                keystorePassword: resp.keystorePassword,
+                keyAlias: resp.alias,
+                keyPassword: resp.keyPassword,
+              },
+            },
+          };
+
+          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2), { mode: 0o600 });
+
+          console.log(
+            "✅ wrote signing files (alias=" +
+              (resp.alias || "unknown") +
+              ", pw=" +
+              mask(resp.keystorePassword) +
+              ")"
+          );
+          NODE
 
       - name: Run EAS build (WAIT)
         id: eas
@@ -135,26 +301,36 @@ jobs:
           set -euo pipefail
 
           PROFILE="${{ inputs.profile }}"
-          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
-          echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
+          EXT="apk"
 
-          echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
-          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+          echo " Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
+
+          {
+            echo "artifact_ext=${EXT}"
+          } >> "${GITHUB_OUTPUT}"
+
+          BUILD_OUTPUT=""
+          if ! BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)"; then
             CODE=$?
             echo "${BUILD_OUTPUT}"
             echo "::error::EAS build failed (exit ${CODE})"
             exit "${CODE}"
-          }
+          fi
 
           echo "${BUILD_OUTPUT}"
 
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
+          if [ -z "${BUILD_ID}" ]; then
+            BUILD_ID="unknown"
+          fi
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
-          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "build_id=${BUILD_ID}"
+            echo "build_url=${BUILD_URL}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
@@ -170,53 +346,38 @@ jobs:
           }
           ls -lah build || true
 
+      - name: Cleanup signing files
+        if: always()
+        shell: bash
+        run: |
+          rm -f credentials.json android-upload-keystore.p12 || true
+
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
           path: build/*
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Persist generated lockfile / dev-client changes (optional)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No repo changes to persist."
-            exit 0
-          fi
-
-          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
-          if [ -z "$BRANCH" ]; then
-            echo "::warning::Detached HEAD -> not pushing changes."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json eas-project.json 2>/dev/null || true
-          git commit -m "chore(ci): persist build deps [skip ci]" || true
-          git push origin "$BRANCH" || true
-
       - name: Summary
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
           {
             echo "## Release Build Summary"
             echo ""
-            echo "- Ref: ${{ inputs.ref }}"
+            echo "- workflow version: \`${WORKFLOW_VERSION}\`"
             echo "- Profile: ${{ inputs.profile }}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+            echo "- Ref: ${{ inputs.ref }}"
+            echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
+            echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
+            echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
+            echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
+            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""
-            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "> Hinweis: Dieser Workflow ist ein manueller Direktpfad und umgeht die App-seitige Single Source of Truth."
           } >> "$GITHUB_STEP_SUMMARY"
