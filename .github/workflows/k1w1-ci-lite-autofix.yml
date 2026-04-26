@@ -4,7 +4,7 @@
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
-  CI Lite Autofix${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • ${{ inputs.ref }}
+  CI Lite Autofix • run-${{ github.run_id }}-${{ github.run_attempt }}
 
 on:
   workflow_dispatch:
@@ -18,8 +18,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 concurrency:
   group: k1w1-ci-lite-autofix-${{ inputs.ref }}
@@ -30,11 +29,11 @@ jobs:
     name: ESLint --fix + verify
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
 
     env:
-      JOB_ID: ${{ inputs.job_id }}
-      TARGET_BRANCH: ${{ inputs.ref }}
-      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -45,13 +44,36 @@ jobs:
           input_ref: ${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_ref_regex: ${{ env.ALLOWED_REF_REGEX }}
+          allowed_refs_csv: work,codex,dev,develop
 
-      - name: Export target branch
+      - name: Sanitize run metadata
+        env:
+          RAW_TARGET_BRANCH: ${{ steps.target_ref.outputs.checkout_ref }}
+          RAW_JOB_ID: ${{ inputs.job_id || '' }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "TARGET_BRANCH=${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
+
+          TARGET_BRANCH=""
+          JOB_ID=""
+
+          if [[ "$RAW_TARGET_BRANCH" =~ ^[A-Za-z0-9._/-]{1,120}$ ]] && [[ "$RAW_TARGET_BRANCH" != -* ]]; then
+            TARGET_BRANCH="$RAW_TARGET_BRANCH"
+          else
+            echo "::error::Invalid TARGET_BRANCH from determine-ref output"
+            exit 1
+          fi
+
+          if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            JOB_ID="${RAW_JOB_ID,,}"
+          fi
+
+          {
+            printf 'TARGET_BRANCH=%s
+' "$TARGET_BRANCH"
+            printf 'JOB_ID=%s
+' "$JOB_ID"
+          } >> "$GITHUB_ENV"
 
       - name: Run info
         shell: bash
@@ -145,13 +167,13 @@ jobs:
           set -euo pipefail
           if [ "${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
             echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            npm install --no-audit --no-fund
             exit 0
           fi
 
           case "${{ steps.lock.outputs.package_manager }}" in
             npm)
-              npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+              npm ci --no-audit --no-fund
               ;;
             yarn)
               yarn install --immutable || yarn install --frozen-lockfile
@@ -393,4 +415,3 @@ jobs:
         run: |
           set -euo pipefail
           echo "✅ CI Lite Autofix finished (job_id=${JOB_ID:-})"
-
