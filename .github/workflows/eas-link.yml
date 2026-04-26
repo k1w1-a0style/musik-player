@@ -1,22 +1,337 @@
-name: EAS Link
+# managed-by: k1w1
+# workflow-version: 405
+name: EAS Link / Init
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA to link/init"
+        required: true
+      eas_project_id:
+        description: "Existing EAS Project ID (optional)"
+        required: false
+        type: string
+      expo_owner:
+        description: "Expo account/organization (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref }}
+  cancel-in-progress: false
 
 jobs:
   link:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.32.0"
+      EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
+      EXPO_OWNER_INPUT: ${{ inputs.expo_owner }}
+      TARGET_REF_INPUT: ${{ inputs.ref }}
+      WORKFLOW_VERSION: "405"
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 18.x
+          node-version: 20
 
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
+      - name: Validate secrets
+        id: validate_inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
 
-      - name: Link EAS Project
+          TARGET_REF_RAW="${TARGET_REF_INPUT:-}"
+          TARGET_REF="$(printf '%s' "${TARGET_REF_RAW}" | tr -d '\r\n')"
+          if [ -z "${TARGET_REF}" ]; then
+            echo "::error::Missing ref. This workflow must target the selected app branch explicitly."
+            exit 1
+          fi
+          if printf '%s' "${TARGET_REF}" | grep -qE '[[:cntrl:][:space:]]'; then
+            echo "::error::Invalid ref. Control chars/whitespace are not allowed."
+            exit 1
+          fi
+          if printf '%s' "${TARGET_REF}" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            : # allow explicit SHA input
+          elif git check-ref-format --branch "${TARGET_REF}" >/dev/null 2>&1; then
+            : # valid branch-style ref name
+          elif git check-ref-format "refs/tags/${TARGET_REF}" >/dev/null 2>&1; then
+            : # valid tag-style ref name
+          else
+            echo "::error::Invalid ref. Must be a valid branch/tag name or SHA."
+            exit 1
+          fi
+
+          EAS_PROJECT_ID_SANITIZED="$(printf '%s' "${EAS_PROJECT_ID_INPUT:-}" | tr -d '\r\n')"
+          if [ -n "${EAS_PROJECT_ID_SANITIZED}" ] && ! printf '%s' "${EAS_PROJECT_ID_SANITIZED}" | grep -qE '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'; then
+            echo "::error::Invalid eas_project_id input. Expected UUID format."
+            exit 1
+          fi
+
+          EXPO_OWNER_SANITIZED="$(printf '%s' "${EXPO_OWNER_INPUT:-}" | tr -d '\r\n')"
+          if [ -n "${EXPO_OWNER_SANITIZED}" ] && ! printf '%s' "${EXPO_OWNER_SANITIZED}" | grep -qE '^[A-Za-z0-9._-]+$'; then
+            echo "::error::Invalid expo_owner input. Allowed chars: [A-Za-z0-9._-]."
+            exit 1
+          fi
+
+          {
+            printf 'target_ref=%s\n' "${TARGET_REF}"
+            printf 'eas_project_id=%s\n' "${EAS_PROJECT_ID_SANITIZED}"
+            printf 'expo_owner=%s\n' "${EXPO_OWNER_SANITIZED}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+          echo "Ref: ${TARGET_REF}"
+          echo "EAS_PROJECT_ID_INPUT: ${EAS_PROJECT_ID_SANITIZED:-<empty>}"
+          echo "EXPO_OWNER_INPUT: ${EXPO_OWNER_SANITIZED:-<empty>}"
+
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=package-lock.json"
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=npm-shrinkwrap.json"
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=yarn.lock"
+              echo "package_manager=yarn"
+            } >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=pnpm-lock.yaml"
+              echo "package_manager=pnpm"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "has_lockfile=false"
+              echo "lockfile_path="
+              echo "package_manager=npm"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (yarn cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (pnpm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install deps (package-manager-aware, fail-closed)
+        id: install_deps
+        shell: bash
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas --non-interactive link --id a2d62be0-f3dc-412c-9db0-31adb3872b02
+          LOCK_HAS_LOCKFILE: ${{ steps.lock.outputs.has_lockfile }}
+          LOCK_PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
+          LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
+        run: |
+          set -euo pipefail
+          PM="${LOCK_PACKAGE_MANAGER:-npm}"
+          LOCKFILE="${LOCKFILE_PATH:-}"
+          if [ "${LOCK_HAS_LOCKFILE:-false}" = "true" ]; then
+            case "$PM" in
+              npm)
+                echo "Using npm ci (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                npm ci --no-audit --no-fund
+                ;;
+              yarn)
+                echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                corepack enable || true
+                yarn install --immutable
+                ;;
+              pnpm)
+                echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
+                corepack enable || true
+                pnpm install --frozen-lockfile
+                ;;
+              *)
+                echo "::error::Unknown package manager '$PM'"
+                exit 1
+                ;;
+            esac
+          else
+            echo "mode=blocked-missing-lockfile" >> "$GITHUB_OUTPUT"
+            echo "::error::No lockfile found. EAS Link workflow is fail-closed. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running this workflow."
+            exit 1
+          fi
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          eas --version
+
+      - name: Verify EAS auth (whoami)
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
+
+      - name: EAS project:init (link/create)
+        shell: bash
+        env:
+          EAS_PROJECT_ID_INPUT: ${{ steps.validate_inputs.outputs.eas_project_id }}
+          EXPO_OWNER_INPUT: ${{ steps.validate_inputs.outputs.expo_owner }}
+        run: |
+          set -euo pipefail
+
+          OWNER_ARGS=()
+          if [ -n "${EXPO_OWNER_INPUT:-}" ]; then
+            OWNER_ARGS=(--owner "${EXPO_OWNER_INPUT}")
+          fi
+
+          if [ -n "${EAS_PROJECT_ID_INPUT:-}" ]; then
+            echo "Linking with EAS Project ID: ${EAS_PROJECT_ID_INPUT}"
+            eas project:init --id "${EAS_PROJECT_ID_INPUT}" --non-interactive --force "${OWNER_ARGS[@]}"
+            node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${EAS_PROJECT_ID_INPUT}"
+          else
+            echo "No EAS Project ID provided. Running project:init and keeping generated eas-project.json..."
+            eas project:init --non-interactive --force "${OWNER_ARGS[@]}"
+            if [ ! -f eas-project.json ]; then
+              echo "::warning::eas-project.json not found after project:init. Trying to read projectId from expo config..."
+              npx --yes expo config --json > /tmp/expo-config.json
+              PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
+              if [ -z "${PROJECT_ID}" ]; then
+                echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."
+                exit 1
+              fi
+              node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${PROJECT_ID}"
+            fi
+          fi
+
+          echo "eas-project.json:"
+          cat eas-project.json || true
+
+      - name: Commit changes (if any)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_REF: ${{ steps.validate_inputs.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          if [ -z "${TARGET_REF:-}" ]; then
+            echo "::error::Missing explicit target ref."
+            exit 1
+          fi
+          if echo "$TARGET_REF" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::warning::Ref looks like a SHA ($TARGET_REF). Skipping writeback."
+            exit 0
+          fi
+          if echo "$TARGET_REF" | grep -qE '[ :]'; then
+            echo "::warning::Unsafe ref ($TARGET_REF). Skipping writeback."
+            exit 0
+          fi
+          if ! echo "$TARGET_REF" | grep -qE '^(work|codex|dev|develop)$'; then
+            echo "::warning::Writeback disabled for ref '$TARGET_REF' (policy regex)."
+            exit 0
+          fi
+
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git ls-remote --exit-code --heads origin "$TARGET_REF" >/dev/null 2>&1; then
+            echo "::warning::Ref '$TARGET_REF' is not a remote branch. Skipping writeback."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(eas): link/init projectId [skip ci]" || true
+          git push origin "HEAD:$TARGET_REF"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          TARGET_REF: ${{ steps.validate_inputs.outputs.target_ref }}
+          LOCK_PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
+          LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
+          INSTALL_MODE: ${{ steps.install_deps.outputs.mode }}
+        run: |
+          set -euo pipefail
+
+          SUMMARY_REF="${TARGET_REF:-unknown}"
+          SUMMARY_PM="${LOCK_PACKAGE_MANAGER:-unknown}"
+          SUMMARY_LOCKFILE="${LOCKFILE_PATH:-none}"
+          SUMMARY_MODE="${INSTALL_MODE:-unknown}"
+
+          {
+            echo "## EAS Link / Init Summary"
+            echo ""
+            echo "- workflow version: \`${WORKFLOW_VERSION}\`"
+            echo "- Ref: ${SUMMARY_REF}"
+            echo "- SHA: ${GITHUB_SHA}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- Package manager: ${SUMMARY_PM}"
+            echo "- Lockfile: ${SUMMARY_LOCKFILE}"
+            echo "- Dependency install mode: ${SUMMARY_MODE}"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"
+            echo ""
+            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
