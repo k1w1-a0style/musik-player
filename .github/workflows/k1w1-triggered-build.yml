@@ -1,4 +1,5 @@
 name: K1W1 Triggered Build
+run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'preview' }} • ${{ github.event.client_payload.ref || github.event.inputs.ref }}"
 
 on:
   repository_dispatch:
@@ -6,9 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
-        required: false
-        default: "main"
+        description: "Branch/Tag/SHA to build"
+        required: true
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -17,353 +17,141 @@ on:
         description: "Optional build_jobs id to update in Supabase"
         required: false
         default: ""
-
-concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.event_name }}-
-    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}-
-    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
-  cancel-in-progress: false
+      autofix:
+        description: "Allow workflow to write back lockfile/dev-client fixes"
+        required: false
+        type: boolean
+        default: false
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
+        required: false
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
 
 permissions:
   contents: read
 
-env:
-  EAS_CLI_VERSION: "16.0.0"
-  ARTIFACT_EXT: "apk"
-  ALLOWED_REF_REGEX: "^(work|main|develop|dev|release\\/.*|feature\\/.*|hotfix\\/.*)$"
+concurrency:
+  group: >-
+    k1w1-triggered-build-
+    ${{ github.event.client_payload.ref || github.event.inputs.ref }}-
+    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
+  cancel-in-progress: false
 
 jobs:
-  autofix:
-    name: Autofix (optional)
+  resolve:
+    name: Resolve explicit ref
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      profile: ${{ steps.resolve.outputs.profile }}
+      job_id: ${{ steps.resolve.outputs.job_id }}
+      autofix: ${{ steps.resolve.outputs.autofix }}
+      strict_lockfile: ${{ steps.resolve.outputs.strict_lockfile }}
     steps:
-      - name: Determine checkout ref
+      - name: Resolve inputs
+        id: resolve
         shell: bash
+        env:
+          RAW_REF: ${{ github.event.client_payload.ref || github.event.inputs.ref || '' }}
+          RAW_PROFILE: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
+          RAW_JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
+          RAW_AUTOFIX: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}
+          RAW_STRICT_LOCKFILE: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}
         run: |
           set -euo pipefail
-          REF="${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          REF="$(printf '%s' "$REF" | tr -d '\r\n')"
-          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then
-            echo "❌ Ref not allowed: $REF"
+
+          REF="$(printf '%s' "$RAW_REF" | tr -d '\r\n')"
+          PROFILE_RAW="$(printf '%s' "$RAW_PROFILE" | tr -d '\r\n')"
+          JOB_ID_RAW="$(printf '%s' "$RAW_JOB_ID" | tr -d '\r\n')"
+          AUTOFIX_RAW="$(printf '%s' "$RAW_AUTOFIX" | tr -d '\r\n')"
+          STRICT_LOCKFILE_RAW="$(printf '%s' "$RAW_STRICT_LOCKFILE" | tr -d '\r\n')"
+
+          if [ -z "$REF" ]; then
+            echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
             exit 1
           fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies (robust)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "Using npm ci..."
-            if npm ci; then
-              exit 0
-            fi
-            echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
-            exit 0
-          fi
-
-          echo "No package-lock.json, using npm install..."
-          if npm install; then
-            exit 0
-          fi
-          echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
-
-      - name: Lint + Typecheck
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run typecheck
-          npm run lint:ci
-
-      - name: Commit autofix (if any)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(ci): autofix templates / lint"
-          git push
-
-  build:
-    name: Build APK (EAS)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: write
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
-
-    steps:
-      - name: Determine checkout ref
-        shell: bash
-        run: |
-          set -euo pipefail
-          REF="${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          REF="$(printf '%s' "$REF" | tr -d '\r\n')"
-          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then
-            echo "❌ Ref not allowed: $REF"
+          if [ "${#REF}" -gt 200 ]; then
+            echo "::error::Invalid ref (too long)."
             exit 1
           fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
-
-      - name: Validate JOB_ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${JOB_ID:-}" ] && ! [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then
-            echo "⚠️ Invalid JOB_ID from payload; clearing"
-            echo "JOB_ID=" >> "$GITHUB_ENV"
+          if [[ "$REF" =~ [[:cntrl:]] ]] || [[ "$REF" =~ [[:space:]] ]]; then
+            echo "::error::Invalid ref (control/space characters are not allowed)."
+            exit 1
+          fi
+          if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
+            echo "::error::Invalid ref (forbidden prefix)."
+            exit 1
+          fi
+          if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
+            echo "::error::Invalid ref (forbidden git sequence)."
+            exit 1
+          fi
+          if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
+            echo "::error::Invalid ref (forbidden slash placement)."
+            exit 1
+          fi
+          if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
+            echo "::error::Invalid ref (forbidden metacharacters)."
+            exit 1
+          fi
+          if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+            echo "::error::Invalid ref (safe policy mismatch)."
+            exit 1
           fi
 
-      - name: Determine build profile
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="${{ github.event.client_payload.build_profile }}"
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
-
+          PROFILE="$(printf '%s' "$PROFILE_RAW" | tr '[:upper:]' '[:lower:]')"
           case "$PROFILE" in
             development|preview|production) ;;
-            *) echo "Invalid profile: $PROFILE"; exit 1 ;;
+            *)
+              echo "::error::Invalid profile '$PROFILE_RAW' (allowed: development|preview|production)."
+              exit 1
+              ;;
           esac
 
-          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
-          echo "PROFILE=$PROFILE"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies (robust)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "Using npm ci..."
-            if npm ci; then
-              exit 0
-            fi
-            echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
-            exit 0
+          JOB_ID="$JOB_ID_RAW"
+          if [ -n "$JOB_ID" ] && [[ ! "$JOB_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ ]]; then
+            echo "::error::Invalid job_id '$JOB_ID_RAW' (allowed: empty or [A-Za-z0-9][A-Za-z0-9._:-]{0,127})."
+            exit 1
           fi
 
-          echo "No package-lock.json, using npm install..."
-          if npm install; then
-            exit 0
-          fi
-          echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
+          AUTOFIX_LOWER="$(printf '%s' "$AUTOFIX_RAW" | tr '[:upper:]' '[:lower:]')"
+          case "$AUTOFIX_LOWER" in
+            true|1|yes|y|on) AUTOFIX="true" ;;
+            false|0|no|n|off|"") AUTOFIX="false" ;;
+            *)
+              echo "::error::Invalid autofix '$AUTOFIX_RAW' (allowed bool values only)."
+              exit 1
+              ;;
+          esac
 
-      - name: Install EAS CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g eas-cli@${EAS_CLI_VERSION}
-          eas --version
+          STRICT_LOCKFILE="$(printf '%s' "$STRICT_LOCKFILE_RAW" | tr '[:upper:]' '[:lower:]')"
+          case "$STRICT_LOCKFILE" in
+            auto|true|false) ;;
+            *)
+              echo "::error::Invalid strict_lockfile '$STRICT_LOCKFILE_RAW' (allowed: auto|true|false)."
+              exit 1
+              ;;
+          esac
 
-      - name: Verify EAS auth
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas whoami
+          {
+            printf 'ref=%s\n' "$REF"
+            printf 'profile=%s\n' "$PROFILE"
+            printf 'job_id=%s\n' "$JOB_ID"
+            printf 'autofix=%s\n' "$AUTOFIX"
+            printf 'strict_lockfile=%s\n' "$STRICT_LOCKFILE"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: "Update Supabase job: running"
-        if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Updating build_jobs (running) job_id=$JOB_ID"
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body={
-            "status":"running",
-            "github_repo": os.environ.get("GITHUB_REPOSITORY",""),
-            "github_run_id": os.environ.get("GITHUB_RUN_ID",""),
-          }
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
-
-      - name: Run EAS Build (WAIT)
-        id: eas
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Starting EAS build (android, profile=${PROFILE}) with --wait..."
-          set +e
-          eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1 | tee /tmp/eas_build.log
-          EC=${PIPESTATUS[0]}
-          set -e
-
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(grep -Eo "${UUID_RE}" /tmp/eas_build.log | head -n 1 || true)"
-          BUILD_URL="$(grep -Eo "https://expo\.dev/[^ ]+/builds/${UUID_RE}" /tmp/eas_build.log | tail -n 1 || true)"
-          if [ -n "${BUILD_ID:-}" ]; then
-            echo "EAS_BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${BUILD_URL:-}" ]; then
-            echo "EAS_BUILD_URL=$BUILD_URL" >> "$GITHUB_ENV"
-          fi
-
-          exit $EC
-
-      - name: Download Android APK
-        if: ${{ success() && env.EAS_BUILD_ID != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          OUT="build/apk-${{ github.run_id }}-${PROFILE}.${ARTIFACT_EXT}"
-          for i in 1 2 3 4 5; do
-            if eas build:download --id "${EAS_BUILD_ID}" --output "${OUT}" --non-interactive; then
-              break
-            fi
-            echo "Retry download ($i/5)..." >&2
-            sleep 5
-          done
-          test -f "${OUT}"
-          echo "ARTIFACT_NAME=$(basename "${OUT}")" >> "$GITHUB_ENV"
-          echo "ARTIFACT_SHA256=$(sha256sum "${OUT}" | awk '{print $1}')" >> "$GITHUB_ENV"
-          echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d ' ')" >> "$GITHUB_ENV"
-
-      - name: Upload Artifacts (APK + EAS log)
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ github.repository }}-${{ env.CHECKOUT_REF }}-${{ env.PROFILE }}-${{ github.run_id }}
-          path: |
-            build/*
-            /tmp/eas_build.log
-
-      - name: "Update Supabase job: success"
-        if: ${{ success() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body={"status":"succeeded"}
-          bid=os.environ.get("EAS_BUILD_ID","").strip()
-          if bid:
-            body["eas_build_id"]=bid
-          an=os.environ.get("ARTIFACT_NAME","").strip()
-          if an:
-            body["artifact_name"]=an
-          sh=os.environ.get("ARTIFACT_SHA256","").strip()
-          if sh:
-            body["artifact_sha256"]=sh
-          sz=os.environ.get("ARTIFACT_SIZE","").strip()
-          if sz.isdigit():
-            body["artifact_size"]=int(sz)
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
-
-      - name: "Update Supabase job: failure"
-        if: ${{ failure() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess, pathlib
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          log_path=pathlib.Path("/tmp/eas_build.log")
-          log=""
-          if log_path.exists():
-            log=log_path.read_text(errors="ignore")[-5000:]
-          body={"status":"failed","error":log}
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
-
-      - name: Summary
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "=== Build Summary ==="
-          echo "- Repo: ${GITHUB_REPOSITORY}"
-          echo "- Checkout ref: ${CHECKOUT_REF}"
-          echo "- Profile: ${PROFILE}"
-          echo "- Run ID: ${GITHUB_RUN_ID}"
-          echo "- EAS Build URL: ${EAS_BUILD_URL:-}"
-          echo "- EAS Build ID: ${EAS_BUILD_ID:-}"
+  build:
+    name: Dispatch → EAS Build (reusable)
+    needs: resolve
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      ref: ${{ needs.resolve.outputs.ref }}
+      profile: ${{ needs.resolve.outputs.profile }}
+      job_id: ${{ needs.resolve.outputs.job_id }}
+      platform: android
+      autofix: ${{ fromJSON(needs.resolve.outputs.autofix) }}
+      strict_lockfile: ${{ needs.resolve.outputs.strict_lockfile }}
+    secrets: inherit
