@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Musikplayer",
-    "slug": "musikplayer",
+    "name": "musik-player",
+    "slug": "neues-projekt",
     "version": "1.0.0",
     "platforms": [
       "android"

@@ -46,3 +46,6 @@ project_src_*.zip
 project_dump_*.zip
 k1w1-*-patch.zip
 k1w1-*-hotfix*.zip
+
+.npmrc/
+**/.npmrc
