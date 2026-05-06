@@ -35,6 +35,7 @@ jobs:
       contents: read
 
     env:
+      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -47,6 +48,7 @@ jobs:
           input_ref: ${{ inputs.ref || '' }}
           github_ref_name: ${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
           default_ref: ""
+          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:
@@ -158,7 +160,7 @@ jobs:
 
       - name: Setup Node (with package manager cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: ${{ steps.lock.outputs.cache_kind }}
@@ -166,7 +168,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
@@ -320,7 +322,7 @@ jobs:
 
       - name: Upload CI Lite logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-lite-logs-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
