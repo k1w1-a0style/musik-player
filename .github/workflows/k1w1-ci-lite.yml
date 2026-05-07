@@ -291,6 +291,12 @@ jobs:
           fi
           exit 0
 
+      - name: Run tests (in-band)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test -- --runInBand
+
       - name: Summary
         if: always()
         shell: bash

@@ -44,7 +44,6 @@ jobs:
           input_ref: ${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:
