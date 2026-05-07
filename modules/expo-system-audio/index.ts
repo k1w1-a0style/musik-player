@@ -1,4 +1,6 @@
-import { NativeModule, requireNativeModule, EventSubscription } from 'expo-modules-core';
+import { NativeModule, requireNativeModule } from 'expo';
+
+type EventSubscription = { remove: () => void };
 
 export interface EqBandInfo {
   index: number;
