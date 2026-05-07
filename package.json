@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "lint:ci": "eslint . --quiet",
     "test": "jest",
-    "test:silent": "jest --runInBand"
+    "test:silent": "jest --runInBand",
+    "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs"
   },
   "dependencies": {
     "@babel/core": "7.29.0",

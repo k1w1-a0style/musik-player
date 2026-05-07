@@ -59,7 +59,8 @@ const NowPlaying: React.FC = () => {
 
     const item = v.item as Song;
     const activeSong = currentSongRef.current;
-    if (item.id === lastReportedId.current || item.id === activeSong?.id) return;
+    if (!activeSong) return;
+    if (item.id === lastReportedId.current || item.id === activeSong.id) return;
 
     lastReportedId.current = item.id;
     void playSong(item, queueRef.current);
