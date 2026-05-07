@@ -20,11 +20,11 @@ const DEMO_SONGS: Song[] = [
 ];
 
 const Library: React.FC = () => {
-  const { songs, setSongs, currentSong, playSong, isPlaying } = useMusicContext();
+  const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
 
-  const displayedSongs = useMemo(() => (songs.length === 0 ? DEMO_SONGS : songs), [songs]);
+  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -83,7 +83,7 @@ const Library: React.FC = () => {
             <Text style={styles.header}>Deine Musik</Text>
             <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
           </View>
-          <Pressable style={({ pressed }) => [styles.importButton, loading && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading}>
+          <Pressable style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading || !isReady}>
             {loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : songs.length > 0 ? <RefreshCcw color={theme.palette.text.onPrimary} size={18} /> : <Download color={theme.palette.text.onPrimary} size={18} />}
             <Text style={styles.importText}>{loading ? 'Lese ID3…' : 'Importieren'}</Text>
           </Pressable>
