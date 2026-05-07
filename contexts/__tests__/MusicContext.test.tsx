@@ -7,6 +7,15 @@ import { storage, StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
+jest.mock('expo-file-system', () => ({
+  cacheDirectory: 'file:///cache/',
+  documentDirectory: 'file:///docs/',
+  EncodingType: { Base64: 'base64' },
+  makeDirectoryAsync: jest.fn(async () => undefined),
+  writeAsStringAsync: jest.fn(async () => undefined),
+}));
+
 type RNTPMock = typeof TrackPlayer & {
   __reset: () => void;
   __getQueue: () => unknown[];
@@ -71,6 +80,8 @@ beforeEach(() => {
   (TrackPlayer as RNTPMock).__reset();
   (AsyncStorage as unknown as { __reset: () => void }).__reset();
   jest.clearAllMocks();
+
+
 });
 
 describe('MusicContext', () => {
@@ -145,4 +156,21 @@ describe('MusicContext', () => {
       expect(stored?.[0]?.name).toBe('Drive');
     });
   });
+
+
+  test('hydrates songs by migrating base64 covers before persisting', async () => {
+    await storage.set(StorageKeys.SONGS, [
+      { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3', cover: 'data:image/png;base64,AAAA' },
+    ]);
+
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await waitFor(async () => {
+      const stored = await storage.get<Song[]>(StorageKeys.SONGS);
+      expect(stored?.[0]?.cover).toBe('file:///cache/covers/s1.png');
+      expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
+    });
+  });
+
 });

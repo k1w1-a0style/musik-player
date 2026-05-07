@@ -26,6 +26,7 @@ import {
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
+import { sanitizeSongsForStorage } from '../utils/coverCache';
 import SystemAudio, {
   type EqInitResult,
   type PaletteResult,
@@ -191,7 +192,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         storage.get<boolean>(StorageKeys.SHUFFLE),
       ]);
       if (cancelled) return;
-      if (storedSongs) setSongsState(storedSongs);
+      if (storedSongs) {
+        const sanitizedSongs = await sanitizeSongsForStorage(storedSongs);
+        setSongsState(sanitizedSongs);
+        const changed = sanitizedSongs.some((song, index) => song.cover !== storedSongs[index]?.cover);
+        if (changed) await storage.set(StorageKeys.SONGS, sanitizedSongs);
+      }
       if (storedPlaylists) setPlaylists(storedPlaylists);
       if (storedEqEnabled != null) setEqEnabledState(storedEqEnabled);
       if (storedEqBands) setEqBandsState(storedEqBands);
@@ -346,7 +352,20 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [playlists, isReady]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.SONGS, songs);
+    let cancelled = false;
+    (async () => {
+      const sanitizedSongs = await sanitizeSongsForStorage(songs);
+      if (cancelled) return;
+      const changed = sanitizedSongs.some((song, index) => song.cover !== songs[index]?.cover);
+      if (changed) {
+        setSongsState(sanitizedSongs);
+        return;
+      }
+      await storage.set(StorageKeys.SONGS, sanitizedSongs);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [songs, isReady]);
 
   // ---- Library ----
