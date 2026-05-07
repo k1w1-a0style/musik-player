@@ -53,12 +53,11 @@ npx expo config --json
 
 ```text
 .
-├── app/                    # Einstieg / Expo App-Router Dateien
+├── App.tsx                 # Einstieg, Provider, React Navigation
 ├── components/             # UI-Komponenten
 ├── contexts/               # App- und Music-State
 ├── screens/                # App-Screens
 ├── services/               # Playback-Service
-├── src/config/             # zentrale Runtime-Konfiguration
 ├── utils/                  # Parser, Storage, Hilfsfunktionen
 ├── __mocks__/              # Jest-Mocks
 ├── app.json
