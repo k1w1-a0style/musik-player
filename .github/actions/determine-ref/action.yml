@@ -1,0 +1,77 @@
+name: determine-ref
+
+description: Resolve a safe checkout ref from multiple possible inputs.
+
+inputs:
+  payload_branch:
+    required: false
+    default: ""
+  payload_ref:
+    required: false
+    default: ""
+  input_ref:
+    required: false
+    default: ""
+  github_ref_name:
+    required: false
+    default: ""
+  default_ref:
+    required: false
+    default: "main"
+
+outputs:
+  checkout_ref:
+    description: Safe resolved ref.
+    value: ${{ steps.resolve.outputs.checkout_ref }}
+
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        PAYLOAD_BRANCH: ${{ inputs.payload_branch }}
+        PAYLOAD_REF: ${{ inputs.payload_ref }}
+        INPUT_REF: ${{ inputs.input_ref }}
+        GITHUB_REF_NAME_INPUT: ${{ inputs.github_ref_name }}
+        DEFAULT_REF: ${{ inputs.default_ref }}
+      run: |
+        set -euo pipefail
+
+        trim() {
+          local s="$1"
+          s="${s#"${s%%[![:space:]]*}"}"
+          s="${s%"${s##*[![:space:]]}"}"
+          printf '%s' "$s"
+        }
+
+        first_non_empty=""
+        for candidate in "$PAYLOAD_BRANCH" "$PAYLOAD_REF" "$INPUT_REF" "$GITHUB_REF_NAME_INPUT" "$DEFAULT_REF"; do
+          t="$(trim "$candidate")"
+          if [ -n "$t" ]; then
+            first_non_empty="$t"
+            break
+          fi
+        done
+
+        if [ -z "$first_non_empty" ]; then
+          echo "::error::determine-ref: could not resolve checkout ref (all candidates empty)."
+          exit 1
+        fi
+
+        if [[ "$first_non_empty" == -* ]]; then
+          echo "::error::determine-ref: invalid checkout ref '$first_non_empty' (leading '-' is not allowed)."
+          exit 1
+        fi
+
+        if printf '%s' "$first_non_empty" | grep -qE '[[:space:]:;`|]|\$\('; then
+          echo "::error::determine-ref: invalid checkout ref '$first_non_empty' (contains forbidden whitespace or shell metacharacters)."
+          exit 1
+        fi
+
+        if ! printf '%s' "$first_non_empty" | grep -qE '^[A-Za-z0-9._/-]{1,200}$'; then
+          echo "::error::determine-ref: invalid checkout ref '$first_non_empty' (must match ^[A-Za-z0-9._/-]{1,200}$)."
+          exit 1
+        fi
+
+        printf 'checkout_ref=%s\n' "$first_non_empty" >> "$GITHUB_OUTPUT"
