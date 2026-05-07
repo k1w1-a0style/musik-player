@@ -29,12 +29,6 @@
     },
     "plugins": [
       "expo-font",
-      [
-        "expo-notifications",
-        {
-          "color": "#F5B301"
-        }
-      ],
       "./modules/expo-system-audio/app.plugin.js"
     ],
     "assetBundlePatterns": [
