@@ -55,7 +55,8 @@ const Library: React.FC = () => {
           const filenameTitle = a.filename.replace(/\.[^.]+$/, '');
           const fallback = parseFilename(a.filename);
           const tags = await parseId3FromUri(a.uri);
-          const cover = await cacheBase64Cover(a.id, tags.cover);
+          const cachedCover = await cacheBase64Cover(a.id, tags.cover);
+          const cover = cachedCover ?? tags.cover;
           enriched.push({
             id: a.id, title: tags.title || fallback.title || filenameTitle, artist: tags.artist || fallback.artist || 'Unbekannt', album: tags.album,
             uri: a.uri, cover, duration: (a.duration ?? 0) * 1000, year: tags.year, genre: tags.genre,
