@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { useMusicContext } from '../src/contexts/MusicContext';
-import * as MediaLibrary from 'expo-media-library';
+import { useMusicContext } from '../contexts/MusicContext';
 
 const MusicPlayer: React.FC = () => {
   const { currentSong } = useMusicContext();
