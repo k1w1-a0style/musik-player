@@ -15,8 +15,7 @@ import TrackPlayer, {
   Event,
   RepeatMode as RNTPRepeatMode,
   State,
-  usePlaybackState,
-  useProgress,
+  usePlaybackState
 } from 'react-native-track-player';
 import {
   EQ_PRESETS,
@@ -43,8 +42,6 @@ interface MusicContextValue {
   playbackQueue: Song[];
   isPlaying: boolean;
   isBuffering: boolean;
-  position: number;
-  duration: number;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   togglePlayPause: () => Promise<void>;
   stop: () => Promise<void>;
@@ -134,7 +131,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const baseQueueContextRef = useRef<Song[]>([]);
 
   const playback = usePlaybackState();
-  const progress = useProgress(500);
 
   const isPlaying = playback.state === State.Playing;
   const isBuffering =
@@ -604,8 +600,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       playbackQueue,
       isPlaying,
       isBuffering,
-      position: progress.position * 1000,
-      duration: progress.duration * 1000,
       playSong,
       togglePlayPause,
       stop,
@@ -646,8 +640,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       playbackQueue,
       isPlaying,
       isBuffering,
-      progress.position,
-      progress.duration,
       playSong,
       togglePlayPause,
       stop,
