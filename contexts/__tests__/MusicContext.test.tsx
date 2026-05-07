@@ -168,7 +168,7 @@ describe('MusicContext', () => {
 
     await waitFor(async () => {
       const stored = await storage.get<Song[]>(StorageKeys.SONGS);
-      expect(stored?.[0]?.cover).toBe('file:///cache/covers/s1.png');
+      expect(stored?.[0]?.cover).toBe('file:///docs/covers/s1.png');
       expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
     });
   });

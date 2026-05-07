@@ -98,18 +98,12 @@ jobs:
           fi
 
           {
-            printf 'TARGET_REF=%s
-' "$TARGET_REF"
-            printf 'JOB_ID=%s
-' "$JOB_ID"
-            printf 'TRIGGER_MODE=%s
-' "$TRIGGER_MODE"
-            printf 'SOURCE_WORKFLOW=%s
-' "$SOURCE_WORKFLOW"
-            printf 'SOURCE_RUN_ID=%s
-' "$SOURCE_RUN_ID"
-            printf 'SOURCE_SHA=%s
-' "$SOURCE_SHA"
+            printf 'TARGET_REF=%s\n' "$TARGET_REF"
+            printf 'JOB_ID=%s\n' "$JOB_ID"
+            printf 'TRIGGER_MODE=%s\n' "$TRIGGER_MODE"
+            printf 'SOURCE_WORKFLOW=%s\n' "$SOURCE_WORKFLOW"
+            printf 'SOURCE_RUN_ID=%s\n' "$SOURCE_RUN_ID"
+            printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
           } >> "$GITHUB_ENV"
 
       - name: Run info

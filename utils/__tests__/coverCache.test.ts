@@ -24,11 +24,11 @@ describe('coverCache', () => {
     ];
 
     const result = await sanitizeSongsForStorage(songs);
-    expect(result[0].cover).toBe('file:///cache/covers/1.jpg');
+    expect(result[0].cover).toBe('file:///docs/covers/1.jpg');
     expect(result[1].cover).toBe('file:///cache/covers/2.jpg');
     expect(result[0].cover?.startsWith('data:image/')).toBe(false);
 
-    expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///cache/covers', {
+    expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///docs/covers', {
       intermediates: true,
     });
     expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();

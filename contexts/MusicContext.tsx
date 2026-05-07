@@ -194,6 +194,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (cancelled) return;
       if (storedSongs) {
         const sanitizedSongs = await sanitizeSongsForStorage(storedSongs);
+        if (cancelled) return;
         setSongsState(sanitizedSongs);
         const changed = sanitizedSongs.some((song, index) => song.cover !== storedSongs[index]?.cover);
         if (changed) await storage.set(StorageKeys.SONGS, sanitizedSongs);

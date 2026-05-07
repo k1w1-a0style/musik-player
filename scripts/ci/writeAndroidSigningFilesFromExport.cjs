@@ -13,6 +13,24 @@ function addMask(value) {
   process.stdout.write(`::add-mask::${value}\n`);
 }
 
+function normalizeBase64(input) {
+  return String(input || '').replace(/\s+/g, '');
+}
+
+function decodeValidatedBase64(input) {
+  const normalized = normalizeBase64(input);
+  if (!normalized) fail('keystoreBase64 is empty after whitespace normalization.');
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) fail('keystoreBase64 contains invalid characters.');
+  if (normalized.length % 4 !== 0) fail('keystoreBase64 length must be divisible by 4.');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) fail('keystoreBase64 has invalid padding.');
+  const buf = Buffer.from(normalized, 'base64');
+  if (!buf || buf.length < 32) fail('Decoded keystore data is empty or too small.');
+  const reencoded = buf.toString('base64').replace(/=+$/g, '');
+  const sourceNoPad = normalized.replace(/=+$/g, '');
+  if (reencoded !== sourceNoPad) fail('keystoreBase64 validation failed (re-encode mismatch).');
+  return buf;
+}
+
 (async () => {
   try {
     const stdin = await new Promise((resolve, reject) => {
@@ -46,22 +64,16 @@ function addMask(value) {
     addMask(alias);
     addMask(keyPassword);
 
-    const outDir = path.join(process.cwd(), 'ci-credentials', 'android');
+    const outDir = process.cwd();
     const logDir = path.join(process.cwd(), 'ci-logs');
     fs.mkdirSync(outDir, { recursive: true });
     fs.mkdirSync(logDir, { recursive: true });
 
-    const keystorePath = path.join(outDir, 'release-signing.jks');
+    const keystorePath = path.join(outDir, 'android-upload-keystore.p12');
     const credentialsJsonPath = path.join(outDir, 'credentials.json');
     const summaryPath = path.join(logDir, 'keystore-summary.json');
 
-    let keystoreBuffer;
-    try {
-      keystoreBuffer = Buffer.from(keystoreBase64, 'base64');
-    } catch {
-      fail('keystoreBase64 could not be decoded.');
-    }
-    if (!keystoreBuffer || keystoreBuffer.length === 0) fail('Decoded keystore file is empty.');
+    const keystoreBuffer = decodeValidatedBase64(keystoreBase64);
 
     fs.writeFileSync(keystorePath, keystoreBuffer, { mode: 0o600 });
     fs.chmodSync(keystorePath, 0o600);
@@ -69,7 +81,7 @@ function addMask(value) {
     const credentialsJson = {
       android: {
         keystore: {
-          keystorePath,
+          keystorePath: 'android-upload-keystore.p12',
           keystorePassword,
           keyAlias: alias,
           keyPassword,
@@ -88,7 +100,7 @@ function addMask(value) {
     };
     fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), { mode: 0o600 });
 
-    process.stdout.write(`Wrote Android signing files to ${outDir}\n`);
+    process.stdout.write('Wrote Android signing files in project root for EAS local credentials.\n');
     process.stdout.write(`Summary written to ${summaryPath}\n`);
   } catch (err) {
     fail(`Unexpected error while writing Android signing files: ${err instanceof Error ? err.message : String(err)}`);

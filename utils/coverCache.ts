@@ -23,7 +23,7 @@ const legacyFs = FileSystem as unknown as {
 };
 
 const getBaseDirectory = (): string | undefined =>
-  legacyFs.cacheDirectory ?? legacyFs.documentDirectory;
+  legacyFs.documentDirectory ?? legacyFs.cacheDirectory;
 
 export const cacheBase64Cover = async (songId: string, cover?: string): Promise<string | undefined> => {
   if (!cover) return undefined;

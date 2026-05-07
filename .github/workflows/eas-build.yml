@@ -736,6 +736,8 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
+          test -f credentials.json
+          test -f android-upload-keystore.p12
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
@@ -811,6 +813,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          rm -rf ci-credentials
           rm -f credentials.json android-upload-keystore.p12
           rm -f android/keystore.jks android/app/keystore.jks android/keystore.properties
           rm -f ci-logs/keystore-response.raw.json
