@@ -25,6 +25,7 @@ const SONGS: Song[] = [
   { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3' },
   { id: 's2', title: 'Song 2', artist: 'A', uri: 'file:///s2.mp3' },
   { id: 's3', title: 'Song 3', artist: 'B', uri: 'file:///s3.mp3' },
+  { id: 's4', title: 'Song 4', artist: 'B', uri: 'file:///s4.mp3' },
 ];
 
 const Probe: React.FC = () => {
@@ -45,6 +46,12 @@ const Probe: React.FC = () => {
       </Pressable>
       <Pressable testID="play-s2" onPress={() => ctx.playSong(SONGS[1], SONGS)}>
         <Text>play s2</Text>
+      </Pressable>
+      <Pressable testID="play-s3-subset" onPress={() => ctx.playSong(SONGS[2], [SONGS[2], SONGS[3]])}>
+        <Text>play s3 subset</Text>
+      </Pressable>
+      <Pressable testID="toggle-shuffle" onPress={() => ctx.toggleShuffle()}>
+        <Text>shuffle</Text>
       </Pressable>
       <Pressable testID="apply-rock" onPress={() => ctx.applyEqPreset('rock')}>
         <Text>rock</Text>
@@ -114,6 +121,20 @@ describe('MusicContext', () => {
     expect(getByTestId('probe-current').props.children).toBe('s2');
   });
 
+  test('playSong(song, queue) keeps provided queue context for shuffle', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
+    await act(async () => fireEvent.press(getByTestId('toggle-shuffle')));
+
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledTimes(2));
+    const shuffledQueue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(shuffledQueue).toHaveLength(2);
+    expect(shuffledQueue[0]?.id).toBe('s3');
+    expect(shuffledQueue.map(track => track.id).sort()).toEqual(['s3', 's4']);
+  });
+
   test('applyEqPreset sets bands + persists; setEqBand switches to custom', async () => {
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);
@@ -171,6 +192,19 @@ describe('MusicContext', () => {
       expect(stored?.[0]?.cover).toBe('file:///docs/covers/s1.png');
       expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
     });
+  });
+
+  test('hydrates CURRENT_SONG_ID without autoplay', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's2');
+
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(queue[0]?.id).toBe('s2');
   });
 
 });
