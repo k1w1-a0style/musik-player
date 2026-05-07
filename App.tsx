@@ -14,7 +14,9 @@ import {
 } from '@expo-google-fonts/bricolage-grotesque';
 import { Library as LibraryIcon, ListMusic, Sliders, Image as ImageIcon, Tag } from 'lucide-react-native';
 
+import AppErrorBoundary from './components/AppErrorBoundary';
 import { MusicProvider } from './contexts/MusicContext';
+import { PlaybackProgressProvider } from './contexts/PlaybackProgressContext';
 import Library from './screens/Library';
 import NowPlaying from './screens/NowPlaying';
 import Playlists from './screens/Playlists';
@@ -101,21 +103,25 @@ export default function App(): React.ReactElement {
 
   return (
     <SafeAreaProvider>
-      <MusicProvider>
-        <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
-        <NavigationContainer theme={navTheme}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="MainTabs">
-              {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
-            </Stack.Screen>
-            <Stack.Screen
-              name="NowPlaying"
-              component={NowPlaying}
-              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </MusicProvider>
+      <AppErrorBoundary>
+        <MusicProvider>
+          <PlaybackProgressProvider>
+            <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
+            <NavigationContainer theme={navTheme}>
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="MainTabs">
+                  {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
+                </Stack.Screen>
+                <Stack.Screen
+                  name="NowPlaying"
+                  component={NowPlaying}
+                  options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </PlaybackProgressProvider>
+        </MusicProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "name": "neues-projekt",
+  "name": "musik-player",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -26,7 +26,6 @@
     "expo-font": "~14.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-media-library": "~18.2.1",
-    "expo-notifications": "~0.32.16",
     "expo-system-audio": "file:./modules/expo-system-audio",
     "lucide-react-native": "1.8.0",
     "react": "19.1.0",

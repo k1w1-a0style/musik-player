@@ -1,4 +1,4 @@
-name: K1W1 Build Workflow
+name: Supabase-Triggered EAS Build
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 20
 
       - name: Setup EAS
         uses: expo/expo-github-action@v8
@@ -41,7 +41,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund
 
       - name: Update Build Status - Building
         run: |

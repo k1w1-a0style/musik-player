@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search } from 'lucide-react-native';
@@ -7,8 +7,11 @@ import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import type { Song } from '../types/Song';
 import { parseId3FromUri } from '../utils/id3Parser';
+import type { Id3Tags } from '../utils/id3Parser';
 import { parseFilename } from '../utils/musicParser';
+import { cacheBase64Cover } from '../utils/coverCache';
 import { theme } from '../theme';
+import { loadAllAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
 const DEMO_SONGS: Song[] = [
   { id: 'demo-1', title: 'SoundHelix Song 1', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
@@ -19,22 +22,15 @@ const DEMO_SONGS: Song[] = [
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
   const [loading, setLoading] = useState(false);
-  const [seeded, setSeeded] = useState(false);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    if (isReady && !seeded && songs.length === 0) {
-      setSongs(DEMO_SONGS);
-      setSeeded(true);
-    }
-    if (isReady && songs.length > 0) setSeeded(true);
-  }, [isReady, seeded, songs.length, setSongs]);
+  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return songs;
-    return songs.filter(s => [s.title, s.artist, s.album].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [songs, query]);
+    if (!q) return displayedSongs;
+    return displayedSongs.filter(s => [s.title, s.artist, s.album].filter(Boolean).join(' ').toLowerCase().includes(q));
+  }, [displayedSongs, query]);
 
   const importFromDevice = async (): Promise<void> => {
     try {
@@ -44,19 +40,22 @@ const Library: React.FC = () => {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
-      const assets = await MediaLibrary.getAssetsAsync({ mediaType: 'audio', first: 200 });
+      const assets = await loadAllAudioAssetsFromMediaLibrary();
       const enriched: Song[] = [];
-      const queue = [...assets.assets];
-      const workers = Array.from({ length: 8 }, async () => {
+      const queue = [...assets];
+      const ID3_WORKER_COUNT = 8;
+      const workers = Array.from({ length: ID3_WORKER_COUNT }, async () => {
         while (queue.length > 0) {
           const a = queue.shift();
           if (!a) break;
           const filenameTitle = a.filename.replace(/\.[^.]+$/, '');
           const fallback = parseFilename(a.filename);
-          const tags = await parseId3FromUri(a.uri);
+          const tags: Id3Tags = await parseId3FromUri(a.uri).catch(() => ({}));
+          const cachedCover = await cacheBase64Cover(a.id, tags.cover);
+          const cover = cachedCover ?? tags.cover;
           enriched.push({
             id: a.id, title: tags.title || fallback.title || filenameTitle, artist: tags.artist || fallback.artist || 'Unbekannt', album: tags.album,
-            uri: a.uri, cover: tags.cover, duration: (a.duration ?? 0) * 1000, year: tags.year, genre: tags.genre,
+            uri: a.uri, cover, duration: (a.duration ?? 0) * 1000, year: tags.year, genre: tags.genre,
           });
         }
       });
@@ -67,7 +66,7 @@ const Library: React.FC = () => {
         return;
       }
       enriched.sort((a, b) => a.title.localeCompare(b.title));
-      setSongs([...enriched, ...DEMO_SONGS]);
+      setSongs(enriched);
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {
@@ -82,10 +81,10 @@ const Library: React.FC = () => {
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>BIBLIOTHEK</Text>
             <Text style={styles.header}>Deine Musik</Text>
-            <Text style={styles.meta}>{songs.length} Titel</Text>
+            <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
           </View>
-          <Pressable style={({ pressed }) => [styles.importButton, loading && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading}>
-            {loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : songs.length > DEMO_SONGS.length ? <RefreshCcw color={theme.palette.text.onPrimary} size={18} /> : <Download color={theme.palette.text.onPrimary} size={18} />}
+          <Pressable style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading || !isReady}>
+            {loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : songs.length > 0 ? <RefreshCcw color={theme.palette.text.onPrimary} size={18} /> : <Download color={theme.palette.text.onPrimary} size={18} />}
             <Text style={styles.importText}>{loading ? 'Lese ID3…' : 'Importieren'}</Text>
           </Pressable>
         </View>

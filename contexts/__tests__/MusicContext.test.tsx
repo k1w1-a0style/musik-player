@@ -7,6 +7,15 @@ import { storage, StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
+jest.mock('expo-file-system', () => ({
+  cacheDirectory: 'file:///cache/',
+  documentDirectory: 'file:///docs/',
+  EncodingType: { Base64: 'base64' },
+  makeDirectoryAsync: jest.fn(async () => undefined),
+  writeAsStringAsync: jest.fn(async () => undefined),
+}));
+
 type RNTPMock = typeof TrackPlayer & {
   __reset: () => void;
   __getQueue: () => unknown[];
@@ -16,6 +25,7 @@ const SONGS: Song[] = [
   { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3' },
   { id: 's2', title: 'Song 2', artist: 'A', uri: 'file:///s2.mp3' },
   { id: 's3', title: 'Song 3', artist: 'B', uri: 'file:///s3.mp3' },
+  { id: 's4', title: 'Song 4', artist: 'B', uri: 'file:///s4.mp3' },
 ];
 
 const Probe: React.FC = () => {
@@ -23,6 +33,7 @@ const Probe: React.FC = () => {
   return (
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
+      <Text testID="probe-playback-queue">{ctx.playbackQueue.map(song => song.id).join(',')}</Text>
       <Text testID="probe-songs-count">{String(ctx.songs.length)}</Text>
       <Text testID="probe-shuffle">{String(ctx.shuffle)}</Text>
       <Text testID="probe-repeat">{ctx.repeatMode}</Text>
@@ -36,6 +47,15 @@ const Probe: React.FC = () => {
       </Pressable>
       <Pressable testID="play-s2" onPress={() => ctx.playSong(SONGS[1], SONGS)}>
         <Text>play s2</Text>
+      </Pressable>
+      <Pressable testID="play-s3-subset" onPress={() => ctx.playSong(SONGS[2], [SONGS[2], SONGS[3]])}>
+        <Text>play s3 subset</Text>
+      </Pressable>
+      <Pressable testID="play-demo" onPress={() => ctx.playSong({ id: 'demo-1', title: 'Demo 1', artist: 'Demo', uri: 'file:///demo1.mp3' })}>
+        <Text>play demo</Text>
+      </Pressable>
+      <Pressable testID="toggle-shuffle" onPress={() => ctx.toggleShuffle()}>
+        <Text>shuffle</Text>
       </Pressable>
       <Pressable testID="apply-rock" onPress={() => ctx.applyEqPreset('rock')}>
         <Text>rock</Text>
@@ -71,6 +91,8 @@ beforeEach(() => {
   (TrackPlayer as RNTPMock).__reset();
   (AsyncStorage as unknown as { __reset: () => void }).__reset();
   jest.clearAllMocks();
+
+
 });
 
 describe('MusicContext', () => {
@@ -101,6 +123,39 @@ describe('MusicContext', () => {
     });
     expect((TrackPlayer as RNTPMock).__getQueue().length).toBeGreaterThan(0);
     expect(getByTestId('probe-current').props.children).toBe('s2');
+  });
+
+  test('playSong(song) still plays a playable song outside library context', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await act(async () => fireEvent.press(getByTestId('play-demo')));
+
+    await waitFor(() => {
+      expect(TrackPlayer.add).toHaveBeenCalled();
+      expect(TrackPlayer.play).toHaveBeenCalled();
+    });
+    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.id).toBe('demo-1');
+    expect(getByTestId('probe-current').props.children).toBe('demo-1');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('demo-1');
+  });
+
+  test('playSong(song, queue) keeps provided queue context for shuffle', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
+    await act(async () => fireEvent.press(getByTestId('toggle-shuffle')));
+
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledTimes(2));
+    const shuffledQueue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(shuffledQueue).toHaveLength(2);
+    expect(shuffledQueue[0]?.id).toBe('s3');
+    expect(shuffledQueue.map(track => track.id).sort()).toEqual(['s3', 's4']);
+    const playbackQueueIds = String(getByTestId('probe-playback-queue').props.children).split(',').sort();
+    expect(playbackQueueIds).toEqual(['s3', 's4']);
   });
 
   test('applyEqPreset sets bands + persists; setEqBand switches to custom', async () => {
@@ -145,4 +200,35 @@ describe('MusicContext', () => {
       expect(stored?.[0]?.name).toBe('Drive');
     });
   });
+
+
+  test('hydrates songs by migrating base64 covers before persisting', async () => {
+    await storage.set(StorageKeys.SONGS, [
+      { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3', cover: 'data:image/png;base64,AAAA' },
+    ]);
+
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await waitFor(async () => {
+      const stored = await storage.get<Song[]>(StorageKeys.SONGS);
+      expect(stored?.[0]?.cover).toBe('file:///docs/covers/s1.png');
+      expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
+    });
+  });
+
+  test('hydrates CURRENT_SONG_ID without autoplay', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's2');
+
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(queue[0]?.id).toBe('s2');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+  });
+
 });

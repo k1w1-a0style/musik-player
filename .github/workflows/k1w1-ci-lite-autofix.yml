@@ -44,7 +44,6 @@ jobs:
           input_ref: ${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:
@@ -69,10 +68,8 @@ jobs:
           fi
 
           {
-            printf 'TARGET_BRANCH=%s
-' "$TARGET_BRANCH"
-            printf 'JOB_ID=%s
-' "$JOB_ID"
+            printf 'TARGET_BRANCH=%s\n' "$TARGET_BRANCH"
+            printf 'JOB_ID=%s\n' "$JOB_ID"
           } >> "$GITHUB_ENV"
 
       - name: Run info

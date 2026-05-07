@@ -13,6 +13,7 @@ import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMusicContext } from '../contexts/MusicContext';
+import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
 import ModernControls from '../components/ModernControls';
@@ -26,12 +27,21 @@ const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { songs, currentSong, position, duration, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
+  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
+  const { position, duration } = usePlaybackProgress();
 
-  const queue: Song[] = useMemo(() => (songs.length === 0 && currentSong ? [currentSong] : songs), [songs, currentSong]);
+  const queue: Song[] = useMemo(
+    () => (playbackQueue.length > 0 ? playbackQueue : currentSong ? [currentSong] : []),
+    [playbackQueue, currentSong],
+  );
   const currentIdx = currentSong ? Math.max(0, queue.findIndex(s => s.id === currentSong.id)) : 0;
   const flatRef = useRef<FlatList<Song>>(null);
   const lastReportedId = useRef<string | null>(currentSong?.id ?? null);
+  const currentSongRef = useRef<Song | null>(currentSong);
+  const queueRef = useRef<Song[]>(queue);
+
+  currentSongRef.current = currentSong;
+  queueRef.current = queue;
 
   React.useEffect(() => {
     if (currentIdx >= 0 && flatRef.current) {
@@ -39,14 +49,21 @@ const NowPlaying: React.FC = () => {
     }
   }, [currentIdx]);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  React.useEffect(() => {
+    lastReportedId.current = currentSong?.id ?? null;
+  }, [currentSong?.id]);
+
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const v = viewableItems[0];
     if (!v?.item) return;
+
     const item = v.item as Song;
-    if (item.id === lastReportedId.current) return;
+    const activeSong = currentSongRef.current;
+    if (item.id === lastReportedId.current || item.id === activeSong?.id) return;
+
     lastReportedId.current = item.id;
-    if (currentSong && item.id !== currentSong.id) playSong(item, queue);
-  }).current;
+    void playSong(item, queueRef.current);
+  }, [playSong]);
 
   const rotation = useSharedValue(0);
   React.useEffect(() => {

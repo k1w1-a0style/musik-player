@@ -12,7 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.io.InputStream
+import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -232,11 +232,21 @@ class SystemAudioModule : Module() {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
           }
         }
-        uri.startsWith("http") -> {
-          val stream: InputStream = URL(uri).openStream()
-          stream.use {
-            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            BitmapFactory.decodeStream(it, null, opts)
+        uri.startsWith("http://") || uri.startsWith("https://") -> {
+          val connection = (URL(uri).openConnection() as? HttpURLConnection) ?: return null
+          try {
+            connection.connectTimeout = 4000
+            connection.readTimeout = 4000
+            connection.useCaches = false
+            connection.instanceFollowRedirects = true
+            connection.connect()
+            if (connection.responseCode !in 200..299) return null
+            connection.inputStream.use {
+              val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+              BitmapFactory.decodeStream(it, null, opts)
+            }
+          } finally {
+            connection.disconnect()
           }
         }
         else -> {

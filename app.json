@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "musik-player",
-    "slug": "neues-projekt",
+    "slug": "musik-player",
     "version": "1.0.0",
     "platforms": [
       "android"
@@ -14,7 +14,7 @@
       "backgroundColor": "#0A0A0A"
     },
     "android": {
-      "package": "com.example.app",
+      "package": "com.k1w1a0style.musikplayer",
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.RECORD_AUDIO",
@@ -29,12 +29,6 @@
     },
     "plugins": [
       "expo-font",
-      [
-        "expo-notifications",
-        {
-          "color": "#F5B301"
-        }
-      ],
       "./modules/expo-system-audio/app.plugin.js"
     ],
     "assetBundlePatterns": [
