@@ -292,10 +292,33 @@ jobs:
           exit 0
 
       - name: Run tests (in-band)
+        id: tests
         shell: bash
         run: |
           set -euo pipefail
-          npm test -- --runInBand
+          set +e
+          npm test -- --runInBand 2>&1 | tee ci-logs/test.log
+          TEST_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          TEST_EXIT="$TEST_EXIT" node <<'NODE'
+            const fs = require("fs");
+            const path = "ci-logs/ci-lite-result.json";
+            const result = JSON.parse(fs.readFileSync(path, "utf8"));
+            result.test_exit = Number(process.env.TEST_EXIT);
+            result.ok =
+              Number(result.eslint_exit) === 0 &&
+              Number(result.tsc_exit) === 0 &&
+              Number(result.expo_exit) === 0 &&
+              Number(result.test_exit) === 0;
+            fs.writeFileSync(path, JSON.stringify(result, null, 2) + "\n");
+          NODE
+
+          echo "test_exit=$TEST_EXIT" >> "$GITHUB_OUTPUT"
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::error::CI Lite tests failed (test=$TEST_EXIT)"
+            exit "$TEST_EXIT"
+          fi
 
       - name: Summary
         if: always()
@@ -317,6 +340,7 @@ jobs:
             echo "- eslint: `${{ steps.run.outputs.eslint_exit }}`"
             echo "- tsc: `${{ steps.run.outputs.tsc_exit }}`"
             echo "- expo preflight: `${{ steps.run.outputs.expo_exit }}`"
+            echo "- tests: `${{ steps.tests.outputs.test_exit || 'not-run' }}`"
             echo ""
             echo "Artifacts:"
             echo "- `ci-logs/ci-lite-result.json` (für Header-Polling)"
@@ -335,6 +359,7 @@ jobs:
             ci-logs/typecheck.log
             ci-logs/expo-preflight.log
             ci-logs/expo-config.json
+            ci-logs/test.log
             ci-logs/metadata.env
             ci-logs/node-version.log
             ci-logs/npm-version.log
