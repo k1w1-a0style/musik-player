@@ -208,13 +208,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         baseQueueContextRef.current = hydratedQueue;
 
         if (storedCurrentSongId) {
-          const restoredSong = sanitizedSongs.find(song => song.id === storedCurrentSongId);
+          const restoredSong = hydratedQueue.find(song => song.id === storedCurrentSongId);
           if (restoredSong) {
             setCurrentSong(restoredSong);
             const idx = hydratedQueue.findIndex(song => song.id === restoredSong.id);
             const orderedQueue = idx >= 0
               ? [...hydratedQueue.slice(idx), ...hydratedQueue.slice(0, idx)]
-              : [restoredSong, ...hydratedQueue.filter(song => song.id !== restoredSong.id)];
+              : hydratedQueue.slice();
             try {
               await TrackPlayer.reset();
               await TrackPlayer.add(orderedQueue.map(toTrack));
@@ -409,21 +409,22 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
     const contextQueue = sourceQueue.filter(x => !!x.uri);
-    if (contextQueue.length === 0) return;
+    const requestedSong = contextQueue.find(x => x.id === song.id);
+    if (!requestedSong || contextQueue.length === 0) return;
 
-    const idx = contextQueue.findIndex(x => x.id === song.id);
+    const idx = contextQueue.findIndex(x => x.id === requestedSong.id);
     const orderedQueue = idx >= 0
       ? [...contextQueue.slice(idx), ...contextQueue.slice(0, idx)]
-      : [song, ...contextQueue.filter(x => x.id !== song.id)];
+      : contextQueue.slice();
 
     queueContextRef.current = orderedQueue;
     baseQueueContextRef.current = contextQueue.slice();
 
     await TrackPlayer.reset();
     await TrackPlayer.add(orderedQueue.map(toTrack));
-    setCurrentSong(song);
+    setCurrentSong(requestedSong);
     await TrackPlayer.play();
-    await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
   }, []);
 
   const togglePlayPause = useCallback(async () => {
