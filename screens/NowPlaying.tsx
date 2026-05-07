@@ -26,9 +26,12 @@ const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { songs, currentSong, position, duration, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
+  const { playbackQueue, currentSong, position, duration, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
 
-  const queue: Song[] = useMemo(() => (songs.length === 0 && currentSong ? [currentSong] : songs), [songs, currentSong]);
+  const queue: Song[] = useMemo(
+    () => (playbackQueue.length > 0 ? playbackQueue : currentSong ? [currentSong] : []),
+    [playbackQueue, currentSong],
+  );
   const currentIdx = currentSong ? Math.max(0, queue.findIndex(s => s.id === currentSong.id)) : 0;
   const flatRef = useRef<FlatList<Song>>(null);
   const lastReportedId = useRef<string | null>(currentSong?.id ?? null);

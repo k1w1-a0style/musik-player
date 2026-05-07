@@ -40,6 +40,7 @@ interface MusicContextValue {
 
   // Playback
   currentSong: Song | null;
+  playbackQueue: Song[];
   isPlaying: boolean;
   isBuffering: boolean;
   position: number;
@@ -109,6 +110,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const [songs, setSongsState] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   const [shuffle, setShuffle] = useState(false);
@@ -206,6 +208,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const hydratedQueue = sanitizedSongs.filter(song => !!song.uri);
         queueContextRef.current = hydratedQueue;
         baseQueueContextRef.current = hydratedQueue;
+        setPlaybackQueue(hydratedQueue);
 
         if (storedCurrentSongId) {
           const restoredSong = hydratedQueue.find(song => song.id === storedCurrentSongId);
@@ -215,6 +218,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const orderedQueue = idx >= 0
               ? [...hydratedQueue.slice(idx), ...hydratedQueue.slice(0, idx)]
               : hydratedQueue.slice();
+            queueContextRef.current = orderedQueue;
+            setPlaybackQueue(orderedQueue);
             try {
               await TrackPlayer.reset();
               await TrackPlayer.add(orderedQueue.map(toTrack));
@@ -422,6 +427,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     queueContextRef.current = orderedQueue;
     baseQueueContextRef.current = queueWithRequested.slice();
+    setPlaybackQueue(orderedQueue);
 
     await TrackPlayer.reset();
     await TrackPlayer.add(orderedQueue.map(toTrack));
@@ -497,6 +503,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     if (list.length === 0) return;
     queueContextRef.current = list.slice();
+    setPlaybackQueue(list.slice());
     setShuffle(prev => !prev);
 
     try {
@@ -594,6 +601,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setSongs,
       addSongs,
       currentSong,
+      playbackQueue,
       isPlaying,
       isBuffering,
       position: progress.position * 1000,
@@ -635,6 +643,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setSongs,
       addSongs,
       currentSong,
+      playbackQueue,
       isPlaying,
       isBuffering,
       progress.position,

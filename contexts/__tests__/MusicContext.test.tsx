@@ -33,6 +33,7 @@ const Probe: React.FC = () => {
   return (
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
+      <Text testID="probe-playback-queue">{ctx.playbackQueue.map(song => song.id).join(',')}</Text>
       <Text testID="probe-songs-count">{String(ctx.songs.length)}</Text>
       <Text testID="probe-shuffle">{String(ctx.shuffle)}</Text>
       <Text testID="probe-repeat">{ctx.repeatMode}</Text>
@@ -138,6 +139,7 @@ describe('MusicContext', () => {
     expect(queue).toHaveLength(1);
     expect(queue[0]?.id).toBe('demo-1');
     expect(getByTestId('probe-current').props.children).toBe('demo-1');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('demo-1');
   });
 
   test('playSong(song, queue) keeps provided queue context for shuffle', async () => {
@@ -152,6 +154,8 @@ describe('MusicContext', () => {
     expect(shuffledQueue).toHaveLength(2);
     expect(shuffledQueue[0]?.id).toBe('s3');
     expect(shuffledQueue.map(track => track.id).sort()).toEqual(['s3', 's4']);
+    const playbackQueueIds = String(getByTestId('probe-playback-queue').props.children).split(',').sort();
+    expect(playbackQueueIds).toEqual(['s3', 's4']);
   });
 
   test('applyEqPreset sets bands + persists; setEqBand switches to custom', async () => {
@@ -224,6 +228,7 @@ describe('MusicContext', () => {
     expect(TrackPlayer.play).not.toHaveBeenCalled();
     const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
     expect(queue[0]?.id).toBe('s2');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
   });
 
 });
