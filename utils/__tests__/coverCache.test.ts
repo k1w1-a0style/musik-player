@@ -37,4 +37,15 @@ describe('coverCache', () => {
   test('cacheBase64Cover returns existing non-base64 URIs unchanged', async () => {
     await expect(cacheBase64Cover('x', 'file:///my.jpg')).resolves.toBe('file:///my.jpg');
   });
+
+  test('preserves original base64 cover when file write fails', async () => {
+    (FileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+    const originalCover = 'data:image/png;base64,AAAA';
+    const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
+
+    const result = await sanitizeSongsForStorage(songs);
+
+    expect(result[0].cover).toBe(originalCover);
+    expect(result[0].cover).not.toBeUndefined();
+  });
 });
