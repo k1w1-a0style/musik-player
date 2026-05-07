@@ -50,6 +50,9 @@ const Probe: React.FC = () => {
       <Pressable testID="play-s3-subset" onPress={() => ctx.playSong(SONGS[2], [SONGS[2], SONGS[3]])}>
         <Text>play s3 subset</Text>
       </Pressable>
+      <Pressable testID="play-demo" onPress={() => ctx.playSong({ id: 'demo-1', title: 'Demo 1', artist: 'Demo', uri: 'file:///demo1.mp3' })}>
+        <Text>play demo</Text>
+      </Pressable>
       <Pressable testID="toggle-shuffle" onPress={() => ctx.toggleShuffle()}>
         <Text>shuffle</Text>
       </Pressable>
@@ -119,6 +122,22 @@ describe('MusicContext', () => {
     });
     expect((TrackPlayer as RNTPMock).__getQueue().length).toBeGreaterThan(0);
     expect(getByTestId('probe-current').props.children).toBe('s2');
+  });
+
+  test('playSong(song) still plays a playable song outside library context', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    await act(async () => fireEvent.press(getByTestId('play-demo')));
+
+    await waitFor(() => {
+      expect(TrackPlayer.add).toHaveBeenCalled();
+      expect(TrackPlayer.play).toHaveBeenCalled();
+    });
+    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.id).toBe('demo-1');
+    expect(getByTestId('probe-current').props.children).toBe('demo-1');
   });
 
   test('playSong(song, queue) keeps provided queue context for shuffle', async () => {

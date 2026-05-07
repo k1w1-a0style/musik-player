@@ -409,16 +409,19 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
     const contextQueue = sourceQueue.filter(x => !!x.uri);
-    const requestedSong = contextQueue.find(x => x.id === song.id);
-    if (!requestedSong || contextQueue.length === 0) return;
+    const requestedSong = contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
+    if (!requestedSong) return;
 
     const idx = contextQueue.findIndex(x => x.id === requestedSong.id);
-    const orderedQueue = idx >= 0
-      ? [...contextQueue.slice(idx), ...contextQueue.slice(0, idx)]
-      : contextQueue.slice();
+    const queueWithRequested = idx >= 0 ? contextQueue : [requestedSong, ...contextQueue];
+    const startIndex = idx >= 0 ? idx : 0;
+    const orderedQueue = [
+      ...queueWithRequested.slice(startIndex),
+      ...queueWithRequested.slice(0, startIndex),
+    ];
 
     queueContextRef.current = orderedQueue;
-    baseQueueContextRef.current = contextQueue.slice();
+    baseQueueContextRef.current = queueWithRequested.slice();
 
     await TrackPlayer.reset();
     await TrackPlayer.add(orderedQueue.map(toTrack));
