@@ -45,47 +45,37 @@ const navTheme = {
 
 const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying }) => {
   const insets = useSafeAreaInsets();
+
   return (
-  <View style={{ flex: 1 }}>
-    <Tab.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.palette.background,
-          shadowColor: 'transparent',
-          elevation: 0,
-          borderBottomWidth: 0,
-        },
-        headerTitleStyle: {
-          color: theme.palette.text.primary,
-          fontFamily: theme.fonts.heading,
-          fontSize: 18,
-          letterSpacing: -0.3,
-        },
-        tabBarStyle: {
-          backgroundColor: theme.palette.surface,
-          borderTopColor: theme.palette.border,
-          height: 66 + insets.bottom,
-          paddingBottom: Math.max(8, insets.bottom),
-          paddingTop: 6,
-        },
-        tabBarLabelStyle: {
-          fontFamily: theme.fonts.body,
-          fontSize: 10,
-          letterSpacing: 0.4,
-        },
-        tabBarActiveTintColor: theme.palette.primary,
-        tabBarInactiveTintColor: theme.palette.text.muted,
-      }}
-    >
-      <Tab.Screen name="Bibliothek" component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
-      <Tab.Screen name="Playlists" component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
-      <Tab.Screen name="Equalizer" component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
-      <Tab.Screen name="Cover" component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
-      <Tab.Screen name="ID3" component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
-    </Tab.Navigator>
-    <MiniPlayer onOpen={openNowPlaying} />
-  </View>
-);
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: theme.palette.surface,
+            borderTopColor: theme.palette.border,
+            height: 66 + insets.bottom,
+            paddingBottom: Math.max(8, insets.bottom),
+            paddingTop: 6,
+          },
+          tabBarLabelStyle: {
+            fontFamily: theme.fonts.body,
+            fontSize: 10,
+            letterSpacing: 0.4,
+          },
+          tabBarActiveTintColor: theme.palette.primary,
+          tabBarInactiveTintColor: theme.palette.text.muted,
+        }}
+      >
+        <Tab.Screen name="Bibliothek" component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
+        <Tab.Screen name="Playlists" component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
+        <Tab.Screen name="Equalizer" component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
+        <Tab.Screen name="Cover" component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
+        <Tab.Screen name="ID3" component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
+      </Tab.Navigator>
+      <MiniPlayer onOpen={openNowPlaying} />
+    </View>
+  );
 };
 
 export default function App(): React.ReactElement {
