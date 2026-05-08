@@ -1,13 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import {
   Pause,
   Play,
@@ -19,8 +11,6 @@ import {
 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface PressScaleProps {
   children: React.ReactNode;
@@ -43,21 +33,12 @@ const PressScale: React.FC<PressScaleProps> = ({
   primary,
   accentColor,
 }) => {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const handlePress = () => {
-    scale.value = withSequence(
-      withTiming(0.88, { duration: 80, easing: Easing.out(Easing.quad) }),
-      withSpring(1, { damping: 12, stiffness: 220 }),
-    );
-    onPress();
-  };
   return (
-    <AnimatedPressable
+    <Pressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={handlePress}
+      onPress={onPress}
       disabled={disabled}
       style={[
         styles.button,
@@ -73,11 +54,10 @@ const PressScale: React.FC<PressScaleProps> = ({
         },
         disabled && styles.disabled,
         primary && theme.shadows.glow,
-        animStyle,
       ]}
     >
       {children}
-    </AnimatedPressable>
+    </Pressable>
   );
 };
 
@@ -94,18 +74,6 @@ const Controls: React.FC = () => {
     repeatMode,
     cycleRepeatMode,
   } = useMusicContext();
-
-  // Subtle "breathing" pulse on the play button while playing
-  const pulse = useSharedValue(1);
-  useEffect(() => {
-    pulse.value = withTiming(isPlaying ? 1.04 : 1, {
-      duration: 600,
-      easing: Easing.inOut(Easing.quad),
-    });
-  }, [isPlaying, pulse]);
-  const playPulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-  }));
 
   const repeatIcon = useMemo(() => {
     const color =
@@ -141,7 +109,7 @@ const Controls: React.FC = () => {
         <SkipBack color={theme.palette.text.primary} size={26} fill={theme.palette.text.primary} />
       </PressScale>
 
-      <Animated.View style={playPulseStyle}>
+      <View>
         <PressScale
           testID="controls-play-pause"
           accessibilityLabel={isPlaying ? 'Pause' : 'Abspielen'}
@@ -156,7 +124,7 @@ const Controls: React.FC = () => {
             <Play color={theme.palette.text.onPrimary} size={32} fill={theme.palette.text.onPrimary} />
           )}
         </PressScale>
-      </Animated.View>
+      </View>
 
       <PressScale
         testID="controls-next"

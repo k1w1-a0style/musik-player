@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 
@@ -12,35 +11,13 @@ interface SongCardProps {
   isPlaying: boolean;
 }
 
-const PlayingBars: React.FC<{ active: boolean }> = ({ active }) => {
-  const a = useSharedValue(0.3);
-  const b = useSharedValue(0.3);
-  const c = useSharedValue(0.3);
-
-  useEffect(() => {
-    if (active) {
-      a.value = withRepeat(withSequence(withTiming(1, { duration: 280 }), withTiming(0.3, { duration: 280 })), -1, true);
-      b.value = withRepeat(withSequence(withTiming(1, { duration: 350 }), withTiming(0.3, { duration: 350 })), -1, true);
-      c.value = withRepeat(withSequence(withTiming(1, { duration: 420 }), withTiming(0.3, { duration: 420 })), -1, true);
-    } else {
-      a.value = withTiming(0.5);
-      b.value = withTiming(0.7);
-      c.value = withTiming(0.5);
-    }
-  }, [active, a, b, c]);
-
-  const s1 = useAnimatedStyle(() => ({ transform: [{ scaleY: a.value }] }));
-  const s2 = useAnimatedStyle(() => ({ transform: [{ scaleY: b.value }] }));
-  const s3 = useAnimatedStyle(() => ({ transform: [{ scaleY: c.value }] }));
-
-  return (
-    <View style={styles.waveWrap}>
-      <Animated.View style={[styles.waveBar, s1]} />
-      <Animated.View style={[styles.waveBar, s2]} />
-      <Animated.View style={[styles.waveBar, s3]} />
-    </View>
-  );
-};
+const PlayingBars: React.FC<{ active: boolean }> = ({ active }) => (
+  <View style={styles.waveWrap}>
+    <View style={[styles.waveBar, active && styles.waveBarActiveA]} />
+    <View style={[styles.waveBar, active && styles.waveBarActiveB]} />
+    <View style={[styles.waveBar, active && styles.waveBarActiveC]} />
+  </View>
+);
 
 const SongCard: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
   return (
@@ -79,7 +56,10 @@ const styles = StyleSheet.create({
   currentSongText: { color: theme.palette.primary },
   currentSongSubtext: { color: theme.palette.text.primary },
   waveWrap: { width: 24, height: 20, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  waveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: theme.palette.primary },
+  waveBar: { width: 3, height: 10, borderRadius: 2, backgroundColor: theme.palette.primary },
+  waveBarActiveA: { height: 18 },
+  waveBarActiveB: { height: 14 },
+  waveBarActiveC: { height: 16 },
 });
 
 export default SongCard;
