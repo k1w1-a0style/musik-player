@@ -11,7 +11,7 @@ import { parseId3FromUri, type Id3Tags } from '../utils/id3Parser';
 import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover } from '../utils/coverCache';
 import { theme } from '../theme';
-import { loadAllAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
 const DEMO_SONGS: Song[] = [
   {
@@ -36,6 +36,21 @@ const DEMO_SONGS: Song[] = [
     uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
   },
 ];
+
+const ID3_WORKER_COUNT = 3;
+
+const confirmImport = (found: number, skipped: number): Promise<boolean> =>
+  new Promise(resolve => {
+    Alert.alert(
+      'Musik importieren',
+      `${found} Musikdateien gefunden. ${skipped} kurze Audios, Sprachnachrichten oder Systemtöne wurden übersprungen.`,
+      [
+        { text: 'Abbrechen', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Importieren', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
 
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
@@ -65,10 +80,22 @@ const Library: React.FC = () => {
         return;
       }
 
-      const assets = await loadAllAudioAssetsFromMediaLibrary();
+      const scan = await scanAudioAssetsFromMediaLibrary();
+      const assets = scan.assets;
+      if (assets.length === 0) {
+        Alert.alert(
+          'Keine Musik gefunden',
+          'Es wurden keine passenden Musikdateien gefunden. Kurze Audios, Sprachnachrichten und Systemtöne werden übersprungen.',
+        );
+        return;
+      }
+
+      const shouldImport = await confirmImport(assets.length, scan.skipped.length);
+      if (!shouldImport) return;
+
       const enriched: Song[] = [];
       const queue = [...assets];
-      const workers = Array.from({ length: 8 }, async () => {
+      const workers = Array.from({ length: ID3_WORKER_COUNT }, async () => {
         while (queue.length > 0) {
           const asset = queue.shift();
           if (!asset) break;
@@ -129,7 +156,7 @@ const Library: React.FC = () => {
             ) : (
               <Download color={theme.palette.text.onPrimary} size={18} />
             )}
-            <Text style={styles.importText}>{loading ? 'Lese ID3…' : 'Importieren'}</Text>
+            <Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text>
           </Pressable>
         </View>
 
