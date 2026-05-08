@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "musik-player",
+    "name": "K1W1 Music",
     "slug": "musik-player",
     "version": "1.0.0",
     "platforms": [
@@ -33,6 +33,7 @@
     ],
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "scheme": "musik-player"
   }
 }
