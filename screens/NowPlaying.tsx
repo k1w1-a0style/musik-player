@@ -27,7 +27,8 @@ const NowPlaying: React.FC = () => {
     () => (playbackQueue.length > 0 ? playbackQueue : currentSong ? [currentSong] : []),
     [playbackQueue, currentSong],
   );
-  const currentIdx = currentSong ? Math.max(0, queue.findIndex(s => s.id === currentSong.id)) : 0;
+  const currentIdx = currentSong ? Math.max(0, queue.findIndex(song => song.id === currentSong.id)) : 0;
+  const visibleQueue = useMemo(() => queue.slice(0, 5), [queue]);
   const flatRef = useRef<FlatList<Song>>(null);
   const lastReportedId = useRef<string | null>(currentSong?.id ?? null);
   const currentSongRef = useRef<Song | null>(currentSong);
@@ -47,14 +48,21 @@ const NowPlaying: React.FC = () => {
   }, [currentSong?.id]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const v = viewableItems[0];
-    if (!v?.item) return;
+    const viewable = viewableItems[0];
+    if (!viewable?.item) return;
 
-    const item = v.item as Song;
+    const item = viewable.item as Song;
     const activeSong = currentSongRef.current;
     if (!activeSong) return;
     if (item.id === lastReportedId.current || item.id === activeSong.id) return;
 
+    lastReportedId.current = item.id;
+    void playSong(item, queueRef.current);
+  }, [playSong]);
+
+  const playQueueItem = useCallback((item: Song) => {
+    const activeSong = currentSongRef.current;
+    if (!activeSong || item.id === activeSong.id) return;
     lastReportedId.current = item.id;
     void playSong(item, queueRef.current);
   }, [playSong]);
@@ -91,7 +99,7 @@ const NowPlaying: React.FC = () => {
         <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={() => navigation.goBack()}>
           <ChevronDown color={theme.palette.text.primary} size={22} />
         </Pressable>
-        <View style={{ alignItems: 'center', flex: 1 }}>
+        <View style={styles.headerTitleWrap}>
           <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{currentSong?.album ?? 'Aus deiner Bibliothek'}</Text>
         </View>
@@ -115,7 +123,7 @@ const NowPlaying: React.FC = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         style={styles.carousel}
-        contentContainerStyle={{ alignItems: 'center' }}
+        contentContainerStyle={styles.carouselContent}
       />
 
       <View style={styles.titleRow}>
@@ -142,6 +150,31 @@ const NowPlaying: React.FC = () => {
         accentDark={palette?.lightVibrant ?? theme.palette.primaryDark}
       />
       <Controls />
+
+      {visibleQueue.length > 1 && (
+        <View style={styles.queueCard}>
+          <View style={styles.queueHeaderRow}>
+            <Text style={styles.queueEyebrow}>QUEUE</Text>
+            <Text style={styles.queueCount}>{queue.length} Tracks</Text>
+          </View>
+          {visibleQueue.map(item => {
+            const isCurrent = item.id === currentSong?.id;
+            return (
+              <Pressable
+                key={item.id}
+                style={[styles.queueItem, isCurrent && styles.queueItemActive]}
+                onPress={() => playQueueItem(item)}
+              >
+                <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
+                <View style={styles.queueTextWrap}>
+                  <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.queueArtist} numberOfLines={1}>{item.artist}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       <View style={styles.bottomRow}>
         <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
@@ -175,13 +208,44 @@ const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent 
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { flex:1, paddingTop: 12, paddingBottom: 12 },
-  glowOrb: { position: 'absolute', width: 340, height: 340, borderRadius: 170, top: 110, left: SCREEN_W / 2 - 170, opacity: 0.18 },
-  headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 8 },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerEyebrow: { color: theme.palette.text.muted, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
-  headerTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, marginTop: 2 },
+  content: { flex: 1, paddingTop: 12, paddingBottom: 12 },
+  glowOrb: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    top: 110,
+    left: SCREEN_W / 2 - 170,
+    opacity: 0.18,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: { alignItems: 'center', flex: 1 },
+  headerEyebrow: {
+    color: theme.palette.text.muted,
+    fontSize: 10,
+    letterSpacing: 1.8,
+    fontFamily: theme.fonts.body,
+  },
+  headerTitle: {
+    color: theme.palette.text.primary,
+    fontFamily: theme.fonts.heading,
+    fontSize: 14,
+    marginTop: 2,
+  },
   carousel: { flexGrow: 0, height: COVER_SIZE + 10 },
+  carouselContent: { alignItems: 'center' },
   coverSlide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
   coverCard: {
     width: COVER_SIZE,
@@ -198,14 +262,104 @@ const styles = StyleSheet.create({
   coverCardInactive: { transform: [{ scale: 0.85 }], opacity: 0.45 },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+  },
   titleBlock: { flex: 1 },
-  title: { color: theme.palette.text.primary, fontSize: 28, letterSpacing: -0.7, fontFamily: theme.fonts.display },
-  artist: { color: theme.palette.text.secondary, fontSize: 15, marginTop: 3, fontFamily: theme.fonts.body },
-  heartBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  title: {
+    color: theme.palette.text.primary,
+    fontSize: 28,
+    letterSpacing: -0.7,
+    fontFamily: theme.fonts.display,
+  },
+  artist: {
+    color: theme.palette.text.secondary,
+    fontSize: 15,
+    marginTop: 3,
+    fontFamily: theme.fonts.body,
+  },
+  heartBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   visualizerWrap: { paddingHorizontal: 20, marginTop: 4 },
-  bottomRow: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  bottomBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.palette.surfaceElevated },
+  queueCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 12,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: 'rgba(10, 12, 11, 0.82)',
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  queueHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  queueEyebrow: {
+    color: theme.palette.primary,
+    fontFamily: theme.fonts.heading,
+    fontSize: 11,
+    letterSpacing: 1.4,
+  },
+  queueCount: {
+    color: theme.palette.text.muted,
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+  },
+  queueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 38,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 8,
+  },
+  queueItemActive: { backgroundColor: theme.palette.primaryGlow },
+  queueAccent: {
+    width: 3,
+    height: 20,
+    borderRadius: 3,
+    backgroundColor: theme.palette.border,
+  },
+  queueAccentActive: { backgroundColor: theme.palette.primary },
+  queueTextWrap: { flex: 1 },
+  queueTitle: {
+    color: theme.palette.text.primary,
+    fontFamily: theme.fonts.heading,
+    fontSize: 12,
+  },
+  queueTitleActive: { color: theme.palette.primary },
+  queueArtist: {
+    color: theme.palette.text.secondary,
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  bottomRow: {
+    marginTop: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+  bottomBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.palette.surfaceElevated,
+  },
   glassRow: { flex: 1 },
 });
 
