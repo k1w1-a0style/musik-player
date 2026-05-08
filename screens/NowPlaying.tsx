@@ -13,6 +13,7 @@ import Visualizer from '../components/Visualizer';
 import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import Screen from '../components/Screen';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
@@ -80,7 +81,7 @@ const NowPlaying: React.FC = () => {
   );
 
   return (
-    <View style={styles.root} testID="now-playing-screen">
+    <Screen style={styles.root} testID="now-playing-screen" contentStyle={styles.content}>
       <LinearGradient colors={gradientColors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
       <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent }]} />
       <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
@@ -149,7 +150,7 @@ const NowPlaying: React.FC = () => {
         </GlassCard>
         <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
       </View>
-    </View>
+    </Screen>
   );
 };
 
@@ -173,7 +174,8 @@ const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent 
 );
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingTop: 52, paddingBottom: 24 },
+  root: { flex: 1 },
+  content: { flex:1, paddingTop: 12, paddingBottom: 12 },
   glowOrb: { position: 'absolute', width: 340, height: 340, borderRadius: 170, top: 110, left: SCREEN_W / 2 - 170, opacity: 0.18 },
   headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 8 },
   headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

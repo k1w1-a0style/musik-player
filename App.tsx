@@ -4,7 +4,7 @@ import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
   BricolageGrotesque_400Regular,
@@ -43,7 +43,9 @@ const navTheme = {
   },
 };
 
-const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying }) => (
+const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying }) => {
+  const insets = useSafeAreaInsets();
+  return (
   <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={{
@@ -62,8 +64,8 @@ const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying })
         tabBarStyle: {
           backgroundColor: theme.palette.surface,
           borderTopColor: theme.palette.border,
-          height: 64,
-          paddingBottom: 8,
+          height: 66 + insets.bottom,
+          paddingBottom: Math.max(8, insets.bottom),
           paddingTop: 6,
         },
         tabBarLabelStyle: {
@@ -84,6 +86,7 @@ const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying })
     <MiniPlayer onOpen={openNowPlaying} />
   </View>
 );
+};
 
 export default function App(): React.ReactElement {
   const [fontsLoaded] = useFonts({

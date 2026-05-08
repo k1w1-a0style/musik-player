@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, Image, Pressable } from 'react-native
 import { Disc3 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
+import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 
@@ -18,7 +19,7 @@ const Covers: React.FC = () => {
 
   return (
     <AppBackground>
-      <View style={styles.container} testID="covers-screen">
+      <Screen style={styles.container} testID="covers-screen" contentStyle={styles.content}>
         <Text style={styles.eyebrow}>ENTDECKEN</Text>
         <Text style={styles.title}>Cover</Text>
         <FlatList
@@ -56,13 +57,14 @@ const Covers: React.FC = () => {
             </Text>
           }
         />
-      </View>
+      </Screen>
     </AppBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.md },
+  container: { flex: 1 },
+  content: { paddingHorizontal: theme.spacing.md, paddingTop: 8 },
   eyebrow: {
     color: theme.palette.primary,
     fontSize: 10,

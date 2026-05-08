@@ -4,6 +4,7 @@ import Slider from '@react-native-community/slider';
 import Svg, { Path, Line } from 'react-native-svg';
 import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
+import Screen from '../components/Screen';
 import GlassCard from '../components/GlassCard';
 import { EQ_BAND_LABELS, EQ_PRESETS, type EqPresetName } from '../types/Song';
 import { theme } from '../theme';
@@ -37,7 +38,7 @@ const Equalizer: React.FC = () => {
 
   return (
     <AppBackground>
-      <ScrollView style={styles.container} testID="equalizer-screen">
+      <Screen style={styles.container} testID="equalizer-screen" contentStyle={styles.content}><ScrollView>
         <Text style={styles.eyebrow}>SOUND</Text>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Equalizer</Text>
@@ -88,13 +89,14 @@ const Equalizer: React.FC = () => {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </ScrollView></Screen>
     </AppBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.md },
+  container: { flex: 1 },
+  content: { paddingHorizontal: theme.spacing.md, paddingTop: 8 },
   eyebrow: { color: theme.palette.primary, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md },
   title: { fontSize: 32, fontFamily: theme.fonts.display, letterSpacing: -1, color: theme.palette.text.primary },
