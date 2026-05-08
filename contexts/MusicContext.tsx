@@ -8,7 +8,6 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { PermissionsAndroid, Platform } from 'react-native';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
@@ -92,6 +91,8 @@ interface MusicContextValue {
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 
+const VISUALIZER_UPDATE_INTERVAL_MS = 120;
+
 const toTrack = (s: Song) => ({
   id: s.id,
   url: s.uri ?? '',
@@ -119,7 +120,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
   const [eqNative, setEqNative] = useState<EqInitResult | null>(null);
 
-  // Visualizer + palette
+  // Visualizer + palette. Native FFT capture stays opt-in; normal playback must not
+  // request RECORD_AUDIO or stream high-frequency state updates by default.
   const [fftBins, setFftBins] = useState<number[]>(() => new Array(16).fill(0));
   const [visualizerRunning, setVisualizerRunning] = useState(false);
   const [visualizerError, setVisualizerError] = useState<string | null>(null);
@@ -129,6 +131,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   songsRef.current = songs;
   const queueContextRef = useRef<Song[]>([]);
   const baseQueueContextRef = useRef<Song[]>([]);
+  const lastVisualizerUpdateRef = useRef(0);
 
   const playback = usePlaybackState();
 
@@ -295,11 +298,17 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // ---- Visualizer ----
   useEffect(() => {
-    const subFft = SystemAudio.onFft(data => setFftBins(data));
+    const subFft = SystemAudio.onFft(data => {
+      const now = Date.now();
+      if (now - lastVisualizerUpdateRef.current < VISUALIZER_UPDATE_INTERVAL_MS) return;
+      lastVisualizerUpdateRef.current = now;
+      setFftBins(data);
+    });
     const subState = SystemAudio.onVisualizerState(e => {
       setVisualizerRunning(e.running);
       setVisualizerError(e.running ? null : e.reason);
     });
+    SystemAudio.visualizerStop();
     return () => {
       subFft.remove();
       subState.remove();
@@ -307,30 +316,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, []);
 
-  // Start/stop visualizer with playback
+  // Keep the native visualizer off during normal playback. It requires
+  // RECORD_AUDIO and can overload older Android devices when combined with
+  // heavy UI rendering. A future explicit visualizer toggle can start it.
   useEffect(() => {
-    const syncVisualizer = async (): Promise<void> => {
-      if (!isPlaying) {
-        SystemAudio.visualizerStop();
-        return;
-      }
-      if (Platform.OS === 'android') {
-        const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
-        let granted = await PermissionsAndroid.check(permission);
-        if (!granted) {
-          const requestResult = await PermissionsAndroid.request(permission, {
-            title: 'Mikrofon-Berechtigung',
-            message: 'Für den Audio-Visualizer wird RECORD_AUDIO benötigt.',
-            buttonPositive: 'Erlauben',
-            buttonNegative: 'Ablehnen',
-          });
-          granted = requestResult === PermissionsAndroid.RESULTS.GRANTED;
-        }
-        if (!granted) return;
-      }
-      SystemAudio.visualizerStart(16);
-    };
-    syncVisualizer();
+    if (!isPlaying) SystemAudio.visualizerStop();
   }, [isPlaying]);
 
   // ---- Palette extraction for current track cover ----
