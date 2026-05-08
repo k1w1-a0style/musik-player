@@ -3,6 +3,7 @@ import { Text, StyleSheet, ScrollView, View } from 'react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import Id3TagForm from '../components/Id3TagForm';
 import AppBackground from '../components/AppBackground';
+import Screen from '../components/Screen';
 import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
@@ -20,7 +21,7 @@ const Id3TagEditor: React.FC = () => {
 
   return (
     <AppBackground>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Screen style={styles.container} contentStyle={styles.content}><ScrollView>
         <Text style={styles.eyebrow}>METADATEN</Text>
         <Text style={styles.title}>ID3 Tags bearbeiten</Text>
         {currentSong ? (
@@ -34,7 +35,7 @@ const Id3TagEditor: React.FC = () => {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </ScrollView></Screen>
     </AppBackground>
   );
 };
@@ -43,7 +44,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
+    paddingTop: 8,
     paddingBottom: theme.spacing.xxl,
   },
   eyebrow: {

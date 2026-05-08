@@ -11,6 +11,7 @@ import {
 import { ListMusic, Play, Plus, Trash2 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
+import Screen from '../components/Screen';
 import { theme } from '../theme';
 
 const Playlists: React.FC = () => {
@@ -41,7 +42,7 @@ const Playlists: React.FC = () => {
 
   return (
     <AppBackground>
-      <View style={styles.container} testID="playlists-screen">
+      <Screen style={styles.container} testID="playlists-screen" contentStyle={styles.content}>
         <Text style={styles.eyebrow}>SAMMLUNGEN</Text>
         <Text style={styles.header}>Playlists</Text>
 
@@ -123,17 +124,14 @@ const Playlists: React.FC = () => {
             </Text>
           }
         />
-      </View>
+      </Screen>
     </AppBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-  },
+  container: { flex: 1 },
+  content: { paddingHorizontal: theme.spacing.md, paddingTop: 8 },
   eyebrow: {
     color: theme.palette.primary,
     fontSize: 10,
