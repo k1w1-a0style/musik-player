@@ -1,8 +1,17 @@
 import * as FileSystem from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { cacheBase64Cover, isBase64ImageDataUri, sanitizeSongsForStorage } from '../coverCache';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-file-system', () => ({
+  cacheDirectory: 'file:///cache/',
+  documentDirectory: 'file:///docs/',
+  EncodingType: { Base64: 'base64' },
+  makeDirectoryAsync: jest.fn(async () => undefined),
+  writeAsStringAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   documentDirectory: 'file:///docs/',
   EncodingType: { Base64: 'base64' },
@@ -28,10 +37,10 @@ describe('coverCache', () => {
     expect(result[1].cover).toBe('file:///cache/covers/2.jpg');
     expect(result[0].cover?.startsWith('data:image/')).toBe(false);
 
-    expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///docs/covers', {
+    expect(LegacyFileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///docs/covers', {
       intermediates: true,
     });
-    expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
+    expect(LegacyFileSystem.writeAsStringAsync).toHaveBeenCalled();
   });
 
   test('cacheBase64Cover returns existing non-base64 URIs unchanged', async () => {
@@ -39,7 +48,7 @@ describe('coverCache', () => {
   });
 
   test('preserves original base64 cover when file write fails', async () => {
-    (FileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
     const originalCover = 'data:image/png;base64,AAAA';
     const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -12,6 +12,8 @@ import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+
+const SONG_ROW_HEIGHT = 70;
 
 const DEMO_SONGS: Song[] = [
   {
@@ -56,6 +58,8 @@ const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+
+  const currentSongId = currentSong?.id ?? null;
 
   const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
 
@@ -135,6 +139,33 @@ const Library: React.FC = () => {
     }
   };
 
+
+  const handleSongPress = useCallback((song: Song) => {
+    void playSong(song);
+  }, [playSong]);
+
+  const keyExtractor = useCallback((item: Song) => item.id, []);
+
+  const getItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({
+    length: SONG_ROW_HEIGHT,
+    offset: SONG_ROW_HEIGHT * index,
+    index,
+  }), []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Song }) => {
+      const isCurrent = currentSongId === item.id;
+      return (
+        <SongCard
+          song={item}
+          isCurrent={isCurrent}
+          isPlaying={isCurrent && isPlaying}
+          onPress={() => handleSongPress(item)}
+        />
+      );
+    },
+    [currentSongId, handleSongPress, isPlaying],
+  );
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
@@ -189,16 +220,15 @@ const Library: React.FC = () => {
 
         <FlatList
           data={filtered}
-          keyExtractor={item => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <SongCard
-              song={item}
-              isCurrent={currentSong?.id === item.id}
-              isPlaying={isPlaying}
-              onPress={() => playSong(item)}
-            />
-          )}
+          renderItem={renderItem}
+          removeClippedSubviews
+          windowSize={7}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={getItemLayout}
           ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
         />
       </Screen>
@@ -257,7 +287,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     marginBottom: 12,
     alignItems: 'center',
-    ...theme.shadows.glow,
   },
   previewCover: {
     width: 110,

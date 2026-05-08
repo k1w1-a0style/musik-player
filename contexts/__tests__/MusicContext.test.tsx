@@ -16,6 +16,14 @@ jest.mock('expo-file-system', () => ({
   writeAsStringAsync: jest.fn(async () => undefined),
 }));
 
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  documentDirectory: 'file:///docs/',
+  EncodingType: { Base64: 'base64' },
+  makeDirectoryAsync: jest.fn(async () => undefined),
+  writeAsStringAsync: jest.fn(async () => undefined),
+}));
+
 type RNTPMock = typeof TrackPlayer & {
   __reset: () => void;
   __getQueue: () => unknown[];
