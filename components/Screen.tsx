@@ -12,19 +12,29 @@ interface ScreenProps {
   testID?: string;
 }
 
+const getNumericPadding = (...values: unknown[]): number => {
+  for (const value of values) {
+    if (typeof value === 'number') return value;
+  }
+  return 0;
+};
+
 const Screen: React.FC<ScreenProps> = ({ children, style, contentStyle, edges = ['top', 'bottom'], testID }) => {
   const insets = useSafeAreaInsets();
   const flattenedContentStyle = StyleSheet.flatten(contentStyle) ?? {};
 
   const insetPaddingTop = edges.includes('top') ? insets.top : 0;
   const insetPaddingBottom = edges.includes('bottom') ? insets.bottom : 0;
-
-  const customPaddingTop = flattenedContentStyle.paddingTop ?? flattenedContentStyle.paddingVertical ?? flattenedContentStyle.padding;
-  const customPaddingBottom =
-    flattenedContentStyle.paddingBottom ?? flattenedContentStyle.paddingVertical ?? flattenedContentStyle.padding;
-
-  const mergedPaddingTop = insetPaddingTop + (customPaddingTop ?? 0);
-  const mergedPaddingBottom = insetPaddingBottom + (customPaddingBottom ?? 0);
+  const customPaddingTop = getNumericPadding(
+    flattenedContentStyle.paddingTop,
+    flattenedContentStyle.paddingVertical,
+    flattenedContentStyle.padding,
+  );
+  const customPaddingBottom = getNumericPadding(
+    flattenedContentStyle.paddingBottom,
+    flattenedContentStyle.paddingVertical,
+    flattenedContentStyle.padding,
+  );
 
   return (
     <View style={[styles.root, style]} testID={testID}>
@@ -33,8 +43,8 @@ const Screen: React.FC<ScreenProps> = ({ children, style, contentStyle, edges = 
           styles.content,
           contentStyle,
           {
-            paddingTop: mergedPaddingTop,
-            paddingBottom: mergedPaddingBottom,
+            paddingTop: insetPaddingTop + customPaddingTop,
+            paddingBottom: insetPaddingBottom + customPaddingBottom,
           },
         ]}
       >
