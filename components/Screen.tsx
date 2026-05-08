@@ -14,16 +14,28 @@ interface ScreenProps {
 
 const Screen: React.FC<ScreenProps> = ({ children, style, contentStyle, edges = ['top', 'bottom'], testID }) => {
   const insets = useSafeAreaInsets();
+  const flattenedContentStyle = StyleSheet.flatten(contentStyle) ?? {};
+
+  const insetPaddingTop = edges.includes('top') ? insets.top : 0;
+  const insetPaddingBottom = edges.includes('bottom') ? insets.bottom : 0;
+
+  const customPaddingTop = flattenedContentStyle.paddingTop ?? flattenedContentStyle.paddingVertical ?? flattenedContentStyle.padding;
+  const customPaddingBottom =
+    flattenedContentStyle.paddingBottom ?? flattenedContentStyle.paddingVertical ?? flattenedContentStyle.padding;
+
+  const mergedPaddingTop = insetPaddingTop + (customPaddingTop ?? 0);
+  const mergedPaddingBottom = insetPaddingBottom + (customPaddingBottom ?? 0);
+
   return (
     <View style={[styles.root, style]} testID={testID}>
       <View
         style={[
           styles.content,
-          {
-            paddingTop: edges.includes('top') ? insets.top : 0,
-            paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
-          },
           contentStyle,
+          {
+            paddingTop: mergedPaddingTop,
+            paddingBottom: mergedPaddingBottom,
+          },
         ]}
       >
         {children}
