@@ -13,7 +13,7 @@ import { cacheBase64Cover } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
-const SONG_ROW_HEIGHT = 70;
+const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
 
 const DEMO_SONGS: Song[] = [
   {
