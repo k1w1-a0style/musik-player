@@ -1,13 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Dimensions, FlatList, ViewToken, Pressable } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  Easing,
-  cancelAnimation,
-} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
@@ -66,19 +58,6 @@ const NowPlaying: React.FC = () => {
     void playSong(item, queueRef.current);
   }, [playSong]);
 
-  const rotation = useSharedValue(0);
-  React.useEffect(() => {
-    if (isPlaying) rotation.value = withRepeat(withTiming(360, { duration: 14000, easing: Easing.linear }), -1);
-    else cancelAnimation(rotation);
-    return () => cancelAnimation(rotation);
-  }, [isPlaying, rotation]);
-  const discStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }));
-
-  const coverScale = useSharedValue(1);
-  React.useEffect(() => {
-    coverScale.value = withTiming(isPlaying ? 1 : 0.94, { duration: 350 });
-  }, [isPlaying, coverScale]);
-
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
@@ -92,14 +71,12 @@ const NowPlaying: React.FC = () => {
             song={item}
             isActive={isActive}
             isPlaying={isActive && isPlaying}
-            discStyle={discStyle}
-            coverScale={coverScale}
             accent={palette?.vibrant ?? palette?.dominant ?? accent}
           />
         </View>
       );
     },
-    [currentSong?.id, isPlaying, discStyle, coverScale, accent, palette],
+    [currentSong?.id, isPlaying, accent, palette],
   );
 
   return (
@@ -180,38 +157,20 @@ interface CoverProps {
   song: Song;
   isActive: boolean;
   isPlaying: boolean;
-  discStyle: ReturnType<typeof useAnimatedStyle>;
-  coverScale: ReturnType<typeof useSharedValue<number>>;
   accent: string;
 }
 
-const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, discStyle, coverScale, accent }) => {
-  const activeProgress = useSharedValue(isActive ? 1 : 0);
-  React.useEffect(() => {
-    activeProgress.value = withTiming(isActive ? 1 : 0, { duration: 220 });
-  }, [isActive, activeProgress]);
-  const animated = useAnimatedStyle(() => {
-    const inactiveScale = 0.85;
-    const playingScale = coverScale.value;
-    const scale = inactiveScale + (playingScale - inactiveScale) * activeProgress.value;
-    const opacity = 0.45 + (1 - 0.45) * activeProgress.value;
-    return {
-      transform: [{ scale }],
-      opacity,
-    };
-  });
-  return (
-    <Animated.View style={[styles.coverCard, animated, { shadowColor: accent }]}>
-      {song.cover ? (
-        <Image source={{ uri: song.cover }} style={styles.coverImage} />
-      ) : (
-        <Animated.View style={[styles.discFallback, isPlaying && discStyle]}>
-          <Disc3 color={theme.palette.primary} size={120} />
-        </Animated.View>
-      )}
-    </Animated.View>
-  );
-};
+const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => (
+  <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
+    {song.cover ? (
+      <Image source={{ uri: song.cover }} style={styles.coverImage} />
+    ) : (
+      <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
+        <Disc3 color={theme.palette.primary} size={120} />
+      </View>
+    )}
+  </View>
+);
 
 const styles = StyleSheet.create({
   root: { flex: 1, paddingTop: 52, paddingBottom: 24 },
@@ -234,6 +193,7 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   coverImage: { width: '100%', height: '100%' },
+  coverCardInactive: { transform: [{ scale: 0.85 }], opacity: 0.45 },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
   titleBlock: { flex: 1 },

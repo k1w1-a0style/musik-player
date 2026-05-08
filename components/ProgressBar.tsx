@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, GestureResponderEvent, LayoutChangeEvent, Pressable } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../theme';
 
@@ -22,10 +21,7 @@ const formatTime = (millis: number): string => {
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek, accent, accentDark }) => {
   const [barWidth, setBarWidth] = useState(0);
-  const thumbScale = useSharedValue(1);
   const progress = duration > 0 ? Math.min(100, (currentPosition / duration) * 100) : 0;
-
-  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ scale: thumbScale.value }] }));
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
     setBarWidth(e.nativeEvent.layout.width);
@@ -47,8 +43,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
         style={styles.progressBarContainer}
         onLayout={handleLayout}
         onPress={handlePress}
-        onPressIn={() => { thumbScale.value = withSpring(1.4); }}
-        onPressOut={() => { thumbScale.value = withSpring(1); }}
       >
         <View style={styles.progressBarBackground}>
           <LinearGradient
@@ -57,7 +51,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           />
-          <Animated.View style={[styles.thumb, { left: `${progress}%` }, thumbStyle]} />
+          <View style={[styles.thumb, { left: `${progress}%` }]} />
         </View>
       </Pressable>
       <View style={styles.timeRow}>
