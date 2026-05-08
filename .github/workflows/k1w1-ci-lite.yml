@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to check (e.g. work, main, dev)"
+        description: "Branch/Ref to check (e.g. codex, main, dev)"
         required: true
       job_id:
         description: "Client job id (UUID) for log correlation"

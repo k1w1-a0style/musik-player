@@ -195,6 +195,7 @@ const styles = StyleSheet.create({
   coverImage: { width: '100%', height: '100%' },
   coverCardInactive: { transform: [{ scale: 0.85 }], opacity: 0.45 },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
   titleBlock: { flex: 1 },
   title: { color: theme.palette.text.primary, fontSize: 28, letterSpacing: -0.7, fontFamily: theme.fonts.display },
