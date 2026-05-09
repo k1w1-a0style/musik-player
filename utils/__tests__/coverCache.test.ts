@@ -22,6 +22,11 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 describe('coverCache', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
+  });
+
   test('detects image base64 data uri', () => {
     expect(isBase64ImageDataUri('data:image/png;base64,AAA=')).toBe(true);
     expect(isBase64ImageDataUri('file:///cache/covers/a.png')).toBe(false);
@@ -47,6 +52,13 @@ describe('coverCache', () => {
 
   test('cacheBase64Cover returns existing non-base64 URIs unchanged', async () => {
     await expect(cacheBase64Cover('x', 'file:///my.jpg')).resolves.toBe('file:///my.jpg');
+  });
+
+  test('reuses existing cached file without rewriting', async () => {
+    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
+    const cached = await cacheBase64Cover('reuse-1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
+    expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
   test('preserves original base64 cover when file write fails', async () => {
