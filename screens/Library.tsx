@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -12,6 +12,8 @@ import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+
+declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
 
@@ -59,9 +61,25 @@ const Library: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [previewCoverFailed, setPreviewCoverFailed] = useState(false);
+  const renderCountRef = useRef(0);
+
   useEffect(() => {
     setPreviewCoverFailed(false);
   }, [currentSong?.id, currentSong?.cover]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    renderCountRef.current += 1;
+    if (renderCountRef.current <= 20) {
+      console.debug('[perf] Library render', {
+        count: renderCountRef.current,
+        songs: songs.length,
+        currentSongId: currentSong?.id ?? null,
+        isPlaying,
+        queryLength: query.length,
+      });
+    }
+  });
 
   const currentSongId = currentSong?.id ?? null;
 
@@ -164,7 +182,7 @@ const Library: React.FC = () => {
           song={item}
           isCurrent={isCurrent}
           isPlaying={isCurrent && isPlaying}
-          onPress={() => handleSongPress(item)}
+          onPressSong={handleSongPress}
         />
       );
     },
