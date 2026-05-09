@@ -45,6 +45,34 @@ describe('tagWriter', () => {
     const frame = serializeId3ApicFrame('image/jpeg', new Uint8Array([0xff, 0xd8, 0xff]));
     expect(String.fromCharCode(...Array.from(frame.slice(0, 4)))).toBe('APIC');
   });
+
+
+  test('serializeId3CommentFrame contains COMM lang marker', () => {
+    const frame = serializeId3CommentFrame('hello');
+    const body = frame.slice(10);
+    expect(body[0]).toBe(0x00);
+    expect(String.fromCharCode(body[1], body[2], body[3])).toBe('eng');
+  });
+
+  test('serializeId3ApicFrame embeds mime and image bytes', () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff]);
+    const frame = serializeId3ApicFrame('image/jpeg', jpeg);
+    const body = frame.slice(10);
+    const bodyText = String.fromCharCode(...Array.from(body));
+    expect(bodyText.includes('image/jpeg')).toBe(true);
+    expect(Array.from(frame.slice(-3))).toEqual([0xff, 0xd8, 0xff]);
+  });
+
+  test('buildId3v23TagFromDraft omits APIC when removeCover is true', () => {
+    const tag = buildId3v23TagFromDraft({
+      songId: '1',
+      tags: { title: 'Song' },
+      cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) },
+      removeCover: true,
+    });
+    const tagText = String.fromCharCode(...Array.from(tag));
+    expect(tagText.includes('APIC')).toBe(false);
+  });
   test('buildMp3TextFrames maps known fields', () => {
     const frames = buildMp3TextFrames({ title: 'Song', artist: 'Artist', comment: 'ignored' });
     expect(frames.length).toBe(2);
