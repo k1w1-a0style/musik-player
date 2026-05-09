@@ -14,9 +14,9 @@ const mockUpdateScanFolder = jest.fn(async (_id: string, _patch: any) => []);
 const mockRemoveScanFolder = jest.fn(async (_id: string) => []);
 const mockAddScanFolder = jest.fn(async (_folder: any) => []);
 const mockRequestDirPermissions = jest.fn(async () => ({ granted: false }));
-const mockReadDir = jest.fn(async (_uri: string) => []);
 const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
-const mockScanMedia = jest.fn(async () => ({ assets: [], skipped: [] }));
+const mockScanMedia = jest.fn(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
+const mockScanSaf = jest.fn(async (_folders: any[]) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -42,8 +42,8 @@ jest.mock('../../utils/storage', () => ({
 
 jest.mock('../../utils/mediaLibraryImport', () => ({
   deriveFolderNameFromUri: () => 'Music',
-  readAudioUrisFromSafDirectory: (uri: string) => mockReadDir(uri),
-  scanAudioAssetsFromMediaLibrary: () => mockScanMedia(),
+  scanFromMediaLibrary: () => mockScanMedia(),
+  scanFromSafFolders: (folders: any[]) => mockScanSaf(folders),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -69,14 +69,16 @@ describe('Library', () => {
     jest.clearAllMocks();
   });
 
-  test('hides broken preview image after error', () => {
+  test('hides broken preview image after error', async () => {
     const { UNSAFE_getByType, UNSAFE_queryByType } = render(<Library />);
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     fireEvent(UNSAFE_getByType(Image), 'error');
     expect(UNSAFE_queryByType(Image)).toBeNull();
   });
 
-  test('opens track info without starting playback', () => {
+  test('opens track info without starting playback', async () => {
     const { getByTestId } = render(<Library />);
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     fireEvent.press(getByTestId('info-s1'));
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();
