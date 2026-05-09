@@ -15,6 +15,11 @@ describe('mediaLibraryImport', () => {
     expect(mediaImport.classifySafReadDirectoryError(new Error('ENOTDIR'))).toBe('not-directory');
     expect(mediaImport.classifySafReadDirectoryError('this is not a directory')).toBe('not-directory');
     expect(mediaImport.classifySafReadDirectoryError(new Error('SecurityException: Permission denied'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error("Location 'content://x' isn't readable."))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error("Location 'content://x' is not readable."))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('not readable'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('cannot read'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('failed to read children'))).toBe('permission');
     expect(mediaImport.classifySafReadDirectoryError(new Error('EACCES'))).toBe('permission');
     expect(mediaImport.classifySafReadDirectoryError(new Error('EPERM operation not permitted'))).toBe('permission');
     expect(mediaImport.classifySafReadDirectoryError(new Error('random failure'))).toBe('unknown');
@@ -87,6 +92,31 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root/Vol.1']);
   });
 
+  test('child unreadable location failure is reported', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/unreadable'];
+      throw new Error("Location 'content://root/unreadable' isn't readable.");
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.errors).toEqual(['content://root/unreadable']);
+  });
+
+  test('child not-readable failure is reported', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/no-read'];
+      throw new Error('not readable');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.errors).toEqual(['content://root/no-read']);
+  });
+
+  test('root unknown read failure is always reported', async () => {
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', async () => {
+      throw new Error('generic root failure');
+    });
+    expect(result.errors).toEqual(['content://root']);
+  });
+
   test('saf recursion respects depth limit and file cap', async () => {
     const deepRead = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/l1'];
@@ -122,6 +152,17 @@ describe('mediaLibraryImport', () => {
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
     expect(result.songs.length).toBe(1);
     expect(result.errors).toEqual(['content://root/unknown.entry']);
+    expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
+  });
+
+  test('scanFromSafFolders sets partial error for child readability failures and keeps songs', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/subdir'];
+      throw new Error("Location 'content://root/subdir' isn't readable.");
+    });
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
+    expect(result.songs.length).toBe(1);
+    expect(result.errors).toEqual(['content://root/subdir']);
     expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
   });
 
