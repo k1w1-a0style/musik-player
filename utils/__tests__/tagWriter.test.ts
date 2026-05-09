@@ -67,6 +67,12 @@ describe('tagWriter', () => {
     expect(String.fromCharCode(...Array.from(merged.slice(0, 3)))).toBe('ID3');
     expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
   });
+
+
+  test('mergeId3v23TagIntoMp3Buffer rejects truncated existing ID3 tag', () => {
+    const truncated = new Uint8Array([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xff]);
+    expect(() => mergeId3v23TagIntoMp3Buffer(truncated, { songId: '1', tags: { title: 'X' } })).toThrow(/truncated/i);
+  });
   test('mp3 apply path returns merged buffer', () => {
     const original = new Uint8Array([0xff, 0xfb, 0x90, 0x64]);
     const merged = applyTagEditToBuffer(original, 'mp3', { songId: '1', tags: { title: 'X' } });
