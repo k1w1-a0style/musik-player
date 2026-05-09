@@ -20,7 +20,7 @@ const KNOWN_EXTENSIONLESS_NON_DIRECTORY_NAMES = new Set(['readme', 'unknownsidec
 
 const shouldSuppressChildReadError = (entryUri: string): boolean => {
   const ext = deriveExtension(entryUri);
-  if (ext && !AUDIO_EXTENSIONS.has(ext)) return true;
+  if (ext && KNOWN_NON_AUDIO_EXTENSIONS.has(ext)) return true;
   const segment = entryUri.split('?')[0].split('/').pop() ?? entryUri;
   if (segment.startsWith('.')) return true;
   return KNOWN_EXTENSIONLESS_NON_DIRECTORY_NAMES.has(segment.toLowerCase());

@@ -30,7 +30,7 @@ describe('mediaLibraryImport', () => {
     expect(result.files).toEqual(expect.arrayContaining(['content://root/AC.DC/a.mp3', 'content://root/Vol.1/b.flac']));
   });
 
-  test('known and unknown non-audio files do not produce SAF errors', async () => {
+  test('known non-audio files are suppressed while unknown dotted entries are reported', async () => {
     const read = jest.fn(async (uri: string) => {
       if (uri === 'content://root') {
         return [
@@ -47,18 +47,18 @@ describe('mediaLibraryImport', () => {
       throw new Error('not-directory');
     });
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toEqual(['content://root/album.log', 'content://root/notes.xyz']);
     expect(result.files).toEqual([]);
   });
 
-  test('child read failure is ignored for unknown non-directory entries and keeps audio files', async () => {
+  test('child read failure is reported for unknown dotted entries and keeps audio files', async () => {
     const read = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
       throw new Error('no access');
     });
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
     expect(result.files).toEqual(['content://root/song.mp3']);
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toEqual(['content://root/unknown.entry']);
   });
 
   test('saf recursion respects depth limit and file cap', async () => {
@@ -77,15 +77,15 @@ describe('mediaLibraryImport', () => {
     expect(capResult.files.length).toBe(mediaImport.MAX_SAF_FILES);
   });
 
-  test('scanFromSafFolders keeps readable songs when unknown child entries fail to open', async () => {
+  test('scanFromSafFolders reports unreadable unknown dotted child entries', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
       throw new Error('no access');
     });
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
     expect(result.songs.length).toBe(1);
-    expect(result.errors).toEqual([]);
-    expect(result.folderUpdates?.[0].lastError).toBeUndefined();
+    expect(result.errors).toEqual(['content://root/unknown.entry']);
+    expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
   });
 
   test('scanFromSafFolders reports unreadable nested directories', async () => {
