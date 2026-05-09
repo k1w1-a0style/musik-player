@@ -18,12 +18,20 @@ const mockSongs = [
       filename: 'song.mp3',
       uri: 'file:///music/song.mp3',
       size: 1048576,
+      mimeType: 'audio/mpeg',
     },
     audioInfo: {},
     coverInfo: {
       status: 'cached',
       uri: 'file:///cover.jpg',
     },
+  },
+  {
+    id: '2',
+    title: 'NoMime',
+    artist: 'Artist',
+    uri: 'file:///music/nomime.xyz',
+    fileInfo: { filename: 'nomime.xyz' },
   },
 ];
 
@@ -65,6 +73,18 @@ describe('TrackInfo', () => {
     expect(getByText(/Dauer: 4:05/)).toBeTruthy();
     expect(getByText(/Dateigröße: 1.00 MB/)).toBeTruthy();
     expect(getByText(/Codec: Nicht verfügbar/)).toBeTruthy();
+  });
+
+
+  test('shows mime type when available', () => {
+    const { getByText } = render(<TrackInfo />);
+    expect(getByText(/MIME-Type: audio\/mpeg/)).toBeTruthy();
+  });
+
+  test('shows not available mime when missing', () => {
+    mockRouteSongId = '2';
+    const { getByText } = render(<TrackInfo />);
+    expect(getByText(/MIME-Type: Nicht verfügbar/)).toBeTruthy();
   });
 
   test('cover fallback on image error', () => {

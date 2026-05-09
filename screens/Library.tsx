@@ -11,9 +11,10 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, Search, Disc3 } from 'lucide-react-native';
+import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -29,18 +30,50 @@ import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
 
-
 const SONG_ROW_HEIGHT = 84;
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const ID3_WORKER_COUNT = 3;
 
-const deriveExtension = (input?: string): string | undefined => {
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg',
+  webm: 'audio/webm',
+};
+
+export const deriveExtension = (input?: string): string | undefined => {
   if (!input) return undefined;
   const clean = input.split('?')[0] ?? input;
   const segment = clean.split('/').pop() ?? clean;
   const dot = segment.lastIndexOf('.');
   if (dot < 0 || dot === segment.length - 1) return undefined;
   return segment.slice(dot + 1).toLowerCase();
+};
+
+export const deriveMimeType = (rawMimeType: unknown, extension?: string): string | undefined => {
+  if (typeof rawMimeType === 'string') {
+    const normalized = rawMimeType.trim().toLowerCase();
+    if (normalized.startsWith('audio/') && normalized.includes('/')) return normalized;
+  }
+  if (!extension) return undefined;
+  return EXTENSION_MIME_MAP[extension];
+};
+
+const resolveFileSize = async (asset: MediaLibrary.Asset): Promise<number | undefined> => {
+  const directSize = (asset as { fileSize?: number }).fileSize;
+  if (typeof directSize === 'number' && directSize > 0) return directSize;
+  try {
+    const info = await FileSystem.getInfoAsync(asset.uri);
+    if (info.exists && typeof info.size === 'number' && info.size > 0) return info.size;
+  } catch {
+    return undefined;
+  }
+  return undefined;
 };
 
 const confirmImport = (found: number, skipped: number): Promise<boolean> =>
@@ -84,7 +117,7 @@ const Library: React.FC = () => {
   });
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? [] : songs), [isReady, songs]);
+  const displayedSongs = useMemo(() => songs, [songs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -123,6 +156,8 @@ const Library: React.FC = () => {
           const cachedCover = await cacheBase64Cover(asset.id, tags.cover);
           const cover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
           const extension = deriveExtension(asset.filename) ?? deriveExtension(asset.uri);
+          const mimeType = deriveMimeType((asset as { mimeType?: string }).mimeType, extension);
+          const size = await resolveFileSize(asset);
 
           enriched.push({
             id: asset.id,
@@ -139,8 +174,8 @@ const Library: React.FC = () => {
               uri: asset.uri,
               extension,
               container: extension,
-              mimeType: asset.mediaType ? String(asset.mediaType) : undefined,
-              size: (asset as { fileSize?: number }).fileSize,
+              mimeType,
+              size,
               source: 'media-library',
               importedAt: Date.now(),
             },
@@ -161,6 +196,12 @@ const Library: React.FC = () => {
 
   const handleSongPress = useCallback((song: Song) => void playSong(song), [playSong]);
   const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
+  const keyExtractor = useCallback((item: Song) => item.id, []);
+  const getItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({
+    length: SONG_ROW_HEIGHT,
+    offset: SONG_ROW_HEIGHT * index,
+    index,
+  }), []);
 
   const renderItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -189,7 +230,13 @@ const Library: React.FC = () => {
             onPress={importFromDevice}
             disabled={loading || !isReady}
           >
-            {loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : <Download color={theme.palette.text.onPrimary} size={18} />}
+            {loading ? (
+              <ActivityIndicator color={theme.palette.text.onPrimary} />
+            ) : songs.length > 0 ? (
+              <RefreshCcw color={theme.palette.text.onPrimary} size={18} />
+            ) : (
+              <Download color={theme.palette.text.onPrimary} size={18} />
+            )}
             <Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text>
           </Pressable>
         </View>
@@ -213,7 +260,19 @@ const Library: React.FC = () => {
           <TextInput value={query} onChangeText={setQuery} placeholder="Suche Titel, Artist, Album" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} />
         </View>
 
-        <FlatList data={filtered} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderItem} getItemLayout={(_, index) => ({ length: SONG_ROW_HEIGHT, offset: SONG_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>} />
+        <FlatList
+          data={filtered}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          removeClippedSubviews
+          windowSize={7}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={getItemLayout}
+          ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
+        />
       </Screen>
     </AppBackground>
   );

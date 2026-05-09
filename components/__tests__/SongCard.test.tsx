@@ -25,4 +25,16 @@ describe('SongCard', () => {
     fireEvent.press(getByTestId('song-card-info-1'));
     expect(onInfoSong).toHaveBeenCalledWith(song);
   });
+
+
+  test('pressing info does not trigger song press', () => {
+    const onPressSong = jest.fn();
+    const onInfoSong = jest.fn();
+    const { getByTestId } = render(<SongCard song={song} onPressSong={onPressSong} onInfoSong={onInfoSong} isCurrent={false} isPlaying={false} />);
+
+    fireEvent.press(getByTestId('song-card-info-1'));
+
+    expect(onInfoSong).toHaveBeenCalledWith(song);
+    expect(onPressSong).not.toHaveBeenCalled();
+  });
 });

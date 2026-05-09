@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
 import { CircleEllipsis, Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
@@ -33,7 +33,10 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   });
 
   const handlePress = useCallback(() => onPressSong(song), [onPressSong, song]);
-  const handleInfoPress = useCallback(() => onInfoSong?.(song), [onInfoSong, song]);
+  const handleInfoPress = useCallback((event?: GestureResponderEvent) => {
+    event?.stopPropagation();
+    onInfoSong?.(song);
+  }, [onInfoSong, song]);
 
   const showCover = !!song.cover && !coverFailed;
 
