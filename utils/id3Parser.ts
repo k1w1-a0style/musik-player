@@ -358,7 +358,7 @@ const base64ToBytes = (b64: string): Uint8Array => {
 
 /**
  * Read & parse ID3 tags from a file URI (e.g. from expo-media-library or expo-document-picker).
- * Reads the first 1MB which is sufficient for almost all ID3v2 headers including embedded art.
+ * Reads a bounded head chunk (and tail chunk for MP4-like files) to keep parsing efficient.
  */
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {

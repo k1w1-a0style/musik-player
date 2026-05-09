@@ -67,4 +67,8 @@ describe('coverCache', () => {
   test('ignores payload that does not match declared mime signature', async () => {
     await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
   });
+
+  test('ignores unknown image subtype', async () => {
+    await expect(cacheBase64Cover('bad-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
+  });
 });
