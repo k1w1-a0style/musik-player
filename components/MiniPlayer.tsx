@@ -77,7 +77,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     gap: 10,
-    ...theme.shadows.glow,
   },
   thumb: {
     width: 44,

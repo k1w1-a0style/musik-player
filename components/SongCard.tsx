@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
@@ -11,7 +11,7 @@ interface SongCardProps {
   isPlaying: boolean;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => (
+const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => (
   <Pressable
     testID={`song-card-${song.id}`}
     accessibilityRole="button"
@@ -41,6 +41,18 @@ const SongCard: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying
   </Pressable>
 );
 
+const SongCard = memo(
+  SongCardComponent,
+  (prev, next) =>
+    prev.song.id === next.song.id &&
+    prev.song.title === next.song.title &&
+    prev.song.artist === next.song.artist &&
+    prev.song.album === next.song.album &&
+    prev.song.cover === next.song.cover &&
+    prev.isCurrent === next.isCurrent &&
+    prev.isPlaying === next.isPlaying,
+);
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -56,7 +68,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.78 },
   currentSong: {
     borderColor: theme.palette.borderStrong,
-    ...theme.shadows.glow,
   },
   cover: {
     width: 46,

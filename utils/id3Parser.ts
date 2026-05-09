@@ -8,6 +8,7 @@
  */
 
 import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 
 export interface Id3Tags {
   title?: string;
@@ -247,18 +248,15 @@ const base64ToBytes = (b64: string): Uint8Array => {
  */
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {
-    // Use the new File API (expo-file-system ≥18); fall back to legacy readAsStringAsync.
-    const legacy = (FileSystem as unknown as {
-      readAsStringAsync?: (u: string, o?: { encoding?: string; length?: number }) => Promise<string>;
-      EncodingType?: { Base64: string };
-    });
-    const encodingBase64 = legacy.EncodingType?.Base64 ?? 'base64';
-    if (legacy.readAsStringAsync) {
-      const b64 = await legacy.readAsStringAsync(uri, {
+    const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
+    try {
+      const b64 = await readAsStringAsync(uri, {
         encoding: encodingBase64,
         length: 1024 * 1024,
       });
       return parseId3Buffer(base64ToBytes(b64));
+    } catch {
+      // fallback to File API when legacy path is unavailable
     }
     // New File API
     const FileCtor = (FileSystem as unknown as { File?: new (u: string) => { bytes: () => Promise<Uint8Array> } }).File;

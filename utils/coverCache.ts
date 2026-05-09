@@ -1,3 +1,10 @@
+import {
+  makeDirectoryAsync,
+  writeAsStringAsync,
+  EncodingType,
+  documentDirectory,
+  cacheDirectory,
+} from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
 
@@ -16,14 +23,12 @@ const extensionFromMimeSubtype = (subtype: string): string => {
   return 'jpg';
 };
 
-const legacyFs = FileSystem as unknown as {
-  cacheDirectory?: string;
-  documentDirectory?: string;
-  EncodingType?: { Base64: string };
-};
-
 const getBaseDirectory = (): string | undefined =>
-  legacyFs.documentDirectory ?? legacyFs.cacheDirectory;
+  documentDirectory
+  ?? cacheDirectory
+  ?? (FileSystem as { documentDirectory?: string | null }).documentDirectory
+  ?? (FileSystem as { cacheDirectory?: string | null }).cacheDirectory
+  ?? undefined;
 
 export const cacheBase64Cover = async (songId: string, cover?: string): Promise<string | undefined> => {
   if (!cover) return undefined;
@@ -37,12 +42,18 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
   try {
     const ext = extensionFromMimeSubtype(match[1] ?? 'jpeg');
     const directory = `${baseDir}covers`;
-    await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+    const mkdir = makeDirectoryAsync
+      ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
+    const write = writeAsStringAsync
+      ?? (FileSystem as unknown as { writeAsStringAsync?: typeof writeAsStringAsync }).writeAsStringAsync;
+    if (!mkdir || !write) return undefined;
+
+    await mkdir(directory, { intermediates: true });
 
     const fileUri = `${directory}/${encodeURIComponent(songId)}.${ext}`;
     const base64 = trimmed.slice(match[0].length);
-    const base64Encoding = (legacyFs.EncodingType?.Base64 ?? 'base64') as 'base64';
-    await FileSystem.writeAsStringAsync(fileUri, base64, {
+    const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
+    await write(fileUri, base64, {
       encoding: base64Encoding,
     });
     return fileUri;
