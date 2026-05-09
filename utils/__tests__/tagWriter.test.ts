@@ -83,6 +83,16 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(frameIds(removed)).not.toContain('COMM');
   });
 
+
+  test('comment touched with value replaces COMM and keeps other frames', () => {
+    const oldComm = mkFrame('COMM', u8(0x01, 0x65, 0x6e, 0x67, 0x00, 0x00, 0x00, 0x00));
+    const src = new Uint8Array([...mkTag([oldComm, mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { comment: 'New' } });
+    const ids = frameIds(out);
+    expect(ids).toContain('COMM');
+    expect(ids).toContain('TPE1');
+  });
+
   test('title touched empty removes TIT2 but keeps others', () => {
     const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: '   ' } });
