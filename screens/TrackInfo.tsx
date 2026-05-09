@@ -28,7 +28,6 @@ export const formatBytes = (value?: number): string => {
   return `${size.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 };
 
-
 export const formatSampleRate = (value?: number): string => {
   if (!value || value <= 0) return 'Nicht verfügbar';
   if (value >= 1000) return `${(value / 1000).toFixed(1)} kHz`;
@@ -52,6 +51,10 @@ export const formatCoverStatus = (status?: string): string => {
 
 const valueOrNA = (value?: string | number): string => (value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value));
 type TrackInfoRoute = RouteProp<{ TrackInfo: { songId: string } }, 'TrackInfo'>;
+
+const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ label, value, long = false }) => (
+  <Text style={long ? styles.longRow : styles.row}>{label}: {value}</Text>
+);
 
 const TrackInfo: React.FC = () => {
   const route = useRoute<TrackInfoRoute>();
@@ -83,33 +86,33 @@ const TrackInfo: React.FC = () => {
 
           <Text style={styles.header}>TrackInfo</Text>
           <Text style={styles.section}>Basis</Text>
-          <Text style={styles.row}>Titel: {valueOrNA(song.title)}</Text>
-          <Text style={styles.row}>Artist: {valueOrNA(song.artist)}</Text>
-          <Text style={styles.row}>Album: {valueOrNA(song.album)}</Text>
-          <Text style={styles.row}>Jahr: {valueOrNA(song.year)}</Text>
-          <Text style={styles.row}>Genre: {valueOrNA(song.genre)}</Text>
-          <Text style={styles.row}>Dauer: {formatDuration(song.duration)}</Text>
+          <InfoRow label="Titel" value={valueOrNA(song.title)} />
+          <InfoRow label="Artist" value={valueOrNA(song.artist)} />
+          <InfoRow label="Album" value={valueOrNA(song.album)} />
+          <InfoRow label="Jahr" value={valueOrNA(song.year)} />
+          <InfoRow label="Genre" value={valueOrNA(song.genre)} />
+          <InfoRow label="Dauer" value={formatDuration(song.duration)} />
 
           <Text style={styles.section}>Datei</Text>
-          <Text style={styles.row}>Dateiname: {valueOrNA(song.fileInfo?.filename)}</Text>
-          <Text style={styles.row}>Dateiendung: {valueOrNA(song.fileInfo?.extension)}</Text>
-          <Text style={styles.row}>Container: {valueOrNA(song.fileInfo?.container)}</Text>
-          <Text style={styles.row}>MIME-Type: {valueOrNA(song.fileInfo?.mimeType)}</Text>
-          <Text style={styles.row}>Dateigröße: {formatBytes(song.fileInfo?.size)}</Text>
-          <Text style={styles.row}>Import-Quelle: {valueOrNA(song.fileInfo?.source)}</Text>
-          <Text style={styles.row}>Import-Zeitpunkt: {song.fileInfo?.importedAt ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE') : 'Nicht verfügbar'}</Text>
-          <Text style={styles.longRow}>Datei-Pfad / URI: {valueOrNA(song.fileInfo?.uri ?? song.uri)}</Text>
+          <InfoRow label="Dateiname" value={valueOrNA(song.fileInfo?.filename)} />
+          <InfoRow label="Dateiendung" value={valueOrNA(song.fileInfo?.extension)} />
+          <InfoRow label="Container" value={valueOrNA(song.fileInfo?.container)} />
+          <InfoRow label="MIME-Type" value={valueOrNA(song.fileInfo?.mimeType)} />
+          <InfoRow label="Dateigröße" value={formatBytes(song.fileInfo?.size)} />
+          <InfoRow label="Import-Quelle" value={valueOrNA(song.fileInfo?.source)} />
+          <InfoRow label="Import-Zeitpunkt" value={song.fileInfo?.importedAt ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE') : 'Nicht verfügbar'} />
+          <InfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
 
           <Text style={styles.section}>Audio-Technik</Text>
-          <Text style={styles.row}>Codec: {valueOrNA(song.audioInfo?.codec)}</Text>
-          <Text style={styles.row}>Bitrate: {song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'}</Text>
-          <Text style={styles.row}>Sample Rate: {formatSampleRate(song.audioInfo?.sampleRate)}</Text>
-          <Text style={styles.row}>Kanäle: {valueOrNA(song.audioInfo?.channels)}</Text>
+          <InfoRow label="Codec" value={valueOrNA(song.audioInfo?.codec)} />
+          <InfoRow label="Bitrate" value={song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'} />
+          <InfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />
+          <InfoRow label="Kanäle" value={valueOrNA(song.audioInfo?.channels)} />
 
           <Text style={styles.section}>Cover</Text>
-          <Text style={styles.row}>Cover vorhanden: {coverUri ? 'Ja' : 'Nein'}</Text>
-          <Text style={styles.row}>Cover-Typ: {formatCoverStatus(coverStatus)}</Text>
-          <Text style={styles.longRow}>Cover-URI: {valueOrNA(coverUri)}</Text>
+          <InfoRow label="Cover vorhanden" value={coverUri ? 'Ja' : 'Nein'} />
+          <InfoRow label="Cover-Typ" value={formatCoverStatus(coverStatus)} />
+          <InfoRow label="Cover-URI" value={valueOrNA(coverUri)} long />
         </ScrollView>
       </Screen>
     </AppBackground>
