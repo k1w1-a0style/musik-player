@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { getInfoAsync, StorageAccessFramework } from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -21,11 +21,8 @@ import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
-import { parseId3FromUri, type Id3Tags } from '../utils/id3Parser';
-import { parseFilename } from '../utils/musicParser';
-import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
-import { deriveFolderNameFromUri, readAudioUrisFromSafDirectory, scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+import { deriveFolderNameFromUri, importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
@@ -34,9 +31,8 @@ import { APP_STACK_ROUTES } from '../types/routes';
 declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 84;
-const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
-const ID3_WORKER_COUNT = 3;
 
+const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
     id: 'demo-1',
@@ -60,48 +56,6 @@ const DEMO_SONGS: Song[] = [
     uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
   },
 ];
-
-const EXTENSION_MIME_MAP: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  mp4: 'audio/mp4',
-  aac: 'audio/aac',
-  flac: 'audio/flac',
-  wav: 'audio/wav',
-  ogg: 'audio/ogg',
-  opus: 'audio/ogg',
-  webm: 'audio/webm',
-};
-
-export const deriveExtension = (input?: string): string | undefined => {
-  if (!input) return undefined;
-  const clean = input.split('?')[0] ?? input;
-  const segment = clean.split('/').pop() ?? clean;
-  const dot = segment.lastIndexOf('.');
-  if (dot < 0 || dot === segment.length - 1) return undefined;
-  return segment.slice(dot + 1).toLowerCase();
-};
-
-export const deriveMimeType = (rawMimeType: unknown, extension?: string): string | undefined => {
-  if (typeof rawMimeType === 'string') {
-    const normalized = rawMimeType.trim().toLowerCase();
-    if (normalized.startsWith('audio/') && normalized.includes('/')) return normalized;
-  }
-  if (!extension) return undefined;
-  return EXTENSION_MIME_MAP[extension];
-};
-
-const resolveFileSize = async (asset: MediaLibrary.Asset): Promise<number | undefined> => {
-  const directSize = (asset as { fileSize?: number }).fileSize;
-  if (typeof directSize === 'number' && directSize > 0) return directSize;
-  try {
-    const info = await getInfoAsync(asset.uri);
-    if (info.exists && typeof info.size === 'number' && info.size > 0) return info.size;
-  } catch {
-    return undefined;
-  }
-  return undefined;
-};
 
 const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   new Promise(resolve => {
@@ -209,94 +163,44 @@ const Library: React.FC = () => {
       setLoading(true);
       const activeFolders = scanFolders.filter(folder => folder.enabled);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
-        const safSongs: Song[] = [];
-        const failedFolders: string[] = [];
-        for (const folder of activeFolders) {
-          const { files, errors } = await readAudioUrisFromSafDirectory(folder.uri);
-          if (errors.length > 0) failedFolders.push(folder.name);
-          for (const uri of files) {
-            const fallback = parseFilename(uri.split('/').pop() ?? uri);
-            safSongs.push({
-              id: uri,
-              title: fallback.title || (uri.split('/').pop() ?? 'Unbekannt'),
-              artist: fallback.artist || 'Unbekannt',
-              uri,
-              fileInfo: { uri, source: 'saf', importedAt: Date.now() },
-              coverInfo: { status: 'none' },
-            });
+        const result = await importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS });
+        if (result.folderUpdates) {
+          for (const folder of result.folderUpdates) {
+            const original = scanFolders.find(item => item.id === folder.id);
+            if (!original || original.lastError !== folder.lastError) {
+              await updateScanFolder(folder.id, { lastError: folder.lastError });
+            }
           }
+          setScanFolders(await getScanFolders());
         }
-        if (failedFolders.length > 0) Alert.alert('Einige Ordner nicht lesbar', failedFolders.join(', '));
-        const uniqueSongs = Array.from(new Map(safSongs.map(song => [song.uri, song])).values());
-        if (uniqueSongs.length === 0) {
-          Alert.alert('Keine Musik gefunden', 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.');
+        if (result.songs.length === 0) {
+          Alert.alert(
+            result.errors.length > 0 ? 'Scan fehlgeschlagen' : 'Keine Musik gefunden',
+            result.errors.length > 0
+              ? 'In den Scan-Ordnern wurden keine importierbaren Songs gefunden. Einige Ordner/Dateien waren nicht lesbar.'
+              : 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.',
+          );
           return;
         }
-        uniqueSongs.sort((a, b) => a.title.localeCompare(b.title));
-        setSongs(uniqueSongs);
+        if (result.errors.length > 0) Alert.alert('Teilweise importiert', 'Einige Ordner/Dateien waren nicht lesbar. Importierbare Songs wurden trotzdem übernommen.');
+        setSongs(result.songs);
         return;
       }
-
 
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
-
-      const scan = await scanAudioAssetsFromMediaLibrary();
-      const assets = scan.assets;
-      if (assets.length === 0) {
+      const candidates = await scanMediaLibraryCandidates();
+      if (candidates.assets.length === 0) {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
-
-      const shouldImport = await confirmImport(assets.length, scan.skipped.length);
+      const shouldImport = await confirmImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
-
-      const enriched: Song[] = [];
-      const queue = [...assets];
-      const workers = Array.from({ length: ID3_WORKER_COUNT }, async () => {
-        while (queue.length > 0) {
-          const asset = queue.shift();
-          if (!asset) break;
-
-          const fallback = parseFilename(asset.filename);
-          const tags: Id3Tags = await parseId3FromUri(asset.uri).catch(() => ({}));
-          const cachedCover = await cacheBase64Cover(asset.id, tags.cover);
-          const cover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
-          const extension = deriveExtension(asset.filename) ?? deriveExtension(asset.uri);
-          const mimeType = deriveMimeType((asset as { mimeType?: string }).mimeType, extension);
-          const size = await resolveFileSize(asset);
-
-          enriched.push({
-            id: asset.id,
-            title: tags.title || fallback.title || asset.filename.replace(/\.[^.]+$/, ''),
-            artist: tags.artist || fallback.artist || 'Unbekannt',
-            album: tags.album,
-            uri: asset.uri,
-            cover,
-            duration: (asset.duration ?? 0) * 1000,
-            year: tags.year,
-            genre: tags.genre,
-            fileInfo: {
-              filename: asset.filename,
-              uri: asset.uri,
-              extension,
-              container: extension,
-              mimeType,
-              size,
-              source: 'media-library',
-              importedAt: Date.now(),
-            },
-            coverInfo: { status: cover ? (cachedCover ? 'cached' : 'external') : 'none', uri: cover },
-          });
-        }
-      });
-
-      await Promise.all(workers);
-      enriched.sort((a, b) => a.title.localeCompare(b.title));
-      setSongs(enriched);
+      const mediaResult = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
+      setSongs(mediaResult.songs);
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {

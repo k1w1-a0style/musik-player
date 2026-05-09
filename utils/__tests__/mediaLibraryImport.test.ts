@@ -1,47 +1,94 @@
-import {
-  deriveFolderNameFromUri,
-  isAudioFileUri,
-  loadAllAudioAssetsFromMediaLibrary,
-  readAudioUrisFromSafDirectory,
-} from '../mediaLibraryImport';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
+import { cacheBase64Cover } from '../coverCache';
+import { parseId3FromUri } from '../id3Parser';
+import * as mediaImport from '../mediaLibraryImport';
 
-type MockAsset = { id: string };
-
-type MockPage = {
-  assets: MockAsset[];
-  hasNextPage: boolean;
-  endCursor?: string;
-};
+jest.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: jest.fn(async () => ({ exists: true, size: 123 })),
+  StorageAccessFramework: { readDirectoryAsync: jest.fn(async () => []) },
+}));
+jest.mock('../id3Parser', () => ({ parseId3FromUri: jest.fn(async () => ({})) }));
+jest.mock('../coverCache', () => ({ cacheBase64Cover: jest.fn(async (_id: string, c?: string) => c ? 'file:///cover.jpg' : undefined), isBase64ImageDataUri: (v?: string) => !!v?.startsWith('data:image/') }));
 
 describe('mediaLibraryImport', () => {
   test('loads all pages', async () => {
-    const pages: MockPage[] = [
-      { assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' },
-      { assets: [{ id: '3' }], hasNextPage: false, endCursor: 'b' },
-    ];
-
-    const getAssetsPage = jest.fn(async ({ after }: { after?: string }) => {
-      if (!after) return pages[0] as any;
-      return pages[1] as any;
-    });
-
-    const result = await loadAllAudioAssetsFromMediaLibrary(getAssetsPage as any);
-
+    const getAssetsPage = jest.fn(async ({ after }: { after?: string }) => (!after
+      ? { assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' }
+      : { assets: [{ id: '3' }], hasNextPage: false, endCursor: 'b' })) as any;
+    const result = await mediaImport.loadAllAudioAssetsFromMediaLibrary(getAssetsPage);
     expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
   });
 
-  test('detects supported audio extensions', () => {
-    expect(isAudioFileUri('content://x/song.mp3')).toBe(true);
-    expect(isAudioFileUri('content://x/song.txt')).toBe(false);
+  test('saf scan enters dotted folders like AC.DC and Vol.1', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/AC.DC', 'content://root/Vol.1'];
+      if (uri === 'content://root/AC.DC') return ['content://root/AC.DC/a.mp3'];
+      if (uri === 'content://root/Vol.1') return ['content://root/Vol.1/b.flac'];
+      throw new Error('not-dir');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.files).toEqual(expect.arrayContaining(['content://root/AC.DC/a.mp3', 'content://root/Vol.1/b.flac']));
   });
 
-  test('derives folder names from URI', () => {
-    expect(deriveFolderNameFromUri('content://tree/primary%3AMusic')).toContain('Music');
+  test('known non-audio files do not produce errors', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/cover.jpg', 'content://root/folder.jpg', 'content://root/playlist.m3u'];
+      throw new Error('not-directory');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.errors).toEqual([]);
+    expect(result.files).toEqual([]);
   });
 
-  test('reads SAF directory and keeps only audio', async () => {
-    const read = jest.fn().mockResolvedValue(['content://x/a.mp3', 'content://x/b.jpg']);
-    const result = await readAudioUrisFromSafDirectory('content://x', read);
-    expect(result.files).toEqual(['content://x/a.mp3']);
+  test('child read failure is propagated as partial error and keeps audio files', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
+      throw new Error('no access');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.files).toEqual(['content://root/song.mp3']);
+    expect(result.errors).toEqual(['content://root/unknown.entry']);
+  });
+
+  test('saf recursion respects depth limit and file cap', async () => {
+    const deepRead = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/l1'];
+      if (uri === 'content://root/l1') return ['content://root/l1/l2'];
+      if (uri === 'content://root/l1/l2') return ['content://root/l1/l2/l3'];
+      if (uri === 'content://root/l1/l2/l3') return ['content://root/l1/l2/l3/deep.mp3'];
+      return [];
+    });
+    const depthResult = await mediaImport.readAudioUrisFromSafDirectory('content://root', deepRead);
+    expect(depthResult.files).toEqual([]);
+
+    const many = Array.from({ length: 6000 }, (_, idx) => `content://root/${idx}.mp3`);
+    const capResult = await mediaImport.readAudioUrisFromSafDirectory('content://root', async () => many);
+    expect(capResult.files.length).toBe(mediaImport.MAX_SAF_FILES);
+  });
+
+  test('scanFromSafFolders imports songs on partial errors and sets lastError', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/blocked'];
+      throw new Error('no access');
+    });
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
+    expect(result.songs.length).toBe(1);
+    expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
+  });
+
+  test('saf import uses tags and fallback', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/The%20Artist%20-%20Title.mp3']);
+    (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'Tag Title', artist: 'Tag Artist', cover: 'data:image/jpeg;base64,AAA' });
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true }] as any);
+    expect(result.songs[0].title).toBe('Tag Title');
+    expect(result.songs[0].coverInfo?.status).toBe('cached');
+    expect(cacheBase64Cover).toHaveBeenCalled();
+  });
+
+  test('saf import collects root folder errors', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('no access'));
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true }] as any);
+    expect(result.errors.length).toBe(1);
+    expect(result.folderUpdates?.[0].lastError).toBe('Nicht lesbar');
   });
 });
