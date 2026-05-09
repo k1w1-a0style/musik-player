@@ -51,7 +51,7 @@ describe('coverCache', () => {
 
   test('preserves original base64 cover when file write fails', async () => {
     (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
-    const originalCover = 'data:image/png;base64,AAAA';
+    const originalCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
     const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
 
     const result = await sanitizeSongsForStorage(songs);
