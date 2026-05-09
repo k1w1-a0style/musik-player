@@ -85,14 +85,12 @@ const NowPlaying: React.FC = () => {
     ({ item }: { item: Song; index: number }) => {
       const isActive = currentSong?.id === item.id;
       return (
-        <View style={styles.coverSlide}>
-          <CoverArtwork
-            song={item}
-            isActive={isActive}
-            isPlaying={isActive && isPlaying}
-            accent={palette?.vibrant ?? palette?.dominant ?? accent}
-          />
-        </View>
+        <CoverSlide
+          song={item}
+          isActive={isActive}
+          isPlaying={isActive && isPlaying}
+          accent={palette?.vibrant ?? palette?.dominant ?? accent}
+        />
       );
     },
     [currentSong?.id, isPlaying, accent, palette],
@@ -232,6 +230,12 @@ interface CoverProps {
   isPlaying: boolean;
   accent: string;
 }
+
+const CoverSlide = React.memo(({ song, isActive, isPlaying, accent }: CoverProps) => (
+  <View style={styles.coverSlide}>
+    <CoverArtwork song={song} isActive={isActive} isPlaying={isPlaying} accent={accent} />
+  </View>
+));
 
 const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => {
   const [coverFailed, setCoverFailed] = React.useState(false);
