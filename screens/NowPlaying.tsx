@@ -232,11 +232,19 @@ interface CoverProps {
   accent: string;
 }
 
-const CoverSlide = React.memo(({ song, isActive, isPlaying, accent }: CoverProps) => (
-  <View style={styles.coverSlide}>
-    <CoverArtwork song={song} isActive={isActive} isPlaying={isPlaying} accent={accent} />
-  </View>
-));
+const CoverSlide = React.memo(
+  ({ song, isActive, isPlaying, accent }: CoverProps) => (
+    <View style={styles.coverSlide}>
+      <CoverArtwork song={song} isActive={isActive} isPlaying={isPlaying} accent={accent} />
+    </View>
+  ),
+  (prev, next) =>
+    prev.song.id === next.song.id &&
+    prev.song.cover === next.song.cover &&
+    prev.isActive === next.isActive &&
+    prev.isPlaying === next.isPlaying &&
+    prev.accent === next.accent,
+);
 
 const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => {
   const [coverFailed, setCoverFailed] = React.useState(false);
