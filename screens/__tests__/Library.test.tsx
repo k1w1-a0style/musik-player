@@ -26,7 +26,7 @@ jest.mock('../../contexts/MusicContext', () => ({
 jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
 jest.mock('../../components/Screen', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
 
-jest.mock('../../components/SongCard', () => ({ song, onInfoSong }: any) => (
+jest.mock('../../components/SongCard', () => ({ song, onInfoSong }: { song: { id: string }; onInfoSong: (song: { id: string }) => void }) => (
   <MockPressable testID={`info-${song.id}`} onPress={() => onInfoSong(song)}>
     <MockText>info</MockText>
   </MockPressable>

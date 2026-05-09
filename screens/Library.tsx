@@ -11,8 +11,8 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { useNavigation } from '@react-navigation/native';
-import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
+import { Download, Search, Disc3 } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -26,9 +26,6 @@ import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
 declare const __DEV__: boolean;
 
-type RootStackParamList = {
-  TrackInfo: { songId: string };
-};
 
 const SONG_ROW_HEIGHT = 84;
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
@@ -57,7 +54,7 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   });
 
 const Library: React.FC = () => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
@@ -72,6 +69,7 @@ const Library: React.FC = () => {
     if (!isDevPerfLoggingEnabled) return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
+      // eslint-disable-next-line no-console
       console.debug('[perf] Library render', {
         count: renderCountRef.current,
         songs: songs.length,

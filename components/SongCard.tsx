@@ -27,6 +27,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     if (!isDevPerfLoggingEnabled) return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
+      // eslint-disable-next-line no-console
       console.debug('[perf] SongCard render', { count: renderCountRef.current, songId: song.id, isCurrent, isPlaying });
     }
   });

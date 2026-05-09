@@ -8,8 +8,8 @@ const mockSongs = [{ id: '1', title: 'Song', artist: 'Artist', album: 'Album', d
 
 jest.mock('@react-navigation/native', () => ({ useRoute: () => ({ params: { songId: mockRouteSongId } }) }));
 jest.mock('../../contexts/MusicContext', () => ({ useLibraryMusicContext: () => ({ songs: mockSongs }) }));
-jest.mock('../../components/AppBackground', () => ({ children }: any) => <>{children}</>);
-jest.mock('../../components/Screen', () => ({ children }: any) => <>{children}</>);
+jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
+jest.mock('../../components/Screen', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
 
 describe('TrackInfo', () => {
   beforeEach(() => { mockRouteSongId = '1'; });
