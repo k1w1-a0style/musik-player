@@ -6,13 +6,40 @@
 - `writeTagsToFile` always throws `WriteNotImplemented`.
 - `applyTagEditToBuffer` for `mp3`, `m4a`, and `mp4` throws `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
+- New orchestration logic is **dry-run simulation only**.
 
-## Capability model
+## Safe write orchestration (prepared, not activated)
 
-- `remote` URIs are read-only.
-- `content://` requires SAF write permission and a dedicated safe-write flow.
-- `file://` writes are intentionally disabled by policy in this PR.
-- Missing or unknown URI is unsupported for editing.
+The orchestration plan now models:
+- write preconditions,
+- permission gates,
+- backup strategy,
+- temp file strategy,
+- atomic replace expectations,
+- rollback viability,
+- explicit blocking reasons.
+
+No plan step performs a real write, delete, or replace operation.
+
+## URI strategy
+
+- `remote` URIs are read-only and blocked (`UnsupportedUri`).
+- missing/unknown URI is blocked (`UnsupportedUri`).
+- `content://` requires SAF write permission, is high-risk, and may not guarantee atomic replace (`MissingWritePermission`, `WriteNotImplemented`).
+- `file://` is modeled with backup+temp+atomic replace requirements, but still blocked by policy (`WriteNotImplemented`).
+
+## Backup + rollback concept
+
+Before any future real write, flow must be:
+1. never overwrite original directly,
+2. create backup,
+3. write temp output,
+4. validate output,
+5. replace target,
+6. rollback from backup on failure,
+7. cleanup temp/backup artifacts per policy.
+
+For SAF/content URIs, rollback guarantees may be limited and must remain guarded.
 
 ## Validation retained
 
@@ -21,21 +48,10 @@
 - Cover payload validation accepts only JPEG/PNG with magic-byte checks.
 - `removeCover=true` takes precedence over a provided cover payload.
 
-## Follow-up PR requirements for MP3 writer
+## Follow-up PR requirements
 
-A separate PR is required before enabling MP3 writes, including:
-- ID3v2.3/v2.4 strategy and frame-size correctness,
-- Unicode-safe text/COMM handling,
-- APIC add/replace/remove semantics,
-- extended header / footer handling,
-- unsynchronisation handling,
-- frame-preservation policy,
-- truncation/corruption safety tests.
-
-## Follow-up PR requirements for MP4/M4A writer
-
-A separate PR is required for atom-level rewrite logic with full safety checks.
-
-## UI behavior requirement
-
-Until writers are implemented, UI must surface `WriteNotImplemented` clearly.
+Separate PRs are still required for:
+- production MP3 ID3 rewrite implementation,
+- production MP4/M4A atom rewrite implementation,
+- enabling guarded real device writes,
+- UI editor integration.

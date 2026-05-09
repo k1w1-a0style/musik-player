@@ -1,7 +1,8 @@
 import type { Song } from '../types/Song';
-import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode } from '../types/TagEdit';
+import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode, WriteOrchestrationResult } from '../types/TagEdit';
 import { getTagEditCapability, getUriType, getSupportedContainer } from './tagEditCapability';
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
+import { createTagWriteOperationPlan, simulateTagWriteOperation } from './tagWriteOrchestrator';
 
 export class TagWriterError extends Error {
   constructor(public code: TagWriterErrorCode, message: string) {
@@ -10,27 +11,7 @@ export class TagWriterError extends Error {
   }
 }
 
-export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => {
-  const uri = song.fileInfo?.uri ?? song.uri;
-  if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
-
-  const capability = getTagEditCapability(song);
-  const container = getSupportedContainer(song);
-  const warnings = [...(capability.reason ? [capability.reason] : [])];
-  if (draft.removeCover && draft.cover) warnings.push('removeCover=true takes precedence over cover payload.');
-  if (container === 'mp3') warnings.push('MP3 writer is intentionally disabled in this PR and will throw WriteNotImplemented.');
-  if (container === 'm4a' || container === 'mp4') warnings.push('MP4/M4A writing intentionally blocked until safe atom rewrite is implemented.');
-
-  return {
-    uri,
-    uriType: getUriType(uri),
-    container,
-    requiresBackup: true,
-    requiresFullRewrite: container !== 'unsupported',
-    estimatedRisk: capability.uriType === 'file' ? 'medium' : 'high',
-    warnings,
-  };
-};
+export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => createTagWriteOperationPlan(song, draft);
 
 export const applyTagEditToBuffer = (_buffer: Uint8Array, container: TagEditableContainer, draft: TagEditDraft): Uint8Array => {
   const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
@@ -59,6 +40,13 @@ export const ensureTagEditWriteAllowed = (song: Song): void => {
   if (capability.uriType === 'content') {
     throw new TagWriterError('MissingWritePermission', 'SAF write permission and safe write flow are required.');
   }
+};
+
+export const prepareWriteOnly = (song: Song, draft: TagEditDraft): TagEditPlan => createTagWriteOperationPlan(song, draft);
+
+export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestrationResult => {
+  const plan = createTagWriteOperationPlan(song, draft);
+  return simulateTagWriteOperation(plan);
 };
 
 export const writeTagsToFile = async (): Promise<never> => {
