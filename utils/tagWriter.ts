@@ -92,6 +92,17 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
 
+
+export const ensureTagEditWriteAllowed = (song: Song): void => {
+  const capability = getTagEditCapability(song);
+  if (!capability.canWrite) {
+    if (capability.uriType === 'content' || capability.uriType === 'file') {
+      throw new TagWriterError('MissingWritePermission', capability.reason ?? 'Write permission missing.');
+    }
+    throw new TagWriterError('UnsupportedUri', capability.reason ?? 'URI is not writable.');
+  }
+};
+
 export const writeTagsToFile = async (): Promise<never> => {
   throw new TagWriterError('WriteNotImplemented', 'Device file writes are intentionally disabled in this preparation step.');
 };

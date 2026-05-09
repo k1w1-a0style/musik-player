@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, buildMp3TextFrames, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
+import { applyTagEditToBuffer, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -44,6 +44,11 @@ describe('tagWriter', () => {
 
   test('mp3 apply path is intentionally blocked', () => {
     expect(() => applyTagEditToBuffer(new Uint8Array([1, 2, 3]), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/not yet enabled/i);
+  });
+
+  test('ensureTagEditWriteAllowed maps permission errors', () => {
+    expect(() => ensureTagEditWriteAllowed(song({ uri: 'content://x/1', fileInfo: { extension: 'mp3' } }))).toThrow(/permission/i);
+    expect(() => ensureTagEditWriteAllowed(song({ uri: 'https://example.com/a.mp3', fileInfo: { extension: 'mp3' } }))).toThrow(/read-only/i);
   });
   test('writeTagsToFile stays blocked', async () => {
     await expect(writeTagsToFile()).rejects.toThrow(/disabled/i);
