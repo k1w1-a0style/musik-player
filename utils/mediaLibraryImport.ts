@@ -175,7 +175,7 @@ export const readAudioUrisFromSafDirectory = async (
       }
       const ext = deriveExtension(entry);
       if (ext && KNOWN_NON_AUDIO_EXTENSIONS.has(ext)) continue;
-      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, true);
+      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, false);
     }
   };
 
