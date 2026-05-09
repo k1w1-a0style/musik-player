@@ -148,4 +148,16 @@ describe('parseMp4CoverFromBuffer', () => {
     const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
+
+  test('does not skip valid moov after unknown plausible atom header', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const fakeSize = [0x00, 0x00, 0x00, 0x20];
+    const fakeType = [0x7a, 0x7a, 0x7a, 0x7a];
+    const fakePayload = new Array(24).fill(0x00);
+    const bytes = new Uint8Array([...fakeSize, ...fakeType, ...fakePayload, ...moov]);
+    const cover = parseMp4CoverFromBuffer(bytes);
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
 });
