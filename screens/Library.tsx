@@ -196,12 +196,6 @@ const Library: React.FC = () => {
   const importFromDevice = async (): Promise<void> => {
     try {
       setLoading(true);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
-        return;
-      }
-
       const activeFolders = scanFolders.filter(folder => folder.enabled);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
         const safSongs: Song[] = [];
@@ -229,6 +223,13 @@ const Library: React.FC = () => {
         }
         uniqueSongs.sort((a, b) => a.title.localeCompare(b.title));
         setSongs(uniqueSongs);
+        return;
+      }
+
+
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
 
