@@ -23,6 +23,7 @@ import Playlists from './screens/Playlists';
 import Equalizer from './screens/Equalizer';
 import Covers from './screens/Covers';
 import Id3TagEditor from './screens/Id3TagEditor';
+import TrackInfo from './screens/TrackInfo';
 import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
 
@@ -105,6 +106,7 @@ export default function App(): React.ReactElement {
                 <Stack.Screen name="MainTabs">
                   {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
                 </Stack.Screen>
+                <Stack.Screen name="TrackInfo" component={TrackInfo} options={{ headerShown: true, title: 'TrackInfo' }} />
                 <Stack.Screen
                   name="NowPlaying"
                   component={NowPlaying}

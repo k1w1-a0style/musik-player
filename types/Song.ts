@@ -1,3 +1,26 @@
+export interface SongFileInfo {
+  filename?: string;
+  uri?: string;
+  extension?: string;
+  container?: string;
+  mimeType?: string;
+  size?: number;
+  source?: string;
+  importedAt?: number;
+}
+
+export interface SongAudioInfo {
+  codec?: string;
+  bitrate?: number;
+  sampleRate?: number;
+  channels?: number;
+}
+
+export interface SongCoverInfo {
+  status?: 'none' | 'embedded' | 'cached' | 'external' | 'unknown';
+  uri?: string;
+}
+
 export interface Song {
   id: string;
   title: string;
@@ -8,6 +31,9 @@ export interface Song {
   duration?: number;
   year?: string;
   genre?: string;
+  fileInfo?: SongFileInfo;
+  audioInfo?: SongAudioInfo;
+  coverInfo?: SongCoverInfo;
 }
 
 export interface Playlist {

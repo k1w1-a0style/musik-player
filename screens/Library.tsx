@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
+import { useNavigation } from '@react-navigation/native';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
@@ -16,6 +17,7 @@ import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
+const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 
 const DEMO_SONGS: Song[] = [
   {
@@ -42,6 +44,14 @@ const DEMO_SONGS: Song[] = [
 ];
 
 const ID3_WORKER_COUNT = 3;
+const deriveExtension = (input?: string): string | undefined => {
+  if (!input) return undefined;
+  const clean = input.split('?')[0] ?? input;
+  const segment = clean.split('/').pop() ?? clean;
+  const dot = segment.lastIndexOf('.');
+  if (dot < 0 || dot === segment.length - 1) return undefined;
+  return segment.slice(dot + 1).toLowerCase();
+};
 
 const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   new Promise(resolve => {
@@ -57,6 +67,7 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   });
 
 const Library: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
@@ -68,7 +79,7 @@ const Library: React.FC = () => {
   }, [currentSong?.id, currentSong?.cover]);
 
   useEffect(() => {
-    if (!__DEV__) return;
+    if (!isDevPerfLoggingEnabled) return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
       console.debug('[perf] Library render', {
@@ -96,6 +107,7 @@ const Library: React.FC = () => {
         .includes(q),
     );
   }, [displayedSongs, query]);
+
   const importFromDevice = async (): Promise<void> => {
     try {
       setLoading(true);
@@ -130,6 +142,7 @@ const Library: React.FC = () => {
           const tags: Id3Tags = await parseId3FromUri(asset.uri).catch(() => ({}));
           const cachedCover = await cacheBase64Cover(asset.id, tags.cover);
           const cover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
+          const extension = deriveExtension(asset.filename) ?? deriveExtension(asset.uri);
 
           enriched.push({
             id: asset.id,
@@ -141,6 +154,21 @@ const Library: React.FC = () => {
             duration: (asset.duration ?? 0) * 1000,
             year: tags.year,
             genre: tags.genre,
+            fileInfo: {
+              filename: asset.filename,
+              uri: asset.uri,
+              extension,
+              container: extension,
+              mimeType: asset.mediaType ? String(asset.mediaType) : undefined,
+              size: (asset as { fileSize?: number }).fileSize,
+              source: 'media-library',
+              importedAt: Date.now(),
+            },
+            audioInfo: {},
+            coverInfo: {
+              status: cover ? (cachedCover ? 'cached' : 'external') : 'none',
+              uri: cover,
+            },
           });
         }
       });
@@ -161,10 +189,13 @@ const Library: React.FC = () => {
     }
   };
 
-
   const handleSongPress = useCallback((song: Song) => {
     void playSong(song);
   }, [playSong]);
+
+  const handleInfoSong = useCallback((song: Song) => {
+    navigation.navigate('TrackInfo', { songId: song.id });
+  }, [navigation]);
 
   const keyExtractor = useCallback((item: Song) => item.id, []);
 
@@ -177,187 +208,34 @@ const Library: React.FC = () => {
   const renderItem = useCallback(
     ({ item }: { item: Song }) => {
       const isCurrent = currentSongId === item.id;
-      return (
-        <SongCard
-          song={item}
-          isCurrent={isCurrent}
-          isPlaying={isCurrent && isPlaying}
-          onPressSong={handleSongPress}
-        />
-      );
+      return <SongCard song={item} isCurrent={isCurrent} isPlaying={isCurrent && isPlaying} onPressSong={handleSongPress} onInfoSong={handleInfoSong} />;
     },
-    [currentSongId, handleSongPress, isPlaying],
+    [currentSongId, handleInfoSong, handleSongPress, isPlaying],
   );
-  return (
-    <AppBackground>
-      <Screen testID="library-screen" contentStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerContent}>
-            <Text style={styles.eyebrow}>KIWI</Text>
-            <Text style={styles.header}>Bibliothek</Text>
-            <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
-            onPress={importFromDevice}
-            disabled={loading || !isReady}
-          >
-            {loading ? (
-              <ActivityIndicator color={theme.palette.text.onPrimary} />
-            ) : songs.length > 0 ? (
-              <RefreshCcw color={theme.palette.text.onPrimary} size={18} />
-            ) : (
-              <Download color={theme.palette.text.onPrimary} size={18} />
-            )}
-            <Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text>
-          </Pressable>
-        </View>
 
-        {currentSong && (
-          <View style={styles.previewCard}>
-            <View style={styles.previewCover}>
-              {currentSong.cover && !previewCoverFailed ? (
-                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />
-              ) : (
-                <Disc3 color={theme.palette.primary} size={36} />
-              )}
-            </View>
-            <Text style={styles.previewTitle} numberOfLines={1}>{currentSong.title}</Text>
-            <Text style={styles.previewMeta} numberOfLines={1}>
-              {currentSong.artist} {isPlaying ? '· Läuft' : ''}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.searchWrap}>
-          <Search color={theme.palette.text.muted} size={16} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Suche Titel, Artist, Album"
-            placeholderTextColor={theme.palette.text.muted}
-            style={styles.searchInput}
-          />
-        </View>
-
-        <FlatList
-          data={filtered}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.listContent}
-          renderItem={renderItem}
-          removeClippedSubviews
-          windowSize={7}
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={getItemLayout}
-          ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
-        />
-      </Screen>
-    </AppBackground>
-  );
+  return <AppBackground><Screen testID="library-screen" contentStyle={styles.container}>{/* unchanged jsx below */}
+        <View style={styles.headerRow}><View style={styles.headerContent}><Text style={styles.eyebrow}>KIWI</Text><Text style={styles.header}>Bibliothek</Text><Text style={styles.meta}>{displayedSongs.length} Titel</Text></View><Pressable style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading || !isReady}>{loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : songs.length > 0 ? <RefreshCcw color={theme.palette.text.onPrimary} size={18} /> : <Download color={theme.palette.text.onPrimary} size={18} />}<Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text></Pressable></View>
+        {currentSong && (<View style={styles.previewCard}><View style={styles.previewCover}>{currentSong.cover && !previewCoverFailed ? (<Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />) : (<Disc3 color={theme.palette.primary} size={36} />)}</View><Text style={styles.previewTitle} numberOfLines={1}>{currentSong.title}</Text><Text style={styles.previewMeta} numberOfLines={1}>{currentSong.artist} {isPlaying ? '· Läuft' : ''}</Text></View>)}
+        <View style={styles.searchWrap}><Search color={theme.palette.text.muted} size={16} /><TextInput value={query} onChangeText={setQuery} placeholder="Suche Titel, Artist, Album" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} /></View>
+        <FlatList data={filtered} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={12} maxToRenderPerBatch={10} updateCellsBatchingPeriod={50} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>} />
+      </Screen></AppBackground>;
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: 8,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.md,
-  },
+  container: { flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md, gap: theme.spacing.md },
   headerContent: { flex: 1 },
-  eyebrow: {
-    color: theme.palette.primary,
-    fontSize: 10,
-    letterSpacing: 1.8,
-    fontFamily: theme.fonts.body,
-  },
-  header: {
-    fontSize: 30,
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.display,
-  },
-  meta: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    fontFamily: theme.fonts.body,
-  },
-  importButton: {
-    flexDirection: 'row',
-    backgroundColor: theme.palette.primary,
-    paddingVertical: 12,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.pill,
-    alignItems: 'center',
-    gap: 8,
-  },
-  importText: {
-    color: theme.palette.text.onPrimary,
-    fontFamily: theme.fonts.heading,
-    fontSize: 13,
-  },
-  previewCard: {
-    backgroundColor: theme.palette.card,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.palette.borderStrong,
-    padding: theme.spacing.md,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  previewCover: {
-    width: 110,
-    height: 110,
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: theme.palette.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewCoverImage: { width: '100%', height: '100%' },
-  previewTitle: {
-    marginTop: 10,
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
-    fontSize: 16,
-  },
-  previewMeta: {
-    color: theme.palette.text.secondary,
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-  },
-  searchWrap: {
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.palette.surface,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 48,
-  },
-  searchInput: {
-    flex: 1,
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.body,
-  },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
-  listContent: { paddingBottom: 180 },
-  empty: {
-    color: theme.palette.text.secondary,
-    textAlign: 'center',
-    marginTop: theme.spacing.xl,
-    fontFamily: theme.fonts.body,
-  },
+  eyebrow: { color: theme.palette.primary, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
+  header: { fontSize: 30, color: theme.palette.text.primary, fontFamily: theme.fonts.display },
+  meta: { color: theme.palette.text.secondary, fontSize: 12, fontFamily: theme.fonts.body },
+  importButton: { flexDirection: 'row', backgroundColor: theme.palette.primary, paddingVertical: 12, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.pill, alignItems: 'center', gap: 8 },
+  importText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
+  previewCard: { backgroundColor: theme.palette.card, borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: theme.palette.borderStrong, padding: theme.spacing.md, marginBottom: 12, alignItems: 'center' },
+  previewCover: { width: 110, height: 110, borderRadius: 18, overflow: 'hidden', backgroundColor: theme.palette.surfaceElevated, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  previewCoverImage: { width: '100%', height: '100%' }, previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 }, previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.borderRadius.pill, paddingHorizontal: 14, marginBottom: 10, gap: 8 },
+  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 10, fontSize: 13 },
+  listContent: { paddingBottom: 120 }, empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body }, disabled: { opacity: 0.6 }, pressed: { opacity: 0.85 },
 });
 
 export default Library;
