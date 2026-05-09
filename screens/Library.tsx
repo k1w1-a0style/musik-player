@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
+import { getInfoAsync } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -33,6 +33,30 @@ declare const __DEV__: boolean;
 const SONG_ROW_HEIGHT = 84;
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const ID3_WORKER_COUNT = 3;
+
+const DEMO_SONGS: Song[] = [
+  {
+    id: 'demo-1',
+    title: 'SoundHelix Song 1',
+    artist: 'SoundHelix',
+    album: 'Demo',
+    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+  },
+  {
+    id: 'demo-2',
+    title: 'SoundHelix Song 2',
+    artist: 'SoundHelix',
+    album: 'Demo',
+    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+  },
+  {
+    id: 'demo-3',
+    title: 'SoundHelix Song 3',
+    artist: 'SoundHelix',
+    album: 'Demo',
+    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+  },
+];
 
 const EXTENSION_MIME_MAP: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -68,7 +92,7 @@ const resolveFileSize = async (asset: MediaLibrary.Asset): Promise<number | unde
   const directSize = (asset as { fileSize?: number }).fileSize;
   if (typeof directSize === 'number' && directSize > 0) return directSize;
   try {
-    const info = await FileSystem.getInfoAsync(asset.uri);
+    const info = await getInfoAsync(asset.uri);
     if (info.exists && typeof info.size === 'number' && info.size > 0) return info.size;
   } catch {
     return undefined;
@@ -88,6 +112,8 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
       { cancelable: true, onDismiss: () => resolve(false) },
     );
   });
+
+const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
 
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -117,7 +143,7 @@ const Library: React.FC = () => {
   });
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = songs;
+  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -217,7 +243,7 @@ const Library: React.FC = () => {
         isCurrent={currentSongId === item.id}
         isPlaying={currentSongId === item.id && isPlaying}
         onPressSong={handleSongPress}
-        onInfoSong={handleInfoSong}
+        onInfoSong={isDemoSong(item) ? undefined : handleInfoSong}
       />
     ),
     [currentSongId, handleInfoSong, handleSongPress, isPlaying],
