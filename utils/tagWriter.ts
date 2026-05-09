@@ -1,7 +1,7 @@
 import type { Song } from '../types/Song';
-import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode } from '../types/TagEdit';
+import type { EditableTrackTags, TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode } from '../types/TagEdit';
 import { getTagEditCapability, getUriType, getSupportedContainer } from './tagEditCapability';
-import { validateCoverPayload, validateEditableTags } from './tagValidation';
+import { normalizeEditableTags, validateCoverPayload, validateEditableTags } from './tagValidation';
 
 export class TagWriterError extends Error {
   constructor(public code: TagWriterErrorCode, message: string) {
@@ -9,6 +9,16 @@ export class TagWriterError extends Error {
     this.name = 'TagWriterError';
   }
 }
+
+export const ID3_TEXT_FRAME_MAP: Partial<Record<keyof EditableTrackTags, 'TIT2' | 'TPE1' | 'TALB' | 'TDRC' | 'TCON' | 'TRCK' | 'TPOS'>> = {
+  title: 'TIT2',
+  artist: 'TPE1',
+  album: 'TALB',
+  year: 'TDRC',
+  genre: 'TCON',
+  trackNumber: 'TRCK',
+  discNumber: 'TPOS',
+};
 
 const encodeLatin1 = (value: string): Uint8Array => Uint8Array.from([...value].map(c => c.charCodeAt(0) & 0xff));
 const u32be = (n: number): Uint8Array => new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
@@ -26,14 +36,28 @@ export const serializeId3TextFrame = (id: string, value: string): Uint8Array => 
   return out;
 };
 
+export const buildMp3TextFrames = (tags: EditableTrackTags): Uint8Array[] => {
+  const normalized = normalizeEditableTags(tags);
+  return Object.entries(ID3_TEXT_FRAME_MAP)
+    .flatMap(([key, frameId]) => {
+      const value = normalized[key as keyof EditableTrackTags];
+      if (!frameId || !value) return [];
+      return [serializeId3TextFrame(frameId, value)];
+    });
+};
+
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
   const capability = getTagEditCapability(song);
   const container = getSupportedContainer(song);
+
+  if (capability.uriType === 'unknown') throw new TagWriterError('UnsupportedUri', 'Unsupported URI type for editing.');
+
   const warnings = [...(capability.reason ? [capability.reason] : [])];
   if (draft.removeCover && draft.cover) warnings.push('removeCover=true takes precedence over cover payload.');
   if (container === 'm4a' || container === 'mp4') warnings.push('MP4/M4A writing intentionally blocked until safe atom rewrite is implemented.');
+
   return {
     uri,
     uriType: getUriType(uri),
@@ -53,6 +77,7 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   if (container === 'm4a' || container === 'mp4') throw new TagWriterError('WriteNotImplemented', 'MP4/M4A writing not implemented safely yet.');
   if (container === 'mp3') {
     if (buffer.length === 0) throw new TagWriterError('InvalidTagData', 'Empty buffer.');
+    buildMp3TextFrames(draft.tags);
     return buffer;
   }
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');

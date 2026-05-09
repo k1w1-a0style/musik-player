@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
+import { applyTagEditToBuffer, buildMp3TextFrames, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -17,10 +17,20 @@ describe('tagWriter', () => {
     expect(plan.warnings.length).toBeGreaterThan(0);
   });
 
+  test('prepareTagEditPlan rejects unknown uri type', () => {
+    expect(() => prepareTagEditPlan(song({ uri: '/relative/file.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).toThrow(/unsupported uri/i);
+  });
+
   test('serializeId3TextFrame creates expected frame header', () => {
     const frame = serializeId3TextFrame('TIT2', 'Hi');
     expect(String.fromCharCode(...Array.from(frame.slice(0, 4)))).toBe('TIT2');
     expect(frame[10]).toBe(0x00);
+  });
+
+  test('buildMp3TextFrames maps known fields', () => {
+    const frames = buildMp3TextFrames({ title: 'Song', artist: 'Artist', comment: 'ignored' });
+    expect(frames.length).toBe(2);
+    expect(ID3_TEXT_FRAME_MAP.title).toBe('TIT2');
   });
 
   test('writeTagsToFile stays blocked', async () => {
