@@ -4,13 +4,14 @@ import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
+import { shouldLogPerf } from '../utils/perfDebug';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next } = useMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const renderCountRef = useRef(0);
-  if (__DEV__) {
+  if (shouldLogPerf()) {
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
       console.debug('[perf][MiniPlayer] render', {

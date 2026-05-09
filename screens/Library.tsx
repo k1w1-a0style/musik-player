@@ -12,6 +12,7 @@ import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+import { shouldLogPerf } from '../utils/perfDebug';
 
 const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
 
@@ -81,7 +82,7 @@ const Library: React.FC = () => {
   }, [displayedSongs, query]);
 
   const renderCountRef = React.useRef(0);
-  if (__DEV__) {
+  if (shouldLogPerf()) {
     renderCountRef.current += 1;
     if (renderCountRef.current <= DEV_RENDER_LOG_LIMIT) {
       console.debug('[perf][Library] render', {
