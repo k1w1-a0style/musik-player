@@ -27,6 +27,10 @@ export const getTagEditCapability = (song: Song): TagEditCapability => {
   const uriType = getUriType(uri);
   const container = getSupportedContainer(song);
 
+  if (!uri) {
+    return { canRead: false, canWrite: false, uriType: 'unknown', supportedContainer: container, reason: 'Song has no readable URI.' };
+  }
+
   if (uriType === 'remote') {
     return { canRead: true, canWrite: false, uriType, supportedContainer: container, reason: 'Remote URLs are read-only.' };
   }
@@ -51,9 +55,9 @@ export const getTagEditCapability = (song: Song): TagEditCapability => {
       canWrite: false,
       uriType,
       supportedContainer: container,
-      reason: 'Direct file writes are currently disabled until atomic backup flow is implemented.',
+      reason: 'Local writes are intentionally disabled by policy in this PR.',
     };
   }
 
-  return { canRead: !!uri, canWrite: false, uriType, supportedContainer: container, reason: 'Unsupported URI type.' };
+  return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'Unsupported URI type.' };
 };

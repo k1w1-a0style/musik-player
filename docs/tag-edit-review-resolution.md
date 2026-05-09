@@ -1,47 +1,26 @@
 # Tag Edit PR – Review Resolution Checklist
 
-This checklist summarizes the technical review points that were addressed in the current PR history.
+## Scope of this PR
 
-## Safety / Write Policy
+This PR intentionally provides **foundation only**:
+- capability model
+- validation
+- guarded writer interfaces
+- safety documentation
 
-- [x] No direct on-device writes enabled.
-- [x] `writeTagsToFile` remains blocked via `WriteNotImplemented`.
-- [x] MP4/M4A write path remains blocked (`WriteNotImplemented`).
+It does **not** ship a production-ready MP3/MP4 writer.
 
-## Capability Model
+## Review topics status
 
-- [x] URI type classification (`file`, `content`, `remote`, `unknown`).
-- [x] Container support classification (`mp3`, `m4a`, `mp4`, `unsupported`).
-- [x] Explicit permission/unsupported URI guard (`ensureTagEditWriteAllowed`) with typed errors.
+- [x] Capability model stabilized (including missing-URI read=false behavior).
+- [x] Error-code mapping fixed (`UnsupportedFormat`, `UnsupportedUri`, `MissingWritePermission`, `WriteNotImplemented`).
+- [x] Device writes remain blocked (`writeTagsToFile` => `WriteNotImplemented`).
+- [x] `applyTagEditToBuffer` for mp3/m4a/mp4 now intentionally disabled (`WriteNotImplemented`).
+- [x] Validation retained (trim/undefined, year/position/genre, cover magic bytes).
 
-## Validation
+## Intentionally deferred to follow-up PRs
 
-- [x] Tag normalization (trim + empty -> `undefined`).
-- [x] Year/track/disc/genre validation.
-- [x] Cover validation with JPEG/PNG magic-byte checks.
-
-## MP3 In-Memory ID3v2.3
-
-- [x] Text frame serialization with frame-id validation.
-- [x] COMM frame serialization.
-- [x] APIC frame serialization.
-- [x] Draft-to-tag build path.
-- [x] Merge path for existing/no-existing ID3 tags.
-- [x] Preservation of unknown existing frames during merge.
-- [x] Truncated existing-tag rejection.
-
-## Tests
-
-- [x] Capability, validation, and writer suites implemented and passing.
-- [x] Added payload-level checks for COMM/APIC.
-- [x] Added typed error-code assertions for permission vs unsupported URI cases.
-
-## Documentation
-
-- [x] Safety notes for current constraints and future atomic-write architecture.
-
-## Remaining intentional gaps (not part of this PR scope)
-
-- [ ] Real device file writes with atomic backup/replace/rollback orchestration.
-- [ ] MP4/M4A atom rewrite implementation.
-- [ ] UI editor wiring.
+- [ ] Safe MP3 writer implementation (v2.3/v2.4 strategy, Unicode-safe encoding, COMM/APIC correctness, ext-header/footer/unsync handling).
+- [ ] Safe MP4/M4A atom rewrite implementation.
+- [ ] Atomic file write orchestration (backup/temp/validate/replace/rollback).
+- [ ] UI editor integration.

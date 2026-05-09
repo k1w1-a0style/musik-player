@@ -1,42 +1,41 @@
 # Tag Edit Safety Notes (Preparation Phase)
 
-This document captures current constraints for tag editing in the Expo SDK 54 app.
-
-## URI handling
-
-- `https://` / `http://` (remote demo URLs): **read-only**, never editable.
-- `content://` (Android SAF / provider-backed): potentially editable only when:
-  - persistable SAF write permission exists,
-  - provider supports write,
-  - rewrite strategy is compatible with provider semantics.
-- `file://`: potentially editable only with atomic temp-write + validate + replace flow.
-- Unknown URI schemes: unsupported.
-
-## Container handling
-
-- `mp3`: preparation supported (validation + frame planning), full rewrite still blocked.
-- `m4a` / `mp4`: read/preparation supported, write path intentionally blocked.
-- Others: unsupported.
-
-## Current write policy
+## Current policy (this PR)
 
 - No real device file writes are enabled.
-- `writeTagsToFile` is intentionally disabled.
-- `applyTagEditToBuffer` for MP3/MP4/M4A throws `WriteNotImplemented`.
+- `writeTagsToFile` always throws `WriteNotImplemented`.
+- `applyTagEditToBuffer` for `mp3`, `m4a`, and `mp4` throws `WriteNotImplemented`.
+- Unsupported containers throw `UnsupportedFormat`.
 
-## Planned safe write architecture (future)
+## Capability model
 
-1. Resolve and verify write capability (+ explicit user consent in UI).
-2. Read source bytes and parse current metadata.
-3. Build rewritten bytes in memory.
-4. Validate rewritten bytes (parseability + expected fields).
-5. Write to temporary location.
-6. Validate temp file again.
-7. Replace original atomically where possible.
-8. Roll back on any failure.
+- `remote` URIs are read-only.
+- `content://` requires SAF write permission and a dedicated safe-write flow.
+- `file://` writes are intentionally disabled by policy in this PR.
+- Missing or unknown URI is unsupported for editing.
 
-## Known SAF caveats
+## Validation retained
 
-- Atomic replace is not guaranteed for all providers.
-- Some providers support write-stream overwrite but not rename/replace.
-- For non-atomic providers, future UI must show warning and offer copy-based strategy.
+- Tag normalization trims values and converts empty strings to `undefined`.
+- Year/track/disc/genre validations remain active.
+- Cover payload validation accepts only JPEG/PNG with magic-byte checks.
+- `removeCover=true` takes precedence over a provided cover payload.
+
+## Follow-up PR requirements for MP3 writer
+
+A separate PR is required before enabling MP3 writes, including:
+- ID3v2.3/v2.4 strategy and frame-size correctness,
+- Unicode-safe text/COMM handling,
+- APIC add/replace/remove semantics,
+- extended header / footer handling,
+- unsynchronisation handling,
+- frame-preservation policy,
+- truncation/corruption safety tests.
+
+## Follow-up PR requirements for MP4/M4A writer
+
+A separate PR is required for atom-level rewrite logic with full safety checks.
+
+## UI behavior requirement
+
+Until writers are implemented, UI must surface `WriteNotImplemented` clearly.
