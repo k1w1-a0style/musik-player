@@ -33,6 +33,10 @@ describe('tagWriter', () => {
     expect(ID3_TEXT_FRAME_MAP.title).toBe('TIT2');
   });
 
+
+  test('mp3 apply path is intentionally blocked', () => {
+    expect(() => applyTagEditToBuffer(new Uint8Array([1, 2, 3]), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/not yet enabled/i);
+  });
   test('writeTagsToFile stays blocked', async () => {
     await expect(writeTagsToFile()).rejects.toThrow(/disabled/i);
   });

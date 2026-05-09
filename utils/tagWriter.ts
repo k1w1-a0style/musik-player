@@ -78,7 +78,7 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   if (container === 'mp3') {
     if (buffer.length === 0) throw new TagWriterError('InvalidTagData', 'Empty buffer.');
     buildMp3TextFrames(draft.tags);
-    return buffer;
+    throw new TagWriterError('WriteNotImplemented', 'MP3 rewrite is not yet enabled for full-file safety.');
   }
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
