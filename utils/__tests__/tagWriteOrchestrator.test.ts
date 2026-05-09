@@ -1,5 +1,5 @@
 import type { Song } from '../../types/Song';
-import { createRollbackPlan, createTagWriteOperationPlan, simulateTagWriteOperation, validateWritePreconditions } from '../tagWriteOrchestrator';
+import { assertSafeWriteAllowed, createRollbackPlan, createTagWriteOperationPlan, simulateTagWriteOperation, validateWritePreconditions } from '../tagWriteOrchestrator';
 import { writeTagsToFile } from '../tagWriter';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -9,6 +9,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
   test('remote URL is blocked as UnsupportedUri', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'https://example.com/a.mp3', fileInfo: { extension: 'mp3' } }), draft);
     expect(plan.blockingReasons).toContain('UnsupportedUri');
+    expect(plan.estimatedRisk).toBe('low');
   });
 
   test('missing URI is blocked as UnsupportedUri', () => {
@@ -33,6 +34,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), draft);
     expect(plan.warnings.join(' ')).toMatch(/SAF/i);
     expect(plan.blockingReasons).toContain('MissingWritePermission');
+    expect(plan.estimatedRisk).toBe('high');
+  });
+
+  test('assertSafeWriteAllowed throws primary blocking reason', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), {
+      songId: '1',
+      tags: { year: '12' },
+    });
+    expect(() => assertSafeWriteAllowed(plan)).toThrow(/InvalidTagData/);
   });
 
   test('m4a/mp4 plan created but writer remains not implemented', () => {

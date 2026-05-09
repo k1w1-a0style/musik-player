@@ -1,12 +1,5 @@
 import type { Song } from '../types/Song';
-import type {
-  TagEditDraft,
-  TagWriterErrorCode,
-  WriteOperationPlan,
-  RollbackPlan,
-  WriteOrchestrationResult,
-  TagEditableContainer,
-} from '../types/TagEdit';
+import type { TagEditDraft, TagWriterErrorCode, WriteOperationPlan, RollbackPlan, WriteOrchestrationResult, TagEditableContainer } from '../types/TagEdit';
 import { getTagEditCapability, getSupportedContainer, getUriType } from './tagEditCapability';
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
 
@@ -16,7 +9,22 @@ const buildRollbackSteps = (targetUri: string): string[] => [
   'Clean up temporary output and backup artifacts.',
 ];
 
-const getRiskLevel = (uriType: string): 'medium' | 'high' => (uriType === 'file' ? 'medium' : 'high');
+const getRiskLevel = (uriType: string): 'low' | 'medium' | 'high' => {
+  if (uriType === 'file') return 'medium';
+  if (uriType === 'content') return 'high';
+  return 'low';
+};
+
+const getPrimaryBlockingReason = (reasons: TagWriterErrorCode[]): TagWriterErrorCode | undefined => {
+  const priority: TagWriterErrorCode[] = [
+    'InvalidTagData',
+    'UnsupportedUri',
+    'UnsupportedFormat',
+    'MissingWritePermission',
+    'WriteNotImplemented',
+  ];
+  return priority.find(reason => reasons.includes(reason));
+};
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
   if (container === 'mp3') return 'MP3 writer remains disabled; orchestration is dry-run only.';
@@ -98,9 +106,8 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
 };
 
 export const assertSafeWriteAllowed = (plan: WriteOperationPlan): void => {
-  if (plan.blockingReasons.length > 0) {
-    throw new Error(`Write blocked: ${plan.blockingReasons.join(', ')}`);
-  }
+  const primary = getPrimaryBlockingReason(plan.blockingReasons);
+  if (primary) throw new Error(`Write blocked: ${primary}`);
 };
 
 export const simulateTagWriteOperation = (plan: WriteOperationPlan): WriteOrchestrationResult => {
