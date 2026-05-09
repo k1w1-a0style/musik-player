@@ -25,6 +25,7 @@ import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
+import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
 
@@ -159,7 +160,7 @@ const Library: React.FC = () => {
   };
 
   const handleSongPress = useCallback((song: Song) => void playSong(song), [playSong]);
-  const handleInfoSong = useCallback((song: Song) => navigation.navigate('TrackInfo', { songId: song.id }), [navigation]);
+  const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
 
   const renderItem = useCallback(
     ({ item }: { item: Song }) => (

@@ -27,6 +27,7 @@ import Id3TagEditor from './screens/Id3TagEditor';
 import TrackInfo from './screens/TrackInfo';
 import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
+import { APP_STACK_ROUTES } from './types/routes';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -104,12 +105,12 @@ export default function App(): React.ReactElement {
             <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
             <NavigationContainer theme={navTheme}>
               <Stack.Navigator screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="MainTabs">
-                  {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
+                <Stack.Screen name={APP_STACK_ROUTES.MAIN_TABS}>
+                  {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING)} />}
                 </Stack.Screen>
-                <Stack.Screen name="TrackInfo" component={TrackInfo} options={{ headerShown: true, title: 'TrackInfo' }} />
+                <Stack.Screen name={APP_STACK_ROUTES.TRACK_INFO} component={TrackInfo} options={{ headerShown: true, title: 'TrackInfo' }} />
                 <Stack.Screen
-                  name="NowPlaying"
+                  name={APP_STACK_ROUTES.NOW_PLAYING}
                   component={NowPlaying}
                   options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
                 />

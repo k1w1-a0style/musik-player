@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, Pressable, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import Library from '../Library';
+import { APP_STACK_ROUTES } from '../../types/routes';
 
 const MockPressable = Pressable;
 const MockText = Text;
@@ -46,7 +47,7 @@ describe('Library preview cover fallback', () => {
   test('opens track info without starting playback', () => {
     const { getByTestId } = render(<Library />);
     fireEvent.press(getByTestId('info-s1'));
-    expect(mockNavigate).toHaveBeenCalledWith('TrackInfo', { songId: 's1' });
+    expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();
   });
 });
