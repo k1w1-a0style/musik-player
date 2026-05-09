@@ -15,7 +15,7 @@ const getRiskLevel = (uriType: string): 'low' | 'medium' | 'high' => {
   return 'low';
 };
 
-const getPrimaryBlockingReason = (reasons: TagWriterErrorCode[]): TagWriterErrorCode | undefined => {
+const getPrimaryBlockingReasonFromList = (reasons: TagWriterErrorCode[]): TagWriterErrorCode | undefined => {
   const priority: TagWriterErrorCode[] = [
     'InvalidTagData',
     'UnsupportedUri',
@@ -105,9 +105,11 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
   return plan;
 };
 
-export const assertSafeWriteAllowed = (plan: WriteOperationPlan): void => {
-  const primary = getPrimaryBlockingReason(plan.blockingReasons);
-  if (primary) throw new Error(`Write blocked: ${primary}`);
+export const getPrimaryBlockingReason = (plan: WriteOperationPlan): TagWriterErrorCode | undefined => getPrimaryBlockingReasonFromList(plan.blockingReasons);
+
+export const assertSafeWriteAllowed = (plan: WriteOperationPlan): TagWriterErrorCode | null => {
+  const primary = getPrimaryBlockingReasonFromList(plan.blockingReasons);
+  return primary ?? null;
 };
 
 export const simulateTagWriteOperation = (plan: WriteOperationPlan): WriteOrchestrationResult => {
