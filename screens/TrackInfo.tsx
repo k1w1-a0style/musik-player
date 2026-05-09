@@ -68,10 +68,21 @@ const TrackInfo: React.FC = () => {
     setCoverFailed(false);
   }, [song?.id, song?.cover]);
 
-  if (!song) return <AppBackground><Screen contentStyle={styles.container}><Text style={styles.error}>Song nicht gefunden.</Text></Screen></AppBackground>;
+  if (!song) {
+    return (
+      <AppBackground>
+        <Screen contentStyle={styles.container}>
+          <Text style={styles.error}>Song nicht gefunden.</Text>
+        </Screen>
+      </AppBackground>
+    );
+  }
 
   const coverUri = song.coverInfo?.uri ?? song.cover;
   const coverStatus = song.coverInfo?.status ?? (coverUri ? 'unknown' : 'none');
+  const importedAt = song.fileInfo?.importedAt
+    ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE')
+    : 'Nicht verfügbar';
 
   return (
     <AppBackground>
@@ -101,7 +112,7 @@ const TrackInfo: React.FC = () => {
           <InfoRow label="MIME-Type" value={valueOrNA(song.fileInfo?.mimeType)} />
           <InfoRow label="Dateigröße" value={formatBytes(song.fileInfo?.size)} />
           <InfoRow label="Import-Quelle" value={valueOrNA(song.fileInfo?.source)} />
-          <InfoRow label="Import-Zeitpunkt" value={song.fileInfo?.importedAt ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE') : 'Nicht verfügbar'} />
+          <InfoRow label="Import-Zeitpunkt" value={importedAt} />
           <InfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
 
           <Text style={styles.section}>Audio-Technik</Text>
