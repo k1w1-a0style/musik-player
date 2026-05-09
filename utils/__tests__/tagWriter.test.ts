@@ -69,6 +69,27 @@ describe('tagWriter', () => {
   });
 
 
+
+
+  test('mergeId3v23TagIntoMp3Buffer preserves unknown existing frames', () => {
+    const txxx = new Uint8Array([
+      0x54,0x58,0x58,0x58, // TXXX
+      0x00,0x00,0x00,0x03, // size
+      0x00,0x00,
+      0x00,0x41,0x42, // payload
+    ]);
+    const header = new Uint8Array([0x49,0x44,0x33,0x03,0x00,0x00,0x00,0x00,0x00,0x0d]);
+    const audio = new Uint8Array([0xff,0xfb,0x90,0x64]);
+    const original = new Uint8Array(header.length + txxx.length + audio.length);
+    original.set(header, 0);
+    original.set(txxx, header.length);
+    original.set(audio, header.length + txxx.length);
+
+    const merged = mergeId3v23TagIntoMp3Buffer(original, { songId: '1', tags: { title: 'Song' } });
+    const mergedText = String.fromCharCode(...Array.from(merged));
+    expect(mergedText.includes('TXXX')).toBe(true);
+    expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
+  });
   test('mergeId3v23TagIntoMp3Buffer rejects truncated existing ID3 tag', () => {
     const truncated = new Uint8Array([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xff]);
     expect(() => mergeId3v23TagIntoMp3Buffer(truncated, { songId: '1', tags: { title: 'X' } })).toThrow(/truncated/i);

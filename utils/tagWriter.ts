@@ -63,6 +63,41 @@ const toSynchsafe = (size: number): Uint8Array => new Uint8Array([
   size & 0x7f,
 ]);
 
+
+const readU32 = (bytes: Uint8Array, off: number): number => (
+  ((bytes[off] << 24) >>> 0) + (bytes[off + 1] << 16) + (bytes[off + 2] << 8) + bytes[off + 3]
+);
+
+const extractId3v23Frames = (tagBytes: Uint8Array): Array<{ id: string; raw: Uint8Array }> => {
+  const frames: Array<{ id: string; raw: Uint8Array }> = [];
+  if (!hasId3Header(tagBytes) || tagBytes.length < 10) return frames;
+  let off = 10;
+  while (off + 10 <= tagBytes.length) {
+    const id = String.fromCharCode(tagBytes[off], tagBytes[off + 1], tagBytes[off + 2], tagBytes[off + 3]);
+    if (!/^[A-Z0-9]{4}$/.test(id)) break;
+    const frameSize = readU32(tagBytes, off + 4);
+    const total = 10 + frameSize;
+    if (frameSize <= 0 || off + total > tagBytes.length) break;
+    frames.push({ id, raw: tagBytes.subarray(off, off + total) });
+    off += total;
+  }
+  return frames;
+};
+
+const buildId3v23TagFromFrames = (frames: Uint8Array[]): Uint8Array => {
+  const payloadSize = frames.reduce((sum, f) => sum + f.length, 0);
+  const out = new Uint8Array(10 + payloadSize);
+  out[0] = 0x49; out[1] = 0x44; out[2] = 0x33;
+  out[3] = 0x03; out[4] = 0x00; out[5] = 0x00;
+  out.set(toSynchsafe(payloadSize), 6);
+  let off = 10;
+  for (const frame of frames) {
+    out.set(frame, off);
+    off += frame.length;
+  }
+  return out;
+};
+
 export const buildId3v23TagFromDraft = (draft: TagEditDraft): Uint8Array => {
   const validation = validateEditableTags(draft.tags);
   if (!validation.valid) throw new TagWriterError('InvalidTagData', validation.errors.join('; '));
@@ -99,12 +134,12 @@ const hasId3Header = (bytes: Uint8Array): boolean => (
 
 export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
   if (original.length === 0) throw new TagWriterError('InvalidTagData', 'Empty MP3 buffer.');
-  const newTag = buildId3v23TagFromDraft(draft);
+  const draftTag = buildId3v23TagFromDraft(draft);
 
   if (!hasId3Header(original)) {
-    const merged = new Uint8Array(newTag.length + original.length);
-    merged.set(newTag, 0);
-    merged.set(original, newTag.length);
+    const merged = new Uint8Array(draftTag.length + original.length);
+    merged.set(draftTag, 0);
+    merged.set(original, draftTag.length);
     return merged;
   }
 
@@ -114,10 +149,22 @@ export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEdit
     throw new TagWriterError('InvalidTagData', 'Existing ID3 tag is truncated.');
   }
 
+  const existingTag = original.subarray(0, currentTagTotal);
+  const newFrames = extractId3v23Frames(draftTag);
+  const newIds = new Set(newFrames.map(f => f.id));
+  const preservedFrames = extractId3v23Frames(existingTag)
+    .filter(frame => !newIds.has(frame.id))
+    .map(frame => frame.raw);
+
+  const rebuiltTag = buildId3v23TagFromFrames([
+    ...newFrames.map(frame => frame.raw),
+    ...preservedFrames,
+  ]);
+
   const audioPart = original.subarray(currentTagTotal);
-  const merged = new Uint8Array(newTag.length + audioPart.length);
-  merged.set(newTag, 0);
-  merged.set(audioPart, newTag.length);
+  const merged = new Uint8Array(rebuiltTag.length + audioPart.length);
+  merged.set(rebuiltTag, 0);
+  merged.set(audioPart, rebuiltTag.length);
   return merged;
 };
 
