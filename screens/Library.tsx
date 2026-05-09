@@ -11,7 +11,8 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Download, Search, Disc3 } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
@@ -23,6 +24,7 @@ import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+import type { AppStackParamList } from '../types/navigation';
 
 declare const __DEV__: boolean;
 
@@ -54,7 +56,7 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   });
 
 const Library: React.FC = () => {
-  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');

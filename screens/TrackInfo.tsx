@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
+import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
@@ -50,7 +51,7 @@ export const formatCoverStatus = (status?: string): string => {
 };
 
 const valueOrNA = (value?: string | number): string => (value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value));
-type TrackInfoRoute = RouteProp<{ TrackInfo: { songId: string } }, 'TrackInfo'>;
+type TrackInfoRoute = RouteProp<AppStackParamList, 'TrackInfo'>;
 
 const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ label, value, long = false }) => (
   <Text style={long ? styles.longRow : styles.row}>{label}: {value}</Text>
