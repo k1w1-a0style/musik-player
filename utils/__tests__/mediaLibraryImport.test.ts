@@ -4,7 +4,7 @@ import { parseId3FromUri } from '../id3Parser';
 import * as mediaImport from '../mediaLibraryImport';
 
 jest.mock('expo-file-system/legacy', () => ({
-  getInfoAsync: jest.fn(async () => ({ exists: true, size: 123 })),
+  getInfoAsync: jest.fn(async (uri: string) => ({ exists: true, size: 123, isDirectory: uri.includes('dir-like') })),
   StorageAccessFramework: { readDirectoryAsync: jest.fn(async () => []) },
 }));
 jest.mock('../id3Parser', () => ({ parseId3FromUri: jest.fn(async () => ({})) }));
@@ -61,6 +61,16 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root/unknown.entry']);
   });
 
+
+
+  test('suppressed-looking child entries still report unreadable directories', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/dir-like.jpg', 'content://root/.dir-like'];
+      throw new Error('no access');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.errors).toEqual(['content://root/dir-like.jpg', 'content://root/.dir-like']);
+  });
   test('saf recursion respects depth limit and file cap', async () => {
     const deepRead = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/l1'];

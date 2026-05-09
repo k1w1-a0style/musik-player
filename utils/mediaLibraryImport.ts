@@ -26,6 +26,15 @@ const shouldSuppressChildReadError = (entryUri: string): boolean => {
   return KNOWN_EXTENSIONLESS_NON_DIRECTORY_NAMES.has(segment.toLowerCase());
 };
 
+const isLikelyDirectoryUri = async (uri: string): Promise<boolean> => {
+  try {
+    const info = await getInfoAsync(uri);
+    return info.exists && 'isDirectory' in info && info.isDirectory === true;
+  } catch {
+    return false;
+  }
+};
+
 const EXTENSION_MIME_MAP: Record<string, string> = {
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -173,7 +182,7 @@ export const readAudioUrisFromSafDirectory = async (
     try {
       entries = await readDirectory(uri);
     } catch {
-      if (reportError) errors.push(uri);
+      if (reportError || await isLikelyDirectoryUri(uri)) errors.push(uri);
       return;
     }
 
