@@ -27,6 +27,14 @@ describe('tagWriter', () => {
     expect(frame[10]).toBe(0x00);
   });
 
+
+  test('serializeId3TextFrame rejects invalid frame id', () => {
+    expect(() => serializeId3TextFrame('TXXX', 'X')).toThrow(/unsupported id3 text frame id/i);
+  });
+
+  test('serializeId3TextFrame rejects empty payload', () => {
+    expect(() => serializeId3TextFrame('TIT2', '   ')).toThrow(/must not be empty/i);
+  });
   test('buildMp3TextFrames maps known fields', () => {
     const frames = buildMp3TextFrames({ title: 'Song', artist: 'Artist', comment: 'ignored' });
     expect(frames.length).toBe(2);

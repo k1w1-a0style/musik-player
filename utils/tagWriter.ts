@@ -10,7 +10,10 @@ export class TagWriterError extends Error {
   }
 }
 
-export const ID3_TEXT_FRAME_MAP: Partial<Record<keyof EditableTrackTags, 'TIT2' | 'TPE1' | 'TALB' | 'TDRC' | 'TCON' | 'TRCK' | 'TPOS'>> = {
+const ID3_TEXT_FRAME_IDS = ['TIT2', 'TPE1', 'TALB', 'TDRC', 'TCON', 'TRCK', 'TPOS'] as const;
+type Id3TextFrameId = (typeof ID3_TEXT_FRAME_IDS)[number];
+
+export const ID3_TEXT_FRAME_MAP: Partial<Record<keyof EditableTrackTags, Id3TextFrameId>> = {
   title: 'TIT2',
   artist: 'TPE1',
   album: 'TALB',
@@ -23,12 +26,18 @@ export const ID3_TEXT_FRAME_MAP: Partial<Record<keyof EditableTrackTags, 'TIT2' 
 const encodeLatin1 = (value: string): Uint8Array => Uint8Array.from([...value].map(c => c.charCodeAt(0) & 0xff));
 const u32be = (n: number): Uint8Array => new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
 
+const isValidId3TextFrameId = (id: string): id is Id3TextFrameId => ID3_TEXT_FRAME_IDS.includes(id as Id3TextFrameId);
+
 export const serializeId3TextFrame = (id: string, value: string): Uint8Array => {
-  const payload = new Uint8Array(1 + value.length);
+  if (!isValidId3TextFrameId(id)) throw new TagWriterError('InvalidTagData', `Unsupported ID3 text frame id: ${id}`);
+  const normalizedValue = value.trim();
+  if (!normalizedValue) throw new TagWriterError('InvalidTagData', 'ID3 text frame value must not be empty.');
+
+  const payload = new Uint8Array(1 + normalizedValue.length);
   payload[0] = 0x00;
-  payload.set(encodeLatin1(value), 1);
+  payload.set(encodeLatin1(normalizedValue), 1);
   const out = new Uint8Array(10 + payload.length);
-  out.set(encodeLatin1(id.slice(0, 4).padEnd(4, ' ')), 0);
+  out.set(encodeLatin1(id), 0);
   out.set(u32be(payload.length), 4);
   out[8] = 0;
   out[9] = 0;
