@@ -23,6 +23,21 @@ const extensionFromMimeSubtype = (subtype: string): string => {
   return 'jpg';
 };
 
+const detectSubtypeFromBytes = (bytes: Uint8Array): 'jpeg' | 'png' | 'webp' | undefined => {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
+  if (
+    bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return 'png';
+  if (
+    bytes.length >= 12
+    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return 'webp';
+  return undefined;
+};
+
 const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
 
 const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
@@ -92,7 +107,6 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
   if (!baseDir) return undefined;
 
   try {
-    const ext = extensionFromMimeSubtype(match[1] ?? 'jpeg');
     const directory = `${baseDir}covers`;
     const mkdir = makeDirectoryAsync
       ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
@@ -104,7 +118,16 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
 
     const base64 = trimmed.slice(match[0].length);
     if (!isLikelyValidBase64Payload(base64)) return undefined;
-    if (!matchesMimeSignature(base64PrefixToBytes(base64), match[1] ?? 'jpeg')) return undefined;
+    const prefixBytes = base64PrefixToBytes(base64);
+    const declaredSubtype = match[1] ?? 'jpeg';
+    const detectedSubtype = detectSubtypeFromBytes(prefixBytes);
+    const knownDeclared = /(jpeg|jpg|png|webp)/i.test(declaredSubtype);
+    if (knownDeclared) {
+      if (!matchesMimeSignature(prefixBytes, declaredSubtype)) return undefined;
+    } else if (!detectedSubtype) {
+      return undefined;
+    }
+    const ext = extensionFromMimeSubtype(detectedSubtype ?? declaredSubtype);
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;

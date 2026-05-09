@@ -68,7 +68,8 @@ describe('coverCache', () => {
     await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
   });
 
-  test('ignores unknown image subtype', async () => {
-    await expect(cacheBase64Cover('bad-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
+  test('accepts unknown image subtype when bytes indicate known image format', async () => {
+    const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
   });
 });
