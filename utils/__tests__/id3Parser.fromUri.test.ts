@@ -2,9 +2,15 @@ import { parseId3FromUri } from '../id3Parser';
 
 const mockReadAsStringAsync = jest.fn();
 const mockGetInfoAsync = jest.fn();
+const mockFileBytes = jest.fn();
 
 jest.mock('expo-file-system', () => ({
   getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
+  File: class {
+    uri: string;
+    constructor(uri: string) { this.uri = uri; }
+    bytes() { return mockFileBytes(); }
+  },
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -15,12 +21,23 @@ jest.mock('expo-file-system/legacy', () => ({
 describe('parseId3FromUri', () => {
   const enc = (s: string): number[] => Array.from(s).map(ch => ch.charCodeAt(0));
   const u32be = (n: number): number[] => [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  const synchsafe = (n: number): number[] => [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f];
   const atom = (type: string, payload: number[]): number[] => [...u32be(payload.length + 8), ...enc(type), ...payload];
   const b64 = (bytes: number[]): string => Buffer.from(Uint8Array.from(bytes)).toString('base64');
+  const id3TextFrame = (id: string, text: string): number[] => {
+    const body = [0x00, ...enc(text)];
+    return [...enc(id), ...u32be(body.length), 0, 0, ...body];
+  };
+  const buildId3 = (frames: number[][]): string => {
+    const flat = frames.flat();
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(flat.length)];
+    return b64([...header, ...flat]);
+  };
 
   beforeEach(() => {
     mockReadAsStringAsync.mockReset();
     mockGetInfoAsync.mockReset();
+    mockFileBytes.mockReset();
   });
 
   test('uses mp4 parsing when URI has query params', async () => {
@@ -51,5 +68,43 @@ describe('parseId3FromUri', () => {
       expect.objectContaining({ position: expect.any(Number) }),
     );
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('returns parsed head tags when getInfoAsync fails', async () => {
+    const id3WithTitle = buildId3([id3TextFrame('TIT2', 'Song')]);
+    mockReadAsStringAsync.mockResolvedValueOnce(id3WithTitle);
+    mockGetInfoAsync.mockRejectedValueOnce(new Error('info failed'));
+
+    const tags = await parseId3FromUri('file:///music/album.mp4');
+    expect(tags.title).toBe('Song');
+  });
+
+  test('returns parsed head tags when tail read fails', async () => {
+    const id3WithArtist = buildId3([id3TextFrame('TPE1', 'Art')]);
+    mockReadAsStringAsync.mockResolvedValueOnce(id3WithArtist);
+    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('tail read failed'));
+
+    const tags = await parseId3FromUri('file:///music/album.mp4');
+    expect(tags.artist).toBe('Art');
+  });
+
+  test('uses bounded File API fallback for small files when legacy read fails', async () => {
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce({ size: 256 });
+    mockFileBytes.mockResolvedValueOnce(new Uint8Array([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0]));
+
+    await parseId3FromUri('file:///music/small.mp3?x=1');
+    expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/small.mp3');
+    expect(mockFileBytes).toHaveBeenCalled();
+  });
+
+  test('does not use File.bytes fallback for large files', async () => {
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+
+    const tags = await parseId3FromUri('file:///music/big.mp3');
+    expect(tags).toEqual({});
+    expect(mockFileBytes).not.toHaveBeenCalled();
   });
 });

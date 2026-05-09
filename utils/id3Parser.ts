@@ -378,37 +378,56 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
     const normalizedUri = uri.split('?')[0] ?? uri;
     const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(normalizedUri);
+    const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
+      const id3 = parseId3Buffer(bytes);
+      if (id3.cover) return id3;
+      if (!looksLikeMp4) return id3;
+      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+    };
     try {
       const b64 = await readAsStringAsync(normalizedUri, {
         encoding: encodingBase64,
         length: HEAD_READ_LIMIT,
       });
       const bytes = base64ToBytes(b64);
-      const id3 = parseId3Buffer(bytes);
-      if (id3.cover) return id3;
-      const mp4Cover = looksLikeMp4 ? parseMp4CoverFromBuffer(bytes) : undefined;
-      if (mp4Cover) return { ...id3, cover: mp4Cover };
-      if (!looksLikeMp4) return id3;
+      const id3 = parseHeadBytes(bytes);
+      if (id3.cover || !looksLikeMp4) return id3;
       const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
       if (!getInfoAsync) return id3;
-      const info = await getInfoAsync(normalizedUri);
-      const size = info.size ?? 0;
-      if (size <= HEAD_READ_LIMIT) return id3;
-      const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
-      const tailStart = Math.max(0, size - tailReadLength);
-      const tailB64 = await readAsStringAsync(normalizedUri, {
-        encoding: encodingBase64,
-        length: tailReadLength,
-        position: tailStart,
-      });
-      const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
-      if (tailCover) return { ...id3, cover: tailCover };
+      try {
+        const info = await getInfoAsync(normalizedUri);
+        const size = info.size ?? 0;
+        if (size <= HEAD_READ_LIMIT) return id3;
+        const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
+        const tailStart = Math.max(0, size - tailReadLength);
+        const tailB64 = await readAsStringAsync(normalizedUri, {
+          encoding: encodingBase64,
+          length: tailReadLength,
+          position: tailStart,
+        });
+        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
+        if (tailCover) return { ...id3, cover: tailCover };
+      } catch {
+        return id3;
+      }
       return id3;
     } catch {
       // fallback to File API when legacy path is unavailable
     }
-    // Do not fall back to File.bytes() because it can load huge files into memory.
-    // If bounded legacy reads are unavailable, return empty tags to avoid perf regressions.
+    const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
+    const FileCtor = (FileSystem as unknown as { File?: new (u: string) => { bytes: () => Promise<Uint8Array> } }).File;
+    if (!FileCtor || !getInfoAsync) return {};
+    try {
+      const info = await getInfoAsync(normalizedUri);
+      const size = info.size ?? 0;
+      if (size <= 0 || size > HEAD_READ_LIMIT) return {};
+      const file = new FileCtor(normalizedUri);
+      const bytes = await file.bytes();
+      return parseHeadBytes(bytes.subarray(0, HEAD_READ_LIMIT));
+    } catch {
+      return {};
+    }
     return {};
   } catch {
     return {};
