@@ -28,6 +28,7 @@ describe('mediaLibraryImport', () => {
     expect(cacheBase64Cover).toHaveBeenCalled();
   });
 
+
   test('saf import collects folder errors', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('no access'));
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true }] as any);

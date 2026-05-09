@@ -22,7 +22,7 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { deriveFolderNameFromUri, importSongsFromSources } from '../utils/mediaLibraryImport';
+import { deriveFolderNameFromUri, importSongsFromSources, scanFromMediaLibrary } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
@@ -162,8 +162,8 @@ const Library: React.FC = () => {
     try {
       setLoading(true);
       const activeFolders = scanFolders.filter(folder => folder.enabled);
-      const result = await importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS });
       if (activeFolders.length > 0 && Platform.OS === 'android') {
+        const result = await importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS });
         if (result.folderUpdates) {
           for (const folder of result.folderUpdates) {
             const original = scanFolders.find(item => item.id === folder.id);
@@ -187,13 +187,14 @@ const Library: React.FC = () => {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
-      if (result.songs.length === 0) {
+      const mediaResult = await scanFromMediaLibrary();
+      if (mediaResult.songs.length === 0) {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
-      const shouldImport = await confirmImport(result.songs.length, result.skipped.length);
+      const shouldImport = await confirmImport(mediaResult.songs.length, mediaResult.skipped.length);
       if (!shouldImport) return;
-      setSongs(result.songs);
+      setSongs(mediaResult.songs);
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {
