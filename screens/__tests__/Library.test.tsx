@@ -104,6 +104,23 @@ describe('Library', () => {
 
 
 
+
+  test('does not enrich media when import confirmation is cancelled', async () => {
+    mockGetScanFolders.mockResolvedValueOnce([]);
+    mockMediaCandidates.mockResolvedValueOnce(({ assets: [{ id: 'a1', uri: 'file:///a.mp3', filename: 'a.mp3', duration: 1 }], skipped: [] } as any));
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title: any, _msg?: any, buttons?: any) => {
+      if (title === 'Musik importieren') buttons?.[0]?.onPress?.();
+    });
+    const view = render(<Library />);
+    const { getByText } = view;
+    fireEvent.press(getByText('Importieren'));
+    await waitFor(() => expect(mockMediaCandidates).toHaveBeenCalled());
+    expect(mockMediaEnrich).not.toHaveBeenCalled();
+    expect(mockSetSongs).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+    view.unmount();
+  });
+
   test('uses media-library fallback when no scan folders', async () => {
     mockGetScanFolders.mockResolvedValueOnce([]);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
