@@ -90,7 +90,7 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   return frames;
 };
 
-const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key) && draft.tags[key] !== undefined;
+const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key);
 
 export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFrame[] = []): Uint8Array => {
   const tags = normalizeEditableTags(draft.tags);

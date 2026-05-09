@@ -91,10 +91,11 @@ describe('tagWriter mp3 id3v2.3', () => {
   });
 
 
-  test('undefined tag fields are treated as untouched', () => {
+  test('undefined touched fields remove existing semantic frames', () => {
     const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: undefined, artist: undefined, album: undefined } });
-    expect(frameIds(out)).toEqual(expect.arrayContaining(['TIT2', 'TPE1']));
+    expect(frameIds(out)).not.toContain('TIT2');
+    expect(frameIds(out)).not.toContain('TPE1');
   });
 
   test('cover remove/replace/preserve behaviors', () => {
