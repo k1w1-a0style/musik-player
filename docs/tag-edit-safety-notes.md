@@ -4,7 +4,8 @@
 
 - No real device file writes are enabled.
 - `writeTagsToFile` always throws `WriteNotImplemented`.
-- `applyTagEditToBuffer` for `mp3`, `m4a`, and `mp4` throws `WriteNotImplemented`.
+- `applyTagEditToBuffer` writes **in-memory MP3 buffers only** via ID3v2.3.
+- `m4a`/`mp4` still throw `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
 - New orchestration logic is **dry-run simulation only**.
 
@@ -55,3 +56,11 @@ Separate PRs are still required for:
 - production MP4/M4A atom rewrite implementation,
 - enabling guarded real device writes,
 - UI editor integration.
+
+
+## MP3 in-memory writer (new in this PR)
+
+- Reads existing ID3v2.3/v2.4 headers, removes full old tag (including v2.4 footer), and rewrites a new ID3v2.3 tag in-memory only.
+- Audio bytes after tag boundary are preserved exactly.
+- Existing unsynchronisation flag is currently blocked with `WriteNotImplemented` to avoid unsafe metadata loss.
+- `writeTagsToFile` remains blocked; no SAF/device write path is activated.
