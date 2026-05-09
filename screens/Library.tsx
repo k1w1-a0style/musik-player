@@ -117,12 +117,19 @@ const Library: React.FC = () => {
   });
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = useMemo(() => songs, [songs]);
+  const displayedSongs = songs;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return displayedSongs;
-    return displayedSongs.filter(song => [song.title, song.artist, song.album].filter(Boolean).join(' ').toLowerCase().includes(q));
+
+    return displayedSongs.filter(song =>
+      [song.title, song.artist, song.album]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
   }, [displayedSongs, query]);
 
   const importFromDevice = async (): Promise<void> => {
