@@ -18,9 +18,10 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   }, [currentSong?.id, currentSong?.cover]);
 
   useEffect(() => {
-    if (!__DEV__) return;
+    if (!__DEV__ || process.env.NODE_ENV === 'test') return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
+      // eslint-disable-next-line no-console
       console.debug('[perf] MiniPlayer render', {
         count: renderCountRef.current,
         currentSongId: currentSong?.id ?? null,

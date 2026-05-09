@@ -4,6 +4,7 @@ import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { AppStackParamList, AppTabParamList } from './types/navigation';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -23,11 +24,13 @@ import Playlists from './screens/Playlists';
 import Equalizer from './screens/Equalizer';
 import Covers from './screens/Covers';
 import Id3TagEditor from './screens/Id3TagEditor';
+import TrackInfo from './screens/TrackInfo';
 import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
+import { APP_STACK_ROUTES, APP_TAB_ROUTES } from './types/routes';
 
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator<AppTabParamList>();
+const Stack = createNativeStackNavigator<AppStackParamList>();
 
 const navTheme = {
   ...DefaultTheme,
@@ -67,11 +70,11 @@ const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying })
           tabBarInactiveTintColor: theme.palette.text.muted,
         }}
       >
-        <Tab.Screen name="Bibliothek" component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
-        <Tab.Screen name="Playlists" component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
-        <Tab.Screen name="Equalizer" component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
-        <Tab.Screen name="Cover" component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
-        <Tab.Screen name="ID3" component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.LIBRARY} component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.PLAYLISTS} component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.ID3} component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
       </Tab.Navigator>
       <MiniPlayer onOpen={openNowPlaying} />
     </View>
@@ -102,11 +105,12 @@ export default function App(): React.ReactElement {
             <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
             <NavigationContainer theme={navTheme}>
               <Stack.Navigator screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="MainTabs">
-                  {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate('NowPlaying')} />}
+                <Stack.Screen name={APP_STACK_ROUTES.MAIN_TABS}>
+                  {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING)} />}
                 </Stack.Screen>
+                <Stack.Screen name={APP_STACK_ROUTES.TRACK_INFO} component={TrackInfo} options={{ headerShown: true, title: 'TrackInfo' }} />
                 <Stack.Screen
-                  name="NowPlaying"
+                  name={APP_STACK_ROUTES.NOW_PLAYING}
                   component={NowPlaying}
                   options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
                 />

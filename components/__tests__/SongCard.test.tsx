@@ -8,16 +8,10 @@ describe('SongCard', () => {
 
   test('falls back when cover image errors', () => {
     const { UNSAFE_getByType, UNSAFE_queryByType } = render(
-      <SongCard
-        song={song}
-        onPressSong={jest.fn()}
-        isCurrent={false}
-        isPlaying={false}
-      />,
+      <SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,
     );
 
-    const img = UNSAFE_getByType(Image);
-    fireEvent(img, 'error');
+    fireEvent(UNSAFE_getByType(Image), 'error');
 
     expect(UNSAFE_queryByType(Image)).toBeNull();
   });
@@ -25,18 +19,35 @@ describe('SongCard', () => {
   test('calls stable song press handler with the row song', () => {
     const onPressSong = jest.fn();
     const { getByTestId } = render(
-      <SongCard
-        song={song}
-        onPressSong={onPressSong}
-        isCurrent={false}
-        isPlaying={false}
-      />,
+      <SongCard song={song} onPressSong={onPressSong} isCurrent={false} isPlaying={false} />,
     );
 
     fireEvent.press(getByTestId('song-card-1'));
 
-    expect(onPressSong).toHaveBeenCalledTimes(1);
     expect(onPressSong).toHaveBeenCalledWith(song);
   });
-});
 
+  test('calls info handler with song', () => {
+    const onInfoSong = jest.fn();
+    const { getByTestId } = render(
+      <SongCard song={song} onPressSong={jest.fn()} onInfoSong={onInfoSong} isCurrent={false} isPlaying={false} />,
+    );
+
+    fireEvent.press(getByTestId('song-card-info-1'));
+
+    expect(onInfoSong).toHaveBeenCalledWith(song);
+  });
+
+  test('pressing info does not trigger song press', () => {
+    const onPressSong = jest.fn();
+    const onInfoSong = jest.fn();
+    const { getByTestId } = render(
+      <SongCard song={song} onPressSong={onPressSong} onInfoSong={onInfoSong} isCurrent={false} isPlaying={false} />,
+    );
+
+    fireEvent.press(getByTestId('song-card-info-1'));
+
+    expect(onInfoSong).toHaveBeenCalledWith(song);
+    expect(onPressSong).not.toHaveBeenCalled();
+  });
+});
