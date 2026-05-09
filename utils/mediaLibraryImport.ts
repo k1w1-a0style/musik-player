@@ -14,6 +14,8 @@ export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
+const KNOWN_NON_AUDIO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'txt', 'nfo', 'cue', 'lrc', 'm3u', 'm3u8', 'pls', 'pdf', 'json']);
+
 const EXTENSION_MIME_MAP: Record<string, string> = {
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -171,7 +173,9 @@ export const readAudioUrisFromSafDirectory = async (
         files.push(entry);
         continue;
       }
-      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, false);
+      const ext = deriveExtension(entry);
+      if (ext && KNOWN_NON_AUDIO_EXTENSIONS.has(ext)) continue;
+      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, true);
     }
   };
 
