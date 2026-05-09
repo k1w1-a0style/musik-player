@@ -41,7 +41,7 @@ describe('parseId3FromUri', () => {
     // second read (tail): JPEG signature
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
     const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
-    mockReadAsStringAsync.mockResolvedValueOnce(b64([0x01, 0x02, 0x03, ...tailMoov]));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(new Array(3005).fill(0x01).concat(tailMoov)));
 
     const tags = await parseId3FromUri('file:///music/album.mp4?token=xyz');
     expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/album.mp4');

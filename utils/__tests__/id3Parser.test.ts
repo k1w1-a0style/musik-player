@@ -144,7 +144,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0];
     const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
     const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
-    const bytes = new Uint8Array([0x7a, 0x7a, 0x7a, ...moov]);
+    const bytes = new Uint8Array(new Array(3005).fill(0x7a).concat(moov));
     const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });

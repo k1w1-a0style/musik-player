@@ -296,6 +296,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
 };
 
 const MP4_CONTAINER_ATOMS = new Set(['moov', 'udta', 'meta', 'ilst', 'trak', 'mdia', 'minf', 'stbl']);
+const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data']);
 
 const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string | undefined => {
   let p = start;
@@ -315,17 +316,19 @@ const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string
 
 const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
   let p = start;
-  let resyncSteps = 0;
   while (p + 8 <= end) {
     const size = readU32(bytes, p);
     if (size < 8 || p + size > end) {
       p += 1;
-      resyncSteps += 1;
-      if (resyncSteps > 2048) break;
       continue;
     }
-    resyncSteps = 0;
     const type = readLatin1(bytes, p + 4, p + 8);
+    const isContainer = MP4_CONTAINER_ATOMS.has(type);
+    const isRelevantLeaf = MP4_RELEVANT_LEAF_ATOMS.has(type);
+    if (!isContainer && !isRelevantLeaf) {
+      p += 1;
+      continue;
+    }
     const headerSize = type === 'meta' ? 12 : 8;
     const bodyStart = Math.min(p + headerSize, p + size);
     const bodyEnd = p + size;
