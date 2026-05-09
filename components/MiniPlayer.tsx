@@ -1,14 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
 
-const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
+const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next } = useMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
+  const renderCountRef = useRef(0);
+  if (__DEV__) {
+    renderCountRef.current += 1;
+    if (renderCountRef.current <= 20) {
+      console.debug('[perf][MiniPlayer] render', {
+        count: renderCountRef.current,
+        currentSongId: currentSong?.id ?? null,
+        isPlaying,
+      });
+    }
+  }
   useEffect(() => {
     setCoverFailed(false);
   }, [currentSong?.id, currentSong?.cover]);
@@ -64,6 +75,8 @@ const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
     </View>
   );
 };
+
+const MiniPlayer = memo(MiniPlayerComponent);
 
 const styles = StyleSheet.create({
   wrap: {

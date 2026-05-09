@@ -40,6 +40,7 @@ const DEMO_SONGS: Song[] = [
 ];
 
 const ID3_WORKER_COUNT = 3;
+const DEV_RENDER_LOG_LIMIT = 20;
 
 const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   new Promise(resolve => {
@@ -78,6 +79,20 @@ const Library: React.FC = () => {
         .includes(q),
     );
   }, [displayedSongs, query]);
+
+  const renderCountRef = React.useRef(0);
+  if (__DEV__) {
+    renderCountRef.current += 1;
+    if (renderCountRef.current <= DEV_RENDER_LOG_LIMIT) {
+      console.debug('[perf][Library] render', {
+        count: renderCountRef.current,
+        songs: songs.length,
+        filtered: filtered.length,
+        currentSongId,
+        isPlaying,
+      });
+    }
+  }
 
   const importFromDevice = async (): Promise<void> => {
     try {
@@ -165,7 +180,7 @@ const Library: React.FC = () => {
           song={item}
           isCurrent={isCurrent}
           isPlaying={isCurrent && isPlaying}
-          onPress={() => handleSongPress(item)}
+          onPressSong={handleSongPress}
         />
       );
     },
@@ -175,7 +190,7 @@ const Library: React.FC = () => {
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
+          <View style={styles.headerContent}>
             <Text style={styles.eyebrow}>KIWI</Text>
             <Text style={styles.header}>Bibliothek</Text>
             <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
@@ -254,6 +269,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     gap: theme.spacing.md,
   },
+  headerContent: { flex: 1 },
   eyebrow: {
     color: theme.palette.primary,
     fontSize: 10,

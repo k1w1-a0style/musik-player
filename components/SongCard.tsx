@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
@@ -6,13 +6,16 @@ import { theme } from '../theme';
 
 interface SongCardProps {
   song: Song;
-  onPress: () => void;
+  onPressSong: (song: Song) => void;
   isCurrent: boolean;
   isPlaying: boolean;
 }
 
-const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
+const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
+  const handlePress = useCallback(() => {
+    onPressSong(song);
+  }, [onPressSong, song]);
   useEffect(() => {
     setCoverFailed(false);
   }, [song.id, song.cover]);
@@ -22,7 +25,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, 
     testID={`song-card-${song.id}`}
     accessibilityRole="button"
     accessibilityLabel={`${song.title} von ${song.artist}`}
-    onPress={onPress}
+    onPress={handlePress}
     style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
   >
     <View style={[styles.cover, isCurrent && styles.coverActive]}>
