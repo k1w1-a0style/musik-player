@@ -148,23 +148,7 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft): Uint8Array => {
   const frames = buildMp3TextFrames(draft.tags);
   if (draft.tags.comment) frames.push(serializeId3CommentFrame(draft.tags.comment));
   if (!draft.removeCover && draft.cover) frames.push(serializeId3ApicFrame(draft.cover.mimeType, draft.cover.data));
-  const payloadSize = frames.reduce((sum, frame) => sum + frame.length, 0);
-  const out = new Uint8Array(10 + payloadSize);
-
-  out[0] = 0x49; // I
-  out[1] = 0x44; // D
-  out[2] = 0x33; // 3
-  out[3] = 0x03; // v2.3
-  out[4] = 0x00;
-  out[5] = 0x00;
-  out.set(toSynchsafe(payloadSize), 6);
-
-  let off = 10;
-  for (const frame of frames) {
-    out.set(frame, off);
-    off += frame.length;
-  }
-  return out;
+  return buildId3v23TagFromFrames(frames);
 };
 
 
