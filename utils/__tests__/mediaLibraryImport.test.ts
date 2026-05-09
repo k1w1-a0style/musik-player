@@ -41,6 +41,26 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual([]);
   });
 
+
+  test('saf recursion respects depth limit', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/l1'];
+      if (uri === 'content://root/l1') return ['content://root/l1/l2'];
+      if (uri === 'content://root/l1/l2') return ['content://root/l1/l2/l3'];
+      if (uri === 'content://root/l1/l2/l3') return ['content://root/l1/l2/l3/deep.mp3'];
+      return [];
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.files).toEqual([]);
+  });
+
+  test('saf scan truncates at MAX_SAF_FILES', async () => {
+    const many = Array.from({ length: 6000 }, (_, idx) => `content://root/${idx}.mp3`);
+    const read = jest.fn(async (uri: string) => (uri === 'content://root' ? many : []));
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.files.length).toBe(mediaImport.MAX_SAF_FILES);
+  });
+
   test('saf import uses tags and fallback', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/The%20Artist%20-%20Title.mp3']);
     (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'Tag Title', artist: 'Tag Artist', cover: 'data:image/jpeg;base64,AAA' });
