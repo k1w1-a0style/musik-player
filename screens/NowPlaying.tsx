@@ -75,6 +75,7 @@ const NowPlaying: React.FC = () => {
 
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
+  const coverAccent = useMemo(() => palette?.vibrant ?? palette?.dominant ?? accent, [palette, accent]);
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
   const handleClose = useCallback(() => {
@@ -89,11 +90,11 @@ const NowPlaying: React.FC = () => {
           song={item}
           isActive={isActive}
           isPlaying={isActive && isPlaying}
-          accent={palette?.vibrant ?? palette?.dominant ?? accent}
+          accent={coverAccent}
         />
       );
     },
-    [currentSong?.id, isPlaying, accent, palette],
+    [currentSong?.id, isPlaying, coverAccent],
   );
 
   return (
