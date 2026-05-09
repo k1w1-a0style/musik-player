@@ -30,6 +30,17 @@ describe('mediaLibraryImport', () => {
     expect(result.files).toEqual(expect.arrayContaining(['content://root/a.mp3', 'content://root/sub/b.flac']));
   });
 
+
+  test('saf directory scan does not report plain files as folder errors', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/not-audio.jpg'];
+      throw new Error('not-directory');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual([]);
+  });
+
   test('saf import uses tags and fallback', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/The%20Artist%20-%20Title.mp3']);
     (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'Tag Title', artist: 'Tag Artist', cover: 'data:image/jpeg;base64,AAA' });

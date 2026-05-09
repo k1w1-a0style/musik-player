@@ -153,7 +153,7 @@ export const readAudioUrisFromSafDirectory = async (
   const errors: string[] = [];
   const visited = new Set<string>();
 
-  const walk = async (uri: string, depth: number): Promise<void> => {
+  const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
     if (visited.has(uri) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
     visited.add(uri);
 
@@ -161,7 +161,7 @@ export const readAudioUrisFromSafDirectory = async (
     try {
       entries = await readDirectory(uri);
     } catch {
-      errors.push(uri);
+      if (reportError) errors.push(uri);
       return;
     }
 
@@ -172,12 +172,13 @@ export const readAudioUrisFromSafDirectory = async (
         continue;
       }
       if (depth < MAX_SAF_DEPTH) {
-        await walk(entry, depth + 1);
+        const shouldTryAsDirectory = deriveExtension(entry) == null;
+        if (shouldTryAsDirectory) await walk(entry, depth + 1, false);
       }
     }
   };
 
-  await walk(directoryUri, 0);
+  await walk(directoryUri, 0, true);
   return { files, errors };
 };
 
