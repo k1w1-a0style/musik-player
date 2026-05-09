@@ -77,6 +77,9 @@ const NowPlaying: React.FC = () => {
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
+  const handleClose = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   const renderCover = useCallback(
     ({ item }: { item: Song; index: number }) => {
@@ -102,7 +105,7 @@ const NowPlaying: React.FC = () => {
       <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      <NowPlayingHeader albumTitle={albumTitle} onClose={() => navigation.goBack()} />
+      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} />
 
       <FlatList
         ref={flatRef}
