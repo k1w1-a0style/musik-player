@@ -90,37 +90,45 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   return frames;
 };
 
-const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key);
+const hasDraftTagIntent = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key) && draft.tags[key] !== undefined;
 
-export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFrame[] = []): Uint8Array => {
+type Id3RewritePlan = { changed: boolean; tag?: Uint8Array };
+
+export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFrame[] = []): Id3RewritePlan => {
   const tags = normalizeEditableTags(draft.tags);
   const touchedFrameIds = new Set<string>();
-  if (hasDraftTag(draft, 'title')) touchedFrameIds.add('TIT2');
-  if (hasDraftTag(draft, 'artist')) touchedFrameIds.add('TPE1');
-  if (hasDraftTag(draft, 'album')) touchedFrameIds.add('TALB');
-  if (hasDraftTag(draft, 'year')) { touchedFrameIds.add('TYER'); touchedFrameIds.add('TDRC'); }
-  if (hasDraftTag(draft, 'genre')) touchedFrameIds.add('TCON');
-  if (hasDraftTag(draft, 'trackNumber')) touchedFrameIds.add('TRCK');
-  if (hasDraftTag(draft, 'discNumber')) touchedFrameIds.add('TPOS');
-  if (hasDraftTag(draft, 'comment')) touchedFrameIds.add('COMM');
+  if (hasDraftTagIntent(draft, 'title')) touchedFrameIds.add('TIT2');
+  if (hasDraftTagIntent(draft, 'artist')) touchedFrameIds.add('TPE1');
+  if (hasDraftTagIntent(draft, 'album')) touchedFrameIds.add('TALB');
+  if (hasDraftTagIntent(draft, 'year')) { touchedFrameIds.add('TYER'); touchedFrameIds.add('TDRC'); }
+  if (hasDraftTagIntent(draft, 'genre')) touchedFrameIds.add('TCON');
+  if (hasDraftTagIntent(draft, 'trackNumber')) touchedFrameIds.add('TRCK');
+  if (hasDraftTagIntent(draft, 'discNumber')) touchedFrameIds.add('TPOS');
+  if (hasDraftTagIntent(draft, 'comment')) touchedFrameIds.add('COMM');
   if (draft.removeCover || draft.cover) touchedFrameIds.add('APIC');
 
+  const existingTouched = existing.some((f) => touchedFrameIds.has(f.id));
   const kept = existing.filter((f) => !touchedFrameIds.has(f.id));
   const replacement: Uint8Array[] = [];
-  if (hasDraftTag(draft, 'title') && tags.title) replacement.push(textFrame('TIT2', tags.title));
-  if (hasDraftTag(draft, 'artist') && tags.artist) replacement.push(textFrame('TPE1', tags.artist));
-  if (hasDraftTag(draft, 'album') && tags.album) replacement.push(textFrame('TALB', tags.album));
-  if (hasDraftTag(draft, 'year') && tags.year) replacement.push(textFrame('TYER', tags.year));
-  if (hasDraftTag(draft, 'genre') && tags.genre) replacement.push(textFrame('TCON', tags.genre));
-  if (hasDraftTag(draft, 'trackNumber') && tags.trackNumber) replacement.push(textFrame('TRCK', tags.trackNumber));
-  if (hasDraftTag(draft, 'discNumber') && tags.discNumber) replacement.push(textFrame('TPOS', tags.discNumber));
-  if (hasDraftTag(draft, 'comment') && tags.comment) replacement.push(commFrame(tags.comment));
+  if (hasDraftTagIntent(draft, 'title') && tags.title) replacement.push(textFrame('TIT2', tags.title));
+  if (hasDraftTagIntent(draft, 'artist') && tags.artist) replacement.push(textFrame('TPE1', tags.artist));
+  if (hasDraftTagIntent(draft, 'album') && tags.album) replacement.push(textFrame('TALB', tags.album));
+  if (hasDraftTagIntent(draft, 'year') && tags.year) replacement.push(textFrame('TYER', tags.year));
+  if (hasDraftTagIntent(draft, 'genre') && tags.genre) replacement.push(textFrame('TCON', tags.genre));
+  if (hasDraftTagIntent(draft, 'trackNumber') && tags.trackNumber) replacement.push(textFrame('TRCK', tags.trackNumber));
+  if (hasDraftTagIntent(draft, 'discNumber') && tags.discNumber) replacement.push(textFrame('TPOS', tags.discNumber));
+  if (hasDraftTagIntent(draft, 'comment') && tags.comment) replacement.push(commFrame(tags.comment));
   if (!draft.removeCover && draft.cover) replacement.push(apicFrame(draft.cover.mimeType, draft.cover.data));
+
+  const changed = existingTouched || replacement.length > 0;
+  if (!changed) return { changed: false };
+
   const keptFrames = kept.map((f) => frame(f.id, f.body, f.flags));
   const payloadLen = [...keptFrames, ...replacement].reduce((n, f) => n + f.length, 0);
+  if (payloadLen === 0) return { changed: true, tag: new Uint8Array(0) };
   const out = new Uint8Array(10 + payloadLen); out.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0); out.set(encodeSynchsafe(payloadLen), 6);
   let o = 10; for (const fr of [...keptFrames, ...replacement]) { out.set(fr, o); o += fr.length; }
-  return out;
+  return { changed: true, tag: out };
 };
 
 export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
@@ -129,7 +137,9 @@ export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEdit
   if (header?.major === 4) throw new TagWriterError('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.');
   const existing = header ? parseFrames(original, header) : [];
   const audio = header ? original.slice(header.audioStart) : original.slice();
-  const tag = buildId3v23TagFromDraft(draft, existing);
+  const rewrite = buildId3v23TagFromDraft(draft, existing);
+  if (!rewrite.changed) return original.slice();
+  const tag = rewrite.tag ?? new Uint8Array(0);
   const out = new Uint8Array(tag.length + audio.length); out.set(tag, 0); out.set(audio, tag.length); return out;
 };
 

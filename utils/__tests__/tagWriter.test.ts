@@ -101,11 +101,11 @@ describe('tagWriter mp3 id3v2.3', () => {
   });
 
 
-  test('undefined touched fields remove existing semantic frames', () => {
-    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+  test('undefined fields are untouched and preserve existing semantic frames', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42)), mkFrame('TALB', u8(0x03, 0x43))]), 1, 2, 3]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: undefined, artist: undefined, album: undefined } });
-    expect(frameIds(out)).not.toContain('TIT2');
-    expect(frameIds(out)).not.toContain('TPE1');
+    expect(frameIds(out)).toEqual(expect.arrayContaining(['TIT2', 'TPE1', 'TALB']));
+    expect(Array.from(out)).toEqual(Array.from(src));
   });
 
   test('cover remove/replace/preserve behaviors', () => {
@@ -118,12 +118,38 @@ describe('tagWriter mp3 id3v2.3', () => {
 
   test('removeCover ignores invalid payload', () => {
     const out = applyTagEditToBuffer(u8(1,2), 'mp3', { songId:'1', tags:{}, removeCover:true, cover:{mimeType:'image/jpeg', data:u8(0)} });
-    expect(out[0]).toBe(0x49);
+    expect(Array.from(out)).toEqual([1,2]);
   });
 
   test('unsync tag throws', () => {
     const src = new Uint8Array([...mkTag([],3,0x80), 1,2]);
     expect(() => applyTagEditToBuffer(src, 'mp3', { songId:'1', tags:{} })).toThrow(/unsynchronisation/i);
+  });
+
+
+
+  test('untagged mp3 with empty draft is a no-op', () => {
+    const src = u8(1, 2, 3, 4);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {} });
+    expect(Array.from(out)).toEqual(Array.from(src));
+  });
+
+  test('untagged mp3 with removeCover true is a no-op', () => {
+    const src = u8(5, 6, 7);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, removeCover: true });
+    expect(Array.from(out)).toEqual(Array.from(src));
+  });
+
+  test('existing tag with empty draft is a no-op', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41))]), 9]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {} });
+    expect(Array.from(out)).toEqual(Array.from(src));
+  });
+
+  test('existing tag with removeCover true and no APIC is a no-op', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TPE1', u8(0x03, 0x42))]), 9]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, removeCover: true });
+    expect(Array.from(out)).toEqual(Array.from(src));
   });
 
   test('existing id3v2.4 is rejected to avoid mixed-version output', () => {
