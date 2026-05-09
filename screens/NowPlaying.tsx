@@ -60,9 +60,14 @@ const NowPlaying: React.FC = () => {
     void playSong(item, queueRef.current);
   }, [playSong]);
 
-  const playQueueItem = useCallback((item: Song) => {
+
+  const playQueueItemById = useCallback((songId: string) => {
+    const item = queueRef.current.find(song => song.id === songId);
+    if (!item) return;
+
     const activeSong = currentSongRef.current;
     if (!activeSong || item.id === activeSong.id) return;
+
     lastReportedId.current = item.id;
     void playSong(item, queueRef.current);
   }, [playSong]);
@@ -160,17 +165,14 @@ const NowPlaying: React.FC = () => {
           {visibleQueue.map(item => {
             const isCurrent = item.id === currentSong?.id;
             return (
-              <Pressable
+              <QueuePreviewRow
                 key={item.id}
-                style={[styles.queueItem, isCurrent && styles.queueItemActive]}
-                onPress={() => playQueueItem(item)}
-              >
-                <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
-                <View style={styles.queueTextWrap}>
-                  <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.queueArtist} numberOfLines={1}>{item.artist}</Text>
-                </View>
-              </Pressable>
+                id={item.id}
+                title={item.title}
+                artist={item.artist}
+                isCurrent={isCurrent}
+                onPress={playQueueItemById}
+              />
             );
           })}
         </View>
@@ -186,6 +188,24 @@ const NowPlaying: React.FC = () => {
     </Screen>
   );
 };
+
+interface QueuePreviewRowProps {
+  id: string;
+  title: string;
+  artist: string;
+  isCurrent: boolean;
+  onPress: (songId: string) => void;
+}
+
+const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => (
+  <Pressable style={[styles.queueItem, isCurrent && styles.queueItemActive]} onPress={() => onPress(id)}>
+    <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
+    <View style={styles.queueTextWrap}>
+      <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
+      <Text style={styles.queueArtist} numberOfLines={1}>{artist}</Text>
+    </View>
+  </Pressable>
+));
 
 interface CoverProps {
   song: Song;
