@@ -8,7 +8,7 @@ describe('tagValidation', () => {
   });
 
   test('year validation', () => {
-    expect(validateYear('1899')).toBe(true);
+    expect(validateYear('1899')).toBe(false);
     expect(validateYear('20A0')).toBe(false);
   });
 

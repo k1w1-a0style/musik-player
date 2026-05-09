@@ -1,5 +1,8 @@
 import type { EditableCover, EditableTrackTags } from '../types/TagEdit';
 
+const MIN_YEAR = 1900;
+const MAX_GENRE_LENGTH = 100;
+
 const trimToUndefined = (value?: string): string | undefined => {
   if (value == null) return undefined;
   const trimmed = value.trim();
@@ -22,7 +25,7 @@ export const validateYear = (value?: string): boolean => {
   if (!/^\d{4}$/.test(value)) return false;
   const year = Number(value);
   const now = new Date().getUTCFullYear() + 1;
-  return year >= 1000 && year <= now;
+  return year >= MIN_YEAR && year <= now;
 };
 
 const validatePosition = (value?: string): boolean => !value || /^\d{1,3}(\/\d{1,3})?$/.test(value);
@@ -30,7 +33,7 @@ const validatePosition = (value?: string): boolean => !value || /^\d{1,3}(\/\d{1
 export const validateTrackNumber = (value?: string): boolean => validatePosition(value);
 export const validateDiscNumber = (value?: string): boolean => validatePosition(value);
 
-export const validateGenre = (value?: string): boolean => !value || value.length <= 100;
+export const validateGenre = (value?: string): boolean => !value || value.length <= MAX_GENRE_LENGTH;
 
 const isJpeg = (data: Uint8Array): boolean => data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
 const isPng = (data: Uint8Array): boolean => data.length >= 8
