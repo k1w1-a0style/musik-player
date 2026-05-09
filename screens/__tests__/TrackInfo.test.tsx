@@ -72,7 +72,7 @@ describe('TrackInfo', () => {
 
     fireEvent(UNSAFE_getByType(Image), 'error');
 
-    expect(getByText(/Cover-Typ: cached/)).toBeTruthy();
+    expect(getByText(/Cover-Typ: Gecachtes Cover/)).toBeTruthy();
   });
 
   test('shows not found state', () => {

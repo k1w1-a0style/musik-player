@@ -28,6 +28,28 @@ export const formatBytes = (value?: number): string => {
   return `${size.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 };
 
+
+export const formatSampleRate = (value?: number): string => {
+  if (!value || value <= 0) return 'Nicht verfügbar';
+  if (value >= 1000) return `${(value / 1000).toFixed(1)} kHz`;
+  return `${value} Hz`;
+};
+
+export const formatCoverStatus = (status?: string): string => {
+  switch (status) {
+    case 'cached':
+      return 'Gecachtes Cover';
+    case 'embedded':
+      return 'Eingebettetes Cover';
+    case 'external':
+      return 'Externe URI';
+    case 'none':
+      return 'Kein Cover';
+    default:
+      return 'Unbekannt';
+  }
+};
+
 const valueOrNA = (value?: string | number): string => (value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value));
 type TrackInfoRoute = RouteProp<{ TrackInfo: { songId: string } }, 'TrackInfo'>;
 
@@ -81,12 +103,12 @@ const TrackInfo: React.FC = () => {
           <Text style={styles.section}>Audio-Technik</Text>
           <Text style={styles.row}>Codec: {valueOrNA(song.audioInfo?.codec)}</Text>
           <Text style={styles.row}>Bitrate: {song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'}</Text>
-          <Text style={styles.row}>Sample Rate: {song.audioInfo?.sampleRate ? `${song.audioInfo.sampleRate} Hz` : 'Nicht verfügbar'}</Text>
+          <Text style={styles.row}>Sample Rate: {formatSampleRate(song.audioInfo?.sampleRate)}</Text>
           <Text style={styles.row}>Kanäle: {valueOrNA(song.audioInfo?.channels)}</Text>
 
           <Text style={styles.section}>Cover</Text>
           <Text style={styles.row}>Cover vorhanden: {coverUri ? 'Ja' : 'Nein'}</Text>
-          <Text style={styles.row}>Cover-Typ: {coverStatus}</Text>
+          <Text style={styles.row}>Cover-Typ: {formatCoverStatus(coverStatus)}</Text>
           <Text style={styles.longRow}>Cover-URI: {valueOrNA(coverUri)}</Text>
         </ScrollView>
       </Screen>
