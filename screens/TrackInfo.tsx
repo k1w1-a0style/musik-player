@@ -21,48 +21,98 @@ export const formatBytes = (value?: number): string => {
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = value;
   let idx = 0;
-  while (size >= 1024 && idx < units.length - 1) { size /= 1024; idx += 1; }
+  while (size >= 1024 && idx < units.length - 1) {
+    size /= 1024;
+    idx += 1;
+  }
   return `${size.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 };
 
 const valueOrNA = (value?: string | number): string => (value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value));
-
 type TrackInfoRoute = RouteProp<{ TrackInfo: { songId: string } }, 'TrackInfo'>;
 
 const TrackInfo: React.FC = () => {
   const route = useRoute<TrackInfoRoute>();
   const { songs } = useLibraryMusicContext();
   const [coverFailed, setCoverFailed] = useState(false);
+
   const song = useMemo(() => songs.find(s => s.id === route.params.songId), [route.params.songId, songs]);
 
-  useEffect(() => { setCoverFailed(false); }, [song?.id, song?.cover]);
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [song?.id, song?.cover]);
 
-  if (!song) {
-    return <AppBackground><Screen contentStyle={styles.container}><Text style={styles.error}>Song nicht gefunden.</Text></Screen></AppBackground>;
-  }
+  if (!song) return <AppBackground><Screen contentStyle={styles.container}><Text style={styles.error}>Song nicht gefunden.</Text></Screen></AppBackground>;
 
   const coverUri = song.coverInfo?.uri ?? song.cover;
   const coverStatus = song.coverInfo?.status ?? (coverUri ? 'unknown' : 'none');
 
-  return <AppBackground><Screen contentStyle={styles.container}><ScrollView contentContainerStyle={styles.content}>
-    <View style={styles.coverWrap}>{coverUri && !coverFailed ? <Image source={{ uri: coverUri }} style={styles.cover} onError={() => setCoverFailed(true)} /> : <Music2 color={theme.palette.text.muted} size={42} />}</View>
-    <Text style={styles.header}>TrackInfo</Text>
-    <Text style={styles.section}>Basis</Text>
-    <Text style={styles.row}>Titel: {valueOrNA(song.title)}</Text><Text style={styles.row}>Artist: {valueOrNA(song.artist)}</Text><Text style={styles.row}>Album: {valueOrNA(song.album)}</Text><Text style={styles.row}>Jahr: {valueOrNA(song.year)}</Text><Text style={styles.row}>Genre: {valueOrNA(song.genre)}</Text><Text style={styles.row}>Dauer: {formatDuration(song.duration)}</Text>
-    <Text style={styles.section}>Datei</Text>
-    <Text style={styles.row}>Dateiname: {valueOrNA(song.fileInfo?.filename)}</Text><Text style={styles.row}>Dateiendung: {valueOrNA(song.fileInfo?.extension)}</Text><Text style={styles.row}>Container: {valueOrNA(song.fileInfo?.container)}</Text><Text style={styles.row}>MIME-Type: {valueOrNA(song.fileInfo?.mimeType)}</Text><Text style={styles.row}>Dateigröße: {formatBytes(song.fileInfo?.size)}</Text><Text style={styles.row}>Import-Quelle: {valueOrNA(song.fileInfo?.source)}</Text><Text style={styles.row}>Import-Zeitpunkt: {song.fileInfo?.importedAt ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE') : 'Nicht verfügbar'}</Text>
-    <Text style={styles.longRow}>Datei-Pfad / URI: {valueOrNA(song.fileInfo?.uri ?? song.uri)}</Text>
-    <Text style={styles.section}>Audio-Technik</Text>
-    <Text style={styles.row}>Codec: {valueOrNA(song.audioInfo?.codec)}</Text><Text style={styles.row}>Bitrate: {song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'}</Text><Text style={styles.row}>Sample Rate: {song.audioInfo?.sampleRate ? `${song.audioInfo.sampleRate} Hz` : 'Nicht verfügbar'}</Text><Text style={styles.row}>Kanäle: {valueOrNA(song.audioInfo?.channels)}</Text>
-    <Text style={styles.section}>Cover</Text>
-    <Text style={styles.row}>Cover vorhanden: {coverUri ? 'Ja' : 'Nein'}</Text><Text style={styles.row}>Cover-Typ: {coverStatus}</Text><Text style={styles.longRow}>Cover-URI: {valueOrNA(coverUri)}</Text>
-  </ScrollView></Screen></AppBackground>;
+  return (
+    <AppBackground>
+      <Screen contentStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.coverWrap}>
+            {coverUri && !coverFailed ? (
+              <Image source={{ uri: coverUri }} style={styles.cover} onError={() => setCoverFailed(true)} />
+            ) : (
+              <Music2 color={theme.palette.text.muted} size={42} />
+            )}
+          </View>
+
+          <Text style={styles.header}>TrackInfo</Text>
+          <Text style={styles.section}>Basis</Text>
+          <Text style={styles.row}>Titel: {valueOrNA(song.title)}</Text>
+          <Text style={styles.row}>Artist: {valueOrNA(song.artist)}</Text>
+          <Text style={styles.row}>Album: {valueOrNA(song.album)}</Text>
+          <Text style={styles.row}>Jahr: {valueOrNA(song.year)}</Text>
+          <Text style={styles.row}>Genre: {valueOrNA(song.genre)}</Text>
+          <Text style={styles.row}>Dauer: {formatDuration(song.duration)}</Text>
+
+          <Text style={styles.section}>Datei</Text>
+          <Text style={styles.row}>Dateiname: {valueOrNA(song.fileInfo?.filename)}</Text>
+          <Text style={styles.row}>Dateiendung: {valueOrNA(song.fileInfo?.extension)}</Text>
+          <Text style={styles.row}>Container: {valueOrNA(song.fileInfo?.container)}</Text>
+          <Text style={styles.row}>MIME-Type: {valueOrNA(song.fileInfo?.mimeType)}</Text>
+          <Text style={styles.row}>Dateigröße: {formatBytes(song.fileInfo?.size)}</Text>
+          <Text style={styles.row}>Import-Quelle: {valueOrNA(song.fileInfo?.source)}</Text>
+          <Text style={styles.row}>Import-Zeitpunkt: {song.fileInfo?.importedAt ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE') : 'Nicht verfügbar'}</Text>
+          <Text style={styles.longRow}>Datei-Pfad / URI: {valueOrNA(song.fileInfo?.uri ?? song.uri)}</Text>
+
+          <Text style={styles.section}>Audio-Technik</Text>
+          <Text style={styles.row}>Codec: {valueOrNA(song.audioInfo?.codec)}</Text>
+          <Text style={styles.row}>Bitrate: {song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'}</Text>
+          <Text style={styles.row}>Sample Rate: {song.audioInfo?.sampleRate ? `${song.audioInfo.sampleRate} Hz` : 'Nicht verfügbar'}</Text>
+          <Text style={styles.row}>Kanäle: {valueOrNA(song.audioInfo?.channels)}</Text>
+
+          <Text style={styles.section}>Cover</Text>
+          <Text style={styles.row}>Cover vorhanden: {coverUri ? 'Ja' : 'Nein'}</Text>
+          <Text style={styles.row}>Cover-Typ: {coverStatus}</Text>
+          <Text style={styles.longRow}>Cover-URI: {valueOrNA(coverUri)}</Text>
+        </ScrollView>
+      </Screen>
+    </AppBackground>
+  );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 }, content: { padding: theme.spacing.md, paddingBottom: 120, gap: 6 }, coverWrap: { width: 130, height: 130, borderRadius: 16, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: theme.palette.surfaceElevated, marginBottom: 8 }, cover: { width: '100%', height: '100%' },
-  header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 }, section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
-  row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 }, longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
+  container: { flex: 1 },
+  content: { padding: theme.spacing.md, paddingBottom: 120, gap: 6 },
+  coverWrap: {
+    width: 130,
+    height: 130,
+    borderRadius: 16,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: theme.palette.surfaceElevated,
+    marginBottom: 8,
+  },
+  cover: { width: '100%', height: '100%' },
+  header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
+  section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
+  row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
+  longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
 });
 

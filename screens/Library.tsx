@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  Image,
+} from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { useNavigation } from '@react-navigation/native';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -16,34 +26,14 @@ import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
 declare const __DEV__: boolean;
 
-const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
+type RootStackParamList = {
+  TrackInfo: { songId: string };
+};
+
+const SONG_ROW_HEIGHT = 84;
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
-
-const DEMO_SONGS: Song[] = [
-  {
-    id: 'demo-1',
-    title: 'SoundHelix Song 1',
-    artist: 'SoundHelix',
-    album: 'Demo',
-    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-  },
-  {
-    id: 'demo-2',
-    title: 'SoundHelix Song 2',
-    artist: 'SoundHelix',
-    album: 'Demo',
-    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-  },
-  {
-    id: 'demo-3',
-    title: 'SoundHelix Song 3',
-    artist: 'SoundHelix',
-    album: 'Demo',
-    uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-  },
-];
-
 const ID3_WORKER_COUNT = 3;
+
 const deriveExtension = (input?: string): string | undefined => {
   if (!input) return undefined;
   const clean = input.split('?')[0] ?? input;
@@ -93,19 +83,12 @@ const Library: React.FC = () => {
   });
 
   const currentSongId = currentSong?.id ?? null;
-
-  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
+  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? [] : songs), [isReady, songs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return displayedSongs;
-    return displayedSongs.filter(song =>
-      [song.title, song.artist, song.album]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    );
+    return displayedSongs.filter(song => [song.title, song.artist, song.album].filter(Boolean).join(' ').toLowerCase().includes(q));
   }, [displayedSongs, query]);
 
   const importFromDevice = async (): Promise<void> => {
@@ -120,10 +103,7 @@ const Library: React.FC = () => {
       const scan = await scanAudioAssetsFromMediaLibrary();
       const assets = scan.assets;
       if (assets.length === 0) {
-        Alert.alert(
-          'Keine Musik gefunden',
-          'Es wurden keine passenden Musikdateien gefunden. Kurze Audios, Sprachnachrichten und Systemtöne werden übersprungen.',
-        );
+        Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
 
@@ -138,7 +118,6 @@ const Library: React.FC = () => {
           if (!asset) break;
 
           const fallback = parseFilename(asset.filename);
-          const filenameTitle = asset.filename.replace(/\.[^.]+$/, '');
           const tags: Id3Tags = await parseId3FromUri(asset.uri).catch(() => ({}));
           const cachedCover = await cacheBase64Cover(asset.id, tags.cover);
           const cover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
@@ -146,7 +125,7 @@ const Library: React.FC = () => {
 
           enriched.push({
             id: asset.id,
-            title: tags.title || fallback.title || filenameTitle,
+            title: tags.title || fallback.title || asset.filename.replace(/\.[^.]+$/, ''),
             artist: tags.artist || fallback.artist || 'Unbekannt',
             album: tags.album,
             uri: asset.uri,
@@ -164,22 +143,12 @@ const Library: React.FC = () => {
               source: 'media-library',
               importedAt: Date.now(),
             },
-            audioInfo: {},
-            coverInfo: {
-              status: cover ? (cachedCover ? 'cached' : 'external') : 'none',
-              uri: cover,
-            },
+            coverInfo: { status: cover ? (cachedCover ? 'cached' : 'external') : 'none', uri: cover },
           });
         }
       });
 
       await Promise.all(workers);
-
-      if (enriched.length === 0) {
-        Alert.alert('Keine Musik gefunden', 'Auf dem Gerät wurden keine Audio-Dateien entdeckt.');
-        return;
-      }
-
       enriched.sort((a, b) => a.title.localeCompare(b.title));
       setSongs(enriched);
     } catch {
@@ -189,36 +158,64 @@ const Library: React.FC = () => {
     }
   };
 
-  const handleSongPress = useCallback((song: Song) => {
-    void playSong(song);
-  }, [playSong]);
-
-  const handleInfoSong = useCallback((song: Song) => {
-    navigation.navigate('TrackInfo', { songId: song.id });
-  }, [navigation]);
-
-  const keyExtractor = useCallback((item: Song) => item.id, []);
-
-  const getItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({
-    length: SONG_ROW_HEIGHT,
-    offset: SONG_ROW_HEIGHT * index,
-    index,
-  }), []);
+  const handleSongPress = useCallback((song: Song) => void playSong(song), [playSong]);
+  const handleInfoSong = useCallback((song: Song) => navigation.navigate('TrackInfo', { songId: song.id }), [navigation]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Song }) => {
-      const isCurrent = currentSongId === item.id;
-      return <SongCard song={item} isCurrent={isCurrent} isPlaying={isCurrent && isPlaying} onPressSong={handleSongPress} onInfoSong={handleInfoSong} />;
-    },
+    ({ item }: { item: Song }) => (
+      <SongCard
+        song={item}
+        isCurrent={currentSongId === item.id}
+        isPlaying={currentSongId === item.id && isPlaying}
+        onPressSong={handleSongPress}
+        onInfoSong={handleInfoSong}
+      />
+    ),
     [currentSongId, handleInfoSong, handleSongPress, isPlaying],
   );
 
-  return <AppBackground><Screen testID="library-screen" contentStyle={styles.container}>{/* unchanged jsx below */}
-        <View style={styles.headerRow}><View style={styles.headerContent}><Text style={styles.eyebrow}>KIWI</Text><Text style={styles.header}>Bibliothek</Text><Text style={styles.meta}>{displayedSongs.length} Titel</Text></View><Pressable style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]} onPress={importFromDevice} disabled={loading || !isReady}>{loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : songs.length > 0 ? <RefreshCcw color={theme.palette.text.onPrimary} size={18} /> : <Download color={theme.palette.text.onPrimary} size={18} />}<Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text></Pressable></View>
-        {currentSong && (<View style={styles.previewCard}><View style={styles.previewCover}>{currentSong.cover && !previewCoverFailed ? (<Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />) : (<Disc3 color={theme.palette.primary} size={36} />)}</View><Text style={styles.previewTitle} numberOfLines={1}>{currentSong.title}</Text><Text style={styles.previewMeta} numberOfLines={1}>{currentSong.artist} {isPlaying ? '· Läuft' : ''}</Text></View>)}
-        <View style={styles.searchWrap}><Search color={theme.palette.text.muted} size={16} /><TextInput value={query} onChangeText={setQuery} placeholder="Suche Titel, Artist, Album" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} /></View>
-        <FlatList data={filtered} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={12} maxToRenderPerBatch={10} updateCellsBatchingPeriod={50} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>} />
-      </Screen></AppBackground>;
+  return (
+    <AppBackground>
+      <Screen testID="library-screen" contentStyle={styles.container}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerContent}>
+            <Text style={styles.eyebrow}>KIWI</Text>
+            <Text style={styles.header}>Bibliothek</Text>
+            <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
+            onPress={importFromDevice}
+            disabled={loading || !isReady}
+          >
+            {loading ? <ActivityIndicator color={theme.palette.text.onPrimary} /> : <Download color={theme.palette.text.onPrimary} size={18} />}
+            <Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text>
+          </Pressable>
+        </View>
+
+        {currentSong && (
+          <View style={styles.previewCard}>
+            <View style={styles.previewCover}>
+              {currentSong.cover && !previewCoverFailed ? (
+                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />
+              ) : (
+                <Disc3 color={theme.palette.primary} size={36} />
+              )}
+            </View>
+            <Text style={styles.previewTitle} numberOfLines={1}>{currentSong.title}</Text>
+            <Text style={styles.previewMeta} numberOfLines={1}>{currentSong.artist} {isPlaying ? '· Läuft' : ''}</Text>
+          </View>
+        )}
+
+        <View style={styles.searchWrap}>
+          <Search color={theme.palette.text.muted} size={16} />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Suche Titel, Artist, Album" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} />
+        </View>
+
+        <FlatList data={filtered} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderItem} getItemLayout={(_, index) => ({ length: SONG_ROW_HEIGHT, offset: SONG_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>} />
+      </Screen>
+    </AppBackground>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -232,10 +229,15 @@ const styles = StyleSheet.create({
   importText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
   previewCard: { backgroundColor: theme.palette.card, borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: theme.palette.borderStrong, padding: theme.spacing.md, marginBottom: 12, alignItems: 'center' },
   previewCover: { width: 110, height: 110, borderRadius: 18, overflow: 'hidden', backgroundColor: theme.palette.surfaceElevated, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  previewCoverImage: { width: '100%', height: '100%' }, previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 }, previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
+  previewCoverImage: { width: '100%', height: '100%' },
+  previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
+  previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.borderRadius.pill, paddingHorizontal: 14, marginBottom: 10, gap: 8 },
   searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 10, fontSize: 13 },
-  listContent: { paddingBottom: 120 }, empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body }, disabled: { opacity: 0.6 }, pressed: { opacity: 0.85 },
+  listContent: { paddingBottom: 120 },
+  empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
+  disabled: { opacity: 0.6 },
+  pressed: { opacity: 0.85 },
 });
 
 export default Library;
