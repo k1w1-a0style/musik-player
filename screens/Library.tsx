@@ -12,7 +12,6 @@ import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
-import { shouldLogPerf } from '../utils/perfDebug';
 
 const SONG_ROW_HEIGHT = 84; // SongCard: 46 cover + 14*2 vertical padding + 10 marginBottom
 
@@ -41,7 +40,6 @@ const DEMO_SONGS: Song[] = [
 ];
 
 const ID3_WORKER_COUNT = 3;
-const DEV_RENDER_LOG_LIMIT = 20;
 
 const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   new Promise(resolve => {
@@ -81,21 +79,6 @@ const Library: React.FC = () => {
     );
   }, [displayedSongs, query]);
   const songsById = useMemo(() => new Map(displayedSongs.map(song => [song.id, song])), [displayedSongs]);
-
-  const renderCountRef = React.useRef(0);
-  useEffect(() => {
-    if (!shouldLogPerf()) return;
-    renderCountRef.current += 1;
-    if (renderCountRef.current <= DEV_RENDER_LOG_LIMIT) {
-      console.debug('[perf][Library] render', {
-        count: renderCountRef.current,
-        songs: songs.length,
-        filtered: filtered.length,
-        currentSongId,
-        isPlaying,
-      });
-    }
-  });
 
   const importFromDevice = async (): Promise<void> => {
     try {
