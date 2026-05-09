@@ -16,25 +16,6 @@ const MAX_SAF_DEPTH = 2;
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 const KNOWN_NON_AUDIO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'txt', 'nfo', 'cue', 'lrc', 'm3u', 'm3u8', 'pls', 'pdf', 'json']);
 
-const KNOWN_EXTENSIONLESS_NON_DIRECTORY_NAMES = new Set(['readme', 'unknownsidecar']);
-
-const shouldSuppressChildReadError = (entryUri: string): boolean => {
-  const ext = deriveExtension(entryUri);
-  if (ext && KNOWN_NON_AUDIO_EXTENSIONS.has(ext)) return true;
-  const segment = entryUri.split('?')[0].split('/').pop() ?? entryUri;
-  if (segment.startsWith('.')) return true;
-  return KNOWN_EXTENSIONLESS_NON_DIRECTORY_NAMES.has(segment.toLowerCase());
-};
-
-const isLikelyDirectoryUri = async (uri: string): Promise<boolean> => {
-  try {
-    const info = await getInfoAsync(uri);
-    return info.exists && 'isDirectory' in info && info.isDirectory === true;
-  } catch {
-    return false;
-  }
-};
-
 const EXTENSION_MIME_MAP: Record<string, string> = {
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -174,6 +155,9 @@ export const readAudioUrisFromSafDirectory = async (
   const errors: string[] = [];
   const visited = new Set<string>();
 
+  // Expo SAF child entries are URI strings without a reliable file/dir type for content://.
+  // Therefore only root read failures are surfaced to users; child read failures are ignored
+  // to avoid false-positive "Teilweise nicht lesbar" warnings for normal sidecar files.
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
     if (visited.has(uri) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
     visited.add(uri);
@@ -182,7 +166,7 @@ export const readAudioUrisFromSafDirectory = async (
     try {
       entries = await readDirectory(uri);
     } catch {
-      if (reportError || await isLikelyDirectoryUri(uri)) errors.push(uri);
+      if (reportError) errors.push(uri);
       return;
     }
 
@@ -192,8 +176,7 @@ export const readAudioUrisFromSafDirectory = async (
         files.push(entry);
         continue;
       }
-      const suppressChildError = shouldSuppressChildReadError(entry);
-      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, !suppressChildError);
+      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, false);
     }
   };
 
