@@ -15,8 +15,7 @@ const mockRemoveScanFolder = jest.fn(async (_id: string) => []);
 const mockAddScanFolder = jest.fn(async (_folder: any) => []);
 const mockRequestDirPermissions = jest.fn(async () => ({ granted: false }));
 const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
-const mockScanMedia = jest.fn(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
-const mockScanSaf = jest.fn(async (_folders: any[]) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
+const mockImportSongs = jest.fn(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -42,8 +41,7 @@ jest.mock('../../utils/storage', () => ({
 
 jest.mock('../../utils/mediaLibraryImport', () => ({
   deriveFolderNameFromUri: () => 'Music',
-  scanFromMediaLibrary: () => mockScanMedia(),
-  scanFromSafFolders: (folders: any[]) => mockScanSaf(folders),
+  importSongsFromSources: (options: any) => mockImportSongs(options),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -70,36 +68,54 @@ describe('Library', () => {
   });
 
   test('hides broken preview image after error', async () => {
-    const { UNSAFE_getByType, UNSAFE_queryByType } = render(<Library />);
+    const view = render(<Library />);
+    const { UNSAFE_getByType, UNSAFE_queryByType } = view;
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     fireEvent(UNSAFE_getByType(Image), 'error');
     expect(UNSAFE_queryByType(Image)).toBeNull();
+    view.unmount();
   });
 
   test('opens track info without starting playback', async () => {
-    const { getByTestId } = render(<Library />);
+    const view = render(<Library />);
+    const { getByTestId } = view;
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     fireEvent.press(getByTestId('info-s1'));
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();
+    view.unmount();
   });
 
   test('shows scan folders and allows remove', async () => {
     mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
     mockRemoveScanFolder.mockResolvedValueOnce([]);
-    const { getByText } = render(<Library />);
+    const view = render(<Library />);
+    const { getByText } = view;
     await waitFor(() => expect(getByText('Music')).toBeTruthy());
     fireEvent.press(getByText('Entfernen'));
     await waitFor(() => expect(mockRemoveScanFolder).toHaveBeenCalledWith('f1'));
+    view.unmount();
+  });
+
+  test('routes SAF import through scanner when folders active', async () => {
+    mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
+    const view = render(<Library />);
+    const { getByText } = view;
+    await waitFor(() => expect(getByText('Music')).toBeTruthy());
+    fireEvent.press(getByText('Importieren'));
+    await waitFor(() => expect(mockImportSongs).toHaveBeenCalledWith(expect.objectContaining({ scanFolders: expect.any(Array) })));
+    view.unmount();
   });
 
   test('uses media-library fallback when no scan folders', async () => {
     mockGetScanFolders.mockResolvedValueOnce([]);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    const { getByText } = render(<Library />);
+    const view = render(<Library />);
+    const { getByText } = view;
     fireEvent.press(getByText('Importieren'));
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
-    expect(mockScanMedia).toHaveBeenCalled();
+    expect(mockImportSongs).toHaveBeenCalled();
     alertSpy.mockRestore();
+    view.unmount();
   });
 });

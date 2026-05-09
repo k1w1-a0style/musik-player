@@ -1,4 +1,4 @@
-import { deriveMimeType } from '../Library';
+import { deriveMimeType } from '../../utils/mediaLibraryImport';
 
 describe('Library metadata helpers', () => {
   test('derives mime type from extension map', () => {

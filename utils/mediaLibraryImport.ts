@@ -115,4 +115,19 @@ export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportS
   return { songs: uniqueSongs, skipped, errors, sourceSummary: [{ source: 'saf', imported: uniqueSongs.length, skipped: skipped.length, errors: errors.length }], folderUpdates };
 };
 
+
+export interface ImportSongsOptions {
+  scanFolders?: ScanFolder[];
+  platformOs?: string;
+}
+
+export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
+  const { scanFolders = [], platformOs } = options;
+  const activeSafFolders = scanFolders.filter(folder => folder.enabled);
+  if (platformOs === 'android' && activeSafFolders.length > 0) {
+    return scanFromSafFolders(activeSafFolders);
+  }
+  return scanFromMediaLibrary();
+};
+
 export const loadAllAudioAssetsFromMediaLibrary = async (getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync, options: LoadAudioAssetsOptions = {}): Promise<MediaAsset[]> => (await scanAudioAssetsFromMediaLibrary(getAssetsPage, options)).assets;
