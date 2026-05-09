@@ -1,50 +1,73 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 
+declare const __DEV__: boolean;
+
 interface SongCardProps {
   song: Song;
-  onPress: () => void;
+  onPressSong: (song: Song) => void;
   isCurrent: boolean;
   isPlaying: boolean;
 }
 
-const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
+const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
+  const renderCountRef = useRef(0);
+
   useEffect(() => {
     setCoverFailed(false);
   }, [song.id, song.cover]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    renderCountRef.current += 1;
+    if (renderCountRef.current <= 20) {
+      console.debug('[perf] SongCard render', {
+        count: renderCountRef.current,
+        songId: song.id,
+        isCurrent,
+        isPlaying,
+      });
+    }
+  });
+
+  const handlePress = useCallback(() => {
+    onPressSong(song);
+  }, [onPressSong, song]);
+
   const showCover = !!song.cover && !coverFailed;
+
   return (
     <Pressable
-    testID={`song-card-${song.id}`}
-    accessibilityRole="button"
-    accessibilityLabel={`${song.title} von ${song.artist}`}
-    onPress={onPress}
-    style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
-  >
-    <View style={[styles.cover, isCurrent && styles.coverActive]}>
-      {showCover ? (
-        <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
-      ) : (
-        <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={20} />
-      )}
-    </View>
+      testID={`song-card-${song.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${song.title} von ${song.artist}`}
+      onPress={handlePress}
+      style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
+    >
+      <View style={[styles.cover, isCurrent && styles.coverActive]}>
+        {showCover ? (
+          <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
+        ) : (
+          <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={20} />
+        )}
+      </View>
 
-    <View style={styles.infoContainer}>
-      <Text style={[styles.title, isCurrent && styles.currentSongText]} numberOfLines={1}>
-        {song.title}
-      </Text>
-      <Text style={styles.artist} numberOfLines={1}>
-        {song.artist}
-        {song.album ? ` · ${song.album}` : ''}
-      </Text>
-    </View>
+      <View style={styles.infoContainer}>
+        <Text style={[styles.title, isCurrent && styles.currentSongText]} numberOfLines={1}>
+          {song.title}
+        </Text>
+        <Text style={styles.artist} numberOfLines={1}>
+          {song.artist}
+          {song.album ? ` · ${song.album}` : ''}
+        </Text>
+      </View>
 
-    {isCurrent && <View style={[styles.dot, isPlaying && styles.dotActive]} />}
-  </Pressable>
+      {isCurrent && <View style={[styles.dot, isPlaying && styles.dotActive]} />}
+    </Pressable>
   );
 };
 
@@ -57,7 +80,8 @@ const SongCard = memo(
     prev.song.album === next.song.album &&
     prev.song.cover === next.song.cover &&
     prev.isCurrent === next.isCurrent &&
-    prev.isPlaying === next.isPlaying,
+    prev.isPlaying === next.isPlaying &&
+    prev.onPressSong === next.onPressSong,
 );
 
 const styles = StyleSheet.create({
