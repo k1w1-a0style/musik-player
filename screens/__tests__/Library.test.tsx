@@ -16,7 +16,8 @@ const mockAddScanFolder = jest.fn(async (_folder: any) => []);
 const mockRequestDirPermissions = jest.fn(async () => ({ granted: false }));
 const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
 const mockImportSongs = jest.fn(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
-const mockScanFromMedia = jest.fn(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
+const mockMediaCandidates = jest.fn(async () => ({ assets: [], skipped: [] }));
+const mockMediaEnrich = jest.fn(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -43,7 +44,8 @@ jest.mock('../../utils/storage', () => ({
 jest.mock('../../utils/mediaLibraryImport', () => ({
   deriveFolderNameFromUri: () => 'Music',
   importSongsFromSources: (options: any) => mockImportSongs(options),
-  scanFromMediaLibrary: () => mockScanFromMedia(),
+  scanMediaLibraryCandidates: () => mockMediaCandidates(),
+  enrichMediaLibraryAssets: (...args: any[]) => (mockMediaEnrich as any)(...args),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -101,6 +103,7 @@ describe('Library', () => {
 
 
 
+
   test('uses media-library fallback when no scan folders', async () => {
     mockGetScanFolders.mockResolvedValueOnce([]);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -108,7 +111,7 @@ describe('Library', () => {
     const { getByText } = view;
     fireEvent.press(getByText('Importieren'));
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
-    expect(mockScanFromMedia).toHaveBeenCalled();
+    expect(mockMediaCandidates).toHaveBeenCalled();
     alertSpy.mockRestore();
     view.unmount();
   });

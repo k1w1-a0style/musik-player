@@ -22,7 +22,7 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { deriveFolderNameFromUri, importSongsFromSources, scanFromMediaLibrary } from '../utils/mediaLibraryImport';
+import { deriveFolderNameFromUri, importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
@@ -174,10 +174,15 @@ const Library: React.FC = () => {
           setScanFolders(await getScanFolders());
         }
         if (result.songs.length === 0) {
-          Alert.alert('Keine Musik gefunden', 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.');
+          Alert.alert(
+            result.errors.length > 0 ? 'Scan fehlgeschlagen' : 'Keine Musik gefunden',
+            result.errors.length > 0
+              ? 'In den Scan-Ordnern wurden keine importierbaren Songs gefunden. Einige Ordner/Dateien waren nicht lesbar.'
+              : 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.',
+          );
           return;
         }
-        if (result.errors.length > 0) Alert.alert('Einige Ordner/Dateien fehlerhaft', `${result.errors.length} Fehler beim Scan.`);
+        if (result.errors.length > 0) Alert.alert('Teilweise importiert', 'Einige Ordner/Dateien waren nicht lesbar. Importierbare Songs wurden trotzdem übernommen.');
         setSongs(result.songs);
         return;
       }
@@ -187,13 +192,14 @@ const Library: React.FC = () => {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
-      const mediaResult = await scanFromMediaLibrary();
-      if (mediaResult.songs.length === 0) {
+      const candidates = await scanMediaLibraryCandidates();
+      if (candidates.assets.length === 0) {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
-      const shouldImport = await confirmImport(mediaResult.songs.length, mediaResult.skipped.length);
+      const shouldImport = await confirmImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
+      const mediaResult = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
       setSongs(mediaResult.songs);
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');

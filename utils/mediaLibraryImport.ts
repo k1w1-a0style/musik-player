@@ -171,10 +171,7 @@ export const readAudioUrisFromSafDirectory = async (
         files.push(entry);
         continue;
       }
-      if (depth < MAX_SAF_DEPTH) {
-        const shouldTryAsDirectory = deriveExtension(entry) == null;
-        if (shouldTryAsDirectory) await walk(entry, depth + 1, false);
-      }
+      if (depth < MAX_SAF_DEPTH) await walk(entry, depth + 1, false);
     }
   };
 
@@ -219,8 +216,10 @@ export const scanAudioAssetsFromMediaLibrary = async (
   return { assets, skipped };
 };
 
-export const scanFromMediaLibrary = async (): Promise<ImportScanResult> => {
-  const { assets, skipped } = await scanAudioAssetsFromMediaLibrary();
+export const scanMediaLibraryCandidates = async (): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary();
+
+export const enrichMediaLibraryAssets = async (assets: MediaAsset[], skippedCount = 0): Promise<ImportScanResult> => {
+  const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
   const queue = [...assets];
@@ -252,10 +251,18 @@ export const scanFromMediaLibrary = async (): Promise<ImportScanResult> => {
 
   return {
     songs,
-    skipped: skipped.map(item => `${item.asset.id}:${item.reason}`),
+    skipped,
     errors,
-    sourceSummary: [{ source: 'media-library', imported: songs.length, skipped: skipped.length, errors: errors.length }],
+    sourceSummary: [{ source: 'media-library', imported: songs.length, skipped: skippedCount, errors: errors.length }],
   };
+};
+
+
+export const scanFromMediaLibrary = async (): Promise<ImportScanResult> => {
+  const candidates = await scanMediaLibraryCandidates();
+  const result = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
+  result.skipped = candidates.skipped.map(item => `${item.asset.id}:${item.reason}`);
+  return result;
 };
 
 export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportScanResult> => {
@@ -273,13 +280,11 @@ export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportS
 
     const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri);
 
-    if (folderErrors.length > 0) {
-      errors.push(...folderErrors);
-      folderUpdates.push({ ...folder, lastError: 'Nicht lesbar' });
-      continue;
-    }
+    if (folderErrors.length > 0) errors.push(...folderErrors);
 
-    folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
+    if (folderErrors.length > 0 && files.length === 0) folderUpdates.push({ ...folder, lastError: 'Nicht lesbar' });
+    else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
+    else folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
 
     for (const uri of files) {
       try {
