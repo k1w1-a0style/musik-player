@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Platform,
   View,
   Text,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { getInfoAsync } from 'expo-file-system/legacy';
+import { getInfoAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -24,8 +25,10 @@ import { parseId3FromUri, type Id3Tags } from '../utils/id3Parser';
 import { parseFilename } from '../utils/musicParser';
 import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
-import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
+import { deriveFolderNameFromUri, readAudioUrisFromSafDirectory, scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
+import type { ScanFolder } from '../types/ScanFolder';
+import { addScanFolder, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
@@ -121,11 +124,17 @@ const Library: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [previewCoverFailed, setPreviewCoverFailed] = useState(false);
+  const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
   const renderCountRef = useRef(0);
 
   useEffect(() => {
     setPreviewCoverFailed(false);
   }, [currentSong?.id, currentSong?.cover]);
+
+
+  useEffect(() => {
+    getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
+  }, []);
 
   useEffect(() => {
     if (!isDevPerfLoggingEnabled) return;
@@ -158,12 +167,68 @@ const Library: React.FC = () => {
     );
   }, [displayedSongs, query]);
 
+
+  const onAddScanFolder = async (): Promise<void> => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl wird aktuell nur unter Android unterstützt.');
+      return;
+    }
+    const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+    if (!permission.granted || !permission.directoryUri) {
+      Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
+      return;
+    }
+    const folder: ScanFolder = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: deriveFolderNameFromUri(permission.directoryUri),
+      uri: permission.directoryUri,
+      addedAt: Date.now(),
+      enabled: true,
+    };
+    const next = await addScanFolder(folder);
+    if (next.length === scanFolders.length) {
+      Alert.alert('Hinweis', 'Dieser Ordner ist bereits in der Scan-Liste.');
+      return;
+    }
+    setScanFolders(next);
+  };
+
   const importFromDevice = async (): Promise<void> => {
     try {
       setLoading(true);
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
+        return;
+      }
+
+      const activeFolders = scanFolders.filter(folder => folder.enabled);
+      if (activeFolders.length > 0 && Platform.OS === 'android') {
+        const safSongs: Song[] = [];
+        const failedFolders: string[] = [];
+        for (const folder of activeFolders) {
+          const { files, errors } = await readAudioUrisFromSafDirectory(folder.uri);
+          if (errors.length > 0) failedFolders.push(folder.name);
+          for (const uri of files) {
+            const fallback = parseFilename(uri.split('/').pop() ?? uri);
+            safSongs.push({
+              id: uri,
+              title: fallback.title || (uri.split('/').pop() ?? 'Unbekannt'),
+              artist: fallback.artist || 'Unbekannt',
+              uri,
+              fileInfo: { uri, source: 'saf', importedAt: Date.now() },
+              coverInfo: { status: 'none' },
+            });
+          }
+        }
+        if (failedFolders.length > 0) Alert.alert('Einige Ordner nicht lesbar', failedFolders.join(', '));
+        const uniqueSongs = Array.from(new Map(safSongs.map(song => [song.uri, song])).values());
+        if (uniqueSongs.length === 0) {
+          Alert.alert('Keine Musik gefunden', 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.');
+          return;
+        }
+        uniqueSongs.sort((a, b) => a.title.localeCompare(b.title));
+        setSongs(uniqueSongs);
         return;
       }
 
@@ -274,6 +339,25 @@ const Library: React.FC = () => {
           </Pressable>
         </View>
 
+
+        <View style={styles.scanFoldersCard}>
+          <View style={styles.scanFoldersHeader}>
+            <Text style={styles.scanFoldersTitle}>Scan-Ordner</Text>
+            <Pressable onPress={onAddScanFolder} style={styles.scanFoldersAddButton}>
+              <Text style={styles.scanFoldersAddText}>Ordner hinzufügen</Text>
+            </Pressable>
+          </View>
+          {scanFolders.length === 0 ? <Text style={styles.scanFoldersEmpty}>Keine Ordner ausgewählt</Text> : scanFolders.map(folder => (
+            <View key={folder.id} style={styles.scanFolderRow}>
+              <Pressable onPress={async () => setScanFolders(await updateScanFolder(folder.id, { enabled: !folder.enabled }))}>
+                <Text style={styles.scanFolderToggle}>{folder.enabled ? '☑' : '☐'}</Text>
+              </Pressable>
+              <Text style={styles.scanFolderName} numberOfLines={1}>{folder.name}</Text>
+              <Pressable onPress={async () => setScanFolders(await removeScanFolder(folder.id))}><Text style={styles.scanFolderRemove}>Entfernen</Text></Pressable>
+            </View>
+          ))}
+        </View>
+
         {currentSong && (
           <View style={styles.previewCard}>
             <View style={styles.previewCover}>
@@ -325,6 +409,16 @@ const styles = StyleSheet.create({
   previewCoverImage: { width: '100%', height: '100%' },
   previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
   previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
+  scanFoldersCard: { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: 12, padding: 10, marginBottom: 12 },
+  scanFoldersHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  scanFoldersTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
+  scanFoldersAddButton: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: theme.palette.surface, borderRadius: 8 },
+  scanFoldersAddText: { color: theme.palette.primary, fontFamily: theme.fonts.body, fontSize: 12 },
+  scanFoldersEmpty: { color: theme.palette.text.muted, marginTop: 6, fontFamily: theme.fonts.body },
+  scanFolderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  scanFolderToggle: { color: theme.palette.text.primary, fontSize: 16 },
+  scanFolderName: { flex: 1, color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
+  scanFolderRemove: { color: '#f87171', fontFamily: theme.fonts.body, fontSize: 12 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.borderRadius.pill, paddingHorizontal: 14, marginBottom: 10, gap: 8 },
   searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 10, fontSize: 13 },
   listContent: { paddingBottom: 120 },

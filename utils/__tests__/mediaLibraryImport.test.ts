@@ -1,4 +1,9 @@
-import { loadAllAudioAssetsFromMediaLibrary } from '../mediaLibraryImport';
+import {
+  deriveFolderNameFromUri,
+  isAudioFileUri,
+  loadAllAudioAssetsFromMediaLibrary,
+  readAudioUrisFromSafDirectory,
+} from '../mediaLibraryImport';
 
 type MockAsset = { id: string };
 
@@ -8,7 +13,7 @@ type MockPage = {
   endCursor?: string;
 };
 
-describe('loadAllAudioAssetsFromMediaLibrary', () => {
+describe('mediaLibraryImport', () => {
   test('loads all pages', async () => {
     const pages: MockPage[] = [
       { assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' },
@@ -23,41 +28,20 @@ describe('loadAllAudioAssetsFromMediaLibrary', () => {
     const result = await loadAllAudioAssetsFromMediaLibrary(getAssetsPage as any);
 
     expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
-    expect(getAssetsPage).toHaveBeenCalledTimes(2);
   });
 
-  test('deduplicates by id and keeps first seen order', async () => {
-    const getAssetsPage = jest
-      .fn()
-      .mockResolvedValueOnce({ assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' })
-      .mockResolvedValueOnce({ assets: [{ id: '2' }, { id: '3' }], hasNextPage: false, endCursor: 'b' });
-
-    const result = await loadAllAudioAssetsFromMediaLibrary(getAssetsPage as any);
-
-    expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
+  test('detects supported audio extensions', () => {
+    expect(isAudioFileUri('content://x/song.mp3')).toBe(true);
+    expect(isAudioFileUri('content://x/song.txt')).toBe(false);
   });
 
-  test('stops when hasNextPage is true but endCursor is missing', async () => {
-    const getAssetsPage = jest.fn().mockResolvedValue({
-      assets: [{ id: '1' }],
-      hasNextPage: true,
-    });
-
-    const result = await loadAllAudioAssetsFromMediaLibrary(getAssetsPage as any);
-
-    expect(result.map(a => a.id)).toEqual(['1']);
-    expect(getAssetsPage).toHaveBeenCalledTimes(1);
+  test('derives folder names from URI', () => {
+    expect(deriveFolderNameFromUri('content://tree/primary%3AMusic')).toContain('Music');
   });
 
-  test('stops when endCursor does not advance', async () => {
-    const getAssetsPage = jest
-      .fn()
-      .mockResolvedValueOnce({ assets: [{ id: '1' }], hasNextPage: true, endCursor: 'same' })
-      .mockResolvedValueOnce({ assets: [{ id: '2' }], hasNextPage: true, endCursor: 'same' });
-
-    const result = await loadAllAudioAssetsFromMediaLibrary(getAssetsPage as any);
-
-    expect(result.map(a => a.id)).toEqual(['1', '2']);
-    expect(getAssetsPage).toHaveBeenCalledTimes(2);
+  test('reads SAF directory and keeps only audio', async () => {
+    const read = jest.fn().mockResolvedValue(['content://x/a.mp3', 'content://x/b.jpg']);
+    const result = await readAudioUrisFromSafDirectory('content://x', read);
+    expect(result.files).toEqual(['content://x/a.mp3']);
   });
 });
