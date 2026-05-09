@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
@@ -13,6 +13,9 @@ interface SongCardProps {
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [song.id, song.cover]);
   const showCover = !!song.cover && !coverFailed;
   return (
     <Pressable

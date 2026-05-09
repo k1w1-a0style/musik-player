@@ -1,4 +1,4 @@
-import { parseId3Buffer } from '../id3Parser';
+import { parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -111,5 +111,25 @@ describe('parseId3Buffer (v2.3)', () => {
     const buf = buildId3v23([buildApicFrame('invalid/mime', pngMagic)]);
     const tags = parseId3Buffer(buf);
     expect(tags.cover?.startsWith('data:image/png;base64,')).toBe(true);
+  });
+});
+
+describe('parseMp4CoverFromBuffer', () => {
+  const atom = (type: string, payload: number[]): number[] => {
+    const size = payload.length + 8;
+    return [...u32be(size), ...enc(type), ...payload];
+  };
+
+  test('parses covr data atom in mp4 ilst tree', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const covr = atom('covr', atom('data', dataPayload));
+    const ilst = atom('ilst', covr);
+    const meta = atom('meta', [0, 0, 0, 0, ...ilst]);
+    const udta = atom('udta', meta);
+    const moov = atom('moov', udta);
+
+    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 });

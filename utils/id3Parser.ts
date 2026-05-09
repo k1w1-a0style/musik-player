@@ -40,6 +40,9 @@ const decodeSize = (bytes: Uint8Array, off: number): number => {
   );
 };
 
+const readU32 = (bytes: Uint8Array, off: number): number =>
+  ((bytes[off] << 24) >>> 0) + (bytes[off + 1] << 16) + (bytes[off + 2] << 8) + bytes[off + 3];
+
 const readLatin1 = (bytes: Uint8Array, start: number, end: number): string => {
   let s = '';
   for (let i = start; i < end; i += 1) {
@@ -287,6 +290,47 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   return tags;
 };
 
+const MP4_CONTAINER_ATOMS = new Set(['moov', 'udta', 'meta', 'ilst', 'trak', 'mdia', 'minf', 'stbl']);
+
+const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) break;
+    const type = readLatin1(bytes, p + 4, p + 8);
+    if (type === 'data' && size >= 16) {
+      const payloadStart = p + 16;
+      const payloadEnd = p + size;
+      return buildCoverDataUri(bytes.subarray(payloadStart, payloadEnd));
+    }
+    p += size;
+  }
+  return undefined;
+};
+
+const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) break;
+    const type = readLatin1(bytes, p + 4, p + 8);
+    const headerSize = type === 'meta' ? 12 : 8;
+    const bodyStart = Math.min(p + headerSize, p + size);
+    const bodyEnd = p + size;
+    if (type === 'covr') {
+      const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
+      if (cover) return cover;
+    } else if (MP4_CONTAINER_ATOMS.has(type)) {
+      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd);
+      if (cover) return cover;
+    }
+    p += size;
+  }
+  return undefined;
+};
+
+export const parseMp4CoverFromBuffer = (bytes: Uint8Array): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length);
+
 const base64ToBytes = (b64: string): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const lookup = new Int16Array(256).fill(-1);
@@ -322,7 +366,11 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
         encoding: encodingBase64,
         length: 1024 * 1024,
       });
-      return parseId3Buffer(base64ToBytes(b64));
+      const bytes = base64ToBytes(b64);
+      const id3 = parseId3Buffer(bytes);
+      if (id3.cover) return id3;
+      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
     } catch {
       // fallback to File API when legacy path is unavailable
     }
@@ -331,7 +379,11 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     if (FileCtor) {
       const file = new FileCtor(uri);
       const bytes = await file.bytes();
-      return parseId3Buffer(bytes.subarray(0, 1024 * 1024));
+      const chunk = bytes.subarray(0, 1024 * 1024);
+      const id3 = parseId3Buffer(chunk);
+      if (id3.cover) return id3;
+      const mp4Cover = parseMp4CoverFromBuffer(chunk);
+      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
     }
     return {};
   } catch {
