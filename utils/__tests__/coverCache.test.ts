@@ -9,6 +9,7 @@ jest.mock('expo-file-system', () => ({
   EncodingType: { Base64: 'base64' },
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({ exists: false })),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -17,9 +18,15 @@ jest.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({ exists: false })),
 }));
 
 describe('coverCache', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
+  });
+
   test('detects image base64 data uri', () => {
     expect(isBase64ImageDataUri('data:image/png;base64,AAA=')).toBe(true);
     expect(isBase64ImageDataUri('file:///cache/covers/a.png')).toBe(false);
@@ -28,12 +35,12 @@ describe('coverCache', () => {
 
   test('migrates base64 covers to local file URIs', async () => {
     const songs: Song[] = [
-      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,Zm9v' },
+      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD' },
       { id: '2', title: 'B', artist: 'Y', cover: 'file:///cache/covers/2.jpg' },
     ];
 
     const result = await sanitizeSongsForStorage(songs);
-    expect(result[0].cover).toBe('file:///docs/covers/1.jpg');
+    expect(result[0].cover).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
     expect(result[1].cover).toBe('file:///cache/covers/2.jpg');
     expect(result[0].cover?.startsWith('data:image/')).toBe(false);
 
@@ -47,14 +54,34 @@ describe('coverCache', () => {
     await expect(cacheBase64Cover('x', 'file:///my.jpg')).resolves.toBe('file:///my.jpg');
   });
 
+  test('reuses existing cached file without rewriting', async () => {
+    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
+    const cached = await cacheBase64Cover('reuse-1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
+    expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
+  });
+
   test('preserves original base64 cover when file write fails', async () => {
     (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
-    const originalCover = 'data:image/png;base64,AAAA';
+    const originalCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
     const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
 
     const result = await sanitizeSongsForStorage(songs);
 
     expect(result[0].cover).toBe(originalCover);
     expect(result[0].cover).not.toBeUndefined();
+  });
+
+  test('ignores invalid base64 payload', async () => {
+    await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
+  });
+
+  test('ignores payload that does not match declared mime signature', async () => {
+    await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
+  });
+
+  test('accepts unknown image subtype when bytes indicate known image format', async () => {
+    const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
   });
 });

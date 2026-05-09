@@ -19,6 +19,10 @@ export interface Id3Tags {
   /** data:image/... base64 data URI */
   cover?: string;
 }
+const HEAD_READ_LIMIT = 1024 * 1024;
+const TAIL_READ_LIMIT = 1024 * 1024;
+
+type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number => {
   return (
@@ -37,6 +41,9 @@ const decodeSize = (bytes: Uint8Array, off: number): number => {
     bytes[off + 3]
   );
 };
+
+const readU32 = (bytes: Uint8Array, off: number): number =>
+  ((bytes[off] << 24) >>> 0) + (bytes[off + 1] << 16) + (bytes[off + 2] << 8) + bytes[off + 3];
 
 const readLatin1 = (bytes: Uint8Array, start: number, end: number): string => {
   let s = '';
@@ -133,13 +140,53 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   return out;
 };
 
+const detectMimeFromMagicBytes = (bytes: Uint8Array): ImageMime | undefined => {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (
+    bytes.length >= 8
+    && bytes[0] === 0x89
+    && bytes[1] === 0x50
+    && bytes[2] === 0x4e
+    && bytes[3] === 0x47
+    && bytes[4] === 0x0d
+    && bytes[5] === 0x0a
+    && bytes[6] === 0x1a
+    && bytes[7] === 0x0a
+  ) return 'image/png';
+  if (
+    bytes.length >= 12
+    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return 'image/webp';
+  return undefined;
+};
+
+const normalizeMime = (value?: string): ImageMime | undefined => {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'image/jpeg';
+  if (normalized.includes('png')) return 'image/png';
+  if (normalized.includes('webp')) return 'image/webp';
+  return undefined;
+};
+
+const buildCoverDataUri = (imageBytes: Uint8Array, mimeHint?: string): string | undefined => {
+  if (imageBytes.length === 0) return undefined;
+  const hintMime = normalizeMime(mimeHint);
+  const magicMime = detectMimeFromMagicBytes(imageBytes);
+  const mime = magicMime ?? hintMime;
+  if (hintMime && !magicMime) return undefined;
+  if (!mime) return undefined;
+  return `data:${mime};base64,${bytesToBase64(imageBytes)}`;
+};
+
 const decodeAPIC = (bytes: Uint8Array, start: number, end: number): string | undefined => {
   const enc = bytes[start];
   let p = start + 1;
   // MIME type (null-terminated latin1)
   let mimeEnd = p;
   while (mimeEnd < end && bytes[mimeEnd] !== 0) mimeEnd += 1;
-  const mime = readLatin1(bytes, p, mimeEnd) || 'image/jpeg';
+  const mime = readLatin1(bytes, p, mimeEnd);
   p = mimeEnd + 1;
   // picture type byte
   p += 1;
@@ -153,8 +200,23 @@ const decodeAPIC = (bytes: Uint8Array, start: number, end: number): string | und
   }
   if (p >= end) return undefined;
   const imageBytes = bytes.subarray(p, end);
-  if (imageBytes.length === 0) return undefined;
-  return `data:${mime};base64,${bytesToBase64(imageBytes)}`;
+  return buildCoverDataUri(imageBytes, mime);
+};
+
+const decodePIC = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  if (start + 6 >= end) return undefined;
+  const enc = bytes[start];
+  const format = readLatin1(bytes, start + 1, start + 4);
+  let p = start + 5; // + picture type
+  if (enc === 0x01 || enc === 0x02) {
+    while (p + 1 < end && !(bytes[p] === 0 && bytes[p + 1] === 0)) p += 2;
+    p += 2;
+  } else {
+    while (p < end && bytes[p] !== 0) p += 1;
+    p += 1;
+  }
+  if (p >= end) return undefined;
+  return buildCoverDataUri(bytes.subarray(p, end), format ? `image/${format}` : undefined);
 };
 
 /**
@@ -176,6 +238,20 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   const end = Math.min(bytes.length, 10 + totalSize);
 
   let p = 10;
+  if (majorVersion === 2) {
+    while (p + 6 <= end) {
+      const id = readLatin1(bytes, p, p + 3);
+      if (!id || id.charCodeAt(0) === 0) break;
+      const frameSize = (bytes[p + 3] << 16) | (bytes[p + 4] << 8) | bytes[p + 5];
+      if (frameSize <= 0 || p + 6 + frameSize > end) break;
+      if (id === 'PIC' && !tags.cover) {
+        const cover = decodePIC(bytes, p + 6, p + 6 + frameSize);
+        if (cover) tags.cover = cover;
+      }
+      p += 6 + frameSize;
+    }
+    return tags;
+  }
   while (p + 10 < end) {
     const id = readLatin1(bytes, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;
@@ -219,6 +295,57 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   return tags;
 };
 
+const MP4_CONTAINER_ATOMS = new Set(['moov', 'udta', 'meta', 'ilst', 'trak', 'mdia', 'minf', 'stbl']);
+const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data']);
+
+const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) break;
+    const type = readLatin1(bytes, p + 4, p + 8);
+    if (type === 'data' && size >= 16) {
+      const payloadStart = p + 16;
+      const payloadEnd = p + size;
+      return buildCoverDataUri(bytes.subarray(payloadStart, payloadEnd));
+    }
+    p += size;
+  }
+  return undefined;
+};
+
+const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) {
+      p += 1;
+      continue;
+    }
+    const type = readLatin1(bytes, p + 4, p + 8);
+    const isContainer = MP4_CONTAINER_ATOMS.has(type);
+    const isRelevantLeaf = MP4_RELEVANT_LEAF_ATOMS.has(type);
+    if (!isContainer && !isRelevantLeaf) {
+      p += 1;
+      continue;
+    }
+    const headerSize = type === 'meta' ? 12 : 8;
+    const bodyStart = Math.min(p + headerSize, p + size);
+    const bodyEnd = p + size;
+    if (type === 'covr') {
+      const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
+      if (cover) return cover;
+    } else if (MP4_CONTAINER_ATOMS.has(type)) {
+      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd);
+      if (cover) return cover;
+    }
+    p += size;
+  }
+  return undefined;
+};
+
+export const parseMp4CoverFromBuffer = (bytes: Uint8Array): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length);
+
 const base64ToBytes = (b64: string): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const lookup = new Int16Array(256).fill(-1);
@@ -244,26 +371,62 @@ const base64ToBytes = (b64: string): Uint8Array => {
 
 /**
  * Read & parse ID3 tags from a file URI (e.g. from expo-media-library or expo-document-picker).
- * Reads the first 1MB which is sufficient for almost all ID3v2 headers including embedded art.
+ * Reads a bounded head chunk (and tail chunk for MP4-like files) to keep parsing efficient.
  */
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
+    const normalizedUri = uri.split('?')[0] ?? uri;
+    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(normalizedUri);
+    const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
+      const id3 = parseId3Buffer(bytes);
+      if (id3.cover) return id3;
+      if (!looksLikeMp4) return id3;
+      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+    };
     try {
-      const b64 = await readAsStringAsync(uri, {
+      const b64 = await readAsStringAsync(normalizedUri, {
         encoding: encodingBase64,
-        length: 1024 * 1024,
+        length: HEAD_READ_LIMIT,
       });
-      return parseId3Buffer(base64ToBytes(b64));
+      const bytes = base64ToBytes(b64);
+      const id3 = parseHeadBytes(bytes);
+      if (id3.cover || !looksLikeMp4) return id3;
+      const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
+      if (!getInfoAsync) return id3;
+      try {
+        const info = await getInfoAsync(normalizedUri);
+        const size = info.size ?? 0;
+        if (size <= HEAD_READ_LIMIT) return id3;
+        const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
+        const tailStart = Math.max(0, size - tailReadLength);
+        const tailB64 = await readAsStringAsync(normalizedUri, {
+          encoding: encodingBase64,
+          length: tailReadLength,
+          position: tailStart,
+        });
+        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
+        if (tailCover) return { ...id3, cover: tailCover };
+      } catch {
+        return id3;
+      }
+      return id3;
     } catch {
       // fallback to File API when legacy path is unavailable
     }
-    // New File API
+    const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
     const FileCtor = (FileSystem as unknown as { File?: new (u: string) => { bytes: () => Promise<Uint8Array> } }).File;
-    if (FileCtor) {
-      const file = new FileCtor(uri);
+    if (!FileCtor || !getInfoAsync) return {};
+    try {
+      const info = await getInfoAsync(normalizedUri);
+      const size = info.size ?? 0;
+      if (size <= 0 || size > HEAD_READ_LIMIT) return {};
+      const file = new FileCtor(normalizedUri);
       const bytes = await file.bytes();
-      return parseId3Buffer(bytes.subarray(0, 1024 * 1024));
+      return parseHeadBytes(bytes.subarray(0, HEAD_READ_LIMIT));
+    } catch {
+      return {};
     }
     return {};
   } catch {

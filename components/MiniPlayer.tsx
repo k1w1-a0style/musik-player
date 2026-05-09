@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,15 +8,20 @@ import { theme } from '../theme';
 const MiniPlayer: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next } = useMusicContext();
   const insets = useSafeAreaInsets();
+  const [coverFailed, setCoverFailed] = useState(false);
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [currentSong?.id, currentSong?.cover]);
 
   if (!currentSong) return null;
+  const showCover = !!currentSong.cover && !coverFailed;
 
   return (
     <View style={[styles.wrap, { bottom: 72 + insets.bottom }]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open">
         <View style={styles.thumb}>
-          {currentSong.cover ? (
-            <Image source={{ uri: currentSong.cover }} style={styles.thumbImage} />
+          {showCover ? (
+            <Image source={{ uri: currentSong.cover }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
           ) : (
             <Disc3 color={theme.palette.text.muted} size={18} />
           )}

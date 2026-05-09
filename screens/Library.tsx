@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -9,7 +9,7 @@ import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags } from '../utils/id3Parser';
 import { parseFilename } from '../utils/musicParser';
-import { cacheBase64Cover } from '../utils/coverCache';
+import { cacheBase64Cover, isBase64ImageDataUri } from '../utils/coverCache';
 import { theme } from '../theme';
 import { scanAudioAssetsFromMediaLibrary } from '../utils/mediaLibraryImport';
 
@@ -58,6 +58,10 @@ const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const [previewCoverFailed, setPreviewCoverFailed] = useState(false);
+  useEffect(() => {
+    setPreviewCoverFailed(false);
+  }, [currentSong?.id, currentSong?.cover]);
 
   const currentSongId = currentSong?.id ?? null;
 
@@ -107,7 +111,8 @@ const Library: React.FC = () => {
           const fallback = parseFilename(asset.filename);
           const filenameTitle = asset.filename.replace(/\.[^.]+$/, '');
           const tags: Id3Tags = await parseId3FromUri(asset.uri).catch(() => ({}));
-          const cover = (await cacheBase64Cover(asset.id, tags.cover)) ?? tags.cover;
+          const cachedCover = await cacheBase64Cover(asset.id, tags.cover);
+          const cover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
 
           enriched.push({
             id: asset.id,
@@ -194,8 +199,8 @@ const Library: React.FC = () => {
         {currentSong && (
           <View style={styles.previewCard}>
             <View style={styles.previewCover}>
-              {currentSong.cover ? (
-                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} />
+              {currentSong.cover && !previewCoverFailed ? (
+                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />
               ) : (
                 <Disc3 color={theme.palette.primary} size={36} />
               )}

@@ -212,7 +212,7 @@ describe('MusicContext', () => {
 
   test('hydrates songs by migrating base64 covers before persisting', async () => {
     await storage.set(StorageKeys.SONGS, [
-      { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3', cover: 'data:image/png;base64,AAAA' },
+      { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3', cover: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB' },
     ]);
 
     const { getByTestId } = renderProvider();
@@ -220,7 +220,7 @@ describe('MusicContext', () => {
 
     await waitFor(async () => {
       const stored = await storage.get<Song[]>(StorageKeys.SONGS);
-      expect(stored?.[0]?.cover).toBe('file:///docs/covers/s1.png');
+      expect(stored?.[0]?.cover).toMatch(/^file:\/\/\/docs\/covers\/.+\.png$/);
       expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
     });
   });

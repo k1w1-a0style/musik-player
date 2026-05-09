@@ -1,4 +1,4 @@
-import { parseId3Buffer } from '../id3Parser';
+import { parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -41,6 +41,11 @@ const buildId3v23 = (frames: number[][]): Uint8Array => {
     ...synchsafe(totalSize),
   ];
   return new Uint8Array([...header, ...flat]);
+};
+
+const buildApicFrame = (mime: string, imageBytes: number[]): number[] => {
+  const body = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...imageBytes];
+  return [...enc('APIC'), ...u32be(body.length), 0, 0, ...body];
 };
 
 describe('parseId3Buffer (v2.3)', () => {
@@ -92,5 +97,67 @@ describe('parseId3Buffer (v2.3)', () => {
     const buf = new Uint8Array(20);
     buf[0] = 0x49; buf[1] = 0x44; buf[2] = 0x33; buf[3] = 3;
     expect(() => parseId3Buffer(buf)).not.toThrow();
+  });
+
+  test('parses APIC cover as data URI', () => {
+    const jpegMagic = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+    const buf = buildId3v23([buildApicFrame('image/jpeg', jpegMagic)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('falls back to magic bytes when APIC mime is invalid', () => {
+    const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const buf = buildId3v23([buildApicFrame('invalid/mime', pngMagic)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover?.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
+  test('rejects APIC cover when mime is image/jpeg but bytes are invalid', () => {
+    const badBytes = [0x00, 0x01, 0x02, 0x03];
+    const buf = buildId3v23([buildApicFrame('image/jpeg', badBytes)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover).toBeUndefined();
+  });
+});
+
+describe('parseMp4CoverFromBuffer', () => {
+  const atom = (type: string, payload: number[]): number[] => {
+    const size = payload.length + 8;
+    return [...u32be(size), ...enc(type), ...payload];
+  };
+
+  test('parses covr data atom in mp4 ilst tree', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const covr = atom('covr', atom('data', dataPayload));
+    const ilst = atom('ilst', covr);
+    const meta = atom('meta', [0, 0, 0, 0, ...ilst]);
+    const udta = atom('udta', meta);
+    const moov = atom('moov', udta);
+
+    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('parses covr even when buffer starts misaligned before moov', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const bytes = new Uint8Array(new Array(3005).fill(0x7a).concat(moov));
+    const cover = parseMp4CoverFromBuffer(bytes);
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('does not skip valid moov after unknown plausible atom header', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const fakeSize = [0x00, 0x00, 0x00, 0x20];
+    const fakeType = [0x7a, 0x7a, 0x7a, 0x7a];
+    const fakePayload = new Array(24).fill(0x00);
+    const bytes = new Uint8Array([...fakeSize, ...fakeType, ...fakePayload, ...moov]);
+    const cover = parseMp4CoverFromBuffer(bytes);
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 });
