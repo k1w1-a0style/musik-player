@@ -105,9 +105,23 @@ interface MiniPlayerMusicContextValue {
   next: () => Promise<void>;
 }
 
+interface NowPlayingMusicContextValue {
+  playbackQueue: Song[];
+  currentSong: Song | null;
+  seekTo: (millis: number) => Promise<void>;
+  isPlaying: boolean;
+  volume: number;
+  setVolume: (v: number) => Promise<void>;
+  palette: PaletteResult | null;
+  fftBins: number[];
+  visualizerRunning: boolean;
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+}
+
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
 const MiniPlayerMusicContext = createContext<MiniPlayerMusicContextValue | null>(null);
+const NowPlayingMusicContext = createContext<NowPlayingMusicContextValue | null>(null);
 
 const VISUALIZER_UPDATE_INTERVAL_MS = 120;
 
@@ -692,11 +706,27 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     [currentSong, isPlaying, togglePlayPause, next],
   );
 
+  const nowPlayingValue = useMemo<NowPlayingMusicContextValue>(
+    () => ({
+      playbackQueue,
+      currentSong,
+      seekTo,
+      isPlaying,
+      volume,
+      setVolume,
+      palette,
+      fftBins,
+      visualizerRunning,
+      playSong,
+    }),
+    [playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong],
+  );
+
   return (
     <MusicContext.Provider value={value}>
       <LibraryMusicContext.Provider value={libraryValue}>
         <MiniPlayerMusicContext.Provider value={miniPlayerValue}>
-          {children}
+          <NowPlayingMusicContext.Provider value={nowPlayingValue}>{children}</NowPlayingMusicContext.Provider>
         </MiniPlayerMusicContext.Provider>
       </LibraryMusicContext.Provider>
     </MusicContext.Provider>
@@ -720,5 +750,11 @@ export const useLibraryMusicContext = (): LibraryMusicContextValue => {
 export const useMiniPlayerMusicContext = (): MiniPlayerMusicContextValue => {
   const ctx = useContext(MiniPlayerMusicContext);
   if (!ctx) throw new Error('useMiniPlayerMusicContext must be used within a MusicProvider');
+  return ctx;
+};
+
+export const useNowPlayingMusicContext = (): NowPlayingMusicContextValue => {
+  const ctx = useContext(NowPlayingMusicContext);
+  if (!ctx) throw new Error('useNowPlayingMusicContext must be used within a MusicProvider');
   return ctx;
 };

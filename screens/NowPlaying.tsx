@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useMusicContext } from '../contexts/MusicContext';
+import { useNowPlayingMusicContext } from '../contexts/MusicContext';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
@@ -20,7 +20,7 @@ const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useMusicContext();
+  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
 
   const queue: Song[] = useMemo(

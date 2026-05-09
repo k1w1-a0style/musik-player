@@ -8,7 +8,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useMusicContext: () => ({
+  useNowPlayingMusicContext: () => ({
     playbackQueue: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
     currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
     seekTo: jest.fn(async () => undefined),
