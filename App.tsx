@@ -27,7 +27,7 @@ import Id3TagEditor from './screens/Id3TagEditor';
 import TrackInfo from './screens/TrackInfo';
 import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
-import { APP_STACK_ROUTES } from './types/routes';
+import { APP_STACK_ROUTES, APP_TAB_ROUTES } from './types/routes';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -70,11 +70,11 @@ const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying })
           tabBarInactiveTintColor: theme.palette.text.muted,
         }}
       >
-        <Tab.Screen name="Bibliothek" component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
-        <Tab.Screen name="Playlists" component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
-        <Tab.Screen name="Equalizer" component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
-        <Tab.Screen name="Cover" component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
-        <Tab.Screen name="ID3" component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.LIBRARY} component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.PLAYLISTS} component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
+        <Tab.Screen name={APP_TAB_ROUTES.ID3} component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
       </Tab.Navigator>
       <MiniPlayer onOpen={openNowPlaying} />
     </View>
