@@ -31,6 +31,7 @@ export const readId3Header = (buffer: Uint8Array): ParsedId3Header | undefined =
   if (!hasId3Header(buffer)) return undefined;
   if (buffer.length < 10) throw new TagWriterError('InvalidTagData', 'Truncated ID3 header.');
   const major = buffer[3];
+  if (major === 2) throw new TagWriterError('WriteNotImplemented', 'Existing ID3v2.2 tags are not supported yet.');
   if (major !== 2 && major !== 3 && major !== 4) throw new TagWriterError('InvalidTagData', `Unsupported ID3 major version: ${major}`);
   const flags = buffer[5];
   const size = decodeSynchsafe(buffer.subarray(6, 10));
@@ -89,23 +90,33 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   return frames;
 };
 
-const semanticDrop = new Set(['TIT2', 'TPE1', 'TALB', 'TYER', 'TCON', 'TRCK', 'TPOS', 'COMM', 'APIC', 'TDRC']);
+const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key);
 
 export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFrame[] = []): Uint8Array => {
   const tags = normalizeEditableTags(draft.tags);
-  const kept = existing.filter((f) => !semanticDrop.has(f.id));
+  const touchedFrameIds = new Set<string>();
+  if (hasDraftTag(draft, 'title')) touchedFrameIds.add('TIT2');
+  if (hasDraftTag(draft, 'artist')) touchedFrameIds.add('TPE1');
+  if (hasDraftTag(draft, 'album')) touchedFrameIds.add('TALB');
+  if (hasDraftTag(draft, 'year')) { touchedFrameIds.add('TYER'); touchedFrameIds.add('TDRC'); }
+  if (hasDraftTag(draft, 'genre')) touchedFrameIds.add('TCON');
+  if (hasDraftTag(draft, 'trackNumber')) touchedFrameIds.add('TRCK');
+  if (hasDraftTag(draft, 'discNumber')) touchedFrameIds.add('TPOS');
+  if (hasDraftTag(draft, 'comment')) touchedFrameIds.add('COMM');
+  if (draft.removeCover || draft.cover) touchedFrameIds.add('APIC');
+
+  const kept = existing.filter((f) => !touchedFrameIds.has(f.id));
   const replacement: Uint8Array[] = [];
-  if (tags.title) replacement.push(textFrame('TIT2', tags.title));
-  if (tags.artist) replacement.push(textFrame('TPE1', tags.artist));
-  if (tags.album) replacement.push(textFrame('TALB', tags.album));
-  if (tags.year) replacement.push(textFrame('TYER', tags.year));
-  if (tags.genre) replacement.push(textFrame('TCON', tags.genre));
-  if (tags.trackNumber) replacement.push(textFrame('TRCK', tags.trackNumber));
-  if (tags.discNumber) replacement.push(textFrame('TPOS', tags.discNumber));
-  if (tags.comment) replacement.push(commFrame(tags.comment));
+  if (hasDraftTag(draft, 'title') && tags.title) replacement.push(textFrame('TIT2', tags.title));
+  if (hasDraftTag(draft, 'artist') && tags.artist) replacement.push(textFrame('TPE1', tags.artist));
+  if (hasDraftTag(draft, 'album') && tags.album) replacement.push(textFrame('TALB', tags.album));
+  if (hasDraftTag(draft, 'year') && tags.year) replacement.push(textFrame('TYER', tags.year));
+  if (hasDraftTag(draft, 'genre') && tags.genre) replacement.push(textFrame('TCON', tags.genre));
+  if (hasDraftTag(draft, 'trackNumber') && tags.trackNumber) replacement.push(textFrame('TRCK', tags.trackNumber));
+  if (hasDraftTag(draft, 'discNumber') && tags.discNumber) replacement.push(textFrame('TPOS', tags.discNumber));
+  if (hasDraftTag(draft, 'comment') && tags.comment) replacement.push(commFrame(tags.comment));
   if (!draft.removeCover && draft.cover) replacement.push(apicFrame(draft.cover.mimeType, draft.cover.data));
-  if (!draft.removeCover && !draft.cover) kept.filter((f) => f.id === 'APIC').forEach((f) => replacement.push(frame(f.id, f.body, f.flags)));
-  const keptFrames = kept.filter((f) => f.id !== 'APIC').map((f) => frame(f.id, f.body, f.flags));
+  const keptFrames = kept.map((f) => frame(f.id, f.body, f.flags));
   const payloadLen = [...keptFrames, ...replacement].reduce((n, f) => n + f.length, 0);
   const out = new Uint8Array(10 + payloadLen); out.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0); out.set(encodeSynchsafe(payloadLen), 6);
   let o = 10; for (const fr of [...keptFrames, ...replacement]) { out.set(fr, o); o += fr.length; }

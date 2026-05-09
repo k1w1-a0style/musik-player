@@ -7,6 +7,18 @@ const u8 = (...x: number[]) => new Uint8Array(x);
 const text = (s: string) => new TextEncoder().encode(s);
 const mkFrame = (id: string, body: Uint8Array) => { const f = new Uint8Array(10 + body.length); f.set(text(id),0); f.set([0,0,0,body.length],4); f.set(body,10); return f; };
 const mkTag = (frames: Uint8Array[], version = 3, flags = 0, footer = false) => { const payload = frames.reduce((n,f)=>n+f.length,0); const h = new Uint8Array(10); h.set([0x49,0x44,0x33,version,0,flags],0); h.set(encodeSynchsafe(payload),6); const b = new Uint8Array(10+payload+(footer?10:0)); b.set(h,0); let o=10; for(const f of frames){b.set(f,o);o+=f.length;} return b; };
+const frameIds = (buffer: Uint8Array): string[] => {
+  const ids: string[] = [];
+  const size = decodeSynchsafe(buffer.slice(6, 10));
+  let p = 10;
+  const end = 10 + size;
+  while (p + 10 <= end && buffer[p] !== 0) {
+    ids.push(String.fromCharCode(buffer[p], buffer[p + 1], buffer[p + 2], buffer[p + 3]));
+    const frameSize = (buffer[p + 4] << 24) | (buffer[p + 5] << 16) | (buffer[p + 6] << 8) | buffer[p + 7];
+    p += 10 + frameSize;
+  }
+  return ids;
+};
 
 describe('tagWriter mp3 id3v2.3', () => {
   test('syncsafe roundtrip', () => {
@@ -41,6 +53,51 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(s.includes('TDRC')).toBe(false);
   });
 
+  test('partial title edit preserves untouched artist/album', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42)), mkFrame('TALB', u8(0x03, 0x43))]), 7, 7]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'New Title' } });
+    const ids = frameIds(out);
+    expect(ids).toContain('TIT2');
+    expect(ids).toContain('TPE1');
+    expect(ids).toContain('TALB');
+  });
+
+  test('partial genre edit preserves year/track/disc', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TYER', u8(0x03, 0x32)), mkFrame('TCON', u8(0x03, 0x31)), mkFrame('TRCK', u8(0x03, 0x31)), mkFrame('TPOS', u8(0x03, 0x31))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { genre: 'Techno' } });
+    const ids = frameIds(out);
+    expect(ids).toEqual(expect.arrayContaining(['TYER', 'TCON', 'TRCK', 'TPOS']));
+  });
+
+  test('without year field existing TYER and TDRC are preserved', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TYER', u8(0x03, 0x32)), mkFrame('TDRC', u8(0x03, 0x32))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } });
+    expect(frameIds(out)).toEqual(expect.arrayContaining(['TYER', 'TDRC']));
+  });
+
+  test('comment touched empty removes COMM, untouched preserves COMM', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('COMM', u8(0x01, 0x65, 0x6e, 0x67, 0x00, 0x00, 0x00, 0x00)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    const unchanged = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'A' } });
+    expect(frameIds(unchanged)).toContain('COMM');
+    const removed = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { comment: '   ' } });
+    expect(frameIds(removed)).not.toContain('COMM');
+  });
+
+  test('title touched empty removes TIT2 but keeps others', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: '   ' } });
+    expect(frameIds(out)).not.toContain('TIT2');
+    expect(frameIds(out)).toContain('TPE1');
+  });
+
+  test('cover remove/replace/preserve behaviors', () => {
+    const apic = mkFrame('APIC', u8(0x00, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x2f, 0x6a, 0x70, 0x65, 0x67, 0x00, 0x03, 0x00, 0xff, 0xd8, 0xff));
+    const src = new Uint8Array([...mkTag([apic, mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    expect(frameIds(applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, removeCover: true }))).not.toContain('APIC');
+    expect(frameIds(applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, cover: { mimeType: 'image/png', data: u8(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) } }))).toContain('APIC');
+    expect(frameIds(applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } }))).toContain('APIC');
+  });
+
   test('removeCover ignores invalid payload', () => {
     const out = applyTagEditToBuffer(u8(1,2), 'mp3', { songId:'1', tags:{}, removeCover:true, cover:{mimeType:'image/jpeg', data:u8(0)} });
     expect(out[0]).toBe(0x49);
@@ -57,6 +114,11 @@ describe('tagWriter mp3 id3v2.3', () => {
     const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { artist: 'X' } });
     expect(Array.from(out.slice(out.length - 3))).toEqual([0xaa, 0xbb, 0xcc]);
+  });
+
+  test('existing id3v2.2 is rejected', () => {
+    const src = new Uint8Array([0x49, 0x44, 0x33, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xaa, 0xbb]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/ID3v2.2/i);
   });
 
   test('container policy', () => {
