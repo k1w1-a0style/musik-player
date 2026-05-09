@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Pressable, Text } from 'react-native';
+import { Alert, Image, Platform, Pressable, Text } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Library from '../Library';
 import { APP_STACK_ROUTES } from '../../types/routes';
@@ -118,6 +118,24 @@ describe('Library', () => {
     expect(mockMediaEnrich).not.toHaveBeenCalled();
     expect(mockSetSongs).not.toHaveBeenCalled();
     alertSpy.mockRestore();
+    view.unmount();
+  });
+
+
+  test('on android SAF errors with songs imports and shows one partial warning', async () => {
+    const previousOs = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android' });
+    mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
+    mockImportSongs.mockResolvedValueOnce({ songs: [{ id: 'x', title: 'A', artist: 'B' }], skipped: [], errors: ['content://music/blocked'], sourceSummary: [], folderUpdates: [] } as any);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const view = render(<Library />);
+    const { getByText } = view;
+    await waitFor(() => expect(getByText('Music')).toBeTruthy());
+    fireEvent.press(getByText('Importieren'));
+    await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
+    expect(alertSpy).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));
+    alertSpy.mockRestore();
+    Object.defineProperty(Platform, 'OS', { value: previousOs });
     view.unmount();
   });
 
