@@ -173,24 +173,35 @@ const Library: React.FC = () => {
       Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl wird aktuell nur unter Android unterstützt.');
       return;
     }
-    const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-    if (!permission.granted || !permission.directoryUri) {
-      Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
-      return;
+
+    try {
+      const androidVersion = typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
+      if (Number.isFinite(androidVersion) && androidVersion < 30) {
+        Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl ist erst ab Android 11 verfügbar. Nutze stattdessen den normalen Import.');
+        return;
+      }
+
+      const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permission.granted || !permission.directoryUri) {
+        Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
+        return;
+      }
+      const folder: ScanFolder = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: deriveFolderNameFromUri(permission.directoryUri),
+        uri: permission.directoryUri,
+        addedAt: Date.now(),
+        enabled: true,
+      };
+      const next = await addScanFolder(folder);
+      if (next.length === scanFolders.length) {
+        Alert.alert('Hinweis', 'Dieser Ordner ist bereits in der Scan-Liste.');
+        return;
+      }
+      setScanFolders(next);
+    } catch {
+      Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl ist auf diesem Gerät nicht verfügbar. Nutze stattdessen den normalen Import.');
     }
-    const folder: ScanFolder = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: deriveFolderNameFromUri(permission.directoryUri),
-      uri: permission.directoryUri,
-      addedAt: Date.now(),
-      enabled: true,
-    };
-    const next = await addScanFolder(folder);
-    if (next.length === scanFolders.length) {
-      Alert.alert('Hinweis', 'Dieser Ordner ist bereits in der Scan-Liste.');
-      return;
-    }
-    setScanFolders(next);
   };
 
   const importFromDevice = async (): Promise<void> => {
