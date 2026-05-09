@@ -19,6 +19,8 @@ const ID3_HEADER = 10;
 const ID3_SYNCSAFE_MAX_SIZE = 0x0fffffff;
 const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
 
+const isValidId3v23FrameId = (id: string): boolean => /^[A-Z0-9]{4}$/.test(id);
+
 export const hasId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
 export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
   if (sizeBytes.length !== 4) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe input size.');
@@ -80,15 +82,26 @@ const encodeUtf16Bom = (value: string): Uint8Array => {
 };
 
 const frame = (id: string, body: Uint8Array, flags: [number, number] = [0, 0]): Uint8Array => {
-  if (id.length !== 4 || !Number.isInteger(body.length) || body.length < 0 || body.length > ID3_V23_FRAME_SIZE_MAX) {
-    throw new TagWriterError('InvalidTagData', 'Invalid ID3 frame size.');
-  }
+  if (!isValidId3v23FrameId(id)) throw new TagWriterError('InvalidTagData', 'Invalid ID3 frame ID.');
+  if (!Number.isInteger(body.length) || body.length < 0 || body.length > ID3_V23_FRAME_SIZE_MAX) throw new TagWriterError('InvalidTagData', 'Invalid ID3 frame size.');
   const out = new Uint8Array(10 + body.length); out.set(textEncoder.encode(id), 0);
   out[4] = (body.length >>> 24) & 0xff; out[5] = (body.length >>> 16) & 0xff; out[6] = (body.length >>> 8) & 0xff; out[7] = body.length & 0xff; out[8] = flags[0]; out[9] = flags[1]; out.set(body, 10); return out;
 };
 const textFrame = (id: string, value: string): Uint8Array => frame(id, new Uint8Array([0x01, ...encodeUtf16Bom(value)]));
 const commFrame = (value: string): Uint8Array => frame('COMM', new Uint8Array([0x01, 0x65, 0x6e, 0x67, 0x00, 0x00, ...encodeUtf16Bom(value)]));
-const apicFrame = (mime: 'image/jpeg' | 'image/png', data: Uint8Array): Uint8Array => frame('APIC', new Uint8Array([0x00, ...textEncoder.encode(mime), 0x00, 0x03, 0x00, ...data]));
+const apicFrame = (mime: 'image/jpeg' | 'image/png', data: Uint8Array): Uint8Array => {
+  const mimeBytes = textEncoder.encode(mime);
+  const body = new Uint8Array(1 + mimeBytes.length + 1 + 1 + 1 + data.length);
+  let offset = 0;
+  body[offset++] = 0x00;
+  body.set(mimeBytes, offset);
+  offset += mimeBytes.length;
+  body[offset++] = 0x00;
+  body[offset++] = 0x03;
+  body[offset++] = 0x00;
+  body.set(data, offset);
+  return frame('APIC', body);
+};
 
 const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   if ((h.flags & 0x80) !== 0) throw new TagWriterError('WriteNotImplemented', 'Existing ID3 unsynchronisation is not supported yet.');
@@ -96,6 +109,7 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   while (p + 10 <= end) {
     const id = String.fromCharCode(buffer[p], buffer[p + 1], buffer[p + 2], buffer[p + 3]);
     if (buffer[p] === 0) break;
+    if (!isValidId3v23FrameId(id)) throw new TagWriterError('InvalidTagData', 'Invalid ID3 frame ID.');
     const sz = h.major === 4 ? decodeSynchsafe(buffer.subarray(p + 4, p + 8)) : readU32(buffer, p + 4);
     const flags: [number, number] = [buffer[p + 8], buffer[p + 9]];
     if (sz < 0 || p + 10 + sz > end) throw new TagWriterError('InvalidTagData', 'Truncated ID3 frame.');

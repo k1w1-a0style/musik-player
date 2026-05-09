@@ -64,3 +64,6 @@ Separate PRs are still required for:
 - Audio bytes after tag boundary are preserved exactly.
 - Existing unsynchronisation flag is currently blocked with `WriteNotImplemented` to avoid unsafe metadata loss.
 - `writeTagsToFile` remains blocked; no SAF/device write path is activated.
+
+- APIC payload construction avoids large spread-based intermediate JS arrays.
+- Preserved frame IDs are validated (`[A-Z0-9]{4}`); invalid/non-ASCII IDs are rejected with `InvalidTagData`.

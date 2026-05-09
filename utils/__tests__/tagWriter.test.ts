@@ -134,6 +134,25 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(frameIds(applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } }))).toContain('APIC');
   });
 
+
+  test('preserves valid unknown frames like TXXX and PRIV', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TXXX', u8(0x00, 0x41)), mkFrame('PRIV', u8(0x01, 0x02)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } });
+    expect(frameIds(out)).toEqual(expect.arrayContaining(['TXXX', 'PRIV', 'TPE1', 'TIT2']));
+  });
+
+  test('rejects existing non-ASCII frame id', () => {
+    const bad = mkFrame('ÿPE1', u8(0x03, 0x41));
+    const src = new Uint8Array([...mkTag([bad]), 1]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/frame ID/i);
+  });
+
+  test('rejects existing lowercase frame id', () => {
+    const bad = mkFrame('abcd', u8(0x03, 0x41));
+    const src = new Uint8Array([...mkTag([bad]), 1]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/frame ID/i);
+  });
+
   test('removeCover ignores invalid payload', () => {
     const out = applyTagEditToBuffer(u8(1,2), 'mp3', { songId:'1', tags:{}, removeCover:true, cover:{mimeType:'image/jpeg', data:u8(0)} });
     expect(Array.from(out)).toEqual([1,2]);
