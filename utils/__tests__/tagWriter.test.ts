@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, buildId3v23TagFromDraft, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, mergeId3v23TagIntoMp3Buffer, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
+import { applyTagEditToBuffer, buildId3v23TagFromDraft, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, mergeId3v23TagIntoMp3Buffer, prepareTagEditPlan, serializeId3ApicFrame, serializeId3CommentFrame, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -33,6 +33,17 @@ describe('tagWriter', () => {
 
   test('serializeId3TextFrame rejects empty payload', () => {
     expect(() => serializeId3TextFrame('TIT2', '   ')).toThrow(/must not be empty/i);
+  });
+
+
+  test('serializeId3CommentFrame creates COMM frame', () => {
+    const frame = serializeId3CommentFrame('hello');
+    expect(String.fromCharCode(...Array.from(frame.slice(0, 4)))).toBe('COMM');
+  });
+
+  test('serializeId3ApicFrame creates APIC frame', () => {
+    const frame = serializeId3ApicFrame('image/jpeg', new Uint8Array([0xff, 0xd8, 0xff]));
+    expect(String.fromCharCode(...Array.from(frame.slice(0, 4)))).toBe('APIC');
   });
   test('buildMp3TextFrames maps known fields', () => {
     const frames = buildMp3TextFrames({ title: 'Song', artist: 'Artist', comment: 'ignored' });

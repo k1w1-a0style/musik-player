@@ -28,6 +28,48 @@ const u32be = (n: number): Uint8Array => new Uint8Array([(n >>> 24) & 0xff, (n >
 
 const isValidId3TextFrameId = (id: string): id is Id3TextFrameId => ID3_TEXT_FRAME_IDS.includes(id as Id3TextFrameId);
 
+const encodeAscii = (value: string): Uint8Array => Uint8Array.from([...value].map(c => c.charCodeAt(0) & 0x7f));
+
+export const serializeId3CommentFrame = (comment: string): Uint8Array => {
+  const value = comment.trim();
+  if (!value) throw new TagWriterError('InvalidTagData', 'Comment must not be empty.');
+  // encoding(0x00) + lang("eng") + desc("" + null) + text
+  const body = new Uint8Array(1 + 3 + 1 + value.length);
+  body[0] = 0x00;
+  body.set(encodeAscii('eng'), 1);
+  body[4] = 0x00;
+  body.set(encodeLatin1(value), 5);
+  const out = new Uint8Array(10 + body.length);
+  out.set(encodeAscii('COMM'), 0);
+  out.set(u32be(body.length), 4);
+  out[8] = 0;
+  out[9] = 0;
+  out.set(body, 10);
+  return out;
+};
+
+export const serializeId3ApicFrame = (mimeType: 'image/jpeg' | 'image/png', data: Uint8Array): Uint8Array => {
+  if (data.length === 0) throw new TagWriterError('InvalidTagData', 'Cover image bytes are empty.');
+  const mime = encodeAscii(mimeType);
+  // encoding + mime + null + picture type + description null + image data
+  const body = new Uint8Array(1 + mime.length + 1 + 1 + 1 + data.length);
+  let off = 0;
+  body[off++] = 0x00;
+  body.set(mime, off); off += mime.length;
+  body[off++] = 0x00;
+  body[off++] = 0x03;
+  body[off++] = 0x00;
+  body.set(data, off);
+  const out = new Uint8Array(10 + body.length);
+  out.set(encodeAscii('APIC'), 0);
+  out.set(u32be(body.length), 4);
+  out[8] = 0;
+  out[9] = 0;
+  out.set(body, 10);
+  return out;
+};
+
+
 export const serializeId3TextFrame = (id: string, value: string): Uint8Array => {
   if (!isValidId3TextFrameId(id)) throw new TagWriterError('InvalidTagData', `Unsupported ID3 text frame id: ${id}`);
   const normalizedValue = value.trim();
@@ -104,6 +146,8 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft): Uint8Array => {
   if (!validateCoverPayload(draft.cover)) throw new TagWriterError('InvalidTagData', 'Invalid cover payload.');
 
   const frames = buildMp3TextFrames(draft.tags);
+  if (draft.tags.comment) frames.push(serializeId3CommentFrame(draft.tags.comment));
+  if (!draft.removeCover && draft.cover) frames.push(serializeId3ApicFrame(draft.cover.mimeType, draft.cover.data));
   const payloadSize = frames.reduce((sum, frame) => sum + frame.length, 0);
   const out = new Uint8Array(10 + payloadSize);
 
