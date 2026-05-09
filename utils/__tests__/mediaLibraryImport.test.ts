@@ -79,13 +79,25 @@ describe('mediaLibraryImport', () => {
 
   test('scanFromSafFolders keeps readable songs when unknown child entries fail to open', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
-      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/blocked'];
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
       throw new Error('no access');
     });
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
     expect(result.songs.length).toBe(1);
     expect(result.errors).toEqual([]);
     expect(result.folderUpdates?.[0].lastError).toBeUndefined();
+  });
+
+  test('scanFromSafFolders reports unreadable nested directories', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/subdir'];
+      if (uri === 'content://root/subdir') throw new Error('no access');
+      return [];
+    });
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
+    expect(result.songs.length).toBe(1);
+    expect(result.errors).toEqual(['content://root/subdir']);
+    expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
   });
 
   test('saf import uses tags and fallback', async () => {
