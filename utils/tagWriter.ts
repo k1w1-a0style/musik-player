@@ -16,6 +16,8 @@ type ParsedFrame = { id: string; flags: [number, number]; body: Uint8Array };
 
 const textEncoder = new TextEncoder();
 const ID3_HEADER = 10;
+const ID3_SYNCSAFE_MAX_SIZE = 0x0fffffff;
+const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
 
 export const hasId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
 export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
@@ -23,7 +25,16 @@ export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
   if (sizeBytes.some((b) => b > 0x7f)) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe byte.');
   return (sizeBytes[0] << 21) | (sizeBytes[1] << 14) | (sizeBytes[2] << 7) | sizeBytes[3];
 };
-export const encodeSynchsafe = (size: number): Uint8Array => new Uint8Array([(size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f]);
+export const validateId3PayloadSize = (size: number): void => {
+  if (!Number.isFinite(size) || !Number.isInteger(size) || size < 0 || size > ID3_SYNCSAFE_MAX_SIZE) {
+    throw new TagWriterError('InvalidTagData', 'ID3 tag size exceeds synchsafe limit.');
+  }
+};
+
+export const encodeSynchsafe = (size: number): Uint8Array => {
+  validateId3PayloadSize(size);
+  return new Uint8Array([(size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f]);
+};
 
 const readU32 = (b: Uint8Array, o: number): number => ((b[o] << 24) >>> 0) + (b[o + 1] << 16) + (b[o + 2] << 8) + b[o + 3];
 
@@ -69,6 +80,9 @@ const encodeUtf16Bom = (value: string): Uint8Array => {
 };
 
 const frame = (id: string, body: Uint8Array, flags: [number, number] = [0, 0]): Uint8Array => {
+  if (id.length !== 4 || !Number.isInteger(body.length) || body.length < 0 || body.length > ID3_V23_FRAME_SIZE_MAX) {
+    throw new TagWriterError('InvalidTagData', 'Invalid ID3 frame size.');
+  }
   const out = new Uint8Array(10 + body.length); out.set(textEncoder.encode(id), 0);
   out[4] = (body.length >>> 24) & 0xff; out[5] = (body.length >>> 16) & 0xff; out[6] = (body.length >>> 8) & 0xff; out[7] = body.length & 0xff; out[8] = flags[0]; out[9] = flags[1]; out.set(body, 10); return out;
 };
@@ -126,7 +140,9 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFra
   const keptFrames = kept.map((f) => frame(f.id, f.body, f.flags));
   const payloadLen = [...keptFrames, ...replacement].reduce((n, f) => n + f.length, 0);
   if (payloadLen === 0) return { changed: true, tag: new Uint8Array(0) };
-  const out = new Uint8Array(10 + payloadLen); out.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0); out.set(encodeSynchsafe(payloadLen), 6);
+  validateId3PayloadSize(payloadLen);
+  const encodedPayloadLen = encodeSynchsafe(payloadLen);
+  const out = new Uint8Array(10 + payloadLen); out.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0); out.set(encodedPayloadLen, 6);
   let o = 10; for (const fr of [...keptFrames, ...replacement]) { out.set(fr, o); o += fr.length; }
   return { changed: true, tag: out };
 };

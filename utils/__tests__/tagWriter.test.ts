@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, decodeSynchsafe, encodeSynchsafe, TagWriterError } from '../tagWriter';
+import { applyTagEditToBuffer, decodeSynchsafe, encodeSynchsafe, TagWriterError, validateId3PayloadSize } from '../tagWriter';
 import { ensureTagEditWriteAllowed, prepareTagEditPlan, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
@@ -23,6 +23,24 @@ const frameIds = (buffer: Uint8Array): string[] => {
 describe('tagWriter mp3 id3v2.3', () => {
   test('syncsafe roundtrip', () => {
     expect(decodeSynchsafe(encodeSynchsafe(123456))).toBe(123456);
+  });
+
+
+  test('encodeSynchsafe accepts lower and upper bounds', () => {
+    expect(Array.from(encodeSynchsafe(0))).toEqual([0, 0, 0, 0]);
+    expect(Array.from(encodeSynchsafe(0x0fffffff))).toEqual([0x7f, 0x7f, 0x7f, 0x7f]);
+  });
+
+  test('encodeSynchsafe rejects invalid sizes', () => {
+    const invalid = [0x10000000, -1, Number.NaN, Number.POSITIVE_INFINITY, 1.5];
+    for (const size of invalid) {
+      try { encodeSynchsafe(size as number); throw new Error('Expected throw'); } catch (error) { expect((error as TagWriterError).code).toBe('InvalidTagData'); }
+    }
+  });
+
+  test('validateId3PayloadSize enforces synchsafe upper bound', () => {
+    expect(() => validateId3PayloadSize(0x0fffffff)).not.toThrow();
+    expect(() => validateId3PayloadSize(0x10000000)).toThrow(/synchsafe/i);
   });
 
   test('writes mp3, keeps audio bytes and v2.3 header', () => {
