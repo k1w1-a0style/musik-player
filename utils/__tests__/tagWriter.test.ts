@@ -21,6 +21,17 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(Array.from(out.slice(out.length-4))).toEqual([1,2,3,4]);
   });
 
+  test('writes unicode including emoji as utf16', () => {
+    const audio = u8(4, 3, 2, 1);
+    const out = applyTagEditToBuffer(audio, 'mp3', { songId: '1', tags: { title: 'Привет 漢字 🎵' } });
+    const headerSize = decodeSynchsafe(out.slice(6, 10));
+    const payload = out.slice(10, 10 + headerSize);
+    expect(new TextDecoder().decode(payload).includes('TIT2')).toBe(true);
+    expect(payload.includes(0x01)).toBe(true);
+    expect(payload.includes(0xff)).toBe(true);
+    expect(payload.includes(0xfe)).toBe(true);
+  });
+
   test('year uses TYER and drops TDRC', () => {
     const tdrc = mkFrame('TDRC', u8(0,'2'.charCodeAt(0)));
     const src = new Uint8Array([...mkTag([tdrc]), 9,9]);
@@ -38,6 +49,14 @@ describe('tagWriter mp3 id3v2.3', () => {
   test('unsync tag throws', () => {
     const src = new Uint8Array([...mkTag([],3,0x80), 1,2]);
     expect(() => applyTagEditToBuffer(src, 'mp3', { songId:'1', tags:{} })).toThrow(/unsynchronisation/i);
+  });
+
+  test('v2.4 footer is removed and audio starts after footer boundary', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { artist: 'X' } });
+    expect(Array.from(out.slice(out.length - 3))).toEqual([0xaa, 0xbb, 0xcc]);
   });
 
   test('container policy', () => {

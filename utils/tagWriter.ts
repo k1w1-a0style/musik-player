@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode, WriteOrchestrationResult } from '../types/TagEdit';
-import { getTagEditCapability, getUriType, getSupportedContainer } from './tagEditCapability';
+import { getTagEditCapability, getSupportedContainer } from './tagEditCapability';
 import { normalizeEditableTags, validateCoverPayload, validateEditableTags } from './tagValidation';
 import { createTagWriteOperationPlan, simulateTagWriteOperation } from './tagWriteOrchestrator';
 
@@ -55,10 +55,14 @@ export const readId3Header = (buffer: Uint8Array): ParsedId3Header | undefined =
 };
 
 const encodeUtf16Bom = (value: string): Uint8Array => {
-  const out = new Uint8Array(2 + value.length * 2 + 2);
+  const out = new Uint8Array(2 + value.length * 4 + 2);
   out[0] = 0xff; out[1] = 0xfe;
   let p = 2;
-  for (const ch of value) { const code = ch.codePointAt(0)!; if (code > 0xffff) throw new TagWriterError('WriteNotImplemented', 'Non-BMP text writing is not supported yet.'); out[p++] = code & 0xff; out[p++] = (code >> 8) & 0xff; }
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    out[p++] = code & 0xff;
+    out[p++] = (code >> 8) & 0xff;
+  }
   out[p++] = 0; out[p++] = 0;
   return out.subarray(0, p);
 };
