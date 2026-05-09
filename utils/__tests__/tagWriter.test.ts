@@ -135,6 +135,23 @@ describe('tagWriter mp3 id3v2.3', () => {
   });
 
 
+
+  test('apic body stores mime, type and image bytes at tail', () => {
+    const data = u8(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+    const out = applyTagEditToBuffer(u8(1, 2, 3), 'mp3', { songId: '1', tags: {}, cover: { mimeType: 'image/png', data } });
+    const size = decodeSynchsafe(out.slice(6, 10));
+    const payload = out.slice(10, 10 + size);
+    const apicIndex = new TextDecoder().decode(payload).indexOf('APIC');
+    expect(apicIndex).toBeGreaterThanOrEqual(0);
+    const frameStart = apicIndex;
+    const frameSize = (payload[frameStart + 4] << 24) | (payload[frameStart + 5] << 16) | (payload[frameStart + 6] << 8) | payload[frameStart + 7];
+    const body = payload.slice(frameStart + 10, frameStart + 10 + frameSize);
+    expect(body[0]).toBe(0x00);
+    expect(new TextDecoder().decode(body).includes('image/png')).toBe(true);
+    expect(body[body.length - data.length - 2]).toBe(0x03);
+    expect(Array.from(body.slice(body.length - data.length))).toEqual(Array.from(data));
+  });
+
   test('preserves valid unknown frames like TXXX and PRIV', () => {
     const src = new Uint8Array([...mkTag([mkFrame('TXXX', u8(0x00, 0x41)), mkFrame('PRIV', u8(0x01, 0x02)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } });
