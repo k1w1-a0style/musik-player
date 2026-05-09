@@ -31,6 +31,7 @@ describe('parseId3FromUri', () => {
 
     const tags = await parseId3FromUri('file:///music/track.m4a?token=abc');
     expect(tags.cover?.startsWith('data:image/webp;base64,')).toBe(true);
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///music/track.m4a', expect.any(Object));
   });
 
   test('falls back to tail read for larger mp4 files', async () => {
@@ -40,11 +41,15 @@ describe('parseId3FromUri', () => {
     // second read (tail): JPEG signature
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
     const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
-    mockReadAsStringAsync.mockResolvedValueOnce(b64(tailMoov));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64([0x01, 0x02, 0x03, ...tailMoov]));
 
-    const tags = await parseId3FromUri('file:///music/album.mp4');
-    expect(mockGetInfoAsync).toHaveBeenCalled();
+    const tags = await parseId3FromUri('file:///music/album.mp4?token=xyz');
+    expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/album.mp4');
     expect(mockReadAsStringAsync).toHaveBeenCalledTimes(2);
+    expect(mockReadAsStringAsync).toHaveBeenLastCalledWith(
+      'file:///music/album.mp4',
+      expect.objectContaining({ position: expect.any(Number) }),
+    );
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 });

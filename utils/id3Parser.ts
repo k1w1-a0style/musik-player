@@ -172,7 +172,10 @@ const normalizeMime = (value?: string): ImageMime | undefined => {
 
 const buildCoverDataUri = (imageBytes: Uint8Array, mimeHint?: string): string | undefined => {
   if (imageBytes.length === 0) return undefined;
-  const mime = normalizeMime(mimeHint) ?? detectMimeFromMagicBytes(imageBytes);
+  const hintMime = normalizeMime(mimeHint);
+  const magicMime = detectMimeFromMagicBytes(imageBytes);
+  const mime = magicMime ?? hintMime;
+  if (hintMime && !magicMime) return undefined;
   if (!mime) return undefined;
   return `data:${mime};base64,${bytesToBase64(imageBytes)}`;
 };
@@ -312,9 +315,16 @@ const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string
 
 const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
   let p = start;
+  let resyncSteps = 0;
   while (p + 8 <= end) {
     const size = readU32(bytes, p);
-    if (size < 8 || p + size > end) break;
+    if (size < 8 || p + size > end) {
+      p += 1;
+      resyncSteps += 1;
+      if (resyncSteps > 2048) break;
+      continue;
+    }
+    resyncSteps = 0;
     const type = readLatin1(bytes, p + 4, p + 8);
     const headerSize = type === 'meta' ? 12 : 8;
     const bodyStart = Math.min(p + headerSize, p + size);
@@ -366,7 +376,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     const normalizedUri = uri.split('?')[0] ?? uri;
     const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(normalizedUri);
     try {
-      const b64 = await readAsStringAsync(uri, {
+      const b64 = await readAsStringAsync(normalizedUri, {
         encoding: encodingBase64,
         length: HEAD_READ_LIMIT,
       });
@@ -378,12 +388,12 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       if (!looksLikeMp4) return id3;
       const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
       if (!getInfoAsync) return id3;
-      const info = await getInfoAsync(uri);
+      const info = await getInfoAsync(normalizedUri);
       const size = info.size ?? 0;
       if (size <= HEAD_READ_LIMIT) return id3;
       const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
       const tailStart = Math.max(0, size - tailReadLength);
-      const tailB64 = await readAsStringAsync(uri, {
+      const tailB64 = await readAsStringAsync(normalizedUri, {
         encoding: encodingBase64,
         length: tailReadLength,
         position: tailStart,
@@ -394,21 +404,8 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     } catch {
       // fallback to File API when legacy path is unavailable
     }
-    // New File API
-    const FileCtor = (FileSystem as unknown as { File?: new (u: string) => { bytes: () => Promise<Uint8Array> } }).File;
-    if (FileCtor) {
-      const file = new FileCtor(uri);
-      const bytes = await file.bytes();
-      const chunk = bytes.subarray(0, HEAD_READ_LIMIT);
-      const id3 = parseId3Buffer(chunk);
-      if (id3.cover) return id3;
-      const mp4CoverHead = looksLikeMp4 ? parseMp4CoverFromBuffer(chunk) : undefined;
-      if (mp4CoverHead) return { ...id3, cover: mp4CoverHead };
-      if (!looksLikeMp4 || bytes.length <= HEAD_READ_LIMIT) return id3;
-      const tail = bytes.subarray(Math.max(0, bytes.length - TAIL_READ_LIMIT));
-      const mp4CoverTail = parseMp4CoverFromBuffer(tail);
-      return mp4CoverTail ? { ...id3, cover: mp4CoverTail } : id3;
-    }
+    // Do not fall back to File.bytes() because it can load huge files into memory.
+    // If bounded legacy reads are unavailable, return empty tags to avoid perf regressions.
     return {};
   } catch {
     return {};

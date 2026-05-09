@@ -112,6 +112,13 @@ describe('parseId3Buffer (v2.3)', () => {
     const tags = parseId3Buffer(buf);
     expect(tags.cover?.startsWith('data:image/png;base64,')).toBe(true);
   });
+
+  test('rejects APIC cover when mime is image/jpeg but bytes are invalid', () => {
+    const badBytes = [0x00, 0x01, 0x02, 0x03];
+    const buf = buildId3v23([buildApicFrame('image/jpeg', badBytes)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover).toBeUndefined();
+  });
 });
 
 describe('parseMp4CoverFromBuffer', () => {
@@ -130,6 +137,15 @@ describe('parseMp4CoverFromBuffer', () => {
     const moov = atom('moov', udta);
 
     const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('parses covr even when buffer starts misaligned before moov', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const bytes = new Uint8Array([0x7a, 0x7a, 0x7a, ...moov]);
+    const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 });
