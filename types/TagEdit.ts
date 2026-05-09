@@ -40,12 +40,59 @@ export type TagWriterErrorCode =
   | 'InvalidTagData'
   | 'WriteNotImplemented';
 
-export interface TagEditPlan {
-  uri: string;
+export type WriteRiskLevel = 'low' | 'medium' | 'high';
+
+export interface WritePermissionState {
+  canRead: boolean;
+  canWrite: boolean;
+  requiresSafPermission: boolean;
+  reason?: string;
+}
+
+export interface BackupPlan {
+  required: boolean;
+  backupUri?: string;
+  strategy: 'none' | 'sidecar-copy';
+}
+
+export interface AtomicWritePlan {
+  required: boolean;
+  tempUri?: string;
+  supportsAtomicReplace: boolean;
+}
+
+export interface RollbackPlan {
+  required: boolean;
+  supportsRollback: boolean;
+  steps: string[];
+}
+
+export interface WriteOperationPlan {
+  sourceUri: string;
+  targetUri: string;
   uriType: TagEditUriType;
   container: TagEditableContainer;
+  permission: WritePermissionState;
+  backup: BackupPlan;
+  atomicWrite: AtomicWritePlan;
+  rollback: RollbackPlan;
   requiresBackup: boolean;
+  requiresTempFile: boolean;
+  supportsAtomicReplace: boolean;
+  supportsRollback: boolean;
+  requiresUserConfirmation: boolean;
   requiresFullRewrite: boolean;
-  estimatedRisk: 'low' | 'medium' | 'high';
+  estimatedRisk: WriteRiskLevel;
   warnings: string[];
+  blockingReasons: TagWriterErrorCode[];
 }
+
+export interface WriteOrchestrationResult {
+  ok: boolean;
+  plan: WriteOperationPlan;
+  blockingReasons: TagWriterErrorCode[];
+  warnings: string[];
+  simulatedSteps: string[];
+}
+
+export type TagEditPlan = WriteOperationPlan;
