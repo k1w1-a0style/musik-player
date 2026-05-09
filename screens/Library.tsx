@@ -78,8 +78,6 @@ const Library: React.FC = () => {
         .includes(q),
     );
   }, [displayedSongs, query]);
-  const songsById = useMemo(() => new Map(displayedSongs.map(song => [song.id, song])), [displayedSongs]);
-
   const importFromDevice = async (): Promise<void> => {
     try {
       setLoading(true);
@@ -146,11 +144,9 @@ const Library: React.FC = () => {
   };
 
 
-  const handleSongPress = useCallback((songId: string) => {
-    const song = songsById.get(songId);
-    if (!song) return;
+  const handleSongPress = useCallback((song: Song) => {
     void playSong(song);
-  }, [playSong, songsById]);
+  }, [playSong]);
 
   const keyExtractor = useCallback((item: Song) => item.id, []);
 
@@ -168,7 +164,7 @@ const Library: React.FC = () => {
           song={item}
           isCurrent={isCurrent}
           isPlaying={isCurrent && isPlaying}
-          onPress={handleSongPress}
+          onPress={() => handleSongPress(item)}
         />
       );
     },
