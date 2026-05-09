@@ -5,7 +5,12 @@ describe('Library metadata helpers', () => {
     expect(deriveMimeType(undefined, 'mp3')).toBe('audio/mpeg');
     expect(deriveMimeType(undefined, 'm4a')).toBe('audio/mp4');
     expect(deriveMimeType(undefined, 'mp4')).toBe('audio/mp4');
+    expect(deriveMimeType(undefined, 'aac')).toBe('audio/aac');
     expect(deriveMimeType(undefined, 'flac')).toBe('audio/flac');
+    expect(deriveMimeType(undefined, 'wav')).toBe('audio/wav');
+    expect(deriveMimeType(undefined, 'ogg')).toBe('audio/ogg');
+    expect(deriveMimeType(undefined, 'opus')).toBe('audio/ogg');
+    expect(deriveMimeType(undefined, 'webm')).toBe('audio/webm');
     expect(deriveMimeType(undefined, 'unknown')).toBeUndefined();
   });
 
