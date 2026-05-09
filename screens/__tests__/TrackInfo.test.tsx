@@ -75,15 +75,16 @@ describe('TrackInfo', () => {
     expect(getByText(/Codec: Nicht verfügbar/)).toBeTruthy();
   });
 
-
   test('shows mime type when available', () => {
     const { getByText } = render(<TrackInfo />);
+
     expect(getByText(/MIME-Type: audio\/mpeg/)).toBeTruthy();
   });
 
   test('shows not available mime when missing', () => {
     mockRouteSongId = '2';
     const { getByText } = render(<TrackInfo />);
+
     expect(getByText(/MIME-Type: Nicht verfügbar/)).toBeTruthy();
   });
 
@@ -97,7 +98,6 @@ describe('TrackInfo', () => {
 
   test('shows not found state', () => {
     mockRouteSongId = '404';
-
     const { getByText } = render(<TrackInfo />);
 
     expect(getByText('Song nicht gefunden.')).toBeTruthy();

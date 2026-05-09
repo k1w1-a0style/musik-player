@@ -24,10 +24,25 @@ jest.mock('../../contexts/MusicContext', () => ({
   }),
 }));
 
-jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
-jest.mock('../../components/Screen', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
+jest.mock('../../components/AppBackground', () => ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => <>{children}</>);
 
-jest.mock('../../components/SongCard', () => ({ song, onInfoSong }: { song: { id: string }; onInfoSong: (song: { id: string }) => void }) => (
+jest.mock('../../components/Screen', () => ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => <>{children}</>);
+
+jest.mock('../../components/SongCard', () => ({
+  song,
+  onInfoSong,
+}: {
+  song: { id: string };
+  onInfoSong: (song: { id: string }) => void;
+}) => (
   <MockPressable testID={`info-${song.id}`} onPress={() => onInfoSong(song)}>
     <MockText>info</MockText>
   </MockPressable>
@@ -40,13 +55,17 @@ jest.mock('expo-media-library', () => ({
 describe('Library preview cover fallback', () => {
   test('hides broken preview image after error', () => {
     const { UNSAFE_getByType, UNSAFE_queryByType } = render(<Library />);
+
     fireEvent(UNSAFE_getByType(Image), 'error');
+
     expect(UNSAFE_queryByType(Image)).toBeNull();
   });
 
   test('opens track info without starting playback', () => {
     const { getByTestId } = render(<Library />);
+
     fireEvent.press(getByTestId('info-s1'));
+
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();
   });
