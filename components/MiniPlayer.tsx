@@ -11,7 +11,8 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const renderCountRef = useRef(0);
-  if (shouldLogPerf()) {
+  useEffect(() => {
+    if (!shouldLogPerf()) return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= 20) {
       console.debug('[perf][MiniPlayer] render', {
@@ -20,7 +21,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         isPlaying,
       });
     }
-  }
+  });
   useEffect(() => {
     setCoverFailed(false);
   }, [currentSong?.id, currentSong?.cover]);

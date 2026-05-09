@@ -80,10 +80,11 @@ const Library: React.FC = () => {
         .includes(q),
     );
   }, [displayedSongs, query]);
-  const songsById = useMemo(() => new Map(filtered.map(song => [song.id, song])), [filtered]);
+  const songsById = useMemo(() => new Map(displayedSongs.map(song => [song.id, song])), [displayedSongs]);
 
   const renderCountRef = React.useRef(0);
-  if (shouldLogPerf()) {
+  useEffect(() => {
+    if (!shouldLogPerf()) return;
     renderCountRef.current += 1;
     if (renderCountRef.current <= DEV_RENDER_LOG_LIMIT) {
       console.debug('[perf][Library] render', {
@@ -94,7 +95,7 @@ const Library: React.FC = () => {
         isPlaying,
       });
     }
-  }
+  });
 
   const importFromDevice = async (): Promise<void> => {
     try {
