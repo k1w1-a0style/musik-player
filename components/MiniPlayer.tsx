@@ -1,17 +1,43 @@
-import React, { memo, useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
 
+declare const __DEV__: boolean;
+
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
+  const renderCountRef = useRef(0);
+
   useEffect(() => {
     setCoverFailed(false);
   }, [currentSong?.id, currentSong?.cover]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    renderCountRef.current += 1;
+    if (renderCountRef.current <= 20) {
+      console.debug('[perf] MiniPlayer render', {
+        count: renderCountRef.current,
+        currentSongId: currentSong?.id ?? null,
+        isPlaying,
+      });
+    }
+  });
+
+  const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
+    void togglePlayPause();
+  }, [togglePlayPause]);
+
+  const handleNext = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
+    void next();
+  }, [next]);
 
   if (!currentSong) return null;
   const showCover = !!currentSong.cover && !coverFailed;
@@ -37,26 +63,14 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <Pressable
-            onPress={event => {
-              event.stopPropagation();
-              void togglePlayPause();
-            }}
-            style={styles.playBtn}
-          >
+          <Pressable onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
               <Pause color={theme.palette.text.onPrimary} size={18} />
             ) : (
               <Play color={theme.palette.text.onPrimary} size={18} />
             )}
           </Pressable>
-          <Pressable
-            onPress={event => {
-              event.stopPropagation();
-              void next();
-            }}
-            style={styles.skipBtn}
-          >
+          <Pressable onPress={handleNext} style={styles.skipBtn}>
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>
