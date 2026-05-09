@@ -77,6 +77,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const rollback = createRollbackPlan(plan);
     expect(rollback.steps.length).toBeGreaterThan(0);
     const result = simulateTagWriteOperation(plan);
+    expect(result.primaryBlockingReason).toBe('WriteNotImplemented');
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 

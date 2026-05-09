@@ -90,6 +90,7 @@ export interface WriteOperationPlan {
 export interface WriteOrchestrationResult {
   ok: boolean;
   plan: WriteOperationPlan;
+  primaryBlockingReason?: TagWriterErrorCode;
   blockingReasons: TagWriterErrorCode[];
   warnings: string[];
   simulatedSteps: string[];

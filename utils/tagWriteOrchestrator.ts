@@ -113,6 +113,7 @@ export const assertSafeWriteAllowed = (plan: WriteOperationPlan): TagWriterError
 };
 
 export const simulateTagWriteOperation = (plan: WriteOperationPlan): WriteOrchestrationResult => {
+  const primaryBlockingReason = getPrimaryBlockingReason(plan);
   const simulatedSteps = [
     `Plan created for ${plan.container} at ${plan.targetUri || '<missing-uri>'}.`,
     plan.requiresBackup ? 'Would create backup sidecar before any write.' : 'No backup step required.',
@@ -126,6 +127,7 @@ export const simulateTagWriteOperation = (plan: WriteOperationPlan): WriteOrches
   return {
     ok: plan.blockingReasons.length === 0,
     plan,
+    primaryBlockingReason,
     blockingReasons: [...plan.blockingReasons],
     warnings: [...plan.warnings],
     simulatedSteps,
