@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
-import { useMusicContext } from '../contexts/MusicContext';
+import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
@@ -55,7 +55,7 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   });
 
 const Library: React.FC = () => {
-  const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
+  const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [previewCoverFailed, setPreviewCoverFailed] = useState(false);

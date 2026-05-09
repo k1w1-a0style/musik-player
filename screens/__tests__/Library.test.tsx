@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import Library from '../Library';
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useMusicContext: () => ({
+  useLibraryMusicContext: () => ({
     songs: [],
     setSongs: jest.fn(),
     currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },

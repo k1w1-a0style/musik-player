@@ -2,11 +2,11 @@ import React, { memo, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Disc3, Pause, Play, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMusicContext } from '../contexts/MusicContext';
+import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next } = useMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   useEffect(() => {

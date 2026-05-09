@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer from '../MiniPlayer';
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useMusicContext: () => ({
+  useMiniPlayerMusicContext: () => ({
     currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
     isPlaying: false,
     togglePlayPause: jest.fn(async () => undefined),
