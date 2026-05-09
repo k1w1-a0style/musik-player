@@ -81,6 +81,30 @@ export const isAudioFileUri = (uri: string): boolean => {
   return extension ? AUDIO_EXTENSIONS.has(extension) : false;
 };
 
+export const classifySafReadDirectoryError = (error: unknown): 'not-directory' | 'permission' | 'unknown' => {
+  const message = String((error as { message?: unknown })?.message ?? error).toLowerCase();
+  if (
+    message.includes('enotdir')
+    || message.includes('not a directory')
+    || message.includes('is not a directory')
+    || message.includes('not directory')
+    || message.includes('not a folder')
+  ) return 'not-directory';
+  if (
+    message.includes('securityexception')
+    || message.includes('permission')
+    || message.includes('denied')
+    || message.includes('access')
+    || message.includes('unauthorized')
+    || message.includes('eacces')
+    || message.includes('eperm')
+    || message.includes('revoked')
+    || message.includes('provider error')
+    || message.includes('provider failed')
+  ) return 'permission';
+  return 'unknown';
+};
+
 export const deriveFolderNameFromUri = (uri: string): string => {
   const cleaned = uri.replace(/\/+$/, '');
   const segment = (cleaned.split('/').pop() ?? '').replace(/%3A/gi, ':');
@@ -155,9 +179,9 @@ export const readAudioUrisFromSafDirectory = async (
   const errors: string[] = [];
   const visited = new Set<string>();
 
-  // Expo SAF child entries are URI strings without a reliable file/dir type for content://.
-  // Therefore only root read failures are surfaced to users; child read failures are ignored
-  // to avoid false-positive "Teilweise nicht lesbar" warnings for normal sidecar files.
+  // Expo SAF child entries are URI strings; getInfoAsync is not reliable for content:// dir detection.
+  // We classify readDirectory failures by cause: not-directory -> ignore, permission/access -> report,
+  // unknown -> ignore. Root failures are always reported to the user.
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
     if (visited.has(uri) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
     visited.add(uri);
@@ -165,8 +189,8 @@ export const readAudioUrisFromSafDirectory = async (
     let entries: string[];
     try {
       entries = await readDirectory(uri);
-    } catch {
-      if (reportError) errors.push(uri);
+    } catch (error) {
+      if (reportError || classifySafReadDirectoryError(error) === 'permission') errors.push(uri);
       return;
     }
 

@@ -11,6 +11,15 @@ jest.mock('../id3Parser', () => ({ parseId3FromUri: jest.fn(async () => ({})) })
 jest.mock('../coverCache', () => ({ cacheBase64Cover: jest.fn(async (_id: string, c?: string) => c ? 'file:///cover.jpg' : undefined), isBase64ImageDataUri: (v?: string) => !!v?.startsWith('data:image/') }));
 
 describe('mediaLibraryImport', () => {
+  test('classifySafReadDirectoryError classifies directory/access/unknown errors', () => {
+    expect(mediaImport.classifySafReadDirectoryError(new Error('ENOTDIR'))).toBe('not-directory');
+    expect(mediaImport.classifySafReadDirectoryError('this is not a directory')).toBe('not-directory');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('SecurityException: Permission denied'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('EACCES'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('EPERM operation not permitted'))).toBe('permission');
+    expect(mediaImport.classifySafReadDirectoryError(new Error('random failure'))).toBe('unknown');
+  });
+
   test('loads all pages', async () => {
     const getAssetsPage = jest.fn(async ({ after }: { after?: string }) => (!after
       ? { assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' }
@@ -43,7 +52,7 @@ describe('mediaLibraryImport', () => {
           'content://root/notes.xyz',
         ];
       }
-      throw new Error('not-directory');
+      throw new Error('ENOTDIR not a directory');
     });
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
     expect(result.errors).toEqual([]);
@@ -53,21 +62,31 @@ describe('mediaLibraryImport', () => {
   test('child read failure is ignored for unknown entries and keeps root audio files', async () => {
     const read = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
-      throw new Error('no access');
+      throw new Error('random unknown failure');
     });
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
     expect(result.files).toEqual(['content://root/song.mp3']);
     expect(result.errors).toEqual([]);
   });
 
-  test('child dotted folder failure is ignored when SAF type is unknown', async () => {
+  test('child dotted folder permission failure is reported', async () => {
     const read = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/AC.DC'];
-      throw new Error('no access');
+      throw new Error('permission denied');
     });
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toEqual(['content://root/AC.DC']);
   });
+
+  test('child dotted folder security failure is reported', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/Vol.1'];
+      throw new Error('SecurityException: SAF access denied');
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+    expect(result.errors).toEqual(['content://root/Vol.1']);
+  });
+
   test('saf recursion respects depth limit and file cap', async () => {
     const deepRead = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/l1'];
@@ -84,10 +103,33 @@ describe('mediaLibraryImport', () => {
     expect(capResult.files.length).toBe(mediaImport.MAX_SAF_FILES);
   });
 
-  test('scanFromSafFolders ignores unreadable child entries for lastError and keeps songs', async () => {
+  test('saf recursion uses visited set to avoid cycles', async () => {
+    const cyclicRead = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/loop'];
+      if (uri === 'content://root/loop') return ['content://root'];
+      return [];
+    });
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', cyclicRead);
+    expect(result.errors).toEqual([]);
+    expect(cyclicRead).toHaveBeenCalledTimes(2);
+  });
+
+  test('scanFromSafFolders sets partial error for child permission failures and keeps songs', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/unknown.entry'];
-      throw new Error('no access');
+      throw new Error('permission denied');
+    });
+    const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
+    expect(result.songs.length).toBe(1);
+    expect(result.errors).toEqual(['content://root/unknown.entry']);
+    expect(result.folderUpdates?.[0].lastError).toBe('Teilweise nicht lesbar');
+  });
+
+  test('scanFromSafFolders ignores child ENOTDIR errors for lastError', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/subdir'];
+      if (uri === 'content://root/subdir') throw new Error('ENOTDIR');
+      return [];
     });
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
     expect(result.songs.length).toBe(1);
@@ -95,10 +137,10 @@ describe('mediaLibraryImport', () => {
     expect(result.folderUpdates?.[0].lastError).toBeUndefined();
   });
 
-  test('scanFromSafFolders ignores unreadable nested child directories for lastError', async () => {
+  test('scanFromSafFolders ignores unknown child errors for lastError', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/song.mp3', 'content://root/subdir'];
-      if (uri === 'content://root/subdir') throw new Error('no access');
+      if (uri === 'content://root/subdir') throw new Error('generic failure');
       return [];
     });
     const result = await mediaImport.scanFromSafFolders([{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any);
