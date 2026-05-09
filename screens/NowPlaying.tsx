@@ -29,6 +29,7 @@ const NowPlaying: React.FC = () => {
   );
   const currentIdx = currentSong ? Math.max(0, queue.findIndex(song => song.id === currentSong.id)) : 0;
   const visibleQueue = useMemo(() => queue.slice(0, 5), [queue]);
+  const queueById = useMemo(() => new Map(queue.map(song => [song.id, song])), [queue]);
   const flatRef = useRef<FlatList<Song>>(null);
   const lastReportedId = useRef<string | null>(currentSong?.id ?? null);
   const currentSongRef = useRef<Song | null>(currentSong);
@@ -62,7 +63,7 @@ const NowPlaying: React.FC = () => {
 
 
   const playQueueItemById = useCallback((songId: string) => {
-    const item = queueRef.current.find(song => song.id === songId);
+    const item = queueById.get(songId);
     if (!item) return;
 
     const activeSong = currentSongRef.current;
@@ -70,7 +71,7 @@ const NowPlaying: React.FC = () => {
 
     lastReportedId.current = item.id;
     void playSong(item, queueRef.current);
-  }, [playSong]);
+  }, [playSong, queueById]);
 
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
@@ -197,15 +198,21 @@ interface QueuePreviewRowProps {
   onPress: (songId: string) => void;
 }
 
-const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => (
-  <Pressable style={[styles.queueItem, isCurrent && styles.queueItemActive]} onPress={() => onPress(id)}>
-    <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
-    <View style={styles.queueTextWrap}>
-      <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
-      <Text style={styles.queueArtist} numberOfLines={1}>{artist}</Text>
-    </View>
-  </Pressable>
-));
+const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => {
+  const handlePress = React.useCallback(() => {
+    onPress(id);
+  }, [id, onPress]);
+
+  return (
+    <Pressable style={[styles.queueItem, isCurrent && styles.queueItemActive]} onPress={handlePress}>
+      <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
+      <View style={styles.queueTextWrap}>
+        <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
+        <Text style={styles.queueArtist} numberOfLines={1}>{artist}</Text>
+      </View>
+    </Pressable>
+  );
+});
 
 interface CoverProps {
   song: Song;
