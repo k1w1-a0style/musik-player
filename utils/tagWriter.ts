@@ -55,6 +55,39 @@ export const buildMp3TextFrames = (tags: EditableTrackTags): Uint8Array[] => {
     });
 };
 
+
+const toSynchsafe = (size: number): Uint8Array => new Uint8Array([
+  (size >> 21) & 0x7f,
+  (size >> 14) & 0x7f,
+  (size >> 7) & 0x7f,
+  size & 0x7f,
+]);
+
+export const buildId3v23TagFromDraft = (draft: TagEditDraft): Uint8Array => {
+  const validation = validateEditableTags(draft.tags);
+  if (!validation.valid) throw new TagWriterError('InvalidTagData', validation.errors.join('; '));
+  if (!validateCoverPayload(draft.cover)) throw new TagWriterError('InvalidTagData', 'Invalid cover payload.');
+
+  const frames = buildMp3TextFrames(draft.tags);
+  const payloadSize = frames.reduce((sum, frame) => sum + frame.length, 0);
+  const out = new Uint8Array(10 + payloadSize);
+
+  out[0] = 0x49; // I
+  out[1] = 0x44; // D
+  out[2] = 0x33; // 3
+  out[3] = 0x03; // v2.3
+  out[4] = 0x00;
+  out[5] = 0x00;
+  out.set(toSynchsafe(payloadSize), 6);
+
+  let off = 10;
+  for (const frame of frames) {
+    out.set(frame, off);
+    off += frame.length;
+  }
+  return out;
+};
+
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');

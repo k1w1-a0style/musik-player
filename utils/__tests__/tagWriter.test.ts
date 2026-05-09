@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
+import { applyTagEditToBuffer, buildId3v23TagFromDraft, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -27,7 +27,6 @@ describe('tagWriter', () => {
     expect(frame[10]).toBe(0x00);
   });
 
-
   test('serializeId3TextFrame rejects invalid frame id', () => {
     expect(() => serializeId3TextFrame('TXXX', 'X')).toThrow(/unsupported id3 text frame id/i);
   });
@@ -42,6 +41,13 @@ describe('tagWriter', () => {
   });
 
 
+
+  test('buildId3v23TagFromDraft creates ID3 header and payload', () => {
+    const tag = buildId3v23TagFromDraft({ songId: '1', tags: { title: 'Song', artist: 'Artist' } });
+    expect(String.fromCharCode(...Array.from(tag.slice(0, 3)))).toBe('ID3');
+    expect(tag[3]).toBe(0x03);
+    expect(tag.length).toBeGreaterThan(10);
+  });
   test('mp3 apply path is intentionally blocked', () => {
     expect(() => applyTagEditToBuffer(new Uint8Array([1, 2, 3]), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/not yet enabled/i);
   });
