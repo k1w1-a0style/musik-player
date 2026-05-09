@@ -88,6 +88,39 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft): Uint8Array => {
   return out;
 };
 
+
+const decodeSynchsafe = (bytes: Uint8Array, off: number): number => (
+  (bytes[off] << 21) | (bytes[off + 1] << 14) | (bytes[off + 2] << 7) | bytes[off + 3]
+);
+
+const hasId3Header = (bytes: Uint8Array): boolean => (
+  bytes.length >= 10 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33
+);
+
+export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
+  if (original.length === 0) throw new TagWriterError('InvalidTagData', 'Empty MP3 buffer.');
+  const newTag = buildId3v23TagFromDraft(draft);
+
+  if (!hasId3Header(original)) {
+    const merged = new Uint8Array(newTag.length + original.length);
+    merged.set(newTag, 0);
+    merged.set(original, newTag.length);
+    return merged;
+  }
+
+  const currentTagSize = decodeSynchsafe(original, 6);
+  const currentTagTotal = 10 + currentTagSize;
+  if (currentTagTotal > original.length) {
+    throw new TagWriterError('InvalidTagData', 'Existing ID3 tag is truncated.');
+  }
+
+  const audioPart = original.subarray(currentTagTotal);
+  const merged = new Uint8Array(newTag.length + audioPart.length);
+  merged.set(newTag, 0);
+  merged.set(audioPart, newTag.length);
+  return merged;
+};
+
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');

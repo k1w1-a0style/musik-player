@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, buildId3v23TagFromDraft, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
+import { applyTagEditToBuffer, buildId3v23TagFromDraft, buildMp3TextFrames, ensureTagEditWriteAllowed, ID3_TEXT_FRAME_MAP, mergeId3v23TagIntoMp3Buffer, prepareTagEditPlan, serializeId3TextFrame, TagWriterError, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
@@ -47,6 +47,25 @@ describe('tagWriter', () => {
     expect(String.fromCharCode(...Array.from(tag.slice(0, 3)))).toBe('ID3');
     expect(tag[3]).toBe(0x03);
     expect(tag.length).toBeGreaterThan(10);
+  });
+
+
+  test('mergeId3v23TagIntoMp3Buffer prepends tag when no ID3 exists', () => {
+    const audio = new Uint8Array([0xff, 0xfb, 0x90, 0x64]);
+    const merged = mergeId3v23TagIntoMp3Buffer(audio, { songId: '1', tags: { title: 'Song' } });
+    expect(String.fromCharCode(...Array.from(merged.slice(0, 3)))).toBe('ID3');
+    expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
+  });
+
+  test('mergeId3v23TagIntoMp3Buffer replaces existing ID3 tag', () => {
+    const oldTag = new Uint8Array([0x49,0x44,0x33,0x03,0x00,0x00,0x00,0x00,0x00,0x00]);
+    const audio = new Uint8Array([0xff, 0xfb, 0x90, 0x64]);
+    const original = new Uint8Array(oldTag.length + audio.length);
+    original.set(oldTag, 0);
+    original.set(audio, oldTag.length);
+    const merged = mergeId3v23TagIntoMp3Buffer(original, { songId: '1', tags: { artist: 'Artist' } });
+    expect(String.fromCharCode(...Array.from(merged.slice(0, 3)))).toBe('ID3');
+    expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
   });
   test('mp3 apply path is intentionally blocked', () => {
     expect(() => applyTagEditToBuffer(new Uint8Array([1, 2, 3]), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/not yet enabled/i);
