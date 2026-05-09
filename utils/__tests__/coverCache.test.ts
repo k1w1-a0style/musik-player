@@ -9,6 +9,7 @@ jest.mock('expo-file-system', () => ({
   EncodingType: { Base64: 'base64' },
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({ exists: false })),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -17,6 +18,7 @@ jest.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({ exists: false })),
 }));
 
 describe('coverCache', () => {
@@ -33,7 +35,7 @@ describe('coverCache', () => {
     ];
 
     const result = await sanitizeSongsForStorage(songs);
-    expect(result[0].cover).toBe('file:///docs/covers/1.jpg');
+    expect(result[0].cover).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
     expect(result[1].cover).toBe('file:///cache/covers/2.jpg');
     expect(result[0].cover?.startsWith('data:image/')).toBe(false);
 
@@ -56,5 +58,9 @@ describe('coverCache', () => {
 
     expect(result[0].cover).toBe(originalCover);
     expect(result[0].cover).not.toBeUndefined();
+  });
+
+  test('ignores invalid base64 payload', async () => {
+    await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
   });
 });

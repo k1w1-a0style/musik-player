@@ -43,6 +43,11 @@ const buildId3v23 = (frames: number[][]): Uint8Array => {
   return new Uint8Array([...header, ...flat]);
 };
 
+const buildApicFrame = (mime: string, imageBytes: number[]): number[] => {
+  const body = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...imageBytes];
+  return [...enc('APIC'), ...u32be(body.length), 0, 0, ...body];
+};
+
 describe('parseId3Buffer (v2.3)', () => {
   test('parses TIT2 / TPE1 / TALB / TYER / TCON', () => {
     const buf = buildId3v23([
@@ -92,5 +97,19 @@ describe('parseId3Buffer (v2.3)', () => {
     const buf = new Uint8Array(20);
     buf[0] = 0x49; buf[1] = 0x44; buf[2] = 0x33; buf[3] = 3;
     expect(() => parseId3Buffer(buf)).not.toThrow();
+  });
+
+  test('parses APIC cover as data URI', () => {
+    const jpegMagic = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+    const buf = buildId3v23([buildApicFrame('image/jpeg', jpegMagic)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  test('falls back to magic bytes when APIC mime is invalid', () => {
+    const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const buf = buildId3v23([buildApicFrame('invalid/mime', pngMagic)]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.cover?.startsWith('data:image/png;base64,')).toBe(true);
   });
 });

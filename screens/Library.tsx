@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, TextInput, Image } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
@@ -58,6 +58,10 @@ const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const [previewCoverFailed, setPreviewCoverFailed] = useState(false);
+  useEffect(() => {
+    setPreviewCoverFailed(false);
+  }, [currentSong?.id, currentSong?.cover]);
 
   const currentSongId = currentSong?.id ?? null;
 
@@ -194,8 +198,8 @@ const Library: React.FC = () => {
         {currentSong && (
           <View style={styles.previewCard}>
             <View style={styles.previewCover}>
-              {currentSong.cover ? (
-                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} />
+              {currentSong.cover && !previewCoverFailed ? (
+                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />
               ) : (
                 <Disc3 color={theme.palette.primary} size={36} />
               )}

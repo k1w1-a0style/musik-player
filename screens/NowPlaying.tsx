@@ -194,17 +194,23 @@ interface CoverProps {
   accent: string;
 }
 
-const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => (
-  <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
-    {song.cover ? (
-      <Image source={{ uri: song.cover }} style={styles.coverImage} />
-    ) : (
-      <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
-        <Disc3 color={theme.palette.primary} size={120} />
-      </View>
-    )}
-  </View>
-);
+const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => {
+  const [coverFailed, setCoverFailed] = React.useState(false);
+  React.useEffect(() => {
+    setCoverFailed(false);
+  }, [song.id, song.cover]);
+  return (
+    <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
+      {song.cover && !coverFailed ? (
+        <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
+      ) : (
+        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
+          <Disc3 color={theme.palette.primary} size={120} />
+        </View>
+      )}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

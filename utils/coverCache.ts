@@ -23,6 +23,17 @@ const extensionFromMimeSubtype = (subtype: string): string => {
   return 'jpg';
 };
 
+const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
+
+const hashString = (value: string): string => {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+};
+
 const getBaseDirectory = (): string | undefined =>
   documentDirectory
   ?? cacheDirectory
@@ -50,8 +61,16 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
 
     await mkdir(directory, { intermediates: true });
 
-    const fileUri = `${directory}/${encodeURIComponent(songId)}.${ext}`;
     const base64 = trimmed.slice(match[0].length);
+    if (!isLikelyValidBase64Payload(base64)) return undefined;
+    const contentHash = hashString(base64);
+    const safeSongId = hashString(songId);
+    const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
+    const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (uri: string) => Promise<{ exists: boolean }> }).getInfoAsync;
+    if (getInfoAsync) {
+      const existing = await getInfoAsync(fileUri);
+      if (existing.exists) return fileUri;
+    }
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
     await write(fileUri, base64, {
       encoding: base64Encoding,

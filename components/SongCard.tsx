@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
@@ -11,8 +11,11 @@ interface SongCardProps {
   isPlaying: boolean;
 }
 
-const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => (
-  <Pressable
+const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
+  const [coverFailed, setCoverFailed] = useState(false);
+  const showCover = !!song.cover && !coverFailed;
+  return (
+    <Pressable
     testID={`song-card-${song.id}`}
     accessibilityRole="button"
     accessibilityLabel={`${song.title} von ${song.artist}`}
@@ -20,8 +23,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, 
     style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
   >
     <View style={[styles.cover, isCurrent && styles.coverActive]}>
-      {song.cover ? (
-        <Image source={{ uri: song.cover }} style={styles.coverImage} />
+      {showCover ? (
+        <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
       ) : (
         <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={20} />
       )}
@@ -39,7 +42,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, 
 
     {isCurrent && <View style={[styles.dot, isPlaying && styles.dotActive]} />}
   </Pressable>
-);
+  );
+};
 
 const SongCard = memo(
   SongCardComponent,
