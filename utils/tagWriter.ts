@@ -90,7 +90,7 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
   return frames;
 };
 
-const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key);
+const hasDraftTag = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key) && draft.tags[key] !== undefined;
 
 export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFrame[] = []): Uint8Array => {
   const tags = normalizeEditableTags(draft.tags);
@@ -126,6 +126,7 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFra
 export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
   if (original.length === 0) throw new TagWriterError('InvalidTagData', 'Empty audio buffer.');
   const header = readId3Header(original);
+  if (header?.major === 4) throw new TagWriterError('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.');
   const existing = header ? parseFrames(original, header) : [];
   const audio = header ? original.slice(header.audioStart) : original.slice();
   const tag = buildId3v23TagFromDraft(draft, existing);

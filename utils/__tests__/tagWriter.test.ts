@@ -90,6 +90,13 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(frameIds(out)).toContain('TPE1');
   });
 
+
+  test('undefined tag fields are treated as untouched', () => {
+    const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: undefined, artist: undefined, album: undefined } });
+    expect(frameIds(out)).toEqual(expect.arrayContaining(['TIT2', 'TPE1']));
+  });
+
   test('cover remove/replace/preserve behaviors', () => {
     const apic = mkFrame('APIC', u8(0x00, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x2f, 0x6a, 0x70, 0x65, 0x67, 0x00, 0x03, 0x00, 0xff, 0xd8, 0xff));
     const src = new Uint8Array([...mkTag([apic, mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
@@ -108,12 +115,11 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(() => applyTagEditToBuffer(src, 'mp3', { songId:'1', tags:{} })).toThrow(/unsynchronisation/i);
   });
 
-  test('v2.4 footer is removed and audio starts after footer boundary', () => {
+  test('existing id3v2.4 is rejected to avoid mixed-version output', () => {
     const frame = mkFrame('TIT2', u8(0x03, 0x41));
     const tag = mkTag([frame], 4, 0x10, true);
     const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
-    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { artist: 'X' } });
-    expect(Array.from(out.slice(out.length - 3))).toEqual([0xaa, 0xbb, 0xcc]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { artist: 'X' } })).toThrow(/ID3v2.4/i);
   });
 
   test('existing id3v2.2 is rejected', () => {
