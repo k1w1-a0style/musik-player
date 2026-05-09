@@ -30,7 +30,7 @@ describe('coverCache', () => {
 
   test('migrates base64 covers to local file URIs', async () => {
     const songs: Song[] = [
-      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,Zm9v' },
+      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD' },
       { id: '2', title: 'B', artist: 'Y', cover: 'file:///cache/covers/2.jpg' },
     ];
 
@@ -62,5 +62,9 @@ describe('coverCache', () => {
 
   test('ignores invalid base64 payload', async () => {
     await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
+  });
+
+  test('ignores payload that does not match declared mime signature', async () => {
+    await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
   });
 });

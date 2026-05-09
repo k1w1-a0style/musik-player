@@ -25,6 +25,47 @@ const extensionFromMimeSubtype = (subtype: string): string => {
 
 const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
 
+const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Int16Array(256).fill(-1);
+  for (let i = 0; i < chars.length; i += 1) lookup[chars.charCodeAt(i)] = i;
+  const clean = value.replace(/[^A-Za-z0-9+/]/g, '');
+  const out = new Uint8Array(maxBytes);
+  let buf = 0;
+  let bits = 0;
+  let j = 0;
+  for (let i = 0; i < clean.length && j < maxBytes; i += 1) {
+    const v = lookup[clean.charCodeAt(i)];
+    if (v < 0) continue;
+    buf = (buf << 6) | v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[j] = (buf >> bits) & 0xff;
+      j += 1;
+    }
+  }
+  return out.subarray(0, j);
+};
+
+const matchesMimeSignature = (bytes: Uint8Array, subtype: string): boolean => {
+  const normalized = subtype.toLowerCase();
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (normalized.includes('png')) {
+    return bytes.length >= 8
+      && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  }
+  if (normalized.includes('webp')) {
+    return bytes.length >= 12
+      && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  }
+  return bytes.length > 0;
+};
+
 const hashString = (value: string): string => {
   let h = 2166136261;
   for (let i = 0; i < value.length; i += 1) {
@@ -63,6 +104,7 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
 
     const base64 = trimmed.slice(match[0].length);
     if (!isLikelyValidBase64Payload(base64)) return undefined;
+    if (!matchesMimeSignature(base64PrefixToBytes(base64), match[1] ?? 'jpeg')) return undefined;
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
