@@ -363,7 +363,8 @@ const base64ToBytes = (b64: string): Uint8Array => {
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
-    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(uri);
+    const normalizedUri = uri.split('?')[0] ?? uri;
+    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(normalizedUri);
     try {
       const b64 = await readAsStringAsync(uri, {
         encoding: encodingBase64,
@@ -389,7 +390,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       });
       const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
       if (tailCover) return { ...id3, cover: tailCover };
-      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+      return id3;
     } catch {
       // fallback to File API when legacy path is unavailable
     }
