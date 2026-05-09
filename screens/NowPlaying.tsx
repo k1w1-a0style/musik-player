@@ -76,6 +76,7 @@ const NowPlaying: React.FC = () => {
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
+  const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
 
   const renderCover = useCallback(
     ({ item }: { item: Song; index: number }) => {
@@ -101,18 +102,7 @@ const NowPlaying: React.FC = () => {
       <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      <View style={styles.headerBar}>
-        <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={() => navigation.goBack()}>
-          <ChevronDown color={theme.palette.text.primary} size={22} />
-        </Pressable>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{currentSong?.album ?? 'Aus deiner Bibliothek'}</Text>
-        </View>
-        <Pressable testID="now-playing-more" style={styles.headerBtn}>
-          <MoreHorizontal color={theme.palette.text.primary} size={22} />
-        </Pressable>
-      </View>
+      <NowPlayingHeader albumTitle={albumTitle} onClose={() => navigation.goBack()} />
 
       <FlatList
         ref={flatRef}
@@ -179,13 +169,7 @@ const NowPlaying: React.FC = () => {
         </View>
       )}
 
-      <View style={styles.bottomRow}>
-        <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
-        <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
-          <ModernControls volume={volume} onVolumeChange={setVolume} />
-        </GlassCard>
-        <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
-      </View>
+      <BottomControlsRow volume={volume} onVolumeChange={setVolume} />
     </Screen>
   );
 };
@@ -197,6 +181,21 @@ interface QueuePreviewRowProps {
   isCurrent: boolean;
   onPress: (songId: string) => void;
 }
+
+const NowPlayingHeader = React.memo(({ albumTitle, onClose }: { albumTitle: string; onClose: () => void }) => (
+  <View style={styles.headerBar}>
+    <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={onClose}>
+      <ChevronDown color={theme.palette.text.primary} size={22} />
+    </Pressable>
+    <View style={styles.headerTitleWrap}>
+      <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
+      <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
+    </View>
+    <Pressable testID="now-playing-more" style={styles.headerBtn}>
+      <MoreHorizontal color={theme.palette.text.primary} size={22} />
+    </Pressable>
+  </View>
+));
 
 const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => {
   const handlePress = React.useCallback(() => {
@@ -213,6 +212,16 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
     </Pressable>
   );
 });
+
+const BottomControlsRow = React.memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => Promise<void> }) => (
+  <View style={styles.bottomRow}>
+    <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
+    <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
+      <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
+    </GlassCard>
+    <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
+  </View>
+));
 
 interface CoverProps {
   song: Song;
