@@ -11,6 +11,7 @@ const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 3;
 export const MAX_SAF_FILES = 5000;
+const MAX_SAF_DEPTH = 2;
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 const EXTENSION_MIME_MAP: Record<string, string> = {
@@ -148,12 +149,36 @@ export const readAudioUrisFromSafDirectory = async (
   directoryUri: string,
   readDirectory: (uri: string) => Promise<string[]> = StorageAccessFramework.readDirectoryAsync,
 ): Promise<{ files: string[]; errors: string[] }> => {
-  try {
-    const entries = await readDirectory(directoryUri);
-    return { files: entries.filter(isAudioFileUri).slice(0, MAX_SAF_FILES), errors: [] };
-  } catch {
-    return { files: [], errors: [directoryUri] };
-  }
+  const files: string[] = [];
+  const errors: string[] = [];
+  const visited = new Set<string>();
+
+  const walk = async (uri: string, depth: number): Promise<void> => {
+    if (visited.has(uri) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
+    visited.add(uri);
+
+    let entries: string[];
+    try {
+      entries = await readDirectory(uri);
+    } catch {
+      errors.push(uri);
+      return;
+    }
+
+    for (const entry of entries) {
+      if (files.length >= MAX_SAF_FILES) break;
+      if (isAudioFileUri(entry)) {
+        files.push(entry);
+        continue;
+      }
+      if (depth < MAX_SAF_DEPTH) {
+        await walk(entry, depth + 1);
+      }
+    }
+  };
+
+  await walk(directoryUri, 0);
+  return { files, errors };
 };
 
 export const scanAudioAssetsFromMediaLibrary = async (
