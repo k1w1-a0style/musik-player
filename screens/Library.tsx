@@ -22,7 +22,7 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { deriveFolderNameFromUri, deriveMimeType as deriveMimeTypeImport, deriveExtension as deriveExtensionImport, importSongsFromSources } from '../utils/mediaLibraryImport';
+import { deriveFolderNameFromUri, importSongsFromSources } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
@@ -32,8 +32,6 @@ declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 84;
 
-export const deriveExtension = deriveExtensionImport;
-export const deriveMimeType = deriveMimeTypeImport;
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
