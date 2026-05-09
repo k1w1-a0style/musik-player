@@ -67,8 +67,11 @@ describe('tagWriter', () => {
     expect(String.fromCharCode(...Array.from(merged.slice(0, 3)))).toBe('ID3');
     expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
   });
-  test('mp3 apply path is intentionally blocked', () => {
-    expect(() => applyTagEditToBuffer(new Uint8Array([1, 2, 3]), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/not yet enabled/i);
+  test('mp3 apply path returns merged buffer', () => {
+    const original = new Uint8Array([0xff, 0xfb, 0x90, 0x64]);
+    const merged = applyTagEditToBuffer(original, 'mp3', { songId: '1', tags: { title: 'X' } });
+    expect(String.fromCharCode(...Array.from(merged.slice(0, 3)))).toBe('ID3');
+    expect(Array.from(merged.slice(-4))).toEqual([0xff, 0xfb, 0x90, 0x64]);
   });
 
   test('ensureTagEditWriteAllowed maps permission errors', () => {

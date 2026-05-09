@@ -152,8 +152,7 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   if (container === 'm4a' || container === 'mp4') throw new TagWriterError('WriteNotImplemented', 'MP4/M4A writing not implemented safely yet.');
   if (container === 'mp3') {
     if (buffer.length === 0) throw new TagWriterError('InvalidTagData', 'Empty buffer.');
-    buildMp3TextFrames(draft.tags);
-    throw new TagWriterError('WriteNotImplemented', 'MP3 rewrite is not yet enabled for full-file safety.');
+    return mergeId3v23TagIntoMp3Buffer(buffer, draft);
   }
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
