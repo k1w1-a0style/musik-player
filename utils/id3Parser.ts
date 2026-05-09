@@ -19,6 +19,8 @@ export interface Id3Tags {
   /** data:image/... base64 data URI */
   cover?: string;
 }
+const HEAD_READ_LIMIT = 1024 * 1024;
+const TAIL_READ_LIMIT = 1024 * 1024;
 
 type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -361,15 +363,32 @@ const base64ToBytes = (b64: string): Uint8Array => {
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
+    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(uri);
     try {
       const b64 = await readAsStringAsync(uri, {
         encoding: encodingBase64,
-        length: 1024 * 1024,
+        length: HEAD_READ_LIMIT,
       });
       const bytes = base64ToBytes(b64);
       const id3 = parseId3Buffer(bytes);
       if (id3.cover) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      const mp4Cover = looksLikeMp4 ? parseMp4CoverFromBuffer(bytes) : undefined;
+      if (mp4Cover) return { ...id3, cover: mp4Cover };
+      if (!looksLikeMp4) return id3;
+      const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
+      if (!getInfoAsync) return id3;
+      const info = await getInfoAsync(uri);
+      const size = info.size ?? 0;
+      if (size <= HEAD_READ_LIMIT) return id3;
+      const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
+      const tailStart = Math.max(0, size - tailReadLength);
+      const tailB64 = await readAsStringAsync(uri, {
+        encoding: encodingBase64,
+        length: tailReadLength,
+        position: tailStart,
+      });
+      const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
+      if (tailCover) return { ...id3, cover: tailCover };
       return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
     } catch {
       // fallback to File API when legacy path is unavailable
@@ -379,11 +398,15 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     if (FileCtor) {
       const file = new FileCtor(uri);
       const bytes = await file.bytes();
-      const chunk = bytes.subarray(0, 1024 * 1024);
+      const chunk = bytes.subarray(0, HEAD_READ_LIMIT);
       const id3 = parseId3Buffer(chunk);
       if (id3.cover) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(chunk);
-      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+      const mp4CoverHead = looksLikeMp4 ? parseMp4CoverFromBuffer(chunk) : undefined;
+      if (mp4CoverHead) return { ...id3, cover: mp4CoverHead };
+      if (!looksLikeMp4 || bytes.length <= HEAD_READ_LIMIT) return id3;
+      const tail = bytes.subarray(Math.max(0, bytes.length - TAIL_READ_LIMIT));
+      const mp4CoverTail = parseMp4CoverFromBuffer(tail);
+      return mp4CoverTail ? { ...id3, cover: mp4CoverTail } : id3;
     }
     return {};
   } catch {
