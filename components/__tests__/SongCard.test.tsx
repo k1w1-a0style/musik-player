@@ -8,7 +8,7 @@ describe('SongCard cover fallback', () => {
     const { UNSAFE_getByType, UNSAFE_queryByType } = render(
       <SongCard
         song={{ id: '1', title: 'Track', artist: 'Artist', cover: 'file:///broken.jpg' }}
-        onPressSong={jest.fn()}
+        onPress={jest.fn()}
         isCurrent={false}
         isPlaying={false}
       />,

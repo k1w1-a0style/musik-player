@@ -6,16 +6,16 @@ import { theme } from '../theme';
 
 interface SongCardProps {
   song: Song;
-  onPressSong: (song: Song) => void;
+  onPress: (songId: string) => void;
   isCurrent: boolean;
   isPlaying: boolean;
 }
 
-const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, isCurrent, isPlaying }) => {
+const SongCardComponent: React.FC<SongCardProps> = ({ song, onPress, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
   const handlePress = useCallback(() => {
-    onPressSong(song);
-  }, [onPressSong, song]);
+    onPress(song.id);
+  }, [onPress, song.id]);
   useEffect(() => {
     setCoverFailed(false);
   }, [song.id, song.cover]);
