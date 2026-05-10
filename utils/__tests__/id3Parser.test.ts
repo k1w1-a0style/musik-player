@@ -30,6 +30,10 @@ const buildTextFrame = (id: string, text: string): number[] => {
   const body = [0x00, ...enc(text)];
   return [...enc(id), ...u32be(body.length), 0, 0, ...body];
 };
+const buildUtf8TextFrame = (id: string, utf8Bytes: number[]): number[] => {
+  const body = [0x03, ...utf8Bytes];
+  return [...enc(id), ...u32be(body.length), 0, 0, ...body];
+};
 
 const buildId3v23 = (frames: number[][]): Uint8Array => {
   const flat = frames.reduce<number[]>((acc, f) => acc.concat(f), []);
@@ -85,6 +89,20 @@ describe('parseId3Buffer (v2.3)', () => {
     const tags = parseId3Buffer(buf);
     expect(tags.title).toBe(utf8Title);
   });
+  test('handles UTF-8 4-byte code points', () => {
+    const body = [0x03, 0x53, 0xf0, 0x9f, 0x8e, 0xa7];
+    const frame = [...enc('TIT2'), ...u32be(body.length), 0, 0, ...body];
+    expect(parseId3Buffer(buildId3v23([frame])).title).toBe('S🎧');
+  });
+  test('truncated utf8 sequences do not throw', () => {
+    const frames = [
+      buildUtf8TextFrame('TIT2', [0xc3]),
+      buildUtf8TextFrame('TALB', [0xe2, 0x82]),
+      buildUtf8TextFrame('TPE1', [0xf0, 0x9f, 0x92]),
+      buildUtf8TextFrame('TCON', [0xe2, 0x28, 0xa1]),
+    ];
+    expect(() => parseId3Buffer(buildId3v23(frames))).not.toThrow();
+  });
 
   test('TPE2 fills artist if TPE1 is missing', () => {
     const buf = buildId3v23([buildTextFrame('TPE2', 'Various Artists')]);
@@ -122,6 +140,15 @@ describe('parseId3Buffer (v2.3)', () => {
     const buf = buildId3v23([frame]);
     expect(() => parseId3Buffer(buf)).not.toThrow();
   });
+  test('COMM fallback uses non-empty description if no empty one exists', () => {
+    const buf = buildId3v23([buildCommFrame('fallback text', 'desc')]);
+    expect(parseId3Buffer(buf).comment).toBe('fallback text');
+  });
+  test('COMM UTF-8 with emoji parses correctly', () => {
+    const body = [0x03, 0x65, 0x6e, 0x67, 0x00, 0xf0, 0x9f, 0x98, 0x8a];
+    const frame = [...enc('COMM'), ...u32be(body.length), 0, 0, ...body];
+    expect(parseId3Buffer(buildId3v23([frame])).comment).toBe('😊');
+  });
 
   test('truncated buffer does not throw', () => {
     const buf = new Uint8Array(20);
@@ -148,6 +175,19 @@ describe('parseId3Buffer (v2.3)', () => {
     const buf = buildId3v23([buildApicFrame('image/jpeg', badBytes)]);
     const tags = parseId3Buffer(buf);
     expect(tags.cover).toBeUndefined();
+  });
+  test('truncated APIC does not throw and returns no cover', () => {
+    const frame = [...enc('APIC'), ...u32be(3), 0, 0, 0x00, 0x69, 0x6d];
+    const tags = parseId3Buffer(buildId3v23([frame]));
+    expect(tags.cover).toBeUndefined();
+  });
+  test('APIC without image bytes returns no cover', () => {
+    const frame = [...enc('APIC'), ...u32be(13), 0, 0, 0x00, ...enc('image/jpeg'), 0x00, 0x03, 0x00];
+    expect(parseId3Buffer(buildId3v23([frame])).cover).toBeUndefined();
+  });
+  test('invalid frame id stops safely', () => {
+    const bad = [...enc('@@@!'), ...u32be(4), 0, 0, 0, 0, 0, 0];
+    expect(() => parseId3Buffer(buildId3v23([bad]))).not.toThrow();
   });
 });
 
@@ -189,5 +229,15 @@ describe('parseMp4CoverFromBuffer', () => {
     const bytes = new Uint8Array([...fakeSize, ...fakeType, ...fakePayload, ...moov]);
     const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+  test('does not false-positive from covr bytes inside mdat payload', () => {
+    const fake = new Array(64).fill(0x61);
+    fake.splice(8, 4, ...enc('covr'));
+    const bytes = new Uint8Array(atom('mdat', fake));
+    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
+  });
+  test('handles invalid size atoms without infinite loop', () => {
+    const bytes = new Uint8Array([0, 0, 0, 1, ...enc('moov'), 0, 0, 0, 0]);
+    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
   });
 });
