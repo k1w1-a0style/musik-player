@@ -23,6 +23,24 @@ const file = (moovFirst: boolean, ilstAtom: Uint8Array) => {
   const ftyp = atom(types.ftyp, u8(0,0,0,0)); const mdat = atom(types.mdat, u8(1,2,3,4,5,6)); const moovAtom = moov(udta(meta(ilstAtom)));
   return Uint8Array.from((moovFirst ? [ftyp, moovAtom, mdat] : [ftyp, mdat, moovAtom]).flatMap((x) => Array.from(x)));
 };
+const findAtom = (buffer: Uint8Array, typeText: string): number => new TextDecoder().decode(buffer).indexOf(typeText);
+const findBytes = (buffer: Uint8Array, needle: Uint8Array): number => {
+  for (let i = 0; i <= buffer.length - needle.length; i += 1) {
+    let ok = true;
+    for (let j = 0; j < needle.length; j += 1) {
+      if (buffer[i + j] !== needle[j]) { ok = false; break; }
+    }
+    if (ok) return i;
+  }
+  return -1;
+};
+const findAtomTypeOffset = (buffer: Uint8Array, type: Uint8Array): number => {
+  const pos = findBytes(buffer, type);
+  if (pos < 4) return -1;
+  const size = (buffer[pos - 4] << 24) | (buffer[pos - 3] << 16) | (buffer[pos - 2] << 8) | buffer[pos - 1];
+  if (size < 8 || pos - 4 + size > buffer.length) return -1;
+  return pos - 4;
+};
 
 test('mp4 title edit works when moov is after mdat and keeps mdat bytes', () => {
   const src = file(false, ilst(item(types.nam, te.encode('old')), item(types.art, te.encode('artist'))));
@@ -89,11 +107,17 @@ test('invalid disc format throws InvalidTagData', () => {
 test('trackNumber packed format writes trkn atom', () => {
   const src = file(false, ilst(item(types.nam, te.encode('old'))));
   const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { trackNumber: '3/12' } });
-  const bytes = Array.from(out);
-  expect(new TextDecoder().decode(out).includes('trkn')).toBe(true);
-  expect(bytes.includes(0x00)).toBe(true);
-  expect(bytes.includes(0x03)).toBe(true);
-  expect(bytes.includes(0x0c)).toBe(true);
+  const trknAtomStart = findAtomTypeOffset(out, te.encode('trkn'));
+  expect(trknAtomStart).toBeGreaterThanOrEqual(0);
+  const absoluteDataPos = trknAtomStart + 8;
+  expect(String.fromCharCode(...out.slice(absoluteDataPos + 4, absoluteDataPos + 8))).toBe('data');
+  // data atom payload layout for trkn: [reserved(2), current(2), total(2)]
+  const currentHi = out[absoluteDataPos + 20];
+  const currentLo = out[absoluteDataPos + 21];
+  const totalHi = out[absoluteDataPos + 22];
+  const totalLo = out[absoluteDataPos + 23];
+  expect((currentHi << 8) | currentLo).toBe(3);
+  expect((totalHi << 8) | totalLo).toBe(12);
 });
 
 test('cover remove and replace behavior', () => {
@@ -103,4 +127,11 @@ test('cover remove and replace behavior', () => {
   expect(new TextDecoder().decode(removed).includes('covr')).toBe(false);
   const replaced = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {}, cover: { mimeType: 'image/png', data: u8(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) } });
   expect(new TextDecoder().decode(replaced).includes('covr')).toBe(true);
+  const covrPos = findAtom(replaced, 'covr');
+  expect(covrPos).toBeGreaterThanOrEqual(0);
+  const dataPos = new TextDecoder().decode(replaced.subarray(covrPos)).indexOf('data');
+  expect(dataPos).toBeGreaterThanOrEqual(0);
+  const absoluteDataPos = covrPos + dataPos;
+  const dataType = (replaced[absoluteDataPos + 4] << 24) | (replaced[absoluteDataPos + 5] << 16) | (replaced[absoluteDataPos + 6] << 8) | replaced[absoluteDataPos + 7];
+  expect(dataType).toBe(14);
 });
