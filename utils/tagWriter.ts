@@ -397,7 +397,9 @@ export const writeTagsToFile = async (
   try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
     try {
       await adapter.copyFile(backupUri, uri);
-      try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+      const rollbackWarnings = [`Replace failed and rollback restored backup: ${String(error)}`];
+      try { await adapter.deleteFile(tempUri); } catch { rollbackWarnings.push('Temp cleanup failed after rollback; temp file retained.'); }
+      try { await adapter.deleteFile(backupUri); } catch { rollbackWarnings.push('Backup cleanup failed after rollback; backup file retained.'); }
       return {
         status: 'rolledBack',
         sourceUri: uri,
@@ -405,7 +407,7 @@ export const writeTagsToFile = async (
         tempUri,
         bytesBefore: original.length,
         bytesAfter: original.length,
-        warnings: [`Replace failed and rollback restored backup: ${String(error)}`],
+        warnings: rollbackWarnings,
       };
     } catch {
       throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`);

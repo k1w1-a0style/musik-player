@@ -442,13 +442,41 @@ describe('writeTagsToFile safe file writes', () => {
     expect(Array.from(files.keys()).some((k) => k.startsWith(`${uri}.`) && k.endsWith('.bak'))).toBe(false);
   });
 
-  test('replace failure returns rolledBack when rollback succeeds', async () => {
+  test('replace failure returns rolledBack and cleans temp/backup when rollback succeeds', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
     (adapter.moveOrReplaceFile as any) = jest.fn(async () => { throw new Error('replace failed'); });
+    const deleteSpy = jest.spyOn(adapter, 'deleteFile');
     const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
     expect(result.status).toBe('rolledBack');
     expect(result.warnings.join(' ')).toMatch(/rollback restored backup/i);
+    expect(deleteSpy).toHaveBeenCalledWith(expect.stringContaining('.tmp'));
+    expect(deleteSpy).toHaveBeenCalledWith(expect.stringContaining('.bak'));
+    expect(result.warnings.join(' ')).not.toMatch(/cleanup failed after rollback/i);
+  });
+
+  test('rollback backup cleanup failure is non-fatal and returns rolledBack with warning', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.moveOrReplaceFile as any) = jest.fn(async () => { throw new Error('replace failed'); });
+    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+      if (targetUri.endsWith('.bak')) throw new Error('backup cleanup failed');
+    });
+    const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    expect(result.status).toBe('rolledBack');
+    expect(result.warnings.join(' ')).toMatch(/backup cleanup failed after rollback/i);
+  });
+
+  test('rollback temp cleanup failure is non-fatal and returns rolledBack with warning', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.moveOrReplaceFile as any) = jest.fn(async () => { throw new Error('replace failed'); });
+    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+      if (targetUri.endsWith('.tmp')) throw new Error('temp cleanup failed');
+    });
+    const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    expect(result.status).toBe('rolledBack');
+    expect(result.warnings.join(' ')).toMatch(/temp cleanup failed after rollback/i);
   });
 
   test('replace failure with rollback failure throws RollbackFailed', async () => {
