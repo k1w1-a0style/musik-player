@@ -17,7 +17,6 @@
       "package": "com.k1w1a0style.musikplayer",
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
