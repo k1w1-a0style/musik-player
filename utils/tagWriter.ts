@@ -21,7 +21,8 @@ const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
 
 const isValidId3v23FrameId = (id: string): boolean => /^[A-Z0-9]{4}$/.test(id);
 
-export const hasId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
+const startsWithId3Preamble = (buffer: Uint8Array): boolean => buffer.length >= 3 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
+export const hasId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && startsWithId3Preamble(buffer);
 export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
   if (sizeBytes.length !== 4) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe input size.');
   if (sizeBytes.some((b) => b > 0x7f)) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe byte.');
@@ -41,8 +42,9 @@ export const encodeSynchsafe = (size: number): Uint8Array => {
 const readU32 = (b: Uint8Array, o: number): number => ((b[o] << 24) >>> 0) + (b[o + 1] << 16) + (b[o + 2] << 8) + b[o + 3];
 
 export const readId3Header = (buffer: Uint8Array): ParsedId3Header | undefined => {
-  if (!hasId3Header(buffer)) return undefined;
-  if (buffer.length < 10) throw new TagWriterError('InvalidTagData', 'Truncated ID3 header.');
+  const hasPreamble = startsWithId3Preamble(buffer);
+  if (hasPreamble && buffer.length < 10) throw new TagWriterError('InvalidTagData', 'Truncated ID3 header.');
+  if (!hasPreamble) return undefined;
   const major = buffer[3];
   if (major === 2) throw new TagWriterError('WriteNotImplemented', 'Existing ID3v2.2 tags are not supported yet.');
   if (major !== 2 && major !== 3 && major !== 4) throw new TagWriterError('InvalidTagData', `Unsupported ID3 major version: ${major}`);

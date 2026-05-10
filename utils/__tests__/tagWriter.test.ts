@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, decodeSynchsafe, encodeSynchsafe, TagWriterError, validateId3PayloadSize } from '../tagWriter';
+import { applyTagEditToBuffer, decodeSynchsafe, encodeSynchsafe, readId3Header, TagWriterError, validateId3PayloadSize } from '../tagWriter';
 import { ensureTagEditWriteAllowed, prepareTagEditPlan, writeTagsToFile } from '../tagWriter';
 import type { Song } from '../../types/Song';
 
@@ -41,6 +41,26 @@ describe('tagWriter mp3 id3v2.3', () => {
   test('validateId3PayloadSize enforces synchsafe upper bound', () => {
     expect(() => validateId3PayloadSize(0x0fffffff)).not.toThrow();
     expect(() => validateId3PayloadSize(0x10000000)).toThrow(/synchsafe/i);
+  });
+
+
+  test('truncated ID3 preamble of 3 bytes is rejected', () => {
+    expect(() => applyTagEditToBuffer(u8(0x49, 0x44, 0x33), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/Truncated ID3 header/i);
+  });
+
+  test('truncated ID3 preamble of 4 bytes is rejected', () => {
+    expect(() => applyTagEditToBuffer(u8(0x49, 0x44, 0x33, 0x03), 'mp3', { songId: '1', tags: { title: 'X' } })).toThrow(/Truncated ID3 header/i);
+  });
+
+  test('readId3Header rejects ID3 preamble shorter than full header', () => {
+    expect(() => readId3Header(u8(0x49, 0x44, 0x33, 0x03, 0x00))).toThrow(/Truncated ID3 header/i);
+  });
+
+  test('non-ID3 short preamble is treated as untagged audio', () => {
+    const src = u8(0x49, 0x44, 0x90, 0x64);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: 'X' } });
+    expect(String.fromCharCode(out[0], out[1], out[2])).toBe('ID3');
+    expect(Array.from(out.slice(-src.length))).toEqual(Array.from(src));
   });
 
   test('writes mp3, keeps audio bytes and v2.3 header', () => {

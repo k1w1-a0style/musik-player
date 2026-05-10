@@ -67,3 +67,5 @@ Separate PRs are still required for:
 
 - APIC payload construction avoids large spread-based intermediate JS arrays.
 - Preserved frame IDs are validated (`[A-Z0-9]{4}`); invalid/non-ASCII IDs are rejected with `InvalidTagData`.
+
+- Truncated ID3 preambles (`ID3` with <10 bytes) are rejected as `InvalidTagData` and not treated as audio.
