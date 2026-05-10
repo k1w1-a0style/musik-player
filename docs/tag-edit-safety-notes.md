@@ -100,3 +100,9 @@ Separate PRs are still required for:
 - Temp verification read failures are normalized to `VerificationFailed` with best-effort temp cleanup.
 - Temp cleanup after successful replace is non-fatal and reported as warning.
 - Capability/planner now align with guarded `file://` write support (`canWrite=true` for supported local files).
+
+## 2026-05 Tag-Editor UI gate
+- New `TagEditor` screen uses capability + orchestration gate before save UI is enabled.
+- No automatic writes on open; writes require explicit confirmation dialog.
+- `content://` remains blocked in UI and write layer.
+- iOS/Web `file://` remains blocked by capability and `ensureTagEditWriteAllowed`.
