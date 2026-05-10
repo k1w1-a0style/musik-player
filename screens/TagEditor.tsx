@@ -29,7 +29,7 @@ const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
 ];
 
 const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
-  MissingWritePermission: 'content:// Schreiben ist noch nicht unterstützt.',
+  MissingWritePermission: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.',
   UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
   WriteNotImplemented: 'Sicheres Ersetzen auf dieser Plattform noch nicht unterstützt.',
@@ -69,7 +69,7 @@ export const buildDraftFromDirtyFields = (
 const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
 
 const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
-  if (reasons.includes('MissingWritePermission')) return 'content://: SAF-Schreiben noch nicht unterstützt.';
+  if (reasons.includes('MissingWritePermission')) return 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.';
   if (reasons.includes('WriteNotImplemented')) return 'iOS/Web file://: sicherer Replace nicht unterstützt.';
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
   if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';

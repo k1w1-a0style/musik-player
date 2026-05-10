@@ -230,6 +230,17 @@ describe('parseMp4CoverFromBuffer', () => {
     const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
+
+  test('trusted container scan can skip unknown printable atoms and still find covr', () => {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const dataPayload = [0, 0, 0, 14, 0, 0, 0, 0, ...png];
+    const unknown = atom('zzzz', new Array(40).fill(0x42));
+    const ilst = atom('ilst', [...unknown, ...atom('covr', atom('data', dataPayload))]);
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst])));
+    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    expect(cover?.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
   test('does not false-positive from covr bytes inside mdat payload', () => {
     const fake = new Array(64).fill(0x61);
     fake.splice(8, 4, ...enc('covr'));

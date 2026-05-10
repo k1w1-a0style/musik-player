@@ -52,6 +52,16 @@ describe('tagEditCapability', () => {
     expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
 
+
+
+  test('content:// m4a/mp4 stay read-only', () => {
+    const m4a = getTagEditCapability(song({ uri: 'content://music/a.m4a', fileInfo: { extension: 'm4a' } }));
+    const mp4 = getTagEditCapability(song({ uri: 'content://music/a.mp4', fileInfo: { extension: 'mp4' } }));
+    expect(m4a.canWrite).toBe(false);
+    expect(mp4.canWrite).toBe(false);
+    expect(m4a.reason).toMatch(/SAF\/content:\/\//i);
+  });
+
   test('helpers', () => {
     expect(getUriType('file:///a')).toBe('file');
     expect(isSupportedTagEditContainer(song({ fileInfo: { extension: 'mp3' } }))).toBe(true);

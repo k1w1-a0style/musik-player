@@ -54,7 +54,7 @@ test('not found state', () => {
 });
 
 test('canWrite false blocks save and shows reason', () => {
-  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'content:// Schreiben ist noch nicht unterstützt.', supportedContainer: 'mp3' };
+  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.', supportedContainer: 'mp3' };
   const { getByText, getByTestId } = render(<TagEditor />);
   expect(getByText(/content:\/\//)).toBeTruthy();
   fireEvent.press(getByTestId('save-button'));
@@ -63,7 +63,7 @@ test('canWrite false blocks save and shows reason', () => {
 
 
 test('fields are read-only when canWrite is false', () => {
-  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'content:// Schreiben ist noch nicht unterstützt.', supportedContainer: 'mp3' };
+  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.', supportedContainer: 'mp3' };
   const { getByTestId } = render(<TagEditor />);
   expect(getByTestId('input-title').props.editable).toBe(false);
 });

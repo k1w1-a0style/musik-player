@@ -399,7 +399,7 @@ const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string
 
 const MP4_SKIP_PAYLOAD_ATOMS = new Set(['mdat', 'free', 'skip', 'wide', 'uuid']);
 
-const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth = 0): string | undefined => {
+const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth = 0, trustedBoundary = false): string | undefined => {
   if (depth > 8) return undefined;
   let p = start;
   while (p + 8 <= end) {
@@ -416,7 +416,7 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
     const isContainer = MP4_CONTAINER_ATOMS.has(type);
     const isRelevantLeaf = MP4_RELEVANT_LEAF_ATOMS.has(type);
     if (!isContainer && !isRelevantLeaf) {
-      if (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type)) p += size;
+      if (trustedBoundary && (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type))) p += size;
       else p += 1;
       continue;
     }
@@ -427,7 +427,7 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
       const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
       if (cover) return cover;
     } else if (MP4_CONTAINER_ATOMS.has(type)) {
-      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1);
+      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1, true);
       if (cover) return cover;
     }
     p += size;
