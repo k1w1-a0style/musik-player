@@ -31,7 +31,7 @@ beforeEach(() => {
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons: any) => buttons?.[1]?.onPress?.());
   mockCapability = { canRead: true, canWrite: true, uriType: 'file', reason: 'ok', supportedContainer: 'mp3' };
   mockPlan = { blockingReasons: [] };
-  mockSongs = [{ id: 's1', title: 'A', artist: 'B', album: 'C', uri: 'file:///x.mp3', year: '2020', genre: 'Pop', fileInfo: { extension: 'mp3', uri: 'file:///x.mp3' } }];
+  mockSongs = [{ id: 's1', title: 'A', artist: 'B', album: 'C', uri: 'file:///x.mp3', year: '2020', genre: 'Pop', trackNumber: '2/9', discNumber: '1/1', comment: 'Start', fileInfo: { extension: 'mp3', uri: 'file:///x.mp3' } }];
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();
 });
@@ -41,6 +41,9 @@ test('renders fields with current song', () => {
   expect(getByDisplayValue('A')).toBeTruthy();
   expect(getByDisplayValue('B')).toBeTruthy();
   expect(getByDisplayValue('C')).toBeTruthy();
+  expect(getByDisplayValue('2/9')).toBeTruthy();
+  expect(getByDisplayValue('1/1')).toBeTruthy();
+  expect(getByDisplayValue('Start')).toBeTruthy();
 });
 
 test('not found state', () => {
@@ -168,7 +171,7 @@ test('trackNumber preserved and normalized after written', async () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.changeText(getByTestId('input-trackNumber'), ' 3/12 ');
   fireEvent.press(getByTestId('save-button'));
-  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { trackNumber: '3/12' }));
   expect(getByTestId('input-trackNumber').props.value).toBe('3/12');
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
@@ -178,7 +181,7 @@ test('discNumber preserved and normalized after written', async () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.changeText(getByTestId('input-discNumber'), ' 1/2 ');
   fireEvent.press(getByTestId('save-button'));
-  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { discNumber: '1/2' }));
   expect(getByTestId('input-discNumber').props.value).toBe('1/2');
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
@@ -188,7 +191,7 @@ test('comment preserved and normalized after written', async () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.changeText(getByTestId('input-comment'), '  Hallo  ');
   fireEvent.press(getByTestId('save-button'));
-  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { comment: 'Hallo' }));
   expect(getByTestId('input-comment').props.value).toBe('Hallo');
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
@@ -198,7 +201,7 @@ test('whitespace-only comment resets to empty after written', async () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.changeText(getByTestId('input-comment'), '   ');
   fireEvent.press(getByTestId('save-button'));
-  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { comment: undefined }));
   expect(getByTestId('input-comment').props.value).toBe('');
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });

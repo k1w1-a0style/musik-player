@@ -16,6 +16,9 @@ export interface Id3Tags {
   album?: string;
   year?: string;
   genre?: string;
+  trackNumber?: string;
+  discNumber?: string;
+  comment?: string;
   /** data:image/... base64 data URI */
   cover?: string;
 }
@@ -117,6 +120,30 @@ const decodeText = (bytes: Uint8Array, start: number, end: number): string => {
     default:
       return readLatin1(bytes, start, end).trim();
   }
+};
+
+
+const decodeComm = (bytes: Uint8Array, start: number, end: number): { description: string; text: string } | undefined => {
+  if (start + 4 >= end) return undefined;
+  const enc = bytes[start];
+  let p = start + 1 + 3;
+  let description = '';
+
+  if (enc === 0x01 || enc === 0x02) {
+    const descStart = p;
+    while (p + 1 < end && !(bytes[p] === 0 && bytes[p + 1] === 0)) p += 2;
+    description = readUtf16(bytes, descStart, Math.min(p + 2, end)).trim();
+    p = p + 1 < end ? p + 2 : end;
+    const text = readUtf16(bytes, p, end).trim();
+    return { description, text };
+  }
+
+  const descStart = p;
+  while (p < end && bytes[p] !== 0) p += 1;
+  description = (enc === 0x03 ? readUtf8(bytes, descStart, p) : readLatin1(bytes, descStart, p)).trim();
+  p = p < end ? p + 1 : end;
+  const text = (enc === 0x03 ? readUtf8(bytes, p, end) : readLatin1(bytes, p, end)).trim();
+  return { description, text };
 };
 
 const bytesToBase64 = (bytes: Uint8Array): string => {
@@ -252,6 +279,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     }
     return tags;
   }
+  let commentFallback: string | undefined;
   while (p + 10 < end) {
     const id = readLatin1(bytes, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;
@@ -281,6 +309,20 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
       case 'TCON':
         tags.genre = decodeText(bytes, bodyStart, bodyEnd);
         break;
+      case 'TRCK':
+        tags.trackNumber = decodeText(bytes, bodyStart, bodyEnd);
+        break;
+      case 'TPOS':
+        tags.discNumber = decodeText(bytes, bodyStart, bodyEnd);
+        break;
+      case 'COMM': {
+        const comm = decodeComm(bytes, bodyStart, bodyEnd);
+        if (comm?.text) {
+          if (!comm.description) tags.comment = comm.text;
+          else if (!commentFallback) commentFallback = comm.text;
+        }
+        break;
+      }
       case 'APIC':
         if (!tags.cover) {
           const cover = decodeAPIC(bytes, bodyStart, bodyEnd);
@@ -292,6 +334,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     }
     p += 10 + frameSize;
   }
+  if (!tags.comment && commentFallback) tags.comment = commentFallback;
   return tags;
 };
 

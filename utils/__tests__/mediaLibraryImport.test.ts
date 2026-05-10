@@ -206,3 +206,13 @@ describe('mediaLibraryImport', () => {
     expect(result.folderUpdates?.[0].lastError).toBe('Nicht lesbar');
   });
 });
+
+
+test('buildSongFromImportSource maps track/disc/comment fields', async () => {
+  const song = await mediaImport.buildSongFromImportSource({ id: 'x', uri: 'file:///x.mp3', source: 'saf' } as any, {
+    trackNumber: '4/10', discNumber: '1/2', comment: 'Note',
+  } as any);
+  expect(song.trackNumber).toBe('4/10');
+  expect(song.discNumber).toBe('1/2');
+  expect(song.comment).toBe('Note');
+});

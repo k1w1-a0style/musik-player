@@ -31,6 +31,9 @@ export interface Song {
   duration?: number;
   year?: string;
   genre?: string;
+  trackNumber?: string;
+  discNumber?: string;
+  comment?: string;
   fileInfo?: SongFileInfo;
   audioInfo?: SongAudioInfo;
   coverInfo?: SongCoverInfo;

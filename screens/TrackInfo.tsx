@@ -106,6 +106,9 @@ const TrackInfo: React.FC = () => {
           <InfoRow label="Album" value={valueOrNA(song.album)} />
           <InfoRow label="Jahr" value={valueOrNA(song.year)} />
           <InfoRow label="Genre" value={valueOrNA(song.genre)} />
+          <InfoRow label="Tracknummer" value={valueOrNA(song.trackNumber)} />
+          <InfoRow label="Discnummer" value={valueOrNA(song.discNumber)} />
+          <InfoRow label="Kommentar" value={valueOrNA(song.comment)} long />
           <InfoRow label="Dauer" value={formatDuration(song.duration)} />
 
           <Text style={styles.section}>Datei</Text>
