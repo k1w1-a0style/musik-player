@@ -74,3 +74,14 @@ test('no-op draft returns original bytes', () => {
   const out = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {} });
   expect(Array.from(out)).toEqual(Array.from(src));
 });
+
+test('removeCover true with no existing covr is no-op', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {}, removeCover: true });
+  expect(Array.from(out)).toEqual(Array.from(src));
+});
+
+test('invalid disc format throws InvalidTagData', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { discNumber: 'x/y' } })).toThrow(/Invalid disc number/i);
+});

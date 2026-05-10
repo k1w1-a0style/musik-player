@@ -4,7 +4,9 @@
 
 - No real device file writes are enabled.
 - `writeTagsToFile` always throws `WriteNotImplemented`.
-- `applyTagEditToBuffer` writes **in-memory MP3 buffers only** via ID3v2.3, with strict 28-bit synchsafe payload-size validation before tag allocation/serialization.
+- `applyTagEditToBuffer` writes in-memory for:
+  - MP3 via ID3v2.3 (with strict 28-bit synchsafe payload-size validation before tag allocation/serialization),
+  - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
 - `m4a`/`mp4` use a guarded in-memory writer for safe atom layouts only; unsafe layouts still throw `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
 - New orchestration logic is **dry-run simulation only**.
