@@ -331,7 +331,15 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
 
-export const ensureTagEditWriteAllowed = (song: Song): void => { const capability = getTagEditCapability(song); const container = getSupportedContainer(song); if (container === 'unsupported') throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.'); if (!song.fileInfo?.uri && !song.uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.'); if (capability.uriType === 'remote' || capability.uriType === 'unknown') throw new TagWriterError('UnsupportedUri', capability.reason ?? 'URI is not writable.'); if (capability.uriType === 'content') throw new TagWriterError('MissingWritePermission', 'SAF write permission and safe write flow are required.'); };
+export const ensureTagEditWriteAllowed = (song: Song, platform?: string): void => {
+  const capability = getTagEditCapability(song, platform);
+  const container = getSupportedContainer(song);
+  if (container === 'unsupported') throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.');
+  if (!song.fileInfo?.uri && !song.uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
+  if (capability.uriType === 'remote' || capability.uriType === 'unknown') throw new TagWriterError('UnsupportedUri', capability.reason ?? 'URI is not writable.');
+  if (capability.uriType === 'content') throw new TagWriterError('MissingWritePermission', 'SAF write permission and safe write flow are required.');
+  if (!capability.canWrite) throw new TagWriterError('WriteNotImplemented', capability.reason ?? 'Writing is not supported for this target.');
+};
 export const prepareWriteOnly = (song: Song, draft: TagEditDraft): TagEditPlan => createTagWriteOperationPlan(song, draft);
 export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestrationResult => { const plan = createTagWriteOperationPlan(song, draft); return simulateTagWriteOperation(plan); };
 
@@ -371,10 +379,10 @@ export const writeTagsToFile = async (
   return withUriWriteLock(uri, async () => {
     const container = getSupportedContainer(song);
     const adapter = options?.adapter ?? expoTagFileWriteAdapter;
-    ensureTagEditWriteAllowed(song);
     const canReplace = typeof adapter.canReplaceExistingFile === 'function'
       ? await adapter.canReplaceExistingFile()
       : adapter.canReplaceExistingFile !== false;
+    ensureTagEditWriteAllowed(song, canReplace ? 'android' : 'web');
     if (!canReplace) {
       throw new TagWriterError('WriteNotImplemented', 'Safe existing file replacement is not supported on this platform yet.');
     }

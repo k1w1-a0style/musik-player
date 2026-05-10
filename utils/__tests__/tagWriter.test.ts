@@ -302,6 +302,20 @@ describe('tagWriter mp3 id3v2.3', () => {
     for (const item of cases) { try { ensureTagEditWriteAllowed(item.s); throw new Error('Expected throw'); } catch (error) { expect((error as TagWriterError).code).toBe(item.code); } }
   });
 
+  test('ensureTagEditWriteAllowed respects platform-gated file write support', () => {
+    const localMp3 = song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } });
+    expect(() => ensureTagEditWriteAllowed(localMp3, 'android')).not.toThrow();
+    expect(() => ensureTagEditWriteAllowed(localMp3, 'ios')).toThrow(expect.objectContaining({ code: 'WriteNotImplemented' }));
+    expect(() => ensureTagEditWriteAllowed(localMp3, 'web')).toThrow(expect.objectContaining({ code: 'WriteNotImplemented' }));
+  });
+
+  test('ensureTagEditWriteAllowed keeps missing/remote/content/unsupported mapping', () => {
+    expect(() => ensureTagEditWriteAllowed(song({ fileInfo: { extension: 'mp3' } }), 'android')).toThrow(expect.objectContaining({ code: 'UnsupportedUri' }));
+    expect(() => ensureTagEditWriteAllowed(song({ uri: 'https://example.com/a.mp3', fileInfo: { extension: 'mp3' } }), 'android')).toThrow(expect.objectContaining({ code: 'UnsupportedUri' }));
+    expect(() => ensureTagEditWriteAllowed(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), 'android')).toThrow(expect.objectContaining({ code: 'MissingWritePermission' }));
+    expect(() => ensureTagEditWriteAllowed(song({ uri: 'file:///a.flac', fileInfo: { extension: 'flac' } }), 'android')).toThrow(expect.objectContaining({ code: 'UnsupportedFormat' }));
+  });
+
   test('planning path remains and write call requires readable file', async () => {
     const plan = prepareTagEditPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { comment: '   ' }, removeCover: true });
     expect(plan.warnings.length).toBeGreaterThanOrEqual(0);

@@ -32,6 +32,7 @@ No plan step performs a real write, delete, or replace operation.
 - `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile` only when safe existing-file replace is supported by adapter capability.
 - iOS Expo legacy replace is intentionally blocked (no delete-before-write fallback allowed).
 - Capability/planning now mirrors this platform gate: Android `file://` is writable, iOS/web `file://` is marked not writable before save attempts.
+- `ensureTagEditWriteAllowed` preflight now enforces the same gate and rejects iOS/web `file://` writes with `WriteNotImplemented`.
 
 ## Backup + rollback concept
 
