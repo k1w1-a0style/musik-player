@@ -30,15 +30,16 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
     }
   });
 
-  const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
-    event.stopPropagation();
+  const handleTogglePlayPause = useCallback((event?: GestureResponderEvent) => {
+    event?.stopPropagation();
     void togglePlayPause();
   }, [togglePlayPause]);
 
-  const handleNext = useCallback((event: GestureResponderEvent) => {
-    event.stopPropagation();
+  const handleNext = useCallback((event?: GestureResponderEvent) => {
+    event?.stopPropagation();
+    if (!canSkipNext) return;
     void next();
-  }, [next]);
+  }, [canSkipNext, next]);
 
   if (!currentSong) return null;
   const showCover = !!currentSong.cover && !coverFailed;
@@ -71,7 +72,13 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
               <Play color={theme.palette.text.onPrimary} size={18} />
             )}
           </Pressable>
-          <Pressable testID="mini-player-next" onPress={handleNext} style={[styles.skipBtn, !canSkipNext && styles.disabled]} disabled={!canSkipNext}>
+          <Pressable
+            testID="mini-player-next"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSkipNext }}
+            onPress={handleNext}
+            style={[styles.skipBtn, !canSkipNext && styles.disabled]}
+          >
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>
