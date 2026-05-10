@@ -397,7 +397,8 @@ describe('writeTagsToFile safe file writes', () => {
     await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
       .rejects.toMatchObject({ code: 'VerificationFailed' });
     expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
-    expect(files.has(`${uri}.tmp`)).toBe(false);
+    expect(Array.from(files.keys()).some((k) => k.startsWith(`${uri}.`) && k.endsWith('.tmp'))).toBe(false);
+    expect(Array.from(files.keys()).some((k) => k.startsWith(`${uri}.`) && k.endsWith('.bak'))).toBe(false);
   });
 
   test('temp read failure throws VerificationFailed and tries best-effort temp cleanup', async () => {
@@ -411,7 +412,16 @@ describe('writeTagsToFile safe file writes', () => {
     await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
       .rejects.toMatchObject({ code: 'VerificationFailed' });
     expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
-    expect(delSpy).toHaveBeenCalled();
+    expect(delSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('temp write failure removes attempt-scoped backup sidecar', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.writeBytes as any) = jest.fn(async () => { throw new Error('temp write failed'); });
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'TempWriteFailed' });
+    expect(Array.from(files.keys()).some((k) => k.startsWith(`${uri}.`) && k.endsWith('.bak'))).toBe(false);
   });
 
   test('replace failure returns rolledBack when rollback succeeds', async () => {

@@ -369,17 +369,24 @@ export const writeTagsToFile = async (
   if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
   const backupUri = buildAttemptScopedUri(uri, 'bak');
   const tempUri = buildAttemptScopedUri(uri, 'tmp');
+  const cleanupBackupAndTemp = async (): Promise<void> => {
+    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+    try { await adapter.deleteFile(backupUri); } catch { /* noop */ }
+  };
   try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
-  try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
+  try { await adapter.writeBytes(tempUri, next); } catch {
+    await cleanupBackupAndTemp();
+    throw new TagWriterError('TempWriteFailed', 'Temp file write failed.');
+  }
   let tempBytes: Uint8Array;
   try {
     tempBytes = await adapter.readBytes(tempUri);
   } catch (error) {
-    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+    await cleanupBackupAndTemp();
     throw new TagWriterError('VerificationFailed', `Temp output could not be verified: ${String(error)}`);
   }
   if (!areBytesEqual(tempBytes, next)) {
-    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+    await cleanupBackupAndTemp();
     throw new TagWriterError('VerificationFailed', 'Temp output bytes do not match rewritten payload.');
   }
   try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
