@@ -71,3 +71,11 @@ Separate PRs are still required for:
 
 - Truncated ID3 preambles (`ID3` with <10 bytes) are rejected as `InvalidTagData` and not treated as audio.
 - Existing ID3v2.4 inputs return original bytes for strict no-op drafts, while actual v2.4 edits remain blocked (`WriteNotImplemented`).
+
+## 2026-05 MP4/M4A in-memory writer safety update
+- `applyTagEditToBuffer` now routes `m4a/mp4` to an in-memory MP4 atom writer only.
+- Scope is intentionally narrow: requires existing `moov/udta/meta/ilst` path, otherwise `WriteNotImplemented`.
+- If `moov` is before `mdat` and a tag change would resize `moov`, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
+- If `moov` is after `mdat`, metadata rewrite is allowed.
+- `mdat` bytes are preserved and never rewritten.
+- Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).

@@ -27,3 +27,9 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - [ ] Safe MP4/M4A atom rewrite implementation.
 - [ ] Real guarded device writes (after orchestrator is wired with concrete file operations).
 - [ ] UI editor integration.
+
+## MP4/M4A review resolution (in-memory)
+- Added isolated MP4/M4A in-memory tag editing path for safe atom layouts only.
+- Kept MP3 ID3v2.3 writer unchanged.
+- Kept file-write orchestration in dry-run/block mode.
+- Deferred risky layouts (missing metadata path, largesize, moov-before-mdat resize) to `WriteNotImplemented`.
