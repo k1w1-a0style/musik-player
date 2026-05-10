@@ -115,3 +115,9 @@ Separate PRs are still required for:
 - Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.
 
 - Cover replace is intentionally not part of this PR scope; only remove-cover metadata synchronization is included.
+
+- Exactly one editable TagEditor UI is active; legacy ID3 editor paths were removed.
+- Tag writes run exclusively through `writeTagsToFile`; no alternative save path is supported.
+- `content://` remains blocked/read-only for writes.
+- Cover replacement is not active yet.
+- RNTP native metadata sync is best-effort and queue-index-based (`updateMetadataForTrack(index, metadata)`).

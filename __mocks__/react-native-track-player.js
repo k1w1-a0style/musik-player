@@ -105,11 +105,10 @@ const TrackPlayer = {
   getActiveTrack: jest.fn(async () => queue[currentIdx]),
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),
-  updateMetadataForTrack: jest.fn(async (trackId, metadata) => {
-    const idx = queue.findIndex(track => track.id === trackId);
-    if (idx >= 0) {
-      queue[idx] = { ...queue[idx], ...metadata };
-    }
+  updateMetadataForTrack: jest.fn(async (trackIndex, metadata) => {
+    if (typeof trackIndex !== 'number') return;
+    if (trackIndex < 0 || trackIndex >= queue.length) return;
+    queue[trackIndex] = { ...queue[trackIndex], ...metadata };
   }),
   addEventListener: jest.fn((event, cb) => {
     if (!listeners.has(event)) listeners.set(event, new Set());

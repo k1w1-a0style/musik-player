@@ -89,6 +89,9 @@ const Probe: React.FC = () => {
       <Pressable testID="patch-s1-title" onPress={() => ctx.updateSongMetadata('s1', { title: 'Song 1 Edited' })}>
         <Text>patch s1</Text>
       </Pressable>
+      <Pressable testID="patch-s3-title" onPress={() => ctx.updateSongMetadata('s3', { title: 'Song 3 Edited' })}>
+        <Text>patch s3</Text>
+      </Pressable>
       <Pressable testID="add-pl" onPress={() => ctx.createPlaylist('Drive')}>
         <Text>pl</Text>
       </Pressable>
@@ -247,11 +250,14 @@ describe('MusicContext', () => {
   });
 
 
-  test('updateSongMetadata syncs native metadata for queued songs and not for non-queued songs', async () => {
+  test('updateSongMetadata syncs native metadata using queue indexes for queued songs and not for non-queued songs', async () => {
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);
     await act(async () => fireEvent.press(getByTestId('set-songs')));
     await act(async () => fireEvent.press(getByTestId('play-s2')));
+
+    const resetCallsBeforeMetadataPatch = (TrackPlayer.reset as jest.Mock).mock.calls.length;
+    const addCallsBeforeMetadataPatch = (TrackPlayer.add as jest.Mock).mock.calls.length;
 
     await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
 
@@ -265,13 +271,39 @@ describe('MusicContext', () => {
         artwork: 'file:///cover-s2.jpg',
       }),
     );
+    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).toBe(0);
+    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).not.toBe('s2');
+
+    await act(async () => fireEvent.press(getByTestId('patch-s3-title')));
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ id: 's3', title: 'Song 3 Edited' }),
+    );
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(resetCallsBeforeMetadataPatch);
+    expect(TrackPlayer.add).toHaveBeenCalledTimes(addCallsBeforeMetadataPatch);
 
     (TrackPlayer.updateMetadataForTrack as jest.Mock).mockClear();
     await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
     await act(async () => fireEvent.press(getByTestId('patch-s1-title')));
     expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
-    expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
-    expect(TrackPlayer.add).toHaveBeenCalledTimes(2);
+  });
+
+
+  test('mock queue updateMetadataForTrack treats first argument as queue index and ignores out-of-range', async () => {
+    await (TrackPlayer.add as jest.Mock)([
+      { id: 'q1', title: 'Queue 1' },
+      { id: 'q2', title: 'Queue 2' },
+    ]);
+
+    await TrackPlayer.updateMetadataForTrack(1, { title: 'Queue 2 Updated', artist: 'Artist 2' });
+    let queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string; artist?: string }>;
+    expect(queue[0]).toMatchObject({ id: 'q1', title: 'Queue 1' });
+    expect(queue[1]).toMatchObject({ id: 'q2', title: 'Queue 2 Updated', artist: 'Artist 2' });
+
+    await TrackPlayer.updateMetadataForTrack(99, { title: 'Out of Range' });
+    queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string }>;
+    expect(queue[1]).toMatchObject({ id: 'q2', title: 'Queue 2 Updated' });
   });
 
   test('updateSongMetadata cover removal syncs native artwork undefined and handles native failure as non-fatal', async () => {

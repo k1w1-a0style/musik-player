@@ -10,5 +10,4 @@ export const APP_TAB_ROUTES = {
   PLAYLISTS: 'Playlists',
   EQUALIZER: 'Equalizer',
   COVER: 'Cover',
-  ID3: 'ID3',
 } as const;

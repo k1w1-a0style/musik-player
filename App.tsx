@@ -13,7 +13,7 @@ import {
   BricolageGrotesque_600SemiBold,
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
-import { Library as LibraryIcon, ListMusic, Sliders, Image as ImageIcon, Tag } from 'lucide-react-native';
+import { Library as LibraryIcon, ListMusic, Sliders, Image as ImageIcon } from 'lucide-react-native';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { MusicProvider } from './contexts/MusicContext';
@@ -23,7 +23,6 @@ import NowPlaying from './screens/NowPlaying';
 import Playlists from './screens/Playlists';
 import Equalizer from './screens/Equalizer';
 import Covers from './screens/Covers';
-import Id3TagEditor from './screens/Id3TagEditor';
 import TrackInfo from './screens/TrackInfo';
 import TagEditor from './screens/TagEditor';
 import MiniPlayer from './components/MiniPlayer';
@@ -75,7 +74,6 @@ const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying })
         <Tab.Screen name={APP_TAB_ROUTES.PLAYLISTS} component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
         <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
         <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
-        <Tab.Screen name={APP_TAB_ROUTES.ID3} component={Id3TagEditor} options={{ tabBarIcon: ({ color, size }) => <Tag color={color} size={size} /> }} />
       </Tab.Navigator>
       <MiniPlayer onOpen={openNowPlaying} />
     </View>
