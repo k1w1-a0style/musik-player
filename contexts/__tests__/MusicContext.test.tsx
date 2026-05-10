@@ -86,6 +86,9 @@ const Probe: React.FC = () => {
       <Pressable testID="patch-s2-cover-clear" onPress={() => ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })}>
         <Text>patch s2 cover clear</Text>
       </Pressable>
+      <Pressable testID="patch-s1-title" onPress={() => ctx.updateSongMetadata('s1', { title: 'Song 1 Edited' })}>
+        <Text>patch s1</Text>
+      </Pressable>
       <Pressable testID="add-pl" onPress={() => ctx.createPlaylist('Drive')}>
         <Text>pl</Text>
       </Pressable>
@@ -241,6 +244,51 @@ describe('MusicContext', () => {
     await act(async () => fireEvent.press(getByTestId('set-songs')));
     await act(async () => fireEvent.press(getByTestId('patch-s2-cover-clear')));
     expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
+  });
+
+
+  test('updateSongMetadata syncs native metadata for queued songs and not for non-queued songs', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+
+    await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
+
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({
+        id: 's2',
+        title: 'Song 2 Edited',
+        artist: 'A',
+        album: 'Edited Album',
+        artwork: 'file:///cover-s2.jpg',
+      }),
+    );
+
+    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockClear();
+    await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
+    await act(async () => fireEvent.press(getByTestId('patch-s1-title')));
+    expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
+    expect(TrackPlayer.add).toHaveBeenCalledTimes(2);
+  });
+
+  test('updateSongMetadata cover removal syncs native artwork undefined and handles native failure as non-fatal', async () => {
+    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(new Error('native fail'));
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+
+    await act(async () => fireEvent.press(getByTestId('patch-s2-cover-clear')));
+
+    expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({ id: 's2', artwork: undefined }),
+    );
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
   });
 
   test('hydrates songs by migrating base64 covers before persisting', async () => {

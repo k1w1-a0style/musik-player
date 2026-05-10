@@ -438,6 +438,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setPlaybackQueue((prev) => prev.map(patchSong));
     queueContextRef.current = queueContextRef.current.map(patchSong);
     baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
+
+    const queueIndex = queueContextRef.current.findIndex((song) => song.id === songId);
+    const queuedPatchedSong = (queueIndex >= 0 ? queueContextRef.current[queueIndex] : undefined)
+      ?? baseQueueContextRef.current.find((song) => song.id === songId);
+    if (!queuedPatchedSong || queueIndex < 0) return;
+
+    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrack(queuedPatchedSong)).catch(() => undefined);
   }, []);
   // ---- Playback ----
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {
