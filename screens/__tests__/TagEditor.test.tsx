@@ -304,7 +304,7 @@ test('content:// song disables remove and replace cover actions', () => {
   const { getByTestId, getByText } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
   expect(getByTestId('replace-cover-unavailable')).toBeTruthy();
-  expect(getByText('Cover ersetzen noch nicht verfügbar.')).toBeTruthy();
+  expect(getByText('Cover ersetzen: Noch nicht verfügbar')).toBeTruthy();
 });
 
 test('android file:// writable song keeps remove-cover enabled when cover exists', () => {

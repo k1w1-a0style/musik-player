@@ -216,7 +216,7 @@ const TagEditor: React.FC = () => {
 
 
           <View testID="replace-cover-unavailable" style={[styles.toggle, styles.disabledButton]}>
-            <Text style={styles.toggleText}>Cover ersetzen noch nicht verfügbar.</Text>
+            <Text style={styles.toggleText}>Cover ersetzen: Noch nicht verfügbar</Text>
           </View>
 
           <Pressable
