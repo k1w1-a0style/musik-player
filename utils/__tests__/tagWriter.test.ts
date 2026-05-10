@@ -350,4 +350,35 @@ describe('writeTagsToFile safe file writes', () => {
     expect(ops[2]).toContain('replace');
     expect(files.get(uri)?.[0]).toBe(0x49);
   });
+
+  test('backup failure stops before temp/replace', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.copyFile as any) = jest.fn(async () => { throw new Error('copy failed'); });
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'BackupFailed' });
+    expect(ops.find((x) => x.startsWith('temp:'))).toBeUndefined();
+    expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
+  });
+
+  test('verification failure blocks replace', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
+      if (readUri.endsWith('.tmp')) return new Uint8Array(0);
+      return u8(1, 2, 3);
+    });
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'VerificationFailed' });
+    expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
+  });
+
+  test('replace failure returns rolledBack when rollback succeeds', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.moveOrReplaceFile as any) = jest.fn(async () => { throw new Error('replace failed'); });
+    const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    expect(result.status).toBe('rolledBack');
+    expect(result.warnings.join(' ')).toMatch(/rollback restored backup/i);
+  });
 });

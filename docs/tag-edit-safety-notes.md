@@ -3,7 +3,7 @@
 ## Current policy (this PR)
 
 - No real device file writes are enabled.
-- `writeTagsToFile` always throws `WriteNotImplemented`.
+- `writeTagsToFile` supports guarded `file://` writes only.
 - `applyTagEditToBuffer` writes in-memory for:
   - MP3 via ID3v2.3 (with strict 28-bit synchsafe payload-size validation before tag allocation/serialization),
   - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
@@ -81,7 +81,7 @@ Separate PRs are still required for:
 - If a tag change would resize `moov` and any top-level `mdat` appears later in file order, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
 - If `moov` is after `mdat`, metadata rewrite is allowed.
 - `mdat` bytes are preserved and never rewritten.
-- Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).
+- Device writes are partially enabled for guarded `file://` only.
 
 ## 2026-05 controlled file:// write activation
 - `writeTagsToFile(song, draft)` now supports guarded real writes for `file://` URIs only.

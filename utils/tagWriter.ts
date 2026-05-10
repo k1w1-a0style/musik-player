@@ -374,7 +374,20 @@ export const writeTagsToFile = async (
   const tempBytes = await adapter.readBytes(tempUri);
   if (!isPlausibleOutput(tempBytes, container)) throw new TagWriterError('VerificationFailed', 'Temp output validation failed.');
   try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
-    try { await adapter.copyFile(backupUri, uri); throw new TagWriterError('ReplaceFailed', 'Replace failed; rollback applied.'); } catch { throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`); }
+    try {
+      await adapter.copyFile(backupUri, uri);
+      return {
+        status: 'rolledBack',
+        sourceUri: uri,
+        backupUri,
+        tempUri,
+        bytesBefore: original.length,
+        bytesAfter: original.length,
+        warnings: [`Replace failed and rollback restored backup: ${String(error)}`],
+      };
+    } catch {
+      throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`);
+    }
   }
   return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
 };
