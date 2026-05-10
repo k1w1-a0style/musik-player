@@ -18,6 +18,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     palette: null,
     fftBins: [],
     visualizerRunning: false,
+    visualizerError: null,
     playSong: jest.fn(async () => undefined),
   }),
 }));

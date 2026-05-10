@@ -6,7 +6,7 @@ import { MusicProvider, useMusicContext } from '../MusicContext';
 import { storage, StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import SystemAudio from 'expo-system-audio';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',
@@ -208,6 +208,21 @@ describe('MusicContext', () => {
     await act(async () => fireEvent.press(getByTestId('cycle-repeat')));
     await waitFor(() => expect(getByTestId('probe-repeat').props.children).toBe('off'));
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(3);
+  });
+
+
+
+  test('does not auto-start visualizer and cleans subscriptions on unmount', async () => {
+    const { getByTestId, unmount } = renderProvider();
+    await waitReady(getByTestId);
+
+    expect(SystemAudio.visualizerStart).not.toHaveBeenCalled();
+    expect(SystemAudio.onFft).toHaveBeenCalled();
+    expect(SystemAudio.onVisualizerState).toHaveBeenCalled();
+
+    unmount();
+
+    expect(SystemAudio.visualizerStop).toHaveBeenCalled();
   });
 
   test('setVolume updates state and TrackPlayer.setVolume', async () => {

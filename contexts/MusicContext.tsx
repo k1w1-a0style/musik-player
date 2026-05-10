@@ -117,6 +117,7 @@ interface NowPlayingMusicContextValue {
   palette: PaletteResult | null;
   fftBins: number[];
   visualizerRunning: boolean;
+  visualizerError: string | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
 }
 
@@ -737,9 +738,10 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       palette,
       fftBins,
       visualizerRunning,
+      visualizerError,
       playSong,
     }),
-    [playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong],
+    [playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong],
   );
 
   return (

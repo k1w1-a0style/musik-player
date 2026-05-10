@@ -20,7 +20,7 @@ const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useNowPlayingMusicContext();
+  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
 
   const queue: Song[] = useMemo(
@@ -139,6 +139,9 @@ const NowPlaying: React.FC = () => {
           color={palette?.vibrant ?? theme.palette.primary}
           height={44}
         />
+        {!!visualizerError && (
+          <Text style={styles.visualizerHint}>Visualizer deaktiviert ({visualizerError}).</Text>
+        )}
       </View>
       <ProgressBar
         currentPosition={position}
@@ -348,6 +351,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   visualizerWrap: { paddingHorizontal: 20, marginTop: 4 },
+  visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12 },
   queueCard: {
     marginHorizontal: 16,
     marginTop: 10,
