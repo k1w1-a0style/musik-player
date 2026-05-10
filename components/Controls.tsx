@@ -69,6 +69,7 @@ const Controls: React.FC = () => {
     next,
     previous,
     currentSong,
+    playbackQueue,
     shuffle,
     toggleShuffle,
     repeatMode,
@@ -86,6 +87,7 @@ const Controls: React.FC = () => {
   }, [repeatMode]);
 
   const shuffleColor = shuffle ? theme.palette.primary : theme.palette.text.muted;
+  const canSkip = !!currentSong && playbackQueue.length > 1;
 
   return (
     <View style={styles.container} testID="controls">
@@ -103,7 +105,7 @@ const Controls: React.FC = () => {
         testID="controls-previous"
         accessibilityLabel="Vorheriger Titel"
         onPress={previous}
-        disabled={!currentSong}
+        disabled={!canSkip}
         size={56}
       >
         <SkipBack color={theme.palette.text.primary} size={26} fill={theme.palette.text.primary} />
@@ -130,7 +132,7 @@ const Controls: React.FC = () => {
         testID="controls-next"
         accessibilityLabel="Nächster Titel"
         onPress={next}
-        disabled={!currentSong}
+        disabled={!canSkip}
         size={56}
       >
         <SkipForward color={theme.palette.text.primary} size={26} fill={theme.palette.text.primary} />

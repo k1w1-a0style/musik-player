@@ -8,7 +8,7 @@ import { theme } from '../theme';
 declare const __DEV__: boolean;
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next } = useMiniPlayerMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next, canSkipNext } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const renderCountRef = useRef(0);
@@ -71,7 +71,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
               <Play color={theme.palette.text.onPrimary} size={18} />
             )}
           </Pressable>
-          <Pressable onPress={handleNext} style={styles.skipBtn}>
+          <Pressable onPress={handleNext} style={[styles.skipBtn, !canSkipNext && styles.disabled]} disabled={!canSkipNext}>
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>
@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  disabled: { opacity: 0.35 },
 });
 
 export default MiniPlayer;

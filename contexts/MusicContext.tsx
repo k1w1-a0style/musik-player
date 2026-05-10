@@ -105,6 +105,7 @@ interface MiniPlayerMusicContextValue {
   isPlaying: boolean;
   togglePlayPause: () => Promise<void>;
   next: () => Promise<void>;
+  canSkipNext: boolean;
 }
 
 interface NowPlayingMusicContextValue {
@@ -119,6 +120,7 @@ interface NowPlayingMusicContextValue {
   visualizerRunning: boolean;
   visualizerError: string | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  canSkip: boolean;
 }
 
 const MusicContext = createContext<MusicContextValue | null>(null);
@@ -287,7 +289,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async data => {
       const track = data.track;
       if (!track) return;
-      const s = songsRef.current.find(x => x.id === track.id);
+      const s = songsRef.current.find(x => x.id === track.id)
+        ?? queueContextRef.current.find(x => x.id === track.id)
+        ?? baseQueueContextRef.current.find(x => x.id === track.id);
       if (s) setCurrentSong(s);
     });
     return () => sub.remove();
@@ -470,7 +474,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await TrackPlayer.add(orderedQueue.map(toTrack));
     setCurrentSong(requestedSong);
     await TrackPlayer.play();
-    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
+    const isLibrarySong = songsRef.current.some(item => item.id === requestedSong.id);
+    if (isLibrarySong) {
+      await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
+    } else {
+      await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    }
   }, []);
 
   const togglePlayPause = useCallback(async () => {
@@ -723,8 +732,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(
-    () => ({ currentSong, isPlaying, togglePlayPause, next }),
-    [currentSong, isPlaying, togglePlayPause, next],
+    () => ({ currentSong, isPlaying, togglePlayPause, next, canSkipNext: playbackQueue.length > 1 }),
+    [currentSong, isPlaying, togglePlayPause, next, playbackQueue.length],
   );
 
   const nowPlayingValue = useMemo<NowPlayingMusicContextValue>(
@@ -740,6 +749,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       visualizerRunning,
       visualizerError,
       playSong,
+      canSkip: playbackQueue.length > 1,
     }),
     [playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong],
   );
