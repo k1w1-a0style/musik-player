@@ -78,7 +78,8 @@ const parsePacked = (value: string): [number, number] => {
   return [Number(m[1]), Number(m[2] ?? 0)];
 };
 const buildPackedNumberAtom = (type: Uint8Array, value: string): Uint8Array => {
-  const [current, total] = parsePacked(value); const payload = new Uint8Array(8); payload[3] = 0; payload[4] = (current >>> 8) & 0xff; payload[5] = current & 0xff; payload[6] = (total >>> 8) & 0xff; payload[7] = total & 0xff;
+  const [current, total] = parsePacked(value); const payload = new Uint8Array(8);
+  payload[2] = (current >>> 8) & 0xff; payload[3] = current & 0xff; payload[4] = (total >>> 8) & 0xff; payload[5] = total & 0xff;
   return rebuildAtom(type, buildDataAtom(0, payload));
 };
 const concatBytes = (parts: Uint8Array[]): Uint8Array => {
@@ -254,7 +255,7 @@ export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEdit
 const applyMp4TagEditToBuffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
   const top = parseAtoms(original, 0, original.length, true);
   const moov = top.find((a) => a.type === 'moov'); if (!moov) throw new TagWriterError('InvalidTagData', 'Missing moov atom.');
-  const mdat = top.find((a) => a.type === 'mdat'); if (!mdat) throw new TagWriterError('InvalidTagData', 'Missing mdat atom.');
+  const mdats = top.filter((a) => a.type === 'mdat'); if (mdats.length === 0) throw new TagWriterError('InvalidTagData', 'Missing mdat atom.');
   const moovChildren = parseAtoms(original, moov.payloadStart, moov.end);
   const udta = moovChildren.find((a) => a.type === 'udta'); if (!udta) throw new TagWriterError('WriteNotImplemented', 'Missing udta atom.');
   const udtaChildren = parseAtoms(original, udta.payloadStart, udta.end);
@@ -311,7 +312,7 @@ const applyMp4TagEditToBuffer = (original: Uint8Array, draft: TagEditDraft): Uin
   const newMoovChildren = moovChildren.map((a) => a === udta ? newUdta : original.slice(a.start, a.end));
   const newMoov = rebuildAtom(MP4_TYPES.moov, concatBytes(newMoovChildren));
   if (!changed) return original.slice();
-  if (newMoov.length !== moov.size && moov.end <= mdat.start) throw new TagWriterError('WriteNotImplemented', 'moov-before-mdat size changes are blocked for offset safety.');
+  if (newMoov.length !== moov.size && mdats.some((mdat) => mdat.start >= moov.end)) throw new TagWriterError('WriteNotImplemented', 'moov-before-mdat size changes are blocked for offset safety.');
   const rebuiltTop = top.map((a) => (a === moov ? newMoov : original.slice(a.start, a.end)));
   return concatBytes(rebuiltTop);
 };
