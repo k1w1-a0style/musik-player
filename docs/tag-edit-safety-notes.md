@@ -66,6 +66,8 @@ Separate PRs are still required for:
 - `writeTagsToFile` remains blocked; no SAF/device write path is activated.
 
 - APIC payload construction avoids large spread-based intermediate JS arrays.
+- Text/COMM payload construction also avoids spread-based intermediate JS arrays.
 - Preserved frame IDs are validated (`[A-Z0-9]{4}`); invalid/non-ASCII IDs are rejected with `InvalidTagData`.
 
 - Truncated ID3 preambles (`ID3` with <10 bytes) are rejected as `InvalidTagData` and not treated as audio.
+- Existing ID3v2.4 inputs return original bytes for strict no-op drafts, while actual v2.4 edits remain blocked (`WriteNotImplemented`).

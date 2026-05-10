@@ -138,6 +138,11 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(ids).toContain('TPE1');
   });
 
+  test('unicode comment is written via COMM frame', () => {
+    const out = applyTagEditToBuffer(u8(1, 2, 3), 'mp3', { songId: '1', tags: { comment: 'Привет 🎵' } });
+    expect(frameIds(out)).toContain('COMM');
+  });
+
   test('title touched empty removes TIT2 but keeps others', () => {
     const src = new Uint8Array([...mkTag([mkFrame('TIT2', u8(0x03, 0x41)), mkFrame('TPE1', u8(0x03, 0x42))]), 1]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: '   ' } });
@@ -238,6 +243,43 @@ describe('tagWriter mp3 id3v2.3', () => {
     const tag = mkTag([frame], 4, 0x10, true);
     const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
     expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { artist: 'X' } })).toThrow(/ID3v2.4/i);
+  });
+
+  test('existing id3v2.4 with no-op draft returns original bytes unchanged', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {} });
+    expect(Array.from(out)).toEqual(Array.from(src));
+  });
+
+  test('existing id3v2.4 with undefined-only draft returns original bytes unchanged', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: undefined, comment: undefined } });
+    expect(Array.from(out)).toEqual(Array.from(src));
+  });
+
+  test('existing id3v2.4 with whitespace title is still blocked as edit intent', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { title: '   ' } })).toThrow(/ID3v2.4/i);
+  });
+
+  test('existing id3v2.4 with removeCover true is still blocked as edit intent', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, removeCover: true })).toThrow(/ID3v2.4/i);
+  });
+
+  test('existing id3v2.4 with cover set is still blocked as edit intent', () => {
+    const frame = mkFrame('TIT2', u8(0x03, 0x41));
+    const tag = mkTag([frame], 4, 0x10, true);
+    const src = new Uint8Array([...tag, 0xaa, 0xbb, 0xcc]);
+    expect(() => applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: {}, cover: { mimeType: 'image/png', data: u8(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) } })).toThrow(/ID3v2.4/i);
   });
 
   test('existing id3v2.2 is rejected', () => {

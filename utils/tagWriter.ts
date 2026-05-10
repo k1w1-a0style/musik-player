@@ -90,8 +90,26 @@ const frame = (id: string, body: Uint8Array, flags: [number, number] = [0, 0]): 
   const out = new Uint8Array(10 + body.length); out.set(textEncoder.encode(id), 0);
   out[4] = (body.length >>> 24) & 0xff; out[5] = (body.length >>> 16) & 0xff; out[6] = (body.length >>> 8) & 0xff; out[7] = body.length & 0xff; out[8] = flags[0]; out[9] = flags[1]; out.set(body, 10); return out;
 };
-const textFrame = (id: string, value: string): Uint8Array => frame(id, new Uint8Array([0x01, ...encodeUtf16Bom(value)]));
-const commFrame = (value: string): Uint8Array => frame('COMM', new Uint8Array([0x01, 0x65, 0x6e, 0x67, 0x00, 0x00, ...encodeUtf16Bom(value)]));
+const textFrame = (id: string, value: string): Uint8Array => {
+  const textBytes = encodeUtf16Bom(value);
+  const body = new Uint8Array(1 + textBytes.length);
+  body[0] = 0x01;
+  body.set(textBytes, 1);
+  return frame(id, body);
+};
+const commFrame = (value: string): Uint8Array => {
+  const textBytes = encodeUtf16Bom(value);
+  const body = new Uint8Array(1 + 3 + 2 + textBytes.length);
+  let offset = 0;
+  body[offset++] = 0x01;
+  body[offset++] = 0x65;
+  body[offset++] = 0x6e;
+  body[offset++] = 0x67;
+  body[offset++] = 0x00;
+  body[offset++] = 0x00;
+  body.set(textBytes, offset);
+  return frame('COMM', body);
+};
 const apicFrame = (mime: 'image/jpeg' | 'image/png', data: Uint8Array): Uint8Array => {
   const mimeBytes = textEncoder.encode(mime);
   const body = new Uint8Array(1 + mimeBytes.length + 1 + 1 + 1 + data.length);
@@ -122,6 +140,11 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
 };
 
 const hasDraftTagIntent = (draft: TagEditDraft, key: keyof TagEditDraft['tags']): boolean => Object.prototype.hasOwnProperty.call(draft.tags, key) && draft.tags[key] !== undefined;
+const hasAnyTagEditIntent = (draft: TagEditDraft): boolean => {
+  const keys: Array<keyof TagEditDraft['tags']> = ['title', 'artist', 'album', 'year', 'genre', 'trackNumber', 'discNumber', 'comment'];
+  const hasTagIntent = keys.some((key) => hasDraftTagIntent(draft, key));
+  return hasTagIntent || Boolean(draft.cover) || draft.removeCover === true;
+};
 
 type Id3RewritePlan = { changed: boolean; tag?: Uint8Array };
 
@@ -167,7 +190,10 @@ export const buildId3v23TagFromDraft = (draft: TagEditDraft, existing: ParsedFra
 export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
   if (original.length === 0) throw new TagWriterError('InvalidTagData', 'Empty audio buffer.');
   const header = readId3Header(original);
-  if (header?.major === 4) throw new TagWriterError('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.');
+  if (header?.major === 4) {
+    if (!hasAnyTagEditIntent(draft)) return original.slice();
+    throw new TagWriterError('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.');
+  }
   const existing = header ? parseFrames(original, header) : [];
   const audio = header ? original.slice(header.audioStart) : original.slice();
   const rewrite = buildId3v23TagFromDraft(draft, existing);
