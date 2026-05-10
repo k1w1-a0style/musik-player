@@ -63,3 +63,14 @@ test('invalid nested size=0 throws', () => {
   const src = file(false, ilst(badIlstItem));
   expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'x' } })).toThrow(TagWriterError);
 });
+
+test('invalid track format throws InvalidTagData', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { trackNumber: 'abc' } })).toThrow(/Invalid track number/i);
+});
+
+test('no-op draft returns original bytes', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {} });
+  expect(Array.from(out)).toEqual(Array.from(src));
+});
