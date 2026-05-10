@@ -21,8 +21,9 @@ const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
 
 const isValidId3v23FrameId = (id: string): boolean => /^[A-Z0-9]{4}$/.test(id);
 
-const startsWithId3Preamble = (buffer: Uint8Array): boolean => buffer.length >= 3 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
-export const hasId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && startsWithId3Preamble(buffer);
+export const startsWithId3Preamble = (buffer: Uint8Array): boolean => buffer.length >= 3 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
+export const hasCompleteId3Header = (buffer: Uint8Array): boolean => buffer.length >= 10 && startsWithId3Preamble(buffer);
+export const hasId3Header = hasCompleteId3Header;
 export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
   if (sizeBytes.length !== 4) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe input size.');
   if (sizeBytes.some((b) => b > 0x7f)) throw new TagWriterError('InvalidTagData', 'Invalid synchsafe byte.');
