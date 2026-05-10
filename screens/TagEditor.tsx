@@ -131,6 +131,7 @@ const TagEditor: React.FC = () => {
   const draft = buildDraftFromDirtyFields(song.id, form, dirty, removeCover);
   const capability = getTagEditCapability(song);
   const plan = createTagWriteOperationPlan(song, draft);
+  const hasCover = Boolean(song.cover || song.coverInfo?.uri);
   const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true;
   const canSave = capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
   const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons as TagWriterErrorCode[]);
@@ -199,8 +200,13 @@ const TagEditor: React.FC = () => {
             </View>
           ))}
 
-          <Pressable testID="remove-cover" style={styles.toggle} disabled={!capability.canWrite || saving} onPress={() => setRemoveCover((v) => !v)}>
+          <Pressable testID="remove-cover" style={styles.toggle} disabled={!capability.canWrite || !hasCover || saving} onPress={() => setRemoveCover((v) => !v)}>
             <Text style={styles.toggleText}>Cover entfernen: {removeCover ? 'Ja' : 'Nein'}</Text>
+          </Pressable>
+
+
+          <Pressable testID="replace-cover" style={[styles.toggle, styles.disabledButton]} disabled accessibilityState={{ disabled: true }}>
+            <Text style={styles.toggleText}>Cover ersetzen: Noch nicht verfügbar</Text>
           </Pressable>
 
           <Pressable

@@ -31,7 +31,7 @@ beforeEach(() => {
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons: any) => buttons?.[1]?.onPress?.());
   mockCapability = { canRead: true, canWrite: true, uriType: 'file', reason: 'ok', supportedContainer: 'mp3' };
   mockPlan = { blockingReasons: [] };
-  mockSongs = [{ id: 's1', title: 'A', artist: 'B', album: 'C', uri: 'file:///x.mp3', year: '2020', genre: 'Pop', trackNumber: '2/9', discNumber: '1/1', comment: 'Start', fileInfo: { extension: 'mp3', uri: 'file:///x.mp3' } }];
+  mockSongs = [{ id: 's1', title: 'A', artist: 'B', album: 'C', uri: 'file:///x.mp3', year: '2020', genre: 'Pop', trackNumber: '2/9', discNumber: '1/1', comment: 'Start', cover: 'file:///cover.jpg', coverInfo: { status: 'external', uri: 'file:///cover.jpg' }, fileInfo: { extension: 'mp3', uri: 'file:///x.mp3' } }];
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();
 });
@@ -296,4 +296,34 @@ test('draft builder utility respects dirty fields/removeCover', () => {
   const draft = buildDraftFromDirtyFields('id', form, { title: true, album: true }, true);
   expect(draft.tags).toEqual({ title: 'a', album: '' });
   expect(draft.removeCover).toBe(true);
+});
+
+
+test('content:// song disables remove and replace cover actions', () => {
+  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.', supportedContainer: 'mp3' };
+  const { getByTestId, getByText } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('replace-cover').props.accessibilityState.disabled).toBe(true);
+  expect(getByText('Cover ersetzen: Noch nicht verfügbar')).toBeTruthy();
+});
+
+test('android file:// writable song keeps remove-cover enabled when cover exists', () => {
+  mockCapability = { canRead: true, canWrite: true, uriType: 'file', reason: 'ok', supportedContainer: 'mp3' };
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(false);
+});
+
+test('save without cover change sends no cover payload', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-title'), 'Only Title');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(mockWriteTagsToFile.mock.calls[0][1]).toEqual({ songId: 's1', tags: { title: 'Only Title' } });
+});
+
+test('remove-cover disabled when song has no cover', () => {
+  mockSongs = [{ ...mockSongs[0], cover: undefined, coverInfo: undefined }];
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
 });
