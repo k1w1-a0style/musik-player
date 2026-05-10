@@ -288,8 +288,8 @@ describe('tagWriter mp3 id3v2.3', () => {
   });
 
   test('container policy', () => {
-    expect(() => applyTagEditToBuffer(u8(1), 'm4a', { songId: '1', tags: {} })).toThrow(TagWriterError);
-    expect(() => applyTagEditToBuffer(u8(1), 'mp4', { songId: '1', tags: {} })).toThrow(TagWriterError);
+    expect(Array.from(applyTagEditToBuffer(u8(1), 'm4a', { songId: '1', tags: {} }))).toEqual([1]);
+    expect(Array.from(applyTagEditToBuffer(u8(1), 'mp4', { songId: '1', tags: {} }))).toEqual([1]);
     expect(() => applyTagEditToBuffer(u8(1), 'unsupported', { songId: '1', tags: {} })).toThrow(TagWriterError);
   });
 

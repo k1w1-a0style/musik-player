@@ -33,3 +33,7 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - Kept MP3 ID3v2.3 writer unchanged.
 - Kept file-write orchestration in dry-run/block mode.
 - Deferred risky layouts (missing metadata path, largesize, moov-before-mdat resize) to `WriteNotImplemented`.
+
+- Added early MP4/M4A no-op guard so empty drafts return original bytes without requiring metadata hierarchy.
+- Safe-layout restrictions remain for actual edits, including blocking moov-resize when later mdat atoms exist.
+- Device writes remain blocked (`writeTagsToFile` => `WriteNotImplemented`).

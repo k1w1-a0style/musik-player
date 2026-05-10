@@ -76,8 +76,9 @@ Separate PRs are still required for:
 
 ## 2026-05 MP4/M4A in-memory writer safety update
 - `applyTagEditToBuffer` now routes `m4a/mp4` to an in-memory MP4 atom writer only.
-- Scope is intentionally narrow: requires existing `moov/udta/meta/ilst` path, otherwise `WriteNotImplemented`.
-- If `moov` is before `mdat` and a tag change would resize `moov`, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
+- Strict no-op drafts (`{ tags: {} }`, undefined-only tags, no cover/removeCover intent) return original bytes before any MP4 structure checks.
+- For actual edit intent, scope is intentionally narrow: requires existing `moov/udta/meta/ilst` path, otherwise `WriteNotImplemented`.
+- If a tag change would resize `moov` and any top-level `mdat` appears later in file order, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
 - If `moov` is after `mdat`, metadata rewrite is allowed.
 - `mdat` bytes are preserved and never rewritten.
 - Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).

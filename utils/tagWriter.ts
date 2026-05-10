@@ -252,6 +252,7 @@ export const mergeId3v23TagIntoMp3Buffer = (original: Uint8Array, draft: TagEdit
   const out = new Uint8Array(tag.length + audio.length); out.set(tag, 0); out.set(audio, tag.length); return out;
 };
 const applyMp4TagEditToBuffer = (original: Uint8Array, draft: TagEditDraft): Uint8Array => {
+  if (!hasAnyTagEditIntent(draft)) return original.slice();
   const top = parseAtoms(original, 0, original.length, true);
   const moov = top.find((a) => a.type === 'moov'); if (!moov) throw new TagWriterError('InvalidTagData', 'Missing moov atom.');
   const mdats = top.filter((a) => a.type === 'mdat'); if (mdats.length === 0) throw new TagWriterError('InvalidTagData', 'Missing mdat atom.');

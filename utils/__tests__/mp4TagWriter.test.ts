@@ -11,7 +11,7 @@ const atom = (type: Uint8Array, payload: Uint8Array) => {
 };
 const types = {
   ftyp: te.encode('ftyp'), moov: te.encode('moov'), mdat: te.encode('mdat'), udta: te.encode('udta'), meta: te.encode('meta'), ilst: te.encode('ilst'), data: te.encode('data'),
-  nam: u8(0xa9, 0x6e, 0x61, 0x6d), art: u8(0xa9, 0x41, 0x52, 0x54), covr: te.encode('covr'), trkn: te.encode('trkn'), unk: te.encode('----'),
+  nam: u8(0xa9, 0x6e, 0x61, 0x6d), art: u8(0xa9, 0x41, 0x52, 0x54), covr: te.encode('covr'), trkn: te.encode('trkn'), disk: te.encode('disk'), alb: u8(0xa9, 0x61, 0x6c, 0x62), unk: te.encode('----'),
 };
 const dataAtom = (kind: number, payload: Uint8Array) => atom(types.data, new Uint8Array([(kind>>>24)&0xff,(kind>>>16)&0xff,(kind>>>8)&0xff,kind&0xff,0,0,0,0,...payload]));
 const item = (type: Uint8Array, data: Uint8Array) => atom(type, dataAtom(1, data));
@@ -167,4 +167,76 @@ test('discNumber packed format writes disk atom', () => {
   expect(out[dataAtomStart + 23]).toBe(0);
   expect(current).toBe(1);
   expect(total).toBe(2);
+});
+
+test('mp4 without moov returns original bytes for empty draft (early no-op)', () => {
+  const src = atom(types.ftyp, u8(0, 0, 0, 0));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: {} });
+  expect(Array.from(out)).toEqual(Array.from(src));
+});
+
+test('mp4 with moov but without metadata hierarchy returns original bytes for empty draft', () => {
+  const src = Uint8Array.from([atom(types.ftyp, u8(0, 0, 0, 0)), atom(types.moov, u8()), atom(types.mdat, u8(1, 2, 3, 4))].flatMap((x) => Array.from(x)));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: {} });
+  expect(Array.from(out)).toEqual(Array.from(src));
+});
+
+test('mp4 no-op undefined-only draft returns original bytes unchanged', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: undefined, artist: undefined } });
+  expect(Array.from(out)).toEqual(Array.from(src));
+});
+
+test('mp4 with title edit and missing ilst still throws', () => {
+  const src = Uint8Array.from([atom(types.ftyp, u8(0, 0, 0, 0)), atom(types.mdat, u8(1, 2, 3, 4)), atom(types.moov, atom(types.udta, atom(types.meta, u8(0, 0, 0, 0))))].flatMap((x) => Array.from(x)));
+  expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'x' } })).toThrow(/Missing ilst atom/i);
+});
+
+test('whitespace title counts as intent and does not early return', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: '   ' } });
+  expect(Array.from(out)).not.toEqual(Array.from(src));
+});
+
+test('moov after all mdat allows size change', () => {
+  const ftyp = atom(types.ftyp, u8(0, 0, 0, 0));
+  const firstMdat = atom(types.mdat, u8(1, 2, 3, 4));
+  const secondMdat = atom(types.mdat, u8(9, 8, 7, 6));
+  const moovAtom = moov(udta(meta(ilst(item(types.nam, te.encode('a'))))));
+  const src = Uint8Array.from([ftyp, firstMdat, secondMdat, moovAtom].flatMap((x) => Array.from(x)));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'this is longer' } });
+  expect(new TextDecoder().decode(out).includes('this is longer')).toBe(true);
+});
+
+test('no-op returns original bytes across moov/mdat ordering variants', () => {
+  const baseline = file(false, ilst(item(types.nam, te.encode('old'))));
+  const moovFirst = file(true, ilst(item(types.nam, te.encode('old'))));
+  expect(Array.from(applyTagEditToBuffer(baseline, 'mp4', { songId: '1', tags: {} }))).toEqual(Array.from(baseline));
+  expect(Array.from(applyTagEditToBuffer(moovFirst, 'mp4', { songId: '1', tags: {} }))).toEqual(Array.from(moovFirst));
+});
+
+test('trackNumber single value writes total as 0', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { trackNumber: '3' } });
+  const trknAtomStart = findAtomTypeOffset(out, te.encode('trkn'));
+  const dataAtomStart = trknAtomStart + 8;
+  const current = (out[dataAtomStart + 18] << 8) | out[dataAtomStart + 19];
+  const total = (out[dataAtomStart + 20] << 8) | out[dataAtomStart + 21];
+  expect(current).toBe(3);
+  expect(total).toBe(0);
+});
+
+test('title-only edit preserves album exactly once', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old')), item(types.art, te.encode('artist')), item(types.alb, te.encode('album'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'new' } });
+  const decoded = new TextDecoder().decode(out);
+  expect(decoded.match(/album/g)?.length ?? 0).toBe(1);
+});
+
+test('unknown ilst atom preserved exactly once after title-only edit', () => {
+  const unknown = atom(types.unk, dataAtom(1, te.encode('keep')));
+  const src = file(false, ilst(unknown, item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'new' } });
+  const decoded = new TextDecoder().decode(out);
+  expect(decoded.match(/keep/g)?.length ?? 0).toBe(1);
 });
