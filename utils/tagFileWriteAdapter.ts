@@ -9,16 +9,32 @@ export interface TagFileWriteAdapter {
   getInfo(uri: string): Promise<{ exists: boolean; size?: number; isDirectory?: boolean }>;
 }
 
-const toBase64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64');
-const fromBase64 = (value: string): Uint8Array => new Uint8Array(Buffer.from(value, 'base64'));
+const encodeBytesBase64 = (bytes: Uint8Array): string => {
+  if (typeof btoa === 'function') {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }
+  return Buffer.from(bytes).toString('base64');
+};
+
+const decodeBase64Bytes = (value: string): Uint8Array => {
+  if (typeof atob === 'function') {
+    const binary = atob(value);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i) & 0xff;
+    return out;
+  }
+  return new Uint8Array(Buffer.from(value, 'base64'));
+};
 
 export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   async readBytes(uri) {
     const base64 = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
-    return fromBase64(base64);
+    return decodeBase64Bytes(base64);
   },
   async writeBytes(uri, bytes) {
-    await writeAsStringAsync(uri, toBase64(bytes), { encoding: EncodingType.Base64 });
+    await writeAsStringAsync(uri, encodeBytesBase64(bytes), { encoding: EncodingType.Base64 });
   },
   async copyFile(fromUri, toUri) {
     await copyAsync({ from: fromUri, to: toUri });

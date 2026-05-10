@@ -11,7 +11,7 @@
 - Unsupported containers throw `UnsupportedFormat`.
 - Orchestration planner remains available as dry-run, while `writeTagsToFile` executes guarded `file://` writes.
 
-## Safe write orchestration (prepared, not activated)
+## Safe write orchestration (planner + guarded execution)
 
 The orchestration plan now models:
 - write preconditions,
@@ -33,7 +33,7 @@ No plan step performs a real write, delete, or replace operation.
 
 ## Backup + rollback concept
 
-Before any future real write, flow must be:
+For guarded local writes, flow is:
 1. never overwrite original directly,
 2. create backup,
 3. write temp output,

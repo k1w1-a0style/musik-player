@@ -394,4 +394,15 @@ describe('writeTagsToFile safe file writes', () => {
     await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
       .rejects.toMatchObject({ code: 'RollbackFailed' });
   });
+
+  test('backup cleanup failure keeps success with warning', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+      if (targetUri.endsWith('.bak')) throw new Error('cleanup failed');
+    });
+    const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    expect(result.status).toBe('written');
+    expect(result.warnings.join(' ')).toMatch(/backup cleanup failed/i);
+  });
 });
