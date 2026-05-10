@@ -18,6 +18,14 @@ import Screen from '../components/Screen';
 const { width: SCREEN_W } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
+const HIDDEN_VISUALIZER_REASONS = new Set(['stopped', 'ok']);
+
+const formatVisualizerHint = (reason: string | null): string | null => {
+  if (!reason || HIDDEN_VISUALIZER_REASONS.has(reason)) return null;
+  if (reason === 'no_permission') return 'Visualizer deaktiviert (keine Mikrofonberechtigung).';
+  return `Visualizer deaktiviert (${reason}).`;
+};
+
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong } = useNowPlayingMusicContext();
@@ -78,6 +86,7 @@ const NowPlaying: React.FC = () => {
   const coverAccent = useMemo(() => palette?.vibrant ?? palette?.dominant ?? accent, [palette, accent]);
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
+  const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
   const handleClose = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -139,8 +148,8 @@ const NowPlaying: React.FC = () => {
           color={palette?.vibrant ?? theme.palette.primary}
           height={44}
         />
-        {!!visualizerError && (
-          <Text style={styles.visualizerHint}>Visualizer deaktiviert ({visualizerError}).</Text>
+        {!!visualizerHint && (
+          <Text style={styles.visualizerHint}>{visualizerHint}</Text>
         )}
       </View>
       <ProgressBar
