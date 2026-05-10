@@ -435,7 +435,10 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
   return undefined;
 };
 
-export const parseMp4CoverFromBuffer = (bytes: Uint8Array): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length);
+export const parseMp4CoverFromBuffer = (
+  bytes: Uint8Array,
+  options: { trustedTopLevel?: boolean } = {},
+): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
 
 const base64ToBytes = (b64: string): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -473,7 +476,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       const id3 = parseId3Buffer(bytes);
       if (id3.cover) return id3;
       if (!looksLikeMp4) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      const mp4Cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
       return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
     };
     try {
@@ -497,7 +500,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
           length: tailReadLength,
           position: tailStart,
         });
-        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
+        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), { trustedTopLevel: false });
         if (tailCover) return { ...id3, cover: tailCover };
       } catch {
         return id3;

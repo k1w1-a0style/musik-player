@@ -210,12 +210,24 @@ describe('parseMp4CoverFromBuffer', () => {
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
+
+  test('aligned trusted top-level scan skips large top-level atoms and still finds covr', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const ftyp = atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1]);
+    const mdat = atom('mdat', new Array(16 * 1024).fill(0x2a));
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const bytes = new Uint8Array([...ftyp, ...mdat, ...moov]);
+    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
   test('parses covr even when buffer starts misaligned before moov', () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0];
     const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
     const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
     const bytes = new Uint8Array(new Array(3005).fill(0x7a).concat(moov));
-    const cover = parseMp4CoverFromBuffer(bytes);
+    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: false });
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
@@ -245,10 +257,10 @@ describe('parseMp4CoverFromBuffer', () => {
     const fake = new Array(64).fill(0x61);
     fake.splice(8, 4, ...enc('covr'));
     const bytes = new Uint8Array(atom('mdat', fake));
-    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
+    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
   });
   test('handles invalid size atoms without infinite loop', () => {
     const bytes = new Uint8Array([0, 0, 0, 1, ...enc('moov'), 0, 0, 0, 0]);
-    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
+    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
   });
 });

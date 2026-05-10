@@ -70,6 +70,19 @@ describe('parseId3FromUri', () => {
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
+
+  test('tail read remains untrusted and does not skip fake printable header before real moov', async () => {
+    mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
+    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
+    const fakeHeader = [0, 0, 0, 0x40, 0x7a, 0x7a, 0x7a, 0x7a, ...new Array(56).fill(0x00)];
+    const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64([...fakeHeader, ...tailMoov]));
+
+    const tags = await parseId3FromUri('file:///music/tail-untrusted.mp4?token=xyz');
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
   test('returns parsed head tags when getInfoAsync fails', async () => {
     const id3WithTitle = buildId3([id3TextFrame('TIT2', 'Song')]);
     mockReadAsStringAsync.mockResolvedValueOnce(id3WithTitle);
