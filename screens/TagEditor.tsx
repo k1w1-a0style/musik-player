@@ -94,6 +94,16 @@ const buildFormAfterSave = (
   return next;
 };
 
+
+const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> = new Set(['embedded', 'cached', 'external']);
+
+export const hasRemovableCover = (song: Song): boolean => {
+  if (song.cover) return true;
+  if (song.coverInfo?.uri) return true;
+  const status = song.coverInfo?.status;
+  return Boolean(status && REMOVABLE_COVER_STATUSES.has(status));
+};
+
 const statusMessage = (result: WriteTagsResult): string => {
   if (result.status === 'written') return 'Metadaten erfolgreich geschrieben.';
   if (result.status === 'noop') return 'Keine Änderung.';
@@ -131,6 +141,7 @@ const TagEditor: React.FC = () => {
   const draft = buildDraftFromDirtyFields(song.id, form, dirty, removeCover);
   const capability = getTagEditCapability(song);
   const plan = createTagWriteOperationPlan(song, draft);
+  const hasCover = hasRemovableCover(song);
   const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true;
   const canSave = capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
   const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons as TagWriterErrorCode[]);
@@ -199,9 +210,14 @@ const TagEditor: React.FC = () => {
             </View>
           ))}
 
-          <Pressable testID="remove-cover" style={styles.toggle} disabled={!capability.canWrite || saving} onPress={() => setRemoveCover((v) => !v)}>
+          <Pressable testID="remove-cover" style={styles.toggle} disabled={!capability.canWrite || !hasCover || saving} onPress={() => setRemoveCover((v) => !v)}>
             <Text style={styles.toggleText}>Cover entfernen: {removeCover ? 'Ja' : 'Nein'}</Text>
           </Pressable>
+
+
+          <View testID="replace-cover-unavailable" style={[styles.toggle, styles.disabledButton]}>
+            <Text style={styles.toggleText}>Cover ersetzen: Noch nicht verfügbar</Text>
+          </View>
 
           <Pressable
             testID="save-button"
