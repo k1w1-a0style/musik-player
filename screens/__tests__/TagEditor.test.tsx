@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import TagEditor, { buildDraftFromDirtyFields } from '../TagEditor';
+import TagEditor, { buildDraftFromDirtyFields, hasRemovableCover } from '../TagEditor';
 
 const mockWriteTagsToFile = jest.fn();
 const mockUpdateSongMetadata = jest.fn();
@@ -326,4 +326,43 @@ test('remove-cover disabled when song has no cover', () => {
   mockSongs = [{ ...mockSongs[0], cover: undefined, coverInfo: undefined }];
   const { getByTestId } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
+});
+
+
+test('hasRemovableCover treats embedded/cached/external statuses as removable but none/unknown as not removable', () => {
+  expect(hasRemovableCover({ id: '1', title: 't', artist: 'a', coverInfo: { status: 'embedded' } } as any)).toBe(true);
+  expect(hasRemovableCover({ id: '1', title: 't', artist: 'a', coverInfo: { status: 'cached' } } as any)).toBe(true);
+  expect(hasRemovableCover({ id: '1', title: 't', artist: 'a', coverInfo: { status: 'external' } } as any)).toBe(true);
+  expect(hasRemovableCover({ id: '1', title: 't', artist: 'a', coverInfo: { status: 'none' } } as any)).toBe(false);
+  expect(hasRemovableCover({ id: '1', title: 't', artist: 'a', coverInfo: { status: 'unknown' } } as any)).toBe(false);
+});
+
+test('embedded cover is removable for writable file:// and sends removeCover=true', async () => {
+  mockSongs = [{ ...mockSongs[0], uri: 'file:///embedded.mp3', cover: undefined, coverInfo: { status: 'embedded' } }];
+  mockCapability = { canRead: true, canWrite: true, uriType: 'file', reason: 'ok', supportedContainer: 'mp3' };
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId, getByText } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(false);
+  fireEvent.press(getByTestId('remove-cover'));
+  expect(getByText('Cover entfernen: Ja')).toBeTruthy();
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(mockWriteTagsToFile.mock.calls[0][1].removeCover).toBe(true);
+});
+
+test('embedded cover remains blocked for content:// songs', () => {
+  mockSongs = [{ ...mockSongs[0], uri: 'content://media/1', cover: undefined, coverInfo: { status: 'embedded' } }];
+  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.', supportedContainer: 'mp3' };
+  const { getByTestId, getByText } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+  expect(getByText(/content:\/\//)).toBeTruthy();
+  fireEvent.press(getByTestId('save-button'));
+  expect(mockWriteTagsToFile).not.toHaveBeenCalled();
+});
+
+test('coverInfo uri without song.cover remains removable', () => {
+  mockSongs = [{ ...mockSongs[0], cover: undefined, coverInfo: { status: 'external', uri: 'file:///cached-cover.jpg' } }];
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(false);
 });

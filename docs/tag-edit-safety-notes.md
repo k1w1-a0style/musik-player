@@ -114,6 +114,7 @@ Separate PRs are still required for:
 - Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.
 
 - Cover replace is intentionally blocked for now; TagEditor only supports remove-cover on writable file:// tracks and shows a non-interactive unavailable hint for replace.
+- Cover remove is allowed for writable tracks when the app knows cover exists (including `coverInfo.status=embedded` without a cover URI).
 - `content://` remains read-only for both remove and replace actions.
 
 - Exactly one editable TagEditor UI is active; legacy ID3 editor paths were removed.
