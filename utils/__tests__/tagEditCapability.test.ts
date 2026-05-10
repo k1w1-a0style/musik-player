@@ -1,5 +1,5 @@
 import type { Song } from '../../types/Song';
-import { getTagEditCapability, getUriType, isSupportedTagEditContainer } from '../tagEditCapability';
+import { getTagEditCapability, getUriType, isFileWriteSupportedOnPlatform, isSupportedTagEditContainer } from '../tagEditCapability';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 't', artist: 'a', ...overrides });
 
@@ -29,13 +29,27 @@ describe('tagEditCapability', () => {
     expect(cap.uriType).toBe('remote');
   });
 
-  test('file/content mp3 are readable and only file is writable', () => {
-    const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }));
+  test('android file/content mp3 are readable and only file is writable', () => {
+    const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'android');
     const contentCap = getTagEditCapability(song({ uri: 'content://music/1', fileInfo: { extension: 'mp3' } }));
     expect(fileCap.canRead).toBe(true);
     expect(fileCap.canWrite).toBe(true);
     expect(contentCap.canRead).toBe(true);
     expect(contentCap.canWrite).toBe(false);
+  });
+
+  test('platform-gated file capability (ios/web blocked)', () => {
+    const iosCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'ios');
+    const webCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'web');
+    const androidMp4Cap = getTagEditCapability(song({ uri: 'file:///music/a.mp4', fileInfo: { extension: 'mp4' } }), 'android');
+    const androidM4aCap = getTagEditCapability(song({ uri: 'file:///music/a.m4a', fileInfo: { extension: 'm4a' } }), 'android');
+    expect(iosCap.canWrite).toBe(false);
+    expect(webCap.canWrite).toBe(false);
+    expect(iosCap.reason).toMatch(/Safe existing file replacement is not supported/i);
+    expect(androidMp4Cap.canWrite).toBe(true);
+    expect(androidM4aCap.canWrite).toBe(true);
+    expect(isFileWriteSupportedOnPlatform('android')).toBe(true);
+    expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
 
   test('helpers', () => {

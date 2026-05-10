@@ -31,6 +31,7 @@ No plan step performs a real write, delete, or replace operation.
 - `content://` requires SAF write permission, is high-risk, and may not guarantee atomic replace (`MissingWritePermission`, `WriteNotImplemented`).
 - `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile` only when safe existing-file replace is supported by adapter capability.
 - iOS Expo legacy replace is intentionally blocked (no delete-before-write fallback allowed).
+- Capability/planning now mirrors this platform gate: Android `file://` is writable, iOS/web `file://` is marked not writable before save attempts.
 
 ## Backup + rollback concept
 

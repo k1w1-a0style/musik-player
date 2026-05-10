@@ -31,9 +31,10 @@ const containerWarning = (container: TagEditableContainer): string | undefined =
   return undefined;
 };
 
-export const validateWritePreconditions = (song: Song, draft: TagEditDraft): TagWriterErrorCode[] => {
+export const validateWritePreconditions = (song: Song, draft: TagEditDraft, platform?: string): TagWriterErrorCode[] => {
   const errors: TagWriterErrorCode[] = [];
   const uri = song.fileInfo?.uri ?? song.uri;
+  const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
   const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
@@ -43,6 +44,7 @@ export const validateWritePreconditions = (song: Song, draft: TagEditDraft): Tag
   if (!uri || uriType === 'unknown' || uriType === 'remote') errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (uriType === 'content') errors.push('MissingWritePermission');
+  if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite) errors.push('WriteNotImplemented');
 
   return [...new Set(errors)];
 };
@@ -53,10 +55,10 @@ export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => ({
   steps: buildRollbackSteps(plan.targetUri),
 });
 
-export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): WriteOperationPlan => {
+export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft, platform?: string): WriteOperationPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const safeUri = uri ?? '';
-  const capability = getTagEditCapability(song);
+  const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
   const warnings = [...(capability.reason ? [capability.reason] : [])];
@@ -66,7 +68,7 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
   if (uriType === 'content') warnings.push('SAF providers may not guarantee atomic replace semantics.');
   if (uriType === 'file') warnings.push('file:// writes use backup + temp + byte verification; replace is guarded but not guaranteed OS-atomic.');
 
-  const blockingReasons = validateWritePreconditions(song, draft);
+  const blockingReasons = validateWritePreconditions(song, draft, platform);
   const plan: WriteOperationPlan = {
     sourceUri: safeUri,
     targetUri: safeUri,

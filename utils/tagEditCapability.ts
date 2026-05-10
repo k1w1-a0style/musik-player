@@ -1,5 +1,7 @@
 import type { Song } from '../types/Song';
 import type { TagEditCapability, TagEditUriType, TagEditableContainer } from '../types/TagEdit';
+import { Platform } from 'react-native';
+import { getDefaultReplaceSupportForPlatform } from './tagFileWriteAdapter';
 
 const REMOTE_RE = /^https?:\/\//i;
 
@@ -22,7 +24,9 @@ export const getSupportedContainer = (song: Song): TagEditableContainer => {
 
 export const isSupportedTagEditContainer = (song: Song): boolean => getSupportedContainer(song) !== 'unsupported';
 
-export const getTagEditCapability = (song: Song): TagEditCapability => {
+export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
+
+export const getTagEditCapability = (song: Song, platform: string = Platform.OS): TagEditCapability => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const uriType = getUriType(uri);
   const container = getSupportedContainer(song);
@@ -50,12 +54,15 @@ export const getTagEditCapability = (song: Song): TagEditCapability => {
   }
 
   if (uriType === 'file') {
+    const canReplace = isFileWriteSupportedOnPlatform(platform);
     return {
       canRead: true,
-      canWrite: true,
+      canWrite: canReplace,
       uriType,
       supportedContainer: container,
-      reason: 'Local file writes are supported through guarded backup/temp verification flow.',
+      reason: canReplace
+        ? 'Local file writes are supported through guarded backup/temp verification flow.'
+        : 'Safe existing file replacement is not supported on this platform yet.',
     };
   }
 
