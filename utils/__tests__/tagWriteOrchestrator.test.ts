@@ -22,11 +22,17 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).toContain('UnsupportedFormat');
   });
 
-  test('file:// mp3 requires backup/temp/atomic and remains WriteNotImplemented', () => {
-    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft);
+  test('android file:// mp3 is plannable without WriteNotImplemented blocking', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
     expect(plan.requiresBackup).toBe(true);
     expect(plan.requiresTempFile).toBe(true);
-    expect(plan.supportsAtomicReplace).toBe(true);
+    expect(plan.supportsAtomicReplace).toBe(false);
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(assertSafeWriteAllowed(plan)).toBeNull();
+  });
+  test('ios file:// mp3 is blocked with WriteNotImplemented', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'ios');
+    expect(plan.permission.canWrite).toBe(false);
     expect(plan.blockingReasons).toContain('WriteNotImplemented');
   });
 
@@ -46,11 +52,13 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(assertSafeWriteAllowed(plan)).toBe('InvalidTagData');
   });
 
-  test('m4a/mp4 plan created but writer remains not implemented', () => {
-    const m4aPlan = createTagWriteOperationPlan(song({ uri: 'file:///a.m4a', fileInfo: { extension: 'm4a' } }), draft);
-    const mp4Plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp4', fileInfo: { extension: 'mp4' } }), draft);
-    expect(m4aPlan.blockingReasons).toContain('WriteNotImplemented');
-    expect(mp4Plan.blockingReasons).toContain('WriteNotImplemented');
+  test('android m4a/mp4 file plans are writable and not blocked as WriteNotImplemented', () => {
+    const m4aPlan = createTagWriteOperationPlan(song({ uri: 'file:///a.m4a', fileInfo: { extension: 'm4a' } }), draft, 'android');
+    const mp4Plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp4', fileInfo: { extension: 'mp4' } }), draft, 'android');
+    expect(m4aPlan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(mp4Plan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(m4aPlan.permission.canWrite).toBe(true);
+    expect(mp4Plan.permission.canWrite).toBe(true);
   });
 
   test('invalid draft yields InvalidTagData', () => {
@@ -73,15 +81,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
   });
 
   test('rollback plan is conceptual and simulation does not mutate files', () => {
-    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft);
+    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
     const rollback = createRollbackPlan(plan);
     expect(rollback.steps.length).toBeGreaterThan(0);
     const result = simulateTagWriteOperation(plan);
-    expect(result.primaryBlockingReason).toBe('WriteNotImplemented');
+    expect(result.primaryBlockingReason).toBeUndefined();
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile remains blocked', async () => {
-    await expect(writeTagsToFile()).rejects.toThrow(/disabled/i);
+  test('writeTagsToFile with content uri remains blocked', async () => {
+    await expect(writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).rejects.toThrow(/SAF/i);
   });
 });

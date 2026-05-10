@@ -2,16 +2,16 @@
 
 ## Current policy (this PR)
 
-- No real device file writes are enabled.
-- `writeTagsToFile` always throws `WriteNotImplemented`.
+- Guarded real writes are enabled for `file://` only.
+- `writeTagsToFile` supports guarded `file://` writes only.
 - `applyTagEditToBuffer` writes in-memory for:
   - MP3 via ID3v2.3 (with strict 28-bit synchsafe payload-size validation before tag allocation/serialization),
   - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
 - `m4a`/`mp4` use a guarded in-memory writer for safe atom layouts only; unsafe layouts still throw `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
-- New orchestration logic is **dry-run simulation only**.
+- Orchestration planner remains available as dry-run, while `writeTagsToFile` executes guarded `file://` writes.
 
-## Safe write orchestration (prepared, not activated)
+## Safe write orchestration (planner + guarded execution)
 
 The orchestration plan now models:
 - write preconditions,
@@ -29,11 +29,14 @@ No plan step performs a real write, delete, or replace operation.
 - `remote` URIs are read-only and blocked (`UnsupportedUri`).
 - missing/unknown URI is blocked (`UnsupportedUri`).
 - `content://` requires SAF write permission, is high-risk, and may not guarantee atomic replace (`MissingWritePermission`, `WriteNotImplemented`).
-- `file://` is modeled with backup+temp+atomic replace requirements, but still blocked by policy (`WriteNotImplemented`).
+- `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile` only when safe existing-file replace is supported by adapter capability.
+- iOS Expo legacy replace is intentionally blocked (no delete-before-write fallback allowed).
+- Capability/planning now mirrors this platform gate: Android `file://` is writable, iOS/web `file://` is marked not writable before save attempts.
+- `ensureTagEditWriteAllowed` preflight now enforces the same gate and rejects iOS/web `file://` writes with `WriteNotImplemented`.
 
 ## Backup + rollback concept
 
-Before any future real write, flow must be:
+For guarded local writes, flow is:
 1. never overwrite original directly,
 2. create backup,
 3. write temp output,
@@ -65,7 +68,7 @@ Separate PRs are still required for:
 - Reads existing ID3v2.3/v2.4 headers, removes full old tag (including v2.4 footer), and rewrites a new ID3v2.3 tag in-memory only.
 - Audio bytes after tag boundary are preserved exactly.
 - Existing unsynchronisation flag is currently blocked with `WriteNotImplemented` to avoid unsafe metadata loss.
-- `writeTagsToFile` remains blocked; no SAF/device write path is activated.
+- `writeTagsToFile` is active only for guarded `file://` paths; SAF/content stays blocked.
 
 - APIC payload construction avoids large spread-based intermediate JS arrays.
 - Text/COMM payload construction also avoids spread-based intermediate JS arrays.
@@ -81,4 +84,19 @@ Separate PRs are still required for:
 - If a tag change would resize `moov` and any top-level `mdat` appears later in file order, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
 - If `moov` is after `mdat`, metadata rewrite is allowed.
 - `mdat` bytes are preserved and never rewritten.
-- Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).
+- Device writes are partially enabled for guarded `file://` only.
+
+## 2026-05 controlled file:// write activation
+- `writeTagsToFile(song, draft)` now supports guarded real writes for `file://` URIs only.
+- Flow: read -> in-memory rewrite (`applyTagEditToBuffer`) -> backup `.bak` -> temp `.tmp` -> basic verification -> replace.
+- Adapter capability gate blocks replace early on unsupported platforms (`WriteNotImplemented`) before backup/temp creation.
+- If backup/temp/verification fails, replace is never attempted.
+- If replace fails, rollback from backup is attempted; rollback failure throws `RollbackFailed`.
+- Existing-file replace is currently allowed for Android only; iOS remains blocked until a safe replace primitive exists.
+- `content://` (SAF) remains blocked with `MissingWritePermission`.
+- Remote/unknown URIs remain blocked with `UnsupportedUri`.
+
+- Source file read failures in `writeTagsToFile` are normalized to `UnsupportedUri` errors.
+- Temp verification read failures are normalized to `VerificationFailed` with best-effort temp cleanup.
+- Temp cleanup after successful replace is non-fatal and reported as warning.
+- Capability/planner now align with guarded `file://` write support (`canWrite=true` for supported local files).

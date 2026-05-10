@@ -6,7 +6,7 @@ This PR intentionally provides **foundation only**:
 - capability model
 - validation
 - guarded writer interfaces
-- safe write orchestration modeling (dry-run)
+- safe write orchestration modeling (dry-run + guarded `file://` execution)
 - safety documentation
 
 It does **not** ship a production-ready MP3/MP4 writer.
@@ -15,7 +15,7 @@ It does **not** ship a production-ready MP3/MP4 writer.
 
 - [x] Capability model stabilized (including missing-URI read=false behavior).
 - [x] Error-code mapping fixed (`UnsupportedFormat`, `UnsupportedUri`, `MissingWritePermission`, `WriteNotImplemented`, `InvalidTagData`).
-- [x] Device writes remain blocked (`writeTagsToFile` => `WriteNotImplemented`).
+- [x] Device writes are guarded: `file://` only, `content://` remains blocked.
 - [x] `applyTagEditToBuffer` supports MP3 ID3v2.3 and a guarded MP4/M4A in-memory writer path.
 - [x] Validation retained (trim/undefined, year/position/genre, cover magic bytes).
 - [x] Safe write orchestration types and dry-run planner added.
@@ -31,9 +31,23 @@ It does **not** ship a production-ready MP3/MP4 writer.
 ## MP4/M4A review resolution (in-memory)
 - Added isolated MP4/M4A in-memory tag editing path for safe atom layouts only.
 - Kept MP3 ID3v2.3 writer unchanged.
-- Kept file-write orchestration in dry-run/block mode.
+- Kept orchestration planner as dry-run; guarded `file://` execution is now wired in `writeTagsToFile`.
 - Deferred risky layouts (missing metadata path, largesize, moov-before-mdat resize) to `WriteNotImplemented`.
 
 - Added early MP4/M4A no-op guard so empty drafts return original bytes without requiring metadata hierarchy.
 - Safe-layout restrictions remain for actual edits, including blocking moov-resize when later mdat atoms exist.
-- Device writes remain blocked (`writeTagsToFile` => `WriteNotImplemented`).
+- Guarded `file://` writes are active; SAF/content writes remain deferred.
+
+## 2026-05 update
+- [x] Guarded real `file://` writes enabled with backup/temp/verification/replace flow.
+- [x] Added file-write adapter abstraction for testability.
+- [x] `content://` safe-write remains intentionally blocked for a dedicated follow-up PR.
+- [x] Existing-file replace is capability-gated; Android supported, iOS Expo legacy intentionally blocked (`WriteNotImplemented`) to avoid delete-before-write risk.
+- [x] Capability/planning now use the same platform replace policy as runtime writes (Android file writable, iOS/web file blocked early).
+- [x] `ensureTagEditWriteAllowed` preflight now also enforces that same policy (no false-positive write allow on iOS/web file URIs).
+
+- [x] Source read failure wrapping in `writeTagsToFile` (`UnsupportedUri`).
+- [x] Temp verification read failure normalization (`VerificationFailed`) with best-effort cleanup.
+- [x] Temp cleanup failures are non-fatal warnings after successful replace.
+- [x] Capability + planner aligned: supported `file://` is writable; `content://` remains blocked.
+- [x] Adapter base64 fallback no longer relies on global `Buffer`.
