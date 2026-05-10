@@ -162,6 +162,70 @@ test('whitespace-only album normalizes to undefined in metadata patch', async ()
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
 
+
+test('trackNumber preserved and normalized after written', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-trackNumber'), ' 3/12 ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(getByTestId('input-trackNumber').props.value).toBe('3/12');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
+test('discNumber preserved and normalized after written', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-discNumber'), ' 1/2 ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(getByTestId('input-discNumber').props.value).toBe('1/2');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
+test('comment preserved and normalized after written', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-comment'), '  Hallo  ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(getByTestId('input-comment').props.value).toBe('Hallo');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
+test('whitespace-only comment resets to empty after written', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-comment'), '   ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(getByTestId('input-comment').props.value).toBe('');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
+test('non-song-form fields remain visible after later title write', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-comment'), ' Erste Notiz ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(getByTestId('input-comment').props.value).toBe('Erste Notiz'));
+
+  fireEvent.changeText(getByTestId('input-title'), 'Zweiter Titel');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(getByTestId('input-title').props.value).toBe('Zweiter Titel'));
+  expect(getByTestId('input-comment').props.value).toBe('Erste Notiz');
+});
+
+test('noop keeps normalized trackNumber visible and disables save', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'noop' });
+  const { getByTestId, getByText } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-trackNumber'), ' 3/12 ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(getByText('Keine Änderung.')).toBeTruthy());
+  expect(getByTestId('input-trackNumber').props.value).toBe('3/12');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
 test('title + removeCover applies normalized title and clears cover fields', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
   const { getByTestId, getByText } = render(<TagEditor />);
@@ -184,7 +248,7 @@ test('noop resets dirty state and disables save while keeping status', async () 
   fireEvent.changeText(getByTestId('input-title'), 'Noop Value');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(getByText('Keine Änderung.')).toBeTruthy());
-  expect(getByTestId('input-title').props.value).toBe('A');
+  expect(getByTestId('input-title').props.value).toBe('Noop Value');
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
   expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
 });

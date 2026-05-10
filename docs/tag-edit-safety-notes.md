@@ -111,3 +111,4 @@ Separate PRs are still required for:
 - `content://` remains blocked.
 
 - After successful save, UI state patch uses normalized tag values (trimmed/empty->undefined) to match file output.
+- Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.

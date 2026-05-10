@@ -76,6 +76,24 @@ const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefine
   return undefined;
 };
 
+
+const buildFormAfterSave = (
+  song: Song,
+  currentForm: FormState,
+  draft: TagEditDraft,
+): FormState => {
+  const normalizedTags = normalizeEditableTags(draft.tags);
+  const next = toInitialForm(song);
+  for (const field of FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(draft.tags, field.key)) {
+      next[field.key] = normalizedTags[field.key] ?? '';
+    } else {
+      next[field.key] = currentForm[field.key];
+    }
+  }
+  return next;
+};
+
 const statusMessage = (result: WriteTagsResult): string => {
   if (result.status === 'written') return 'Metadaten erfolgreich geschrieben.';
   if (result.status === 'noop') return 'Keine Änderung.';
@@ -137,11 +155,11 @@ const TagEditor: React.FC = () => {
         }
         updateSongMetadata(song.id, metadataPatch);
         const updatedSong: Song = { ...song, ...metadataPatch };
-        setForm(toInitialForm(updatedSong));
+        setForm(buildFormAfterSave(updatedSong, form, draft));
         setDirty({});
         setRemoveCover(false);
       } else if (result.status === 'noop') {
-        setForm(toInitialForm(song));
+        setForm((current) => buildFormAfterSave(song, current, draft));
         setDirty({});
         setRemoveCover(false);
       }
