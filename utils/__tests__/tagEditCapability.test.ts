@@ -29,9 +29,13 @@ describe('tagEditCapability', () => {
     expect(cap.uriType).toBe('remote');
   });
 
-  test('file/content mp3 are readable and guarded write=false', () => {
-    expect(getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } })).canRead).toBe(true);
-    expect(getTagEditCapability(song({ uri: 'content://music/1', fileInfo: { extension: 'mp3' } })).canRead).toBe(true);
+  test('file/content mp3 are readable and only file is writable', () => {
+    const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }));
+    const contentCap = getTagEditCapability(song({ uri: 'content://music/1', fileInfo: { extension: 'mp3' } }));
+    expect(fileCap.canRead).toBe(true);
+    expect(fileCap.canWrite).toBe(true);
+    expect(contentCap.canRead).toBe(true);
+    expect(contentCap.canWrite).toBe(false);
   });
 
   test('helpers', () => {

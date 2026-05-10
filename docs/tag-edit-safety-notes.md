@@ -90,3 +90,8 @@ Separate PRs are still required for:
 - If replace fails, rollback from backup is attempted; rollback failure throws `RollbackFailed`.
 - `content://` (SAF) remains blocked with `MissingWritePermission`.
 - Remote/unknown URIs remain blocked with `UnsupportedUri`.
+
+- Source file read failures in `writeTagsToFile` are normalized to `UnsupportedUri` errors.
+- Temp verification read failures are normalized to `VerificationFailed` with best-effort temp cleanup.
+- Temp cleanup after successful replace is non-fatal and reported as warning.
+- Capability/planner now align with guarded `file://` write support (`canWrite=true` for supported local files).

@@ -27,8 +27,7 @@ const getPrimaryBlockingReasonFromList = (reasons: TagWriterErrorCode[]): TagWri
 };
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
-  if (container === 'mp3') return 'MP3 writer remains disabled; orchestration is dry-run only.';
-  if (container === 'm4a' || container === 'mp4') return 'MP4/M4A writer remains disabled; orchestration is dry-run only.';
+  if (container === 'mp3' || container === 'm4a' || container === 'mp4') return 'MP3/MP4 writes use guarded file:// backup + temp + byte verification flow; content:// remains blocked.';
   return undefined;
 };
 
@@ -44,7 +43,6 @@ export const validateWritePreconditions = (song: Song, draft: TagEditDraft): Tag
   if (!uri || uriType === 'unknown' || uriType === 'remote') errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (uriType === 'content') errors.push('MissingWritePermission');
-  if (container !== 'unsupported' && uriType !== 'remote' && uriType !== 'unknown') errors.push('WriteNotImplemented');
 
   return [...new Set(errors)];
 };
@@ -66,7 +64,7 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
   if (containerWarn) warnings.push(containerWarn);
   if (draft.removeCover && draft.cover) warnings.push('removeCover=true takes precedence over cover payload.');
   if (uriType === 'content') warnings.push('SAF providers may not guarantee atomic replace semantics.');
-  if (uriType === 'file') warnings.push('Future file:// writes must use backup + temp + validated replace only.');
+  if (uriType === 'file') warnings.push('file:// writes use backup + temp + byte verification; replace is guarded but not guaranteed OS-atomic.');
 
   const blockingReasons = validateWritePreconditions(song, draft);
   const plan: WriteOperationPlan = {
@@ -76,7 +74,7 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
     container,
     permission: {
       canRead: capability.canRead,
-      canWrite: false,
+      canWrite: capability.canWrite,
       requiresSafPermission: uriType === 'content',
       reason: capability.reason,
     },
@@ -88,12 +86,12 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft): Wr
     atomicWrite: {
       required: uriType === 'file' || uriType === 'content',
       tempUri: safeUri ? `${safeUri}.tmp` : undefined,
-      supportsAtomicReplace: uriType === 'file',
+      supportsAtomicReplace: false,
     },
     rollback: { required: false, supportsRollback: false, steps: [] },
     requiresBackup: uriType === 'file' || uriType === 'content',
     requiresTempFile: uriType === 'file' || uriType === 'content',
-    supportsAtomicReplace: uriType === 'file',
+    supportsAtomicReplace: false,
     supportsRollback: uriType === 'file',
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',

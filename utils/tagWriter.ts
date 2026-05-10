@@ -359,14 +359,25 @@ export const writeTagsToFile = async (
   }
   const info = await adapter.getInfo(uri);
   if (!info.exists) throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
-  const original = await adapter.readBytes(uri);
+  let original: Uint8Array;
+  try {
+    original = await adapter.readBytes(uri);
+  } catch (error) {
+    throw new TagWriterError('UnsupportedUri', `Target file could not be read: ${String(error)}`);
+  }
   const next = applyTagEditToBuffer(original, container, draft);
   if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
   const backupUri = buildAttemptScopedUri(uri, 'bak');
   const tempUri = buildAttemptScopedUri(uri, 'tmp');
   try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
   try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
-  const tempBytes = await adapter.readBytes(tempUri);
+  let tempBytes: Uint8Array;
+  try {
+    tempBytes = await adapter.readBytes(tempUri);
+  } catch (error) {
+    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+    throw new TagWriterError('VerificationFailed', `Temp output could not be verified: ${String(error)}`);
+  }
   if (!areBytesEqual(tempBytes, next)) {
     try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
     throw new TagWriterError('VerificationFailed', 'Temp output bytes do not match rewritten payload.');
@@ -389,6 +400,7 @@ export const writeTagsToFile = async (
     }
   }
   const warnings: string[] = [];
+  try { await adapter.deleteFile(tempUri); } catch { warnings.push('Temp cleanup failed; temp file retained.'); }
   try { await adapter.deleteFile(backupUri); } catch { warnings.push('Backup cleanup failed; backup file retained.'); }
   return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings };
 };

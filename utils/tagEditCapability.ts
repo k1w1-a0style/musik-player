@@ -52,10 +52,10 @@ export const getTagEditCapability = (song: Song): TagEditCapability => {
   if (uriType === 'file') {
     return {
       canRead: true,
-      canWrite: false,
+      canWrite: true,
       uriType,
       supportedContainer: container,
-      reason: 'Local writes are intentionally disabled by policy in this PR.',
+      reason: 'Local file writes are supported through guarded backup/temp verification flow.',
     };
   }
 

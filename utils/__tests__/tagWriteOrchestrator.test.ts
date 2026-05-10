@@ -22,12 +22,13 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).toContain('UnsupportedFormat');
   });
 
-  test('file:// mp3 requires backup/temp/atomic and remains WriteNotImplemented', () => {
+  test('file:// mp3 is plannable without WriteNotImplemented blocking', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft);
     expect(plan.requiresBackup).toBe(true);
     expect(plan.requiresTempFile).toBe(true);
-    expect(plan.supportsAtomicReplace).toBe(true);
-    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(plan.supportsAtomicReplace).toBe(false);
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(assertSafeWriteAllowed(plan)).toBeNull();
   });
 
   test('content:// mp3 shows SAF warning and blocks with MissingWritePermission', () => {
@@ -46,11 +47,13 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(assertSafeWriteAllowed(plan)).toBe('InvalidTagData');
   });
 
-  test('m4a/mp4 plan created but writer remains not implemented', () => {
+  test('m4a/mp4 file plans are writable and not blocked as WriteNotImplemented', () => {
     const m4aPlan = createTagWriteOperationPlan(song({ uri: 'file:///a.m4a', fileInfo: { extension: 'm4a' } }), draft);
     const mp4Plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp4', fileInfo: { extension: 'mp4' } }), draft);
-    expect(m4aPlan.blockingReasons).toContain('WriteNotImplemented');
-    expect(mp4Plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(m4aPlan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(mp4Plan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(m4aPlan.permission.canWrite).toBe(true);
+    expect(mp4Plan.permission.canWrite).toBe(true);
   });
 
   test('invalid draft yields InvalidTagData', () => {
@@ -77,7 +80,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const rollback = createRollbackPlan(plan);
     expect(rollback.steps.length).toBeGreaterThan(0);
     const result = simulateTagWriteOperation(plan);
-    expect(result.primaryBlockingReason).toBe('WriteNotImplemented');
+    expect(result.primaryBlockingReason).toBeUndefined();
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 

@@ -42,3 +42,9 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - [x] Guarded real `file://` writes enabled with backup/temp/verification/replace flow.
 - [x] Added file-write adapter abstraction for testability.
 - [x] `content://` safe-write remains intentionally blocked for a dedicated follow-up PR.
+
+- [x] Source read failure wrapping in `writeTagsToFile` (`UnsupportedUri`).
+- [x] Temp verification read failure normalization (`VerificationFailed`) with best-effort cleanup.
+- [x] Temp cleanup failures are non-fatal warnings after successful replace.
+- [x] Capability + planner aligned: supported `file://` is writable; `content://` remains blocked.
+- [x] Adapter base64 fallback no longer relies on global `Buffer`.
