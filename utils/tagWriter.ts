@@ -78,7 +78,7 @@ const parsePacked = (value: string): [number, number] => {
   return [Number(m[1]), Number(m[2] ?? 0)];
 };
 const buildPackedNumberAtom = (type: Uint8Array, value: string): Uint8Array => {
-  const [current, total] = parsePacked(value); const payload = new Uint8Array(8); payload[3] = 0; payload[4] = (current >>> 8) & 0xff; payload[5] = current & 0xff; payload[6] = (total >>> 8) & 0xff; payload[7] = total & 0xff;
+  const [current, total] = parsePacked(value); const payload = new Uint8Array(8); payload[2] = (current >>> 8) & 0xff; payload[3] = current & 0xff; payload[4] = (total >>> 8) & 0xff; payload[5] = total & 0xff;
   return rebuildAtom(type, buildDataAtom(0, payload));
 };
 const concatBytes = (parts: Uint8Array[]): Uint8Array => {

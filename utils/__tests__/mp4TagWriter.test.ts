@@ -122,11 +122,15 @@ test('trackNumber packed format writes trkn atom', () => {
   expect(trknAtomStart).toBeGreaterThanOrEqual(0);
   const absoluteDataPos = trknAtomStart + 8;
   expect(String.fromCharCode(...out.slice(absoluteDataPos + 4, absoluteDataPos + 8))).toBe('data');
-  // data atom payload layout for trkn: [reserved(2), current(2), total(2)]
-  const currentHi = out[absoluteDataPos + 20];
-  const currentLo = out[absoluteDataPos + 21];
-  const totalHi = out[absoluteDataPos + 22];
-  const totalLo = out[absoluteDataPos + 23];
+  // data atom payload layout for trkn: [reserved(2), current(2), total(2), reserved(2)]
+  const currentHi = out[absoluteDataPos + 18];
+  const currentLo = out[absoluteDataPos + 19];
+  const totalHi = out[absoluteDataPos + 20];
+  const totalLo = out[absoluteDataPos + 21];
+  expect(out[absoluteDataPos + 16]).toBe(0);
+  expect(out[absoluteDataPos + 17]).toBe(0);
+  expect(out[absoluteDataPos + 22]).toBe(0);
+  expect(out[absoluteDataPos + 23]).toBe(0);
   expect((currentHi << 8) | currentLo).toBe(3);
   expect((totalHi << 8) | totalLo).toBe(12);
 });
@@ -155,8 +159,12 @@ test('discNumber packed format writes disk atom', () => {
   expect(diskAtomStart).toBeGreaterThanOrEqual(0);
   const dataAtomStart = diskAtomStart + 8;
   expect(String.fromCharCode(...out.slice(dataAtomStart + 4, dataAtomStart + 8))).toBe('data');
-  const current = (out[dataAtomStart + 20] << 8) | out[dataAtomStart + 21];
-  const total = (out[dataAtomStart + 22] << 8) | out[dataAtomStart + 23];
+  const current = (out[dataAtomStart + 18] << 8) | out[dataAtomStart + 19];
+  const total = (out[dataAtomStart + 20] << 8) | out[dataAtomStart + 21];
+  expect(out[dataAtomStart + 16]).toBe(0);
+  expect(out[dataAtomStart + 17]).toBe(0);
+  expect(out[dataAtomStart + 22]).toBe(0);
+  expect(out[dataAtomStart + 23]).toBe(0);
   expect(current).toBe(1);
   expect(total).toBe(2);
 });
