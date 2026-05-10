@@ -338,6 +338,12 @@ export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestra
 
 
 const areBytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
+
+const buildAttemptScopedUri = (uri: string, suffix: 'bak' | 'tmp'): string => {
+  const entropy = Math.random().toString(36).slice(2, 10);
+  const attemptId = `${Date.now()}-${entropy}`;
+  return `${uri}.${attemptId}.${suffix}`;
+};
 export const writeTagsToFile = async (
   song: Song,
   draft: TagEditDraft,
@@ -356,8 +362,8 @@ export const writeTagsToFile = async (
   const original = await adapter.readBytes(uri);
   const next = applyTagEditToBuffer(original, container, draft);
   if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
-  const backupUri = `${uri}.bak`;
-  const tempUri = `${uri}.tmp`;
+  const backupUri = buildAttemptScopedUri(uri, 'bak');
+  const tempUri = buildAttemptScopedUri(uri, 'tmp');
   try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
   try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
   const tempBytes = await adapter.readBytes(tempUri);

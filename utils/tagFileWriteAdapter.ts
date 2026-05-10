@@ -1,4 +1,4 @@
-import { copyAsync, deleteAsync, EncodingType, getInfoAsync, moveAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import { copyAsync, deleteAsync, EncodingType, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 
 export interface TagFileWriteAdapter {
   readBytes(uri: string): Promise<Uint8Array>;
@@ -40,14 +40,9 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
     await copyAsync({ from: fromUri, to: toUri });
   },
   async moveOrReplaceFile(fromUri, toUri) {
-    try {
-      await moveAsync({ from: fromUri, to: toUri });
-      return;
-    } catch {
-      const bytes = await expoTagFileWriteAdapter.readBytes(fromUri);
-      await expoTagFileWriteAdapter.writeBytes(toUri, bytes);
-      await deleteAsync(fromUri, { idempotent: true });
-    }
+    const bytes = await expoTagFileWriteAdapter.readBytes(fromUri);
+    await expoTagFileWriteAdapter.writeBytes(toUri, bytes);
+    await deleteAsync(fromUri, { idempotent: true });
   },
   async deleteFile(uri) {
     await deleteAsync(uri, { idempotent: true });

@@ -349,7 +349,18 @@ describe('writeTagsToFile safe file writes', () => {
     expect(ops[1]).toContain('.tmp');
     expect(ops[2]).toContain('replace');
     expect(files.get(uri)?.[0]).toBe(0x49);
-    expect(files.has(`${uri}.bak`)).toBe(false);
+    expect(Array.from(files.keys()).some((k) => k.startsWith(`${uri}.`) && k.endsWith('.bak'))).toBe(false);
+  });
+
+  test('each write attempt uses unique backup and temp sidecar paths', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'Y' } }, { adapter: adapter as any });
+    const copyTargets = ops.filter((op) => op.startsWith(`copy:${uri}->`)).map((op) => op.split('->')[1]);
+    const tempTargets = ops.filter((op) => op.startsWith('temp:')).map((op) => op.replace('temp:', ''));
+    expect(new Set(copyTargets).size).toBe(copyTargets.length);
+    expect(new Set(tempTargets).size).toBe(tempTargets.length);
   });
 
   test('backup failure stops before temp/replace', async () => {
