@@ -38,7 +38,12 @@ export type TagWriterErrorCode =
   | 'UnsupportedUri'
   | 'MissingWritePermission'
   | 'InvalidTagData'
-  | 'WriteNotImplemented';
+  | 'WriteNotImplemented'
+  | 'BackupFailed'
+  | 'TempWriteFailed'
+  | 'ReplaceFailed'
+  | 'RollbackFailed'
+  | 'VerificationFailed';
 
 export type WriteRiskLevel = 'low' | 'medium' | 'high';
 
@@ -97,3 +102,14 @@ export interface WriteOrchestrationResult {
 }
 
 export type TagEditPlan = WriteOperationPlan;
+
+export interface WriteTagsResult {
+  status: 'written' | 'noop' | 'blocked' | 'rolledBack';
+  sourceUri: string;
+  backupUri?: string;
+  tempUri?: string;
+  bytesBefore?: number;
+  bytesAfter?: number;
+  warnings: string[];
+}
+

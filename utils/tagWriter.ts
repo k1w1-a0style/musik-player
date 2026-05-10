@@ -1,8 +1,9 @@
 import type { Song } from '../types/Song';
-import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode, WriteOrchestrationResult } from '../types/TagEdit';
+import type { TagEditDraft, TagEditPlan, TagEditableContainer, TagWriterErrorCode, WriteOrchestrationResult, WriteTagsResult } from '../types/TagEdit';
 import { getTagEditCapability, getSupportedContainer } from './tagEditCapability';
 import { normalizeEditableTags, validateCoverPayload, validateEditableTags } from './tagValidation';
 import { createTagWriteOperationPlan, simulateTagWriteOperation } from './tagWriteOrchestrator';
+import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 
 export class TagWriterError extends Error {
   constructor(public code: TagWriterErrorCode, message: string) {
@@ -330,7 +331,50 @@ export const applyTagEditToBuffer = (buffer: Uint8Array, container: TagEditableC
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
 
-export const ensureTagEditWriteAllowed = (song: Song): void => { const capability = getTagEditCapability(song); const container = getSupportedContainer(song); if (container === 'unsupported') throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.'); if (!song.fileInfo?.uri && !song.uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.'); if (capability.uriType === 'remote' || capability.uriType === 'unknown') throw new TagWriterError('UnsupportedUri', capability.reason ?? 'URI is not writable.'); if (capability.uriType === 'file') throw new TagWriterError('WriteNotImplemented', 'Local file writes are intentionally disabled by policy in this PR.'); if (capability.uriType === 'content') throw new TagWriterError('MissingWritePermission', 'SAF write permission and safe write flow are required.'); };
+export const ensureTagEditWriteAllowed = (song: Song): void => { const capability = getTagEditCapability(song); const container = getSupportedContainer(song); if (container === 'unsupported') throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.'); if (!song.fileInfo?.uri && !song.uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.'); if (capability.uriType === 'remote' || capability.uriType === 'unknown') throw new TagWriterError('UnsupportedUri', capability.reason ?? 'URI is not writable.'); if (capability.uriType === 'content') throw new TagWriterError('MissingWritePermission', 'SAF write permission and safe write flow are required.'); };
 export const prepareWriteOnly = (song: Song, draft: TagEditDraft): TagEditPlan => createTagWriteOperationPlan(song, draft);
 export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestrationResult => { const plan = createTagWriteOperationPlan(song, draft); return simulateTagWriteOperation(plan); };
-export const writeTagsToFile = async (): Promise<never> => { throw new TagWriterError('WriteNotImplemented', 'Device file writes are intentionally disabled in this preparation step.'); };
+
+
+
+const areBytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
+const isPlausibleOutput = (buffer: Uint8Array, container: TagEditableContainer): boolean => {
+  if (buffer.length === 0) return false;
+  if (container === 'mp3') return true;
+  if (container === 'm4a' || container === 'mp4') {
+    if (buffer.length < 16) return false;
+    const head = String.fromCharCode(buffer[4], buffer[5], buffer[6], buffer[7]);
+    return head === 'ftyp' || head === 'moov';
+  }
+  return false;
+};
+
+export const writeTagsToFile = async (
+  song: Song,
+  draft: TagEditDraft,
+  options?: { adapter?: TagFileWriteAdapter },
+): Promise<WriteTagsResult> => {
+  const uri = song.fileInfo?.uri ?? song.uri;
+  if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
+  const container = getSupportedContainer(song);
+  const adapter = options?.adapter ?? expoTagFileWriteAdapter;
+  ensureTagEditWriteAllowed(song);
+  if (!validateEditableTags(draft.tags).valid || !validateCoverPayload(draft.removeCover ? undefined : draft.cover)) {
+    throw new TagWriterError('InvalidTagData', 'Draft validation failed.');
+  }
+  const info = await adapter.getInfo(uri);
+  if (!info.exists) throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
+  const original = await adapter.readBytes(uri);
+  const next = applyTagEditToBuffer(original, container, draft);
+  if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
+  const backupUri = `${uri}.bak`;
+  const tempUri = `${uri}.tmp`;
+  try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
+  try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
+  const tempBytes = await adapter.readBytes(tempUri);
+  if (!isPlausibleOutput(tempBytes, container)) throw new TagWriterError('VerificationFailed', 'Temp output validation failed.');
+  try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
+    try { await adapter.copyFile(backupUri, uri); throw new TagWriterError('ReplaceFailed', 'Replace failed; rollback applied.'); } catch { throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`); }
+  }
+  return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
+};

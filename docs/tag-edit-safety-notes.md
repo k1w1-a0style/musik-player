@@ -82,3 +82,11 @@ Separate PRs are still required for:
 - If `moov` is after `mdat`, metadata rewrite is allowed.
 - `mdat` bytes are preserved and never rewritten.
 - Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).
+
+## 2026-05 controlled file:// write activation
+- `writeTagsToFile(song, draft)` now supports guarded real writes for `file://` URIs only.
+- Flow: read -> in-memory rewrite (`applyTagEditToBuffer`) -> backup `.bak` -> temp `.tmp` -> basic verification -> replace.
+- If backup/temp/verification fails, replace is never attempted.
+- If replace fails, rollback from backup is attempted; rollback failure throws `RollbackFailed`.
+- `content://` (SAF) remains blocked with `MissingWritePermission`.
+- Remote/unknown URIs remain blocked with `UnsupportedUri`.

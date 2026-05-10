@@ -295,17 +295,59 @@ describe('tagWriter mp3 id3v2.3', () => {
 
   test('ensureTagEditWriteAllowed code mapping', () => {
     const cases: Array<{ s: Song; code: string }> = [
-      { s: song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), code: 'WriteNotImplemented' },
-      { s: song({ uri: 'content://a.mp3', fileInfo: { extension: 'mp3' } }), code: 'MissingWritePermission' },
+            { s: song({ uri: 'content://a.mp3', fileInfo: { extension: 'mp3' } }), code: 'MissingWritePermission' },
       { s: song({ uri: 'https://a.mp3', fileInfo: { extension: 'mp3' } }), code: 'UnsupportedUri' },
       { s: song({ uri: 'file:///a.flac', fileInfo: { extension: 'flac' } }), code: 'UnsupportedFormat' },
     ];
     for (const item of cases) { try { ensureTagEditWriteAllowed(item.s); throw new Error('Expected throw'); } catch (error) { expect((error as TagWriterError).code).toBe(item.code); } }
   });
 
-  test('planning path and blocked file write unchanged', async () => {
+  test('planning path remains and write call requires readable file', async () => {
     const plan = prepareTagEditPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { comment: '   ' }, removeCover: true });
     expect(plan.warnings.length).toBeGreaterThanOrEqual(0);
-    await expect(writeTagsToFile()).rejects.toThrow(/disabled/i);
+    await expect(writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).rejects.toThrow(/SAF/i);
+  });
+});
+
+describe('writeTagsToFile safe file writes', () => {
+  const mkAdapter = (initial: Record<string, Uint8Array>) => {
+    const files = new Map(Object.entries(initial).map(([k, v]) => [k, v.slice()]));
+    const ops: string[] = [];
+    return {
+      ops,
+      adapter: {
+        async getInfo(uri: string) { return { exists: files.has(uri), size: files.get(uri)?.length }; },
+        async readBytes(uri: string) { const v = files.get(uri); if (!v) throw new Error('missing'); return v.slice(); },
+        async writeBytes(uri: string, bytes: Uint8Array) { ops.push(`temp:${uri}`); files.set(uri, bytes.slice()); },
+        async copyFile(from: string, to: string) { ops.push(`copy:${from}->${to}`); const v = files.get(from); if (!v) throw new Error('missing'); files.set(to, v.slice()); },
+        async moveOrReplaceFile(from: string, to: string) { ops.push(`replace:${from}->${to}`); const v = files.get(from); if (!v) throw new Error('missing'); files.set(to, v.slice()); files.delete(from); },
+        async deleteFile(uri: string) { files.delete(uri); },
+      },
+      files,
+    };
+  };
+
+  test('content uri remains blocked', async () => {
+    await expect(writeTagsToFile(song({ uri: 'content://a', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } })).rejects.toMatchObject({ code: 'MissingWritePermission' });
+  });
+
+  test('file uri no-op does not write backup/temp/replace', async () => {
+    const uri = 'file:///a.mp3';
+    const src = u8(1, 2, 3, 4);
+    const { adapter, ops } = mkAdapter({ [uri]: src });
+    const res = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} }, { adapter: adapter as any });
+    expect(res.status).toBe('noop');
+    expect(ops).toEqual([]);
+  });
+
+  test('file uri write does backup temp verify replace in order', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, ops, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    const res = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
+    expect(res.status).toBe('written');
+    expect(ops[0]).toContain('.bak');
+    expect(ops[1]).toContain('.tmp');
+    expect(ops[2]).toContain('replace');
+    expect(files.get(uri)?.[0]).toBe(0x49);
   });
 });

@@ -37,3 +37,8 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - Added early MP4/M4A no-op guard so empty drafts return original bytes without requiring metadata hierarchy.
 - Safe-layout restrictions remain for actual edits, including blocking moov-resize when later mdat atoms exist.
 - Device writes remain blocked (`writeTagsToFile` => `WriteNotImplemented`).
+
+## 2026-05 update
+- [x] Guarded real `file://` writes enabled with backup/temp/verification/replace flow.
+- [x] Added file-write adapter abstraction for testability.
+- [x] `content://` safe-write remains intentionally blocked for a dedicated follow-up PR.

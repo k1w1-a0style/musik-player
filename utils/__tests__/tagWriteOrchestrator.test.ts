@@ -81,7 +81,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile remains blocked', async () => {
-    await expect(writeTagsToFile()).rejects.toThrow(/disabled/i);
+  test('writeTagsToFile with content uri remains blocked', async () => {
+    await expect(writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).rejects.toThrow(/SAF/i);
   });
 });
