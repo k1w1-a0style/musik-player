@@ -109,3 +109,5 @@ Separate PRs are still required for:
 - After successful save, in-memory metadata is synchronized (songs/currentSong/playbackQueue/queue refs).
 - `removeCover` successful writes clear `cover` and `coverInfo` in UI state.
 - `content://` remains blocked.
+
+- After successful save, UI state patch uses normalized tag values (trimmed/empty->undefined) to match file output.

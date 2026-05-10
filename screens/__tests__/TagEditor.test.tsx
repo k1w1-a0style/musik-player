@@ -131,13 +131,44 @@ test('removeCover + noop does not patch metadata', async () => {
   expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
 });
 
-test('written save shows success and updates context', async () => {
+test('written save shows success and updates context with touched fields only', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
   const { getByTestId, getByText } = render(<TagEditor />);
   fireEvent.changeText(getByTestId('input-title'), 'Neu');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(getByText('Metadaten erfolgreich geschrieben.')).toBeTruthy());
   expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { title: 'Neu' });
+  expect(mockUpdateSongMetadata.mock.calls[0][1].artist).toBeUndefined();
+});
+
+
+test('trimmed title is normalized before metadata patch', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-title'), '  Neuer Titel  ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { title: 'Neuer Titel' }));
+});
+
+test('whitespace-only album normalizes to undefined in metadata patch', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-album'), '   ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { album: undefined }));
+});
+
+test('title + removeCover applies normalized title and clears cover fields', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.press(getByTestId('remove-cover'));
+  fireEvent.changeText(getByTestId('input-title'), '  Neu  ');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
+    title: 'Neu',
+    cover: undefined,
+    coverInfo: undefined,
+  }));
 });
 
 test('noop and rolledBack status messages', async () => {

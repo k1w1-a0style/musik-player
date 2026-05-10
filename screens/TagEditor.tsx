@@ -11,6 +11,7 @@ import type { EditableTrackTags, TagEditDraft, TagWriterErrorCode, WriteTagsResu
 import { getTagEditCapability } from '../utils/tagEditCapability';
 import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
+import { normalizeEditableTags } from '../utils/tagValidation';
 
 type TagEditorRoute = RouteProp<AppStackParamList, 'TagEditor'>;
 
@@ -121,7 +122,15 @@ const TagEditor: React.FC = () => {
     try {
       const result = await writeTagsToFile(song, draft);
       if (result.status === 'written') {
-        const metadataPatch: Partial<Song> = { ...draft.tags };
+        const normalizedTags = normalizeEditableTags(draft.tags);
+        const metadataPatch: Partial<Song> = {};
+        for (const field of FIELDS) {
+          if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
+          const value = normalizedTags[field.key];
+          if (field.key === 'title' || field.key === 'artist' || field.key === 'album' || field.key === 'year' || field.key === 'genre') {
+            metadataPatch[field.key] = value;
+          }
+        }
         if (draft.removeCover) {
           metadataPatch.cover = undefined;
           metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
