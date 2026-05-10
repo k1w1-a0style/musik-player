@@ -10,5 +10,4 @@ export type AppTabParamList = {
   Playlists: undefined;
   Equalizer: undefined;
   Cover: undefined;
-  ID3: undefined;
 };

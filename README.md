@@ -10,7 +10,7 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 
 - Lokale Musikbibliothek via `expo-media-library` inkl. ID3-Auslese.
 - Wiedergabe mit `react-native-track-player` (Lockscreen/Bluetooth/Background).
-- Playlists, Cover-Ansichten, ID3-Tag-Editor, Equalizer-UI.
+- Playlists, Cover-Ansichten, Tag-Editor (einziger Schreibpfad), Equalizer-UI.
 - Visualizer/Audio-Integration über das native Modul **`expo-system-audio`**.
 
 > Hinweis: Push-Notifications werden nicht mehr als separates Utility geführt.
