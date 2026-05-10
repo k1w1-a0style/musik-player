@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
+import { APP_STACK_ROUTES } from '../types/routes';
 
 export const formatDuration = (ms?: number): string => {
   if (!ms || ms <= 0) return 'Nicht verfügbar';
@@ -59,6 +60,7 @@ const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ l
 
 const TrackInfo: React.FC = () => {
   const route = useRoute<TrackInfoRoute>();
+  const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const { songs } = useLibraryMusicContext();
   const [coverFailed, setCoverFailed] = useState(false);
 
@@ -97,6 +99,7 @@ const TrackInfo: React.FC = () => {
           </View>
 
           <Text style={styles.header}>TrackInfo</Text>
+          <Button title="Bearbeiten" onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })} />
           <Text style={styles.section}>Basis</Text>
           <InfoRow label="Titel" value={valueOrNA(song.title)} />
           <InfoRow label="Artist" value={valueOrNA(song.artist)} />

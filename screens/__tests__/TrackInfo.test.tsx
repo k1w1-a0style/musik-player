@@ -4,6 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import TrackInfo from '../TrackInfo';
 
 let mockRouteSongId = '1';
+const mockNavigate = jest.fn();
 
 const mockSongs = [
   {
@@ -37,6 +38,7 @@ const mockSongs = [
 
 jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: { songId: mockRouteSongId } }),
+  useNavigation: () => ({ navigate: mockNavigate }),
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -58,6 +60,7 @@ jest.mock('../../components/Screen', () => ({
 describe('TrackInfo', () => {
   beforeEach(() => {
     mockRouteSongId = '1';
+    mockNavigate.mockReset();
   });
 
   test('renders title artist album and file fields', () => {
@@ -94,6 +97,13 @@ describe('TrackInfo', () => {
     fireEvent(UNSAFE_getByType(Image), 'error');
 
     expect(getByText(/Cover-Typ: Gecachtes Cover/)).toBeTruthy();
+  });
+
+
+  test('navigates to tag editor', () => {
+    const { getByText } = render(<TrackInfo />);
+    fireEvent.press(getByText('Bearbeiten'));
+    expect(mockNavigate).toHaveBeenCalledWith('TagEditor', { songId: '1' });
   });
 
   test('shows not found state', () => {

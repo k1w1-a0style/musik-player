@@ -25,6 +25,7 @@ import Equalizer from './screens/Equalizer';
 import Covers from './screens/Covers';
 import Id3TagEditor from './screens/Id3TagEditor';
 import TrackInfo from './screens/TrackInfo';
+import TagEditor from './screens/TagEditor';
 import MiniPlayer from './components/MiniPlayer';
 import { theme } from './theme';
 import { APP_STACK_ROUTES, APP_TAB_ROUTES } from './types/routes';
@@ -109,6 +110,7 @@ export default function App(): React.ReactElement {
                   {({ navigation }) => <TabsShell openNowPlaying={() => navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING)} />}
                 </Stack.Screen>
                 <Stack.Screen name={APP_STACK_ROUTES.TRACK_INFO} component={TrackInfo} options={{ headerShown: true, title: 'TrackInfo' }} />
+                <Stack.Screen name={APP_STACK_ROUTES.TAG_EDITOR} component={TagEditor} options={{ headerShown: true, title: 'Tag Editor' }} />
                 <Stack.Screen
                   name={APP_STACK_ROUTES.NOW_PLAYING}
                   component={NowPlaying}

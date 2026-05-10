@@ -35,6 +35,7 @@ interface MusicContextValue {
   songs: Song[];
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
 
   // Playback
   currentSong: Song | null;
@@ -96,6 +97,7 @@ interface LibraryMusicContextValue {
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   isReady: boolean;
   isPlaying: boolean;
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
 }
 
 interface MiniPlayerMusicContextValue {
@@ -428,6 +430,15 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
   }, []);
 
+
+  const updateSongMetadata = useCallback((songId: string, patch: Partial<Song>) => {
+    const patchSong = (song: Song): Song => (song.id === songId ? { ...song, ...patch } : song);
+    setSongsState((prev) => prev.map(patchSong));
+    setCurrentSong((prev) => (prev?.id === songId ? { ...prev, ...patch } : prev));
+    setPlaybackQueue((prev) => prev.map(patchSong));
+    queueContextRef.current = queueContextRef.current.map(patchSong);
+    baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
+  }, []);
   // ---- Playback ----
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
@@ -618,6 +629,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       songs,
       setSongs,
       addSongs,
+      updateSongMetadata,
       currentSong,
       playbackQueue,
       isPlaying,
@@ -658,6 +670,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       songs,
       setSongs,
       addSongs,
+      updateSongMetadata,
       currentSong,
       playbackQueue,
       isPlaying,
@@ -697,8 +710,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const libraryValue = useMemo<LibraryMusicContextValue>(
-    () => ({ songs, setSongs, currentSong, playSong, isReady, isPlaying }),
-    [songs, setSongs, currentSong, playSong, isReady, isPlaying],
+    () => ({ songs, setSongs, currentSong, playSong, isReady, isPlaying, updateSongMetadata }),
+    [songs, setSongs, currentSong, playSong, isReady, isPlaying, updateSongMetadata],
   );
 
   const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(
