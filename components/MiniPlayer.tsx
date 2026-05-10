@@ -30,13 +30,13 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
     }
   });
 
-  const handleTogglePlayPause = useCallback((event?: GestureResponderEvent) => {
-    event?.stopPropagation();
+  const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
     void togglePlayPause();
   }, [togglePlayPause]);
 
-  const handleNext = useCallback((event?: GestureResponderEvent) => {
-    event?.stopPropagation();
+  const handleNext = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
     if (!canSkipNext) return;
     void next();
   }, [canSkipNext, next]);

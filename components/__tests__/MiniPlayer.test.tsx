@@ -49,7 +49,7 @@ describe('MiniPlayer', () => {
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipNext: false, next }));
 
     const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
-    fireEvent.press(getByTestId('mini-player-next'));
+    fireEvent(getByTestId('mini-player-next'), 'press', { stopPropagation: jest.fn() });
 
     expect(next).not.toHaveBeenCalled();
     expect(onOpen).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe('MiniPlayer', () => {
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipNext: true, next }));
 
     const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
-    fireEvent.press(getByTestId('mini-player-next'));
+    fireEvent(getByTestId('mini-player-next'), 'press', { stopPropagation: jest.fn() });
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe('MiniPlayer', () => {
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ togglePlayPause }));
 
     const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
-    fireEvent.press(getByTestId('mini-player-play-pause'));
+    fireEvent(getByTestId('mini-player-play-pause'), 'press', { stopPropagation: jest.fn() });
 
     expect(togglePlayPause).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
