@@ -291,19 +291,20 @@ describe('MusicContext', () => {
 
 
   test('mock queue updateMetadataForTrack treats first argument as queue index and ignores out-of-range', async () => {
-    await (TrackPlayer.add as jest.Mock)([
+    await TrackPlayer.add([
       { id: 'q1', title: 'Queue 1' },
       { id: 'q2', title: 'Queue 2' },
-    ]);
+    ] as any);
 
     await TrackPlayer.updateMetadataForTrack(1, { title: 'Queue 2 Updated', artist: 'Artist 2' });
     let queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string; artist?: string }>;
     expect(queue[0]).toMatchObject({ id: 'q1', title: 'Queue 1' });
     expect(queue[1]).toMatchObject({ id: 'q2', title: 'Queue 2 Updated', artist: 'Artist 2' });
 
+    const queueBeforeOutOfRange = [...queue];
     await TrackPlayer.updateMetadataForTrack(99, { title: 'Out of Range' });
     queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string }>;
-    expect(queue[1]).toMatchObject({ id: 'q2', title: 'Queue 2 Updated' });
+    expect(queue).toEqual(queueBeforeOutOfRange);
   });
 
   test('updateSongMetadata cover removal syncs native artwork undefined and handles native failure as non-fatal', async () => {

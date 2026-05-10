@@ -109,7 +109,6 @@ Separate PRs are still required for:
 - After successful save, in-memory metadata is synchronized (songs/currentSong/playbackQueue/queue refs).
 - Queue metadata sync now also performs best-effort RNTP native metadata updates (`updateMetadataForTrack`) for queued tracks (non-fatal on native errors).
 - `removeCover` successful writes clear `cover` and `coverInfo` in UI state.
-- `content://` remains blocked.
 
 - After successful save, UI state patch uses normalized tag values (trimmed/empty->undefined) to match file output.
 - Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.
