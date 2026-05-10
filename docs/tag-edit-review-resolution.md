@@ -42,6 +42,7 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - [x] Guarded real `file://` writes enabled with backup/temp/verification/replace flow.
 - [x] Added file-write adapter abstraction for testability.
 - [x] `content://` safe-write remains intentionally blocked for a dedicated follow-up PR.
+- [x] Existing-file replace is capability-gated; Android supported, iOS Expo legacy intentionally blocked (`WriteNotImplemented`) to avoid delete-before-write risk.
 
 - [x] Source read failure wrapping in `writeTagsToFile` (`UnsupportedUri`).
 - [x] Temp verification read failure normalization (`VerificationFailed`) with best-effort cleanup.

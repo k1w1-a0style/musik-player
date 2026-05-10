@@ -372,6 +372,12 @@ export const writeTagsToFile = async (
     const container = getSupportedContainer(song);
     const adapter = options?.adapter ?? expoTagFileWriteAdapter;
     ensureTagEditWriteAllowed(song);
+    const canReplace = typeof adapter.canReplaceExistingFile === 'function'
+      ? await adapter.canReplaceExistingFile()
+      : adapter.canReplaceExistingFile !== false;
+    if (!canReplace) {
+      throw new TagWriterError('WriteNotImplemented', 'Safe existing file replacement is not supported on this platform yet.');
+    }
     if (!validateEditableTags(draft.tags).valid || !validateCoverPayload(draft.removeCover ? undefined : draft.cover)) {
       throw new TagWriterError('InvalidTagData', 'Draft validation failed.');
     }

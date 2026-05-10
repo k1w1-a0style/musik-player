@@ -12,25 +12,34 @@ jest.mock('expo-file-system/legacy', () => ({
   deleteAsync: (...args: unknown[]) => mockDeleteAsync(...args),
   getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
 }));
+jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 
-import { expoTagFileWriteAdapter } from '../tagFileWriteAdapter';
+import { expoTagFileWriteAdapter, getDefaultReplaceSupportForPlatform } from '../tagFileWriteAdapter';
 
 describe('expoTagFileWriteAdapter moveOrReplaceFile', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  test('deletes existing destination before writing replacement bytes and removes source temp file', async () => {
+  test('writes replacement bytes without deleting destination first, then removes source temp file', async () => {
     mockReadAsStringAsync.mockResolvedValue('AQID'); // [1,2,3]
-    mockGetInfoAsync.mockResolvedValue({ exists: true, isDirectory: false, size: 3 });
 
     await expoTagFileWriteAdapter.moveOrReplaceFile('file:///tmp/song.tmp', 'file:///music/song.mp3');
 
     expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///tmp/song.tmp', { encoding: 'base64' });
-    expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/song.mp3');
-    expect(mockDeleteAsync).toHaveBeenNthCalledWith(1, 'file:///music/song.mp3', { idempotent: true });
     expect(mockWriteAsStringAsync).toHaveBeenCalledTimes(1);
     expect(mockWriteAsStringAsync).toHaveBeenCalledWith('file:///music/song.mp3', 'AQID', { encoding: 'base64' });
-    expect(mockDeleteAsync).toHaveBeenNthCalledWith(2, 'file:///tmp/song.tmp', { idempotent: true });
+    expect(mockDeleteAsync).toHaveBeenCalledTimes(1);
+    expect(mockDeleteAsync).toHaveBeenCalledWith('file:///tmp/song.tmp', { idempotent: true });
+  });
+
+  test('default replace support is android-only', () => {
+    expect(getDefaultReplaceSupportForPlatform('android')).toBe(true);
+    expect(getDefaultReplaceSupportForPlatform('ios')).toBe(false);
+    expect(getDefaultReplaceSupportForPlatform('web')).toBe(false);
+  });
+
+  test('expo adapter exposes replace capability from platform helper', () => {
+    expect(expoTagFileWriteAdapter.canReplaceExistingFile?.()).toBe(true);
   });
 });

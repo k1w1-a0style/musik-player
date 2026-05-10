@@ -29,7 +29,8 @@ No plan step performs a real write, delete, or replace operation.
 - `remote` URIs are read-only and blocked (`UnsupportedUri`).
 - missing/unknown URI is blocked (`UnsupportedUri`).
 - `content://` requires SAF write permission, is high-risk, and may not guarantee atomic replace (`MissingWritePermission`, `WriteNotImplemented`).
-- `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile`.
+- `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile` only when safe existing-file replace is supported by adapter capability.
+- iOS Expo legacy replace is intentionally blocked (no delete-before-write fallback allowed).
 
 ## Backup + rollback concept
 
@@ -86,8 +87,10 @@ Separate PRs are still required for:
 ## 2026-05 controlled file:// write activation
 - `writeTagsToFile(song, draft)` now supports guarded real writes for `file://` URIs only.
 - Flow: read -> in-memory rewrite (`applyTagEditToBuffer`) -> backup `.bak` -> temp `.tmp` -> basic verification -> replace.
+- Adapter capability gate blocks replace early on unsupported platforms (`WriteNotImplemented`) before backup/temp creation.
 - If backup/temp/verification fails, replace is never attempted.
 - If replace fails, rollback from backup is attempted; rollback failure throws `RollbackFailed`.
+- Existing-file replace is currently allowed for Android only; iOS remains blocked until a safe replace primitive exists.
 - `content://` (SAF) remains blocked with `MissingWritePermission`.
 - Remote/unknown URIs remain blocked with `UnsupportedUri`.
 

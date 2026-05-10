@@ -316,6 +316,7 @@ describe('writeTagsToFile safe file writes', () => {
     return {
       ops,
       adapter: {
+        canReplaceExistingFile: true,
         async getInfo(uri: string) { return { exists: files.has(uri), size: files.get(uri)?.length }; },
         async readBytes(uri: string) { const v = files.get(uri); if (!v) throw new Error('missing'); return v.slice(); },
         async writeBytes(uri: string, bytes: Uint8Array) { ops.push(`temp:${uri}`); files.set(uri, bytes.slice()); },
@@ -329,6 +330,22 @@ describe('writeTagsToFile safe file writes', () => {
 
   test('content uri remains blocked', async () => {
     await expect(writeTagsToFile(song({ uri: 'content://a', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } })).rejects.toMatchObject({ code: 'MissingWritePermission' });
+  });
+
+  test('unsupported replace support fails early without touching filesystem', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    adapter.canReplaceExistingFile = false;
+    const copySpy = jest.spyOn(adapter, 'copyFile');
+    const writeSpy = jest.spyOn(adapter, 'writeBytes');
+    const replaceSpy = jest.spyOn(adapter, 'moveOrReplaceFile');
+    const deleteSpy = jest.spyOn(adapter, 'deleteFile');
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'WriteNotImplemented' });
+    expect(copySpy).not.toHaveBeenCalled();
+    expect(writeSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   test('file uri no-op does not write backup/temp/replace', async () => {

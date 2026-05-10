@@ -1,6 +1,8 @@
 import { copyAsync, deleteAsync, EncodingType, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 export interface TagFileWriteAdapter {
+  canReplaceExistingFile?: () => Promise<boolean> | boolean;
   readBytes(uri: string): Promise<Uint8Array>;
   writeBytes(uri: string, bytes: Uint8Array): Promise<void>;
   copyFile(fromUri: string, toUri: string): Promise<void>;
@@ -32,6 +34,8 @@ const encodeBytesBase64 = (bytes: Uint8Array): string => {
   return out;
 };
 
+export const getDefaultReplaceSupportForPlatform = (platform: string): boolean => platform === 'android';
+
 const decodeBase64Bytes = (value: string): Uint8Array => {
   if (typeof atob === 'function') {
     const binary = atob(value);
@@ -60,6 +64,7 @@ const decodeBase64Bytes = (value: string): Uint8Array => {
 };
 
 export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
+  canReplaceExistingFile: () => getDefaultReplaceSupportForPlatform(Platform.OS),
   async readBytes(uri) {
     const base64 = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
     return decodeBase64Bytes(base64);
@@ -72,10 +77,6 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   },
   async moveOrReplaceFile(fromUri, toUri) {
     const bytes = await expoTagFileWriteAdapter.readBytes(fromUri);
-    const destination = await expoTagFileWriteAdapter.getInfo(toUri);
-    if (destination.exists) {
-      await expoTagFileWriteAdapter.deleteFile(toUri);
-    }
     await expoTagFileWriteAdapter.writeBytes(toUri, bytes);
     await expoTagFileWriteAdapter.deleteFile(fromUri);
   },
