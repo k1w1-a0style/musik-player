@@ -51,6 +51,19 @@ describe('parseId3FromUri', () => {
     expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///music/track.m4a', expect.any(Object));
   });
 
+
+  test('head read uses trusted aligned scan and finds cover after ftyp/mdat', async () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
+    const ftyp = atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1]);
+    const mdat = atom('mdat', new Array(8 * 1024).fill(0x55));
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64([...ftyp, ...mdat, ...moov]));
+
+    const tags = await parseId3FromUri('file:///music/aligned-head.m4a');
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+    expect(mockGetInfoAsync).not.toHaveBeenCalled();
+  });
+
   test('falls back to tail read for larger mp4 files', async () => {
     // first read: no recognizable image payload
     mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
@@ -67,6 +80,19 @@ describe('parseId3FromUri', () => {
       'file:///music/album.mp4',
       expect.objectContaining({ position: expect.any(Number) }),
     );
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+
+  test('tail read remains untrusted and does not skip fake printable header before real moov', async () => {
+    mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
+    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
+    const fakeHeader = [0, 0, 0, 0x40, 0x7a, 0x7a, 0x7a, 0x7a, ...new Array(56).fill(0x00)];
+    const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64([...fakeHeader, ...tailMoov]));
+
+    const tags = await parseId3FromUri('file:///music/tail-untrusted.mp4?token=xyz');
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 

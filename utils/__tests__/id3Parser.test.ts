@@ -210,12 +210,24 @@ describe('parseMp4CoverFromBuffer', () => {
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
+
+  test('aligned trusted top-level scan skips large top-level atoms and still finds covr', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
+    const ftyp = atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1]);
+    const mdat = atom('mdat', new Array(16 * 1024).fill(0x2a));
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
+    const bytes = new Uint8Array([...ftyp, ...mdat, ...moov]);
+    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
+    expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
   test('parses covr even when buffer starts misaligned before moov', () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0];
     const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
     const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
     const bytes = new Uint8Array(new Array(3005).fill(0x7a).concat(moov));
-    const cover = parseMp4CoverFromBuffer(bytes);
+    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: false });
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
@@ -230,14 +242,25 @@ describe('parseMp4CoverFromBuffer', () => {
     const cover = parseMp4CoverFromBuffer(bytes);
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
+
+  test('trusted container scan can skip unknown printable atoms and still find covr', () => {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const dataPayload = [0, 0, 0, 14, 0, 0, 0, 0, ...png];
+    const unknown = atom('zzzz', new Array(40).fill(0x42));
+    const ilst = atom('ilst', [...unknown, ...atom('covr', atom('data', dataPayload))]);
+    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst])));
+    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    expect(cover?.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
   test('does not false-positive from covr bytes inside mdat payload', () => {
     const fake = new Array(64).fill(0x61);
     fake.splice(8, 4, ...enc('covr'));
     const bytes = new Uint8Array(atom('mdat', fake));
-    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
+    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
   });
   test('handles invalid size atoms without infinite loop', () => {
     const bytes = new Uint8Array([0, 0, 0, 1, ...enc('moov'), 0, 0, 0, 0]);
-    expect(parseMp4CoverFromBuffer(bytes)).toBeUndefined();
+    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
   });
 });

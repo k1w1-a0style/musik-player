@@ -399,7 +399,7 @@ const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string
 
 const MP4_SKIP_PAYLOAD_ATOMS = new Set(['mdat', 'free', 'skip', 'wide', 'uuid']);
 
-const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth = 0): string | undefined => {
+const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth = 0, trustedBoundary = false): string | undefined => {
   if (depth > 8) return undefined;
   let p = start;
   while (p + 8 <= end) {
@@ -416,7 +416,7 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
     const isContainer = MP4_CONTAINER_ATOMS.has(type);
     const isRelevantLeaf = MP4_RELEVANT_LEAF_ATOMS.has(type);
     if (!isContainer && !isRelevantLeaf) {
-      if (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type)) p += size;
+      if (trustedBoundary && (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type))) p += size;
       else p += 1;
       continue;
     }
@@ -427,7 +427,7 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
       const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
       if (cover) return cover;
     } else if (MP4_CONTAINER_ATOMS.has(type)) {
-      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1);
+      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1, true);
       if (cover) return cover;
     }
     p += size;
@@ -435,7 +435,10 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
   return undefined;
 };
 
-export const parseMp4CoverFromBuffer = (bytes: Uint8Array): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length);
+export const parseMp4CoverFromBuffer = (
+  bytes: Uint8Array,
+  options: { trustedTopLevel?: boolean } = {},
+): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
 
 const base64ToBytes = (b64: string): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -473,7 +476,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       const id3 = parseId3Buffer(bytes);
       if (id3.cover) return id3;
       if (!looksLikeMp4) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(bytes);
+      const mp4Cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
       return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
     };
     try {
@@ -497,7 +500,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
           length: tailReadLength,
           position: tailStart,
         });
-        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64));
+        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), { trustedTopLevel: false });
         if (tailCover) return { ...id3, cover: tailCover };
       } catch {
         return id3;

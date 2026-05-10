@@ -49,7 +49,7 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
       canWrite: false,
       uriType,
       supportedContainer: container,
-      reason: 'Requires SAF persistable write permission and provider write support.',
+      reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Der Track kann angezeigt, aber nicht direkt bearbeitet werden.',
     };
   }
 
