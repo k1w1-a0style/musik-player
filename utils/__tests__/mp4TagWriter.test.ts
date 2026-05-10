@@ -85,3 +85,22 @@ test('invalid disc format throws InvalidTagData', () => {
   const src = file(false, ilst(item(types.nam, te.encode('old'))));
   expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { discNumber: 'x/y' } })).toThrow(/Invalid disc number/i);
 });
+
+test('trackNumber packed format writes trkn atom', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { trackNumber: '3/12' } });
+  const bytes = Array.from(out);
+  expect(new TextDecoder().decode(out).includes('trkn')).toBe(true);
+  expect(bytes.includes(0x00)).toBe(true);
+  expect(bytes.includes(0x03)).toBe(true);
+  expect(bytes.includes(0x0c)).toBe(true);
+});
+
+test('cover remove and replace behavior', () => {
+  const covr = atom(types.covr, dataAtom(13, u8(0xff, 0xd8, 0xff, 0xdb)));
+  const src = file(false, ilst(item(types.nam, te.encode('old')), covr));
+  const removed = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {}, removeCover: true });
+  expect(new TextDecoder().decode(removed).includes('covr')).toBe(false);
+  const replaced = applyTagEditToBuffer(src, 'm4a', { songId: '1', tags: {}, cover: { mimeType: 'image/png', data: u8(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) } });
+  expect(new TextDecoder().decode(replaced).includes('covr')).toBe(true);
+});
