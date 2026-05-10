@@ -64,14 +64,14 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <Pressable onPress={handleTogglePlayPause} style={styles.playBtn}>
+          <Pressable testID="mini-player-play-pause" onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
               <Pause color={theme.palette.text.onPrimary} size={18} />
             ) : (
               <Play color={theme.palette.text.onPrimary} size={18} />
             )}
           </Pressable>
-          <Pressable onPress={handleNext} style={[styles.skipBtn, !canSkipNext && styles.disabled]} disabled={!canSkipNext}>
+          <Pressable testID="mini-player-next" onPress={handleNext} style={[styles.skipBtn, !canSkipNext && styles.disabled]} disabled={!canSkipNext}>
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>
