@@ -112,12 +112,21 @@ test('trackNumber packed format writes trkn atom', () => {
   const absoluteDataPos = trknAtomStart + 8;
   expect(String.fromCharCode(...out.slice(absoluteDataPos + 4, absoluteDataPos + 8))).toBe('data');
   // data atom payload layout for trkn: [reserved(2), current(2), total(2)]
-  const currentHi = out[absoluteDataPos + 20];
-  const currentLo = out[absoluteDataPos + 21];
-  const totalHi = out[absoluteDataPos + 22];
-  const totalLo = out[absoluteDataPos + 23];
+  const currentHi = out[absoluteDataPos + 18];
+  const currentLo = out[absoluteDataPos + 19];
+  const totalHi = out[absoluteDataPos + 20];
+  const totalLo = out[absoluteDataPos + 21];
   expect((currentHi << 8) | currentLo).toBe(3);
   expect((totalHi << 8) | totalLo).toBe(12);
+});
+
+test('moov size change is blocked when any mdat follows moov', () => {
+  const ftyp = atom(types.ftyp, u8(0, 0, 0, 0));
+  const mdatBefore = atom(types.mdat, u8(1, 2));
+  const mdatAfter = atom(types.mdat, u8(3, 4, 5, 6));
+  const moovAtom = moov(udta(meta(ilst(item(types.nam, te.encode('a'))))));
+  const src = Uint8Array.from([ftyp, mdatBefore, moovAtom, mdatAfter].flatMap((x) => Array.from(x)));
+  expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'this is longer' } })).toThrow(/moov-before-mdat/i);
 });
 
 test('cover remove and replace behavior', () => {
