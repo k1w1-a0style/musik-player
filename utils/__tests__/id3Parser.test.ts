@@ -43,6 +43,12 @@ const buildId3v23 = (frames: number[][]): Uint8Array => {
   return new Uint8Array([...header, ...flat]);
 };
 
+
+const buildCommFrame = (text: string, description = ''): number[] => {
+  const body = [0x00, 0x65, 0x6e, 0x67, ...enc(description), 0x00, ...enc(text)];
+  return [...enc('COMM'), ...u32be(body.length), 0, 0, ...body];
+};
+
 const buildApicFrame = (mime: string, imageBytes: number[]): number[] => {
   const body = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...imageBytes];
   return [...enc('APIC'), ...u32be(body.length), 0, 0, ...body];
@@ -91,6 +97,30 @@ describe('parseId3Buffer (v2.3)', () => {
       buildTextFrame('TPE2', 'Album Artist'),
     ]);
     expect(parseId3Buffer(buf).artist).toBe('Lead Artist');
+  });
+
+
+  test('parses TRCK/TPOS and COMM', () => {
+    const buf = buildId3v23([
+      buildTextFrame('TRCK', '3/12'),
+      buildTextFrame('TPOS', '1/2'),
+      buildCommFrame('Main comment'),
+    ]);
+    const tags = parseId3Buffer(buf);
+    expect(tags.trackNumber).toBe('3/12');
+    expect(tags.discNumber).toBe('1/2');
+    expect(tags.comment).toBe('Main comment');
+  });
+
+  test('COMM prefers empty description over described frames', () => {
+    const buf = buildId3v23([buildCommFrame('fallback', 'desc'), buildCommFrame('preferred', '')]);
+    expect(parseId3Buffer(buf).comment).toBe('preferred');
+  });
+
+  test('truncated COMM does not throw', () => {
+    const frame = [...enc('COMM'), ...u32be(2), 0, 0, 0x00, 0x65];
+    const buf = buildId3v23([frame]);
+    expect(() => parseId3Buffer(buf)).not.toThrow();
   });
 
   test('truncated buffer does not throw', () => {

@@ -47,9 +47,9 @@ const toInitialForm = (song: Song): FormState => ({
   album: song.album ?? '',
   year: song.year ?? '',
   genre: song.genre ?? '',
-  trackNumber: '',
-  discNumber: '',
-  comment: '',
+  trackNumber: song.trackNumber ?? '',
+  discNumber: song.discNumber ?? '',
+  comment: song.comment ?? '',
 });
 
 export const buildDraftFromDirtyFields = (
@@ -145,7 +145,7 @@ const TagEditor: React.FC = () => {
         for (const field of FIELDS) {
           if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
           const value = normalizedTags[field.key];
-          if (field.key === 'title' || field.key === 'artist' || field.key === 'album' || field.key === 'year' || field.key === 'genre') {
+          if (field.key === 'title' || field.key === 'artist' || field.key === 'album' || field.key === 'year' || field.key === 'genre' || field.key === 'trackNumber' || field.key === 'discNumber' || field.key === 'comment') {
             metadataPatch[field.key] = value;
           }
         }

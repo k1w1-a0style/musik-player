@@ -13,6 +13,9 @@ const mockSongs = [
     artist: 'Artist',
     album: 'Album',
     duration: 245000,
+    trackNumber: '3/12',
+    discNumber: '1/2',
+    comment: 'Kommentar',
     uri: 'file:///music/song.mp3',
     cover: 'file:///cover.jpg',
     fileInfo: {
@@ -68,6 +71,9 @@ describe('TrackInfo', () => {
 
     expect(getByText(/Titel: Song/)).toBeTruthy();
     expect(getByText(/Dateiname: song.mp3/)).toBeTruthy();
+    expect(getByText(/Tracknummer: 3\/12/)).toBeTruthy();
+    expect(getByText(/Discnummer: 1\/2/)).toBeTruthy();
+    expect(getByText(/Kommentar: Kommentar/)).toBeTruthy();
   });
 
   test('shows non-available for missing technical data and formats values', () => {

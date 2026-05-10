@@ -84,4 +84,24 @@ describe('coverCache', () => {
     const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
     expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
   });
+
+  test('sanitizeSongsForStorage preserves track/disc/comment fields', async () => {
+    const songs: Song[] = [
+      {
+        id: 'meta-1',
+        title: 'A',
+        artist: 'B',
+        trackNumber: '5/10',
+        discNumber: '1/2',
+        comment: 'Keep me',
+        cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD',
+      },
+    ];
+
+    const result = await sanitizeSongsForStorage(songs);
+    expect(result[0].trackNumber).toBe('5/10');
+    expect(result[0].discNumber).toBe('1/2');
+    expect(result[0].comment).toBe('Keep me');
+  });
+
 });

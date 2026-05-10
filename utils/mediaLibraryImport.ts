@@ -161,6 +161,9 @@ export const buildSongFromImportSource = async (source: BuildSongSource, tags: I
     duration: source.durationMs,
     year: tags.year,
     genre: tags.genre,
+    trackNumber: tags.trackNumber,
+    discNumber: tags.discNumber,
+    comment: tags.comment,
     uri: source.uri,
     cover,
     fileInfo: {
