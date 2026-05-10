@@ -6,7 +6,7 @@ This PR intentionally provides **foundation only**:
 - capability model
 - validation
 - guarded writer interfaces
-- safe write orchestration modeling (dry-run)
+- safe write orchestration modeling (dry-run + guarded `file://` execution)
 - safety documentation
 
 It does **not** ship a production-ready MP3/MP4 writer.
@@ -31,7 +31,7 @@ It does **not** ship a production-ready MP3/MP4 writer.
 ## MP4/M4A review resolution (in-memory)
 - Added isolated MP4/M4A in-memory tag editing path for safe atom layouts only.
 - Kept MP3 ID3v2.3 writer unchanged.
-- Kept file-write orchestration in dry-run/block mode.
+- Kept orchestration planner as dry-run; guarded `file://` execution is now wired in `writeTagsToFile`.
 - Deferred risky layouts (missing metadata path, largesize, moov-before-mdat resize) to `WriteNotImplemented`.
 
 - Added early MP4/M4A no-op guard so empty drafts return original bytes without requiring metadata hierarchy.

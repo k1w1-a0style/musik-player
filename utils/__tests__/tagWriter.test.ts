@@ -349,6 +349,7 @@ describe('writeTagsToFile safe file writes', () => {
     expect(ops[1]).toContain('.tmp');
     expect(ops[2]).toContain('replace');
     expect(files.get(uri)?.[0]).toBe(0x49);
+    expect(files.has(`${uri}.bak`)).toBe(false);
   });
 
   test('backup failure stops before temp/replace', async () => {
@@ -363,7 +364,7 @@ describe('writeTagsToFile safe file writes', () => {
 
   test('verification failure blocks replace', async () => {
     const uri = 'file:///a.mp3';
-    const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    const { adapter, ops, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
     (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
       if (readUri.endsWith('.tmp')) return new Uint8Array(0);
       return u8(1, 2, 3);
@@ -371,6 +372,7 @@ describe('writeTagsToFile safe file writes', () => {
     await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
       .rejects.toMatchObject({ code: 'VerificationFailed' });
     expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
+    expect(files.has(`${uri}.tmp`)).toBe(false);
   });
 
   test('replace failure returns rolledBack when rollback succeeds', async () => {
@@ -380,5 +382,16 @@ describe('writeTagsToFile safe file writes', () => {
     const result = await writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any });
     expect(result.status).toBe('rolledBack');
     expect(result.warnings.join(' ')).toMatch(/rollback restored backup/i);
+  });
+
+  test('replace failure with rollback failure throws RollbackFailed', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    (adapter.moveOrReplaceFile as any) = jest.fn(async () => { throw new Error('replace failed'); });
+    (adapter.copyFile as any) = jest.fn(async (from: string, to: string) => {
+      if (from.endsWith('.bak') && to === uri) throw new Error('rollback failed');
+    });
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'RollbackFailed' });
   });
 });

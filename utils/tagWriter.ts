@@ -372,10 +372,14 @@ export const writeTagsToFile = async (
   try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
   try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
   const tempBytes = await adapter.readBytes(tempUri);
-  if (!isPlausibleOutput(tempBytes, container)) throw new TagWriterError('VerificationFailed', 'Temp output validation failed.');
+  if (!isPlausibleOutput(tempBytes, container)) {
+    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+    throw new TagWriterError('VerificationFailed', 'Temp output validation failed.');
+  }
   try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
     try {
       await adapter.copyFile(backupUri, uri);
+      try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
       return {
         status: 'rolledBack',
         sourceUri: uri,
@@ -389,5 +393,7 @@ export const writeTagsToFile = async (
       throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`);
     }
   }
-  return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
+  const warnings: string[] = [];
+  try { await adapter.deleteFile(backupUri); } catch { warnings.push('Backup cleanup failed; backup file retained.'); }
+  return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings };
 };

@@ -2,14 +2,14 @@
 
 ## Current policy (this PR)
 
-- No real device file writes are enabled.
+- Guarded real writes are enabled for `file://` only.
 - `writeTagsToFile` supports guarded `file://` writes only.
 - `applyTagEditToBuffer` writes in-memory for:
   - MP3 via ID3v2.3 (with strict 28-bit synchsafe payload-size validation before tag allocation/serialization),
   - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
 - `m4a`/`mp4` use a guarded in-memory writer for safe atom layouts only; unsafe layouts still throw `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
-- New orchestration logic is **dry-run simulation only**.
+- Orchestration planner remains available as dry-run, while `writeTagsToFile` executes guarded `file://` writes.
 
 ## Safe write orchestration (prepared, not activated)
 
@@ -29,7 +29,7 @@ No plan step performs a real write, delete, or replace operation.
 - `remote` URIs are read-only and blocked (`UnsupportedUri`).
 - missing/unknown URI is blocked (`UnsupportedUri`).
 - `content://` requires SAF write permission, is high-risk, and may not guarantee atomic replace (`MissingWritePermission`, `WriteNotImplemented`).
-- `file://` is modeled with backup+temp+atomic replace requirements, but still blocked by policy (`WriteNotImplemented`).
+- `file://` uses guarded backup+temp+verify+replace flow in `writeTagsToFile`.
 
 ## Backup + rollback concept
 
@@ -65,7 +65,7 @@ Separate PRs are still required for:
 - Reads existing ID3v2.3/v2.4 headers, removes full old tag (including v2.4 footer), and rewrites a new ID3v2.3 tag in-memory only.
 - Audio bytes after tag boundary are preserved exactly.
 - Existing unsynchronisation flag is currently blocked with `WriteNotImplemented` to avoid unsafe metadata loss.
-- `writeTagsToFile` remains blocked; no SAF/device write path is activated.
+- `writeTagsToFile` is active only for guarded `file://` paths; SAF/content stays blocked.
 
 - APIC payload construction avoids large spread-based intermediate JS arrays.
 - Text/COMM payload construction also avoids spread-based intermediate JS arrays.
