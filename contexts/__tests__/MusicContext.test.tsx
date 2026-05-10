@@ -45,6 +45,9 @@ const Probe: React.FC = () => {
       <Text testID="probe-playback-queue-titles">{ctx.playbackQueue.map(song => song.title).join(',')}</Text>
       <Text testID="probe-song-s2-title">{ctx.songs.find(song => song.id === 's2')?.title ?? '-'}</Text>
       <Text testID="probe-song-s2-cover">{ctx.songs.find(song => song.id === 's2')?.cover ?? '-'}</Text>
+      <Text testID="probe-song-s2-track">{ctx.songs.find(song => song.id === 's2')?.trackNumber ?? '-'}</Text>
+      <Text testID="probe-song-s2-disc">{ctx.songs.find(song => song.id === 's2')?.discNumber ?? '-'}</Text>
+      <Text testID="probe-song-s2-comment">{ctx.songs.find(song => song.id === 's2')?.comment ?? '-'}</Text>
       <Text testID="probe-songs-count">{String(ctx.songs.length)}</Text>
       <Text testID="probe-shuffle">{String(ctx.shuffle)}</Text>
       <Text testID="probe-repeat">{ctx.repeatMode}</Text>
@@ -82,6 +85,9 @@ const Probe: React.FC = () => {
       </Pressable>
       <Pressable testID="patch-s2-title" onPress={() => ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', album: 'Edited Album' })}>
         <Text>patch s2</Text>
+      </Pressable>
+      <Pressable testID="patch-s2-meta-extra" onPress={() => ctx.updateSongMetadata('s2', { trackNumber: '7/14', discNumber: '2/3', comment: 'Updated note' })}>
+        <Text>patch s2 extra</Text>
       </Pressable>
       <Pressable testID="patch-s2-cover-clear" onPress={() => ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })}>
         <Text>patch s2 cover clear</Text>
@@ -239,6 +245,26 @@ describe('MusicContext', () => {
     expect(getByTestId('probe-current').props.children).toBe('s2');
     expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
     expect(String(getByTestId('probe-playback-queue-titles').props.children)).toMatch(/^Song 2 Edited,/);
+  });
+
+
+  test('updateSongMetadata patches track/disc/comment and keeps queue order', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+
+    await act(async () => fireEvent.press(getByTestId('patch-s2-meta-extra')));
+    expect(getByTestId('probe-song-s2-track').props.children).toBe('7/14');
+    expect(getByTestId('probe-song-s2-disc').props.children).toBe('2/3');
+    expect(getByTestId('probe-song-s2-comment').props.children).toBe('Updated note');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({ id: 's2', title: 'Song 2' }),
+    );
   });
 
   test('updateSongMetadata clears cover and coverInfo when patch values are undefined', async () => {
