@@ -4,8 +4,10 @@
 
 - No real device file writes are enabled.
 - `writeTagsToFile` always throws `WriteNotImplemented`.
-- `applyTagEditToBuffer` writes **in-memory MP3 buffers only** via ID3v2.3, with strict 28-bit synchsafe payload-size validation before tag allocation/serialization.
-- `m4a`/`mp4` still throw `WriteNotImplemented`.
+- `applyTagEditToBuffer` writes in-memory for:
+  - MP3 via ID3v2.3 (with strict 28-bit synchsafe payload-size validation before tag allocation/serialization),
+  - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
+- `m4a`/`mp4` use a guarded in-memory writer for safe atom layouts only; unsafe layouts still throw `WriteNotImplemented`.
 - Unsupported containers throw `UnsupportedFormat`.
 - New orchestration logic is **dry-run simulation only**.
 
@@ -71,3 +73,12 @@ Separate PRs are still required for:
 
 - Truncated ID3 preambles (`ID3` with <10 bytes) are rejected as `InvalidTagData` and not treated as audio.
 - Existing ID3v2.4 inputs return original bytes for strict no-op drafts, while actual v2.4 edits remain blocked (`WriteNotImplemented`).
+
+## 2026-05 MP4/M4A in-memory writer safety update
+- `applyTagEditToBuffer` now routes `m4a/mp4` to an in-memory MP4 atom writer only.
+- Strict no-op drafts (`{ tags: {} }`, undefined-only tags, no cover/removeCover intent) return original bytes before any MP4 structure checks.
+- For actual edit intent, scope is intentionally narrow: requires existing `moov/udta/meta/ilst` path, otherwise `WriteNotImplemented`.
+- If a tag change would resize `moov` and any top-level `mdat` appears later in file order, writer throws `WriteNotImplemented` (no `stco/co64` patching yet).
+- If `moov` is after `mdat`, metadata rewrite is allowed.
+- `mdat` bytes are preserved and never rewritten.
+- Device writes are still blocked (`writeTagsToFile` remains `WriteNotImplemented`).
