@@ -373,6 +373,24 @@ describe('writeTagsToFile safe file writes', () => {
     expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
   });
 
+  test('source info failure throws UnsupportedUri and does not attempt write steps', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    const readSpy = jest.spyOn(adapter, 'readBytes');
+    const copySpy = jest.spyOn(adapter, 'copyFile');
+    const writeSpy = jest.spyOn(adapter, 'writeBytes');
+    const replaceSpy = jest.spyOn(adapter, 'moveOrReplaceFile');
+    const deleteSpy = jest.spyOn(adapter, 'deleteFile');
+    (adapter.getInfo as any) = jest.fn(async () => { throw new Error('info unreadable'); });
+    await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
+      .rejects.toMatchObject({ code: 'UnsupportedUri' });
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(copySpy).not.toHaveBeenCalled();
+    expect(writeSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
   test('source read failure throws UnsupportedUri and does not attempt write steps', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });

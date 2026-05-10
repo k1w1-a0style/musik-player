@@ -357,7 +357,12 @@ export const writeTagsToFile = async (
   if (!validateEditableTags(draft.tags).valid || !validateCoverPayload(draft.removeCover ? undefined : draft.cover)) {
     throw new TagWriterError('InvalidTagData', 'Draft validation failed.');
   }
-  const info = await adapter.getInfo(uri);
+  let info: { exists: boolean; size?: number; isDirectory?: boolean };
+  try {
+    info = await adapter.getInfo(uri);
+  } catch (error) {
+    throw new TagWriterError('UnsupportedUri', `Target file info could not be read: ${String(error)}`);
+  }
   if (!info.exists) throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
   let original: Uint8Array;
   try {
