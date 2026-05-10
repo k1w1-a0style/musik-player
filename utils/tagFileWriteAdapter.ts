@@ -72,7 +72,12 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   },
   async moveOrReplaceFile(fromUri, toUri) {
     const bytes = await expoTagFileWriteAdapter.readBytes(fromUri);
+    const destination = await expoTagFileWriteAdapter.getInfo(toUri);
+    if (destination.exists) {
+      await expoTagFileWriteAdapter.deleteFile(toUri);
+    }
     await expoTagFileWriteAdapter.writeBytes(toUri, bytes);
+    await expoTagFileWriteAdapter.deleteFile(fromUri);
   },
   async deleteFile(uri) {
     await deleteAsync(uri, { idempotent: true });
