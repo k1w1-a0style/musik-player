@@ -40,8 +40,14 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
     await copyAsync({ from: fromUri, to: toUri });
   },
   async moveOrReplaceFile(fromUri, toUri) {
-    await deleteAsync(toUri, { idempotent: true });
-    await moveAsync({ from: fromUri, to: toUri });
+    try {
+      await moveAsync({ from: fromUri, to: toUri });
+      return;
+    } catch {
+      const bytes = await expoTagFileWriteAdapter.readBytes(fromUri);
+      await expoTagFileWriteAdapter.writeBytes(toUri, bytes);
+      await deleteAsync(fromUri, { idempotent: true });
+    }
   },
   async deleteFile(uri) {
     await deleteAsync(uri, { idempotent: true });

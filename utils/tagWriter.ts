@@ -338,17 +338,6 @@ export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestra
 
 
 const areBytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
-const isPlausibleOutput = (buffer: Uint8Array, container: TagEditableContainer): boolean => {
-  if (buffer.length === 0) return false;
-  if (container === 'mp3') return true;
-  if (container === 'm4a' || container === 'mp4') {
-    if (buffer.length < 16) return false;
-    const head = String.fromCharCode(buffer[4], buffer[5], buffer[6], buffer[7]);
-    return head === 'ftyp' || head === 'moov';
-  }
-  return false;
-};
-
 export const writeTagsToFile = async (
   song: Song,
   draft: TagEditDraft,
@@ -372,9 +361,9 @@ export const writeTagsToFile = async (
   try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
   try { await adapter.writeBytes(tempUri, next); } catch { throw new TagWriterError('TempWriteFailed', 'Temp file write failed.'); }
   const tempBytes = await adapter.readBytes(tempUri);
-  if (!isPlausibleOutput(tempBytes, container)) {
+  if (!areBytesEqual(tempBytes, next)) {
     try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
-    throw new TagWriterError('VerificationFailed', 'Temp output validation failed.');
+    throw new TagWriterError('VerificationFailed', 'Temp output bytes do not match rewritten payload.');
   }
   try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
     try {

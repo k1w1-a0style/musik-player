@@ -362,11 +362,11 @@ describe('writeTagsToFile safe file writes', () => {
     expect(ops.find((x) => x.startsWith('replace:'))).toBeUndefined();
   });
 
-  test('verification failure blocks replace', async () => {
+  test('verification failure blocks replace when temp bytes differ from rewritten payload', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
     (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
-      if (readUri.endsWith('.tmp')) return new Uint8Array(0);
+      if (readUri.endsWith('.tmp')) return u8(0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00);
       return u8(1, 2, 3);
     });
     await expect(writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }))
