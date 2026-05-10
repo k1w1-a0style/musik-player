@@ -18,9 +18,17 @@ import Screen from '../components/Screen';
 const { width: SCREEN_W } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
 
+const HIDDEN_VISUALIZER_REASONS = new Set(['stopped', 'ok']);
+
+const formatVisualizerHint = (reason: string | null): string | null => {
+  if (!reason || HIDDEN_VISUALIZER_REASONS.has(reason)) return null;
+  if (reason === 'no_permission') return 'Visualizer deaktiviert (keine Mikrofonberechtigung).';
+  return `Visualizer deaktiviert (${reason}).`;
+};
+
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, playSong } = useNowPlayingMusicContext();
+  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
 
   const queue: Song[] = useMemo(
@@ -78,6 +86,7 @@ const NowPlaying: React.FC = () => {
   const coverAccent = useMemo(() => palette?.vibrant ?? palette?.dominant ?? accent, [palette, accent]);
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
+  const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
   const handleClose = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -139,6 +148,9 @@ const NowPlaying: React.FC = () => {
           color={palette?.vibrant ?? theme.palette.primary}
           height={44}
         />
+        {!!visualizerHint && (
+          <Text style={styles.visualizerHint}>{visualizerHint}</Text>
+        )}
       </View>
       <ProgressBar
         currentPosition={position}
@@ -348,6 +360,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   visualizerWrap: { paddingHorizontal: 20, marginTop: 4 },
+  visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12 },
   queueCard: {
     marginHorizontal: 16,
     marginTop: 10,
