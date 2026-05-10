@@ -106,3 +106,6 @@ Separate PRs are still required for:
 - No automatic writes on open; writes require explicit confirmation dialog.
 - `content://` remains blocked in UI and write layer.
 - iOS/Web `file://` remains blocked by capability and `ensureTagEditWriteAllowed`.
+- After successful save, in-memory metadata is synchronized (songs/currentSong/playbackQueue/queue refs).
+- `removeCover` successful writes clear `cover` and `coverInfo` in UI state.
+- `content://` remains blocked.

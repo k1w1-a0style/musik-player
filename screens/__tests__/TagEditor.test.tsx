@@ -97,6 +97,40 @@ test('cleared album keeps empty string in draft', async () => {
   expect(mockWriteTagsToFile.mock.calls[0][1].tags).toEqual({ album: '' });
 });
 
+
+test('removeCover + written clears cover fields in updateSongMetadata patch', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.press(getByTestId('remove-cover'));
+  fireEvent.changeText(getByTestId('input-title'), 'With Cover Remove');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
+    title: 'With Cover Remove',
+    cover: undefined,
+    coverInfo: undefined,
+  }));
+});
+
+test('removeCover + rolledBack does not patch metadata', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'rolledBack' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.press(getByTestId('remove-cover'));
+  fireEvent.changeText(getByTestId('input-title'), 'Rolled Back');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+});
+
+test('removeCover + noop does not patch metadata', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'noop' });
+  const { getByTestId } = render(<TagEditor />);
+  fireEvent.press(getByTestId('remove-cover'));
+  fireEvent.changeText(getByTestId('input-title'), 'Noop');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(mockWriteTagsToFile).toHaveBeenCalled());
+  expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+});
+
 test('written save shows success and updates context', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
   const { getByTestId, getByText } = render(<TagEditor />);

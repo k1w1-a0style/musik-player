@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
-import type { Song } from '../types/Song';
+import type { Song, SongCoverInfo } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
@@ -121,7 +121,12 @@ const TagEditor: React.FC = () => {
     try {
       const result = await writeTagsToFile(song, draft);
       if (result.status === 'written') {
-        updateSongMetadata(song.id, draft.tags);
+        const metadataPatch: Partial<Song> = { ...draft.tags };
+        if (draft.removeCover) {
+          metadataPatch.cover = undefined;
+          metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
+        }
+        updateSongMetadata(song.id, metadataPatch);
       }
       setStatus(statusMessage(result));
     } catch (error) {

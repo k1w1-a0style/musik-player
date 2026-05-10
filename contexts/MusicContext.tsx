@@ -432,8 +432,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
 
   const updateSongMetadata = useCallback((songId: string, patch: Partial<Song>) => {
-    setSongsState((prev) => prev.map((song) => (song.id === songId ? { ...song, ...patch } : song)));
+    const patchSong = (song: Song): Song => (song.id === songId ? { ...song, ...patch } : song);
+    setSongsState((prev) => prev.map(patchSong));
     setCurrentSong((prev) => (prev?.id === songId ? { ...prev, ...patch } : prev));
+    setPlaybackQueue((prev) => prev.map(patchSong));
+    queueContextRef.current = queueContextRef.current.map(patchSong);
+    baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
   }, []);
   // ---- Playback ----
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {

@@ -31,7 +31,7 @@ type RNTPMock = typeof TrackPlayer & {
 
 const SONGS: Song[] = [
   { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3' },
-  { id: 's2', title: 'Song 2', artist: 'A', uri: 'file:///s2.mp3' },
+  { id: 's2', title: 'Song 2', artist: 'A', uri: 'file:///s2.mp3', cover: 'file:///cover-s2.jpg', coverInfo: { status: 'cached', uri: 'file:///cover-s2.jpg' } },
   { id: 's3', title: 'Song 3', artist: 'B', uri: 'file:///s3.mp3' },
   { id: 's4', title: 'Song 4', artist: 'B', uri: 'file:///s4.mp3' },
 ];
@@ -42,6 +42,9 @@ const Probe: React.FC = () => {
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
       <Text testID="probe-playback-queue">{ctx.playbackQueue.map(song => song.id).join(',')}</Text>
+      <Text testID="probe-playback-queue-titles">{ctx.playbackQueue.map(song => song.title).join(',')}</Text>
+      <Text testID="probe-song-s2-title">{ctx.songs.find(song => song.id === 's2')?.title ?? '-'}</Text>
+      <Text testID="probe-song-s2-cover">{ctx.songs.find(song => song.id === 's2')?.cover ?? '-'}</Text>
       <Text testID="probe-songs-count">{String(ctx.songs.length)}</Text>
       <Text testID="probe-shuffle">{String(ctx.shuffle)}</Text>
       <Text testID="probe-repeat">{ctx.repeatMode}</Text>
@@ -76,6 +79,12 @@ const Probe: React.FC = () => {
       </Pressable>
       <Pressable testID="cycle-repeat" onPress={() => ctx.cycleRepeatMode()}>
         <Text>repeat</Text>
+      </Pressable>
+      <Pressable testID="patch-s2-title" onPress={() => ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', album: 'Edited Album' })}>
+        <Text>patch s2</Text>
+      </Pressable>
+      <Pressable testID="patch-s2-cover-clear" onPress={() => ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })}>
+        <Text>patch s2 cover clear</Text>
       </Pressable>
       <Pressable testID="add-pl" onPress={() => ctx.createPlaylist('Drive')}>
         <Text>pl</Text>
@@ -209,6 +218,30 @@ describe('MusicContext', () => {
     });
   });
 
+
+
+  test('updateSongMetadata updates songs/currentSong/playbackQueue and keeps queue order', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+
+    await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
+
+    expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited');
+    expect(getByTestId('probe-current').props.children).toBe('s2');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+    expect(String(getByTestId('probe-playback-queue-titles').props.children)).toMatch(/^Song 2 Edited,/);
+  });
+
+  test('updateSongMetadata clears cover and coverInfo when patch values are undefined', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('patch-s2-cover-clear')));
+    expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
+  });
 
   test('hydrates songs by migrating base64 covers before persisting', async () => {
     await storage.set(StorageKeys.SONGS, [
