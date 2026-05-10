@@ -136,6 +136,14 @@ const TagEditor: React.FC = () => {
           metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
         }
         updateSongMetadata(song.id, metadataPatch);
+        const updatedSong: Song = { ...song, ...metadataPatch };
+        setForm(toInitialForm(updatedSong));
+        setDirty({});
+        setRemoveCover(false);
+      } else if (result.status === 'noop') {
+        setForm(toInitialForm(song));
+        setDirty({});
+        setRemoveCover(false);
       }
       setStatus(statusMessage(result));
     } catch (error) {

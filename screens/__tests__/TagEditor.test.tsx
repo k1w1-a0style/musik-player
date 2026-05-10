@@ -100,7 +100,7 @@ test('cleared album keeps empty string in draft', async () => {
 
 test('removeCover + written clears cover fields in updateSongMetadata patch', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
-  const { getByTestId } = render(<TagEditor />);
+  const { getByTestId, getByText } = render(<TagEditor />);
   fireEvent.press(getByTestId('remove-cover'));
   fireEvent.changeText(getByTestId('input-title'), 'With Cover Remove');
   fireEvent.press(getByTestId('save-button'));
@@ -148,6 +148,8 @@ test('trimmed title is normalized before metadata patch', async () => {
   fireEvent.changeText(getByTestId('input-title'), '  Neuer Titel  ');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { title: 'Neuer Titel' }));
+  expect(getByTestId('input-title').props.value).toBe('Neuer Titel');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
 
 test('whitespace-only album normalizes to undefined in metadata patch', async () => {
@@ -156,11 +158,13 @@ test('whitespace-only album normalizes to undefined in metadata patch', async ()
   fireEvent.changeText(getByTestId('input-album'), '   ');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', { album: undefined }));
+  expect(getByTestId('input-album').props.value).toBe('');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
 });
 
 test('title + removeCover applies normalized title and clears cover fields', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
-  const { getByTestId } = render(<TagEditor />);
+  const { getByTestId, getByText } = render(<TagEditor />);
   fireEvent.press(getByTestId('remove-cover'));
   fireEvent.changeText(getByTestId('input-title'), '  Neu  ');
   fireEvent.press(getByTestId('save-button'));
@@ -169,6 +173,20 @@ test('title + removeCover applies normalized title and clears cover fields', asy
     cover: undefined,
     coverInfo: undefined,
   }));
+  expect(getByText('Cover entfernen: Nein')).toBeTruthy();
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+});
+
+
+test('noop resets dirty state and disables save while keeping status', async () => {
+  mockWriteTagsToFile.mockResolvedValue({ status: 'noop' });
+  const { getByTestId, getByText } = render(<TagEditor />);
+  fireEvent.changeText(getByTestId('input-title'), 'Noop Value');
+  fireEvent.press(getByTestId('save-button'));
+  await waitFor(() => expect(getByText('Keine Änderung.')).toBeTruthy());
+  expect(getByTestId('input-title').props.value).toBe('A');
+  expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(true);
+  expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
 });
 
 test('noop and rolledBack status messages', async () => {
@@ -182,6 +200,7 @@ test('noop and rolledBack status messages', async () => {
   fireEvent.changeText(getByTestId('input-title'), 'Y');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(getByText('Änderung wurde zurückgerollt.')).toBeTruthy());
+  expect(getByTestId('input-title').props.value).toBe('Y');
 });
 
 test('shows mapped writer errors', async () => {
@@ -191,6 +210,7 @@ test('shows mapped writer errors', async () => {
   fireEvent.changeText(getByTestId('input-title'), 'Z');
   fireEvent.press(getByTestId('save-button'));
   await waitFor(() => expect(getByText(/Ungültige Metadaten/)).toBeTruthy());
+  expect(getByTestId('input-title').props.value).toBe('Z');
 });
 
 test('save button disabled while saving', async () => {
