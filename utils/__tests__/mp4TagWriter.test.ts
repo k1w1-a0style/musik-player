@@ -56,6 +56,16 @@ test('moov before mdat and size change is blocked', () => {
   expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'this is longer' } })).toThrow(/moov-before-mdat/i);
 });
 
+
+test('moov size change is blocked when any later mdat exists', () => {
+  const ftyp = atom(types.ftyp, u8(0,0,0,0));
+  const firstMdat = atom(types.mdat, u8(1,2,3,4));
+  const moovAtom = moov(udta(meta(ilst(item(types.nam, te.encode('a'))))));
+  const trailingMdat = atom(types.mdat, u8(9,8,7,6));
+  const src = Uint8Array.from([ftyp, firstMdat, moovAtom, trailingMdat].flatMap((x) => Array.from(x)));
+  expect(() => applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'this is longer' } })).toThrow(/moov-before-mdat/i);
+});
+
 test('unknown ilst entries are preserved', () => {
   const unknown = atom(types.unk, dataAtom(1, te.encode('keep')));
   const src = file(false, ilst(unknown, item(types.nam, te.encode('old'))));
