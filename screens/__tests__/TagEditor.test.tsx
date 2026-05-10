@@ -65,6 +65,14 @@ test('fields are read-only when canWrite is false', () => {
   expect(getByTestId('input-title').props.editable).toBe(false);
 });
 
+
+test('shows blocking reason from write plan', () => {
+  mockCapability = { canRead: true, canWrite: false, uriType: 'file', reason: 'blocked', supportedContainer: 'unsupported' };
+  mockPlan = { blockingReasons: ['UnsupportedFormat'] };
+  const { getByText } = render(<TagEditor />);
+  expect(getByText('Format nicht unterstützt.')).toBeTruthy();
+});
+
 test('unchanged form does not write', () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.press(getByTestId('save-button'));

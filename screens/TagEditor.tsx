@@ -67,6 +67,14 @@ export const buildDraftFromDirtyFields = (
 
 const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
 
+const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
+  if (reasons.includes('MissingWritePermission')) return 'content://: SAF-Schreiben noch nicht unterstützt.';
+  if (reasons.includes('WriteNotImplemented')) return 'iOS/Web file://: sicherer Replace nicht unterstützt.';
+  if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
+  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';
+  return undefined;
+};
+
 const statusMessage = (result: WriteTagsResult): string => {
   if (result.status === 'written') return 'Metadaten erfolgreich geschrieben.';
   if (result.status === 'noop') return 'Keine Änderung.';
@@ -106,6 +114,7 @@ const TagEditor: React.FC = () => {
   const plan = createTagWriteOperationPlan(song, draft);
   const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true;
   const canSave = capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
+  const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons as TagWriterErrorCode[]);
 
   const onSaveConfirmed = async (): Promise<void> => {
     setSaving(true);
@@ -132,6 +141,7 @@ const TagEditor: React.FC = () => {
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.header}>Tag Editor</Text>
           {!capability.canWrite && <Text style={styles.warning}>{capabilityReason(capability.reason)}</Text>}
+          {!!blockedReasonMessage && <Text style={styles.warning}>{blockedReasonMessage}</Text>}
 
           {FIELDS.map((field) => (
             <View key={field.key} style={styles.fieldWrap}>
