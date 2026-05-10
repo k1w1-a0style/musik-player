@@ -113,7 +113,7 @@ Separate PRs are still required for:
 - After successful save, UI state patch uses normalized tag values (trimmed/empty->undefined) to match file output.
 - Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.
 
-- Cover replace is intentionally blocked for now; TagEditor only supports remove-cover on writable file:// tracks and shows "Noch nicht verfügbar" for replace.
+- Cover replace is intentionally blocked for now; TagEditor only supports remove-cover on writable file:// tracks and shows a non-interactive unavailable hint for replace.
 - `content://` remains read-only for both remove and replace actions.
 
 - Exactly one editable TagEditor UI is active; legacy ID3 editor paths were removed.

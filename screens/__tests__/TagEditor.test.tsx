@@ -303,8 +303,8 @@ test('content:// song disables remove and replace cover actions', () => {
   mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.', supportedContainer: 'mp3' };
   const { getByTestId, getByText } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('replace-cover').props.accessibilityState.disabled).toBe(true);
-  expect(getByText('Cover ersetzen: Noch nicht verfügbar')).toBeTruthy();
+  expect(getByTestId('replace-cover-unavailable')).toBeTruthy();
+  expect(getByText('Cover ersetzen noch nicht verfügbar.')).toBeTruthy();
 });
 
 test('android file:// writable song keeps remove-cover enabled when cover exists', () => {
