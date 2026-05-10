@@ -339,6 +339,23 @@ export const dryRunWriteTags = (song: Song, draft: TagEditDraft): WriteOrchestra
 
 const areBytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
 
+
+const writeLocksByUri = new Map<string, Promise<void>>();
+
+const withUriWriteLock = async <T>(uri: string, operation: () => Promise<T>): Promise<T> => {
+  const previous = writeLocksByUri.get(uri) ?? Promise.resolve();
+  let releaseCurrent: (() => void) | undefined;
+  const current = new Promise<void>((resolve) => { releaseCurrent = resolve; });
+  const queueTail = previous.then(() => current);
+  writeLocksByUri.set(uri, queueTail);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    releaseCurrent?.();
+    if (writeLocksByUri.get(uri) === queueTail) writeLocksByUri.delete(uri);
+  }
+};
 const buildAttemptScopedUri = (uri: string, suffix: 'bak' | 'tmp'): string => {
   const entropy = Math.random().toString(36).slice(2, 10);
   const attemptId = `${Date.now()}-${entropy}`;
@@ -351,70 +368,72 @@ export const writeTagsToFile = async (
 ): Promise<WriteTagsResult> => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
-  const container = getSupportedContainer(song);
-  const adapter = options?.adapter ?? expoTagFileWriteAdapter;
-  ensureTagEditWriteAllowed(song);
-  if (!validateEditableTags(draft.tags).valid || !validateCoverPayload(draft.removeCover ? undefined : draft.cover)) {
-    throw new TagWriterError('InvalidTagData', 'Draft validation failed.');
-  }
-  let info: { exists: boolean; size?: number; isDirectory?: boolean };
-  try {
-    info = await adapter.getInfo(uri);
-  } catch (error) {
-    throw new TagWriterError('UnsupportedUri', `Target file info could not be read: ${String(error)}`);
-  }
-  if (!info.exists) throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
-  let original: Uint8Array;
-  try {
-    original = await adapter.readBytes(uri);
-  } catch (error) {
-    throw new TagWriterError('UnsupportedUri', `Target file could not be read: ${String(error)}`);
-  }
-  const next = applyTagEditToBuffer(original, container, draft);
-  if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
-  const backupUri = buildAttemptScopedUri(uri, 'bak');
-  const tempUri = buildAttemptScopedUri(uri, 'tmp');
-  const cleanupBackupAndTemp = async (): Promise<void> => {
-    try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
-    try { await adapter.deleteFile(backupUri); } catch { /* noop */ }
-  };
-  try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
-  try { await adapter.writeBytes(tempUri, next); } catch {
-    await cleanupBackupAndTemp();
-    throw new TagWriterError('TempWriteFailed', 'Temp file write failed.');
-  }
-  let tempBytes: Uint8Array;
-  try {
-    tempBytes = await adapter.readBytes(tempUri);
-  } catch (error) {
-    await cleanupBackupAndTemp();
-    throw new TagWriterError('VerificationFailed', `Temp output could not be verified: ${String(error)}`);
-  }
-  if (!areBytesEqual(tempBytes, next)) {
-    await cleanupBackupAndTemp();
-    throw new TagWriterError('VerificationFailed', 'Temp output bytes do not match rewritten payload.');
-  }
-  try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
-    try {
-      await adapter.copyFile(backupUri, uri);
-      const rollbackWarnings = [`Replace failed and rollback restored backup: ${String(error)}`];
-      try { await adapter.deleteFile(tempUri); } catch { rollbackWarnings.push('Temp cleanup failed after rollback; temp file retained.'); }
-      try { await adapter.deleteFile(backupUri); } catch { rollbackWarnings.push('Backup cleanup failed after rollback; backup file retained.'); }
-      return {
-        status: 'rolledBack',
-        sourceUri: uri,
-        backupUri,
-        tempUri,
-        bytesBefore: original.length,
-        bytesAfter: original.length,
-        warnings: rollbackWarnings,
-      };
-    } catch {
-      throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`);
+  return withUriWriteLock(uri, async () => {
+    const container = getSupportedContainer(song);
+    const adapter = options?.adapter ?? expoTagFileWriteAdapter;
+    ensureTagEditWriteAllowed(song);
+    if (!validateEditableTags(draft.tags).valid || !validateCoverPayload(draft.removeCover ? undefined : draft.cover)) {
+      throw new TagWriterError('InvalidTagData', 'Draft validation failed.');
     }
-  }
-  const warnings: string[] = [];
-  try { await adapter.deleteFile(tempUri); } catch { warnings.push('Temp cleanup failed; temp file retained.'); }
-  try { await adapter.deleteFile(backupUri); } catch { warnings.push('Backup cleanup failed; backup file retained.'); }
-  return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings };
+    let info: { exists: boolean; size?: number; isDirectory?: boolean };
+    try {
+      info = await adapter.getInfo(uri);
+    } catch (error) {
+      throw new TagWriterError('UnsupportedUri', `Target file info could not be read: ${String(error)}`);
+    }
+    if (!info.exists) throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
+    let original: Uint8Array;
+    try {
+      original = await adapter.readBytes(uri);
+    } catch (error) {
+      throw new TagWriterError('UnsupportedUri', `Target file could not be read: ${String(error)}`);
+    }
+    const next = applyTagEditToBuffer(original, container, draft);
+    if (areBytesEqual(original, next)) return { status: 'noop', sourceUri: uri, bytesBefore: original.length, bytesAfter: next.length, warnings: [] };
+    const backupUri = buildAttemptScopedUri(uri, 'bak');
+    const tempUri = buildAttemptScopedUri(uri, 'tmp');
+    const cleanupBackupAndTemp = async (): Promise<void> => {
+      try { await adapter.deleteFile(tempUri); } catch { /* noop */ }
+      try { await adapter.deleteFile(backupUri); } catch { /* noop */ }
+    };
+    try { await adapter.copyFile(uri, backupUri); } catch { throw new TagWriterError('BackupFailed', 'Backup creation failed.'); }
+    try { await adapter.writeBytes(tempUri, next); } catch {
+      await cleanupBackupAndTemp();
+      throw new TagWriterError('TempWriteFailed', 'Temp file write failed.');
+    }
+    let tempBytes: Uint8Array;
+    try {
+      tempBytes = await adapter.readBytes(tempUri);
+    } catch (error) {
+      await cleanupBackupAndTemp();
+      throw new TagWriterError('VerificationFailed', `Temp output could not be verified: ${String(error)}`);
+    }
+    if (!areBytesEqual(tempBytes, next)) {
+      await cleanupBackupAndTemp();
+      throw new TagWriterError('VerificationFailed', 'Temp output bytes do not match rewritten payload.');
+    }
+    try { await adapter.moveOrReplaceFile(tempUri, uri); } catch (error) {
+      try {
+        await adapter.copyFile(backupUri, uri);
+        const rollbackWarnings = [`Replace failed and rollback restored backup: ${String(error)}`];
+        try { await adapter.deleteFile(tempUri); } catch { rollbackWarnings.push('Temp cleanup failed after rollback; temp file retained.'); }
+        try { await adapter.deleteFile(backupUri); } catch { rollbackWarnings.push('Backup cleanup failed after rollback; backup file retained.'); }
+        return {
+          status: 'rolledBack',
+          sourceUri: uri,
+          backupUri,
+          tempUri,
+          bytesBefore: original.length,
+          bytesAfter: original.length,
+          warnings: rollbackWarnings,
+        };
+      } catch {
+        throw new TagWriterError('RollbackFailed', `Replace failed and rollback failed: ${String(error)}`);
+      }
+    }
+    const warnings: string[] = [];
+    try { await adapter.deleteFile(tempUri); } catch { warnings.push('Temp cleanup failed; temp file retained.'); }
+    try { await adapter.deleteFile(backupUri); } catch { warnings.push('Backup cleanup failed; backup file retained.'); }
+    return { status: 'written', sourceUri: uri, backupUri, tempUri, bytesBefore: original.length, bytesAfter: next.length, warnings };
+  });
 };

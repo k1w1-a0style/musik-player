@@ -363,6 +363,36 @@ describe('writeTagsToFile safe file writes', () => {
     expect(new Set(tempTargets).size).toBe(tempTargets.length);
   });
 
+
+  test('concurrent writes to same uri are serialized to avoid stale rollback clobbering newer bytes', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    let activeWrites = 0;
+    let maxActiveWrites = 0;
+    const realCopy = adapter.copyFile.bind(adapter);
+    (adapter.copyFile as any) = jest.fn(async (from: string, to: string) => {
+      if (from === uri && to.endsWith('.bak')) {
+        activeWrites += 1;
+        maxActiveWrites = Math.max(maxActiveWrites, activeWrites);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await realCopy(from, to);
+        activeWrites -= 1;
+        return;
+      }
+      await realCopy(from, to);
+    });
+
+    const [firstResult, secondResult] = await Promise.all([
+      writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter: adapter as any }),
+      writeTagsToFile(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'Y' } }, { adapter: adapter as any }),
+    ]);
+
+    expect(firstResult.status).toBe('written');
+    expect(secondResult.status).toBe('written');
+    expect(maxActiveWrites).toBe(1);
+  });
+
+
   test('backup failure stops before temp/replace', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
