@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import type { Song } from '../types/Song';
@@ -85,6 +85,14 @@ const TagEditor: React.FC = () => {
   const [form, setForm] = useState<FormState>(() => (song ? toInitialForm(song) : toInitialForm({ id: '', title: '', artist: '' } as Song)));
   const [dirty, setDirty] = useState<Partial<Record<keyof EditableTrackTags, boolean>>>({});
 
+  useEffect(() => {
+    if (!song) return;
+    setForm(toInitialForm(song));
+    setDirty({});
+    setRemoveCover(false);
+    setStatus(null);
+  }, [song?.id]);
+
   if (!song) {
     return (
       <AppBackground>
@@ -131,7 +139,7 @@ const TagEditor: React.FC = () => {
               <TextInput
                 testID={`input-${field.key}`}
                 value={form[field.key]}
-                editable={!saving}
+                editable={capability.canWrite && !saving}
                 onChangeText={(value) => {
                   setForm((prev) => ({ ...prev, [field.key]: value }));
                   setDirty((prev) => ({ ...prev, [field.key]: true }));

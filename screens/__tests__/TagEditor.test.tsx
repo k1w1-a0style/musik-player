@@ -58,6 +58,13 @@ test('canWrite false blocks save and shows reason', () => {
   expect(mockWriteTagsToFile).not.toHaveBeenCalled();
 });
 
+
+test('fields are read-only when canWrite is false', () => {
+  mockCapability = { canRead: true, canWrite: false, uriType: 'content', reason: 'content:// Schreiben ist noch nicht unterstützt.', supportedContainer: 'mp3' };
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('input-title').props.editable).toBe(false);
+});
+
 test('unchanged form does not write', () => {
   const { getByTestId } = render(<TagEditor />);
   fireEvent.press(getByTestId('save-button'));
