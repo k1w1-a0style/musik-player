@@ -44,6 +44,20 @@ test('unknown ilst entries are preserved', () => {
   expect(new TextDecoder().decode(out).includes('keep')).toBe(true);
 });
 
+test('untouched known fields are not duplicated', () => {
+  const src = file(false, ilst(item(types.nam, te.encode('old')), item(types.art, te.encode('artist'))));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'new' } });
+  const decoded = new TextDecoder().decode(out);
+  expect(decoded.match(/artist/g)?.length ?? 0).toBe(1);
+});
+
+test('cover is preserved when there is no cover intent', () => {
+  const covr = atom(types.covr, dataAtom(13, u8(0xff, 0xd8, 0xff, 0xdb)));
+  const src = file(false, ilst(item(types.nam, te.encode('old')), covr));
+  const out = applyTagEditToBuffer(src, 'mp4', { songId: '1', tags: { title: 'new' } });
+  expect(Array.from(out).includes(0xdb)).toBe(true);
+});
+
 test('invalid nested size=0 throws', () => {
   const badIlstItem = new Uint8Array([0,0,0,0, ...types.nam, 0,0,0,8, ...types.data]);
   const src = file(false, ilst(badIlstItem));

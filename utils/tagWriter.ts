@@ -42,7 +42,6 @@ export const encodeSynchsafe = (size: number): Uint8Array => {
 };
 
 const readU32 = (b: Uint8Array, o: number): number => ((b[o] << 24) >>> 0) + (b[o + 1] << 16) + (b[o + 2] << 8) + b[o + 3];
-const readU16 = (b: Uint8Array, o: number): number => (b[o] << 8) | b[o + 1];
 const writeU32 = (b: Uint8Array, o: number, value: number): void => { b[o] = (value >>> 24) & 0xff; b[o + 1] = (value >>> 16) & 0xff; b[o + 2] = (value >>> 8) & 0xff; b[o + 3] = value & 0xff; };
 const atomType = (...bytes: number[]): Uint8Array => new Uint8Array(bytes);
 const MP4_TYPES = {
@@ -81,6 +80,16 @@ const parsePacked = (value: string): [number, number] => {
 const buildPackedNumberAtom = (type: Uint8Array, value: string): Uint8Array => {
   const [current, total] = parsePacked(value); const payload = new Uint8Array(8); payload[3] = 0; payload[4] = (current >>> 8) & 0xff; payload[5] = current & 0xff; payload[6] = (total >>> 8) & 0xff; payload[7] = total & 0xff;
   return rebuildAtom(type, buildDataAtom(0, payload).slice(8));
+};
+const concatBytes = (parts: Uint8Array[]): Uint8Array => {
+  const total = parts.reduce((sum, p) => sum + p.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
 };
 
 export const readId3Header = (buffer: Uint8Array): ParsedId3Header | undefined => {
@@ -260,42 +269,51 @@ const applyMp4TagEditToBuffer = (original: Uint8Array, draft: TagEditDraft): Uin
   ];
   const outIlst: Uint8Array[] = [];
   let changed = false;
-  const touched = new Set(map.filter((m) => hasDraftTagIntent(draft, m.key)).map((m) => atomKey(m.type)));
+  const editedTypes = new Set<string>([
+    ...map.filter((m) => hasDraftTagIntent(draft, m.key)).map((m) => atomKey(m.type)),
+    ...(hasDraftTagIntent(draft, 'trackNumber') ? ['trkn'] : []),
+    ...(hasDraftTagIntent(draft, 'discNumber') ? ['disk'] : []),
+    ...(draft.removeCover || draft.cover ? ['covr'] : []),
+  ]);
   for (const item of ilstChildren) {
     const key = atomKey(item.typeBytes);
-    if (!touched.has(key) && key !== 'trkn' && key !== 'disk' && key !== 'covr') outIlst.push(original.slice(item.start, item.end));
+    if (!editedTypes.has(key)) outIlst.push(original.slice(item.start, item.end));
   }
   for (const m of map) {
-    if (!hasDraftTagIntent(draft, m.key)) {
-      const existing = ilstChildren.find((x) => sameType(x.typeBytes, m.type)); if (existing) outIlst.push(original.slice(existing.start, existing.end));
-      continue;
-    }
-    changed = true; const value = normalizedTags[m.key]; if (!value) continue;
+    if (!hasDraftTagIntent(draft, m.key)) continue;
+    changed = true;
+    const value = normalizedTags[m.key];
+    if (!value) continue;
     outIlst.push(rebuildAtom(m.type, buildDataAtom(1, textEncoder.encode(value))));
   }
   const applyPacked = (field: 'trackNumber' | 'discNumber', type: Uint8Array): void => {
-    const existing = ilstChildren.find((x) => sameType(x.typeBytes, type));
-    if (!hasDraftTagIntent(draft, field)) { if (existing) outIlst.push(original.slice(existing.start, existing.end)); return; }
-    changed = true; const value = normalizedTags[field]; if (!value) return; outIlst.push(buildPackedNumberAtom(type, value));
+    if (!hasDraftTagIntent(draft, field)) return;
+    changed = true;
+    const value = normalizedTags[field];
+    if (!value) return;
+    outIlst.push(buildPackedNumberAtom(type, value));
   };
-  applyPacked('trackNumber', MP4_TYPES.trkn); applyPacked('discNumber', MP4_TYPES.disk);
-  const existingCovr = ilstChildren.find((x) => sameType(x.typeBytes, MP4_TYPES.covr));
-  if (draft.removeCover) { changed = changed || Boolean(existingCovr); }
-  else if (draft.cover) { changed = true; outIlst.push(rebuildAtom(MP4_TYPES.covr, buildDataAtom(draft.cover.mimeType === 'image/png' ? 14 : 13, draft.cover.data))); }
-  else if (existingCovr) outIlst.push(original.slice(existingCovr.start, existingCovr.end));
-  const newIlst = rebuildAtom(MP4_TYPES.ilst, Uint8Array.from(outIlst.flatMap((x) => Array.from(x))));
+  applyPacked('trackNumber', MP4_TYPES.trkn);
+  applyPacked('discNumber', MP4_TYPES.disk);
+  if (draft.removeCover) {
+    changed = changed || ilstChildren.some((x) => sameType(x.typeBytes, MP4_TYPES.covr));
+  } else if (draft.cover) {
+    changed = true;
+    outIlst.push(rebuildAtom(MP4_TYPES.covr, buildDataAtom(draft.cover.mimeType === 'image/png' ? 14 : 13, draft.cover.data)));
+  }
+  const newIlst = rebuildAtom(MP4_TYPES.ilst, concatBytes(outIlst));
   const newMetaChildren = metaChildren.map((a) => a === ilst ? newIlst : original.slice(a.start, a.end));
-  const newMetaPayloadChildren = Uint8Array.from(newMetaChildren.flatMap((x) => Array.from(x)));
+  const newMetaPayloadChildren = concatBytes(newMetaChildren);
   const newMetaPayload = new Uint8Array(4 + newMetaPayloadChildren.length); newMetaPayload.set(original.slice(meta.payloadStart, meta.payloadStart + 4), 0); newMetaPayload.set(newMetaPayloadChildren, 4);
   const newMeta = rebuildAtom(MP4_TYPES.meta, newMetaPayload);
   const newUdtaChildren = udtaChildren.map((a) => a === meta ? newMeta : original.slice(a.start, a.end));
-  const newUdta = rebuildAtom(MP4_TYPES.udta, Uint8Array.from(newUdtaChildren.flatMap((x) => Array.from(x))));
+  const newUdta = rebuildAtom(MP4_TYPES.udta, concatBytes(newUdtaChildren));
   const newMoovChildren = moovChildren.map((a) => a === udta ? newUdta : original.slice(a.start, a.end));
-  const newMoov = rebuildAtom(MP4_TYPES.moov, Uint8Array.from(newMoovChildren.flatMap((x) => Array.from(x))));
+  const newMoov = rebuildAtom(MP4_TYPES.moov, concatBytes(newMoovChildren));
   if (!changed) return original.slice();
   if (newMoov.length !== moov.size && moov.end <= mdat.start) throw new TagWriterError('WriteNotImplemented', 'moov-before-mdat size changes are blocked for offset safety.');
   const rebuiltTop = top.map((a) => (a === moov ? newMoov : original.slice(a.start, a.end)));
-  return Uint8Array.from(rebuiltTop.flatMap((x) => Array.from(x)));
+  return concatBytes(rebuiltTop);
 };
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan => createTagWriteOperationPlan(song, draft);
