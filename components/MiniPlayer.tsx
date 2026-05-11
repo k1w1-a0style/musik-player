@@ -8,7 +8,7 @@ import { theme } from '../theme';
 declare const __DEV__: boolean;
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next } = useMiniPlayerMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next, canSkipNext } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const renderCountRef = useRef(0);
@@ -37,8 +37,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   const handleNext = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
+    if (!canSkipNext) return;
     void next();
-  }, [next]);
+  }, [canSkipNext, next]);
 
   if (!currentSong) return null;
   const showCover = !!currentSong.cover && !coverFailed;
@@ -64,14 +65,20 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <Pressable onPress={handleTogglePlayPause} style={styles.playBtn}>
+          <Pressable testID="mini-player-play-pause" onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
               <Pause color={theme.palette.text.onPrimary} size={18} />
             ) : (
               <Play color={theme.palette.text.onPrimary} size={18} />
             )}
           </Pressable>
-          <Pressable onPress={handleNext} style={styles.skipBtn}>
+          <Pressable
+            testID="mini-player-next"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSkipNext }}
+            onPress={handleNext}
+            style={[styles.skipBtn, !canSkipNext && styles.disabled]}
+          >
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
         </View>
@@ -141,6 +148,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  disabled: { opacity: 0.35 },
 });
 
 export default MiniPlayer;

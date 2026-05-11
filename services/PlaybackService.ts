@@ -15,10 +15,10 @@ export const PlaybackService = async (): Promise<void> => {
     TrackPlayer.stop();
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    TrackPlayer.skipToNext();
+    TrackPlayer.skipToNext().catch(() => undefined);
   });
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    TrackPlayer.skipToPrevious();
+    TrackPlayer.skipToPrevious().catch(() => undefined);
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
     TrackPlayer.seekTo(position);

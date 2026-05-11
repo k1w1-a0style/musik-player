@@ -71,6 +71,12 @@ const Probe: React.FC = () => {
       <Pressable testID="toggle-shuffle" onPress={() => ctx.toggleShuffle()}>
         <Text>shuffle</Text>
       </Pressable>
+      <Pressable testID="next" onPress={() => ctx.next()}>
+        <Text>next</Text>
+      </Pressable>
+      <Pressable testID="previous" onPress={() => ctx.previous()}>
+        <Text>previous</Text>
+      </Pressable>
       <Pressable testID="apply-rock" onPress={() => ctx.applyEqPreset('rock')}>
         <Text>rock</Text>
       </Pressable>
@@ -392,6 +398,32 @@ describe('MusicContext', () => {
     const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
     expect(queue[0]?.id).toBe('s2');
     expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+  });
+
+  test('next/previous keep currentSong in sync and no-op safely for single-song queue', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+    expect(getByTestId('probe-current').props.children).toBe('s2');
+
+    await act(async () => fireEvent.press(getByTestId('next')));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
+    await act(async () => fireEvent.press(getByTestId('previous')));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+
+    await act(async () => fireEvent.press(getByTestId('play-demo')));
+    await act(async () => fireEvent.press(getByTestId('next')));
+    await act(async () => fireEvent.press(getByTestId('previous')));
+    expect(getByTestId('probe-current').props.children).toBe('demo-1');
+  });
+
+  test('does not persist CURRENT_SONG_ID for demo songs outside library', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('play-demo')));
+    const storedCurrent = await storage.get<string>(StorageKeys.CURRENT_SONG_ID);
+    expect(storedCurrent).toBeNull();
   });
 
 });
