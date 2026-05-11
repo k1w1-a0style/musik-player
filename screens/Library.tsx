@@ -240,6 +240,9 @@ const Library: React.FC = () => {
             <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
           </View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Musik importieren"
+            accessibilityState={{ disabled: loading || !isReady }}
             style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
             onPress={importFromDevice}
             disabled={loading || !isReady}
@@ -259,13 +262,13 @@ const Library: React.FC = () => {
         <View style={styles.scanFoldersCard}>
           <View style={styles.scanFoldersHeader}>
             <Text style={styles.scanFoldersTitle}>Scan-Ordner</Text>
-            <Pressable onPress={onAddScanFolder} style={styles.scanFoldersAddButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Scan-Ordner hinzufügen" onPress={onAddScanFolder} style={styles.scanFoldersAddButton}>
               <Text style={styles.scanFoldersAddText}>Ordner hinzufügen</Text>
             </Pressable>
           </View>
           {scanFolders.length === 0 ? <Text style={styles.scanFoldersEmpty}>Keine Ordner ausgewählt</Text> : scanFolders.map(folder => (
             <View key={folder.id} style={styles.scanFolderRow}>
-              <Pressable onPress={async () => setScanFolders(await updateScanFolder(folder.id, { enabled: !folder.enabled }))}>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: folder.enabled }} onPress={async () => setScanFolders(await updateScanFolder(folder.id, { enabled: !folder.enabled }))}>
                 <Text style={styles.scanFolderToggle}>{folder.enabled ? '☑' : '☐'}</Text>
               </Pressable>
               <Text style={styles.scanFolderName} numberOfLines={1}>{folder.name}</Text>
@@ -325,10 +328,10 @@ const styles = StyleSheet.create({
   previewCoverImage: { width: '100%', height: '100%' },
   previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
   previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
-  scanFoldersCard: { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: 12, padding: 10, marginBottom: 12 },
+  scanFoldersCard: { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.radii.card, padding: 12, marginBottom: 12 },
   scanFoldersHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   scanFoldersTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
-  scanFoldersAddButton: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: theme.palette.surface, borderRadius: 8 },
+  scanFoldersAddButton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.palette.surface, borderRadius: theme.radii.input },
   scanFoldersAddText: { color: theme.palette.primary, fontFamily: theme.fonts.body, fontSize: 12 },
   scanFoldersEmpty: { color: theme.palette.text.muted, marginTop: 6, fontFamily: theme.fonts.body },
   scanFolderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
