@@ -13,11 +13,12 @@ export const storage = {
       return null;
     }
   },
-  async set<T>(key: string, value: T): Promise<void> {
+  async set<T>(key: string, value: T): Promise<boolean> {
     try {
       await AsyncStorage.setItem(PREFIX + key, JSON.stringify(value));
+      return true;
     } catch {
-      /* ignore */
+      return false;
     }
   },
   async remove(key: string): Promise<void> {

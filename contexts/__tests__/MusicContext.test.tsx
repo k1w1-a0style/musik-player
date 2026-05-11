@@ -268,7 +268,6 @@ describe('MusicContext', () => {
   });
 
 
-
   test('updateSongMetadata updates songs/currentSong/playbackQueue and keeps queue order', async () => {
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);

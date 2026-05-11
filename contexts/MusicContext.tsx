@@ -384,8 +384,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const persistIfChanged = useCallback(async <T,>(key: string, value: T): Promise<void> => {
     const serialized = JSON.stringify(value);
     if (persistedRefs.current[key] === serialized) return;
-    persistedRefs.current[key] = serialized;
-    await storage.set(key, value);
+    const stored = await storage.set(key, value);
+    if (stored) persistedRefs.current[key] = serialized;
   }, []);
 
   useEffect(() => {
