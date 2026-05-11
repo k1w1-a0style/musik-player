@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import type { AppStackParamList } from '../types/navigation';
@@ -99,7 +99,7 @@ const TrackInfo: React.FC = () => {
           </View>
 
           <Text style={styles.header}>TrackInfo</Text>
-          <Button title="Bearbeiten" onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })} />
+          <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}><Text style={styles.editButtonText}>Bearbeiten</Text></Pressable>
           <Text style={styles.section}>Basis</Text>
           <InfoRow label="Titel" value={valueOrNA(song.title)} />
           <InfoRow label="Artist" value={valueOrNA(song.artist)} />
@@ -154,6 +154,8 @@ const styles = StyleSheet.create({
   cover: { width: '100%', height: '100%' },
   header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
   section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
+  editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', marginBottom: 6 },
+  editButtonText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
   row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },

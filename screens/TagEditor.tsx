@@ -191,14 +191,16 @@ const TagEditor: React.FC = () => {
       <Screen contentStyle={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.header}>Tag Editor</Text>
-          {!capability.canWrite && <Text style={styles.warning}>{capabilityReason(capability.reason)}</Text>}
-          {!!blockedReasonMessage && <Text style={styles.warning}>{blockedReasonMessage}</Text>}
+          {!capability.canWrite && <View style={styles.warningBox}><Text style={styles.warning}>{capabilityReason(capability.reason)}</Text></View>}
+          {!!blockedReasonMessage && <View style={styles.warningBox}><Text style={styles.warning}>{blockedReasonMessage}</Text></View>}
 
           {FIELDS.map((field) => (
             <View key={field.key} style={styles.fieldWrap}>
               <Text style={styles.label}>{field.label}</Text>
               <TextInput
                 testID={`input-${field.key}`}
+                placeholder="Nicht verfügbar"
+                placeholderTextColor={theme.palette.text.muted}
                 value={form[field.key]}
                 editable={capability.canWrite && !saving}
                 onChangeText={(value) => {
@@ -210,7 +212,7 @@ const TagEditor: React.FC = () => {
             </View>
           ))}
 
-          <Pressable testID="remove-cover" style={styles.toggle} disabled={!capability.canWrite || !hasCover || saving} onPress={() => setRemoveCover((v) => !v)}>
+          <Pressable testID="remove-cover" accessibilityRole="switch" accessibilityState={{ checked: removeCover, disabled: !capability.canWrite || !hasCover || saving }} style={styles.toggle} disabled={!capability.canWrite || !hasCover || saving} onPress={() => setRemoveCover((v) => !v)}>
             <Text style={styles.toggleText}>Cover entfernen: {removeCover ? 'Ja' : 'Nein'}</Text>
           </Pressable>
 
@@ -245,15 +247,16 @@ const styles = StyleSheet.create({
   header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 22 },
   fieldWrap: { gap: 4 },
   label: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
-  input: { borderWidth: 1, borderColor: theme.palette.border, borderRadius: 10, padding: 10, color: theme.palette.text.primary, fontFamily: theme.fonts.body },
+  input: { borderWidth: 1, borderColor: theme.palette.border, borderRadius: theme.radii.input, padding: 10, color: theme.palette.text.primary, fontFamily: theme.fonts.body, backgroundColor: theme.palette.surface },
   inputReadOnly: { opacity: 0.8 },
-  toggle: { padding: 10, borderRadius: 10, backgroundColor: theme.palette.surfaceElevated },
+  toggle: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.surfaceElevated, borderWidth: 1, borderColor: theme.palette.border },
   toggleText: { color: theme.palette.text.primary },
-  saveButton: { padding: 12, borderRadius: 10, backgroundColor: theme.palette.primary },
-  backButton: { padding: 12, borderRadius: 10, backgroundColor: theme.palette.surfaceElevated },
+  saveButton: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.primary },
+  backButton: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.surfaceElevated },
   disabledButton: { opacity: 0.5 },
   saveText: { color: theme.palette.text.primary, textAlign: 'center', fontFamily: theme.fonts.heading },
-  warning: { color: theme.palette.error },
+  warningBox: { backgroundColor: 'rgba(255, 111, 138, 0.12)', borderColor: 'rgba(255, 111, 138, 0.4)', borderWidth: 1, borderRadius: theme.radii.input, padding: 10 },
+  warning: { color: theme.palette.error, fontFamily: theme.fonts.body },
   status: { color: theme.palette.text.secondary },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading },
 });

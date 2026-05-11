@@ -35,6 +35,7 @@ export const theme = {
   blur: { light: 20, medium: 40, heavy: 60 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
   borderRadius: { sm: 10, md: 16, lg: 24, xl: 34, pill: 999 },
+  radii: { input: 12, card: 18, elevatedCard: 24, control: 22 },
   fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular', mono: 'Menlo' },
   typography: {
     hero: { fontSize: 40, lineHeight: 44, letterSpacing: -1.2 }, h1: { fontSize: 28, lineHeight: 32, letterSpacing: -0.6 },
