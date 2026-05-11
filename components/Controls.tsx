@@ -38,6 +38,7 @@ const PressScale: React.FC<PressScaleProps> = ({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
       disabled={disabled}
       style={[
@@ -156,8 +157,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.sm,
   },
   button: {

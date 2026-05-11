@@ -3,8 +3,10 @@ import { Image } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
+const mockGoBack = jest.fn();
+
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ goBack: jest.fn() }),
+  useNavigation: () => ({ goBack: mockGoBack }),
 }));
 
 const mockNowPlayingContext = {
@@ -45,6 +47,7 @@ jest.mock('../../components/Screen', () => ({ children }: { children?: React.Rea
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingContext.visualizerError = null;
+    mockGoBack.mockClear();
   });
 
   test('hides broken cover image after error', () => {
@@ -64,5 +67,23 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.visualizerError = 'no_permission';
     const { getByText } = render(<NowPlaying />);
     expect(getByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeTruthy();
+  });
+
+  test('favorite icon is not exposed as actionable button', () => {
+    const { queryByLabelText } = render(<NowPlaying />);
+    expect(queryByLabelText('Track favorisieren')).toBeNull();
+  });
+
+  test('close button remains interactive and triggers goBack', () => {
+    const { getByTestId, getByLabelText } = render(<NowPlaying />);
+    expect(getByLabelText('Now Playing schließen')).toBeTruthy();
+    fireEvent.press(getByTestId('now-playing-close'));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+
+  test('more icon stays decorative and hidden from accessibility tree', () => {
+    const { queryByLabelText, queryByTestId } = render(<NowPlaying />);
+    expect(queryByLabelText('Mehr Optionen')).toBeNull();
+    expect(queryByTestId('now-playing-more')).toBeNull();
   });
 });
