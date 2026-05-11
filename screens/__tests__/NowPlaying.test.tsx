@@ -75,13 +75,15 @@ describe('NowPlaying cover fallback', () => {
   });
 
   test('close button remains interactive and triggers goBack', () => {
-    const { getByTestId } = render(<NowPlaying />);
+    const { getByTestId, getByLabelText } = render(<NowPlaying />);
+    expect(getByLabelText('Now Playing schließen')).toBeTruthy();
     fireEvent.press(getByTestId('now-playing-close'));
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
-  test('more icon stays decorative without press handler', () => {
-    const { getByTestId } = render(<NowPlaying />);
-    expect(getByTestId('now-playing-more').props.onPress).toBeUndefined();
+  test('more icon stays decorative and hidden from accessibility tree', () => {
+    const { queryByLabelText, queryByTestId } = render(<NowPlaying />);
+    expect(queryByLabelText('Mehr Optionen')).toBeNull();
+    expect(queryByTestId('now-playing-more')).toBeNull();
   });
 });

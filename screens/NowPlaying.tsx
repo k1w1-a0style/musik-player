@@ -198,14 +198,20 @@ interface QueuePreviewRowProps {
 
 const NowPlayingHeader = React.memo(({ albumTitle, onClose }: { albumTitle: string; onClose: () => void }) => (
   <View style={styles.headerBar}>
-    <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={onClose}>
+    <Pressable
+      testID="now-playing-close"
+      style={styles.headerBtn}
+      onPress={onClose}
+      accessibilityRole="button"
+      accessibilityLabel="Now Playing schließen"
+    >
       <ChevronDown color={theme.palette.text.primary} size={22} />
     </Pressable>
     <View style={styles.headerTitleWrap}>
       <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
       <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
     </View>
-    <View testID="now-playing-more" style={styles.headerBtn} accessible={false}>
+    <View testID="now-playing-more" style={styles.headerBtn} accessible={false} importantForAccessibility="no-hide-descendants">
       <MoreHorizontal color={theme.palette.text.primary} size={22} />
     </View>
   </View>
