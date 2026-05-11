@@ -251,6 +251,22 @@ describe('MusicContext', () => {
     });
   });
 
+  test('does not rewrite SONGS in storage when payload is unchanged', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    jest.clearAllMocks();
+
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await waitFor(() => expect(getByTestId('probe-songs-count').props.children).toBe('4'));
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => {
+      const setCalls = (AsyncStorage.setItem as jest.Mock).mock.calls
+        .filter(([key]) => key === '@musikplayer:songs');
+      expect(setCalls).toHaveLength(1);
+    });
+  });
+
 
 
   test('updateSongMetadata updates songs/currentSong/playbackQueue and keeps queue order', async () => {

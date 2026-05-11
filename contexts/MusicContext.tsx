@@ -169,6 +169,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const queueContextRef = useRef<Song[]>([]);
   const baseQueueContextRef = useRef<Song[]>([]);
   const lastVisualizerUpdateRef = useRef(0);
+  const persistedRefs = useRef<Record<string, string>>({});
 
   const playback = usePlaybackState();
 
@@ -380,34 +381,41 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
+  const persistIfChanged = useCallback(async <T,>(key: string, value: T): Promise<void> => {
+    const serialized = JSON.stringify(value);
+    if (persistedRefs.current[key] === serialized) return;
+    persistedRefs.current[key] = serialized;
+    await storage.set(key, value);
+  }, []);
+
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.VOLUME, volume);
-  }, [volume, isReady]);
+    void persistIfChanged(StorageKeys.VOLUME, volume);
+  }, [volume, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.SHUFFLE, shuffle);
-  }, [shuffle, isReady]);
+    void persistIfChanged(StorageKeys.SHUFFLE, shuffle);
+  }, [shuffle, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.REPEAT_MODE, repeatMode);
-  }, [repeatMode, isReady]);
+    void persistIfChanged(StorageKeys.REPEAT_MODE, repeatMode);
+  }, [repeatMode, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.EQ_ENABLED, eqEnabled);
-  }, [eqEnabled, isReady]);
+    void persistIfChanged(StorageKeys.EQ_ENABLED, eqEnabled);
+  }, [eqEnabled, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.EQ_BANDS, eqBands);
-  }, [eqBands, isReady]);
+    void persistIfChanged(StorageKeys.EQ_BANDS, eqBands);
+  }, [eqBands, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.EQ_PRESET, eqPreset);
-  }, [eqPreset, isReady]);
+    void persistIfChanged(StorageKeys.EQ_PRESET, eqPreset);
+  }, [eqPreset, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
-    storage.set(StorageKeys.PLAYLISTS, playlists);
-  }, [playlists, isReady]);
+    void persistIfChanged(StorageKeys.PLAYLISTS, playlists);
+  }, [playlists, isReady, persistIfChanged]);
   useEffect(() => {
     if (!isReady) return;
     let cancelled = false;
@@ -419,12 +427,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setSongsState(sanitizedSongs);
         return;
       }
-      await storage.set(StorageKeys.SONGS, sanitizedSongs);
+      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs);
     })();
     return () => {
       cancelled = true;
     };
-  }, [songs, isReady]);
+  }, [songs, isReady, persistIfChanged]);
 
   // ---- Library ----
   const setSongs = useCallback((s: Song[]) => setSongsState(s), []);
