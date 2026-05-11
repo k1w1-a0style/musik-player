@@ -138,7 +138,7 @@ const NowPlaying: React.FC = () => {
           <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
           <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Track favorisieren" style={styles.heartBtn}><Heart color={theme.palette.text.primary} size={20} /></Pressable>
+        <View style={styles.heartBtn} accessible={false}><Heart color={theme.palette.text.primary} size={20} /></View>
       </View>
 
       <View style={styles.visualizerWrap}>
@@ -205,9 +205,9 @@ const NowPlayingHeader = React.memo(({ albumTitle, onClose }: { albumTitle: stri
       <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
       <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
     </View>
-    <Pressable testID="now-playing-more" style={styles.headerBtn}>
+    <View testID="now-playing-more" style={styles.headerBtn} accessible={false}>
       <MoreHorizontal color={theme.palette.text.primary} size={22} />
-    </Pressable>
+    </View>
   </View>
 ));
 
@@ -229,11 +229,11 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
 
 const BottomControlsRow = React.memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => Promise<void> }) => (
   <View style={styles.bottomRow}>
-    <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
+    <View style={styles.bottomBtn} accessible={false}><Heart color={theme.palette.text.muted} size={20} /></View>
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
     </GlassCard>
-    <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
+    <View style={styles.bottomBtn} accessible={false}><Disc3 color={theme.palette.text.muted} size={20} /></View>
   </View>
 ));
 
