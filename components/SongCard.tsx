@@ -75,7 +75,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       </View>
 
       {onInfoSong ? (
-        <Pressable testID={`song-card-info-${song.id}`} onPress={handleInfoPress} hitSlop={8} style={styles.infoButton}>
+        <Pressable testID={`song-card-info-${song.id}`} accessibilityRole="button" accessibilityLabel={`Infos zu ${song.title}`} onPress={handleInfoPress} hitSlop={8} style={styles.infoButton}>
           <CircleEllipsis color={theme.palette.text.muted} size={18} />
         </Pressable>
       ) : null}
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     backgroundColor: theme.palette.card,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.radii.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
     gap: 12,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.body,
   },
   currentSongText: { color: theme.palette.primary },
-  infoButton: { padding: 4 },
+  infoButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   dot: {
     width: 8,
     height: 26,

@@ -138,7 +138,7 @@ const NowPlaying: React.FC = () => {
           <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
           <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
         </View>
-        <Pressable style={styles.heartBtn}><Heart color={theme.palette.text.primary} size={20} /></Pressable>
+        <View style={styles.heartBtn} accessible={false}><Heart color={theme.palette.text.primary} size={20} /></View>
       </View>
 
       <View style={styles.visualizerWrap}>
@@ -198,16 +198,22 @@ interface QueuePreviewRowProps {
 
 const NowPlayingHeader = React.memo(({ albumTitle, onClose }: { albumTitle: string; onClose: () => void }) => (
   <View style={styles.headerBar}>
-    <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={onClose}>
+    <Pressable
+      testID="now-playing-close"
+      style={styles.headerBtn}
+      onPress={onClose}
+      accessibilityRole="button"
+      accessibilityLabel="Now Playing schließen"
+    >
       <ChevronDown color={theme.palette.text.primary} size={22} />
     </Pressable>
     <View style={styles.headerTitleWrap}>
       <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
       <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
     </View>
-    <Pressable testID="now-playing-more" style={styles.headerBtn}>
+    <View testID="now-playing-more" style={styles.headerBtn} accessible={false} importantForAccessibility="no-hide-descendants">
       <MoreHorizontal color={theme.palette.text.primary} size={22} />
-    </Pressable>
+    </View>
   </View>
 ));
 
@@ -229,11 +235,11 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
 
 const BottomControlsRow = React.memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => Promise<void> }) => (
   <View style={styles.bottomRow}>
-    <Pressable style={styles.bottomBtn}><Heart color={theme.palette.text.muted} size={20} /></Pressable>
+    <View style={styles.bottomBtn} accessible={false}><Heart color={theme.palette.text.muted} size={20} /></View>
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
     </GlassCard>
-    <Pressable style={styles.bottomBtn}><Disc3 color={theme.palette.text.muted} size={20} /></Pressable>
+    <View style={styles.bottomBtn} accessible={false}><Disc3 color={theme.palette.text.muted} size={20} /></View>
   </View>
 ));
 
@@ -278,7 +284,7 @@ const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent 
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { flex: 1, paddingTop: 12, paddingBottom: 12 },
+  content: { flex: 1, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.sm },
   glowOrb: {
     position: 'absolute',
     width: 340,
@@ -336,8 +342,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   titleBlock: { flex: 1 },
   title: {
@@ -359,14 +365,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  visualizerWrap: { paddingHorizontal: 20, marginTop: 4 },
-  visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12 },
+  visualizerWrap: { paddingHorizontal: 20, marginTop: 4, marginBottom: theme.spacing.sm },
+  visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
   queueCard: {
     marginHorizontal: 16,
-    marginTop: 10,
-    padding: 12,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: 'rgba(10, 12, 11, 0.82)',
+    marginTop: 12,
+    padding: 14,
+    borderRadius: theme.radii.card,
+    backgroundColor: theme.palette.surfaceGlass,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
@@ -391,7 +397,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 38,
+    minHeight: 44,
     borderRadius: theme.borderRadius.sm,
     paddingHorizontal: 8,
   },

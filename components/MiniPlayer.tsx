@@ -46,7 +46,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   return (
     <View style={[styles.wrap, { bottom: 72 + insets.bottom }]} pointerEvents="box-none">
-      <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open">
+      <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Now Playing öffnen">
         <View style={styles.thumb}>
           {showCover ? (
             <Image source={{ uri: currentSong.cover }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
@@ -65,7 +65,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <Pressable testID="mini-player-play-pause" onPress={handleTogglePlayPause} style={styles.playBtn}>
+          <Pressable testID="mini-player-play-pause" accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
               <Pause color={theme.palette.text.onPrimary} size={18} />
             ) : (
@@ -98,10 +98,10 @@ const styles = StyleSheet.create({
   },
   container: {
     height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(8,8,8,0.94)',
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.palette.surfaceGlass,
     borderWidth: 1,
-    borderColor: theme.palette.borderStrong,
+    borderColor: theme.palette.border,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
