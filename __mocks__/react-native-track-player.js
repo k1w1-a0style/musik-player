@@ -49,6 +49,7 @@ let state = State.Paused;
 let queue = [];
 let currentIdx = -1;
 let volume = 1;
+let repeatMode = RepeatMode.Off;
 let listeners = new Map();
 
 const trigger = (event, payload) => {
@@ -87,7 +88,10 @@ const TrackPlayer = {
     volume = v;
   }),
   getVolume: jest.fn(async () => volume),
-  setRepeatMode: jest.fn().mockResolvedValue(undefined),
+  setRepeatMode: jest.fn(async mode => {
+    repeatMode = mode;
+  }),
+  getRepeatMode: jest.fn(async () => repeatMode),
   skipToNext: jest.fn(async () => {
     if (currentIdx + 1 < queue.length) {
       currentIdx += 1;
@@ -127,9 +131,11 @@ const TrackPlayer = {
     queue = [];
     currentIdx = -1;
     volume = 1;
+    repeatMode = RepeatMode.Off;
     listeners = new Map();
   },
   __getQueue: () => queue,
+  __getRepeatMode: () => repeatMode,
   __trigger: trigger,
 };
 

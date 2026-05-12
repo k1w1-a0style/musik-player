@@ -1,13 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {
+  useNavigation,
+  useRoute,
+  type NavigationProp,
+  type RouteProp,
+} from '@react-navigation/native';
 import type { Song, SongCoverInfo } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
-import type { EditableTrackTags, TagEditDraft, TagWriterErrorCode, WriteTagsResult } from '../types/TagEdit';
+import type {
+  EditableTrackTags,
+  TagEditDraft,
+  TagWriterErrorCode,
+  WriteTagsResult,
+} from '../types/TagEdit';
 import { getTagEditCapability } from '../utils/tagEditCapability';
 import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
@@ -29,11 +47,14 @@ const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
 ];
 
 const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
-  MissingWritePermission: 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.',
+  MissingWritePermission:
+    'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.',
   UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
   WriteNotImplemented: 'Sicheres Ersetzen auf dieser Plattform noch nicht unterstützt.',
   InvalidTagData: 'Ungültige Metadaten. Bitte Eingaben prüfen.',
+  FileTooLarge:
+    'Datei ist für sicheres In-App-Tag-Schreiben zu groß. Bitte extern bearbeiten oder kleinere Dateien nutzen.',
   BackupFailed: 'Backup konnte nicht erstellt werden.',
   TempWriteFailed: 'Temporäre Datei konnte nicht geschrieben werden.',
   VerificationFailed: 'Verifikation der temporären Datei fehlgeschlagen.',
@@ -66,16 +87,40 @@ export const buildDraftFromDirtyFields = (
   return { songId, tags, ...(removeCover ? { removeCover: true } : {}) };
 };
 
-const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
+const capabilityReason = (reason?: string): string =>
+  reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
 
 const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
-  if (reasons.includes('MissingWritePermission')) return 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.';
-  if (reasons.includes('WriteNotImplemented')) return 'iOS/Web file://: sicherer Replace nicht unterstützt.';
+  if (reasons.includes('MissingWritePermission'))
+    return 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.';
+  if (reasons.includes('FileTooLarge'))
+    return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
+  if (reasons.includes('WriteNotImplemented'))
+    return 'iOS/Web file://: sicherer Replace nicht unterstützt.';
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
-  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';
+  if (reasons.includes('UnsupportedUri'))
+    return 'URI ist nicht schreibbar (remote/unknown).';
   return undefined;
 };
 
+const safetyNotice = (song: Song): string | undefined => {
+  const uri = song.fileInfo?.uri ?? song.uri;
+  const container = (
+    song.fileInfo?.extension ??
+    song.fileInfo?.container ??
+    ''
+  ).toLowerCase();
+  if (uri?.startsWith('content://')) {
+    return 'SAF/content:// Dateien sind aktuell read-only. Zum Bearbeiten bitte eine lokale file:// Kopie verwenden.';
+  }
+  if (container === 'm4a' || container === 'mp4') {
+    return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben. Manche Dateien bleiben bewusst blockiert.';
+  }
+  if (uri?.startsWith('file://')) {
+    return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung; der finale Replace ist geschützt, aber nicht OS-atomar.';
+  }
+  return undefined;
+};
 
 const buildFormAfterSave = (
   song: Song,
@@ -94,8 +139,8 @@ const buildFormAfterSave = (
   return next;
 };
 
-
-const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> = new Set(['embedded', 'cached', 'external']);
+const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> =
+  new Set(['embedded', 'cached', 'external']);
 
 export const hasRemovableCover = (song: Song): boolean => {
   if (song.cover) return true;
@@ -115,12 +160,19 @@ const TagEditor: React.FC = () => {
   const route = useRoute<TagEditorRoute>();
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const { songs, updateSongMetadata } = useLibraryMusicContext();
-  const song = useMemo(() => songs.find((s) => s.id === route.params.songId), [songs, route.params.songId]);
+  const song = useMemo(
+    () => songs.find(s => s.id === route.params.songId),
+    [songs, route.params.songId],
+  );
   const [saving, setSaving] = useState(false);
   const [removeCover, setRemoveCover] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(() => (song ? toInitialForm(song) : toInitialForm({ id: '', title: '', artist: '' } as Song)));
-  const [dirty, setDirty] = useState<Partial<Record<keyof EditableTrackTags, boolean>>>({});
+  const [form, setForm] = useState<FormState>(() =>
+    song ? toInitialForm(song) : toInitialForm({ id: '', title: '', artist: '' } as Song),
+  );
+  const [dirty, setDirty] = useState<Partial<Record<keyof EditableTrackTags, boolean>>>(
+    {},
+  );
 
   useEffect(() => {
     if (!song) return;
@@ -133,7 +185,9 @@ const TagEditor: React.FC = () => {
   if (!song) {
     return (
       <AppBackground>
-        <Screen contentStyle={styles.container}><Text style={styles.error}>Song nicht gefunden.</Text></Screen>
+        <Screen contentStyle={styles.container}>
+          <Text style={styles.error}>Song nicht gefunden.</Text>
+        </Screen>
       </AppBackground>
     );
   }
@@ -143,8 +197,12 @@ const TagEditor: React.FC = () => {
   const plan = createTagWriteOperationPlan(song, draft);
   const hasCover = hasRemovableCover(song);
   const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true;
-  const canSave = capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
-  const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons as TagWriterErrorCode[]);
+  const canSave =
+    capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
+  const blockedReasonMessage = blockingReasonMessage(
+    plan.blockingReasons as TagWriterErrorCode[],
+  );
+  const safetyMessage = safetyNotice(song);
 
   const onSaveConfirmed = async (): Promise<void> => {
     setSaving(true);
@@ -156,7 +214,16 @@ const TagEditor: React.FC = () => {
         for (const field of FIELDS) {
           if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
           const value = normalizedTags[field.key];
-          if (field.key === 'title' || field.key === 'artist' || field.key === 'album' || field.key === 'year' || field.key === 'genre' || field.key === 'trackNumber' || field.key === 'discNumber' || field.key === 'comment') {
+          if (
+            field.key === 'title' ||
+            field.key === 'artist' ||
+            field.key === 'album' ||
+            field.key === 'year' ||
+            field.key === 'genre' ||
+            field.key === 'trackNumber' ||
+            field.key === 'discNumber' ||
+            field.key === 'comment'
+          ) {
             metadataPatch[field.key] = value;
           }
         }
@@ -170,7 +237,7 @@ const TagEditor: React.FC = () => {
         setDirty({});
         setRemoveCover(false);
       } else if (result.status === 'noop') {
-        setForm((current) => buildFormAfterSave(song, current, draft));
+        setForm(current => buildFormAfterSave(song, current, draft));
         setDirty({});
         setRemoveCover(false);
       }
@@ -191,10 +258,23 @@ const TagEditor: React.FC = () => {
       <Screen contentStyle={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.header}>Tag Editor</Text>
-          {!capability.canWrite && <View style={styles.warningBox}><Text style={styles.warning}>{capabilityReason(capability.reason)}</Text></View>}
-          {!!blockedReasonMessage && <View style={styles.warningBox}><Text style={styles.warning}>{blockedReasonMessage}</Text></View>}
+          {!capability.canWrite && (
+            <View style={styles.warningBox}>
+              <Text style={styles.warning}>{capabilityReason(capability.reason)}</Text>
+            </View>
+          )}
+          {!!blockedReasonMessage && (
+            <View style={styles.warningBox}>
+              <Text style={styles.warning}>{blockedReasonMessage}</Text>
+            </View>
+          )}
+          {!!safetyMessage && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>{safetyMessage}</Text>
+            </View>
+          )}
 
-          {FIELDS.map((field) => (
+          {FIELDS.map(field => (
             <View key={field.key} style={styles.fieldWrap}>
               <Text style={styles.label}>{field.label}</Text>
               <TextInput
@@ -203,21 +283,35 @@ const TagEditor: React.FC = () => {
                 placeholderTextColor={theme.palette.text.muted}
                 value={form[field.key]}
                 editable={capability.canWrite && !saving}
-                onChangeText={(value) => {
-                  setForm((prev) => ({ ...prev, [field.key]: value }));
-                  setDirty((prev) => ({ ...prev, [field.key]: true }));
+                onChangeText={value => {
+                  setForm(prev => ({ ...prev, [field.key]: value }));
+                  setDirty(prev => ({ ...prev, [field.key]: true }));
                 }}
                 style={[styles.input, !capability.canWrite && styles.inputReadOnly]}
               />
             </View>
           ))}
 
-          <Pressable testID="remove-cover" accessibilityRole="switch" accessibilityState={{ checked: removeCover, disabled: !capability.canWrite || !hasCover || saving }} style={styles.toggle} disabled={!capability.canWrite || !hasCover || saving} onPress={() => setRemoveCover((v) => !v)}>
-            <Text style={styles.toggleText}>Cover entfernen: {removeCover ? 'Ja' : 'Nein'}</Text>
+          <Pressable
+            testID="remove-cover"
+            accessibilityRole="switch"
+            accessibilityState={{
+              checked: removeCover,
+              disabled: !capability.canWrite || !hasCover || saving,
+            }}
+            style={styles.toggle}
+            disabled={!capability.canWrite || !hasCover || saving}
+            onPress={() => setRemoveCover(v => !v)}
+          >
+            <Text style={styles.toggleText}>
+              Cover entfernen: {removeCover ? 'Ja' : 'Nein'}
+            </Text>
           </Pressable>
 
-
-          <View testID="replace-cover-unavailable" style={[styles.toggle, styles.disabledButton]}>
+          <View
+            testID="replace-cover-unavailable"
+            style={[styles.toggle, styles.disabledButton]}
+          >
             <Text style={styles.toggleText}>Cover ersetzen: Noch nicht verfügbar</Text>
           </View>
 
@@ -225,15 +319,24 @@ const TagEditor: React.FC = () => {
             testID="save-button"
             style={[styles.saveButton, !canSave && styles.disabledButton]}
             disabled={!canSave}
-            onPress={() => Alert.alert('Bestätigung', 'Metadaten wirklich in Datei schreiben?', [
-              { text: 'Abbrechen', style: 'cancel' },
-              { text: 'Speichern', onPress: () => { void onSaveConfirmed(); } },
-            ])}
+            onPress={() =>
+              Alert.alert('Bestätigung', 'Metadaten wirklich in Datei schreiben?', [
+                { text: 'Abbrechen', style: 'cancel' },
+                {
+                  text: 'Speichern',
+                  onPress: () => {
+                    void onSaveConfirmed();
+                  },
+                },
+              ])
+            }
           >
             <Text style={styles.saveText}>{saving ? 'Speichern…' : 'Speichern'}</Text>
           </Pressable>
 
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.saveText}>Zurück</Text></Pressable>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.saveText}>Zurück</Text>
+          </Pressable>
           {status && <Text style={styles.status}>{status}</Text>}
         </ScrollView>
       </Screen>
@@ -244,19 +347,63 @@ const TagEditor: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: theme.spacing.md, gap: 10 },
-  header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 22 },
+  header: {
+    color: theme.palette.text.primary,
+    fontFamily: theme.fonts.heading,
+    fontSize: 22,
+  },
   fieldWrap: { gap: 4 },
   label: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
-  input: { borderWidth: 1, borderColor: theme.palette.border, borderRadius: theme.radii.input, padding: 10, color: theme.palette.text.primary, fontFamily: theme.fonts.body, backgroundColor: theme.palette.surface },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: theme.radii.input,
+    padding: 10,
+    color: theme.palette.text.primary,
+    fontFamily: theme.fonts.body,
+    backgroundColor: theme.palette.surface,
+  },
   inputReadOnly: { opacity: 0.8 },
-  toggle: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.surfaceElevated, borderWidth: 1, borderColor: theme.palette.border },
+  toggle: {
+    padding: 12,
+    borderRadius: theme.radii.input,
+    backgroundColor: theme.palette.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
   toggleText: { color: theme.palette.text.primary },
-  saveButton: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.primary },
-  backButton: { padding: 12, borderRadius: theme.radii.input, backgroundColor: theme.palette.surfaceElevated },
+  saveButton: {
+    padding: 12,
+    borderRadius: theme.radii.input,
+    backgroundColor: theme.palette.primary,
+  },
+  backButton: {
+    padding: 12,
+    borderRadius: theme.radii.input,
+    backgroundColor: theme.palette.surfaceElevated,
+  },
   disabledButton: { opacity: 0.5 },
-  saveText: { color: theme.palette.text.primary, textAlign: 'center', fontFamily: theme.fonts.heading },
-  warningBox: { backgroundColor: 'rgba(255, 111, 138, 0.12)', borderColor: 'rgba(255, 111, 138, 0.4)', borderWidth: 1, borderRadius: theme.radii.input, padding: 10 },
+  saveText: {
+    color: theme.palette.text.primary,
+    textAlign: 'center',
+    fontFamily: theme.fonts.heading,
+  },
+  warningBox: {
+    backgroundColor: 'rgba(255, 111, 138, 0.12)',
+    borderColor: 'rgba(255, 111, 138, 0.4)',
+    borderWidth: 1,
+    borderRadius: theme.radii.input,
+    padding: 10,
+  },
   warning: { color: theme.palette.error, fontFamily: theme.fonts.body },
+  infoBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: theme.palette.border,
+    borderWidth: 1,
+    borderRadius: theme.radii.input,
+    padding: 10,
+  },
+  infoText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
   status: { color: theme.palette.text.secondary },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading },
 });

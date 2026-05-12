@@ -38,6 +38,7 @@ export type TagWriterErrorCode =
   | 'UnsupportedUri'
   | 'MissingWritePermission'
   | 'InvalidTagData'
+  | 'FileTooLarge'
   | 'WriteNotImplemented'
   | 'BackupFailed'
   | 'TempWriteFailed'
@@ -112,4 +113,3 @@ export interface WriteTagsResult {
   bytesAfter?: number;
   warnings: string[];
 }
-
