@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Typecheck, tests, lint, config gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test -- --runInBand
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Expo config release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo config --json > expo-config.json
+          node <<'NODE'
+          const fs = require('fs');
+          const raw = JSON.parse(fs.readFileSync('expo-config.json', 'utf8'));
+          const config = raw.expo ?? raw;
+
+          const failures = [];
+          const expectEqual = (label, actual, expected) => {
+            if (actual !== expected) failures.push(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+          };
+
+          expectEqual('name', config.name, 'Kiwi');
+          expectEqual('scheme', config.scheme, 'musik-player');
+          expectEqual('slug', config.slug, 'musik-player');
+          expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');
+          expectEqual('newArchEnabled', config.newArchEnabled, false);
+
+          const androidPermissions = config.android?.permissions ?? [];
+          const forbiddenAndroidPermissions = ['android.permission.RECORD_AUDIO'];
+          for (const permission of forbiddenAndroidPermissions) {
+            if (androidPermissions.includes(permission)) failures.push(`Forbidden Android permission declared: ${permission}`);
+          }
+
+          const requiredAndroidPermissions = [
+            'android.permission.MODIFY_AUDIO_SETTINGS',
+            'android.permission.READ_MEDIA_AUDIO',
+            'android.permission.FOREGROUND_SERVICE',
+            'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+          ];
+          for (const permission of requiredAndroidPermissions) {
+            if (!androidPermissions.includes(permission)) failures.push(`Required Android permission missing: ${permission}`);
+          }
+
+          if (config.ios?.infoPlist?.NSMicrophoneUsageDescription != null) {
+            failures.push('Forbidden iOS microphone usage description declared: NSMicrophoneUsageDescription');
+          }
+
+          const projectId = config.extra?.eas?.projectId;
+          if (!projectId || typeof projectId !== 'string') failures.push('Missing expo.extra.eas.projectId');
+
+          if (failures.length > 0) {
+            console.error(failures.map(item => `- ${item}`).join('\n'));
+            process.exit(1);
+          }
+
+          console.log('Expo config release gate passed.');
+          NODE
