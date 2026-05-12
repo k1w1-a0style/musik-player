@@ -48,14 +48,14 @@ const Equalizer: React.FC = () => {
         <GlassCard style={styles.statusCard}>
           {eqNative?.available ? (
             <>
-              <Text style={styles.statusBadge}>● DSP AKTIV</Text>
-              <Text style={styles.statusText}>Native System-Equalizer mit {eqNative.bands.length} Bändern aktiv.</Text>
+              <Text style={styles.statusBadge}>● EXPERIMENTELL</Text>
+              <Text style={styles.statusText}>Native Equalizer-API verfügbar. Wirkung kann je nach Gerät, Android-Version und Audio-Session variieren.</Text>
               <Text style={styles.statusFreq}>{eqNative.bands.map(b => formatHz(b.centerFreqHz)).join(' · ')} Hz</Text>
             </>
           ) : (
             <>
               <Text style={[styles.statusBadge, styles.statusBadgeOff]}>○ NUR UI</Text>
-              <Text style={styles.statusText}>Native Equalizer-API nicht verfügbar. Auf Custom-Dev-Client / EAS-Build aktiv.</Text>
+              <Text style={styles.statusText}>Native Equalizer-API nicht verfügbar. Auf Custom-Dev-Client / EAS-Build erneut prüfen.</Text>
             </>
           )}
         </GlassCard>
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md },
   title: { fontSize: 32, fontFamily: theme.fonts.display, letterSpacing: -1, color: theme.palette.text.primary },
   statusCard: { marginBottom: theme.spacing.md },
-  statusBadge: { color: theme.palette.success, fontSize: 11, letterSpacing: 1.6, fontFamily: theme.fonts.heading, marginBottom: 6 },
+  statusBadge: { color: theme.palette.warning, fontSize: 11, letterSpacing: 1.6, fontFamily: theme.fonts.heading, marginBottom: 6 },
   statusBadgeOff: { color: theme.palette.warning },
   statusText: { color: theme.palette.text.secondary, fontSize: 12, fontFamily: theme.fonts.body, lineHeight: 18 },
   statusFreq: { color: theme.palette.text.muted, fontSize: 11, fontFamily: theme.fonts.mono, marginTop: 6 },
