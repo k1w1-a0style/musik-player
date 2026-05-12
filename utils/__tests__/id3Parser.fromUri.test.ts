@@ -8,8 +8,12 @@ jest.mock('expo-file-system', () => ({
   getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
   File: class {
     uri: string;
-    constructor(uri: string) { this.uri = uri; }
-    bytes() { return mockFileBytes(); }
+    constructor(uri: string) {
+      this.uri = uri;
+    }
+    bytes() {
+      return mockFileBytes();
+    }
   },
 }));
 
@@ -20,10 +24,25 @@ jest.mock('expo-file-system/legacy', () => ({
 
 describe('parseId3FromUri', () => {
   const enc = (s: string): number[] => Array.from(s).map(ch => ch.charCodeAt(0));
-  const u32be = (n: number): number[] => [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-  const synchsafe = (n: number): number[] => [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f];
-  const atom = (type: string, payload: number[]): number[] => [...u32be(payload.length + 8), ...enc(type), ...payload];
-  const b64 = (bytes: number[]): string => Buffer.from(Uint8Array.from(bytes)).toString('base64');
+  const u32be = (n: number): number[] => [
+    (n >> 24) & 0xff,
+    (n >> 16) & 0xff,
+    (n >> 8) & 0xff,
+    n & 0xff,
+  ];
+  const synchsafe = (n: number): number[] => [
+    (n >> 21) & 0x7f,
+    (n >> 14) & 0x7f,
+    (n >> 7) & 0x7f,
+    n & 0x7f,
+  ];
+  const atom = (type: string, payload: number[]): number[] => [
+    ...u32be(payload.length + 8),
+    ...enc(type),
+    ...payload,
+  ];
+  const b64 = (bytes: number[]): string =>
+    Buffer.from(Uint8Array.from(bytes)).toString('base64');
   const id3TextFrame = (id: string, text: string): number[] => {
     const body = [0x00, ...enc(text)];
     return [...enc(id), ...u32be(body.length), 0, 0, ...body];
@@ -43,20 +62,53 @@ describe('parseId3FromUri', () => {
   test('uses mp4 parsing when URI has query params', async () => {
     const webp = [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50];
     const data = atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...webp]);
-    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', data))])));
+    const moov = atom(
+      'moov',
+      atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', data))])),
+    );
     mockReadAsStringAsync.mockResolvedValueOnce(b64(moov));
 
     const tags = await parseId3FromUri('file:///music/track.m4a?token=abc');
     expect(tags.cover?.startsWith('data:image/webp;base64,')).toBe(true);
-    expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///music/track.m4a', expect.any(Object));
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith(
+      'file:///music/track.m4a',
+      expect.any(Object),
+    );
   });
 
+  test('keeps content URI query params when reading provider-backed files', async () => {
+    const webp = [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50];
+    const data = atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...webp]);
+    const moov = atom(
+      'moov',
+      atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', data))])),
+    );
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(moov));
+
+    const uri = 'content://provider/tree/music/track.m4a?documentId=abc';
+    const tags = await parseId3FromUri(uri);
+
+    expect(tags.cover?.startsWith('data:image/webp;base64,')).toBe(true);
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith(uri, expect.any(Object));
+  });
 
   test('head read uses trusted aligned scan and finds cover after ftyp/mdat', async () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
     const ftyp = atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1]);
     const mdat = atom('mdat', new Array(8 * 1024).fill(0x55));
-    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
+    const moov = atom(
+      'moov',
+      atom(
+        'udta',
+        atom('meta', [
+          0,
+          0,
+          0,
+          0,
+          ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg]))),
+        ]),
+      ),
+    );
     mockReadAsStringAsync.mockResolvedValueOnce(b64([...ftyp, ...mdat, ...moov]));
 
     const tags = await parseId3FromUri('file:///music/aligned-head.m4a');
@@ -70,8 +122,22 @@ describe('parseId3FromUri', () => {
     mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
     // second read (tail): JPEG signature
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
-    const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
-    mockReadAsStringAsync.mockResolvedValueOnce(b64(new Array(3005).fill(0x01).concat(tailMoov)));
+    const tailMoov = atom(
+      'moov',
+      atom(
+        'udta',
+        atom('meta', [
+          0,
+          0,
+          0,
+          0,
+          ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg]))),
+        ]),
+      ),
+    );
+    mockReadAsStringAsync.mockResolvedValueOnce(
+      b64(new Array(3005).fill(0x01).concat(tailMoov)),
+    );
 
     const tags = await parseId3FromUri('file:///music/album.mp4?token=xyz');
     expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/album.mp4');
@@ -83,13 +149,34 @@ describe('parseId3FromUri', () => {
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
-
   test('tail read remains untrusted and does not skip fake printable header before real moov', async () => {
     mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
     mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
-    const fakeHeader = [0, 0, 0, 0x40, 0x7a, 0x7a, 0x7a, 0x7a, ...new Array(56).fill(0x00)];
-    const tailMoov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])))])));
+    const fakeHeader = [
+      0,
+      0,
+      0,
+      0x40,
+      0x7a,
+      0x7a,
+      0x7a,
+      0x7a,
+      ...new Array(56).fill(0x00),
+    ];
+    const tailMoov = atom(
+      'moov',
+      atom(
+        'udta',
+        atom('meta', [
+          0,
+          0,
+          0,
+          0,
+          ...atom('ilst', atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg]))),
+        ]),
+      ),
+    );
     mockReadAsStringAsync.mockResolvedValueOnce(b64([...fakeHeader, ...tailMoov]));
 
     const tags = await parseId3FromUri('file:///music/tail-untrusted.mp4?token=xyz');
@@ -118,7 +205,9 @@ describe('parseId3FromUri', () => {
   test('uses bounded File API fallback for small files when legacy read fails', async () => {
     mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
     mockGetInfoAsync.mockResolvedValueOnce({ size: 256 });
-    mockFileBytes.mockResolvedValueOnce(new Uint8Array([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0]));
+    mockFileBytes.mockResolvedValueOnce(
+      new Uint8Array([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0]),
+    );
 
     await parseId3FromUri('file:///music/small.mp3?x=1');
     expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/small.mp3');

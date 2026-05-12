@@ -27,11 +27,20 @@ jest.mock('expo-file-system/legacy', () => ({
 type RNTPMock = typeof TrackPlayer & {
   __reset: () => void;
   __getQueue: () => unknown[];
+  __getRepeatMode: () => number;
+  __trigger: (event: string, payload: unknown) => void;
 };
 
 const SONGS: Song[] = [
   { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3' },
-  { id: 's2', title: 'Song 2', artist: 'A', uri: 'file:///s2.mp3', cover: 'file:///cover-s2.jpg', coverInfo: { status: 'cached', uri: 'file:///cover-s2.jpg' } },
+  {
+    id: 's2',
+    title: 'Song 2',
+    artist: 'A',
+    uri: 'file:///s2.mp3',
+    cover: 'file:///cover-s2.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///cover-s2.jpg' },
+  },
   { id: 's3', title: 'Song 3', artist: 'B', uri: 'file:///s3.mp3' },
   { id: 's4', title: 'Song 4', artist: 'B', uri: 'file:///s4.mp3' },
 ];
@@ -41,13 +50,27 @@ const Probe: React.FC = () => {
   return (
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
-      <Text testID="probe-playback-queue">{ctx.playbackQueue.map(song => song.id).join(',')}</Text>
-      <Text testID="probe-playback-queue-titles">{ctx.playbackQueue.map(song => song.title).join(',')}</Text>
-      <Text testID="probe-song-s2-title">{ctx.songs.find(song => song.id === 's2')?.title ?? '-'}</Text>
-      <Text testID="probe-song-s2-cover">{ctx.songs.find(song => song.id === 's2')?.cover ?? '-'}</Text>
-      <Text testID="probe-song-s2-track">{ctx.songs.find(song => song.id === 's2')?.trackNumber ?? '-'}</Text>
-      <Text testID="probe-song-s2-disc">{ctx.songs.find(song => song.id === 's2')?.discNumber ?? '-'}</Text>
-      <Text testID="probe-song-s2-comment">{ctx.songs.find(song => song.id === 's2')?.comment ?? '-'}</Text>
+      <Text testID="probe-playback-queue">
+        {ctx.playbackQueue.map(song => song.id).join(',')}
+      </Text>
+      <Text testID="probe-playback-queue-titles">
+        {ctx.playbackQueue.map(song => song.title).join(',')}
+      </Text>
+      <Text testID="probe-song-s2-title">
+        {ctx.songs.find(song => song.id === 's2')?.title ?? '-'}
+      </Text>
+      <Text testID="probe-song-s2-cover">
+        {ctx.songs.find(song => song.id === 's2')?.cover ?? '-'}
+      </Text>
+      <Text testID="probe-song-s2-track">
+        {ctx.songs.find(song => song.id === 's2')?.trackNumber ?? '-'}
+      </Text>
+      <Text testID="probe-song-s2-disc">
+        {ctx.songs.find(song => song.id === 's2')?.discNumber ?? '-'}
+      </Text>
+      <Text testID="probe-song-s2-comment">
+        {ctx.songs.find(song => song.id === 's2')?.comment ?? '-'}
+      </Text>
       <Text testID="probe-songs-count">{String(ctx.songs.length)}</Text>
       <Text testID="probe-shuffle">{String(ctx.shuffle)}</Text>
       <Text testID="probe-repeat">{ctx.repeatMode}</Text>
@@ -62,10 +85,23 @@ const Probe: React.FC = () => {
       <Pressable testID="play-s2" onPress={() => ctx.playSong(SONGS[1], SONGS)}>
         <Text>play s2</Text>
       </Pressable>
-      <Pressable testID="play-s3-subset" onPress={() => ctx.playSong(SONGS[2], [SONGS[2], SONGS[3]])}>
+      <Pressable
+        testID="play-s3-subset"
+        onPress={() => ctx.playSong(SONGS[2], [SONGS[2], SONGS[3]])}
+      >
         <Text>play s3 subset</Text>
       </Pressable>
-      <Pressable testID="play-demo" onPress={() => ctx.playSong({ id: 'demo-1', title: 'Demo 1', artist: 'Demo', uri: 'file:///demo1.mp3' })}>
+      <Pressable
+        testID="play-demo"
+        onPress={() =>
+          ctx.playSong({
+            id: 'demo-1',
+            title: 'Demo 1',
+            artist: 'Demo',
+            uri: 'file:///demo1.mp3',
+          })
+        }
+      >
         <Text>play demo</Text>
       </Pressable>
       <Pressable testID="toggle-shuffle" onPress={() => ctx.toggleShuffle()}>
@@ -89,19 +125,44 @@ const Probe: React.FC = () => {
       <Pressable testID="cycle-repeat" onPress={() => ctx.cycleRepeatMode()}>
         <Text>repeat</Text>
       </Pressable>
-      <Pressable testID="patch-s2-title" onPress={() => ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', album: 'Edited Album' })}>
+      <Pressable
+        testID="patch-s2-title"
+        onPress={() =>
+          ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', album: 'Edited Album' })
+        }
+      >
         <Text>patch s2</Text>
       </Pressable>
-      <Pressable testID="patch-s2-meta-extra" onPress={() => ctx.updateSongMetadata('s2', { trackNumber: '7/14', discNumber: '2/3', comment: 'Updated note' })}>
+      <Pressable
+        testID="patch-s2-meta-extra"
+        onPress={() =>
+          ctx.updateSongMetadata('s2', {
+            trackNumber: '7/14',
+            discNumber: '2/3',
+            comment: 'Updated note',
+          })
+        }
+      >
         <Text>patch s2 extra</Text>
       </Pressable>
-      <Pressable testID="patch-s2-cover-clear" onPress={() => ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })}>
+      <Pressable
+        testID="patch-s2-cover-clear"
+        onPress={() =>
+          ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })
+        }
+      >
         <Text>patch s2 cover clear</Text>
       </Pressable>
-      <Pressable testID="patch-s1-title" onPress={() => ctx.updateSongMetadata('s1', { title: 'Song 1 Edited' })}>
+      <Pressable
+        testID="patch-s1-title"
+        onPress={() => ctx.updateSongMetadata('s1', { title: 'Song 1 Edited' })}
+      >
         <Text>patch s1</Text>
       </Pressable>
-      <Pressable testID="patch-s3-title" onPress={() => ctx.updateSongMetadata('s3', { title: 'Song 3 Edited' })}>
+      <Pressable
+        testID="patch-s3-title"
+        onPress={() => ctx.updateSongMetadata('s3', { title: 'Song 3 Edited' })}
+      >
         <Text>patch s3</Text>
       </Pressable>
       <Pressable testID="add-pl" onPress={() => ctx.createPlaylist('Drive')}>
@@ -118,7 +179,9 @@ const renderProvider = (): ReturnType<typeof render> =>
     </MusicProvider>,
   );
 
-const waitReady = async (getByTestId: (s: string) => { props: { children: unknown } }) => {
+const waitReady = async (
+  getByTestId: (s: string) => { props: { children: unknown } },
+) => {
   await waitFor(() => expect(getByTestId('probe-ready').props.children).toBe('true'));
 };
 
@@ -126,8 +189,6 @@ beforeEach(() => {
   (TrackPlayer as RNTPMock).__reset();
   (AsyncStorage as unknown as { __reset: () => void }).__reset();
   jest.clearAllMocks();
-
-
 });
 
 describe('MusicContext', () => {
@@ -189,7 +250,9 @@ describe('MusicContext', () => {
     expect(shuffledQueue).toHaveLength(2);
     expect(shuffledQueue[0]?.id).toBe('s3');
     expect(shuffledQueue.map(track => track.id).sort()).toEqual(['s3', 's4']);
-    const playbackQueueIds = String(getByTestId('probe-playback-queue').props.children).split(',').sort();
+    const playbackQueueIds = String(getByTestId('probe-playback-queue').props.children)
+      .split(',')
+      .sort();
     expect(playbackQueueIds).toEqual(['s3', 's4']);
   });
 
@@ -216,8 +279,6 @@ describe('MusicContext', () => {
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(3);
   });
 
-
-
   test('does not auto-start visualizer and cleans subscriptions on unmount', async () => {
     const { getByTestId, unmount } = renderProvider();
     await waitReady(getByTestId);
@@ -243,7 +304,9 @@ describe('MusicContext', () => {
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);
     await act(async () => fireEvent.press(getByTestId('add-pl')));
-    await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('1'));
+    await waitFor(() =>
+      expect(getByTestId('probe-playlists-count').props.children).toBe('1'),
+    );
     // Persisted via the effect — give the microtask queue a chance
     await waitFor(async () => {
       const stored = await storage.get<{ name: string }[]>(StorageKeys.PLAYLISTS);
@@ -257,16 +320,18 @@ describe('MusicContext', () => {
     jest.clearAllMocks();
 
     await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await waitFor(() => expect(getByTestId('probe-songs-count').props.children).toBe('4'));
+    await waitFor(() =>
+      expect(getByTestId('probe-songs-count').props.children).toBe('4'),
+    );
     await act(async () => fireEvent.press(getByTestId('set-songs')));
 
     await waitFor(() => {
-      const setCalls = (AsyncStorage.setItem as jest.Mock).mock.calls
-        .filter(([key]) => key === '@musikplayer:songs');
+      const setCalls = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
+        ([key]) => key === '@musikplayer:songs',
+      );
       expect(setCalls).toHaveLength(1);
     });
   });
-
 
   test('updateSongMetadata updates songs/currentSong/playbackQueue and keeps queue order', async () => {
     const { getByTestId } = renderProvider();
@@ -280,9 +345,10 @@ describe('MusicContext', () => {
     expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited');
     expect(getByTestId('probe-current').props.children).toBe('s2');
     expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-    expect(String(getByTestId('probe-playback-queue-titles').props.children)).toMatch(/^Song 2 Edited,/);
+    expect(String(getByTestId('probe-playback-queue-titles').props.children)).toMatch(
+      /^Song 2 Edited,/,
+    );
   });
-
 
   test('updateSongMetadata patches track/disc/comment and keeps queue order', async () => {
     const { getByTestId } = renderProvider();
@@ -311,14 +377,14 @@ describe('MusicContext', () => {
     expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
   });
 
-
   test('updateSongMetadata syncs native metadata using queue indexes for queued songs and not for non-queued songs', async () => {
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);
     await act(async () => fireEvent.press(getByTestId('set-songs')));
     await act(async () => fireEvent.press(getByTestId('play-s2')));
 
-    const resetCallsBeforeMetadataPatch = (TrackPlayer.reset as jest.Mock).mock.calls.length;
+    const resetCallsBeforeMetadataPatch = (TrackPlayer.reset as jest.Mock).mock.calls
+      .length;
     const addCallsBeforeMetadataPatch = (TrackPlayer.add as jest.Mock).mock.calls.length;
 
     await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
@@ -334,7 +400,9 @@ describe('MusicContext', () => {
       }),
     );
     expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).toBe(0);
-    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).not.toBe('s2');
+    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).not.toBe(
+      's2',
+    );
 
     await act(async () => fireEvent.press(getByTestId('patch-s3-title')));
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
@@ -351,26 +419,41 @@ describe('MusicContext', () => {
     expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
   });
 
-
   test('mock queue updateMetadataForTrack treats first argument as queue index and ignores out-of-range', async () => {
     await TrackPlayer.add([
       { id: 'q1', title: 'Queue 1' },
       { id: 'q2', title: 'Queue 2' },
     ] as any);
 
-    await TrackPlayer.updateMetadataForTrack(1, { title: 'Queue 2 Updated', artist: 'Artist 2' });
-    let queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string; artist?: string }>;
+    await TrackPlayer.updateMetadataForTrack(1, {
+      title: 'Queue 2 Updated',
+      artist: 'Artist 2',
+    });
+    let queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{
+      id: string;
+      title: string;
+      artist?: string;
+    }>;
     expect(queue[0]).toMatchObject({ id: 'q1', title: 'Queue 1' });
-    expect(queue[1]).toMatchObject({ id: 'q2', title: 'Queue 2 Updated', artist: 'Artist 2' });
+    expect(queue[1]).toMatchObject({
+      id: 'q2',
+      title: 'Queue 2 Updated',
+      artist: 'Artist 2',
+    });
 
     const queueBeforeOutOfRange = [...queue];
     await TrackPlayer.updateMetadataForTrack(99, { title: 'Out of Range' });
-    queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string; title: string }>;
+    queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{
+      id: string;
+      title: string;
+    }>;
     expect(queue).toEqual(queueBeforeOutOfRange);
   });
 
   test('updateSongMetadata cover removal syncs native artwork undefined and handles native failure as non-fatal', async () => {
-    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(new Error('native fail'));
+    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(
+      new Error('native fail'),
+    );
     const { getByTestId } = renderProvider();
     await waitReady(getByTestId);
     await act(async () => fireEvent.press(getByTestId('set-songs')));
@@ -388,7 +471,13 @@ describe('MusicContext', () => {
 
   test('hydrates songs by migrating base64 covers before persisting', async () => {
     await storage.set(StorageKeys.SONGS, [
-      { id: 's1', title: 'Song 1', artist: 'A', uri: 'file:///s1.mp3', cover: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB' },
+      {
+        id: 's1',
+        title: 'Song 1',
+        artist: 'A',
+        uri: 'file:///s1.mp3',
+        cover: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      },
     ]);
 
     const { getByTestId } = renderProvider();
@@ -413,6 +502,46 @@ describe('MusicContext', () => {
     const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
     expect(queue[0]?.id).toBe('s2');
     expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+  });
+
+  test('hydrates persisted repeat mode into native TrackPlayer', async () => {
+    await storage.set(StorageKeys.REPEAT_MODE, 'one');
+
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+
+    expect(getByTestId('probe-repeat').props.children).toBe('one');
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(1);
+    expect((TrackPlayer as RNTPMock).__getRepeatMode()).toBe(1);
+  });
+
+  test('active track changes persist CURRENT_SONG_ID for library songs', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+
+    await act(async () => fireEvent.press(getByTestId('next')));
+
+    await waitFor(async () => {
+      await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s3');
+    });
+  });
+
+  test('active track changes clear CURRENT_SONG_ID for non-library songs', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('play-demo')));
+
+    await act(async () => {
+      (TrackPlayer as RNTPMock).__trigger('PlaybackActiveTrackChanged', {
+        track: { id: 'demo-1' },
+      });
+    });
+
+    await waitFor(async () => {
+      await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    });
   });
 
   test('next/previous keep currentSong in sync and no-op safely for single-song queue', async () => {
@@ -440,5 +569,4 @@ describe('MusicContext', () => {
     const storedCurrent = await storage.get<string>(StorageKeys.CURRENT_SONG_ID);
     expect(storedCurrent).toBeNull();
   });
-
 });

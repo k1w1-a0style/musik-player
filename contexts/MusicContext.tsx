@@ -14,7 +14,7 @@ import TrackPlayer, {
   Event,
   RepeatMode as RNTPRepeatMode,
   State,
-  usePlaybackState
+  usePlaybackState,
 } from 'react-native-track-player';
 import {
   EQ_PRESETS,
@@ -25,10 +25,7 @@ import {
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
-import SystemAudio, {
-  type EqInitResult,
-  type PaletteResult,
-} from 'expo-system-audio';
+import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
   // Library
@@ -140,6 +137,30 @@ const toTrack = (s: Song) => ({
   duration: s.duration ? s.duration / 1000 : undefined,
 });
 
+const toRNTPRepeatMode = (mode: RepeatMode): RNTPRepeatMode =>
+  mode === 'off'
+    ? RNTPRepeatMode.Off
+    : mode === 'one'
+      ? RNTPRepeatMode.Track
+      : RNTPRepeatMode.Queue;
+
+const moveSongToFront = (queue: Song[], songId?: string): Song[] => {
+  if (!songId) return queue.slice();
+  const idx = queue.findIndex(song => song.id === songId);
+  return idx >= 0 ? [...queue.slice(idx), ...queue.slice(0, idx)] : queue.slice();
+};
+
+const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string): Song[] => {
+  const ordered = moveSongToFront(queue, currentSongId);
+  if (ordered.length <= 2) return ordered;
+  const [current, ...rest] = ordered;
+  for (let i = rest.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return current ? [current, ...rest] : rest;
+};
+
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
 
@@ -171,6 +192,14 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const lastVisualizerUpdateRef = useRef(0);
   const persistedRefs = useRef<Record<string, string>>({});
 
+  const persistCurrentSongId = useCallback(async (song: Song | null): Promise<void> => {
+    if (!song || !songsRef.current.some(item => item.id === song.id)) {
+      await storage.remove(StorageKeys.CURRENT_SONG_ID);
+      return;
+    }
+    await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
+  }, []);
+
   const playback = usePlaybackState();
 
   const isPlaying = playback.state === State.Playing;
@@ -185,7 +214,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
         await TrackPlayer.updateOptions({
           android: {
-            appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+            appKilledPlaybackBehavior:
+              AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
           },
           capabilities: [
             Capability.Play,
@@ -195,11 +225,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             Capability.SeekTo,
             Capability.Stop,
           ],
-          compactCapabilities: [
-            Capability.Play,
-            Capability.Pause,
-            Capability.SkipToNext,
-          ],
+          compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
           notificationCapabilities: [
             Capability.Play,
             Capability.Pause,
@@ -238,33 +264,37 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (storedSongs) {
         const sanitizedSongs = await sanitizeSongsForStorage(storedSongs);
         if (cancelled) return;
+        songsRef.current = sanitizedSongs;
         setSongsState(sanitizedSongs);
-        const changed = sanitizedSongs.some((song, index) => song.cover !== storedSongs[index]?.cover);
+        const changed = sanitizedSongs.some(
+          (song, index) => song.cover !== storedSongs[index]?.cover,
+        );
         if (changed) await storage.set(StorageKeys.SONGS, sanitizedSongs);
 
         const hydratedQueue = sanitizedSongs.filter(song => !!song.uri);
-        queueContextRef.current = hydratedQueue;
-        baseQueueContextRef.current = hydratedQueue;
-        setPlaybackQueue(hydratedQueue);
+        baseQueueContextRef.current = hydratedQueue.slice();
 
-        if (storedCurrentSongId) {
-          const restoredSong = hydratedQueue.find(song => song.id === storedCurrentSongId);
-          if (restoredSong) {
-            setCurrentSong(restoredSong);
-            const idx = hydratedQueue.findIndex(song => song.id === restoredSong.id);
-            const orderedQueue = idx >= 0
-              ? [...hydratedQueue.slice(idx), ...hydratedQueue.slice(0, idx)]
-              : hydratedQueue.slice();
-            queueContextRef.current = orderedQueue;
-            setPlaybackQueue(orderedQueue);
-            try {
-              await TrackPlayer.reset();
-              await TrackPlayer.add(orderedQueue.map(toTrack));
-            } catch {
-              // ignore hydration queue init failures
-            }
-          } else {
-            await storage.remove(StorageKeys.CURRENT_SONG_ID);
+        const restoredSong = storedCurrentSongId
+          ? hydratedQueue.find(song => song.id === storedCurrentSongId)
+          : undefined;
+        const orderedQueue = storedShuffle
+          ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id)
+          : moveSongToFront(hydratedQueue, restoredSong?.id);
+
+        queueContextRef.current = orderedQueue;
+        setPlaybackQueue(orderedQueue);
+
+        if (storedCurrentSongId && !restoredSong) {
+          await storage.remove(StorageKeys.CURRENT_SONG_ID);
+        }
+
+        if (restoredSong) {
+          setCurrentSong(restoredSong);
+          try {
+            await TrackPlayer.reset();
+            await TrackPlayer.add(orderedQueue.map(toTrack));
+          } catch {
+            // ignore hydration queue init failures
           }
         }
       }
@@ -276,7 +306,10 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setVolumeState(storedVolume);
         TrackPlayer.setVolume(storedVolume).catch(() => undefined);
       }
-      if (storedRepeat) setRepeatMode(storedRepeat);
+      if (storedRepeat) {
+        setRepeatMode(storedRepeat);
+        TrackPlayer.setRepeatMode(toRNTPRepeatMode(storedRepeat)).catch(() => undefined);
+      }
       if (storedShuffle != null) setShuffle(storedShuffle);
       setIsReady(true);
     })();
@@ -287,16 +320,23 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Keep "currentSong" in sync with active track
   useEffect(() => {
-    const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async data => {
-      const track = data.track;
-      if (!track) return;
-      const s = songsRef.current.find(x => x.id === track.id)
-        ?? queueContextRef.current.find(x => x.id === track.id)
-        ?? baseQueueContextRef.current.find(x => x.id === track.id);
-      if (s) setCurrentSong(s);
-    });
+    const sub = TrackPlayer.addEventListener(
+      Event.PlaybackActiveTrackChanged,
+      async data => {
+        const track = data.track;
+        if (!track) return;
+        const s =
+          songsRef.current.find(x => x.id === track.id) ??
+          queueContextRef.current.find(x => x.id === track.id) ??
+          baseQueueContextRef.current.find(x => x.id === track.id);
+        if (s) {
+          setCurrentSong(s);
+          await persistCurrentSongId(s);
+        }
+      },
+    );
     return () => sub.remove();
-  }, []);
+  }, [persistCurrentSongId]);
 
   // ---- Native equalizer init ----
   useEffect(() => {
@@ -328,7 +368,10 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       let bestDist = Infinity;
       UI_FREQS.forEach((f, i) => {
         const d = Math.abs(f - band.centerFreqHz);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
       });
       const dB = eqBands[bestIdx] ?? 0;
       const millibel = Math.round(dB * 100); // 1 dB = 100 mB
@@ -378,15 +421,17 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, [currentSong?.cover]);
 
-
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
-  const persistIfChanged = useCallback(async <T,>(key: string, value: T): Promise<void> => {
-    const serialized = JSON.stringify(value);
-    if (persistedRefs.current[key] === serialized) return;
-    const stored = await storage.set(key, value);
-    if (stored) persistedRefs.current[key] = serialized;
-  }, []);
+  const persistIfChanged = useCallback(
+    async <T,>(key: string, value: T): Promise<void> => {
+      const serialized = JSON.stringify(value);
+      if (persistedRefs.current[key] === serialized) return;
+      const stored = await storage.set(key, value);
+      if (stored) persistedRefs.current[key] = serialized;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!isReady) return;
@@ -422,7 +467,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     (async () => {
       const sanitizedSongs = await sanitizeSongsForStorage(songs);
       if (cancelled) return;
-      const changed = sanitizedSongs.some((song, index) => song.cover !== songs[index]?.cover);
+      const changed = sanitizedSongs.some(
+        (song, index) => song.cover !== songs[index]?.cover,
+      );
       if (changed) {
         setSongsState(sanitizedSongs);
         return;
@@ -443,27 +490,31 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
   }, []);
 
-
   const updateSongMetadata = useCallback((songId: string, patch: Partial<Song>) => {
-    const patchSong = (song: Song): Song => (song.id === songId ? { ...song, ...patch } : song);
-    setSongsState((prev) => prev.map(patchSong));
-    setCurrentSong((prev) => (prev?.id === songId ? { ...prev, ...patch } : prev));
-    setPlaybackQueue((prev) => prev.map(patchSong));
+    const patchSong = (song: Song): Song =>
+      song.id === songId ? { ...song, ...patch } : song;
+    setSongsState(prev => prev.map(patchSong));
+    setCurrentSong(prev => (prev?.id === songId ? { ...prev, ...patch } : prev));
+    setPlaybackQueue(prev => prev.map(patchSong));
     queueContextRef.current = queueContextRef.current.map(patchSong);
     baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
 
-    const queueIndex = queueContextRef.current.findIndex((song) => song.id === songId);
-    const queuedPatchedSong = (queueIndex >= 0 ? queueContextRef.current[queueIndex] : undefined)
-      ?? baseQueueContextRef.current.find((song) => song.id === songId);
+    const queueIndex = queueContextRef.current.findIndex(song => song.id === songId);
+    const queuedPatchedSong =
+      (queueIndex >= 0 ? queueContextRef.current[queueIndex] : undefined) ??
+      baseQueueContextRef.current.find(song => song.id === songId);
     if (!queuedPatchedSong || queueIndex < 0) return;
 
-    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrack(queuedPatchedSong)).catch(() => undefined);
+    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrack(queuedPatchedSong)).catch(
+      () => undefined,
+    );
   }, []);
   // ---- Playback ----
   const playSong = useCallback(async (song: Song, queue?: Song[]) => {
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
     const contextQueue = sourceQueue.filter(x => !!x.uri);
-    const requestedSong = contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
+    const requestedSong =
+      contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
     if (!requestedSong) return;
 
     const idx = contextQueue.findIndex(x => x.id === requestedSong.id);
@@ -523,9 +574,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, []);
 
   const toggleShuffle = useCallback(async () => {
-    const currentQueue = (queueContextRef.current.length > 0
-      ? queueContextRef.current
-      : songsRef.current.filter(song => !!song.uri)).slice();
+    const currentQueue = (
+      queueContextRef.current.length > 0
+        ? queueContextRef.current
+        : songsRef.current.filter(song => !!song.uri)
+    ).slice();
     if (currentQueue.length === 0) return;
 
     const current = await TrackPlayer.getActiveTrack();
@@ -536,7 +589,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (baseQueueContextRef.current.length === 0) {
         baseQueueContextRef.current = currentQueue.slice();
       }
-      const currentTrack = currentId ? list.find(song => song.id === currentId) : undefined;
+      const currentTrack = currentId
+        ? list.find(song => song.id === currentId)
+        : undefined;
       const rest = list.filter(song => song.id !== currentId);
       for (let i = rest.length - 1; i > 0; i -= 1) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -544,12 +599,16 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       list = currentTrack ? [currentTrack, ...rest] : rest;
     } else {
-      const baseQueue = baseQueueContextRef.current.length > 0 ? baseQueueContextRef.current : currentQueue;
+      const baseQueue =
+        baseQueueContextRef.current.length > 0
+          ? baseQueueContextRef.current
+          : currentQueue;
       if (currentId) {
         const curIdx = baseQueue.findIndex(song => song.id === currentId);
-        list = curIdx >= 0
-          ? [...baseQueue.slice(curIdx), ...baseQueue.slice(0, curIdx)]
-          : baseQueue.slice();
+        list =
+          curIdx >= 0
+            ? [...baseQueue.slice(curIdx), ...baseQueue.slice(0, curIdx)]
+            : baseQueue.slice();
       } else {
         list = baseQueue.slice();
       }
@@ -575,13 +634,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const next: RepeatMode =
       repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     setRepeatMode(next);
-    await TrackPlayer.setRepeatMode(
-      next === 'off'
-        ? RNTPRepeatMode.Off
-        : next === 'one'
-          ? RNTPRepeatMode.Track
-          : RNTPRepeatMode.Queue,
-    );
+    await TrackPlayer.setRepeatMode(toRNTPRepeatMode(next));
   }, [repeatMode]);
 
   const setVolume = useCallback(async (v: number) => {
@@ -735,12 +788,26 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const libraryValue = useMemo<LibraryMusicContextValue>(
-    () => ({ songs, setSongs, currentSong, playSong, isReady, isPlaying, updateSongMetadata }),
+    () => ({
+      songs,
+      setSongs,
+      currentSong,
+      playSong,
+      isReady,
+      isPlaying,
+      updateSongMetadata,
+    }),
     [songs, setSongs, currentSong, playSong, isReady, isPlaying, updateSongMetadata],
   );
 
   const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(
-    () => ({ currentSong, isPlaying, togglePlayPause, next, canSkipNext: playbackQueue.length > 1 }),
+    () => ({
+      currentSong,
+      isPlaying,
+      togglePlayPause,
+      next,
+      canSkipNext: playbackQueue.length > 1,
+    }),
     [currentSong, isPlaying, togglePlayPause, next, playbackQueue.length],
   );
 
@@ -759,14 +826,28 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       playSong,
       canSkip: playbackQueue.length > 1,
     }),
-    [playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong],
+    [
+      playbackQueue,
+      currentSong,
+      seekTo,
+      isPlaying,
+      volume,
+      setVolume,
+      palette,
+      fftBins,
+      visualizerRunning,
+      visualizerError,
+      playSong,
+    ],
   );
 
   return (
     <MusicContext.Provider value={value}>
       <LibraryMusicContext.Provider value={libraryValue}>
         <MiniPlayerMusicContext.Provider value={miniPlayerValue}>
-          <NowPlayingMusicContext.Provider value={nowPlayingValue}>{children}</NowPlayingMusicContext.Provider>
+          <NowPlayingMusicContext.Provider value={nowPlayingValue}>
+            {children}
+          </NowPlayingMusicContext.Provider>
         </MiniPlayerMusicContext.Provider>
       </LibraryMusicContext.Provider>
     </MusicContext.Provider>
@@ -789,12 +870,14 @@ export const useLibraryMusicContext = (): LibraryMusicContextValue => {
 
 export const useMiniPlayerMusicContext = (): MiniPlayerMusicContextValue => {
   const ctx = useContext(MiniPlayerMusicContext);
-  if (!ctx) throw new Error('useMiniPlayerMusicContext must be used within a MusicProvider');
+  if (!ctx)
+    throw new Error('useMiniPlayerMusicContext must be used within a MusicProvider');
   return ctx;
 };
 
 export const useNowPlayingMusicContext = (): NowPlayingMusicContextValue => {
   const ctx = useContext(NowPlayingMusicContext);
-  if (!ctx) throw new Error('useNowPlayingMusicContext must be used within a MusicProvider');
+  if (!ctx)
+    throw new Error('useNowPlayingMusicContext must be used within a MusicProvider');
   return ctx;
 };

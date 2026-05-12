@@ -11,7 +11,7 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 - Lokale Musikbibliothek via `expo-media-library` inkl. ID3-Auslese.
 - Wiedergabe mit `react-native-track-player` (Lockscreen/Bluetooth/Background).
 - Playlists, Cover-Ansichten, Tag-Editor (einziger Schreibpfad), Equalizer-UI.
-- Visualizer-UI ist standardmäßig ohne Mikrofonzugriff aktiv; native FFT/Audio-Analyse ist derzeit release-sicher deaktiviert.
+- Visualizer-UI läuft ohne Mikrofonzugriff; native FFT/Audio-Analyse ist release-sicher deaktiviert.
 
 > Hinweis: Push-Notifications werden nicht mehr als separates Utility geführt.
 
@@ -41,13 +41,18 @@ npx expo config --json
 
 ## Aktuelle Testlage
 
-- **8 Test Suites**
-- **41 Tests**
+Die Testanzahl wird bewusst nicht hart im README gepflegt. Aktuell maßgeblich ist:
+
+```bash
+npm test -- --runInBand
+```
 
 ## Release-Hinweise
 
 - Vor einem Release immer einen **echten Android-/EAS-Build** ausführen (nicht nur Expo Go).
 - Playback benötigt **keinen Mikrofonzugriff**; `RECORD_AUDIO` wird in der App-Konfiguration nicht angefordert.
+- Der Tag-Editor schreibt nur lokale `file://` MP3/MP4/M4A-Dateien über Backup + Temp + Byteprüfung. `content://`/SAF bleibt read-only, bis ein echter SAF-Write-Flow vorhanden ist.
+- Für große Audio-Dateien ist In-App-Tag-Schreiben begrenzt, um RAM- und Dateikorruptionsrisiken auf Android zu senken.
 
 ## Projektstruktur (vereinfacht)
 

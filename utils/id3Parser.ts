@@ -29,24 +29,21 @@ type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number => {
   return (
-    (bytes[off] << 21) |
-    (bytes[off + 1] << 14) |
-    (bytes[off + 2] << 7) |
-    bytes[off + 3]
+    (bytes[off] << 21) | (bytes[off + 1] << 14) | (bytes[off + 2] << 7) | bytes[off + 3]
   );
 };
 
 const decodeSize = (bytes: Uint8Array, off: number): number => {
   return (
-    (bytes[off] << 24) |
-    (bytes[off + 1] << 16) |
-    (bytes[off + 2] << 8) |
-    bytes[off + 3]
+    (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]
   );
 };
 
 const readU32 = (bytes: Uint8Array, off: number): number =>
-  ((bytes[off] << 24) >>> 0) + (bytes[off + 1] << 16) + (bytes[off + 2] << 8) + bytes[off + 3];
+  ((bytes[off] << 24) >>> 0) +
+  (bytes[off + 1] << 16) +
+  (bytes[off + 2] << 8) +
+  bytes[off + 3];
 
 const readLatin1 = (bytes: Uint8Array, start: number, end: number): string => {
   let s = '';
@@ -86,9 +83,7 @@ const readUtf8 = (bytes: Uint8Array, start: number, end: number): string => {
         i += 1;
         continue;
       }
-      out += String.fromCharCode(
-        ((b & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f),
-      );
+      out += String.fromCharCode(((b & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f));
       i += 3;
     } else if ((b & 0xf8) === 0xf0) {
       if (i + 3 >= end) break;
@@ -100,12 +95,16 @@ const readUtf8 = (bytes: Uint8Array, start: number, end: number): string => {
         i += 1;
         continue;
       }
-      const codePoint = ((b & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+      const codePoint =
+        ((b & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
       if (codePoint < 0x10000 || codePoint > 0x10ffff) {
         out += '\ufffd';
       } else {
         const adjusted = codePoint - 0x10000;
-        out += String.fromCharCode(0xd800 + (adjusted >> 10), 0xdc00 + (adjusted & 0x03ff));
+        out += String.fromCharCode(
+          0xd800 + (adjusted >> 10),
+          0xdc00 + (adjusted & 0x03ff),
+        );
       }
       i += 4;
     } else {
@@ -157,9 +156,13 @@ const decodeText = (bytes: Uint8Array, start: number, end: number): string => {
   }
 };
 
-
-const decodeComm = (bytes: Uint8Array, start: number, end: number): { description: string; text: string } | undefined => {
-  if (start < 0 || end > bytes.length || end <= start || start + 4 > end) return undefined;
+const decodeComm = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+): { description: string; text: string } | undefined => {
+  if (start < 0 || end > bytes.length || end <= start || start + 4 > end)
+    return undefined;
   const enc = bytes[start];
   let p = start + 1 + 3;
   let description = '';
@@ -175,9 +178,13 @@ const decodeComm = (bytes: Uint8Array, start: number, end: number): { descriptio
 
   const descStart = p;
   while (p < end && bytes[p] !== 0) p += 1;
-  description = (enc === 0x03 ? readUtf8(bytes, descStart, p) : readLatin1(bytes, descStart, p)).trim();
+  description = (
+    enc === 0x03 ? readUtf8(bytes, descStart, p) : readLatin1(bytes, descStart, p)
+  ).trim();
   p = p < end ? p + 1 : end;
-  const text = (enc === 0x03 ? readUtf8(bytes, p, end) : readLatin1(bytes, p, end)).trim();
+  const text = (
+    enc === 0x03 ? readUtf8(bytes, p, end) : readLatin1(bytes, p, end)
+  ).trim();
   return { description, text };
 };
 
@@ -188,7 +195,10 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   for (; i + 2 < bytes.length; i += 3) {
     const b = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
     out +=
-      chars[(b >> 18) & 63] + chars[(b >> 12) & 63] + chars[(b >> 6) & 63] + chars[b & 63];
+      chars[(b >> 18) & 63] +
+      chars[(b >> 12) & 63] +
+      chars[(b >> 6) & 63] +
+      chars[b & 63];
   }
   if (i < bytes.length) {
     const r = bytes.length - i;
@@ -203,23 +213,32 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
 };
 
 const detectMimeFromMagicBytes = (bytes: Uint8Array): ImageMime | undefined => {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+    return 'image/jpeg';
   if (
-    bytes.length >= 8
-    && bytes[0] === 0x89
-    && bytes[1] === 0x50
-    && bytes[2] === 0x4e
-    && bytes[3] === 0x47
-    && bytes[4] === 0x0d
-    && bytes[5] === 0x0a
-    && bytes[6] === 0x1a
-    && bytes[7] === 0x0a
-  ) return 'image/png';
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  )
+    return 'image/png';
   if (
-    bytes.length >= 12
-    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
-  ) return 'image/webp';
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  )
+    return 'image/webp';
   return undefined;
 };
 
@@ -232,7 +251,10 @@ const normalizeMime = (value?: string): ImageMime | undefined => {
   return undefined;
 };
 
-const buildCoverDataUri = (imageBytes: Uint8Array, mimeHint?: string): string | undefined => {
+const buildCoverDataUri = (
+  imageBytes: Uint8Array,
+  mimeHint?: string,
+): string | undefined => {
   if (imageBytes.length === 0) return undefined;
   const hintMime = normalizeMime(mimeHint);
   const magicMime = detectMimeFromMagicBytes(imageBytes);
@@ -242,7 +264,11 @@ const buildCoverDataUri = (imageBytes: Uint8Array, mimeHint?: string): string | 
   return `data:${mime};base64,${bytesToBase64(imageBytes)}`;
 };
 
-const decodeAPIC = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+const decodeAPIC = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+): string | undefined => {
   if (start < 0 || end > bytes.length || end <= start) return undefined;
   const enc = bytes[start];
   let p = start + 1;
@@ -281,7 +307,10 @@ const decodePIC = (bytes: Uint8Array, start: number, end: number): string | unde
     p = p < end ? p + 1 : end;
   }
   if (p >= end) return undefined;
-  return buildCoverDataUri(bytes.subarray(p, end), format ? `image/${format}` : undefined);
+  return buildCoverDataUri(
+    bytes.subarray(p, end),
+    format ? `image/${format}` : undefined,
+  );
 };
 
 /**
@@ -377,10 +406,23 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   return tags;
 };
 
-const MP4_CONTAINER_ATOMS = new Set(['moov', 'udta', 'meta', 'ilst', 'trak', 'mdia', 'minf', 'stbl']);
+const MP4_CONTAINER_ATOMS = new Set([
+  'moov',
+  'udta',
+  'meta',
+  'ilst',
+  'trak',
+  'mdia',
+  'minf',
+  'stbl',
+]);
 const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data']);
 
-const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+const parseMp4CovrData = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+): string | undefined => {
   let p = start;
   while (p + 8 <= end) {
     const size = readU32(bytes, p);
@@ -399,7 +441,13 @@ const parseMp4CovrData = (bytes: Uint8Array, start: number, end: number): string
 
 const MP4_SKIP_PAYLOAD_ATOMS = new Set(['mdat', 'free', 'skip', 'wide', 'uuid']);
 
-const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth = 0, trustedBoundary = false): string | undefined => {
+const findMp4CoverAtom = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  depth = 0,
+  trustedBoundary = false,
+): string | undefined => {
   if (depth > 8) return undefined;
   let p = start;
   while (p + 8 <= end) {
@@ -416,7 +464,11 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
     const isContainer = MP4_CONTAINER_ATOMS.has(type);
     const isRelevantLeaf = MP4_RELEVANT_LEAF_ATOMS.has(type);
     if (!isContainer && !isRelevantLeaf) {
-      if (trustedBoundary && (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type))) p += size;
+      if (
+        trustedBoundary &&
+        (MP4_SKIP_PAYLOAD_ATOMS.has(type) || /^[ -~]{4}$/.test(type))
+      )
+        p += size;
       else p += 1;
       continue;
     }
@@ -438,7 +490,8 @@ const findMp4CoverAtom = (bytes: Uint8Array, start: number, end: number, depth =
 export const parseMp4CoverFromBuffer = (
   bytes: Uint8Array,
   options: { trustedTopLevel?: boolean } = {},
-): string | undefined => findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
+): string | undefined =>
+  findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
 
 const base64ToBytes = (b64: string): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -470,8 +523,9 @@ const base64ToBytes = (b64: string): Uint8Array => {
 export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
   try {
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
-    const normalizedUri = uri.split('?')[0] ?? uri;
-    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(normalizedUri);
+    const normalizedUri = uri.startsWith('content://') ? uri : (uri.split('?')[0] ?? uri);
+    const extensionProbeUri = uri.split('?')[0] ?? uri;
+    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(extensionProbeUri);
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
       const id3 = parseId3Buffer(bytes);
       if (id3.cover) return id3;
@@ -487,7 +541,11 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       const bytes = base64ToBytes(b64);
       const id3 = parseHeadBytes(bytes);
       if (id3.cover || !looksLikeMp4) return id3;
-      const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
+      const getInfoAsync = (
+        FileSystem as unknown as {
+          getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }>;
+        }
+      ).getInfoAsync;
       if (!getInfoAsync) return id3;
       try {
         const info = await getInfoAsync(normalizedUri);
@@ -500,7 +558,9 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
           length: tailReadLength,
           position: tailStart,
         });
-        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), { trustedTopLevel: false });
+        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), {
+          trustedTopLevel: false,
+        });
         if (tailCover) return { ...id3, cover: tailCover };
       } catch {
         return id3;
@@ -509,8 +569,16 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     } catch {
       // fallback to File API when legacy path is unavailable
     }
-    const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }> }).getInfoAsync;
-    const FileCtor = (FileSystem as unknown as { File?: new (u: string) => { bytes: () => Promise<Uint8Array> } }).File;
+    const getInfoAsync = (
+      FileSystem as unknown as {
+        getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }>;
+      }
+    ).getInfoAsync;
+    const FileCtor = (
+      FileSystem as unknown as {
+        File?: new (u: string) => { bytes: () => Promise<Uint8Array> };
+      }
+    ).File;
     if (!FileCtor || !getInfoAsync) return {};
     try {
       const info = await getInfoAsync(normalizedUri);

@@ -1,6 +1,17 @@
 import type { Song } from '../types/Song';
-import type { TagEditDraft, TagWriterErrorCode, WriteOperationPlan, RollbackPlan, WriteOrchestrationResult, TagEditableContainer } from '../types/TagEdit';
-import { getTagEditCapability, getSupportedContainer, getUriType } from './tagEditCapability';
+import type {
+  TagEditDraft,
+  TagWriterErrorCode,
+  WriteOperationPlan,
+  RollbackPlan,
+  WriteOrchestrationResult,
+  TagEditableContainer,
+} from '../types/TagEdit';
+import {
+  getTagEditCapability,
+  getSupportedContainer,
+  getUriType,
+} from './tagEditCapability';
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
 
 const buildRollbackSteps = (targetUri: string): string[] => [
@@ -15,8 +26,11 @@ const getRiskLevel = (uriType: string): 'low' | 'medium' | 'high' => {
   return 'low';
 };
 
-const getPrimaryBlockingReasonFromList = (reasons: TagWriterErrorCode[]): TagWriterErrorCode | undefined => {
+const getPrimaryBlockingReasonFromList = (
+  reasons: TagWriterErrorCode[],
+): TagWriterErrorCode | undefined => {
   const priority: TagWriterErrorCode[] = [
+    'FileTooLarge',
     'InvalidTagData',
     'UnsupportedUri',
     'UnsupportedFormat',
@@ -27,11 +41,16 @@ const getPrimaryBlockingReasonFromList = (reasons: TagWriterErrorCode[]): TagWri
 };
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
-  if (container === 'mp3' || container === 'm4a' || container === 'mp4') return 'MP3/MP4 writes use guarded file:// backup + temp + byte verification flow; content:// remains blocked.';
+  if (container === 'mp3' || container === 'm4a' || container === 'mp4')
+    return 'MP3/MP4 writes use a guarded file:// backup + temp + byte verification flow; content:// remains read-only until SAF write support exists.';
   return undefined;
 };
 
-export const validateWritePreconditions = (song: Song, draft: TagEditDraft, platform?: string): TagWriterErrorCode[] => {
+export const validateWritePreconditions = (
+  song: Song,
+  draft: TagEditDraft,
+  platform?: string,
+): TagWriterErrorCode[] => {
   const errors: TagWriterErrorCode[] = [];
   const uri = song.fileInfo?.uri ?? song.uri;
   const capability = getTagEditCapability(song, platform);
@@ -40,11 +59,14 @@ export const validateWritePreconditions = (song: Song, draft: TagEditDraft, plat
   const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
 
   const tagValidation = validateEditableTags(normalized.tags);
-  if (!tagValidation.valid || !validateCoverPayload(normalized.cover)) errors.push('InvalidTagData');
-  if (!uri || uriType === 'unknown' || uriType === 'remote') errors.push('UnsupportedUri');
+  if (!tagValidation.valid || !validateCoverPayload(normalized.cover))
+    errors.push('InvalidTagData');
+  if (!uri || uriType === 'unknown' || uriType === 'remote')
+    errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (uriType === 'content') errors.push('MissingWritePermission');
-  if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite) errors.push('WriteNotImplemented');
+  if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
+    errors.push('WriteNotImplemented');
 
   return [...new Set(errors)];
 };
@@ -55,7 +77,11 @@ export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => ({
   steps: buildRollbackSteps(plan.targetUri),
 });
 
-export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft, platform?: string): WriteOperationPlan => {
+export const createTagWriteOperationPlan = (
+  song: Song,
+  draft: TagEditDraft,
+  platform?: string,
+): WriteOperationPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const safeUri = uri ?? '';
   const capability = getTagEditCapability(song, platform);
@@ -64,9 +90,16 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft, pla
   const warnings = [...(capability.reason ? [capability.reason] : [])];
   const containerWarn = containerWarning(container);
   if (containerWarn) warnings.push(containerWarn);
-  if (draft.removeCover && draft.cover) warnings.push('removeCover=true takes precedence over cover payload.');
-  if (uriType === 'content') warnings.push('SAF providers may not guarantee atomic replace semantics.');
-  if (uriType === 'file') warnings.push('file:// writes use backup + temp + byte verification; replace is guarded but not guaranteed OS-atomic.');
+  if (draft.removeCover && draft.cover)
+    warnings.push('removeCover=true takes precedence over cover payload.');
+  if (uriType === 'content')
+    warnings.push(
+      'SAF providers are treated as read-only because direct replace semantics are not safe yet.',
+    );
+  if (uriType === 'file')
+    warnings.push(
+      'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
+    );
 
   const blockingReasons = validateWritePreconditions(song, draft, platform);
   const plan: WriteOperationPlan = {
@@ -105,22 +138,37 @@ export const createTagWriteOperationPlan = (song: Song, draft: TagEditDraft, pla
   return plan;
 };
 
-export const getPrimaryBlockingReason = (plan: WriteOperationPlan): TagWriterErrorCode | undefined => getPrimaryBlockingReasonFromList(plan.blockingReasons);
+export const getPrimaryBlockingReason = (
+  plan: WriteOperationPlan,
+): TagWriterErrorCode | undefined =>
+  getPrimaryBlockingReasonFromList(plan.blockingReasons);
 
-export const assertSafeWriteAllowed = (plan: WriteOperationPlan): TagWriterErrorCode | null => {
+export const assertSafeWriteAllowed = (
+  plan: WriteOperationPlan,
+): TagWriterErrorCode | null => {
   const primary = getPrimaryBlockingReasonFromList(plan.blockingReasons);
   return primary ?? null;
 };
 
-export const simulateTagWriteOperation = (plan: WriteOperationPlan): WriteOrchestrationResult => {
+export const simulateTagWriteOperation = (
+  plan: WriteOperationPlan,
+): WriteOrchestrationResult => {
   const primaryBlockingReason = getPrimaryBlockingReason(plan);
   const simulatedSteps = [
     `Plan created for ${plan.container} at ${plan.targetUri || '<missing-uri>'}.`,
-    plan.requiresBackup ? 'Would create backup sidecar before any write.' : 'No backup step required.',
-    plan.requiresTempFile ? 'Would write output to temp file first.' : 'No temp file required.',
+    plan.requiresBackup
+      ? 'Would create backup sidecar before any write.'
+      : 'No backup step required.',
+    plan.requiresTempFile
+      ? 'Would write output to temp file first.'
+      : 'No temp file required.',
     'Would validate written output metadata before replace step.',
-    plan.supportsAtomicReplace ? 'Would perform atomic replace.' : 'Atomic replace not guaranteed; would require guarded fallback.',
-    plan.supportsRollback ? 'Rollback strategy is available if replace fails.' : 'Rollback guarantee is limited for this URI type.',
+    plan.supportsAtomicReplace
+      ? 'Would perform atomic replace.'
+      : 'OS-atomic replace is not guaranteed; guarded fallback is required.',
+    plan.supportsRollback
+      ? 'Rollback strategy is available if replace fails.'
+      : 'Rollback guarantee is limited for this URI type.',
     'Dry-run only: no filesystem mutation performed.',
   ];
 
