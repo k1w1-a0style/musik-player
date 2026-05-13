@@ -33,6 +33,7 @@ declare const __DEV__: boolean;
 const SONG_ROW_HEIGHT = 84;
 
 const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
+const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
     id: 'demo-1',
@@ -106,7 +107,10 @@ const Library: React.FC = () => {
   });
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = useMemo(() => (isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
+  const displayedSongs = useMemo(
+    () => (isDevDemoSongsEnabled && isReady && songs.length === 0 ? DEMO_SONGS : songs),
+    [isReady, songs],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -48,49 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           npx --no-install expo config --json > expo-config.json
-          node <<'NODE'
-          const fs = require('fs');
-          const raw = JSON.parse(fs.readFileSync('expo-config.json', 'utf8'));
-          const config = raw.expo ?? raw;
+          node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
 
-          const failures = [];
-          const expectEqual = (label, actual, expected) => {
-            if (actual !== expected) failures.push(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-          };
-
-          expectEqual('name', config.name, 'Kiwi');
-          expectEqual('scheme', config.scheme, 'musik-player');
-          expectEqual('slug', config.slug, 'musik-player');
-          expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');
-          expectEqual('newArchEnabled', config.newArchEnabled, false);
-
-          const androidPermissions = config.android?.permissions ?? [];
-          const forbiddenAndroidPermissions = ['android.permission.RECORD_AUDIO'];
-          for (const permission of forbiddenAndroidPermissions) {
-            if (androidPermissions.includes(permission)) failures.push(`Forbidden Android permission declared: ${permission}`);
-          }
-
-          const requiredAndroidPermissions = [
-            'android.permission.MODIFY_AUDIO_SETTINGS',
-            'android.permission.READ_MEDIA_AUDIO',
-            'android.permission.FOREGROUND_SERVICE',
-            'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
-          ];
-          for (const permission of requiredAndroidPermissions) {
-            if (!androidPermissions.includes(permission)) failures.push(`Required Android permission missing: ${permission}`);
-          }
-
-          if (config.ios?.infoPlist?.NSMicrophoneUsageDescription != null) {
-            failures.push('Forbidden iOS microphone usage description declared: NSMicrophoneUsageDescription');
-          }
-
-          const projectId = config.extra?.eas?.projectId;
-          if (!projectId || typeof projectId !== 'string') failures.push('Missing expo.extra.eas.projectId');
-
-          if (failures.length > 0) {
-            console.error(failures.map(item => `- ${item}`).join('\n'));
-            process.exit(1);
-          }
-
-          console.log('Expo config release gate passed.');
-          NODE
+      - name: Generated Android manifest permission gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo prebuild --platform android --no-install --clean
+          node scripts/ci/checkAndroidManifestPermissions.cjs android/app/src/main/AndroidManifest.xml
