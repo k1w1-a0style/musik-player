@@ -28,9 +28,6 @@ const requiredAndroidPermissions = [
 ];
 const forbiddenAndroidPermissions = [
   'android.permission.RECORD_AUDIO',
-  'android.permission.READ_MEDIA_IMAGES',
-  'android.permission.READ_MEDIA_VIDEO',
-  'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
 ];
 const requiredBlockedPermissions = [
   'android.permission.READ_MEDIA_IMAGES',
