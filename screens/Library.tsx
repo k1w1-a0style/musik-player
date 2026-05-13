@@ -9,12 +9,13 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Modal,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, RefreshCcw, Search } from 'lucide-react-native';
+import { MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -29,7 +30,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
 
-const SONG_ROW_HEIGHT = 86;
+const SONG_ROW_HEIGHT = 72;
 const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
@@ -76,6 +77,8 @@ const Library: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
@@ -101,6 +104,7 @@ const Library: React.FC = () => {
   }, [displayedSongs, query]);
 
   const onAddScanFolder = async (): Promise<void> => {
+    setMenuOpen(false);
     if (Platform.OS !== 'android') {
       Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl wird aktuell nur unter Android unterstützt.');
       return;
@@ -131,6 +135,7 @@ const Library: React.FC = () => {
   };
 
   const importFromDevice = async (): Promise<void> => {
+    setMenuOpen(false);
     try {
       setLoading(true);
       const activeFolders = scanFolders.filter(folder => folder.enabled);
@@ -202,104 +207,111 @@ const Library: React.FC = () => {
     [currentSongId, handleInfoSong, handleSongPress, isPlaying],
   );
 
+  const activeFolders = scanFolders.filter(folder => folder.enabled).length;
+
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
         <View style={styles.topBar}>
-          <Text style={styles.brand}><Text style={styles.brandMuted}>K1W1</Text> Music</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Musik importieren"
-            accessibilityState={{ disabled: loading || !isReady }}
-            style={({ pressed }) => [styles.iconButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
-            onPress={importFromDevice}
-            disabled={loading || !isReady}
-          >
-            {loading ? (
-              <ActivityIndicator color={theme.palette.text.primary} />
-            ) : songs.length > 0 ? (
-              <RefreshCcw color={theme.palette.text.primary} size={22} />
-            ) : (
-              <Download color={theme.palette.text.primary} size={22} />
-            )}
-          </Pressable>
+          <Text style={styles.brand}>K1W1 Music</Text>
+          <View style={styles.topActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Suche öffnen" onPress={() => setSearchOpen(value => !value)} style={styles.iconButton}>
+              <Search color={theme.palette.text.primary} size={26} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Mehr Optionen" onPress={() => setMenuOpen(true)} style={styles.iconButton}>
+              <MoreVertical color={theme.palette.text.primary} size={26} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.tabsRow}>
-          <Text style={styles.tabMuted}>Favoriten</Text>
-          <Text style={styles.tabMuted}>Playlists</Text>
-          <Text style={styles.tabActive}>Tracks</Text>
-          <Text style={styles.tabMuted}>Artists</Text>
+          <Text style={styles.tabMuted}>Wiedergabelisten</Text>
+          <Text style={styles.tabActive}>Titel</Text>
+          <Text style={styles.tabMuted}>Alben</Text>
+          <Text style={styles.tabMuted}>Interpreten</Text>
+          <Text style={styles.tabMuted}>Ordner</Text>
         </View>
 
-        <View style={styles.searchWrap}>
-          <Search color={theme.palette.text.muted} size={18} />
-          <TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} />
-        </View>
-
-        <View style={styles.scanFoldersCard}>
-          <View style={styles.scanFoldersHeader}>
-            <Text style={styles.scanFoldersTitle}>Scan-Ordner</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Scan-Ordner hinzufügen" onPress={onAddScanFolder} style={styles.scanFoldersAddButton}>
-              <Text style={styles.scanFoldersAddText}>Ordner hinzufügen</Text>
-            </Pressable>
+        {searchOpen && (
+          <View style={styles.searchWrap}>
+            <Search color={theme.palette.text.muted} size={18} />
+            <TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} autoFocus />
           </View>
-          {scanFolders.length === 0 ? <Text style={styles.scanFoldersEmpty}>Keine Ordner ausgewählt</Text> : scanFolders.map(folder => (
-            <View key={folder.id} style={styles.scanFolderRow}>
-              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: folder.enabled }} onPress={async () => setScanFolders(await updateScanFolder(folder.id, { enabled: !folder.enabled }))}>
-                <Text style={styles.scanFolderToggle}>{folder.enabled ? '☑' : '☐'}</Text>
+        )}
+
+        <View style={styles.listShell}>
+          <View style={styles.listHeader}>
+            <Text style={styles.sortLabel}>Name</Text>
+            <View style={styles.listHeaderActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" style={styles.roundButton}>
+                <Shuffle color={theme.palette.text.primary} size={19} />
               </Pressable>
-              <Text style={styles.scanFolderName} numberOfLines={1}>{folder.name}</Text>
-              <Pressable onPress={async () => setScanFolders(await removeScanFolder(folder.id))}><Text style={styles.scanFolderRemove}>Entfernen</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filtered[0] && handleSongPress(filtered[0])}>
+                <Play color={theme.palette.text.primary} size={19} />
+              </Pressable>
             </View>
-          ))}
+          </View>
+          <FlatList
+            data={filtered}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            removeClippedSubviews
+            windowSize={7}
+            initialNumToRender={9}
+            maxToRenderPerBatch={7}
+            updateCellsBatchingPeriod={90}
+            getItemLayout={getItemLayout}
+            ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
+          />
         </View>
 
-        <FlatList
-          data={filtered}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.listContent}
-          renderItem={renderItem}
-          removeClippedSubviews
-          windowSize={7}
-          initialNumToRender={8}
-          maxToRenderPerBatch={6}
-          updateCellsBatchingPeriod={100}
-          getItemLayout={getItemLayout}
-          ListHeaderComponent={<Text style={styles.countLabel}>{displayedSongs.length} Titel</Text>}
-          ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
-        />
+        <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+            <View style={styles.menuCard}>
+              <MenuItem label="Importieren" onPress={importFromDevice} disabled={loading || !isReady} />
+              <MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} />
+              <MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => setMenuOpen(false)} muted />
+              <MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} />
+            </View>
+          </Pressable>
+        </Modal>
       </Screen>
     </AppBackground>
   );
 };
 
+const MenuItem: React.FC<{ label: string; onPress: () => void; disabled?: boolean; muted?: boolean }> = ({ label, onPress, disabled, muted }) => (
+  <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && styles.pressed, disabled && styles.disabled]}>
+    <Text style={[styles.menuText, muted && styles.menuTextMuted]}>{label}</Text>
+  </Pressable>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: 8 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.6 },
-  brandMuted: { color: theme.palette.text.secondary, fontSize: 14, letterSpacing: 0.5 },
-  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 28, marginBottom: 18 },
+  container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 26 },
+  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 29, letterSpacing: -0.8 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 30, marginBottom: 16, paddingHorizontal: 24 },
   tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 18 },
-  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2 },
-  countLabel: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 8, marginLeft: 4 },
-  scanFoldersCard: { backgroundColor: 'rgba(255,255,255,0.035)', borderRadius: 26, padding: 12, marginBottom: 12 },
-  scanFoldersHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  scanFoldersTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
-  scanFoldersAddButton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.palette.surface, borderRadius: theme.radii.input },
-  scanFoldersAddText: { color: theme.palette.primary, fontFamily: theme.fonts.body, fontSize: 12 },
-  scanFoldersEmpty: { color: theme.palette.text.muted, marginTop: 6, fontFamily: theme.fonts.body },
-  scanFolderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  scanFolderToggle: { color: theme.palette.text.primary, fontSize: 16 },
-  scanFolderName: { flex: 1, color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
-  scanFolderRemove: { color: '#f87171', fontFamily: theme.fonts.body, fontSize: 12 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.055)', borderRadius: 22, paddingHorizontal: 14, marginBottom: 12, gap: 8 },
+  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 34, letterSpacing: -1.1 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 24, paddingHorizontal: 16, marginHorizontal: 24, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 11, fontSize: 14 },
-  listContent: { paddingBottom: 128 },
+  listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 18, paddingHorizontal: 24, borderTopLeftRadius: 34, borderTopRightRadius: 34, backgroundColor: 'rgba(255,255,255,0.055)' },
+  listHeader: { height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 17 },
+  listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  roundButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingBottom: 118 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
-  disabled: { opacity: 0.6 },
-  pressed: { opacity: 0.85 },
+  disabled: { opacity: 0.45 },
+  pressed: { opacity: 0.72 },
+  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
+  menuCard: { width: 278, borderRadius: 28, backgroundColor: '#3b3b3f', paddingVertical: 16, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
+  menuItem: { minHeight: 58, justifyContent: 'center', paddingHorizontal: 28 },
+  menuText: { color: '#f4f4f5', fontFamily: theme.fonts.body, fontSize: 22, letterSpacing: -0.3 },
+  menuTextMuted: { color: '#b9b9bd', fontSize: 16 },
 });
 
 export default Library;
