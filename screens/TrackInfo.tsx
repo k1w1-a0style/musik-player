@@ -45,7 +45,7 @@ export const formatCoverStatus = (status?: string): string => {
     case 'external':
       return 'Externe URI';
     case 'none':
-      return 'Kein Cover';
+      return 'Kein eingebettetes Cover gefunden';
     default:
       return 'Unbekannt';
   }
@@ -99,7 +99,7 @@ const TrackInfo: React.FC = () => {
           </View>
 
           <Text style={styles.header}>TrackInfo</Text>
-          <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}><Text style={styles.editButtonText}>Bearbeiten</Text></Pressable>
+          <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}><Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text></Pressable>
           <Text style={styles.section}>Basis</Text>
           <InfoRow label="Titel" value={valueOrNA(song.title)} />
           <InfoRow label="Artist" value={valueOrNA(song.artist)} />
