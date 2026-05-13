@@ -40,7 +40,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       onPress={handlePress}
       style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
     >
-      <View style={[styles.cover, isCurrent && styles.coverActive]}>
+      <View style={[styles.activeRail, isCurrent && styles.activeRailVisible, isPlaying && styles.activeRailPlaying]} />
+      <View style={styles.cover}>
         {showCover ? (
           <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
         ) : (
@@ -54,7 +55,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         </Text>
         <Text style={styles.artist} numberOfLines={1}>
           {song.artist}
-          {song.album ? ` · ${song.album}` : ''}
         </Text>
       </View>
 
@@ -63,8 +63,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <CircleEllipsis color={theme.palette.text.muted} size={18} />
         </Pressable>
       ) : null}
-
-      {isCurrent && <View style={[styles.dot, isPlaying && styles.dotActive]} />}
     </Pressable>
   );
 };
@@ -85,50 +83,50 @@ const SongCard = memo(
 
 const styles = StyleSheet.create({
   container: {
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    marginBottom: 10,
-    backgroundColor: theme.palette.card,
-    borderRadius: theme.radii.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
     gap: 12,
   },
-  pressed: { opacity: 0.78 },
-  currentSong: { borderColor: theme.palette.borderStrong },
+  pressed: { opacity: 0.72 },
+  currentSong: { backgroundColor: 'rgba(82, 255, 118, 0.055)' },
+  activeRail: {
+    width: 3,
+    height: 34,
+    borderRadius: 3,
+    backgroundColor: 'transparent',
+  },
+  activeRailVisible: { backgroundColor: 'rgba(82, 255, 118, 0.35)' },
+  activeRailPlaying: { backgroundColor: theme.palette.primary },
   cover: {
-    width: 46,
-    height: 46,
+    width: 52,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: theme.palette.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  coverActive: { borderWidth: 1, borderColor: theme.palette.primary },
   coverImage: { width: '100%', height: '100%' },
-  infoContainer: { flex: 1 },
+  infoContainer: { flex: 1, minWidth: 0 },
   title: {
-    fontSize: 15,
+    fontSize: 17,
     color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
+    fontFamily: theme.fonts.body,
+    letterSpacing: -0.2,
   },
   artist: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.palette.text.secondary,
-    marginTop: 2,
+    marginTop: 3,
     fontFamily: theme.fonts.body,
   },
   currentSongText: { color: theme.palette.primary },
-  infoButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  dot: {
-    width: 8,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: theme.palette.primaryGlow,
-  },
-  dotActive: { backgroundColor: theme.palette.primary },
+  infoButton: { width: 38, height: 48, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default SongCard;
