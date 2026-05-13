@@ -4,15 +4,17 @@ import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
+import { getSongArtworkUri } from '../utils/songArtwork';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, canSkipNext } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
+  const artworkUri = getSongArtworkUri(currentSong);
 
   useEffect(() => {
     setCoverFailed(false);
-  }, [currentSong?.id, currentSong?.cover]);
+  }, [currentSong?.id, artworkUri]);
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -26,14 +28,14 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   }, [canSkipNext, next]);
 
   if (!currentSong) return null;
-  const showCover = !!currentSong.cover && !coverFailed;
+  const showCover = !!artworkUri && !coverFailed;
 
   return (
     <View style={[styles.wrap, { bottom: 72 + insets.bottom }]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Now Playing öffnen">
         <View style={styles.thumb}>
           {showCover ? (
-            <Image source={{ uri: currentSong.cover }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
+            <Image source={{ uri: artworkUri }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
           ) : (
             <Disc3 color={theme.palette.text.muted} size={18} />
           )}
