@@ -108,7 +108,7 @@ describe('TrackInfo', () => {
 
   test('navigates to tag editor', () => {
     const { getByText } = render(<TrackInfo />);
-    fireEvent.press(getByText('Bearbeiten'));
+    fireEvent.press(getByText('ID3/M4A Tags bearbeiten'));
     expect(mockNavigate).toHaveBeenCalledWith('TagEditor', { songId: '1' });
   });
 

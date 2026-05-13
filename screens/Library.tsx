@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Platform,
   View,
@@ -9,13 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, RefreshCcw, Search, Disc3 } from 'lucide-react-native';
+import { Download, RefreshCcw, Search } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -30,9 +29,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
 
-const SONG_ROW_HEIGHT = 84;
-
-const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
+const SONG_ROW_HEIGHT = 86;
 const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
@@ -78,33 +75,11 @@ const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [previewCoverFailed, setPreviewCoverFailed] = useState(false);
   const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
-  const renderCountRef = useRef(0);
-
-  useEffect(() => {
-    setPreviewCoverFailed(false);
-  }, [currentSong?.id, currentSong?.cover]);
-
 
   useEffect(() => {
     getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
   }, []);
-
-  useEffect(() => {
-    if (!isDevPerfLoggingEnabled) return;
-    renderCountRef.current += 1;
-    if (renderCountRef.current <= 20) {
-      // eslint-disable-next-line no-console
-      console.debug('[perf] Library render', {
-        count: renderCountRef.current,
-        songs: songs.length,
-        currentSongId: currentSong?.id ?? null,
-        isPlaying,
-        queryLength: query.length,
-      });
-    }
-  });
 
   const currentSongId = currentSong?.id ?? null;
   const displayedSongs = useMemo(
@@ -124,7 +99,6 @@ const Library: React.FC = () => {
         .includes(q),
     );
   }, [displayedSongs, query]);
-
 
   const onAddScanFolder = async (): Promise<void> => {
     if (Platform.OS !== 'android') {
@@ -237,31 +211,37 @@ const Library: React.FC = () => {
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerContent}>
-            <Text style={styles.eyebrow}>KIWI</Text>
-            <Text style={styles.header}>Bibliothek</Text>
-            <Text style={styles.meta}>{displayedSongs.length} Titel</Text>
-          </View>
+        <View style={styles.topBar}>
+          <Text style={styles.brand}><Text style={styles.brandMuted}>K1W1</Text> Music</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Musik importieren"
             accessibilityState={{ disabled: loading || !isReady }}
-            style={({ pressed }) => [styles.importButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.iconButton, (loading || !isReady) && styles.disabled, pressed && styles.pressed]}
             onPress={importFromDevice}
             disabled={loading || !isReady}
           >
             {loading ? (
-              <ActivityIndicator color={theme.palette.text.onPrimary} />
+              <ActivityIndicator color={theme.palette.text.primary} />
             ) : songs.length > 0 ? (
-              <RefreshCcw color={theme.palette.text.onPrimary} size={18} />
+              <RefreshCcw color={theme.palette.text.primary} size={22} />
             ) : (
-              <Download color={theme.palette.text.onPrimary} size={18} />
+              <Download color={theme.palette.text.primary} size={22} />
             )}
-            <Text style={styles.importText}>{loading ? 'Scanne…' : 'Importieren'}</Text>
           </Pressable>
         </View>
 
+        <View style={styles.tabsRow}>
+          <Text style={styles.tabMuted}>Favoriten</Text>
+          <Text style={styles.tabMuted}>Playlists</Text>
+          <Text style={styles.tabActive}>Tracks</Text>
+          <Text style={styles.tabMuted}>Artists</Text>
+        </View>
+
+        <View style={styles.searchWrap}>
+          <Search color={theme.palette.text.muted} size={18} />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} />
+        </View>
 
         <View style={styles.scanFoldersCard}>
           <View style={styles.scanFoldersHeader}>
@@ -281,36 +261,18 @@ const Library: React.FC = () => {
           ))}
         </View>
 
-        {currentSong && (
-          <View style={styles.previewCard}>
-            <View style={styles.previewCover}>
-              {currentSong.cover && !previewCoverFailed ? (
-                <Image source={{ uri: currentSong.cover }} style={styles.previewCoverImage} onError={() => setPreviewCoverFailed(true)} />
-              ) : (
-                <Disc3 color={theme.palette.primary} size={36} />
-              )}
-            </View>
-            <Text style={styles.previewTitle} numberOfLines={1}>{currentSong.title}</Text>
-            <Text style={styles.previewMeta} numberOfLines={1}>{currentSong.artist} {isPlaying ? '· Läuft' : ''}</Text>
-          </View>
-        )}
-
-        <View style={styles.searchWrap}>
-          <Search color={theme.palette.text.muted} size={16} />
-          <TextInput value={query} onChangeText={setQuery} placeholder="Suche Titel, Artist, Album" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} />
-        </View>
-
         <FlatList
           data={filtered}
           keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           removeClippedSubviews
-          windowSize={7}
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
+          windowSize={5}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={80}
           getItemLayout={getItemLayout}
+          ListHeaderComponent={<Text style={styles.countLabel}>{displayedSongs.length} Titel</Text>}
           ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
         />
       </Screen>
@@ -320,19 +282,15 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: 8 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md, gap: theme.spacing.md },
-  headerContent: { flex: 1 },
-  eyebrow: { color: theme.palette.primary, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
-  header: { fontSize: 30, color: theme.palette.text.primary, fontFamily: theme.fonts.display },
-  meta: { color: theme.palette.text.secondary, fontSize: 12, fontFamily: theme.fonts.body },
-  importButton: { flexDirection: 'row', backgroundColor: theme.palette.primary, paddingVertical: 12, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.pill, alignItems: 'center', gap: 8 },
-  importText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
-  previewCard: { backgroundColor: theme.palette.card, borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: theme.palette.borderStrong, padding: theme.spacing.md, marginBottom: 12, alignItems: 'center' },
-  previewCover: { width: 110, height: 110, borderRadius: 18, overflow: 'hidden', backgroundColor: theme.palette.surfaceElevated, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  previewCoverImage: { width: '100%', height: '100%' },
-  previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
-  previewMeta: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 4 },
-  scanFoldersCard: { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.radii.card, padding: 12, marginBottom: 12 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.6 },
+  brandMuted: { color: theme.palette.text.secondary, fontSize: 14, letterSpacing: 0.5 },
+  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 28, marginBottom: 18 },
+  tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 18 },
+  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.display, fontSize: 34, letterSpacing: -1.2 },
+  countLabel: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 8, marginLeft: 4 },
+  scanFoldersCard: { backgroundColor: 'rgba(255,255,255,0.035)', borderRadius: 26, padding: 12, marginBottom: 12 },
   scanFoldersHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   scanFoldersTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
   scanFoldersAddButton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.palette.surface, borderRadius: theme.radii.input },
@@ -342,9 +300,9 @@ const styles = StyleSheet.create({
   scanFolderToggle: { color: theme.palette.text.primary, fontSize: 16 },
   scanFolderName: { flex: 1, color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
   scanFolderRemove: { color: '#f87171', fontFamily: theme.fonts.body, fontSize: 12 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border, borderWidth: 1, borderRadius: theme.borderRadius.pill, paddingHorizontal: 14, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 10, fontSize: 13 },
-  listContent: { paddingBottom: 120 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.055)', borderRadius: 22, paddingHorizontal: 14, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 11, fontSize: 14 },
+  listContent: { paddingBottom: 128 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
   disabled: { opacity: 0.6 },
   pressed: { opacity: 0.85 },
