@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Platform, Pressable, Text } from 'react-native';
+import { Alert, Platform, Pressable, Text } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Library from '../Library';
 import { APP_STACK_ROUTES } from '../../types/routes';
@@ -71,12 +71,13 @@ describe('Library', () => {
     jest.clearAllMocks();
   });
 
-  test('hides broken preview image after error', async () => {
+  test('renders Samsung-style track tabs without the old current-track preview image', async () => {
     const view = render(<Library />);
-    const { UNSAFE_getByType, UNSAFE_queryByType } = view;
+    const { getByText, queryByText } = view;
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
-    fireEvent(UNSAFE_getByType(Image), 'error');
-    expect(UNSAFE_queryByType(Image)).toBeNull();
+    expect(getByText('Tracks')).toBeTruthy();
+    expect(getByText(/K1W1/)).toBeTruthy();
+    expect(queryByText('Bibliothek')).toBeNull();
     view.unmount();
   });
 
@@ -101,10 +102,6 @@ describe('Library', () => {
     view.unmount();
   });
 
-
-
-
-
   test('does not enrich media when import confirmation is cancelled', async () => {
     mockGetScanFolders.mockResolvedValueOnce([]);
     mockMediaCandidates.mockResolvedValueOnce(({ assets: [{ id: 'a1', uri: 'file:///a.mp3', filename: 'a.mp3', duration: 1 }], skipped: [] } as any));
@@ -112,15 +109,14 @@ describe('Library', () => {
       if (title === 'Musik importieren') buttons?.[0]?.onPress?.();
     });
     const view = render(<Library />);
-    const { getByText } = view;
-    fireEvent.press(getByText('Importieren'));
+    const { getByLabelText } = view;
+    fireEvent.press(getByLabelText('Musik importieren'));
     await waitFor(() => expect(mockMediaCandidates).toHaveBeenCalled());
     expect(mockMediaEnrich).not.toHaveBeenCalled();
     expect(mockSetSongs).not.toHaveBeenCalled();
     alertSpy.mockRestore();
     view.unmount();
   });
-
 
   test('on android SAF errors with songs imports and shows one partial warning', async () => {
     const previousOs = Platform.OS;
@@ -129,9 +125,9 @@ describe('Library', () => {
     mockImportSongs.mockResolvedValueOnce({ songs: [{ id: 'x', title: 'A', artist: 'B' }], skipped: [], errors: ['content://music/blocked'], sourceSummary: [], folderUpdates: [] } as any);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const view = render(<Library />);
-    const { getByText } = view;
+    const { getByText, getByLabelText } = view;
     await waitFor(() => expect(getByText('Music')).toBeTruthy());
-    fireEvent.press(getByText('Importieren'));
+    fireEvent.press(getByLabelText('Musik importieren'));
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
     expect(alertSpy).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));
     alertSpy.mockRestore();
@@ -143,8 +139,8 @@ describe('Library', () => {
     mockGetScanFolders.mockResolvedValueOnce([]);
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const view = render(<Library />);
-    const { getByText } = view;
-    fireEvent.press(getByText('Importieren'));
+    const { getByLabelText } = view;
+    fireEvent.press(getByLabelText('Musik importieren'));
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
     expect(mockMediaCandidates).toHaveBeenCalled();
     alertSpy.mockRestore();
