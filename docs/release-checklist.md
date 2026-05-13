@@ -32,6 +32,8 @@ npx expo config --json | jq '.android.permissions, .ios.infoPlist.NSMicrophoneUs
 - [ ] Keine neuen Permissions hinzugefügt
 - [ ] Android enthält `READ_MEDIA_AUDIO`
 - [ ] Android enthält `FOREGROUND_SERVICE_MEDIA_PLAYBACK`
+- [ ] Android blockiert Foto-/Video-Media-Permissions (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`)
+- [ ] Generiertes `AndroidManifest.xml` enthält keine Foto-/Video-/Mikrofon-Permissions
 
 ## Android Preview Build
 
