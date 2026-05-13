@@ -1,11 +1,8 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
 import { CircleEllipsis, Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-
-declare const __DEV__: boolean;
-const isDevPerfLoggingEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 
 interface SongCardProps {
   song: Song;
@@ -17,25 +14,10 @@ interface SongCardProps {
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
-  const renderCountRef = useRef(0);
 
   useEffect(() => {
     setCoverFailed(false);
   }, [song.id, song.cover]);
-
-  useEffect(() => {
-    if (!isDevPerfLoggingEnabled) return;
-    renderCountRef.current += 1;
-    if (renderCountRef.current <= 20) {
-      // eslint-disable-next-line no-console
-      console.debug('[perf] SongCard render', {
-        count: renderCountRef.current,
-        songId: song.id,
-        isCurrent,
-        isPlaying,
-      });
-    }
-  });
 
   const handlePress = useCallback(() => {
     onPressSong(song);
