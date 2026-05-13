@@ -107,12 +107,6 @@ const Library: React.FC = () => {
     }
 
     try {
-      const androidVersion = typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
-      if (Number.isFinite(androidVersion) && androidVersion < 30) {
-        Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl ist erst ab Android 11 verfügbar. Nutze stattdessen den normalen Import.');
-        return;
-      }
-
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
       if (!permission.granted || !permission.directoryUri) {
         Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
@@ -267,10 +261,10 @@ const Library: React.FC = () => {
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           removeClippedSubviews
-          windowSize={5}
-          initialNumToRender={10}
-          maxToRenderPerBatch={8}
-          updateCellsBatchingPeriod={80}
+          windowSize={7}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          updateCellsBatchingPeriod={100}
           getItemLayout={getItemLayout}
           ListHeaderComponent={<Text style={styles.countLabel}>{displayedSongs.length} Titel</Text>}
           ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}

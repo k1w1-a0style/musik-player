@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } 
 import { CircleEllipsis, Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { getSongArtworkUri } from '../utils/songArtwork';
 
 interface SongCardProps {
   song: Song;
@@ -14,10 +15,11 @@ interface SongCardProps {
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
+  const artworkUri = getSongArtworkUri(song);
 
   useEffect(() => {
     setCoverFailed(false);
-  }, [song.id, song.cover]);
+  }, [song.id, artworkUri]);
 
   const handlePress = useCallback(() => {
     onPressSong(song);
@@ -28,7 +30,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     onInfoSong?.(song);
   }, [onInfoSong, song]);
 
-  const showCover = !!song.cover && !coverFailed;
+  const showCover = !!artworkUri && !coverFailed;
 
   return (
     <Pressable
@@ -40,7 +42,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     >
       <View style={[styles.cover, isCurrent && styles.coverActive]}>
         {showCover ? (
-          <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
+          <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
         ) : (
           <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={20} />
         )}
@@ -74,7 +76,7 @@ const SongCard = memo(
     && prev.song.title === next.song.title
     && prev.song.artist === next.song.artist
     && prev.song.album === next.song.album
-    && prev.song.cover === next.song.cover
+    && getSongArtworkUri(prev.song) === getSongArtworkUri(next.song)
     && prev.isCurrent === next.isCurrent
     && prev.isPlaying === next.isPlaying
     && prev.onPressSong === next.onPressSong
