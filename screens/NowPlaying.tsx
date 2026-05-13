@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Dimensions, FlatList, ViewToken, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
@@ -14,6 +14,7 @@ import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
+import { getSongArtworkUri } from '../utils/songArtwork';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
@@ -28,7 +29,7 @@ const formatVisualizerHint = (reason: string | null): string | null => {
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
-  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerRunning, visualizerError, playSong } = useNowPlayingMusicContext();
+  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
 
   const queue: Song[] = useMemo(
@@ -39,7 +40,6 @@ const NowPlaying: React.FC = () => {
   const visibleQueue = useMemo(() => queue.slice(0, 5), [queue]);
   const queueById = useMemo(() => new Map(queue.map(song => [song.id, song])), [queue]);
   const flatRef = useRef<FlatList<Song>>(null);
-  const lastReportedId = useRef<string | null>(currentSong?.id ?? null);
   const currentSongRef = useRef<Song | null>(currentSong);
   const queueRef = useRef<Song[]>(queue);
 
@@ -48,27 +48,9 @@ const NowPlaying: React.FC = () => {
 
   React.useEffect(() => {
     if (currentIdx >= 0 && flatRef.current) {
-      flatRef.current.scrollToIndex({ index: currentIdx, animated: true });
+      flatRef.current.scrollToIndex({ index: currentIdx, animated: false });
     }
   }, [currentIdx]);
-
-  React.useEffect(() => {
-    lastReportedId.current = currentSong?.id ?? null;
-  }, [currentSong?.id]);
-
-  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const viewable = viewableItems[0];
-    if (!viewable?.item) return;
-
-    const item = viewable.item as Song;
-    const activeSong = currentSongRef.current;
-    if (!activeSong) return;
-    if (item.id === lastReportedId.current || item.id === activeSong.id) return;
-
-    lastReportedId.current = item.id;
-    void playSong(item, queueRef.current);
-  }, [playSong]);
-
 
   const playQueueItemById = useCallback((songId: string) => {
     const item = queueById.get(songId);
@@ -77,7 +59,6 @@ const NowPlaying: React.FC = () => {
     const activeSong = currentSongRef.current;
     if (!activeSong || item.id === activeSong.id) return;
 
-    lastReportedId.current = item.id;
     void playSong(item, queueRef.current);
   }, [playSong, queueById]);
 
@@ -122,13 +103,12 @@ const NowPlaying: React.FC = () => {
         keyExtractor={item => item.id}
         horizontal
         pagingEnabled
+        scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         snapToInterval={SCREEN_W}
         decelerationRate="fast"
         initialScrollIndex={currentIdx > 0 ? currentIdx : undefined}
         getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         style={styles.carousel}
         contentContainerStyle={styles.carouselContent}
       />
@@ -144,7 +124,7 @@ const NowPlaying: React.FC = () => {
       <View style={styles.visualizerWrap}>
         <Visualizer
           bins={fftBins}
-          active={visualizerRunning && isPlaying}
+          active={isPlaying}
           color={palette?.vibrant ?? theme.palette.primary}
           height={44}
         />
@@ -258,7 +238,7 @@ const CoverSlide = React.memo(
   ),
   (prev, next) =>
     prev.song.id === next.song.id &&
-    prev.song.cover === next.song.cover &&
+    getSongArtworkUri(prev.song) === getSongArtworkUri(next.song) &&
     prev.isActive === next.isActive &&
     prev.isPlaying === next.isPlaying &&
     prev.accent === next.accent,
@@ -266,13 +246,14 @@ const CoverSlide = React.memo(
 
 const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => {
   const [coverFailed, setCoverFailed] = React.useState(false);
+  const artworkUri = getSongArtworkUri(song);
   React.useEffect(() => {
     setCoverFailed(false);
-  }, [song.id, song.cover]);
+  }, [song.id, artworkUri]);
   return (
     <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
-      {song.cover && !coverFailed ? (
-        <Image source={{ uri: song.cover }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
+      {artworkUri && !coverFailed ? (
+        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
       ) : (
         <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
           <Disc3 color={theme.palette.primary} size={120} />
