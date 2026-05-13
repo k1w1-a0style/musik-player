@@ -31,7 +31,7 @@ describe('TrackInfo formatters', () => {
     expect(formatCoverStatus('cached')).toBe('Gecachtes Cover');
     expect(formatCoverStatus('embedded')).toBe('Eingebettetes Cover');
     expect(formatCoverStatus('external')).toBe('Externe URI');
-    expect(formatCoverStatus('none')).toBe('Kein Cover');
+    expect(formatCoverStatus('none')).toBe('Kein eingebettetes Cover gefunden');
     expect(formatCoverStatus('unknown')).toBe('Unbekannt');
     expect(formatCoverStatus(undefined)).toBe('Unbekannt');
   });
