@@ -62,6 +62,7 @@ const NowPlaying: React.FC = () => {
     void playSong(item, queueRef.current);
   }, [playSong, queueById]);
 
+  const showVisualizer = false;
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
   const coverAccent = useMemo(() => palette?.vibrant ?? palette?.dominant ?? accent, [palette, accent]);
@@ -121,17 +122,19 @@ const NowPlaying: React.FC = () => {
         <View style={styles.heartBtn} accessible={false}><Heart color={theme.palette.text.primary} size={20} /></View>
       </View>
 
-      <View style={styles.visualizerWrap}>
-        <Visualizer
-          bins={fftBins}
-          active={isPlaying}
-          color={palette?.vibrant ?? theme.palette.primary}
-          height={44}
-        />
-        {!!visualizerHint && (
-          <Text style={styles.visualizerHint}>{visualizerHint}</Text>
-        )}
-      </View>
+      {showVisualizer ? (
+        <View style={styles.visualizerWrap}>
+          <Visualizer
+            bins={fftBins}
+            active={isPlaying}
+            color={palette?.vibrant ?? theme.palette.primary}
+            height={44}
+          />
+          {!!visualizerHint && (
+            <Text style={styles.visualizerHint}>{visualizerHint}</Text>
+          )}
+        </View>
+      ) : null}
       <ProgressBar
         currentPosition={position}
         duration={duration}

@@ -1,5 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
-import { getInfoAsync, StorageAccessFramework } from 'expo-file-system/legacy';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename } from './musicParser';
@@ -9,7 +9,8 @@ import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilt
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
-const ID3_WORKER_COUNT = 3;
+const ID3_WORKER_COUNT = 2;
+const EAGER_MEDIA_LIBRARY_METADATA_SCAN = false;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 
@@ -181,17 +182,12 @@ const filenameFromUri = (uri: string): string => {
 };
 
 const resolveAssetSize = async (
-  uri: string,
+  _uri: string,
   existing?: number,
 ): Promise<number | undefined> => {
-  if (typeof existing === 'number' && existing > 0) return existing;
-  try {
-    const info = await getInfoAsync(uri);
-    if (info.exists && typeof info.size === 'number' && info.size > 0) return info.size;
-  } catch {
-    return undefined;
-  }
-  return undefined;
+  // Avoid per-file FileSystem.getInfoAsync calls during import.
+  // They are slow on Android and spam Expo SDK 54 warnings.
+  return typeof existing === 'number' && existing > 0 ? existing : undefined;
 };
 
 export const buildSongFromImportSource = async (
@@ -347,7 +343,9 @@ export const enrichMediaLibraryAssets = async (
       if (!asset) break;
 
       try {
-        const tags = await parseId3FromUri(asset.uri).catch(() => ({}));
+        const tags: Id3Tags = EAGER_MEDIA_LIBRARY_METADATA_SCAN
+          ? await parseId3FromUri(asset.uri).catch(() => ({}))
+          : {};
         songs.push(
           await buildSongFromImportSource(
             {

@@ -79,6 +79,7 @@ const Library: React.FC = () => {
   const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   useEffect(() => {
     getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
@@ -136,10 +137,12 @@ const Library: React.FC = () => {
 
   const importFromDevice = async (): Promise<void> => {
     setMenuOpen(false);
+    setImportStatus('Import wird vorbereitet…');
     try {
       setLoading(true);
       const activeFolders = scanFolders.filter(folder => folder.enabled);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
+        setImportStatus('Scan-Ordner werden gelesen…');
         const result = await importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS });
         if (result.folderUpdates) {
           for (const folder of result.folderUpdates) {
@@ -164,20 +167,24 @@ const Library: React.FC = () => {
         return;
       }
 
+      setImportStatus('Medienbibliothek wird durchsucht…');
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
       const candidates = await scanMediaLibraryCandidates();
+      setImportStatus(`${candidates.assets.length} Musikdateien gefunden…`);
       if (candidates.assets.length === 0) {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
       const shouldImport = await confirmImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
+      setImportStatus('Musik wird importiert…');
       const mediaResult = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
       setSongs(mediaResult.songs);
+      setImportStatus(`${mediaResult.songs.length} Titel importiert.`);
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {
@@ -236,6 +243,13 @@ const Library: React.FC = () => {
           <View style={styles.searchWrap}>
             <Search color={theme.palette.text.muted} size={18} />
             <TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} autoFocus />
+          </View>
+        )}
+
+        {(loading || importStatus) && (
+          <View style={styles.importStatusRow}>
+            {loading ? <ActivityIndicator color={theme.palette.primary} size="small" /> : null}
+            <Text style={styles.importStatusText}>{importStatus ?? 'Import läuft…'}</Text>
           </View>
         )}
 
@@ -298,6 +312,8 @@ const styles = StyleSheet.create({
   tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 28, letterSpacing: -0.8 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18, paddingHorizontal: 12, marginHorizontal: 20, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 8, fontSize: 13 },
+  importStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.075)' },
+  importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
   listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 12, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
