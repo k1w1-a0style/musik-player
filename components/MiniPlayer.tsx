@@ -51,12 +51,12 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.right}>
-          <SkipBack color={theme.palette.text.primary} size={21} opacity={0.55} />
+          <SkipBack color={theme.palette.text.primary} size={18} opacity={0.55} />
           <Pressable testID="mini-player-play-pause" accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
-              <Pause color={theme.palette.text.primary} size={22} />
+              <Pause color={theme.palette.text.primary} size={19} />
             ) : (
-              <Play color={theme.palette.text.primary} size={22} />
+              <Play color={theme.palette.text.primary} size={19} />
             )}
           </Pressable>
           <Pressable
@@ -66,9 +66,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
             onPress={handleNext}
             style={!canSkipNext && styles.disabled}
           >
-            <SkipForward color={theme.palette.text.primary} size={21} />
+            <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
-          <ListMusic color={theme.palette.text.primary} size={22} opacity={0.85} />
+          <ListMusic color={theme.palette.text.primary} size={19} opacity={0.85} />
         </View>
       </Pressable>
     </View>
@@ -80,25 +80,25 @@ const MiniPlayer = memo(MiniPlayerComponent);
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    left: 10,
-    right: 10,
+    left: 12,
+    right: 12,
     zIndex: 50,
   },
   container: {
-    height: 72,
-    borderRadius: 36,
+    height: 58,
+    borderRadius: 20,
     backgroundColor: 'rgba(20, 22, 24, 0.96)',
-    borderWidth: 1.4,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(115, 230, 210, 0.9)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     gap: 10,
   },
   thumb: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -109,22 +109,22 @@ const styles = StyleSheet.create({
   title: {
     color: theme.palette.text.primary,
     fontFamily: theme.fonts.heading,
-    fontSize: 17,
+    fontSize: 14,
   },
   artist: {
     color: theme.palette.text.secondary,
     fontFamily: theme.fonts.body,
-    fontSize: 12,
+    fontSize: 11,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
   },
   playBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
