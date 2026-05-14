@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Pressable } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
@@ -6,16 +6,35 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { getSongArtworkUri } from '../utils/songArtwork';
+
+interface AlbumGroup {
+  name: string;
+  songs: Song[];
+  artworkUri?: string;
+}
+
+const UNKNOWN_ALBUM = 'Unbekannt';
+
+const buildAlbumGroups = (songs: Song[]): AlbumGroup[] => {
+  const grouped = songs.reduce<Record<string, Song[]>>((acc, song) => {
+    const key = song.album?.trim() || UNKNOWN_ALBUM;
+    (acc[key] ||= []).push(song);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .map(([name, list]) => ({
+      name,
+      songs: list,
+      artworkUri: list.map(getSongArtworkUri).find(Boolean),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
 
 const Covers: React.FC = () => {
   const { songs, playSong } = useMusicContext();
-
-  const withAlbum = songs.reduce<Record<string, Song[]>>((acc, s) => {
-    const key = s.album ?? 'Unbekannt';
-    (acc[key] ||= []).push(s);
-    return acc;
-  }, {});
-  const albums = Object.entries(withAlbum);
+  const albums = useMemo(() => buildAlbumGroups(songs), [songs]);
 
   return (
     <AppBackground>
@@ -24,33 +43,18 @@ const Covers: React.FC = () => {
         <Text style={styles.title}>Cover</Text>
         <FlatList
           data={albums}
-          keyExtractor={([name]) => name}
+          keyExtractor={item => item.name}
           numColumns={2}
-          columnWrapperStyle={{ gap: theme.spacing.md }}
-          contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xxl }}
-          renderItem={({ item: [name, list] }) => (
-            <Pressable
-              testID={`cover-tile-${name}`}
-              accessibilityRole="button"
-              accessibilityLabel={`Album ${name} abspielen`}
-              onPress={() => list[0] && playSong(list[0], list)}
-              style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
-            >
-              {list[0]?.cover ? (
-                <Image source={{ uri: list[0].cover }} style={styles.image} />
-              ) : (
-                <View style={[styles.image, styles.placeholder]}>
-                  <Disc3 color={theme.palette.primary} size={48} strokeWidth={1.2} />
-                </View>
-              )}
-              <Text style={styles.tileTitle} numberOfLines={1}>
-                {name}
-              </Text>
-              <Text style={styles.tileMeta}>
-                {list.length} {list.length === 1 ? 'Titel' : 'Titel'}
-              </Text>
-            </Pressable>
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <AlbumTile album={item} onPressAlbum={playSong} />
           )}
+          removeClippedSubviews
+          windowSize={5}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          updateCellsBatchingPeriod={80}
           ListEmptyComponent={
             <Text style={styles.empty} testID="covers-empty">
               Keine Alben in der Bibliothek.
@@ -61,6 +65,50 @@ const Covers: React.FC = () => {
     </AppBackground>
   );
 };
+
+interface AlbumTileProps {
+  album: AlbumGroup;
+  onPressAlbum: (song: Song, queue?: Song[]) => Promise<void>;
+}
+
+const AlbumTile = React.memo<AlbumTileProps>(({ album, onPressAlbum }) => {
+  const [coverFailed, setCoverFailed] = useState(false);
+  const showCover = !!album.artworkUri && !coverFailed;
+
+  React.useEffect(() => {
+    setCoverFailed(false);
+  }, [album.artworkUri]);
+
+  return (
+    <Pressable
+      testID={`cover-tile-${album.name}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Album ${album.name} abspielen`}
+      onPress={() => album.songs[0] && onPressAlbum(album.songs[0], album.songs)}
+      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
+    >
+      {showCover ? (
+        <Image
+          source={{ uri: album.artworkUri }}
+          style={styles.image}
+          onError={() => setCoverFailed(true)}
+        />
+      ) : (
+        <View style={[styles.image, styles.placeholder]}>
+          <Disc3 color={theme.palette.primary} size={48} strokeWidth={1.2} />
+        </View>
+      )}
+      <Text style={styles.tileTitle} numberOfLines={1}>
+        {album.name}
+      </Text>
+      <Text style={styles.tileMeta}>
+        {album.songs.length} {album.songs.length === 1 ? 'Titel' : 'Titel'}
+      </Text>
+    </Pressable>
+  );
+});
+
+AlbumTile.displayName = 'AlbumTile';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -78,6 +126,8 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
     marginBottom: theme.spacing.md,
   },
+  columnWrapper: { gap: theme.spacing.md },
+  listContent: { gap: theme.spacing.md, paddingBottom: theme.spacing.xxl },
   tile: {
     flex: 1,
     backgroundColor: theme.palette.surface,
