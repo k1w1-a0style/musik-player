@@ -30,7 +30,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 
 declare const __DEV__: boolean;
 
-const SONG_ROW_HEIGHT = 72;
+const SONG_ROW_HEIGHT = 62;
 const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
@@ -216,10 +216,10 @@ const Library: React.FC = () => {
           <Text style={styles.brand}>K1W1 Music</Text>
           <View style={styles.topActions}>
             <Pressable accessibilityRole="button" accessibilityLabel="Suche öffnen" onPress={() => setSearchOpen(value => !value)} style={styles.iconButton}>
-              <Search color={theme.palette.text.primary} size={26} />
+              <Search color={theme.palette.text.primary} size={22} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Mehr Optionen" onPress={() => setMenuOpen(true)} style={styles.iconButton}>
-              <MoreVertical color={theme.palette.text.primary} size={26} />
+              <MoreVertical color={theme.palette.text.primary} size={22} />
             </Pressable>
           </View>
         </View>
@@ -244,10 +244,10 @@ const Library: React.FC = () => {
             <Text style={styles.sortLabel}>Name</Text>
             <View style={styles.listHeaderActions}>
               <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" style={styles.roundButton}>
-                <Shuffle color={theme.palette.text.primary} size={19} />
+                <Shuffle color={theme.palette.text.primary} size={17} />
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filtered[0] && handleSongPress(filtered[0])}>
-                <Play color={theme.palette.text.primary} size={19} />
+                <Play color={theme.palette.text.primary} size={17} />
               </Pressable>
             </View>
           </View>
@@ -289,29 +289,29 @@ const MenuItem: React.FC<{ label: string; onPress: () => void; disabled?: boolea
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 26 },
-  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 29, letterSpacing: -0.8 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 18 },
+  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 30, marginBottom: 16, paddingHorizontal: 24 },
-  tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 18 },
-  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 34, letterSpacing: -1.1 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 24, paddingHorizontal: 16, marginHorizontal: 24, marginBottom: 12, gap: 8 },
-  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 11, fontSize: 14 },
-  listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 18, paddingHorizontal: 24, borderTopLeftRadius: 34, borderTopRightRadius: 34, backgroundColor: 'rgba(255,255,255,0.055)' },
-  listHeader: { height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 17 },
-  listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  roundButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
-  listContent: { paddingBottom: 118 },
+  iconButton: { width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 24, marginBottom: 10, paddingHorizontal: 20 },
+  tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 15 },
+  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 28, letterSpacing: -0.8 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18, paddingHorizontal: 12, marginHorizontal: 20, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 8, fontSize: 13 },
+  listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 12, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
+  listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
+  listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roundButton: { width: 36, height: 36, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingBottom: 96 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
-  menuCard: { width: 278, borderRadius: 28, backgroundColor: '#3b3b3f', paddingVertical: 16, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
-  menuItem: { minHeight: 58, justifyContent: 'center', paddingHorizontal: 28 },
-  menuText: { color: '#f4f4f5', fontFamily: theme.fonts.body, fontSize: 22, letterSpacing: -0.3 },
-  menuTextMuted: { color: '#b9b9bd', fontSize: 16 },
+  menuCard: { width: 250, borderRadius: 22, backgroundColor: '#3b3b3f', paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
+  menuItem: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 22 },
+  menuText: { color: '#f4f4f5', fontFamily: theme.fonts.body, fontSize: 18, letterSpacing: -0.3 },
+  menuTextMuted: { color: '#b9b9bd', fontSize: 14 },
 });
 
 export default Library;

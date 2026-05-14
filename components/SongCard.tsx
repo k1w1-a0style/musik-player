@@ -45,7 +45,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         {showCover ? (
           <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
         ) : (
-          <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={20} />
+          <Music2 color={isCurrent ? theme.palette.primary : theme.palette.text.muted} size={17} />
         )}
       </View>
 
@@ -60,7 +60,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
 
       {onInfoSong ? (
         <Pressable testID={`song-card-info-${song.id}`} accessibilityRole="button" accessibilityLabel={`Infos zu ${song.title}`} onPress={handleInfoPress} hitSlop={8} style={styles.infoButton}>
-          <CircleEllipsis color={theme.palette.text.muted} size={18} />
+          <CircleEllipsis color={theme.palette.text.muted} size={17} />
         </Pressable>
       ) : null}
     </Pressable>
@@ -83,30 +83,30 @@ const SongCard = memo(
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: 72,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
-    gap: 12,
+    borderBottomColor: 'rgba(255,255,255,0.105)',
+    gap: 10,
   },
   pressed: { opacity: 0.72 },
-  currentSong: { backgroundColor: 'rgba(82, 255, 118, 0.055)' },
+  currentSong: { backgroundColor: 'rgba(82, 255, 118, 0.045)' },
   activeRail: {
     width: 3,
-    height: 34,
+    height: 30,
     borderRadius: 3,
     backgroundColor: 'transparent',
   },
-  activeRailVisible: { backgroundColor: 'rgba(82, 255, 118, 0.35)' },
+  activeRailVisible: { backgroundColor: 'rgba(82, 255, 118, 0.30)' },
   activeRailPlaying: { backgroundColor: theme.palette.primary },
   cover: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.105)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -114,19 +114,19 @@ const styles = StyleSheet.create({
   coverImage: { width: '100%', height: '100%' },
   infoContainer: { flex: 1, minWidth: 0 },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     color: theme.palette.text.primary,
     fontFamily: theme.fonts.body,
-    letterSpacing: -0.2,
+    letterSpacing: -0.1,
   },
   artist: {
-    fontSize: 13,
+    fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: 3,
+    marginTop: 2,
     fontFamily: theme.fonts.body,
   },
   currentSongText: { color: theme.palette.primary },
-  infoButton: { width: 38, height: 48, alignItems: 'center', justifyContent: 'center' },
+  infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default SongCard;
