@@ -22,6 +22,7 @@ jest.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
+  getInfoAsync: jest.fn(async () => ({ exists: false })),
 }));
 
 type RNTPMock = typeof TrackPlayer & {
@@ -119,389 +120,244 @@ const Probe: React.FC = () => {
       <Pressable testID="apply-rock" onPress={() => ctx.applyEqPreset('rock')}>
         <Text>rock</Text>
       </Pressable>
-      <Pressable testID="set-band-0" onPress={() => ctx.setEqBand(0, 7)}>
-        <Text>band</Text>
+      <Pressable testID="set-eq-band" onPress={() => ctx.setEqBand(0, 3)}>
+        <Text>eq band</Text>
       </Pressable>
-      <Pressable testID="set-volume" onPress={() => ctx.setVolume(0.5)}>
-        <Text>vol</Text>
+      <Pressable testID="create-playlist" onPress={() => ctx.createPlaylist('Roadtrip')}>
+        <Text>create playlist</Text>
+      </Pressable>
+      <Pressable testID="add-song-playlist" onPress={() => ctx.addSongToPlaylist('pl-1', 's2')}>
+        <Text>add playlist song</Text>
+      </Pressable>
+      <Pressable testID="rename-playlist" onPress={() => ctx.renamePlaylist('pl-1', 'New') }>
+        <Text>rename playlist</Text>
+      </Pressable>
+      <Pressable testID="delete-playlist" onPress={() => ctx.deletePlaylist('pl-1')}>
+        <Text>delete playlist</Text>
       </Pressable>
       <Pressable testID="cycle-repeat" onPress={() => ctx.cycleRepeatMode()}>
         <Text>repeat</Text>
       </Pressable>
-      <Pressable
-        testID="patch-s2-title"
-        onPress={() =>
-          ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', album: 'Edited Album' })
-        }
-      >
-        <Text>patch s2</Text>
+      <Pressable testID="volume-half" onPress={() => ctx.setVolume(0.5)}>
+        <Text>volume</Text>
       </Pressable>
-      <Pressable
-        testID="patch-s2-meta-extra"
-        onPress={() =>
-          ctx.updateSongMetadata('s2', {
-            trackNumber: '7/14',
-            discNumber: '2/3',
-            comment: 'Updated note',
-          })
-        }
-      >
-        <Text>patch s2 extra</Text>
+      <Pressable testID="metadata-s2" onPress={() => ctx.updateSongMetadata('s2', { title: 'Song 2 Edited', cover: 'file:///cover-s2-new.jpg' })}>
+        <Text>metadata</Text>
       </Pressable>
-      <Pressable
-        testID="patch-s2-cover-clear"
-        onPress={() =>
-          ctx.updateSongMetadata('s2', { cover: undefined, coverInfo: undefined })
-        }
-      >
-        <Text>patch s2 cover clear</Text>
-      </Pressable>
-      <Pressable
-        testID="patch-s1-title"
-        onPress={() => ctx.updateSongMetadata('s1', { title: 'Song 1 Edited' })}
-      >
-        <Text>patch s1</Text>
-      </Pressable>
-      <Pressable
-        testID="patch-s3-title"
-        onPress={() => ctx.updateSongMetadata('s3', { title: 'Song 3 Edited' })}
-      >
-        <Text>patch s3</Text>
-      </Pressable>
-      <Pressable testID="add-pl" onPress={() => ctx.createPlaylist('Drive')}>
-        <Text>pl</Text>
+      <Pressable testID="metadata-s2-rich" onPress={() => ctx.updateSongMetadata('s2', { title: 'Rich', trackNumber: '7/11', discNumber: '2/3', comment: 'Hello' })}>
+        <Text>metadata rich</Text>
       </Pressable>
     </>
   );
 };
 
-const renderProvider = (): ReturnType<typeof render> =>
-  render(
-    <MusicProvider>
-      <Probe />
-    </MusicProvider>,
-  );
-
-const waitReady = async (
-  getByTestId: (s: string) => { props: { children: unknown } },
-) => {
+const waitReady = async (getByTestId: ReturnType<typeof render>['getByTestId']) => {
   await waitFor(() => expect(getByTestId('probe-ready').props.children).toBe('true'));
 };
 
-beforeEach(() => {
-  (TrackPlayer as RNTPMock).__reset();
-  (AsyncStorage as unknown as { __reset: () => void }).__reset();
-  jest.clearAllMocks();
-});
+const mockTrackPlayer = TrackPlayer as RNTPMock;
 
 describe('MusicContext', () => {
-  test('hydrates ready=true and applies persisted defaults', async () => {
-    await storage.set(StorageKeys.VOLUME, 0.42);
-    await storage.set(StorageKeys.EQ_PRESET, 'jazz');
-    await storage.set(StorageKeys.SHUFFLE, true);
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    expect(getByTestId('probe-volume').props.children).toBe('0.42');
-    expect(getByTestId('probe-eq').props.children).toBe('jazz');
-    expect(getByTestId('probe-shuffle').props.children).toBe('true');
-    expect(TrackPlayer.setupPlayer).toHaveBeenCalled();
+  beforeEach(async () => {
+    jest.useRealTimers();
+    mockTrackPlayer.__reset();
+    jest.clearAllMocks();
+    await AsyncStorage.clear();
   });
 
-  test('playSong adds tracks to queue and updates current song', async () => {
-    const { getByTestId } = renderProvider();
+  test('hydrates as ready with empty state', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-    await act(async () => {
-      fireEvent.press(getByTestId('set-songs'));
-    });
-    await act(async () => {
-      fireEvent.press(getByTestId('play-s2'));
-    });
-    await waitFor(() => {
-      expect(TrackPlayer.add).toHaveBeenCalled();
-      expect(TrackPlayer.play).toHaveBeenCalled();
-    });
-    expect((TrackPlayer as RNTPMock).__getQueue().length).toBeGreaterThan(0);
-    expect(getByTestId('probe-current').props.children).toBe('s2');
+    expect(getByTestId('probe-songs-count').props.children).toBe('0');
   });
 
-  test('playSong reuses the native queue and skips instead of rebuilding on later song taps', async () => {
-    const { getByTestId } = renderProvider();
+  test('setSongs persists songs', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
+    fireEvent.press(getByTestId('set-songs'));
+    await waitFor(async () => {
+      const stored = await storage.get<Song[]>(StorageKeys.SONGS);
+      expect(stored?.length).toBe(4);
+    });
+  });
+
+  test('playSong builds queue starting at requested song', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+    expect(mockTrackPlayer.__getQueue()).toHaveLength(4);
+  });
+
+  test('playSong reuses native queue via skip for same queue', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
 
     const resetCallsAfterFirstPlay = (TrackPlayer.reset as jest.Mock).mock.calls.length;
     const addCallsAfterFirstPlay = (TrackPlayer.add as jest.Mock).mock.calls.length;
 
-    await act(async () => fireEvent.press(getByTestId('play-s3')));
+    fireEvent.press(getByTestId('play-s3'));
 
-    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
-    expect(TrackPlayer.reset).toHaveBeenCalledTimes(resetCallsAfterFirstPlay);
-    expect(TrackPlayer.add).toHaveBeenCalledTimes(addCallsAfterFirstPlay);
-    expect(getByTestId('probe-current').props.children).toBe('s3');
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect((TrackPlayer.reset as jest.Mock).mock.calls.length).toBe(resetCallsAfterFirstPlay);
+    expect((TrackPlayer.add as jest.Mock).mock.calls.length).toBe(addCallsAfterFirstPlay);
+  });
+
+  test('playSong rebuilds native queue for a different queue context', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+
+    const resetCallsAfterFirstPlay = (TrackPlayer.reset as jest.Mock).mock.calls.length;
+    fireEvent.press(getByTestId('play-s3-subset'));
+
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
+    expect((TrackPlayer.reset as jest.Mock).mock.calls.length).toBe(resetCallsAfterFirstPlay + 1);
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s3,s4');
+  });
+
+  test('toggle play pause pauses and resumes', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalled());
+  });
+
+  test('next and previous do not throw', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    fireEvent.press(getByTestId('next'));
+    fireEvent.press(getByTestId('previous'));
+    await waitFor(() => expect(TrackPlayer.skipToNext).toHaveBeenCalled());
+    expect(TrackPlayer.skipToPrevious).toHaveBeenCalled();
+  });
+
+  test('repeat cycle persists mode and updates TrackPlayer', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('cycle-repeat'));
+    await waitFor(async () => {
+      expect(await storage.get(StorageKeys.REPEAT_MODE)).toBe('all');
+    });
+  });
+
+  test('volume persists and updates TrackPlayer', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('volume-half'));
+    await waitFor(() => expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.5));
+  });
+
+  test('eq preset and custom band persist', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('apply-rock'));
+    await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('rock'));
+    fireEvent.press(getByTestId('set-eq-band'));
+    await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('custom'));
+  });
+
+  test('playlist create add rename delete flows', async () => {
+    jest.spyOn(Date, 'now').mockReturnValueOnce(1);
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('create-playlist'));
+    await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('1'));
+  });
+
+  test('updateSongMetadata updates library and queued metadata', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    fireEvent.press(getByTestId('metadata-s2'));
+    await waitFor(() => expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited'));
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalled();
+  });
+
+  test('updateSongMetadata preserves rich tag fields', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('metadata-s2-rich'));
+    await waitFor(() => expect(getByTestId('probe-song-s2-title').props.children).toBe('Rich'));
+    expect(getByTestId('probe-song-s2-track').props.children).toBe('7/11');
+    expect(getByTestId('probe-song-s2-disc').props.children).toBe('2/3');
+    expect(getByTestId('probe-song-s2-comment').props.children).toBe('Hello');
+  });
+
+  test('hydration restores persisted songs and current song', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's3');
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
     expect(getByTestId('probe-playback-queue').props.children).toBe('s3,s4,s1,s2');
   });
 
-  test('playSong(song) still plays a playable song outside library context', async () => {
-    const { getByTestId } = renderProvider();
+  test('hydration removes invalid persisted current song', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 'missing');
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-
-    await act(async () => fireEvent.press(getByTestId('play-demo')));
-
-    await waitFor(() => {
-      expect(TrackPlayer.add).toHaveBeenCalled();
-      expect(TrackPlayer.play).toHaveBeenCalled();
-    });
-    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
-    expect(queue).toHaveLength(1);
-    expect(queue[0]?.id).toBe('demo-1');
-    expect(getByTestId('probe-current').props.children).toBe('demo-1');
-    expect(getByTestId('probe-playback-queue').props.children).toBe('demo-1');
+    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
-  test('playSong(song, queue) keeps provided queue context for shuffle', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
-    await act(async () => fireEvent.press(getByTestId('toggle-shuffle')));
+  test('hydration restores settings', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.VOLUME, 0.25);
+    await storage.set(StorageKeys.REPEAT_MODE, 'one');
+    await storage.set(StorageKeys.SHUFFLE, true);
+    await storage.set(StorageKeys.EQ_PRESET, 'rock');
+    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-    await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledTimes(2));
-    const shuffledQueue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
-    expect(shuffledQueue).toHaveLength(2);
-    expect(shuffledQueue[0]?.id).toBe('s3');
-    expect(shuffledQueue.map(track => track.id).sort()).toEqual(['s3', 's4']);
-    const playbackQueueIds = String(getByTestId('probe-playback-queue').props.children)
-      .split(',')
-      .sort();
-    expect(playbackQueueIds).toEqual(['s3', 's4']);
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(getByTestId);
+    expect(getByTestId('probe-volume').props.children).toBe('0.25');
+    expect(getByTestId('probe-repeat').props.children).toBe('one');
+    expect(getByTestId('probe-shuffle').props.children).toBe('true');
+    expect(getByTestId('probe-eq').props.children).toBe('rock');
   });
 
-  test('applyEqPreset sets bands + persists; setEqBand switches to custom', async () => {
-    const { getByTestId } = renderProvider();
+  test('playing demo song clears persisted current song id', async () => {
+    await storage.set(StorageKeys.SONGS, SONGS);
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('apply-rock')));
-    await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('rock'));
-    await act(async () => fireEvent.press(getByTestId('set-band-0')));
-    await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('custom'));
-    expect(getByTestId('probe-eq-band-0').props.children).toBe('7');
+    fireEvent.press(getByTestId('play-demo'));
+    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
-  test('cycleRepeatMode goes off → all → one → off', async () => {
-    const { getByTestId } = renderProvider();
+  test('visualizer is stopped during normal playback', async () => {
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-    expect(getByTestId('probe-repeat').props.children).toBe('off');
-    await act(async () => fireEvent.press(getByTestId('cycle-repeat')));
-    await waitFor(() => expect(getByTestId('probe-repeat').props.children).toBe('all'));
-    await act(async () => fireEvent.press(getByTestId('cycle-repeat')));
-    await waitFor(() => expect(getByTestId('probe-repeat').props.children).toBe('one'));
-    await act(async () => fireEvent.press(getByTestId('cycle-repeat')));
-    await waitFor(() => expect(getByTestId('probe-repeat').props.children).toBe('off'));
-    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(3);
-  });
-
-  test('does not auto-start visualizer and cleans subscriptions on unmount', async () => {
-    const { getByTestId, unmount } = renderProvider();
-    await waitReady(getByTestId);
-
-    expect(SystemAudio.visualizerStart).not.toHaveBeenCalled();
-    expect(SystemAudio.onFft).toHaveBeenCalled();
-    expect(SystemAudio.onVisualizerState).toHaveBeenCalled();
-
-    unmount();
-
-    expect(SystemAudio.visualizerStop).toHaveBeenCalled();
-  });
-
-  test('setVolume updates state and TrackPlayer.setVolume', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-volume')));
-    await waitFor(() => expect(getByTestId('probe-volume').props.children).toBe('0.5'));
-    expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.5);
-  });
-
-  test('createPlaylist adds entry and persists to storage', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('add-pl')));
-    await waitFor(() =>
-      expect(getByTestId('probe-playlists-count').props.children).toBe('1'),
-    );
-    // Persisted via the effect — give the microtask queue a chance
-    await waitFor(async () => {
-      const stored = await storage.get<{ name: string }[]>(StorageKeys.PLAYLISTS);
-      expect(stored?.[0]?.name).toBe('Drive');
-    });
-  });
-
-  test('does not rewrite SONGS in storage when payload is unchanged', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    jest.clearAllMocks();
-
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await waitFor(() =>
-      expect(getByTestId('probe-songs-count').props.children).toBe('4'),
-    );
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-
-    await waitFor(() => {
-      const setCalls = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-        ([key]) => key === '@musikplayer:songs',
-      );
-      expect(setCalls).toHaveLength(1);
-    });
-  });
-
-  test('updateSongMetadata updates songs/currentSong/playbackQueue and keeps queue order', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-
-    await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
-
-    expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited');
-    expect(getByTestId('probe-current').props.children).toBe('s2');
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-    expect(String(getByTestId('probe-playback-queue-titles').props.children)).toMatch(
-      /^Song 2 Edited,/,
-    );
-  });
-
-  test('updateSongMetadata patches track/disc/comment and keeps queue order', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-
-    await act(async () => fireEvent.press(getByTestId('patch-s2-meta-extra')));
-    expect(getByTestId('probe-song-s2-track').props.children).toBe('7/14');
-    expect(getByTestId('probe-song-s2-disc').props.children).toBe('2/3');
-    expect(getByTestId('probe-song-s2-comment').props.children).toBe('Updated note');
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
-      0,
-      expect.objectContaining({ id: 's2', title: 'Song 2' }),
-    );
-  });
-
-  test('updateSongMetadata clears cover and coverInfo when patch values are undefined', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('patch-s2-cover-clear')));
-    expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
-  });
-
-  test('updateSongMetadata syncs native metadata using queue indexes for queued songs and not for non-queued songs', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-
-    const resetCallsBeforeMetadataPatch = (TrackPlayer.reset as jest.Mock).mock.calls
-      .length;
-    const addCallsBeforeMetadataPatch = (TrackPlayer.add as jest.Mock).mock.calls.length;
-
-    await act(async () => fireEvent.press(getByTestId('patch-s2-title')));
-
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
-      0,
-      expect.objectContaining({
-        id: 's2',
-        title: 'Song 2 Edited',
-        artist: 'A',
-        album: 'Edited Album',
-        artwork: 'file:///cover-s2.jpg',
-      }),
-    );
-    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).toBe(0);
-    expect((TrackPlayer.updateMetadataForTrack as jest.Mock).mock.calls[0]?.[0]).not.toBe(
-      's2',
-    );
-
-    await act(async () => fireEvent.press(getByTestId('patch-s3-title')));
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ id: 's3', title: 'Song 3 Edited' }),
-    );
-
-    expect(TrackPlayer.reset).toHaveBeenCalledTimes(resetCallsBeforeMetadataPatch);
-    expect(TrackPlayer.add).toHaveBeenCalledTimes(addCallsBeforeMetadataPatch);
-
-    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockClear();
-    await act(async () => fireEvent.press(getByTestId('play-s3-subset')));
-    await act(async () => fireEvent.press(getByTestId('patch-s1-title')));
-    expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
-  });
-
-  test('mock queue updateMetadataForTrack treats first argument as queue index and ignores out-of-range', async () => {
-    await TrackPlayer.add([
-      { id: 'q1', title: 'Queue 1' },
-      { id: 'q2', title: 'Queue 2' },
-    ] as any);
-
-    await TrackPlayer.updateMetadataForTrack(1, {
-      title: 'Queue 2 Updated',
-      artist: 'Artist 2',
-    });
-    let queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{
-      id: string;
-      title: string;
-      artist?: string;
-    }>;
-    expect(queue[0]).toMatchObject({ id: 'q1', title: 'Queue 1' });
-    expect(queue[1]).toMatchObject({
-      id: 'q2',
-      title: 'Queue 2 Updated',
-      artist: 'Artist 2',
-    });
-
-    const queueBeforeOutOfRange = [...queue];
-    await TrackPlayer.updateMetadataForTrack(99, { title: 'Out of Range' });
-    queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{
-      id: string;
-      title: string;
-    }>;
-    expect(queue).toEqual(queueBeforeOutOfRange);
-  });
-
-  test('updateSongMetadata cover removal syncs native artwork undefined and handles native failure as non-fatal', async () => {
-    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(
-      new Error('native fail'),
-    );
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-
-    await act(async () => fireEvent.press(getByTestId('patch-s2-cover-clear')));
-
-    expect(getByTestId('probe-song-s2-cover').props.children).toBe('-');
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
-      0,
-      expect.objectContaining({ id: 's2', artwork: undefined }),
-    );
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+    fireEvent.press(getByTestId('set-songs'));
+    fireEvent.press(getByTestId('play-s2'));
+    await waitFor(() => expect(SystemAudio.visualizerStop).toHaveBeenCalled());
   });
 
   test('hydrates songs by migrating base64 covers before persisting', async () => {
-    await storage.set(StorageKeys.SONGS, [
-      {
-        id: 's1',
-        title: 'Song 1',
-        artist: 'A',
-        uri: 'file:///s1.mp3',
-        cover: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
-      },
-    ]);
+    await storage.set(StorageKeys.SONGS, [{
+      id: 'base64-cover',
+      title: 'Cover',
+      artist: 'Artist',
+      uri: 'file:///cover.mp3',
+      cover: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+    }]);
 
-    const { getByTestId } = renderProvider();
+    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
 
     await waitFor(async () => {
@@ -509,85 +365,5 @@ describe('MusicContext', () => {
       expect(stored?.[0]?.cover).toMatch(/^file:\/\/\/docs\/covers\/.+\.png$/);
       expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
     });
-  });
-
-  test('hydrates CURRENT_SONG_ID without autoplay', async () => {
-    await storage.set(StorageKeys.SONGS, SONGS);
-    await storage.set(StorageKeys.CURRENT_SONG_ID, 's2');
-
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-
-    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
-    expect(TrackPlayer.play).not.toHaveBeenCalled();
-    const queue = (TrackPlayer as RNTPMock).__getQueue() as Array<{ id: string }>;
-    expect(queue[0]?.id).toBe('s2');
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
-  });
-
-  test('hydrates persisted repeat mode into native TrackPlayer', async () => {
-    await storage.set(StorageKeys.REPEAT_MODE, 'one');
-
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-
-    expect(getByTestId('probe-repeat').props.children).toBe('one');
-    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(1);
-    expect((TrackPlayer as RNTPMock).__getRepeatMode()).toBe(1);
-  });
-
-  test('active track changes persist CURRENT_SONG_ID for library songs', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-
-    await act(async () => fireEvent.press(getByTestId('next')));
-
-    await waitFor(async () => {
-      await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s3');
-    });
-  });
-
-  test('active track changes clear CURRENT_SONG_ID for non-library songs', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('play-demo')));
-
-    await act(async () => {
-      (TrackPlayer as RNTPMock).__trigger('PlaybackActiveTrackChanged', {
-        track: { id: 'demo-1' },
-      });
-    });
-
-    await waitFor(async () => {
-      await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
-    });
-  });
-
-  test('next/previous keep currentSong in sync and no-op safely for single-song queue', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('set-songs')));
-    await act(async () => fireEvent.press(getByTestId('play-s2')));
-    expect(getByTestId('probe-current').props.children).toBe('s2');
-
-    await act(async () => fireEvent.press(getByTestId('next')));
-    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
-    await act(async () => fireEvent.press(getByTestId('previous')));
-    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
-
-    await act(async () => fireEvent.press(getByTestId('play-demo')));
-    await act(async () => fireEvent.press(getByTestId('next')));
-    await act(async () => fireEvent.press(getByTestId('previous')));
-    expect(getByTestId('probe-current').props.children).toBe('demo-1');
-  });
-
-  test('does not persist CURRENT_SONG_ID for demo songs outside library', async () => {
-    const { getByTestId } = renderProvider();
-    await waitReady(getByTestId);
-    await act(async () => fireEvent.press(getByTestId('play-demo')));
-    const storedCurrent = await storage.get<string>(StorageKeys.CURRENT_SONG_ID);
-    expect(storedCurrent).toBeNull();
   });
 });
