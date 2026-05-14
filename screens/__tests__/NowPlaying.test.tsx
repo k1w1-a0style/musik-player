@@ -63,10 +63,10 @@ describe('NowPlaying cover fallback', () => {
     expect(queryByText(/Visualizer deaktiviert/i)).toBeNull();
   });
 
-  test('shows explicit visualizer hint for missing permission reason', () => {
+  test('hides visualizer hint while visualizer is disabled for performance stabilization', () => {
     mockNowPlayingContext.visualizerError = 'no_permission';
-    const { getByText } = render(<NowPlaying />);
-    expect(getByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeTruthy();
+    const { queryByText } = render(<NowPlaying />);
+    expect(queryByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeNull();
   });
 
   test('favorite icon is not exposed as actionable button', () => {
