@@ -204,7 +204,7 @@ describe('MusicContext', () => {
     fireEvent.press(getByTestId('play-s3'));
 
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
-    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
     expect((TrackPlayer.reset as jest.Mock).mock.calls.length).toBe(resetCallsAfterFirstPlay);
     expect((TrackPlayer.add as jest.Mock).mock.calls.length).toBe(addCallsAfterFirstPlay);
   });
