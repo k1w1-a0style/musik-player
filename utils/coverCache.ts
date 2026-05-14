@@ -150,7 +150,15 @@ export const sanitizeSongCover = async (song: Song): Promise<Song> => {
   if (!song.cover || !isBase64ImageDataUri(song.cover)) return song;
   const cachedUri = await cacheBase64Cover(song.id, song.cover);
   if (!cachedUri) return song;
-  return { ...song, cover: cachedUri };
+  return {
+    ...song,
+    cover: cachedUri,
+    coverInfo: {
+      ...song.coverInfo,
+      status: 'cached',
+      uri: cachedUri,
+    },
+  };
 };
 
 export const sanitizeSongsForStorage = async (songs: Song[]): Promise<Song[]> => {
