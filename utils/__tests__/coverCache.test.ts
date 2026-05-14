@@ -25,6 +25,7 @@ describe('coverCache', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
   });
 
   test('detects image base64 data uri', () => {
@@ -55,7 +56,7 @@ describe('coverCache', () => {
   });
 
   test('reuses existing cached file without rewriting', async () => {
-    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
     const cached = await cacheBase64Cover('reuse-1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
     expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
     expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
