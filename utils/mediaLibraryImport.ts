@@ -10,7 +10,7 @@ import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilt
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 2;
-const EAGER_MEDIA_LIBRARY_METADATA_SCAN = false;
+const EAGER_MEDIA_LIBRARY_METADATA_SCAN = true;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 
