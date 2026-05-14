@@ -91,6 +91,9 @@ const Probe: React.FC = () => {
       >
         <Text>play s3 subset</Text>
       </Pressable>
+      <Pressable testID="play-s3" onPress={() => ctx.playSong(SONGS[2], SONGS)}>
+        <Text>play s3</Text>
+      </Pressable>
       <Pressable
         testID="play-demo"
         onPress={() =>
@@ -219,6 +222,24 @@ describe('MusicContext', () => {
     });
     expect((TrackPlayer as RNTPMock).__getQueue().length).toBeGreaterThan(0);
     expect(getByTestId('probe-current').props.children).toBe('s2');
+  });
+
+  test('playSong reuses the native queue and skips instead of rebuilding on later song taps', async () => {
+    const { getByTestId } = renderProvider();
+    await waitReady(getByTestId);
+    await act(async () => fireEvent.press(getByTestId('set-songs')));
+    await act(async () => fireEvent.press(getByTestId('play-s2')));
+
+    const resetCallsAfterFirstPlay = (TrackPlayer.reset as jest.Mock).mock.calls.length;
+    const addCallsAfterFirstPlay = (TrackPlayer.add as jest.Mock).mock.calls.length;
+
+    await act(async () => fireEvent.press(getByTestId('play-s3')));
+
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(resetCallsAfterFirstPlay);
+    expect(TrackPlayer.add).toHaveBeenCalledTimes(addCallsAfterFirstPlay);
+    expect(getByTestId('probe-current').props.children).toBe('s3');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s3,s4,s1,s2');
   });
 
   test('playSong(song) still plays a playable song outside library context', async () => {

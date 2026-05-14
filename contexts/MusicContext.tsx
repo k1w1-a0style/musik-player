@@ -25,6 +25,7 @@ import {
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
+import { getSongArtworkUri } from '../utils/songArtwork';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -127,13 +128,17 @@ const NowPlayingMusicContext = createContext<NowPlayingMusicContextValue | null>
 
 const VISUALIZER_UPDATE_INTERVAL_MS = 120;
 
+const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
+  skip?: (index: number, initialPosition?: number) => Promise<void>;
+};
+
 const toTrack = (s: Song) => ({
   id: s.id,
   url: s.uri ?? '',
   title: s.title,
   artist: s.artist,
   album: s.album,
-  artwork: s.cover,
+  artwork: getSongArtworkUri(s),
   duration: s.duration ? s.duration / 1000 : undefined,
 });
 
@@ -148,6 +153,22 @@ const moveSongToFront = (queue: Song[], songId?: string): Song[] => {
   if (!songId) return queue.slice();
   const idx = queue.findIndex(song => song.id === songId);
   return idx >= 0 ? [...queue.slice(idx), ...queue.slice(0, idx)] : queue.slice();
+};
+
+const rotateQueueFromIndex = (queue: Song[], index: number): Song[] =>
+  index > 0 ? [...queue.slice(index), ...queue.slice(0, index)] : queue.slice();
+
+const hasSameSongIds = (a: Song[], b: Song[]): boolean => {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  a.forEach(song => counts.set(song.id, (counts.get(song.id) ?? 0) + 1));
+  return b.every(song => {
+    const next = (counts.get(song.id) ?? 0) - 1;
+    if (next < 0) return false;
+    if (next === 0) counts.delete(song.id);
+    else counts.set(song.id, next);
+    return true;
+  });
 };
 
 const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string): Song[] => {
@@ -189,6 +210,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   songsRef.current = songs;
   const queueContextRef = useRef<Song[]>([]);
   const baseQueueContextRef = useRef<Song[]>([]);
+  const nativeQueueRef = useRef<Song[]>([]);
   const lastVisualizerUpdateRef = useRef(0);
   const persistedRefs = useRef<Record<string, string>>({});
 
@@ -293,6 +315,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           try {
             await TrackPlayer.reset();
             await TrackPlayer.add(orderedQueue.map(toTrack));
+            nativeQueueRef.current = orderedQueue.slice();
           } catch {
             // ignore hydration queue init failures
           }
@@ -407,19 +430,25 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [isPlaying]);
 
   // ---- Palette extraction for current track cover ----
+  const currentArtworkUri = getSongArtworkUri(currentSong);
+
   useEffect(() => {
     let cancelled = false;
-    if (!currentSong?.cover) {
+    if (!currentArtworkUri) {
       setPalette(null);
       return;
     }
-    SystemAudio.extractPalette(currentSong.cover).then(p => {
-      if (!cancelled) setPalette(p);
-    });
+    SystemAudio.extractPalette(currentArtworkUri)
+      .then(p => {
+        if (!cancelled) setPalette(p);
+      })
+      .catch(() => {
+        if (!cancelled) setPalette(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [currentSong?.cover]);
+  }, [currentArtworkUri]);
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
@@ -498,10 +527,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setPlaybackQueue(prev => prev.map(patchSong));
     queueContextRef.current = queueContextRef.current.map(patchSong);
     baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
+    nativeQueueRef.current = nativeQueueRef.current.map(patchSong);
 
-    const queueIndex = queueContextRef.current.findIndex(song => song.id === songId);
+    const queueIndex = nativeQueueRef.current.findIndex(song => song.id === songId);
     const queuedPatchedSong =
-      (queueIndex >= 0 ? queueContextRef.current[queueIndex] : undefined) ??
+      (queueIndex >= 0 ? nativeQueueRef.current[queueIndex] : undefined) ??
       baseQueueContextRef.current.find(song => song.id === songId);
     if (!queuedPatchedSong || queueIndex < 0) return;
 
@@ -510,29 +540,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
   }, []);
   // ---- Playback ----
-  const playSong = useCallback(async (song: Song, queue?: Song[]) => {
-    const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
-    const contextQueue = sourceQueue.filter(x => !!x.uri);
-    const requestedSong =
-      contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
-    if (!requestedSong) return;
-
-    const idx = contextQueue.findIndex(x => x.id === requestedSong.id);
-    const queueWithRequested = idx >= 0 ? contextQueue : [requestedSong, ...contextQueue];
-    const startIndex = idx >= 0 ? idx : 0;
-    const orderedQueue = [
-      ...queueWithRequested.slice(startIndex),
-      ...queueWithRequested.slice(0, startIndex),
-    ];
-
-    queueContextRef.current = orderedQueue;
-    baseQueueContextRef.current = queueWithRequested.slice();
-    setPlaybackQueue(orderedQueue);
-
-    await TrackPlayer.reset();
-    await TrackPlayer.add(orderedQueue.map(toTrack));
-    setCurrentSong(requestedSong);
-    await TrackPlayer.play();
+  const persistRequestedSong = useCallback(async (requestedSong: Song): Promise<void> => {
     const isLibrarySong = songsRef.current.some(item => item.id === requestedSong.id);
     if (isLibrarySong) {
       await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
@@ -540,6 +548,58 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await storage.remove(StorageKeys.CURRENT_SONG_ID);
     }
   }, []);
+
+  const playSong = useCallback(
+    async (song: Song, queue?: Song[]) => {
+      const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
+      const contextQueue = sourceQueue.filter(x => !!x.uri);
+      const requestedSong =
+        contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
+      if (!requestedSong) return;
+
+      const requestedIndex = contextQueue.findIndex(x => x.id === requestedSong.id);
+      const queueWithRequested =
+        requestedIndex >= 0 ? contextQueue : [requestedSong, ...contextQueue];
+      const nativeQueue = nativeQueueRef.current;
+      const nativeIndex = nativeQueue.findIndex(x => x.id === requestedSong.id);
+      const canReuseNativeQueue =
+        nativeIndex >= 0 && hasSameSongIds(nativeQueue, queueWithRequested);
+
+      if (canReuseNativeQueue && trackPlayerWithSkip.skip) {
+        const orderedQueue = rotateQueueFromIndex(nativeQueue, nativeIndex);
+        queueContextRef.current = orderedQueue;
+        baseQueueContextRef.current = nativeQueue.slice();
+        setPlaybackQueue(orderedQueue);
+        setCurrentSong(requestedSong);
+
+        try {
+          const activeTrack = await TrackPlayer.getActiveTrack();
+          if (activeTrack?.id !== requestedSong.id) {
+            await trackPlayerWithSkip.skip(nativeIndex);
+          }
+          await TrackPlayer.play();
+          await persistRequestedSong(requestedSong);
+          return;
+        } catch {
+          // Fall through to a full queue rebuild if native skip is unavailable/fails.
+        }
+      }
+
+      const startIndex = requestedIndex >= 0 ? requestedIndex : 0;
+      const orderedQueue = rotateQueueFromIndex(queueWithRequested, startIndex);
+      queueContextRef.current = orderedQueue;
+      baseQueueContextRef.current = queueWithRequested.slice();
+      nativeQueueRef.current = orderedQueue.slice();
+      setPlaybackQueue(orderedQueue);
+
+      await TrackPlayer.reset();
+      await TrackPlayer.add(orderedQueue.map(toTrack));
+      setCurrentSong(requestedSong);
+      await TrackPlayer.play();
+      await persistRequestedSong(requestedSong);
+    },
+    [persistRequestedSong],
+  );
 
   const togglePlayPause = useCallback(async () => {
     const state = (await TrackPlayer.getPlaybackState()).state;
@@ -623,6 +683,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const pos = await TrackPlayer.getProgress();
       await TrackPlayer.reset();
       await TrackPlayer.add(list.map(toTrack));
+      nativeQueueRef.current = list.slice();
       if (pos.position) await TrackPlayer.seekTo(pos.position);
       await TrackPlayer.play();
     } catch {
