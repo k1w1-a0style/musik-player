@@ -92,6 +92,13 @@ const TrackPlayer = {
     repeatMode = mode;
   }),
   getRepeatMode: jest.fn(async () => repeatMode),
+  skip: jest.fn(async index => {
+    if (index < 0 || index >= queue.length) {
+      throw new Error('track not found');
+    }
+    currentIdx = index;
+    trigger(Event.PlaybackActiveTrackChanged, { track: queue[currentIdx] });
+  }),
   skipToNext: jest.fn(async () => {
     if (currentIdx + 1 < queue.length) {
       currentIdx += 1;
