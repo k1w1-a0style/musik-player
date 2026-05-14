@@ -4,6 +4,7 @@ import {
   EncodingType,
   documentDirectory,
   cacheDirectory,
+  getInfoAsync,
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
@@ -131,11 +132,8 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
-    const getInfoAsync = (FileSystem as unknown as { getInfoAsync?: (uri: string) => Promise<{ exists: boolean }> }).getInfoAsync;
-    if (getInfoAsync) {
-      const existing = await getInfoAsync(fileUri);
-      if (existing.exists) return fileUri;
-    }
+    const existing = await getInfoAsync(fileUri);
+    if (existing.exists) return fileUri;
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
     await write(fileUri, base64, {
       encoding: base64Encoding,
