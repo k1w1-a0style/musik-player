@@ -103,7 +103,9 @@ interface MiniPlayerMusicContextValue {
   isPlaying: boolean;
   togglePlayPause: () => Promise<void>;
   next: () => Promise<void>;
+  previous: () => Promise<void>;
   canSkipNext: boolean;
+  canSkipPrevious: boolean;
 }
 
 interface NowPlayingMusicContextValue {
@@ -642,9 +644,18 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, []);
   const previous = useCallback(async () => {
     try {
+      const { position } = await TrackPlayer.getProgress();
+      if (position > 3) {
+        await TrackPlayer.seekTo(0);
+        return;
+      }
       await TrackPlayer.skipToPrevious();
     } catch {
-      /* at start */
+      try {
+        await TrackPlayer.seekTo(0);
+      } catch {
+        /* at start */
+      }
     }
   }, []);
 
@@ -714,8 +725,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [repeatMode]);
 
   const setVolume = useCallback(async (v: number) => {
-    setVolumeState(v);
-    await TrackPlayer.setVolume(v);
+    const nextVolume = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
+    setVolumeState(nextVolume);
+    await TrackPlayer.setVolume(nextVolume);
   }, []);
 
   // ---- EQ (UI preset) ----
@@ -882,9 +894,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       isPlaying,
       togglePlayPause,
       next,
+      previous,
       canSkipNext: playbackQueue.length > 1,
+      canSkipPrevious: playbackQueue.length > 1,
     }),
-    [currentSong, isPlaying, togglePlayPause, next, playbackQueue.length],
+    [currentSong, isPlaying, togglePlayPause, next, previous, playbackQueue.length],
   );
 
   const nowPlayingValue = useMemo<NowPlayingMusicContextValue>(
