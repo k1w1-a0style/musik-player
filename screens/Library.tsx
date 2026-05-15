@@ -23,6 +23,7 @@ import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import LibraryMenuItem from '../components/LibraryMenuItem';
+import LibraryFolderRow from '../components/LibraryFolderRow';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -269,6 +270,10 @@ const Library: React.FC = () => {
     </View>
   ), [playPlaylist]);
 
+  const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
+    <LibraryFolderRow folder={item} onRemove={async folder => setScanFolders(await removeScanFolder(folder.id))} />
+  ), []);
+
   const activeFolders = countActiveScanFolders(scanFolders);
   const emptyMessage = getLibraryEmptyMessage(activeTab);
 
@@ -301,7 +306,7 @@ const Library: React.FC = () => {
         {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? libraryImportMessages.importRunning}</Text></View>}
 
         {activeTab === 'folders' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Scan-Ordner</Text><Text style={styles.folderCount}>{activeFolders} aktiv</Text></View><FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={({ item }) => <View style={styles.folderRow}><View style={styles.folderTextWrap}><Text style={styles.folderName} numberOfLines={1}>{displayFolderName(item)}</Text><Text style={styles.folderMeta} numberOfLines={2}>{item.lastError ?? item.uri}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Scan-Ordner ${displayFolderName(item)} entfernen`} onPress={async () => setScanFolders(await removeScanFolder(item.id))} style={({ pressed }) => [styles.removeFolderButton, pressed && styles.pressed]}><Text style={styles.removeFolderText}>Entfernen</Text></Pressable></View>} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
+          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Scan-Ordner</Text><Text style={styles.folderCount}>{activeFolders} aktiv</Text></View><FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
         ) : activeTab === 'albums' ? (
           <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Alben</Text><View style={styles.listHeaderActions}><Text style={styles.folderCount}>{albumGroups.length}</Text><Pressable accessibilityRole="button" accessibilityLabel="Albumansicht wechseln" onPress={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} style={styles.smallToggle}>{albumViewMode === 'grid' ? <List color={theme.palette.text.secondary} size={16} /> : <Grid2X2 color={theme.palette.text.secondary} size={16} />}</Pressable></View></View>{albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}</View>
         ) : activeTab === 'artists' || activeTab === 'genres' ? (
@@ -361,12 +366,6 @@ const styles = StyleSheet.create({
   albumSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
   playlistRow: { height: GROUP_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
   playlistWarning: { color: theme.palette.error, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
-  folderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
-  folderTextWrap: { flex: 1, minWidth: 0 },
-  folderName: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
-  folderMeta: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
-  removeFolderButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' },
-  removeFolderText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
