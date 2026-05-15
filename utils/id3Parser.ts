@@ -543,6 +543,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       if (id3.cover || !looksLikeMp4) return id3;
       try {
         const info = await getInfoAsync(normalizedUri);
+        if (!info.exists) return id3;
         const size = info.size ?? 0;
         if (size <= HEAD_READ_LIMIT) return id3;
         const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
@@ -571,6 +572,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     if (!FileCtor) return {};
     try {
       const info = await getInfoAsync(normalizedUri);
+      if (!info.exists) return {};
       const size = info.size ?? 0;
       if (size <= 0 || size > HEAD_READ_LIMIT) return {};
       const file = new FileCtor(normalizedUri);
