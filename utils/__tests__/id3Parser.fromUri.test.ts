@@ -23,6 +23,7 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 describe('parseId3FromUri', () => {
+  const existingFile = (size: number) => ({ exists: true, uri: 'file:///mock', isDirectory: false, size });
   const enc = (s: string): number[] => Array.from(s).map(ch => ch.charCodeAt(0));
   const u32be = (n: number): number[] => [
     (n >> 24) & 0xff,
@@ -119,7 +120,7 @@ describe('parseId3FromUri', () => {
   test('falls back to tail read for larger mp4 files', async () => {
     // first read: no recognizable image payload
     mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
-    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
     // second read (tail): JPEG signature
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
     const tailMoov = atom(
@@ -151,7 +152,7 @@ describe('parseId3FromUri', () => {
 
   test('tail read remains untrusted and does not skip fake printable header before real moov', async () => {
     mockReadAsStringAsync.mockResolvedValueOnce('AAAA');
-    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
     const jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 0];
     const fakeHeader = [
       0,
@@ -195,7 +196,7 @@ describe('parseId3FromUri', () => {
   test('returns parsed head tags when tail read fails', async () => {
     const id3WithArtist = buildId3([id3TextFrame('TPE1', 'Art')]);
     mockReadAsStringAsync.mockResolvedValueOnce(id3WithArtist);
-    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
     mockReadAsStringAsync.mockRejectedValueOnce(new Error('tail read failed'));
 
     const tags = await parseId3FromUri('file:///music/album.mp4');
@@ -204,7 +205,7 @@ describe('parseId3FromUri', () => {
 
   test('uses bounded File API fallback for small files when legacy read fails', async () => {
     mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
-    mockGetInfoAsync.mockResolvedValueOnce({ size: 256 });
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(256));
     mockFileBytes.mockResolvedValueOnce(
       new Uint8Array([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0]),
     );
@@ -216,7 +217,7 @@ describe('parseId3FromUri', () => {
 
   test('does not use File.bytes fallback for large files', async () => {
     mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
-    mockGetInfoAsync.mockResolvedValueOnce({ size: 2 * 1024 * 1024 });
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
 
     const tags = await parseId3FromUri('file:///music/big.mp3');
     expect(tags).toEqual({});
