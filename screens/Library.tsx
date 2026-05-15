@@ -41,6 +41,7 @@ import {
 } from '../utils/libraryPresentation';
 import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import { shuffleItems } from '../utils/libraryShuffle';
+import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
 
 declare const __DEV__: boolean;
 
@@ -68,17 +69,6 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
     );
   });
 
-const LIBRARY_TABS = [
-  { key: 'tracks', label: 'Tracks' },
-  { key: 'favorites', label: 'Favoriten' },
-  { key: 'playlists', label: 'Playlisten' },
-  { key: 'albums', label: 'Alben' },
-  { key: 'artists', label: 'Interpreten' },
-  { key: 'genres', label: 'Genres' },
-  { key: 'folders', label: 'Ordner' },
-] as const;
-
-type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
 type AlbumViewMode = 'grid' | 'list';
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
@@ -295,8 +285,8 @@ const Library: React.FC = () => {
     </View>
   ), [playPlaylist]);
 
-  const activeFolders = scanFolders.filter(folder => folder.enabled).length;
-  const emptyMessage = activeTab === 'folders' ? 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.' : activeTab === 'favorites' ? 'Noch keine Favoriten markiert.' : activeTab === 'playlists' ? 'Noch keine Playlists angelegt. Nutze den Playlists-Tab unten, um eine neue Liste zu erstellen.' : activeTab === 'albums' ? 'Keine Alben gefunden. Importiere neu, damit Tags/Cover aktualisiert werden.' : activeTab === 'artists' ? 'Keine Interpreten gefunden.' : activeTab === 'genres' ? 'Keine Genres gefunden.' : 'Keine Treffer gefunden.';
+  const activeFolders = countActiveScanFolders(scanFolders);
+  const emptyMessage = getLibraryEmptyMessage(activeTab);
 
   const songsForActiveList = activeTab === 'favorites' ? favoriteSongs : filteredSongs;
   const handleShufflePress = useCallback(() => {
