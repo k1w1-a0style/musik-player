@@ -11,16 +11,22 @@ export interface SongMetadataRefreshResult {
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
 
+const assignChanged = <K extends keyof Song>(patch: Partial<Song>, song: Song, key: K, value?: string): void => {
+  if (!hasText(value)) return;
+  const normalized = value.trim();
+  if (song[key] !== normalized) patch[key] = normalized as Song[K];
+};
+
 const applyTagsToSong = (song: Song, tags: Id3Tags): Song => {
   const patch: Partial<Song> = {};
-  if (hasText(tags.title)) patch.title = tags.title.trim();
-  if (hasText(tags.artist)) patch.artist = tags.artist.trim();
-  if (hasText(tags.album)) patch.album = tags.album.trim();
-  if (hasText(tags.year)) patch.year = tags.year.trim();
-  if (hasText(tags.genre)) patch.genre = tags.genre.trim();
-  if (hasText(tags.trackNumber)) patch.trackNumber = tags.trackNumber.trim();
-  if (hasText(tags.discNumber)) patch.discNumber = tags.discNumber.trim();
-  if (hasText(tags.comment)) patch.comment = tags.comment.trim();
+  assignChanged(patch, song, 'title', tags.title);
+  assignChanged(patch, song, 'artist', tags.artist);
+  assignChanged(patch, song, 'album', tags.album);
+  assignChanged(patch, song, 'year', tags.year);
+  assignChanged(patch, song, 'genre', tags.genre);
+  assignChanged(patch, song, 'trackNumber', tags.trackNumber);
+  assignChanged(patch, song, 'discNumber', tags.discNumber);
+  assignChanged(patch, song, 'comment', tags.comment);
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 
