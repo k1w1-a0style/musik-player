@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  ScrollView,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -31,6 +32,8 @@ import { APP_STACK_ROUTES } from '../types/routes';
 declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 62;
+const GROUP_ROW_HEIGHT = 66;
+const IMPORT_TIMEOUT_MS = 90_000;
 const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
   {
@@ -70,14 +73,21 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
   });
 
 const LIBRARY_TABS = [
-  { key: 'playlists', label: 'Wiedergabelisten' },
-  { key: 'tracks', label: 'Titel' },
+  { key: 'tracks', label: 'Tracks' },
+  { key: 'playlists', label: 'Playlisten' },
   { key: 'albums', label: 'Alben' },
   { key: 'artists', label: 'Interpreten' },
   { key: 'folders', label: 'Ordner' },
 ] as const;
 
 type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
+
+type GroupItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  songs: Song[];
+};
 
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
 
@@ -88,6 +98,36 @@ const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
     byKey.set(key, { ...byKey.get(key), ...song });
   });
   return Array.from(byKey.values()).sort((a, b) => a.title.localeCompare(b.title));
+};
+
+const groupSongs = (songs: Song[], field: 'album' | 'artist'): GroupItem[] => {
+  const grouped = new Map<string, Song[]>();
+  for (const song of songs) {
+    const label = song[field]?.trim() || (field === 'album' ? 'Unbekanntes Album' : 'Unbekannter Interpret');
+    grouped.set(label, [...(grouped.get(label) ?? []), song]);
+  }
+  return Array.from(grouped.entries())
+    .map(([title, list]) => ({
+      id: `${field}:${title}`,
+      title,
+      subtitle: `${list.length} ${list.length === 1 ? 'Track' : 'Tracks'}`,
+      songs: list.sort((a, b) => a.title.localeCompare(b.title)),
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+};
+
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 };
 
 const Library: React.FC = () => {
@@ -111,23 +151,21 @@ const Library: React.FC = () => {
     [isReady, songs],
   );
 
-  const filtered = useMemo(() => {
+  const filteredSongs = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const source = displayedSongs.filter(song => {
-      if (activeTab === 'albums') return !!song.album;
-      if (activeTab === 'artists') return !!song.artist;
-      return true;
-    });
-    if (!q) return source;
+    if (!q) return displayedSongs;
 
-    return source.filter(song =>
+    return displayedSongs.filter(song =>
       [song.title, song.artist, song.album]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
         .includes(q),
     );
-  }, [activeTab, displayedSongs, query]);
+  }, [displayedSongs, query]);
+
+  const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
+  const artistGroups = useMemo(() => groupSongs(filteredSongs, 'artist'), [filteredSongs]);
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
@@ -168,8 +206,13 @@ const Library: React.FC = () => {
       setLoading(true);
       const activeFolders = scanFolders.filter(folder => folder.enabled);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
-        setImportStatus('Scan-Ordner werden gelesen…');
-        const result = await importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS });
+        setImportStatus(`Scan-Ordner werden gelesen… (${activeFolders.length})`);
+        const result = await withTimeout(
+          importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }),
+          IMPORT_TIMEOUT_MS,
+          'Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.',
+        );
+        setImportStatus(`${result.songs.length} Tracks gefunden. Bibliothek wird aktualisiert…`);
         if (result.folderUpdates) {
           for (const folder of result.folderUpdates) {
             const original = scanFolders.find(item => item.id === folder.id);
@@ -200,7 +243,11 @@ const Library: React.FC = () => {
         Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
         return;
       }
-      const candidates = await scanMediaLibraryCandidates();
+      const candidates = await withTimeout(
+        scanMediaLibraryCandidates(),
+        IMPORT_TIMEOUT_MS,
+        'Medienbibliothek-Scan läuft zu lange.',
+      );
       setImportStatus(`${candidates.assets.length} Musikdateien gefunden…`);
       if (candidates.assets.length === 0) {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
@@ -208,19 +255,24 @@ const Library: React.FC = () => {
       }
       const shouldImport = await confirmImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
-      setImportStatus('Musik wird importiert…');
-      const mediaResult = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
+      setImportStatus('Metadaten und Cover werden importiert…');
+      const mediaResult = await withTimeout(
+        enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length),
+        IMPORT_TIMEOUT_MS,
+        'Metadaten-Import läuft zu lange.',
+      );
+      setImportStatus(`${mediaResult.songs.length} Tracks werden gespeichert…`);
       setSongs(mergeSongs(songs, mediaResult.songs));
       setActiveTab('tracks');
-    } catch {
-      Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
+    } catch (error) {
+      Alert.alert('Import gestoppt', error instanceof Error ? error.message : 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {
       setLoading(false);
       setImportStatus(null);
     }
   };
 
-  const handleSongPress = useCallback((song: Song) => void playSong(song), [playSong]);
+  const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => void playSong(song, queue), [filteredSongs, playSong]);
   const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
   const keyExtractor = useCallback((item: Song) => item.id, []);
   const getItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({
@@ -235,18 +287,43 @@ const Library: React.FC = () => {
         song={item}
         isCurrent={currentSongId === item.id}
         isPlaying={currentSongId === item.id && isPlaying}
-        onPressSong={handleSongPress}
+        onPressSong={song => handleSongPress(song, filteredSongs)}
         onInfoSong={isDemoSong(item) ? undefined : handleInfoSong}
       />
     ),
-    [currentSongId, handleInfoSong, handleSongPress, isPlaying],
+    [currentSongId, filteredSongs, handleInfoSong, handleSongPress, isPlaying],
+  );
+
+  const renderGroupItem = useCallback(
+    ({ item }: { item: GroupItem }) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title} abspielen`}
+        style={({ pressed }) => [styles.groupRow, pressed && styles.pressed]}
+        onPress={() => item.songs[0] && handleSongPress(item.songs[0], item.songs)}
+      >
+        <View style={styles.groupIcon}>
+          <Text style={styles.groupIconText}>{item.title.slice(0, 1).toUpperCase()}</Text>
+        </View>
+        <View style={styles.groupTextWrap}>
+          <Text style={styles.groupTitle} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.groupSubtitle}>{item.subtitle}</Text>
+        </View>
+        <Play color={theme.palette.text.secondary} size={16} />
+      </Pressable>
+    ),
+    [handleSongPress],
   );
 
   const activeFolders = scanFolders.filter(folder => folder.enabled).length;
   const emptyMessage =
     activeTab === 'folders'
       ? 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.'
-      : 'Keine Treffer gefunden.';
+      : activeTab === 'albums'
+        ? 'Keine Alben gefunden. Importiere neu, damit Tags/Cover aktualisiert werden.'
+        : activeTab === 'artists'
+          ? 'Keine Interpreten gefunden.'
+          : 'Keine Treffer gefunden.';
 
   return (
     <AppBackground>
@@ -263,7 +340,7 @@ const Library: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.tabsRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
           {LIBRARY_TABS.map(tab => {
             const active = activeTab === tab.key;
             return (
@@ -279,7 +356,7 @@ const Library: React.FC = () => {
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
 
         {searchOpen && (
           <View style={styles.searchWrap}>
@@ -327,6 +404,28 @@ const Library: React.FC = () => {
               ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
             />
           </View>
+        ) : activeTab === 'albums' || activeTab === 'artists' ? (
+          <View style={styles.listShell}>
+            <View style={styles.listHeader}>
+              <Text style={styles.sortLabel}>{activeTab === 'albums' ? 'Alben' : 'Interpreten'}</Text>
+              <Text style={styles.folderCount}>{activeTab === 'albums' ? albumGroups.length : artistGroups.length}</Text>
+            </View>
+            <FlatList
+              data={activeTab === 'albums' ? albumGroups : artistGroups}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={renderGroupItem}
+              getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })}
+              ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+            />
+          </View>
+        ) : activeTab === 'playlists' ? (
+          <View style={styles.listShell}>
+            <View style={styles.listHeader}>
+              <Text style={styles.sortLabel}>Playlisten</Text>
+            </View>
+            <Text style={styles.empty}>Playlisten-Verwaltung kommt in den nächsten Schritt. Vorhandene Playlists bleiben erhalten.</Text>
+          </View>
         ) : (
           <View style={styles.listShell}>
             <View style={styles.listHeader}>
@@ -335,13 +434,13 @@ const Library: React.FC = () => {
                 <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" style={styles.roundButton}>
                   <Shuffle color={theme.palette.text.primary} size={17} />
                 </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filtered[0] && handleSongPress(filtered[0])}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filteredSongs[0] && handleSongPress(filteredSongs[0], filteredSongs)}>
                   <Play color={theme.palette.text.primary} size={17} />
                 </Pressable>
               </View>
             </View>
             <FlatList
-              data={filtered}
+              data={filteredSongs}
               keyExtractor={keyExtractor}
               contentContainerStyle={styles.listContent}
               renderItem={renderItem}
@@ -359,7 +458,7 @@ const Library: React.FC = () => {
         <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
           <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
             <View style={styles.menuCard}>
-              <MenuItem label="Importieren" onPress={importFromDevice} disabled={loading || !isReady} />
+              <MenuItem label="Importieren / Rescan" onPress={importFromDevice} disabled={loading || !isReady} />
               <MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} />
               <MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted />
               <MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} />
@@ -383,14 +482,14 @@ const styles = StyleSheet.create({
   brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 18, marginBottom: 10, paddingHorizontal: 20 },
+  tabsRow: { alignItems: 'flex-end', gap: 18, marginBottom: 10, paddingHorizontal: 20, paddingRight: 34 },
   tabButton: { paddingVertical: 4 },
   tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 15 },
   tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 28, letterSpacing: -0.8 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18, paddingHorizontal: 12, marginHorizontal: 20, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 8, fontSize: 13 },
   importStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.075)' },
-  importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
+  importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, flex: 1 },
   listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 12, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
@@ -399,6 +498,12 @@ const styles = StyleSheet.create({
   roundButton: { width: 36, height: 36, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingBottom: 96 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
+  groupRow: { height: GROUP_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
+  groupIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
+  groupIconText: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 18 },
+  groupTextWrap: { flex: 1, minWidth: 0 },
+  groupTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 15 },
+  groupSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 2 },
   folderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
   folderTextWrap: { flex: 1, minWidth: 0 },
   folderName: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
