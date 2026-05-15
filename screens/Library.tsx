@@ -69,7 +69,26 @@ const confirmImport = (found: number, skipped: number): Promise<boolean> =>
     );
   });
 
+const LIBRARY_TABS = [
+  { key: 'playlists', label: 'Wiedergabelisten' },
+  { key: 'tracks', label: 'Titel' },
+  { key: 'albums', label: 'Alben' },
+  { key: 'artists', label: 'Interpreten' },
+  { key: 'folders', label: 'Ordner' },
+] as const;
+
+type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
+
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
+
+const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
+  const byKey = new Map<string, Song>();
+  [...existingSongs, ...importedSongs].forEach(song => {
+    const key = song.uri ?? song.id;
+    byKey.set(key, { ...byKey.get(key), ...song });
+  });
+  return Array.from(byKey.values()).sort((a, b) => a.title.localeCompare(b.title));
+};
 
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -80,6 +99,7 @@ const Library: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
 
   useEffect(() => {
     getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
@@ -93,16 +113,21 @@ const Library: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return displayedSongs;
+    const source = displayedSongs.filter(song => {
+      if (activeTab === 'albums') return !!song.album;
+      if (activeTab === 'artists') return !!song.artist;
+      return true;
+    });
+    if (!q) return source;
 
-    return displayedSongs.filter(song =>
+    return source.filter(song =>
       [song.title, song.artist, song.album]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
         .includes(q),
     );
-  }, [displayedSongs, query]);
+  }, [activeTab, displayedSongs, query]);
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
@@ -130,6 +155,7 @@ const Library: React.FC = () => {
         return;
       }
       setScanFolders(next);
+      setActiveTab('folders');
     } catch {
       Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl ist auf diesem Gerät nicht verfügbar. Nutze stattdessen den normalen Import.');
     }
@@ -164,6 +190,7 @@ const Library: React.FC = () => {
         }
         if (result.errors.length > 0) Alert.alert('Teilweise importiert', 'Einige Ordner/Dateien waren nicht lesbar. Importierbare Songs wurden trotzdem übernommen.');
         setSongs(result.songs);
+        setActiveTab('tracks');
         return;
       }
 
@@ -183,12 +210,13 @@ const Library: React.FC = () => {
       if (!shouldImport) return;
       setImportStatus('Musik wird importiert…');
       const mediaResult = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
-      setSongs(mediaResult.songs);
-      setImportStatus(`${mediaResult.songs.length} Titel importiert.`);
+      setSongs(mergeSongs(songs, mediaResult.songs));
+      setActiveTab('tracks');
     } catch {
       Alert.alert('Fehler', 'Medienbibliothek konnte nicht gelesen werden.');
     } finally {
       setLoading(false);
+      setImportStatus(null);
     }
   };
 
@@ -215,6 +243,10 @@ const Library: React.FC = () => {
   );
 
   const activeFolders = scanFolders.filter(folder => folder.enabled).length;
+  const emptyMessage =
+    activeTab === 'folders'
+      ? 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.'
+      : 'Keine Treffer gefunden.';
 
   return (
     <AppBackground>
@@ -232,11 +264,21 @@ const Library: React.FC = () => {
         </View>
 
         <View style={styles.tabsRow}>
-          <Text style={styles.tabMuted}>Wiedergabelisten</Text>
-          <Text style={styles.tabActive}>Titel</Text>
-          <Text style={styles.tabMuted}>Alben</Text>
-          <Text style={styles.tabMuted}>Interpreten</Text>
-          <Text style={styles.tabMuted}>Ordner</Text>
+          {LIBRARY_TABS.map(tab => {
+            const active = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${tab.label} anzeigen`}
+                onPress={() => setActiveTab(tab.key)}
+                style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}
+              >
+                <Text style={active ? styles.tabActive : styles.tabMuted}>{tab.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {searchOpen && (
@@ -246,46 +288,80 @@ const Library: React.FC = () => {
           </View>
         )}
 
-        {(loading || importStatus) && (
+        {loading && (
           <View style={styles.importStatusRow}>
-            {loading ? <ActivityIndicator color={theme.palette.primary} size="small" /> : null}
+            <ActivityIndicator color={theme.palette.primary} size="small" />
             <Text style={styles.importStatusText}>{importStatus ?? 'Import läuft…'}</Text>
           </View>
         )}
 
-        <View style={styles.listShell}>
-          <View style={styles.listHeader}>
-            <Text style={styles.sortLabel}>Name</Text>
-            <View style={styles.listHeaderActions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" style={styles.roundButton}>
-                <Shuffle color={theme.palette.text.primary} size={17} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filtered[0] && handleSongPress(filtered[0])}>
-                <Play color={theme.palette.text.primary} size={17} />
-              </Pressable>
+        {activeTab === 'folders' ? (
+          <View style={styles.listShell}>
+            <View style={styles.listHeader}>
+              <Text style={styles.sortLabel}>Scan-Ordner</Text>
+              <Text style={styles.folderCount}>{activeFolders} aktiv</Text>
             </View>
+            <FlatList
+              data={scanFolders}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <View style={styles.folderRow}>
+                  <View style={styles.folderTextWrap}>
+                    <Text style={styles.folderName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.folderMeta} numberOfLines={2}>{item.lastError ?? item.uri}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Scan-Ordner ${item.name} entfernen`}
+                    onPress={async () => {
+                      const next = await removeScanFolder(item.id);
+                      setScanFolders(next);
+                    }}
+                    style={({ pressed }) => [styles.removeFolderButton, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.removeFolderText}>Entfernen</Text>
+                  </Pressable>
+                </View>
+              )}
+              ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+            />
           </View>
-          <FlatList
-            data={filtered}
-            keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContent}
-            renderItem={renderItem}
-            removeClippedSubviews
-            windowSize={7}
-            initialNumToRender={9}
-            maxToRenderPerBatch={7}
-            updateCellsBatchingPeriod={90}
-            getItemLayout={getItemLayout}
-            ListEmptyComponent={<Text style={styles.empty}>Keine Treffer gefunden.</Text>}
-          />
-        </View>
+        ) : (
+          <View style={styles.listShell}>
+            <View style={styles.listHeader}>
+              <Text style={styles.sortLabel}>Name</Text>
+              <View style={styles.listHeaderActions}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" style={styles.roundButton}>
+                  <Shuffle color={theme.palette.text.primary} size={17} />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => filtered[0] && handleSongPress(filtered[0])}>
+                  <Play color={theme.palette.text.primary} size={17} />
+                </Pressable>
+              </View>
+            </View>
+            <FlatList
+              data={filtered}
+              keyExtractor={keyExtractor}
+              contentContainerStyle={styles.listContent}
+              renderItem={renderItem}
+              removeClippedSubviews
+              windowSize={5}
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
+              updateCellsBatchingPeriod={120}
+              getItemLayout={getItemLayout}
+              ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+            />
+          </View>
+        )}
 
         <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
           <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
             <View style={styles.menuCard}>
               <MenuItem label="Importieren" onPress={importFromDevice} disabled={loading || !isReady} />
               <MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} />
-              <MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => setMenuOpen(false)} muted />
+              <MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted />
               <MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} />
             </View>
           </Pressable>
@@ -307,7 +383,8 @@ const styles = StyleSheet.create({
   brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 24, marginBottom: 10, paddingHorizontal: 20 },
+  tabsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 18, marginBottom: 10, paddingHorizontal: 20 },
+  tabButton: { paddingVertical: 4 },
   tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 15 },
   tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 28, letterSpacing: -0.8 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18, paddingHorizontal: 12, marginHorizontal: 20, marginBottom: 12, gap: 8 },
@@ -317,10 +394,17 @@ const styles = StyleSheet.create({
   listShell: { flex: 1, marginTop: 2, marginHorizontal: 0, paddingTop: 12, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
+  folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
   listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundButton: { width: 36, height: 36, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingBottom: 96 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
+  folderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
+  folderTextWrap: { flex: 1, minWidth: 0 },
+  folderName: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },
+  folderMeta: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
+  removeFolderButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' },
+  removeFolderText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },

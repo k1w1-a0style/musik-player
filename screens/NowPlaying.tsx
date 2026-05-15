@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNowPlayingMusicContext } from '../contexts/MusicContext';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import Controls from '../components/Controls';
@@ -29,6 +30,7 @@ const formatVisualizerHint = (reason: string | null): string | null => {
 
 const NowPlaying: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
 
@@ -166,7 +168,7 @@ const NowPlaying: React.FC = () => {
         </View>
       )}
 
-      <BottomControlsRow volume={volume} onVolumeChange={setVolume} />
+      <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} />
     </Screen>
   );
 };
@@ -216,8 +218,8 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
   );
 });
 
-const BottomControlsRow = React.memo(({ volume, onVolumeChange }: { volume: number; onVolumeChange: (v: number) => Promise<void> }) => (
-  <View style={styles.bottomRow}>
+const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset }: { volume: number; onVolumeChange: (v: number) => Promise<void>; bottomInset: number }) => (
+  <View style={[styles.bottomRow, { paddingBottom: Math.max(theme.spacing.sm, bottomInset + theme.spacing.xs) }]}>
     <View style={styles.bottomBtn} accessible={false}><Heart color={theme.palette.text.muted} size={20} /></View>
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />

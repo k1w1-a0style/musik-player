@@ -171,6 +171,16 @@ const hasSameSongIds = (a: Song[], b: Song[]): boolean => {
   });
 };
 
+const prunePlaylists = (items: Playlist[], validSongIds: Set<string>): Playlist[] => {
+  let changed = false;
+  const next = items.map(playlist => {
+    const songIds = playlist.songIds.filter(songId => validSongIds.has(songId));
+    if (songIds.length !== playlist.songIds.length) changed = true;
+    return songIds.length === playlist.songIds.length ? playlist : { ...playlist, songIds };
+  });
+  return changed ? next : items;
+};
+
 const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string): Song[] => {
   const ordered = moveSongToFront(queue, currentSongId);
   if (ordered.length <= 2) return ordered;
@@ -511,7 +521,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [songs, isReady, persistIfChanged]);
 
   // ---- Library ----
-  const setSongs = useCallback((s: Song[]) => setSongsState(s), []);
+  const setSongs = useCallback((s: Song[]) => {
+    const validSongIds = new Set(s.map(song => song.id));
+    setPlaylists(prev => prunePlaylists(prev, validSongIds));
+    setSongsState(s);
+  }, []);
+
   const addSongs = useCallback((s: Song[]) => {
     setSongsState(prev => {
       const existing = new Set(prev.map(x => x.id));
