@@ -5,7 +5,6 @@ const mockGetInfoAsync = jest.fn();
 const mockFileBytes = jest.fn();
 
 jest.mock('expo-file-system', () => ({
-  getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
   File: class {
     uri: string;
     constructor(uri: string) {
@@ -20,6 +19,7 @@ jest.mock('expo-file-system', () => ({
 jest.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
   readAsStringAsync: (...args: unknown[]) => mockReadAsStringAsync(...args),
+  getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
 }));
 
 describe('parseId3FromUri', () => {
