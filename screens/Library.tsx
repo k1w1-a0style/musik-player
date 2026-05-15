@@ -25,6 +25,7 @@ import Screen from '../components/Screen';
 import LibraryMenuItem from '../components/LibraryMenuItem';
 import LibraryFolderRow from '../components/LibraryFolderRow';
 import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
+import LibraryGroupRow from '../components/LibraryGroupRow';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -36,7 +37,6 @@ import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
   displayAlbum,
   displayArtist,
-  displayFolderName,
   groupSongs,
   mergeSongs,
   type LibraryGroupItem,
@@ -235,11 +235,7 @@ const Library: React.FC = () => {
   ), [currentSongId, filteredSongs, handleInfoSong, handleSongPress, isPlaying]);
 
   const renderGroupItem = useCallback(({ item }: { item: GroupItem }) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${item.title} abspielen`} style={({ pressed }) => [styles.groupRow, pressed && styles.pressed]} onPress={() => item.songs[0] && handleSongPress(item.songs[0], item.songs)}>
-      <View style={styles.groupIcon}>{item.cover ? <Image source={{ uri: item.cover }} style={styles.groupCover} /> : <Text style={styles.groupIconText}>{item.title.slice(0, 1).toUpperCase()}</Text>}</View>
-      <View style={styles.groupTextWrap}><Text style={styles.groupTitle} numberOfLines={1}>{item.title}</Text><Text style={styles.groupSubtitle}>{item.subtitle}</Text></View>
-      <Play color={theme.palette.text.secondary} size={16} />
-    </Pressable>
+    <LibraryGroupRow group={item} onPress={group => group.songs[0] && handleSongPress(group.songs[0], group.songs)} />
   ), [handleSongPress]);
 
   const renderAlbumTile = useCallback(({ item }: { item: GroupItem }) => (
@@ -335,13 +331,6 @@ const styles = StyleSheet.create({
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
-  groupRow: { height: GROUP_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
-  groupIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  groupCover: { width: '100%', height: '100%' },
-  groupIconText: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 18 },
-  groupTextWrap: { flex: 1, minWidth: 0 },
-  groupTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 15 },
-  groupSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 2 },
   albumTile: { width: '48%', height: ALBUM_TILE_HEIGHT, marginBottom: 14 },
   albumArt: { aspectRatio: 1, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   albumImage: { width: '100%', height: '100%' },
