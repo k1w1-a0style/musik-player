@@ -22,6 +22,7 @@ import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
+import LibraryMenuItem from '../components/LibraryMenuItem';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -329,14 +330,12 @@ const Library: React.FC = () => {
         )}
 
         <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}><View style={styles.menuCard}><MenuItem label="Importieren / Rescan" onPress={importFromDevice} disabled={loading || !isReady} /><MenuItem label="Metadaten aktualisieren" onPress={refreshMetadataFromFiles} disabled={loading || !isReady || songs.length === 0} /><MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} /><MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted /><MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} /></View></Pressable>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}><View style={styles.menuCard}><LibraryMenuItem label="Importieren / Rescan" onPress={importFromDevice} disabled={loading || !isReady} /><LibraryMenuItem label="Metadaten aktualisieren" onPress={refreshMetadataFromFiles} disabled={loading || !isReady || songs.length === 0} /><LibraryMenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} /><LibraryMenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted /><LibraryMenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} /></View></Pressable>
         </Modal>
       </Screen>
     </AppBackground>
   );
 };
-
-const MenuItem: React.FC<{ label: string; onPress: () => void; disabled?: boolean; muted?: boolean }> = ({ label, onPress, disabled, muted }) => <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && styles.pressed, disabled && styles.disabled]}><Text style={[styles.menuText, muted && styles.menuTextMuted]}>{label}</Text></Pressable>;
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
@@ -389,9 +388,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
   menuCard: { width: 250, borderRadius: 22, backgroundColor: '#3b3b3f', paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
-  menuItem: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 22 },
-  menuText: { color: '#f4f4f5', fontFamily: theme.fonts.body, fontSize: 18, letterSpacing: -0.3 },
-  menuTextMuted: { color: '#b9b9bd', fontSize: 14 },
 });
 
 export default Library;
