@@ -25,6 +25,11 @@ export interface PaletteResult {
   darkMuted?: string;
 }
 
+export interface EmbeddedArtworkResult {
+  uri: string;
+  mimeType: string;
+}
+
 export interface FftEvent {
   data: number[];
 }
@@ -45,6 +50,7 @@ declare class ExpoSystemAudioModule extends NativeModule<{
   visualizerStart(bins: number): Promise<boolean>;
   visualizerStop(): void;
   extractPalette(uri: string): Promise<PaletteResult | null>;
+  extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
 }
 
 const native: ExpoSystemAudioModule | null = (() => {
@@ -100,6 +106,10 @@ export const SystemAudio = {
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {
     return native ? native.extractPalette(uri) : null;
+  },
+
+  async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
+    return native ? native.extractEmbeddedArtwork(uri) : null;
   },
 };
 
