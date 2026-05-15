@@ -9,6 +9,7 @@ import android.media.audiofx.Equalizer
 import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.util.Base64
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
@@ -116,7 +117,6 @@ class SystemAudioModule : Module() {
               samplingRate: Int,
             ) {
               val data = fft ?: return
-              // Compute magnitude per FFT bin, then group into `fftBins`.
               val halfSize = data.size / 2
               val mags = DoubleArray(halfSize)
               for (i in 0 until halfSize) {
@@ -124,7 +124,6 @@ class SystemAudioModule : Module() {
                 val imag = data[2 * i + 1].toInt()
                 mags[i] = sqrt((real * real + imag * imag).toDouble())
               }
-              // Group logarithmically for nicer visual distribution
               val out = DoubleArray(fftBins)
               if (halfSize > 0) {
                 val logMin = 0.0
@@ -142,14 +141,13 @@ class SystemAudioModule : Module() {
                   out[b] = if (n > 0) sum / n else 0.0
                 }
               }
-              // Normalize to 0..1 (typical max ~140)
               val normalized = out.map { (it / 140.0).coerceIn(0.0, 1.0) }
               sendEvent("onFftData", mapOf("data" to normalized))
             }
           },
           Visualizer.getMaxCaptureRate() / 2,
           false,
-          true, // FFT only
+          true,
         )
         v.enabled = true
         visualizer = v
@@ -184,11 +182,16 @@ class SystemAudioModule : Module() {
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
-      val mimeType = detectImageMime(bytes) ?: return@AsyncFunction null
+      val mimeType = detectImageMime(bytes) ?: run {
+        Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogUri()}")
+        return@AsyncFunction null
+      }
       val fileUri = cacheArtworkBytes(uri, bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
+      Log.d(TAG, "embedded artwork cached bytes=${bytes.size} mime=$mimeType file=${fileUri.safeLogUri()}")
       mapOf(
         "uri" to fileUri,
         "mimeType" to mimeType,
+        "byteLength" to bytes.size,
       )
     }
 
@@ -264,9 +267,15 @@ class SystemAudioModule : Module() {
         else -> {
           val ctx = appContext.reactContext ?: return null
           val parsed = Uri.parse(uri)
-          ctx.contentResolver.openInputStream(parsed)?.use { stream ->
+          if (parsed.scheme == "file") {
+            val path = parsed.path ?: return null
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            BitmapFactory.decodeStream(stream, null, opts)
+            BitmapFactory.decodeFile(path, opts)
+          } else {
+            ctx.contentResolver.openInputStream(parsed)?.use { stream ->
+              val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+              BitmapFactory.decodeStream(stream, null, opts)
+            }
           }
         }
       }
@@ -279,15 +288,27 @@ class SystemAudioModule : Module() {
     val ctx = appContext.reactContext ?: return null
     val retriever = MediaMetadataRetriever()
     return try {
+      val parsed = Uri.parse(uri)
       when {
-        uri.startsWith("content://") || uri.startsWith("file://") ->
-          retriever.setDataSource(ctx, Uri.parse(uri))
+        parsed.scheme == "content" -> retriever.setDataSource(ctx, parsed)
+        parsed.scheme == "file" -> {
+          val path = parsed.path
+          if (path.isNullOrBlank()) {
+            Log.d(TAG, "file uri has no path: ${uri.safeLogUri()}")
+            return null
+          }
+          retriever.setDataSource(path)
+        }
         uri.startsWith("http://") || uri.startsWith("https://") ->
           retriever.setDataSource(uri, emptyMap<String, String>())
         else -> retriever.setDataSource(uri)
       }
-      retriever.embeddedPicture
-    } catch (_: Throwable) {
+      val artwork = retriever.embeddedPicture
+      if (artwork == null) Log.d(TAG, "no embedded artwork found uri=${uri.safeLogUri()}")
+      else Log.d(TAG, "embedded artwork found bytes=${artwork.size} uri=${uri.safeLogUri()}")
+      artwork
+    } catch (e: Throwable) {
+      Log.d(TAG, "embedded artwork failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
       null
     } finally {
       try {
@@ -301,11 +322,12 @@ class SystemAudioModule : Module() {
     return try {
       val dir = File(ctx.cacheDir, "embedded-artwork")
       if (!dir.exists()) dir.mkdirs()
-      val safeName = "${sourceUri.hashCode().toUInt().toString(16)}-${bytes.contentHashCode().toUInt().toString(16)}.$extension"
+      val safeName = "${Integer.toHexString(sourceUri.hashCode())}-${Integer.toHexString(bytes.contentHashCode())}.$extension"
       val out = File(dir, safeName)
       if (!out.exists()) out.writeBytes(bytes)
       "file://${out.absolutePath}"
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      Log.d(TAG, "embedded artwork cache failed ${e.javaClass.simpleName}: ${e.message}")
       null
     }
   }
@@ -332,9 +354,15 @@ class SystemAudioModule : Module() {
     else -> "jpg"
   }
 
+  private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
+
   @Suppress("unused")
   private fun normalize01(v: Double): Double = v.coerceIn(0.0, 1.0)
 
   @Suppress("unused")
   private fun toIntPercent(v: Double): Int = (v * 100).roundToInt()
+
+  private companion object {
+    private const val TAG = "SystemAudio"
+  }
 }
