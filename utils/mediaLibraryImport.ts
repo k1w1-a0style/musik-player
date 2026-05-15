@@ -11,8 +11,6 @@ import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilt
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 2;
-const EAGER_MEDIA_LIBRARY_METADATA_SCAN = false;
-const EAGER_SAF_METADATA_SCAN = false;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 
@@ -52,6 +50,7 @@ export interface ImportSongsOptions {
   scanFolders?: ScanFolder[];
   platformOs?: string;
   loadNativeCovers?: boolean;
+  readId3Tags?: boolean;
 }
 
 interface BuildSongSource {
@@ -66,6 +65,10 @@ interface BuildSongSource {
 
 interface BuildSongOptions {
   loadNativeCover?: boolean;
+}
+
+interface ImportEnrichmentOptions extends BuildSongOptions {
+  readId3Tags?: boolean;
 }
 
 const safeDecode = (value: string): string => {
@@ -139,6 +142,11 @@ const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> 
   } catch {
     return undefined;
   }
+};
+
+const readId3TagsIfEnabled = async (uri: string, enabled: boolean): Promise<Id3Tags> => {
+  if (!enabled) return {};
+  return parseId3FromUri(uri).catch(() => ({}));
 };
 
 const bitrateFromSizeAndDuration = (size?: number, durationMs?: number): number | undefined => {
@@ -263,9 +271,9 @@ export const scanMediaLibraryCandidates = async (): Promise<AudioImportScanResul
 export const enrichMediaLibraryAssets = async (
   assets: MediaAsset[],
   skippedCount = 0,
-  options: BuildSongOptions = {},
+  options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = false } = options;
+  const { loadNativeCover = false, readId3Tags = false } = options;
   const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -276,7 +284,7 @@ export const enrichMediaLibraryAssets = async (
       const asset = queue.shift();
       if (!asset) break;
       try {
-        const tags: Id3Tags = EAGER_MEDIA_LIBRARY_METADATA_SCAN ? await parseId3FromUri(asset.uri).catch(() => ({})) : {};
+        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags);
         songs.push(await buildSongFromImportSource({
           id: asset.id,
           uri: asset.uri,
@@ -297,7 +305,7 @@ export const enrichMediaLibraryAssets = async (
   return { songs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: songs.length, skipped: skippedCount, errors: errors.length }] };
 };
 
-export const scanFromMediaLibrary = async (options: BuildSongOptions = {}): Promise<ImportScanResult> => {
+export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
   const candidates = await scanMediaLibraryCandidates();
   const result = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length, options);
   result.skipped = candidates.skipped.map(item => `${item.asset.id}:${item.reason}`);
@@ -306,9 +314,9 @@ export const scanFromMediaLibrary = async (options: BuildSongOptions = {}): Prom
 
 export const scanFromSafFolders = async (
   folders: ScanFolder[],
-  options: BuildSongOptions = {},
+  options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = false } = options;
+  const { loadNativeCover = false, readId3Tags = false } = options;
   const songs: Song[] = [];
   const errors: string[] = [];
   const skipped: string[] = [];
@@ -330,7 +338,7 @@ export const scanFromSafFolders = async (
 
     for (const uri of files) {
       try {
-        const tags = EAGER_SAF_METADATA_SCAN ? await parseId3FromUri(uri).catch(() => ({})) : {};
+        const tags = await readId3TagsIfEnabled(uri, readId3Tags);
         songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
       } catch {
         errors.push(uri);
@@ -345,10 +353,11 @@ export const scanFromSafFolders = async (
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs, loadNativeCovers = false } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers = false, readId3Tags = false } = options;
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
-  if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, { loadNativeCover: loadNativeCovers });
-  return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers });
+  const importOptions = { loadNativeCover: loadNativeCovers, readId3Tags };
+  if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, importOptions);
+  return scanFromMediaLibrary(importOptions);
 };
 
 export const loadAllAudioAssetsFromMediaLibrary = async (
