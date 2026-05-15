@@ -43,6 +43,7 @@ import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/li
 import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
+import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 
 declare const __DEV__: boolean;
 
@@ -136,15 +137,7 @@ const Library: React.FC = () => {
         Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
         return;
       }
-      const addedAt = Date.now();
-      const id = `${addedAt}-${Math.random().toString(36).slice(2, 8)}`;
-      const folder: ScanFolder = {
-        id,
-        name: displayFolderName({ id, name: '', uri: permission.directoryUri, addedAt, enabled: true }),
-        uri: permission.directoryUri,
-        addedAt,
-        enabled: true,
-      };
+      const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
       const next = await addScanFolder(folder);
       if (next.length === scanFolders.length) {
         Alert.alert('Hinweis', 'Dieser Ordner ist bereits in der Scan-Liste.');
@@ -162,7 +155,7 @@ const Library: React.FC = () => {
     setImportStatus('Import wird vorbereitet…');
     try {
       setLoading(true);
-      const activeFolders = scanFolders.filter(folder => folder.enabled);
+      const activeFolders = getEnabledScanFolders(scanFolders);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
         setImportStatus(`Scan-Ordner werden gelesen… (${activeFolders.length})`);
         const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, 'Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.');
