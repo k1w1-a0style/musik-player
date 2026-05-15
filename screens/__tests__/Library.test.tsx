@@ -21,6 +21,7 @@ const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
 const mockImportSongs = jest.fn<Promise<any>, [any?]>(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
 const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [], skipped: [] }));
 const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
+const mockRefreshSongsFromId3 = jest.fn<Promise<any>, [any[]]>(async songs => ({ songs, updated: 0, skipped: 0, failed: 0, errors: [] }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -52,6 +53,10 @@ jest.mock('../../utils/mediaLibraryImport', () => ({
   importSongsFromSources: (options: any) => mockImportSongs(options),
   scanMediaLibraryCandidates: () => mockMediaCandidates(),
   enrichMediaLibraryAssets: (...args: any[]) => mockMediaEnrich(...args),
+}));
+
+jest.mock('../../utils/songMetadataRefresh', () => ({
+  refreshSongsFromId3: (songs: any[]) => mockRefreshSongsFromId3(songs),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -146,6 +151,24 @@ describe('Library', () => {
 
     openOverflowMenu(getByLabelText);
     expect(getByText('Aktive Scan-Ordner: 1')).toBeTruthy();
+    view.unmount();
+  });
+
+  test('metadata refresh action updates songs and reports result', async () => {
+    const refreshedSongs = [{ id: 's1', title: 'Fresh Song', artist: 'Artist', cover: 'file:///broken.jpg' }];
+    mockRefreshSongsFromId3.mockResolvedValueOnce({ songs: refreshedSongs, updated: 1, skipped: 0, failed: 0, errors: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<Library />);
+    const { getByLabelText, getByText } = view;
+
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+    openOverflowMenu(getByLabelText);
+    fireEvent.press(getByText('Metadaten aktualisieren'));
+
+    await waitFor(() => expect(mockRefreshSongsFromId3).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })])));
+    expect(mockSetSongs).toHaveBeenCalledWith(refreshedSongs);
+    expect(Alert.alert).toHaveBeenCalledWith('Metadaten aktualisiert', '1 Tracks aktualisiert. 0 übersprungen. 0 fehlgeschlagen.');
     view.unmount();
   });
 
