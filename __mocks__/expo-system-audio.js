@@ -23,7 +23,8 @@ const SystemAudio = {
     stateCb = cb;
     return { remove: () => { stateCb = null; } };
   }),
-  extractPalette: jest.fn().mockResolvedValue(null),
+  extractPalette: jest.fn(() => new Promise(() => {})),
+  extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   __triggerFft: data => visualizerCb?.(data),
   __triggerState: e => stateCb?.(e),
 };
