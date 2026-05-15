@@ -6,8 +6,7 @@ import TagEditor from '../TagEditor';
 const mockLaunchImageLibraryAsync = jest.fn();
 const mockWriteTagsToFile = jest.fn();
 const mockUpdateSongMetadata = jest.fn();
-
-let mockSongId = 's1';
+const mockSongId = 's1';
 let mockSongs: any[] = [];
 let mockCapability = {
   canRead: true,
