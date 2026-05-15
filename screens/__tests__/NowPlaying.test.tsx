@@ -5,7 +5,8 @@ import NowPlaying from '../NowPlaying';
 
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
-const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(() => Promise.resolve(false));
+const pendingFavoriteLookup = () => new Promise<boolean>(() => undefined);
+const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(pendingFavoriteLookup);
 const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
 
 jest.mock('@react-navigation/native', () => ({
@@ -62,7 +63,7 @@ describe('NowPlaying cover fallback', () => {
     mockNavigate.mockClear();
     mockIsFavoriteSongId.mockClear();
     mockSetFavoriteSongId.mockClear();
-    mockIsFavoriteSongId.mockResolvedValue(false);
+    mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
   test('hides broken cover image after error', () => {
@@ -85,6 +86,7 @@ describe('NowPlaying cover fallback', () => {
   });
 
   test('favorite icon persists an actionable favorite state', async () => {
+    mockIsFavoriteSongId.mockResolvedValue(false);
     const { getByLabelText } = render(<NowPlaying />);
     const favorite = getByLabelText('Track favorisieren');
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
