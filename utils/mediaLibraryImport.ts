@@ -63,9 +63,32 @@ interface BuildSongSource {
   size?: number;
 }
 
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const safDisplayPath = (uri: string): string => {
+  const withoutQuery = uri.split('?')[0] ?? uri;
+  const rawSegment = withoutQuery.split('/').pop() ?? withoutQuery;
+  const decoded = safeDecode(rawSegment).replace(/^tree\//, '').replace(/^document\//, '');
+  const colonIndex = decoded.indexOf(':');
+  return colonIndex >= 0 ? decoded.slice(colonIndex + 1) : decoded;
+};
+
+const basenameFromPath = (value: string): string => {
+  const cleaned = safeDecode(value).replace(/\\/g, '/').replace(/\/+$/, '');
+  return cleaned.split('/').filter(Boolean).pop() ?? cleaned;
+};
+
+export const deriveSafDisplayName = (uri: string): string => basenameFromPath(safDisplayPath(uri)) || 'Unbekannt';
+
 export const deriveExtension = (input?: string): string | undefined => {
   if (!input) return undefined;
-  const segment = (input.split('?')[0] ?? input).split('/').pop() ?? input;
+  const segment = basenameFromPath((input.split('?')[0] ?? input));
   const dotIndex = segment.lastIndexOf('.');
   if (dotIndex < 0 || dotIndex === segment.length - 1) return undefined;
   return segment.slice(dotIndex + 1).toLowerCase();
@@ -98,24 +121,9 @@ export const classifySafReadDirectoryError = (error: unknown): 'not-directory' |
   return 'unknown';
 };
 
-export const deriveFolderNameFromUri = (uri: string): string => {
-  const cleaned = uri.replace(/\/+$/, '');
-  const segment = (cleaned.split('/').pop() ?? '').replace(/%3A/gi, ':');
-  try {
-    return decodeURIComponent(segment) || 'Ordner';
-  } catch {
-    return segment || 'Ordner';
-  }
-};
+export const deriveFolderNameFromUri = (uri: string): string => deriveSafDisplayName(uri) || 'Ordner';
 
-const filenameFromUri = (uri: string): string => {
-  const segment = uri.split('/').pop() ?? uri;
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
-};
+const filenameFromUri = (uri: string): string => deriveSafDisplayName(uri) || uri;
 
 const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => typeof existing === 'number' && existing > 0 ? existing : undefined;
 
@@ -128,6 +136,11 @@ const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> 
   }
 };
 
+const bitrateFromSizeAndDuration = (size?: number, durationMs?: number): number | undefined => {
+  if (!size || !durationMs || durationMs <= 0) return undefined;
+  return Math.round((size * 8) / (durationMs / 1000) / 1000);
+};
+
 export const buildSongFromImportSource = async (source: BuildSongSource, tags: Id3Tags = {}): Promise<Song> => {
   const importedAt = Date.now();
   const filename = source.filename ?? filenameFromUri(source.uri);
@@ -137,6 +150,7 @@ export const buildSongFromImportSource = async (source: BuildSongSource, tags: I
   const parsedCover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
   const nativeCover = parsedCover ? undefined : await getNativeEmbeddedCover(source.uri);
   const cover = parsedCover ?? nativeCover;
+  const size = await resolveAssetSize(source.uri, source.size);
 
   return {
     id: source.id,
@@ -157,9 +171,13 @@ export const buildSongFromImportSource = async (source: BuildSongSource, tags: I
       extension,
       container: extension,
       mimeType: deriveMimeType(source.mimeType, extension),
-      size: await resolveAssetSize(source.uri, source.size),
+      size,
       source: source.source,
       importedAt,
+    },
+    audioInfo: {
+      codec: extension,
+      bitrate: bitrateFromSizeAndDuration(size, source.durationMs),
     },
     coverInfo: { status: cover ? (cachedCover || nativeCover ? 'cached' : 'external') : 'none', uri: cover },
   };
