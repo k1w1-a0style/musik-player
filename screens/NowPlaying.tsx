@@ -17,8 +17,9 @@ import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_W - 32, 380);
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const COVER_SIZE = Math.min(SCREEN_W - 48, Math.max(240, Math.floor(SCREEN_H * 0.34)));
+const QUEUE_ROW_HEIGHT = 44;
 
 const HIDDEN_VISUALIZER_REASONS = new Set(['stopped', 'ok']);
 
@@ -39,7 +40,6 @@ const NowPlaying: React.FC = () => {
     [playbackQueue, currentSong],
   );
   const currentIdx = currentSong ? Math.max(0, queue.findIndex(song => song.id === currentSong.id)) : 0;
-  const visibleQueue = useMemo(() => queue.slice(0, 5), [queue]);
   const queueById = useMemo(() => new Map(queue.map(song => [song.id, song])), [queue]);
   const flatRef = useRef<FlatList<Song>>(null);
   const currentSongRef = useRef<Song | null>(currentSong);
@@ -88,6 +88,19 @@ const NowPlaying: React.FC = () => {
       );
     },
     [currentSong?.id, isPlaying, coverAccent],
+  );
+
+  const renderQueueItem = useCallback(
+    ({ item }: { item: Song }) => (
+      <QueuePreviewRow
+        id={item.id}
+        title={item.title}
+        artist={item.artist}
+        isCurrent={item.id === currentSong?.id}
+        onPress={playQueueItemById}
+      />
+    ),
+    [currentSong?.id, playQueueItemById],
   );
 
   return (
@@ -146,25 +159,22 @@ const NowPlaying: React.FC = () => {
       />
       <Controls />
 
-      {visibleQueue.length > 1 && (
+      {queue.length > 1 && (
         <View style={styles.queueCard}>
           <View style={styles.queueHeaderRow}>
             <Text style={styles.queueEyebrow}>QUEUE</Text>
             <Text style={styles.queueCount}>{queue.length} Tracks</Text>
           </View>
-          {visibleQueue.map(item => {
-            const isCurrent = item.id === currentSong?.id;
-            return (
-              <QueuePreviewRow
-                key={item.id}
-                id={item.id}
-                title={item.title}
-                artist={item.artist}
-                isCurrent={isCurrent}
-                onPress={playQueueItemById}
-              />
-            );
-          })}
+          <FlatList
+            data={queue}
+            keyExtractor={item => item.id}
+            renderItem={renderQueueItem}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={queue.length > 4}
+            initialScrollIndex={currentIdx > 0 ? currentIdx : undefined}
+            getItemLayout={(_, index) => ({ length: QUEUE_ROW_HEIGHT, offset: QUEUE_ROW_HEIGHT * index, index })}
+            style={styles.queueList}
+          />
         </View>
       )}
 
@@ -219,7 +229,7 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
 });
 
 const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset }: { volume: number; onVolumeChange: (v: number) => Promise<void>; bottomInset: number }) => (
-  <View style={[styles.bottomRow, { paddingBottom: Math.max(theme.spacing.sm, bottomInset + theme.spacing.xs) }]}>
+  <View style={[styles.bottomRow, { paddingBottom: Math.max(22, bottomInset + 18) }]}>
     <View style={styles.bottomBtn} accessible={false}><Heart color={theme.palette.text.muted} size={20} /></View>
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
@@ -258,7 +268,7 @@ const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent 
   return (
     <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
       {artworkUri && !coverFailed ? (
-        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} />
+        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} resizeMode="cover" />
       ) : (
         <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
           <Disc3 color={theme.palette.primary} size={120} />
@@ -270,7 +280,7 @@ const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent 
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { flex: 1, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.sm },
+  content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
   glowOrb: {
     position: 'absolute',
     width: 340,
@@ -284,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   headerBtn: {
     width: 40,
@@ -306,7 +316,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  carousel: { flexGrow: 0, height: COVER_SIZE + 10 },
+  carousel: { flexGrow: 0, height: COVER_SIZE + 4 },
   carouselContent: { alignItems: 'center' },
   coverSlide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
   coverCard: {
@@ -328,20 +338,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
   titleBlock: { flex: 1 },
   title: {
     color: theme.palette.text.primary,
-    fontSize: 28,
+    fontSize: 24,
     letterSpacing: -0.7,
     fontFamily: theme.fonts.display,
   },
   artist: {
     color: theme.palette.text.secondary,
-    fontSize: 15,
-    marginTop: 3,
+    fontSize: 14,
+    marginTop: 2,
     fontFamily: theme.fonts.body,
   },
   heartBtn: {
@@ -355,18 +365,19 @@ const styles = StyleSheet.create({
   visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
   queueCard: {
     marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
+    marginTop: 8,
+    padding: 12,
     borderRadius: theme.radii.card,
     backgroundColor: theme.palette.surfaceGlass,
     borderWidth: 1,
     borderColor: theme.palette.border,
+    maxHeight: Math.min(210, Math.max(116, Math.floor(SCREEN_H * 0.22))),
   },
   queueHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   queueEyebrow: {
     color: theme.palette.primary,
@@ -379,11 +390,12 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.body,
     fontSize: 11,
   },
+  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 4.2 },
   queueItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 44,
+    height: QUEUE_ROW_HEIGHT,
     borderRadius: theme.borderRadius.sm,
     paddingHorizontal: 8,
   },
@@ -414,6 +426,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
+    paddingTop: 8,
   },
   bottomBtn: {
     width: 42,
