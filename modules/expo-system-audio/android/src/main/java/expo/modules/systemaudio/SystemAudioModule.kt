@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.media.audiofx.Equalizer
 import android.media.audiofx.Visualizer
 import android.net.Uri
@@ -12,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
@@ -163,7 +165,7 @@ class SystemAudioModule : Module() {
       releaseVisualizer()
     }
 
-    // ---------- Palette extraction ----------
+    // ---------- Palette / artwork extraction ----------
 
     AsyncFunction("extractPalette") { uri: String ->
       val bitmap = loadBitmap(uri) ?: return@AsyncFunction null
@@ -178,6 +180,16 @@ class SystemAudioModule : Module() {
       result["lightMuted"] = palette.lightMutedSwatch?.rgb?.let(::hex)
       result["darkMuted"] = palette.darkMutedSwatch?.rgb?.let(::hex)
       result
+    }
+
+    AsyncFunction("extractEmbeddedArtwork") { uri: String ->
+      val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
+      val mimeType = detectImageMime(bytes) ?: return@AsyncFunction null
+      val fileUri = cacheArtworkBytes(uri, bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
+      mapOf(
+        "uri" to fileUri,
+        "mimeType" to mimeType,
+      )
     }
 
     OnDestroy {
@@ -261,6 +273,63 @@ class SystemAudioModule : Module() {
     } catch (_: Throwable) {
       null
     }
+  }
+
+  private fun readEmbeddedArtwork(uri: String): ByteArray? {
+    val ctx = appContext.reactContext ?: return null
+    val retriever = MediaMetadataRetriever()
+    return try {
+      when {
+        uri.startsWith("content://") || uri.startsWith("file://") ->
+          retriever.setDataSource(ctx, Uri.parse(uri))
+        uri.startsWith("http://") || uri.startsWith("https://") ->
+          retriever.setDataSource(uri, emptyMap<String, String>())
+        else -> retriever.setDataSource(uri)
+      }
+      retriever.embeddedPicture
+    } catch (_: Throwable) {
+      null
+    } finally {
+      try {
+        retriever.release()
+      } catch (_: Throwable) {}
+    }
+  }
+
+  private fun cacheArtworkBytes(sourceUri: String, bytes: ByteArray, extension: String): String? {
+    val ctx = appContext.reactContext ?: return null
+    return try {
+      val dir = File(ctx.cacheDir, "embedded-artwork")
+      if (!dir.exists()) dir.mkdirs()
+      val safeName = "${sourceUri.hashCode().toUInt().toString(16)}-${bytes.contentHashCode().toUInt().toString(16)}.$extension"
+      val out = File(dir, safeName)
+      if (!out.exists()) out.writeBytes(bytes)
+      "file://${out.absolutePath}"
+    } catch (_: Throwable) {
+      null
+    }
+  }
+
+  private fun detectImageMime(bytes: ByteArray): String? {
+    if (bytes.size >= 3 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte() && bytes[2] == 0xff.toByte())
+      return "image/jpeg"
+    if (
+      bytes.size >= 8 &&
+      bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4e.toByte() && bytes[3] == 0x47.toByte() &&
+      bytes[4] == 0x0d.toByte() && bytes[5] == 0x0a.toByte() && bytes[6] == 0x1a.toByte() && bytes[7] == 0x0a.toByte()
+    ) return "image/png"
+    if (
+      bytes.size >= 12 &&
+      bytes[0] == 0x52.toByte() && bytes[1] == 0x49.toByte() && bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte() &&
+      bytes[8] == 0x57.toByte() && bytes[9] == 0x45.toByte() && bytes[10] == 0x42.toByte() && bytes[11] == 0x50.toByte()
+    ) return "image/webp"
+    return null
+  }
+
+  private fun extensionForMime(mimeType: String): String = when (mimeType) {
+    "image/png" -> "png"
+    "image/webp" -> "webp"
+    else -> "jpg"
   }
 
   @Suppress("unused")
