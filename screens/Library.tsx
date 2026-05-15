@@ -11,7 +11,6 @@ import {
   TextInput,
   Modal,
   ScrollView,
-  Image,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -26,6 +25,7 @@ import LibraryMenuItem from '../components/LibraryMenuItem';
 import LibraryFolderRow from '../components/LibraryFolderRow';
 import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import LibraryGroupRow from '../components/LibraryGroupRow';
+import LibraryAlbumTile from '../components/LibraryAlbumTile';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -60,7 +60,6 @@ declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 62;
 const GROUP_ROW_HEIGHT = 66;
-const ALBUM_TILE_HEIGHT = 184;
 const IMPORT_TIMEOUT_MS = 90_000;
 const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
 const DEMO_SONGS: Song[] = [
@@ -239,11 +238,7 @@ const Library: React.FC = () => {
   ), [handleSongPress]);
 
   const renderAlbumTile = useCallback(({ item }: { item: GroupItem }) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${item.title} abspielen`} style={({ pressed }) => [styles.albumTile, pressed && styles.pressed]} onPress={() => item.songs[0] && handleSongPress(item.songs[0], item.songs)}>
-      <View style={styles.albumArt}>{item.cover ? <Image source={{ uri: item.cover }} style={styles.albumImage} /> : <Text style={styles.albumLetter}>{item.title.slice(0, 1).toUpperCase()}</Text>}</View>
-      <Text style={styles.albumTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={styles.albumSubtitle}>{item.subtitle}</Text>
-    </Pressable>
+    <LibraryAlbumTile album={item} onPress={album => album.songs[0] && handleSongPress(album.songs[0], album.songs)} />
   ), [handleSongPress]);
 
   const renderPlaylistItem = useCallback(({ item }: { item: PlaylistItem }) => (
@@ -331,12 +326,6 @@ const styles = StyleSheet.create({
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
-  albumTile: { width: '48%', height: ALBUM_TILE_HEIGHT, marginBottom: 14 },
-  albumArt: { aspectRatio: 1, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  albumImage: { width: '100%', height: '100%' },
-  albumLetter: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 34 },
-  albumTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
-  albumSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
