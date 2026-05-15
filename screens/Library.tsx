@@ -17,7 +17,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Grid2X2, Heart, List, MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
+import { Grid2X2, Heart, List, ListMusic, MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -70,6 +70,7 @@ const LIBRARY_TABS = [
 type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
 type AlbumViewMode = 'grid' | 'list';
 type GroupItem = { id: string; title: string; subtitle: string; songs: Song[]; cover?: string };
+type PlaylistItem = { id: string; name: string; songs: Song[]; validCount: number; totalCount: number };
 
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
 const basename = (value?: string): string => {
@@ -129,7 +130,7 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string)
 
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const { songs, setSongs, currentSong, playSong, isReady, isPlaying } = useLibraryMusicContext();
+  const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
@@ -165,6 +166,25 @@ const Library: React.FC = () => {
   const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
   const artistGroups = useMemo(() => groupSongs(filteredSongs, 'artist'), [filteredSongs]);
   const genreGroups = useMemo(() => groupSongs(filteredSongs, 'genre'), [filteredSongs]);
+  const playlistItems = useMemo<PlaylistItem[]>(() => {
+    const songsById = new Map(displayedSongs.map(song => [song.id, song]));
+    const q = query.trim().toLowerCase();
+    return playlists
+      .map(playlist => {
+        const playlistSongs = playlist.songIds
+          .map(songId => songsById.get(songId))
+          .filter((song): song is Song => !!song);
+        return {
+          id: playlist.id,
+          name: playlist.name,
+          songs: playlistSongs,
+          validCount: playlistSongs.length,
+          totalCount: playlist.songIds.length,
+        };
+      })
+      .filter(item => !q || item.name.toLowerCase().includes(q) || item.songs.some(song => [song.title, displayArtist(song), displayAlbum(song), displayGenre(song)].filter(Boolean).join(' ').toLowerCase().includes(q)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [displayedSongs, playlists, query]);
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
@@ -276,8 +296,29 @@ const Library: React.FC = () => {
     </Pressable>
   ), [handleSongPress]);
 
+  const renderPlaylistItem = useCallback(({ item }: { item: PlaylistItem }) => (
+    <View style={styles.playlistRow} testID={`library-playlist-${item.id}`}>
+      <View style={styles.groupIcon}><ListMusic color={theme.palette.primary} size={20} /></View>
+      <View style={styles.groupTextWrap}>
+        <Text style={styles.groupTitle} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.groupSubtitle}>{item.validCount} {item.validCount === 1 ? 'Track' : 'Tracks'}</Text>
+        {item.validCount !== item.totalCount && <Text style={styles.playlistWarning}>{item.totalCount - item.validCount} nicht mehr gefunden</Text>}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Playlist ${item.name} abspielen`}
+        accessibilityState={{ disabled: item.validCount === 0 }}
+        disabled={item.validCount === 0}
+        onPress={() => void playPlaylist(item.id)}
+        style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, item.validCount === 0 && styles.disabled]}
+      >
+        <Play color={item.validCount > 0 ? theme.palette.text.primary : theme.palette.text.muted} size={17} />
+      </Pressable>
+    </View>
+  ), [playPlaylist]);
+
   const activeFolders = scanFolders.filter(folder => folder.enabled).length;
-  const emptyMessage = activeTab === 'folders' ? 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.' : activeTab === 'favorites' ? 'Noch keine Favoriten markiert.' : activeTab === 'albums' ? 'Keine Alben gefunden. Importiere neu, damit Tags/Cover aktualisiert werden.' : activeTab === 'artists' ? 'Keine Interpreten gefunden.' : activeTab === 'genres' ? 'Keine Genres gefunden.' : 'Keine Treffer gefunden.';
+  const emptyMessage = activeTab === 'folders' ? 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.' : activeTab === 'favorites' ? 'Noch keine Favoriten markiert.' : activeTab === 'playlists' ? 'Noch keine Playlists angelegt. Nutze den Playlists-Tab unten, um eine neue Liste zu erstellen.' : activeTab === 'albums' ? 'Keine Alben gefunden. Importiere neu, damit Tags/Cover aktualisiert werden.' : activeTab === 'artists' ? 'Keine Interpreten gefunden.' : activeTab === 'genres' ? 'Keine Genres gefunden.' : 'Keine Treffer gefunden.';
 
   const songsForActiveList = activeTab === 'favorites' ? favoriteSongs : filteredSongs;
   const handleShufflePress = useCallback(() => {
@@ -319,7 +360,7 @@ const Library: React.FC = () => {
         ) : activeTab === 'artists' || activeTab === 'genres' ? (
           <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>{activeTab === 'artists' ? 'Interpreten' : 'Genres'}</Text><Text style={styles.folderCount}>{activeTab === 'artists' ? artistGroups.length : genreGroups.length}</Text></View><FlatList data={activeTab === 'artists' ? artistGroups : genreGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
         ) : activeTab === 'playlists' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Playlisten</Text></View><Text style={styles.empty}>Playlisten-Verwaltung kommt im nächsten UI-Block.</Text></View>
+          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Playlisten</Text><Text style={styles.folderCount}>{playlistItems.length}</Text></View><FlatList data={playlistItems} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderPlaylistItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
         ) : (
           <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>{activeTab === 'favorites' ? 'Favoriten' : 'Name'}</Text><View style={styles.listHeaderActions}>{activeTab === 'favorites' && <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} />}<Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" accessibilityState={{ disabled: songsForActiveList.length === 0 }} disabled={songsForActiveList.length === 0} onPress={handleShufflePress} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, songsForActiveList.length === 0 && styles.disabled]}><Shuffle color={theme.palette.text.primary} size={17} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => songsForActiveList[0] && handleSongPress(songsForActiveList[0], songsForActiveList)}><Play color={theme.palette.text.primary} size={17} /></Pressable></View></View><FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
         )}
@@ -373,6 +414,8 @@ const styles = StyleSheet.create({
   albumLetter: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 34 },
   albumTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
   albumSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
+  playlistRow: { height: GROUP_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
+  playlistWarning: { color: theme.palette.error, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
   folderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
   folderTextWrap: { flex: 1, minWidth: 0 },
   folderName: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14 },

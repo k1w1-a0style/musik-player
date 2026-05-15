@@ -96,6 +96,8 @@ interface LibraryMusicContextValue {
   isReady: boolean;
   isPlaying: boolean;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  playlists: Playlist[];
+  playPlaylist: (playlistId: string) => Promise<void>;
 }
 
 interface MiniPlayerMusicContextValue {
@@ -884,8 +886,20 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       isReady,
       isPlaying,
       updateSongMetadata,
+      playlists,
+      playPlaylist,
     }),
-    [songs, setSongs, currentSong, playSong, isReady, isPlaying, updateSongMetadata],
+    [
+      songs,
+      setSongs,
+      currentSong,
+      playSong,
+      isReady,
+      isPlaying,
+      updateSongMetadata,
+      playlists,
+      playPlaylist,
+    ],
   );
 
   const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(

@@ -7,6 +7,8 @@ import { APP_STACK_ROUTES } from '../../types/routes';
 const MockPressable = Pressable;
 const MockText = Text;
 const mockPlaySong = jest.fn(async () => undefined);
+const mockPlayPlaylist = jest.fn(async () => undefined);
+let mockPlaylists: Array<{ id: string; name: string; songIds: string[] }> = [];
 const mockNavigate = jest.fn();
 const mockSetSongs = jest.fn();
 const mockGetScanFolders = jest.fn<Promise<any[]>, []>(async () => []);
@@ -32,6 +34,8 @@ jest.mock('../../contexts/MusicContext', () => ({
     playSong: mockPlaySong,
     isReady: true,
     isPlaying: false,
+    playlists: mockPlaylists,
+    playPlaylist: mockPlayPlaylist,
   }),
 }));
 
@@ -79,6 +83,7 @@ const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) 
 describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPlaylists = [];
   });
 
   test('renders compact Samsung-style library chrome without the old scan block', async () => {
@@ -109,6 +114,24 @@ describe('Library', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();
+
+    view.unmount();
+  });
+
+  test('renders playlists inside the library tab and plays selected playlist', async () => {
+    mockPlaylists = [{ id: 'pl1', name: 'Meine Liste', songIds: ['s1'] }];
+
+    const view = render(<Library />);
+    const { getByLabelText, getByText } = view;
+
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+
+    fireEvent.press(getByLabelText('Playlisten anzeigen'));
+    expect(getByText('Meine Liste')).toBeTruthy();
+    expect(getByText('1 Track')).toBeTruthy();
+
+    fireEvent.press(getByLabelText('Playlist Meine Liste abspielen'));
+    expect(mockPlayPlaylist).toHaveBeenCalledWith('pl1');
 
     view.unmount();
   });
