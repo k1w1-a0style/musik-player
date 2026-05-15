@@ -12,6 +12,7 @@ const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 2;
 const EAGER_MEDIA_LIBRARY_METADATA_SCAN = true;
+const COVER_DEBUG_LOG_LIMIT = 40;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 
@@ -54,6 +55,15 @@ const EXTENSION_MIME_MAP: Record<string, string> = {
   ogg: 'audio/ogg',
   opus: 'audio/ogg',
   webm: 'audio/webm',
+};
+
+let coverDebugCount = 0;
+
+const debugCover = (message: string, detail?: unknown): void => {
+  if (process.env.NODE_ENV === 'test' || coverDebugCount >= COVER_DEBUG_LOG_LIMIT) return;
+  coverDebugCount += 1;
+  if (detail !== undefined) console.info(`[CoverImport] ${message}`, detail);
+  else console.info(`[CoverImport] ${message}`);
 };
 
 type MediaAsset = MediaLibrary.Asset;
@@ -186,16 +196,20 @@ const resolveAssetSize = async (
   _uri: string,
   existing?: number,
 ): Promise<number | undefined> => {
-  // Avoid per-file FileSystem.getInfoAsync calls during import.
-  // They are slow on Android and spam Expo SDK 54 warnings.
   return typeof existing === 'number' && existing > 0 ? existing : undefined;
 };
 
 const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> => {
   try {
     const artwork = await SystemAudio.extractEmbeddedArtwork(uri);
-    return artwork?.uri;
-  } catch {
+    if (artwork?.uri) {
+      debugCover('native artwork found', { uri: artwork.uri, source: uri.slice(0, 120) });
+      return artwork.uri;
+    }
+    debugCover('native artwork missing', { source: uri.slice(0, 120) });
+    return undefined;
+  } catch (error) {
+    debugCover('native artwork error', error instanceof Error ? error.message : String(error));
     return undefined;
   }
 };
@@ -215,6 +229,14 @@ export const buildSongFromImportSource = async (
     (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
   const nativeCover = parsedCover ? undefined : await getNativeEmbeddedCover(source.uri);
   const cover = parsedCover ?? nativeCover;
+  debugCover('song cover result', {
+    filename,
+    source: source.source,
+    hasTagCover: !!tags.cover,
+    hasParsedCover: !!parsedCover,
+    hasNativeCover: !!nativeCover,
+    finalStatus: cover ? 'cover' : 'none',
+  });
 
   return {
     id: source.id,
@@ -256,9 +278,6 @@ export const readAudioUrisFromSafDirectory = async (
   const errors: string[] = [];
   const visited = new Set<string>();
 
-  // Expo SAF child entries are URI strings; getInfoAsync is not reliable for content:// dir detection.
-  // We classify readDirectory failures by cause: not-directory -> ignore, permission/access -> report,
-  // unknown -> ignore. Root failures are always reported to the user.
   const walk = async (
     uri: string,
     depth: number,
