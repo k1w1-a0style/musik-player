@@ -24,13 +24,21 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { deriveFolderNameFromUri, importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
+import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getFavoriteSongIds, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
-import { getSongArtworkUri } from '../utils/songArtwork';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
+import {
+  displayAlbum,
+  displayArtist,
+  displayFolderName,
+  displayGenre,
+  groupSongs,
+  mergeSongs,
+  type LibraryGroupItem,
+} from '../utils/libraryPresentation';
 
 declare const __DEV__: boolean;
 
@@ -70,50 +78,10 @@ const LIBRARY_TABS = [
 
 type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
 type AlbumViewMode = 'grid' | 'list';
-type GroupItem = { id: string; title: string; subtitle: string; songs: Song[]; cover?: string };
+type GroupItem = LibraryGroupItem;
 type PlaylistItem = { id: string; name: string; songs: Song[]; validCount: number; totalCount: number };
 
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
-const basename = (value?: string): string => {
-  if (!value) return '';
-  const cleaned = value.replace(/\\/g, '/').replace(/\/+$/, '');
-  return cleaned.split('/').filter(Boolean).pop() ?? cleaned;
-};
-const stripExtension = (value: string): string => value.replace(/\.[^.]+$/, '');
-const displayFolderName = (folder: ScanFolder): string => deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
-const cleanPersonLikeLabel = (value?: string): string => {
-  const raw = value?.trim();
-  if (!raw) return '';
-  if (!raw.includes('primary:') && !raw.includes('content://')) return raw;
-  return stripExtension(basename(raw)) || raw;
-};
-const displayArtist = (song: Song): string => cleanPersonLikeLabel(song.artist) || 'Unbekannt';
-const displayAlbum = (song: Song): string => cleanPersonLikeLabel(song.album) || 'Unbekanntes Album';
-const displayGenre = (song: Song): string => cleanPersonLikeLabel(song.genre) || 'Unbekanntes Genre';
-
-const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
-  const byKey = new Map<string, Song>();
-  [...existingSongs, ...importedSongs].forEach(song => {
-    const key = song.uri ?? song.id;
-    byKey.set(key, { ...byKey.get(key), ...song });
-  });
-  return Array.from(byKey.values()).sort((a, b) => a.title.localeCompare(b.title));
-};
-
-const groupSongs = (songs: Song[], kind: 'album' | 'artist' | 'genre'): GroupItem[] => {
-  const grouped = new Map<string, Song[]>();
-  for (const song of songs) {
-    const label = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
-    grouped.set(label, [...(grouped.get(label) ?? []), song]);
-  }
-  return Array.from(grouped.entries()).map(([title, list]) => ({
-    id: `${kind}:${title}`,
-    title,
-    subtitle: `${list.length} ${list.length === 1 ? 'Track' : 'Tracks'}`,
-    cover: getSongArtworkUri(list.find(song => !!getSongArtworkUri(song)) ?? list[0]),
-    songs: list.sort((a, b) => a.title.localeCompare(b.title)),
-  })).sort((a, b) => a.title.localeCompare(b.title));
-};
 
 const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -199,11 +167,13 @@ const Library: React.FC = () => {
         Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
         return;
       }
+      const addedAt = Date.now();
+      const id = `${addedAt}-${Math.random().toString(36).slice(2, 8)}`;
       const folder: ScanFolder = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: deriveFolderNameFromUri(permission.directoryUri),
+        id,
+        name: displayFolderName({ id, name: '', uri: permission.directoryUri, addedAt, enabled: true }),
         uri: permission.directoryUri,
-        addedAt: Date.now(),
+        addedAt,
         enabled: true,
       };
       const next = await addScanFolder(folder);
