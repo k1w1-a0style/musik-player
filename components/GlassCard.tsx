@@ -23,8 +23,9 @@ const GlassCard: React.FC<GlassCardProps> = ({
 }) => {
   return (
     <View style={[styles.wrapper, glow && styles.glow, style]} testID={testID}>
-      <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
+      <BlurView pointerEvents="none" intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
       <LinearGradient
+        pointerEvents="none"
         colors={theme.gradients.glass}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
