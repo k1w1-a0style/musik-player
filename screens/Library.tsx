@@ -35,7 +35,6 @@ import {
   displayAlbum,
   displayArtist,
   displayFolderName,
-  displayGenre,
   groupSongs,
   mergeSongs,
   type LibraryGroupItem,
@@ -43,6 +42,7 @@ import {
 import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
+import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 
 declare const __DEV__: boolean;
 
@@ -114,17 +114,8 @@ const Library: React.FC = () => {
 
   const currentSongId = currentSong?.id ?? null;
   const displayedSongs = useMemo(() => (isDevDemoSongsEnabled && isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
-
-  const filteredSongs = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return displayedSongs;
-    return displayedSongs.filter(song => [song.title, displayArtist(song), displayAlbum(song), displayGenre(song)].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [displayedSongs, query]);
-
-  const favoriteSongs = useMemo(() => {
-    const favoriteSet = new Set(favoriteIds);
-    return filteredSongs.filter(song => favoriteSet.has(song.id) || song.favorite);
-  }, [favoriteIds, filteredSongs]);
+  const filteredSongs = useMemo(() => filterLibrarySongs(displayedSongs, query), [displayedSongs, query]);
+  const favoriteSongs = useMemo(() => filterFavoriteSongs(filteredSongs, favoriteIds), [favoriteIds, filteredSongs]);
   const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
   const artistGroups = useMemo(() => groupSongs(filteredSongs, 'artist'), [filteredSongs]);
   const genreGroups = useMemo(() => groupSongs(filteredSongs, 'genre'), [filteredSongs]);
