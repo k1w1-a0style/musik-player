@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Alert } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
@@ -17,9 +17,10 @@ import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { APP_STACK_ROUTES } from '../types/routes';
+import { isFavoriteSongId, setFavoriteSongId } from '../utils/storage';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_W - 92, Math.max(156, Math.floor(SCREEN_H * 0.23)));
+const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 0.20)));
 const QUEUE_ROW_HEIGHT = 44;
 
 const HIDDEN_VISUALIZER_REASONS = new Set(['stopped', 'ok']);
@@ -36,12 +37,25 @@ const NowPlaying: React.FC = () => {
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const [favorite, setFavorite] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const queue: Song[] = useMemo(
     () => (playbackQueue.length > 0 ? playbackQueue : currentSong ? [currentSong] : []),
     [playbackQueue, currentSong],
   );
   const queueById = useMemo(() => new Map(queue.map(song => [song.id, song])), [queue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentSong?.id) {
+      setFavorite(false);
+      return;
+    }
+    isFavoriteSongId(currentSong.id).then(value => {
+      if (!cancelled) setFavorite(value);
+    });
+    return () => { cancelled = true; };
+  }, [currentSong?.id]);
 
   const showVisualizer = false;
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
@@ -62,14 +76,17 @@ const NowPlaying: React.FC = () => {
   }, [currentSong?.id, playSong, queue, queueById]);
 
   const openTrackInfo = useCallback(() => {
+    setMenuOpen(false);
     if (!currentSong) return;
     navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: currentSong.id });
   }, [currentSong, navigation]);
 
   const toggleFavorite = useCallback(() => {
-    setFavorite(value => !value);
-    Alert.alert('Favorit', favorite ? 'Track aus Favoriten entfernt.' : 'Track als Favorit markiert.');
-  }, [favorite]);
+    if (!currentSong?.id) return;
+    const next = !favorite;
+    setFavorite(next);
+    void setFavoriteSongId(currentSong.id, next);
+  }, [currentSong?.id, favorite]);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -91,7 +108,7 @@ const NowPlaying: React.FC = () => {
       <BlurView pointerEvents="none" intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} />
+      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={() => setMenuOpen(true)} />
 
       <View style={styles.coverArea}>
         <CoverArtwork song={currentSong} artworkUri={artworkUri} isPlaying={isPlaying} accent={accent} />
@@ -103,31 +120,18 @@ const NowPlaying: React.FC = () => {
           <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
         </View>
         <Pressable onPress={toggleFavorite} style={styles.heartBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Track favorisieren">
-          <Heart color={favorite ? theme.palette.primary : theme.palette.text.primary} fill={favorite ? theme.palette.primary : 'transparent'} size={24} />
+          <Heart color={favorite ? theme.palette.primary : theme.palette.text.primary} fill={favorite ? theme.palette.primary : 'transparent'} size={22} />
         </Pressable>
       </View>
 
       {showVisualizer ? (
         <View style={styles.visualizerWrap}>
-          <Visualizer
-            bins={fftBins}
-            active={isPlaying}
-            color={palette?.vibrant ?? theme.palette.primary}
-            height={44}
-          />
-          {!!visualizerHint && (
-            <Text style={styles.visualizerHint}>{visualizerHint}</Text>
-          )}
+          <Visualizer bins={fftBins} active={isPlaying} color={palette?.vibrant ?? theme.palette.primary} height={44} />
+          {!!visualizerHint && <Text style={styles.visualizerHint}>{visualizerHint}</Text>}
         </View>
       ) : null}
 
-      <ProgressBar
-        currentPosition={position}
-        duration={duration}
-        onSeek={seekTo}
-        accent={palette?.vibrant ?? theme.palette.primary}
-        accentDark={palette?.lightVibrant ?? theme.palette.primaryDark}
-      />
+      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} accent={palette?.vibrant ?? theme.palette.primary} accentDark={palette?.lightVibrant ?? theme.palette.primaryDark} />
       <Controls />
 
       {queue.length > 1 && (
@@ -149,6 +153,15 @@ const NowPlaying: React.FC = () => {
       )}
 
       <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} onOpenTrackInfo={openTrackInfo} />
+
+      <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuCard}>
+            <MenuItem label="TrackInfo öffnen" onPress={openTrackInfo} />
+            <MenuItem label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onPress={() => { toggleFavorite(); setMenuOpen(false); }} />
+          </View>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 };
@@ -161,32 +174,29 @@ interface QueuePreviewRowProps {
   onPress: (songId: string) => void;
 }
 
-const NowPlayingHeader = React.memo(({ albumTitle, onClose }: { albumTitle: string; onClose: () => void }) => (
+const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: { albumTitle: string; onClose: () => void; onMore: () => void }) => (
   <View style={styles.headerBar}>
-    <Pressable
-      testID="now-playing-close"
-      style={styles.headerBtn}
-      onPress={onClose}
-      accessibilityRole="button"
-      accessibilityLabel="Now Playing schließen"
-    >
+    <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Now Playing schließen">
       <ChevronDown color={theme.palette.text.primary} size={22} />
     </Pressable>
     <View style={styles.headerTitleWrap}>
       <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
       <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
     </View>
-    <View testID="now-playing-more" style={styles.headerBtn} accessible={false} importantForAccessibility="no-hide-descendants">
+    <Pressable testID="now-playing-more" style={styles.headerBtn} onPress={onMore} accessibilityRole="button" accessibilityLabel="Now Playing Menü öffnen">
       <MoreHorizontal color={theme.palette.text.primary} size={22} />
-    </View>
+    </Pressable>
   </View>
 ));
 
-const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => {
-  const handlePress = React.useCallback(() => {
-    onPress(id);
-  }, [id, onPress]);
+const MenuItem: React.FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
+  <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}>
+    <Text style={styles.menuText}>{label}</Text>
+  </Pressable>
+);
 
+const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => {
+  const handlePress = React.useCallback(() => onPress(id), [id, onPress]);
   return (
     <Pressable style={[styles.queueItem, isCurrent && styles.queueItemActive]} onPress={handlePress}>
       <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
@@ -199,7 +209,7 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
 });
 
 const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset, onOpenTrackInfo }: { volume: number; onVolumeChange: (v: number) => Promise<void>; bottomInset: number; onOpenTrackInfo: () => void }) => (
-  <View style={[styles.bottomRow, { paddingBottom: Math.max(18, bottomInset + 14) }]}>
+  <View style={[styles.bottomRow, { paddingBottom: Math.max(28, bottomInset + 24) }]}>
     <View style={styles.bottomSpacer} />
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
@@ -212,18 +222,11 @@ const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset, onO
 
 const CoverArtwork: React.FC<{ song?: Song | null; artworkUri?: string; isPlaying: boolean; accent: string }> = ({ song, artworkUri, isPlaying, accent }) => {
   const [coverFailed, setCoverFailed] = React.useState(false);
-  React.useEffect(() => {
-    setCoverFailed(false);
-  }, [song?.id, artworkUri]);
+  React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
   return (
     <View style={[styles.coverCard, { shadowColor: accent }]}>
       {artworkUri && !coverFailed ? (
-        <Image
-          source={{ uri: artworkUri }}
-          style={styles.coverImage}
-          onError={() => setCoverFailed(true)}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} resizeMode="cover" />
       ) : (
         <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
           <Disc3 color={theme.palette.primary} size={Math.floor(COVER_SIZE * 0.55)} />
@@ -236,165 +239,46 @@ const CoverArtwork: React.FC<{ song?: Song | null; artworkUri?: string; isPlayin
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
-  glowOrb: {
-    position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    top: 140,
-    left: SCREEN_W / 2 - 150,
-    opacity: 0.16,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    marginBottom: 4,
-  },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  glowOrb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, top: 150, left: SCREEN_W / 2 - 130, opacity: 0.14 },
+  headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 2 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { alignItems: 'center', flex: 1 },
-  headerEyebrow: {
-    color: theme.palette.text.muted,
-    fontSize: 10,
-    letterSpacing: 1.8,
-    fontFamily: theme.fonts.body,
-  },
-  headerTitle: {
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
-    fontSize: 14,
-    marginTop: 2,
-  },
-  coverArea: {
-    height: COVER_SIZE + 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  coverCard: {
-    width: COVER_SIZE,
-    height: COVER_SIZE,
-    borderRadius: 22,
-    overflow: 'hidden',
-    backgroundColor: theme.palette.surface,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
-    elevation: 12,
-  },
+  headerEyebrow: { color: theme.palette.text.muted, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
+  headerTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, marginTop: 2 },
+  coverArea: { height: COVER_SIZE + 8, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
+  coverCard: { width: COVER_SIZE, height: COVER_SIZE, borderRadius: 22, overflow: 'hidden', backgroundColor: theme.palette.surface, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 10 },
   coverImage: { width: '100%', height: '100%' },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 8,
-  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 2, marginBottom: 6 },
   titleBlock: { flex: 1, minWidth: 0 },
-  title: {
-    color: theme.palette.text.primary,
-    fontSize: 24,
-    letterSpacing: -0.7,
-    fontFamily: theme.fonts.display,
-  },
-  artist: {
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-    marginTop: 2,
-    fontFamily: theme.fonts.body,
-  },
-  heartBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  title: { color: theme.palette.text.primary, fontSize: 21, letterSpacing: -0.55, fontFamily: theme.fonts.display },
+  artist: { color: theme.palette.text.secondary, fontSize: 13, marginTop: 2, fontFamily: theme.fonts.body },
+  heartBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   visualizerWrap: { paddingHorizontal: 20, marginTop: 4, marginBottom: theme.spacing.sm },
   visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
-  queueCard: {
-    marginHorizontal: 16,
-    marginTop: 6,
-    padding: 12,
-    borderRadius: theme.radii.card,
-    backgroundColor: theme.palette.surfaceGlass,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    maxHeight: Math.min(190, Math.max(116, Math.floor(SCREEN_H * 0.21))),
-  },
-  queueHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  queueEyebrow: {
-    color: theme.palette.primary,
-    fontFamily: theme.fonts.heading,
-    fontSize: 11,
-    letterSpacing: 1.4,
-  },
-  queueCount: {
-    color: theme.palette.text.muted,
-    fontFamily: theme.fonts.body,
-    fontSize: 11,
-  },
-  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 3.6 },
-  queueItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: QUEUE_ROW_HEIGHT,
-    borderRadius: theme.borderRadius.sm,
-    paddingHorizontal: 8,
-  },
+  queueCard: { marginHorizontal: 16, marginTop: 4, padding: 12, borderRadius: theme.radii.card, backgroundColor: theme.palette.surfaceGlass, borderWidth: 1, borderColor: theme.palette.border, maxHeight: Math.min(236, Math.max(132, Math.floor(SCREEN_H * 0.27))) },
+  queueHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  queueEyebrow: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 11, letterSpacing: 1.4 },
+  queueCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11 },
+  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 4.4 },
+  queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: QUEUE_ROW_HEIGHT, borderRadius: theme.borderRadius.sm, paddingHorizontal: 8 },
   queueItemActive: { backgroundColor: theme.palette.primaryGlow },
-  queueAccent: {
-    width: 3,
-    height: 20,
-    borderRadius: 3,
-    backgroundColor: theme.palette.border,
-  },
+  queueAccent: { width: 3, height: 20, borderRadius: 3, backgroundColor: theme.palette.border },
   queueAccentActive: { backgroundColor: theme.palette.primary },
   queueTextWrap: { flex: 1 },
-  queueTitle: {
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
-    fontSize: 12,
-  },
+  queueTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 12 },
   queueTitleActive: { color: theme.palette.primary },
-  queueArtist: {
-    color: theme.palette.text.secondary,
-    fontFamily: theme.fonts.body,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  bottomRow: {
-    marginTop: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
+  queueArtist: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 1 },
+  bottomRow: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 6 },
   bottomSpacer: { width: 42, height: 42 },
-  bottomBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.palette.surfaceElevated,
-  },
+  bottomBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.palette.surfaceElevated },
   glassRow: { flex: 1 },
+  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22, backgroundColor: 'rgba(0,0,0,0.20)' },
+  menuCard: { width: 235, borderRadius: 20, backgroundColor: '#343438', paddingVertical: 8, borderWidth: 1, borderColor: theme.palette.border },
+  menuItem: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 18 },
+  menuText: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 16 },
+  pressed: { opacity: 0.72 },
 });
 
 export default NowPlaying;
