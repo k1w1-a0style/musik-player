@@ -308,7 +308,7 @@ describe('mediaLibraryImport', () => {
     expect(result.folderUpdates?.[0].lastError).toBeUndefined();
   });
 
-  test('saf import uses tags and fallback', async () => {
+  test('saf import keeps scan lightweight and uses filename fallback', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
       'content://dir/The%20Artist%20-%20Title.mp3',
     ]);
@@ -320,9 +320,14 @@ describe('mediaLibraryImport', () => {
     const result = await mediaImport.scanFromSafFolders([
       { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
     ] as any);
-    expect(result.songs[0].title).toBe('Tag Title');
-    expect(result.songs[0].coverInfo?.status).toBe('cached');
-    expect(cacheBase64Cover).toHaveBeenCalled();
+    expect(result.songs[0].title).toBe('Title');
+    expect(result.songs[0].artist).toBe('The Artist');
+    expect(result.songs[0].coverInfo?.status).toBe('none');
+    expect(parseId3FromUri).not.toHaveBeenCalled();
+    expect(cacheBase64Cover).toHaveBeenCalledWith(
+      'content://dir/The%20Artist%20-%20Title.mp3',
+      undefined,
+    );
   });
 
   test('saf import collects root folder errors', async () => {
