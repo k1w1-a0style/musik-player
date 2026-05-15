@@ -1,12 +1,13 @@
 import React from 'react';
-import { Image } from 'react-native';
+import { Alert, Image } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
 const mockGoBack = jest.fn();
+const mockNavigate = jest.fn();
 
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ goBack: mockGoBack }),
+  useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
 }));
 
 const mockNowPlayingContext = {
@@ -51,6 +52,12 @@ describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingContext.visualizerError = null;
     mockGoBack.mockClear();
+    mockNavigate.mockClear();
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   test('hides broken cover image after error', () => {
@@ -72,9 +79,11 @@ describe('NowPlaying cover fallback', () => {
     expect(queryByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeNull();
   });
 
-  test('favorite icon is not exposed as actionable button', () => {
-    const { queryByLabelText } = render(<NowPlaying />);
-    expect(queryByLabelText('Track favorisieren')).toBeNull();
+  test('favorite icon is exposed as an actionable button', () => {
+    const { getByLabelText } = render(<NowPlaying />);
+    const favorite = getByLabelText('Track favorisieren');
+    fireEvent.press(favorite);
+    expect(Alert.alert).toHaveBeenCalledWith('Favorit', 'Track als Favorit markiert.');
   });
 
   test('close button remains interactive and triggers goBack', () => {
