@@ -9,6 +9,8 @@ import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
 import { APP_STACK_ROUTES } from '../types/routes';
 
+const dangerColor = theme.palette.error;
+
 export const formatDuration = (ms?: number): string => {
   if (!ms || ms <= 0) return 'Nicht verfügbar';
   const totalSec = Math.floor(ms / 1000);
@@ -183,8 +185,8 @@ const styles = StyleSheet.create({
   section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
   editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' },
   editButtonText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
-  removeButton: { borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: theme.palette.danger ?? '#ff5c5c' },
-  removeButtonText: { color: theme.palette.danger ?? '#ff5c5c', fontFamily: theme.fonts.heading, fontSize: 13 },
+  removeButton: { borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: dangerColor },
+  removeButtonText: { color: dangerColor, fontFamily: theme.fonts.heading, fontSize: 13 },
   hint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 4 },
   row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
