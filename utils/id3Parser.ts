@@ -8,7 +8,7 @@
  */
 
 import * as FileSystem from 'expo-file-system';
-import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
+import { readAsStringAsync, EncodingType, getInfoAsync } from 'expo-file-system/legacy';
 
 export interface Id3Tags {
   title?: string;
@@ -541,12 +541,6 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       const bytes = base64ToBytes(b64);
       const id3 = parseHeadBytes(bytes);
       if (id3.cover || !looksLikeMp4) return id3;
-      const getInfoAsync = (
-        FileSystem as unknown as {
-          getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }>;
-        }
-      ).getInfoAsync;
-      if (!getInfoAsync) return id3;
       try {
         const info = await getInfoAsync(normalizedUri);
         const size = info.size ?? 0;
@@ -569,17 +563,12 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     } catch {
       // fallback to File API when legacy path is unavailable
     }
-    const getInfoAsync = (
-      FileSystem as unknown as {
-        getInfoAsync?: (fileUri: string) => Promise<{ size?: number | null }>;
-      }
-    ).getInfoAsync;
     const FileCtor = (
       FileSystem as unknown as {
         File?: new (u: string) => { bytes: () => Promise<Uint8Array> };
       }
     ).File;
-    if (!FileCtor || !getInfoAsync) return {};
+    if (!FileCtor) return {};
     try {
       const info = await getInfoAsync(normalizedUri);
       const size = info.size ?? 0;
@@ -590,7 +579,6 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     } catch {
       return {};
     }
-    return {};
   } catch {
     return {};
   }
