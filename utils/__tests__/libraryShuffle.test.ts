@@ -12,7 +12,7 @@ test('uses fisher-yates indices deterministically', () => {
   const randomValues = [0.1, 0.9, 0.2];
   const result = shuffleItems(['a', 'b', 'c', 'd'], () => randomValues.shift() ?? 0);
 
-  expect(result).toEqual(['c', 'b', 'd', 'a']);
+  expect(result).toEqual(['b', 'd', 'c', 'a']);
 });
 
 test('handles empty and single-item arrays', () => {
