@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
@@ -16,9 +16,10 @@ import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { APP_STACK_ROUTES } from '../types/routes';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_W - 48, Math.max(240, Math.floor(SCREEN_H * 0.34)));
+const COVER_SIZE = Math.min(SCREEN_W - 92, Math.max(156, Math.floor(SCREEN_H * 0.23)));
 const QUEUE_ROW_HEIGHT = 44;
 
 const HIDDEN_VISUALIZER_REASONS = new Set(['stopped', 'ok']);
@@ -30,65 +31,45 @@ const formatVisualizerHint = (reason: string | null): string | null => {
 };
 
 const NowPlaying: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
+  const [favorite, setFavorite] = useState(false);
 
   const queue: Song[] = useMemo(
     () => (playbackQueue.length > 0 ? playbackQueue : currentSong ? [currentSong] : []),
     [playbackQueue, currentSong],
   );
-  const currentIdx = currentSong ? Math.max(0, queue.findIndex(song => song.id === currentSong.id)) : 0;
   const queueById = useMemo(() => new Map(queue.map(song => [song.id, song])), [queue]);
-  const flatRef = useRef<FlatList<Song>>(null);
-  const currentSongRef = useRef<Song | null>(currentSong);
-  const queueRef = useRef<Song[]>(queue);
-
-  currentSongRef.current = currentSong;
-  queueRef.current = queue;
-
-  React.useEffect(() => {
-    if (currentIdx >= 0 && flatRef.current) {
-      flatRef.current.scrollToIndex({ index: currentIdx, animated: false });
-    }
-  }, [currentIdx]);
-
-  const playQueueItemById = useCallback((songId: string) => {
-    const item = queueById.get(songId);
-    if (!item) return;
-
-    const activeSong = currentSongRef.current;
-    if (!activeSong || item.id === activeSong.id) return;
-
-    void playSong(item, queueRef.current);
-  }, [playSong, queueById]);
 
   const showVisualizer = false;
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
   const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
-  const coverAccent = useMemo(() => palette?.vibrant ?? palette?.dominant ?? accent, [palette, accent]);
   const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
   const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
+  const artworkUri = getSongArtworkUri(currentSong);
+
   const handleClose = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
 
-  const renderCover = useCallback(
-    ({ item }: { item: Song; index: number }) => {
-      const isActive = currentSong?.id === item.id;
-      return (
-        <CoverSlide
-          song={item}
-          isActive={isActive}
-          isPlaying={isActive && isPlaying}
-          accent={coverAccent}
-        />
-      );
-    },
-    [currentSong?.id, isPlaying, coverAccent],
-  );
+  const playQueueItemById = useCallback((songId: string) => {
+    const item = queueById.get(songId);
+    if (!item || item.id === currentSong?.id) return;
+    void playSong(item, queue);
+  }, [currentSong?.id, playSong, queue, queueById]);
+
+  const openTrackInfo = useCallback(() => {
+    if (!currentSong) return;
+    navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: currentSong.id });
+  }, [currentSong, navigation]);
+
+  const toggleFavorite = useCallback(() => {
+    setFavorite(value => !value);
+    Alert.alert('Favorit', favorite ? 'Track aus Favoriten entfernt.' : 'Track als Favorit markiert.');
+  }, [favorite]);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -105,36 +86,25 @@ const NowPlaying: React.FC = () => {
 
   return (
     <Screen style={styles.root} testID="now-playing-screen" contentStyle={styles.content}>
-      <LinearGradient colors={gradientColors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient pointerEvents="none" colors={gradientColors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
       <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent }]} />
-      <BlurView intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView pointerEvents="none" intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
       <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} />
 
-      <FlatList
-        ref={flatRef}
-        data={queue}
-        renderItem={renderCover}
-        keyExtractor={item => item.id}
-        horizontal
-        pagingEnabled
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={SCREEN_W}
-        decelerationRate="fast"
-        initialScrollIndex={currentIdx > 0 ? currentIdx : undefined}
-        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-        style={styles.carousel}
-        contentContainerStyle={styles.carouselContent}
-      />
+      <View style={styles.coverArea}>
+        <CoverArtwork song={currentSong} artworkUri={artworkUri} isPlaying={isPlaying} accent={accent} />
+      </View>
 
       <View style={styles.titleRow}>
         <View style={styles.titleBlock}>
           <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
           <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
         </View>
-        <View style={styles.heartBtn} accessible={false}><Heart color={theme.palette.text.primary} size={20} /></View>
+        <Pressable onPress={toggleFavorite} style={styles.heartBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Track favorisieren">
+          <Heart color={favorite ? theme.palette.primary : theme.palette.text.primary} fill={favorite ? theme.palette.primary : 'transparent'} size={24} />
+        </Pressable>
       </View>
 
       {showVisualizer ? (
@@ -150,6 +120,7 @@ const NowPlaying: React.FC = () => {
           )}
         </View>
       ) : null}
+
       <ProgressBar
         currentPosition={position}
         duration={duration}
@@ -170,15 +141,14 @@ const NowPlaying: React.FC = () => {
             keyExtractor={item => item.id}
             renderItem={renderQueueItem}
             nestedScrollEnabled
-            showsVerticalScrollIndicator={queue.length > 4}
-            initialScrollIndex={currentIdx > 0 ? currentIdx : undefined}
+            showsVerticalScrollIndicator={queue.length > 3}
             getItemLayout={(_, index) => ({ length: QUEUE_ROW_HEIGHT, offset: QUEUE_ROW_HEIGHT * index, index })}
             style={styles.queueList}
           />
         </View>
       )}
 
-      <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} />
+      <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} onOpenTrackInfo={openTrackInfo} />
     </Screen>
   );
 };
@@ -228,50 +198,35 @@ const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: Q
   );
 });
 
-const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset }: { volume: number; onVolumeChange: (v: number) => Promise<void>; bottomInset: number }) => (
-  <View style={[styles.bottomRow, { paddingBottom: Math.max(22, bottomInset + 18) }]}>
-    <View style={styles.bottomBtn} accessible={false}><Heart color={theme.palette.text.muted} size={20} /></View>
+const BottomControlsRow = React.memo(({ volume, onVolumeChange, bottomInset, onOpenTrackInfo }: { volume: number; onVolumeChange: (v: number) => Promise<void>; bottomInset: number; onOpenTrackInfo: () => void }) => (
+  <View style={[styles.bottomRow, { paddingBottom: Math.max(18, bottomInset + 14) }]}>
+    <View style={styles.bottomSpacer} />
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
     </GlassCard>
-    <View style={styles.bottomBtn} accessible={false}><Disc3 color={theme.palette.text.muted} size={20} /></View>
+    <Pressable onPress={onOpenTrackInfo} style={styles.bottomBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="TrackInfo öffnen">
+      <Disc3 color={theme.palette.text.muted} size={20} />
+    </Pressable>
   </View>
 ));
 
-interface CoverProps {
-  song: Song;
-  isActive: boolean;
-  isPlaying: boolean;
-  accent: string;
-}
-
-const CoverSlide = React.memo(
-  ({ song, isActive, isPlaying, accent }: CoverProps) => (
-    <View style={styles.coverSlide}>
-      <CoverArtwork song={song} isActive={isActive} isPlaying={isPlaying} accent={accent} />
-    </View>
-  ),
-  (prev, next) =>
-    prev.song.id === next.song.id &&
-    getSongArtworkUri(prev.song) === getSongArtworkUri(next.song) &&
-    prev.isActive === next.isActive &&
-    prev.isPlaying === next.isPlaying &&
-    prev.accent === next.accent,
-);
-
-const CoverArtwork: React.FC<CoverProps> = ({ song, isActive, isPlaying, accent }) => {
+const CoverArtwork: React.FC<{ song?: Song | null; artworkUri?: string; isPlaying: boolean; accent: string }> = ({ song, artworkUri, isPlaying, accent }) => {
   const [coverFailed, setCoverFailed] = React.useState(false);
-  const artworkUri = getSongArtworkUri(song);
   React.useEffect(() => {
     setCoverFailed(false);
-  }, [song.id, artworkUri]);
+  }, [song?.id, artworkUri]);
   return (
-    <View style={[styles.coverCard, !isActive && styles.coverCardInactive, { shadowColor: accent }]}>
+    <View style={[styles.coverCard, { shadowColor: accent }]}>
       {artworkUri && !coverFailed ? (
-        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} resizeMode="cover" />
+        <Image
+          source={{ uri: artworkUri }}
+          style={styles.coverImage}
+          onError={() => setCoverFailed(true)}
+          resizeMode="cover"
+        />
       ) : (
         <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
-          <Disc3 color={theme.palette.primary} size={120} />
+          <Disc3 color={theme.palette.primary} size={Math.floor(COVER_SIZE * 0.55)} />
         </View>
       )}
     </View>
@@ -283,12 +238,12 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
   glowOrb: {
     position: 'absolute',
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-    top: 110,
-    left: SCREEN_W / 2 - 170,
-    opacity: 0.18,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    top: 140,
+    left: SCREEN_W / 2 - 150,
+    opacity: 0.16,
   },
   headerBar: {
     flexDirection: 'row',
@@ -316,32 +271,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  carousel: { flexGrow: 0, height: COVER_SIZE + 4 },
-  carouselContent: { alignItems: 'center' },
-  coverSlide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
+  coverArea: {
+    height: COVER_SIZE + 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
   coverCard: {
     width: COVER_SIZE,
     height: COVER_SIZE,
-    borderRadius: 24,
+    borderRadius: 22,
     overflow: 'hidden',
     backgroundColor: theme.palette.surface,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35,
-    shadowRadius: 28,
-    elevation: 16,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 12,
   },
   coverImage: { width: '100%', height: '100%' },
-  coverCardInactive: { transform: [{ scale: 0.85 }], opacity: 0.45 },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: theme.spacing.xs,
-    marginBottom: theme.spacing.sm,
+    marginTop: 4,
+    marginBottom: 8,
   },
-  titleBlock: { flex: 1 },
+  titleBlock: { flex: 1, minWidth: 0 },
   title: {
     color: theme.palette.text.primary,
     fontSize: 24,
@@ -355,9 +312,9 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.body,
   },
   heartBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -365,13 +322,13 @@ const styles = StyleSheet.create({
   visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
   queueCard: {
     marginHorizontal: 16,
-    marginTop: 8,
+    marginTop: 6,
     padding: 12,
     borderRadius: theme.radii.card,
     backgroundColor: theme.palette.surfaceGlass,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    maxHeight: Math.min(210, Math.max(116, Math.floor(SCREEN_H * 0.22))),
+    maxHeight: Math.min(190, Math.max(116, Math.floor(SCREEN_H * 0.21))),
   },
   queueHeaderRow: {
     flexDirection: 'row',
@@ -390,7 +347,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.body,
     fontSize: 11,
   },
-  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 4.2 },
+  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 3.6 },
   queueItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -428,6 +385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  bottomSpacer: { width: 42, height: 42 },
   bottomBtn: {
     width: 42,
     height: 42,
