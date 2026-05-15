@@ -51,6 +51,7 @@ export interface ImportScanResult {
 export interface ImportSongsOptions {
   scanFolders?: ScanFolder[];
   platformOs?: string;
+  loadNativeCovers?: boolean;
 }
 
 interface BuildSongSource {
@@ -61,6 +62,10 @@ interface BuildSongSource {
   mimeType?: string;
   source: 'media-library' | 'saf';
   size?: number;
+}
+
+interface BuildSongOptions {
+  loadNativeCover?: boolean;
 }
 
 const safeDecode = (value: string): string => {
@@ -141,14 +146,19 @@ const bitrateFromSizeAndDuration = (size?: number, durationMs?: number): number 
   return Math.round((size * 8) / (durationMs / 1000) / 1000);
 };
 
-export const buildSongFromImportSource = async (source: BuildSongSource, tags: Id3Tags = {}): Promise<Song> => {
+export const buildSongFromImportSource = async (
+  source: BuildSongSource,
+  tags: Id3Tags = {},
+  options: BuildSongOptions = {},
+): Promise<Song> => {
+  const { loadNativeCover = true } = options;
   const importedAt = Date.now();
   const filename = source.filename ?? filenameFromUri(source.uri);
   const extension = deriveExtension(filename) ?? deriveExtension(source.uri);
   const fallback = parseFilename(filename);
   const cachedCover = await cacheBase64Cover(source.id, tags.cover);
   const parsedCover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
-  const nativeCover = parsedCover ? undefined : await getNativeEmbeddedCover(source.uri);
+  const nativeCover = parsedCover || !loadNativeCover ? undefined : await getNativeEmbeddedCover(source.uri);
   const cover = parsedCover ?? nativeCover;
   const size = await resolveAssetSize(source.uri, source.size);
 
@@ -250,7 +260,12 @@ export const scanAudioAssetsFromMediaLibrary = async (
 
 export const scanMediaLibraryCandidates = async (): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary();
 
-export const enrichMediaLibraryAssets = async (assets: MediaAsset[], skippedCount = 0): Promise<ImportScanResult> => {
+export const enrichMediaLibraryAssets = async (
+  assets: MediaAsset[],
+  skippedCount = 0,
+  options: BuildSongOptions = {},
+): Promise<ImportScanResult> => {
+  const { loadNativeCover = false } = options;
   const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -270,7 +285,7 @@ export const enrichMediaLibraryAssets = async (assets: MediaAsset[], skippedCoun
           mimeType: (asset as { mimeType?: string }).mimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
-        }, tags));
+        }, tags, { loadNativeCover }));
       } catch {
         errors.push(asset.uri);
       }
@@ -282,14 +297,18 @@ export const enrichMediaLibraryAssets = async (assets: MediaAsset[], skippedCoun
   return { songs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: songs.length, skipped: skippedCount, errors: errors.length }] };
 };
 
-export const scanFromMediaLibrary = async (): Promise<ImportScanResult> => {
+export const scanFromMediaLibrary = async (options: BuildSongOptions = {}): Promise<ImportScanResult> => {
   const candidates = await scanMediaLibraryCandidates();
-  const result = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length);
+  const result = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length, options);
   result.skipped = candidates.skipped.map(item => `${item.asset.id}:${item.reason}`);
   return result;
 };
 
-export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportScanResult> => {
+export const scanFromSafFolders = async (
+  folders: ScanFolder[],
+  options: BuildSongOptions = {},
+): Promise<ImportScanResult> => {
+  const { loadNativeCover = false } = options;
   const songs: Song[] = [];
   const errors: string[] = [];
   const skipped: string[] = [];
@@ -312,10 +331,10 @@ export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportS
     for (const uri of files) {
       try {
         const tags = EAGER_SAF_METADATA_SCAN ? await parseId3FromUri(uri).catch(() => ({})) : {};
-        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags));
+        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
       } catch {
         errors.push(uri);
-        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}));
+        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
       }
     }
   }
@@ -326,10 +345,10 @@ export const scanFromSafFolders = async (folders: ScanFolder[]): Promise<ImportS
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers = false } = options;
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
-  if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders);
-  return scanFromMediaLibrary();
+  if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, { loadNativeCover: loadNativeCovers });
+  return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers });
 };
 
 export const loadAllAudioAssetsFromMediaLibrary = async (
