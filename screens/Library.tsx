@@ -17,13 +17,14 @@ import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Grid2X2, Heart, List, ListMusic, MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
+import { Grid2X2, Heart, List, MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import LibraryMenuItem from '../components/LibraryMenuItem';
 import LibraryFolderRow from '../components/LibraryFolderRow';
+import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -250,24 +251,7 @@ const Library: React.FC = () => {
   ), [handleSongPress]);
 
   const renderPlaylistItem = useCallback(({ item }: { item: PlaylistItem }) => (
-    <View style={styles.playlistRow} testID={`library-playlist-${item.id}`}>
-      <View style={styles.groupIcon}><ListMusic color={theme.palette.primary} size={20} /></View>
-      <View style={styles.groupTextWrap}>
-        <Text style={styles.groupTitle} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.groupSubtitle}>{item.validCount} {item.validCount === 1 ? 'Track' : 'Tracks'}</Text>
-        {item.validCount !== item.totalCount && <Text style={styles.playlistWarning}>{item.totalCount - item.validCount} nicht mehr gefunden</Text>}
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Playlist ${item.name} abspielen`}
-        accessibilityState={{ disabled: item.validCount === 0 }}
-        disabled={item.validCount === 0}
-        onPress={() => void playPlaylist(item.id)}
-        style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, item.validCount === 0 && styles.disabled]}
-      >
-        <Play color={item.validCount > 0 ? theme.palette.text.primary : theme.palette.text.muted} size={17} />
-      </Pressable>
-    </View>
+    <LibraryPlaylistRow playlist={item} onPlay={playlistId => void playPlaylist(playlistId)} />
   ), [playPlaylist]);
 
   const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
@@ -364,8 +348,6 @@ const styles = StyleSheet.create({
   albumLetter: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 34 },
   albumTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
   albumSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
-  playlistRow: { height: GROUP_ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },
-  playlistWarning: { color: theme.palette.error, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
