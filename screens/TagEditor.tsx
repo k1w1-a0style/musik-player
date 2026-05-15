@@ -21,6 +21,7 @@ import Screen from '../components/Screen';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
 import type {
+  EditableCover,
   EditableTrackTags,
   TagEditDraft,
   TagWriterErrorCode,
@@ -78,13 +79,19 @@ export const buildDraftFromDirtyFields = (
   form: FormState,
   dirty: Partial<Record<keyof EditableTrackTags, boolean>>,
   removeCover: boolean,
+  replacementCover?: EditableCover | null,
 ): TagEditDraft => {
   const tags: EditableTrackTags = {};
   for (const field of FIELDS) {
     if (!dirty[field.key]) continue;
     tags[field.key] = form[field.key];
   }
-  return { songId, tags, ...(removeCover ? { removeCover: true } : {}) };
+  return {
+    songId,
+    tags,
+    ...(replacementCover ? { cover: replacementCover } : {}),
+    ...(removeCover && !replacementCover ? { removeCover: true } : {}),
+  };
 };
 
 const capabilityReason = (reason?: string): string =>
@@ -166,6 +173,7 @@ const TagEditor: React.FC = () => {
   );
   const [saving, setSaving] = useState(false);
   const [removeCover, setRemoveCover] = useState(false);
+  const [replacementCover, setReplacementCover] = useState<EditableCover | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() =>
     song ? toInitialForm(song) : toInitialForm({ id: '', title: '', artist: '' } as Song),
@@ -179,6 +187,7 @@ const TagEditor: React.FC = () => {
     setForm(toInitialForm(song));
     setDirty({});
     setRemoveCover(false);
+    setReplacementCover(null);
     setStatus(null);
   }, [song?.id]);
 
@@ -192,11 +201,12 @@ const TagEditor: React.FC = () => {
     );
   }
 
-  const draft = buildDraftFromDirtyFields(song.id, form, dirty, removeCover);
+  const draft = buildDraftFromDirtyFields(song.id, form, dirty, removeCover, replacementCover);
   const capability = getTagEditCapability(song);
   const plan = createTagWriteOperationPlan(song, draft);
   const hasCover = hasRemovableCover(song);
-  const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true;
+  const hasReplacementCover = Boolean(replacementCover);
+  const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true || hasReplacementCover;
   const canSave =
     capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
   const blockedReasonMessage = blockingReasonMessage(
@@ -231,15 +241,20 @@ const TagEditor: React.FC = () => {
           metadataPatch.cover = undefined;
           metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
         }
+        if (draft.cover) {
+          metadataPatch.coverInfo = { status: 'embedded' } as SongCoverInfo;
+        }
         updateSongMetadata(song.id, metadataPatch);
         const updatedSong: Song = { ...song, ...metadataPatch };
         setForm(buildFormAfterSave(updatedSong, form, draft));
         setDirty({});
         setRemoveCover(false);
+        setReplacementCover(null);
       } else if (result.status === 'noop') {
         setForm(current => buildFormAfterSave(song, current, draft));
         setDirty({});
         setRemoveCover(false);
+        setReplacementCover(null);
       }
       setStatus(statusMessage(result));
     } catch (error) {
@@ -297,26 +312,32 @@ const TagEditor: React.FC = () => {
             accessibilityRole="switch"
             accessibilityState={{
               checked: removeCover,
-              disabled: !capability.canWrite || !hasCover || saving,
+              disabled: !capability.canWrite || !hasCover || saving || hasReplacementCover,
             }}
-            style={styles.toggle}
-            disabled={!capability.canWrite || !hasCover || saving}
-            onPress={() => setRemoveCover(v => !v)}
+            style={[styles.toggle, hasReplacementCover && styles.disabledButton]}
+            disabled={!capability.canWrite || !hasCover || saving || hasReplacementCover}
+            onPress={() => {
+              setReplacementCover(null);
+              setRemoveCover(v => !v);
+            }}
           >
             <Text style={styles.toggleText}>
               Cover entfernen: {removeCover ? 'Ja' : 'Nein'}
             </Text>
           </Pressable>
 
-          <View
-            testID="replace-cover-unavailable"
-            style={[styles.toggle, styles.disabledButton]}
-          >
-            <Text style={styles.toggleText}>Cover ersetzen: Noch nicht verfügbar</Text>
+          <View testID="replace-cover-ready" style={styles.toggle}>
+            <Text style={styles.toggleText}>
+              Cover ersetzen: vorbereitet, Bildauswahl folgt im nächsten Schritt
+            </Text>
+            <Text style={styles.helperText}>
+              Der Draft unterstützt neue Cover bereits; Picker und Bildvalidierung werden separat aktiviert.
+            </Text>
           </View>
 
           <Pressable
             testID="save-button"
+            accessibilityState={{ disabled: !canSave }}
             style={[styles.saveButton, !canSave && styles.disabledButton]}
             disabled={!canSave}
             onPress={() =>
@@ -372,6 +393,7 @@ const styles = StyleSheet.create({
     borderColor: theme.palette.border,
   },
   toggleText: { color: theme.palette.text.primary },
+  helperText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6 },
   saveButton: {
     padding: 12,
     borderRadius: theme.radii.input,
