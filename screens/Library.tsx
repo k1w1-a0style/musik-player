@@ -39,6 +39,7 @@ import {
   mergeSongs,
   type LibraryGroupItem,
 } from '../utils/libraryPresentation';
+import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
 
 declare const __DEV__: boolean;
 
@@ -79,7 +80,7 @@ const LIBRARY_TABS = [
 type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
 type AlbumViewMode = 'grid' | 'list';
 type GroupItem = LibraryGroupItem;
-type PlaylistItem = { id: string; name: string; songs: Song[]; validCount: number; totalCount: number };
+type PlaylistItem = LibraryPlaylistItem;
 
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
 
@@ -135,25 +136,10 @@ const Library: React.FC = () => {
   const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
   const artistGroups = useMemo(() => groupSongs(filteredSongs, 'artist'), [filteredSongs]);
   const genreGroups = useMemo(() => groupSongs(filteredSongs, 'genre'), [filteredSongs]);
-  const playlistItems = useMemo<PlaylistItem[]>(() => {
-    const songsById = new Map(displayedSongs.map(song => [song.id, song]));
-    const q = query.trim().toLowerCase();
-    return playlists
-      .map(playlist => {
-        const playlistSongs = playlist.songIds
-          .map(songId => songsById.get(songId))
-          .filter((song): song is Song => !!song);
-        return {
-          id: playlist.id,
-          name: playlist.name,
-          songs: playlistSongs,
-          validCount: playlistSongs.length,
-          totalCount: playlist.songIds.length,
-        };
-      })
-      .filter(item => !q || item.name.toLowerCase().includes(q) || item.songs.some(song => [song.title, displayArtist(song), displayAlbum(song), displayGenre(song)].filter(Boolean).join(' ').toLowerCase().includes(q)))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [displayedSongs, playlists, query]);
+  const playlistItems = useMemo<PlaylistItem[]>(
+    () => buildLibraryPlaylistItems(playlists, displayedSongs, query),
+    [displayedSongs, playlists, query],
+  );
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
