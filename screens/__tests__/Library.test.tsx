@@ -16,9 +16,9 @@ const mockRemoveScanFolder = jest.fn(async (_id: string) => []);
 const mockAddScanFolder = jest.fn<Promise<any[]>, [any]>(async (_folder: any) => []);
 const mockRequestDirPermissions = jest.fn<Promise<{ granted: boolean; directoryUri?: string }>, []>(async () => ({ granted: false }));
 const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
-const mockImportSongs = jest.fn(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
-const mockMediaCandidates = jest.fn(async () => ({ assets: [], skipped: [] }));
-const mockMediaEnrich = jest.fn(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
+const mockImportSongs = jest.fn<Promise<any>, [any?]>(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
+const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [], skipped: [] }));
+const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -47,7 +47,7 @@ jest.mock('../../utils/mediaLibraryImport', () => ({
   deriveFolderNameFromUri: (uri: string) => uri.includes('soundloadmate') ? 'soundloadmate' : 'Music',
   importSongsFromSources: (options: any) => mockImportSongs(options),
   scanMediaLibraryCandidates: () => mockMediaCandidates(),
-  enrichMediaLibraryAssets: (...args: any[]) => (mockMediaEnrich as any)(...args),
+  enrichMediaLibraryAssets: (...args: any[]) => mockMediaEnrich(...args),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
