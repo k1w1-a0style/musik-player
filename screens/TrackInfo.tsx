@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import type { AppStackParamList } from '../types/navigation';
@@ -61,7 +61,7 @@ const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ l
 const TrackInfo: React.FC = () => {
   const route = useRoute<TrackInfoRoute>();
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
-  const { songs } = useLibraryMusicContext();
+  const { songs, setSongs } = useLibraryMusicContext();
   const [coverFailed, setCoverFailed] = useState(false);
 
   const song = useMemo(() => songs.find(s => s.id === route.params.songId), [route.params.songId, songs]);
@@ -86,6 +86,24 @@ const TrackInfo: React.FC = () => {
     ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE')
     : 'Nicht verfügbar';
 
+  const removeFromLibrary = (): void => {
+    Alert.alert(
+      'Aus Bibliothek entfernen?',
+      'Der Track wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Entfernen',
+          style: 'destructive',
+          onPress: () => {
+            setSongs(songs.filter(item => item.id !== song.id));
+            navigation.goBack();
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <AppBackground>
       <Screen contentStyle={styles.container}>
@@ -99,7 +117,15 @@ const TrackInfo: React.FC = () => {
           </View>
 
           <Text style={styles.header}>TrackInfo</Text>
-          <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}><Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text></Pressable>
+          <View style={styles.actionRow}>
+            <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}>
+              <Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Track aus Bibliothek entfernen" style={styles.removeButton} onPress={removeFromLibrary}>
+              <Text style={styles.removeButtonText}>Aus Bibliothek entfernen</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.hint}>Hinweis: Entfernen löscht nicht die Datei vom Gerät.</Text>
           <Text style={styles.section}>Basis</Text>
           <InfoRow label="Titel" value={valueOrNA(song.title)} />
           <InfoRow label="Artist" value={valueOrNA(song.artist)} />
@@ -153,9 +179,13 @@ const styles = StyleSheet.create({
   },
   cover: { width: '100%', height: '100%' },
   header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 2 },
   section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
-  editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', marginBottom: 6 },
+  editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' },
   editButtonText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
+  removeButton: { borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: theme.palette.danger ?? '#ff5c5c' },
+  removeButtonText: { color: theme.palette.danger ?? '#ff5c5c', fontFamily: theme.fonts.heading, fontSize: 13 },
+  hint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 4 },
   row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
