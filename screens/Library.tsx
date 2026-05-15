@@ -30,6 +30,7 @@ import type { ScanFolder } from '../types/ScanFolder';
 import { addScanFolder, getFavoriteSongIds, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 
 declare const __DEV__: boolean;
 
@@ -271,6 +272,26 @@ const Library: React.FC = () => {
     }
   };
 
+  const refreshMetadataFromFiles = async (): Promise<void> => {
+    setMenuOpen(false);
+    if (songs.length === 0) {
+      Alert.alert('Keine Songs', 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.');
+      return;
+    }
+    setImportStatus('ID3-Metadaten werden gelesen…');
+    try {
+      setLoading(true);
+      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, 'Metadaten-Aktualisierung läuft zu lange. Bitte später erneut versuchen.');
+      if (result.updated > 0) setSongs(result.songs);
+      Alert.alert('Metadaten aktualisiert', `${result.updated} Tracks aktualisiert. ${result.skipped} übersprungen. ${result.failed} fehlgeschlagen.`);
+    } catch (error) {
+      Alert.alert('Metadaten-Update gestoppt', error instanceof Error ? error.message : 'Metadaten konnten nicht aktualisiert werden.');
+    } finally {
+      setLoading(false);
+      setImportStatus(null);
+    }
+  };
+
   const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => void playSong(song, queue), [filteredSongs, playSong]);
   const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
   const keyExtractor = useCallback((item: Song) => item.id, []);
@@ -366,7 +387,7 @@ const Library: React.FC = () => {
         )}
 
         <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}><View style={styles.menuCard}><MenuItem label="Importieren / Rescan" onPress={importFromDevice} disabled={loading || !isReady} /><MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} /><MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted /><MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} /></View></Pressable>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}><View style={styles.menuCard}><MenuItem label="Importieren / Rescan" onPress={importFromDevice} disabled={loading || !isReady} /><MenuItem label="Metadaten aktualisieren" onPress={refreshMetadataFromFiles} disabled={loading || !isReady || songs.length === 0} /><MenuItem label="Ordner hinzufügen" onPress={onAddScanFolder} /><MenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={() => { setActiveTab('folders'); setMenuOpen(false); }} muted /><MenuItem label="Einstellungen" onPress={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }} /></View></Pressable>
         </Modal>
       </Screen>
     </AppBackground>
