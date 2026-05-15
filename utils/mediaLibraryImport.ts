@@ -1,5 +1,6 @@
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
+import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename } from './musicParser';
@@ -190,6 +191,15 @@ const resolveAssetSize = async (
   return typeof existing === 'number' && existing > 0 ? existing : undefined;
 };
 
+const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> => {
+  try {
+    const artwork = await SystemAudio.extractEmbeddedArtwork(uri);
+    return artwork?.uri;
+  } catch {
+    return undefined;
+  }
+};
+
 export const buildSongFromImportSource = async (
   source: BuildSongSource,
   tags: Id3Tags = {},
@@ -200,9 +210,11 @@ export const buildSongFromImportSource = async (
   const fallback = parseFilename(filename);
 
   const cachedCover = await cacheBase64Cover(source.id, tags.cover);
-  const cover =
+  const parsedCover =
     cachedCover ??
     (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
+  const nativeCover = parsedCover ? undefined : await getNativeEmbeddedCover(source.uri);
+  const cover = parsedCover ?? nativeCover;
 
   return {
     id: source.id,
@@ -228,7 +240,7 @@ export const buildSongFromImportSource = async (
       importedAt,
     },
     coverInfo: {
-      status: cover ? (cachedCover ? 'cached' : 'external') : 'none',
+      status: cover ? (cachedCover || nativeCover ? 'cached' : 'external') : 'none',
       uri: cover,
     },
   };
