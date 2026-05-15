@@ -447,7 +447,7 @@ test('draft builder utility respects dirty fields/removeCover', () => {
   expect(draft.removeCover).toBe(true);
 });
 
-test('content:// song disables remove cover and shows replacement-preparation state', () => {
+test('content:// song disables remove and pick cover actions', () => {
   mockCapability = {
     canRead: true,
     canWrite: false,
@@ -458,8 +458,8 @@ test('content:// song disables remove cover and shows replacement-preparation st
   };
   const { getByTestId, getByText } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('replace-cover-ready')).toBeTruthy();
-  expect(getByText('Cover ersetzen: vorbereitet, Bildauswahl folgt im nächsten Schritt')).toBeTruthy();
+  expect(getByTestId('pick-cover').props.accessibilityState.disabled).toBe(true);
+  expect(getByText('Cover auswählen: JPG/PNG')).toBeTruthy();
 });
 
 test('android file:// writable song keeps remove-cover enabled when cover exists', () => {
