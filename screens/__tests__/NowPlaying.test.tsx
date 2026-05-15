@@ -1,13 +1,20 @@
 import React from 'react';
-import { Alert, Image } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { Image } from 'react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
+const mockIsFavoriteSongId = jest.fn(async () => false);
+const mockSetFavoriteSongId = jest.fn(async () => []);
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
+}));
+
+jest.mock('../../utils/storage', () => ({
+  isFavoriteSongId: (songId: string) => mockIsFavoriteSongId(songId),
+  setFavoriteSongId: (songId: string, favorite: boolean) => mockSetFavoriteSongId(songId, favorite),
 }));
 
 const mockNowPlayingContext = {
@@ -53,11 +60,9 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.visualizerError = null;
     mockGoBack.mockClear();
     mockNavigate.mockClear();
-    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    mockIsFavoriteSongId.mockClear();
+    mockSetFavoriteSongId.mockClear();
+    mockIsFavoriteSongId.mockResolvedValue(false);
   });
 
   test('hides broken cover image after error', () => {
@@ -79,11 +84,12 @@ describe('NowPlaying cover fallback', () => {
     expect(queryByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeNull();
   });
 
-  test('favorite icon is exposed as an actionable button', () => {
+  test('favorite icon persists an actionable favorite state', async () => {
     const { getByLabelText } = render(<NowPlaying />);
     const favorite = getByLabelText('Track favorisieren');
+    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
     fireEvent.press(favorite);
-    expect(Alert.alert).toHaveBeenCalledWith('Favorit', 'Track als Favorit markiert.');
+    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
   });
 
   test('close button remains interactive and triggers goBack', () => {
@@ -93,9 +99,9 @@ describe('NowPlaying cover fallback', () => {
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
-  test('more icon stays decorative and hidden from accessibility tree', () => {
-    const { queryByLabelText, queryByTestId } = render(<NowPlaying />);
-    expect(queryByLabelText('Mehr Optionen')).toBeNull();
-    expect(queryByTestId('now-playing-more')).toBeNull();
+  test('more menu is interactive and opens actions', () => {
+    const { getByLabelText, getByText } = render(<NowPlaying />);
+    fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
+    expect(getByText('TrackInfo öffnen')).toBeTruthy();
   });
 });
