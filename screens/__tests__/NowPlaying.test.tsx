@@ -5,8 +5,8 @@ import NowPlaying from '../NowPlaying';
 
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
-const mockIsFavoriteSongId = jest.fn(async () => false);
-const mockSetFavoriteSongId = jest.fn(async () => []);
+const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(() => Promise.resolve(false));
+const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
