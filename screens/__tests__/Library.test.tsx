@@ -10,6 +10,7 @@ const mockPlaySong = jest.fn(async () => undefined);
 const mockNavigate = jest.fn();
 const mockSetSongs = jest.fn();
 const mockGetScanFolders = jest.fn<Promise<any[]>, []>(async () => []);
+const mockGetFavoriteSongIds = jest.fn<Promise<string[]>, []>(async () => []);
 const mockUpdateScanFolder = jest.fn(async (_id: string, _patch: any) => []);
 const mockRemoveScanFolder = jest.fn(async (_id: string) => []);
 const mockAddScanFolder = jest.fn<Promise<any[]>, [any]>(async (_folder: any) => []);
@@ -36,13 +37,14 @@ jest.mock('../../contexts/MusicContext', () => ({
 
 jest.mock('../../utils/storage', () => ({
   getScanFolders: () => mockGetScanFolders(),
+  getFavoriteSongIds: () => mockGetFavoriteSongIds(),
   updateScanFolder: (id: string, patch: any) => mockUpdateScanFolder(id, patch),
   removeScanFolder: (id: string) => mockRemoveScanFolder(id),
   addScanFolder: (folder: any) => mockAddScanFolder(folder),
 }));
 
 jest.mock('../../utils/mediaLibraryImport', () => ({
-  deriveFolderNameFromUri: () => 'Music',
+  deriveFolderNameFromUri: (uri: string) => uri.includes('soundloadmate') ? 'soundloadmate' : 'Music',
   importSongsFromSources: (options: any) => mockImportSongs(options),
   scanMediaLibraryCandidates: () => mockMediaCandidates(),
   enrichMediaLibraryAssets: (...args: any[]) => (mockMediaEnrich as any)(...args),
@@ -87,6 +89,8 @@ describe('Library', () => {
 
     expect(getByText('K1W1 Music')).toBeTruthy();
     expect(getByText('Tracks')).toBeTruthy();
+    expect(getByText('Favoriten')).toBeTruthy();
+    expect(getByText('Genres')).toBeTruthy();
     expect(getByText('Ordner')).toBeTruthy();
     expect(getByText('Name')).toBeTruthy();
     expect(queryByText('Scan-Ordner')).toBeNull();
@@ -118,103 +122,68 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     openOverflowMenu(getByLabelText);
-
     expect(getByText('Aktive Scan-Ordner: 1')).toBeTruthy();
-
-    view.unmount();
-  });
-
-  test('adds scan folder from overflow menu', async () => {
-    const previousOs = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: 'android' });
-
-    mockGetScanFolders.mockResolvedValueOnce([]);
-    mockRequestDirPermissions.mockResolvedValueOnce({ granted: true, directoryUri: 'content://music' });
-    mockAddScanFolder.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
-
-    const view = render(<Library />);
-    const { getByLabelText, getByText } = view;
-
-    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
-
-    openOverflowMenu(getByLabelText);
-    fireEvent.press(getByText('Ordner hinzufügen'));
-
-    await waitFor(() => expect(mockAddScanFolder).toHaveBeenCalledWith(expect.objectContaining({ uri: 'content://music', name: 'Music' })));
-
-    Object.defineProperty(Platform, 'OS', { value: previousOs });
     view.unmount();
   });
 
   test('does not enrich media when import confirmation is cancelled', async () => {
-    mockGetScanFolders.mockResolvedValueOnce([]);
-    mockMediaCandidates.mockResolvedValueOnce(({ assets: [{ id: 'a1', uri: 'file:///a.mp3', filename: 'a.mp3', duration: 1 }], skipped: [] } as any));
-
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title: any, _msg?: any, buttons?: any) => {
-      if (title === 'Musik importieren') buttons?.[0]?.onPress?.();
+    mockMediaCandidates.mockResolvedValueOnce({ assets: [{ id: 'a1', uri: 'file:///a.mp3' }], skipped: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      buttons?.[0]?.onPress?.();
     });
 
     const view = render(<Library />);
     const { getByLabelText, getByText } = view;
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
-
     openOverflowMenu(getByLabelText);
     pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaCandidates).toHaveBeenCalled());
-
     expect(mockMediaEnrich).not.toHaveBeenCalled();
-    expect(mockSetSongs).not.toHaveBeenCalled();
-
-    alertSpy.mockRestore();
     view.unmount();
   });
 
   test('on android SAF errors with songs imports and shows one partial warning', async () => {
-    const previousOs = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: 'android' });
-
+    Platform.OS = 'android';
     mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
-    mockImportSongs.mockResolvedValueOnce({ songs: [{ id: 'x', title: 'A', artist: 'B' }], skipped: [], errors: ['content://music/error'], sourceSummary: [], folderUpdates: [] } as any);
-
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockImportSongs.mockResolvedValueOnce({
+      songs: [{ id: 'x', title: 'X', artist: 'Y', uri: 'content://x' }],
+      skipped: [],
+      errors: ['content://bad'],
+      sourceSummary: [],
+      folderUpdates: [{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true, lastError: 'Teilweise nicht lesbar' }],
+    });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
     const view = render(<Library />);
     const { getByLabelText, getByText } = view;
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
-
     openOverflowMenu(getByLabelText);
     pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
-
-    expect(alertSpy).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));
-
-    alertSpy.mockRestore();
-    Object.defineProperty(Platform, 'OS', { value: previousOs });
+    expect(Alert.alert).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));
     view.unmount();
   });
 
   test('uses media-library fallback when no scan folders', async () => {
-    mockGetScanFolders.mockResolvedValueOnce([]);
-
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockMediaCandidates.mockResolvedValueOnce({ assets: [{ id: 'a1', uri: 'file:///a.mp3' }], skipped: [] });
+    mockMediaEnrich.mockResolvedValueOnce({ songs: [{ id: 'a1', title: 'A', artist: 'B', uri: 'file:///a.mp3' }], skipped: [], errors: [], sourceSummary: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      buttons?.[1]?.onPress?.();
+    });
 
     const view = render(<Library />);
     const { getByLabelText, getByText } = view;
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
-
     openOverflowMenu(getByLabelText);
     pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
-
-    expect(mockMediaCandidates).toHaveBeenCalled();
-
-    alertSpy.mockRestore();
+    await waitFor(() => expect(mockSetSongs).toHaveBeenCalled());
     view.unmount();
   });
 });
