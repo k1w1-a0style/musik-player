@@ -45,6 +45,14 @@ import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type Libr
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
+import {
+  libraryImportMessages,
+  mediaCandidatesFoundStatus,
+  metadataRefreshSummary,
+  scanFoldersReadingStatus,
+  tracksFoundStatus,
+  tracksSavingStatus,
+} from '../utils/libraryImportMessages';
 
 declare const __DEV__: boolean;
 
@@ -140,14 +148,14 @@ const Library: React.FC = () => {
 
   const importFromDevice = async (): Promise<void> => {
     setMenuOpen(false);
-    setImportStatus('Import wird vorbereitet…');
+    setImportStatus(libraryImportMessages.preparingImport);
     try {
       setLoading(true);
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
-        setImportStatus(`Scan-Ordner werden gelesen… (${activeFolders.length})`);
+        setImportStatus(scanFoldersReadingStatus(activeFolders.length));
         const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, 'Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.');
-        setImportStatus(`${result.songs.length} Tracks gefunden. Bibliothek wird aktualisiert…`);
+        setImportStatus(tracksFoundStatus(result.songs.length));
         if (result.folderUpdates) {
           for (const folder of result.folderUpdates) {
             const original = scanFolders.find(item => item.id === folder.id);
@@ -156,36 +164,39 @@ const Library: React.FC = () => {
           setScanFolders(await getScanFolders());
         }
         if (result.songs.length === 0) {
-          Alert.alert(result.errors.length > 0 ? 'Scan fehlgeschlagen' : 'Keine Musik gefunden', result.errors.length > 0 ? 'In den Scan-Ordnern wurden keine importierbaren Songs gefunden. Einige Ordner/Dateien waren nicht lesbar.' : 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.');
+          Alert.alert(
+            result.errors.length > 0 ? libraryImportMessages.scanFailedTitle : libraryImportMessages.noMusicFoundTitle,
+            result.errors.length > 0 ? libraryImportMessages.scanFailedMessage : libraryImportMessages.noAudioInScanFoldersMessage,
+          );
           return;
         }
-        if (result.errors.length > 0) Alert.alert('Teilweise importiert', 'Einige Ordner/Dateien waren nicht lesbar. Importierbare Songs wurden trotzdem übernommen.');
+        if (result.errors.length > 0) Alert.alert(libraryImportMessages.partiallyImportedTitle, libraryImportMessages.partiallyImportedMessage);
         setSongs(mergeSongs(songs, result.songs));
         setActiveTab('tracks');
         return;
       }
 
-      setImportStatus('Medienbibliothek wird durchsucht…');
+      setImportStatus(libraryImportMessages.scanningMediaLibrary);
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Berechtigung benötigt', 'Ohne Zugriff können keine Songs importiert werden.');
+        Alert.alert(libraryImportMessages.permissionRequiredTitle, libraryImportMessages.permissionRequiredMessage);
         return;
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, 'Medienbibliothek-Scan läuft zu lange.');
-      setImportStatus(`${candidates.assets.length} Musikdateien gefunden…`);
+      setImportStatus(mediaCandidatesFoundStatus(candidates.assets.length));
       if (candidates.assets.length === 0) {
-        Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
+        Alert.alert(libraryImportMessages.noMusicFoundTitle, libraryImportMessages.noMatchingMusicMessage);
         return;
       }
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
-      setImportStatus('Metadaten und Cover werden importiert…');
+      setImportStatus(libraryImportMessages.importingMetadataAndCovers);
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, 'Metadaten-Import läuft zu lange.');
-      setImportStatus(`${mediaResult.songs.length} Tracks werden gespeichert…`);
+      setImportStatus(tracksSavingStatus(mediaResult.songs.length));
       setSongs(mergeSongs(songs, mediaResult.songs));
       setActiveTab('tracks');
     } catch (error) {
-      Alert.alert('Import gestoppt', error instanceof Error ? error.message : 'Medienbibliothek konnte nicht gelesen werden.');
+      Alert.alert(libraryImportMessages.importStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.importFallbackError);
     } finally {
       setLoading(false);
       setImportStatus(null);
@@ -195,17 +206,17 @@ const Library: React.FC = () => {
   const refreshMetadataFromFiles = async (): Promise<void> => {
     setMenuOpen(false);
     if (songs.length === 0) {
-      Alert.alert('Keine Songs', 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.');
+      Alert.alert(libraryImportMessages.noSongsTitle, libraryImportMessages.noSongsMetadataMessage);
       return;
     }
-    setImportStatus('ID3-Metadaten werden gelesen…');
+    setImportStatus(libraryImportMessages.readingId3Metadata);
     try {
       setLoading(true);
       const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, 'Metadaten-Aktualisierung läuft zu lange. Bitte später erneut versuchen.');
       if (result.updated > 0) setSongs(result.songs);
-      Alert.alert('Metadaten aktualisiert', `${result.updated} Tracks aktualisiert. ${result.skipped} übersprungen. ${result.failed} fehlgeschlagen.`);
+      Alert.alert(libraryImportMessages.metadataUpdatedTitle, metadataRefreshSummary(result.updated, result.skipped, result.failed));
     } catch (error) {
-      Alert.alert('Metadaten-Update gestoppt', error instanceof Error ? error.message : 'Metadaten konnten nicht aktualisiert werden.');
+      Alert.alert(libraryImportMessages.metadataUpdateStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.metadataUpdateFallbackError);
     } finally {
       setLoading(false);
       setImportStatus(null);
@@ -287,7 +298,7 @@ const Library: React.FC = () => {
         </ScrollView>
 
         {searchOpen && <View style={styles.searchWrap}><Search color={theme.palette.text.muted} size={18} /><TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album, Genre suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} autoFocus /></View>}
-        {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? 'Import läuft…'}</Text></View>}
+        {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? libraryImportMessages.importRunning}</Text></View>}
 
         {activeTab === 'folders' ? (
           <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Scan-Ordner</Text><Text style={styles.folderCount}>{activeFolders} aktiv</Text></View><FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={({ item }) => <View style={styles.folderRow}><View style={styles.folderTextWrap}><Text style={styles.folderName} numberOfLines={1}>{displayFolderName(item)}</Text><Text style={styles.folderMeta} numberOfLines={2}>{item.lastError ?? item.uri}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Scan-Ordner ${displayFolderName(item)} entfernen`} onPress={async () => setScanFolders(await removeScanFolder(item.id))} style={({ pressed }) => [styles.removeFolderButton, pressed && styles.pressed]}><Text style={styles.removeFolderText}>Entfernen</Text></Pressable></View>} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
