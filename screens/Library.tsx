@@ -44,6 +44,7 @@ import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
+import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 
 declare const __DEV__: boolean;
 
@@ -57,19 +58,6 @@ const DEMO_SONGS: Song[] = [
   { id: 'demo-2', title: 'SoundHelix Song 2', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
   { id: 'demo-3', title: 'SoundHelix Song 3', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
 ];
-
-const confirmImport = (found: number, skipped: number): Promise<boolean> =>
-  new Promise(resolve => {
-    Alert.alert(
-      'Musik importieren',
-      `${found} Musikdateien gefunden. ${skipped} kurze Audios, Sprachnachrichten oder Systemtöne wurden übersprungen.`,
-      [
-        { text: 'Abbrechen', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Importieren', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
 
 type AlbumViewMode = 'grid' | 'list';
 type GroupItem = LibraryGroupItem;
@@ -189,7 +177,7 @@ const Library: React.FC = () => {
         Alert.alert('Keine Musik gefunden', 'Es wurden keine passenden Musikdateien gefunden.');
         return;
       }
-      const shouldImport = await confirmImport(candidates.assets.length, candidates.skipped.length);
+      const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
       setImportStatus('Metadaten und Cover werden importiert…');
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, 'Metadaten-Import läuft zu lange.');
