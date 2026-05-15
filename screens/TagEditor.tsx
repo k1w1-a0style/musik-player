@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import {
   useNavigation,
   useRoute,
@@ -31,6 +33,7 @@ import { getTagEditCapability } from '../utils/tagEditCapability';
 import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { normalizeEditableTags } from '../utils/tagValidation';
+import { buildEditableCoverFromPickerAsset, type PickedTagCover } from '../utils/tagCoverPicker';
 
 type TagEditorRoute = RouteProp<AppStackParamList, 'TagEditor'>;
 
@@ -62,6 +65,12 @@ const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   ReplaceFailed: 'Datei konnte nicht ersetzt werden.',
   RollbackFailed: 'Rollback fehlgeschlagen.',
 };
+
+const COVER_PICK_ERROR_MESSAGES = {
+  missingBase64: 'Cover konnte nicht gelesen werden. Bitte anderes Bild wählen.',
+  unsupportedMime: 'Nur JPG/JPEG und PNG werden als Cover unterstützt.',
+  tooLarge: 'Cover ist zu groß. Bitte ein Bild bis maximal 5 MB wählen.',
+} as const;
 
 const toInitialForm = (song: Song): FormState => ({
   title: song.title ?? '',
@@ -173,7 +182,7 @@ const TagEditor: React.FC = () => {
   );
   const [saving, setSaving] = useState(false);
   const [removeCover, setRemoveCover] = useState(false);
-  const [replacementCover, setReplacementCover] = useState<EditableCover | null>(null);
+  const [replacementCover, setReplacementCover] = useState<PickedTagCover | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() =>
     song ? toInitialForm(song) : toInitialForm({ id: '', title: '', artist: '' } as Song),
@@ -214,6 +223,30 @@ const TagEditor: React.FC = () => {
   );
   const safetyMessage = safetyNotice(song);
 
+  const handlePickCover = async (): Promise<void> => {
+    if (!capability.canWrite || saving) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+      base64: true,
+    });
+    if (result.canceled) {
+      setStatus('Cover-Auswahl abgebrochen.');
+      return;
+    }
+    const asset = result.assets[0];
+    const coverResult = buildEditableCoverFromPickerAsset(asset);
+    if (!coverResult.ok) {
+      setStatus(COVER_PICK_ERROR_MESSAGES[coverResult.reason]);
+      return;
+    }
+    setReplacementCover(coverResult.cover);
+    setRemoveCover(false);
+    setStatus('Neues Cover ausgewählt. Speichern schreibt es in die Datei.');
+  };
+
   const onSaveConfirmed = async (): Promise<void> => {
     setSaving(true);
     try {
@@ -242,7 +275,8 @@ const TagEditor: React.FC = () => {
           metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
         }
         if (draft.cover) {
-          metadataPatch.coverInfo = { status: 'embedded' } as SongCoverInfo;
+          metadataPatch.cover = replacementCover?.uri;
+          metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
         }
         updateSongMetadata(song.id, metadataPatch);
         const updatedSong: Song = { ...song, ...metadataPatch };
@@ -326,14 +360,36 @@ const TagEditor: React.FC = () => {
             </Text>
           </Pressable>
 
-          <View testID="replace-cover-ready" style={styles.toggle}>
+          <Pressable
+            testID="pick-cover"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !capability.canWrite || saving }}
+            disabled={!capability.canWrite || saving}
+            style={({ pressed }) => [
+              styles.toggle,
+              pressed && styles.pressed,
+              (!capability.canWrite || saving) && styles.disabledButton,
+            ]}
+            onPress={() => {
+              void handlePickCover();
+            }}
+          >
             <Text style={styles.toggleText}>
-              Cover ersetzen: vorbereitet, Bildauswahl folgt im nächsten Schritt
+              Cover auswählen: {hasReplacementCover ? 'Ausgewählt' : 'JPG/PNG'}
             </Text>
             <Text style={styles.helperText}>
-              Der Draft unterstützt neue Cover bereits; Picker und Bildvalidierung werden separat aktiviert.
+              Maximal 5 MB. Ein neues Cover ersetzt ein bestehendes Cover beim Speichern.
             </Text>
-          </View>
+          </Pressable>
+
+          {replacementCover?.uri && (
+            <View testID="cover-preview" style={styles.coverPreviewWrap}>
+              <Image source={{ uri: replacementCover.uri }} style={styles.coverPreview} />
+              <Text style={styles.helperText}>
+                {replacementCover.mimeType} · {Math.round(replacementCover.sizeBytes / 1024)} KB
+              </Text>
+            </View>
+          )}
 
           <Pressable
             testID="save-button"
@@ -394,6 +450,16 @@ const styles = StyleSheet.create({
   },
   toggleText: { color: theme.palette.text.primary },
   helperText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6 },
+  coverPreviewWrap: {
+    padding: 12,
+    borderRadius: theme.radii.input,
+    backgroundColor: theme.palette.surface,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignItems: 'center',
+    gap: 8,
+  },
+  coverPreview: { width: 130, height: 130, borderRadius: 18 },
   saveButton: {
     padding: 12,
     borderRadius: theme.radii.input,
@@ -405,6 +471,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.surfaceElevated,
   },
   disabledButton: { opacity: 0.5 },
+  pressed: { opacity: 0.72 },
   saveText: {
     color: theme.palette.text.primary,
     textAlign: 'center',
