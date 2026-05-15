@@ -41,8 +41,8 @@ export const StorageKeys = {
   REPEAT_MODE: 'repeatMode',
   SHUFFLE: 'shuffle',
   SCAN_FOLDERS: 'scanFolders',
+  FAVORITE_SONG_IDS: 'favoriteSongIds',
 } as const;
-
 
 const isScanFolder = (value: unknown): value is ScanFolder => {
   if (!value || typeof value !== 'object') return false;
@@ -54,6 +54,25 @@ const isScanFolder = (value: unknown): value is ScanFolder => {
     typeof folder.addedAt === 'number' &&
     typeof folder.enabled === 'boolean'
   );
+};
+
+export const getFavoriteSongIds = async (): Promise<string[]> => {
+  const value = await storage.get<unknown>(StorageKeys.FAVORITE_SONG_IDS);
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+};
+
+export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
+  const ids = await getFavoriteSongIds();
+  return ids.includes(songId);
+};
+
+export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
+  const ids = await getFavoriteSongIds();
+  const next = favorite
+    ? Array.from(new Set([...ids, songId]))
+    : ids.filter(id => id !== songId);
+  await storage.set(StorageKeys.FAVORITE_SONG_IDS, next);
+  return next;
 };
 
 export const getScanFolders = async (): Promise<ScanFolder[]> => {
