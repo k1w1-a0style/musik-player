@@ -40,6 +40,7 @@ import {
   type LibraryGroupItem,
 } from '../utils/libraryPresentation';
 import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import { shuffleItems } from '../utils/libraryShuffle';
 
 declare const __DEV__: boolean;
 
@@ -300,14 +301,9 @@ const Library: React.FC = () => {
   const songsForActiveList = activeTab === 'favorites' ? favoriteSongs : filteredSongs;
   const handleShufflePress = useCallback(() => {
     if (songsForActiveList.length === 0) return;
-    const shuffled = songsForActiveList.slice();
-    for (let i = shuffled.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
+    const shuffled = shuffleItems(songsForActiveList);
     void playSong(shuffled[0], shuffled);
   }, [playSong, songsForActiveList]);
-
 
   return (
     <AppBackground>
