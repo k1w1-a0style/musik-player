@@ -70,6 +70,10 @@ const openOverflowMenu = (getByLabelText: (label: string) => ReturnType<typeof r
   fireEvent.press(getByLabelText('Mehr Optionen'));
 };
 
+const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) => {
+  fireEvent.press(getByText('Importieren / Rescan'));
+};
+
 describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -82,7 +86,8 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     expect(getByText('K1W1 Music')).toBeTruthy();
-    expect(getByText('Titel')).toBeTruthy();
+    expect(getByText('Tracks')).toBeTruthy();
+    expect(getByText('Ordner')).toBeTruthy();
     expect(getByText('Name')).toBeTruthy();
     expect(queryByText('Scan-Ordner')).toBeNull();
     expect(queryByText('Bibliothek')).toBeNull();
@@ -155,7 +160,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     openOverflowMenu(getByLabelText);
-    fireEvent.press(getByText('Importieren'));
+    pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaCandidates).toHaveBeenCalled());
 
@@ -181,7 +186,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     openOverflowMenu(getByLabelText);
-    fireEvent.press(getByText('Importieren'));
+    pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
 
@@ -203,7 +208,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     openOverflowMenu(getByLabelText);
-    fireEvent.press(getByText('Importieren'));
+    pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
 
