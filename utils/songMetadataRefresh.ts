@@ -19,7 +19,7 @@ const applyTagsToSong = (song: Song, tags: Id3Tags): Song => {
   if (hasText(tags.year)) patch.year = tags.year.trim();
   if (hasText(tags.genre)) patch.genre = tags.genre.trim();
   if (hasText(tags.trackNumber)) patch.trackNumber = tags.trackNumber.trim();
-  if (hasText(tags.discNumber)) patch.discNumber = tags.disNumber?.trim();
+  if (hasText(tags.discNumber)) patch.discNumber = tags.discNumber.trim();
   if (hasText(tags.comment)) patch.comment = tags.comment.trim();
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
