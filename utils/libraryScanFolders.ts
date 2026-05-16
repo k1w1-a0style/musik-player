@@ -23,6 +23,9 @@ export const canUseScanFolderPicker = (platformOs: string): boolean =>
 export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionResultLike): boolean =>
   permission.granted === true && typeof permission.directoryUri === 'string' && permission.directoryUri.length > 0;
 
+export const wasScanFolderAdded = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): boolean =>
+  nextFolders.length > previousFolders.length;
+
 export const buildScanFolderFromDirectoryUri = (
   directoryUri: string,
   options: BuildScanFolderOptions = {},
