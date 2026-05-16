@@ -36,6 +36,14 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
   message: libraryImportMessages.noMatchingMusicMessage,
 });
 
+export const hasSongsForMetadataRefresh = (count: number): boolean =>
+  count > 0;
+
+export const getNoSongsMetadataAlert = (): LibraryAlertMessage => ({
+  title: libraryImportMessages.noSongsTitle,
+  message: libraryImportMessages.noSongsMetadataMessage,
+});
+
 export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate => ({
   songs: mergeSongs(existingSongs, importedSongs),
   activeTab: 'tracks',
