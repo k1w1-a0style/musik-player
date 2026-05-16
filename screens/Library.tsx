@@ -49,6 +49,7 @@ import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
+import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
 import {
   libraryImportMessages,
@@ -138,11 +139,9 @@ const Library: React.FC = () => {
         setImportStatus(scanFoldersReadingStatus(activeFolders.length));
         const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, 'Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.');
         setImportStatus(tracksFoundStatus(result.songs.length));
-        if (result.folderUpdates) {
-          for (const folder of result.folderUpdates) {
-            const original = scanFolders.find(item => item.id === folder.id);
-            if (!original || original.lastError !== folder.lastError) await updateScanFolder(folder.id, { lastError: folder.lastError });
-          }
+        const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
+        if (changedFolderUpdates.length > 0) {
+          for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
           setScanFolders(await getScanFolders());
         }
         if (result.songs.length === 0) {
