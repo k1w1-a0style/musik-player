@@ -3,9 +3,11 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
+  getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
+  hasSongsForMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
 import type { ScanFolder } from '../../types/ScanFolder';
@@ -61,6 +63,18 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
   expect(getEmptyMediaLibraryImportAlert()).toEqual({
     title: 'Keine Musik gefunden',
     message: 'Es wurden keine passenden Musikdateien gefunden.',
+  });
+});
+
+test('hasSongsForMetadataRefresh checks song counts', () => {
+  expect(hasSongsForMetadataRefresh(0)).toBe(false);
+  expect(hasSongsForMetadataRefresh(1)).toBe(true);
+});
+
+test('getNoSongsMetadataAlert returns metadata refresh empty-state alert', () => {
+  expect(getNoSongsMetadataAlert()).toEqual({
+    title: 'Keine Songs',
+    message: 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.',
   });
 });
 
