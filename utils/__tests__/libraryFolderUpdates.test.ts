@@ -5,6 +5,7 @@ const folder = (patch: Partial<ScanFolder>): ScanFolder => ({
   id: 'folder-1',
   name: 'Music',
   uri: 'content://music',
+  addedAt: 1,
   enabled: true,
   ...patch,
 });
