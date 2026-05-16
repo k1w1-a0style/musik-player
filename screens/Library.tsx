@@ -56,8 +56,10 @@ import {
   buildImportedSongsUpdate,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
+  getImportStoppedAlert,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
+  getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
@@ -193,7 +195,8 @@ const Library: React.FC = () => {
       setSongs(update.songs);
       setActiveTab(update.activeTab);
     } catch (error) {
-      Alert.alert(libraryImportMessages.importStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.importFallbackError);
+      const stoppedAlert = getImportStoppedAlert(error);
+      Alert.alert(stoppedAlert.title, stoppedAlert.message);
     } finally {
       setLoading(false);
       setImportStatus(null);
@@ -215,7 +218,8 @@ const Library: React.FC = () => {
       const completeAlert = getMetadataRefreshCompleteAlert(result.updated, result.skipped, result.failed);
       Alert.alert(completeAlert.title, completeAlert.message);
     } catch (error) {
-      Alert.alert(libraryImportMessages.metadataUpdateStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.metadataUpdateFallbackError);
+      const stoppedAlert = getMetadataUpdateStoppedAlert(error);
+      Alert.alert(stoppedAlert.title, stoppedAlert.message);
     } finally {
       setLoading(false);
       setImportStatus(null);
