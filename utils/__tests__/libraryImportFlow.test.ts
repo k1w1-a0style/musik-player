@@ -8,6 +8,7 @@ import {
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
   hasSongsForMetadataRefresh,
+  shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
 import type { ScanFolder } from '../../types/ScanFolder';
@@ -69,6 +70,11 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
 test('hasSongsForMetadataRefresh checks song counts', () => {
   expect(hasSongsForMetadataRefresh(0)).toBe(false);
   expect(hasSongsForMetadataRefresh(1)).toBe(true);
+});
+
+test('shouldApplyMetadataRefresh checks updated counts', () => {
+  expect(shouldApplyMetadataRefresh(0)).toBe(false);
+  expect(shouldApplyMetadataRefresh(1)).toBe(true);
 });
 
 test('getNoSongsMetadataAlert returns metadata refresh empty-state alert', () => {
