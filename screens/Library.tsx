@@ -52,6 +52,7 @@ import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
 import { libraryFolderMessages } from '../utils/libraryFolderMessages';
+import { librarySettingsMessages } from '../utils/librarySettingsMessages';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
@@ -300,7 +301,7 @@ const Library: React.FC = () => {
           onRefreshMetadata={refreshMetadataFromFiles}
           onAddFolder={onAddScanFolder}
           onShowFolders={() => { setActiveTab('folders'); setMenuOpen(false); }}
-          onOpenSettings={() => { setMenuOpen(false); Alert.alert('Einstellungen', 'Theme- und App-Einstellungen kommen im nächsten Schritt.'); }}
+          onOpenSettings={() => { setMenuOpen(false); Alert.alert(librarySettingsMessages.title, librarySettingsMessages.comingSoonMessage); }}
         />
       </Screen>
     </AppBackground>
