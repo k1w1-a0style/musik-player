@@ -57,9 +57,11 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
+  getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
+  hasSongsForMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import {
@@ -199,8 +201,9 @@ const Library: React.FC = () => {
 
   const refreshMetadataFromFiles = async (): Promise<void> => {
     setMenuOpen(false);
-    if (songs.length === 0) {
-      Alert.alert(libraryImportMessages.noSongsTitle, libraryImportMessages.noSongsMetadataMessage);
+    if (!hasSongsForMetadataRefresh(songs.length)) {
+      const noSongsAlert = getNoSongsMetadataAlert();
+      Alert.alert(noSongsAlert.title, noSongsAlert.message);
       return;
     }
     setImportStatus(libraryImportMessages.readingId3Metadata);
