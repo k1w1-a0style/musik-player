@@ -1,5 +1,6 @@
 import {
   buildScanFolderFromDirectoryUri,
+  buildScanFolderStateUpdate,
   canUseScanFolderPicker,
   getEnabledScanFolders,
   hasGrantedDirectoryPermission,
@@ -39,6 +40,15 @@ test('wasScanFolderAdded checks whether a folder was added', () => {
   expect(wasScanFolderAdded([folder('a')], [folder('a'), folder('b')])).toBe(true);
   expect(wasScanFolderAdded([folder('a')], [folder('a')])).toBe(false);
   expect(wasScanFolderAdded([folder('a'), folder('b')], [folder('a')])).toBe(false);
+});
+
+test('buildScanFolderStateUpdate selects folders tab', () => {
+  const scanFolders = [folder('a'), folder('b')];
+
+  expect(buildScanFolderStateUpdate(scanFolders)).toEqual({
+    scanFolders,
+    activeTab: 'folders',
+  });
 });
 
 test('buildScanFolderFromDirectoryUri creates deterministic scan folder', () => {
