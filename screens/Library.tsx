@@ -139,7 +139,7 @@ const Library: React.FC = () => {
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (activeFolders.length > 0 && Platform.OS === 'android') {
         setImportStatus(scanFoldersReadingStatus(activeFolders.length));
-        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, 'Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.');
+        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, libraryImportMessages.scanFoldersTimeout);
         setImportStatus(tracksFoundStatus(result.songs.length));
         const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
         if (changedFolderUpdates.length > 0) {
@@ -165,7 +165,7 @@ const Library: React.FC = () => {
         Alert.alert(libraryImportMessages.permissionRequiredTitle, libraryImportMessages.permissionRequiredMessage);
         return;
       }
-      const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, 'Medienbibliothek-Scan läuft zu lange.');
+      const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, libraryImportMessages.mediaLibraryScanTimeout);
       setImportStatus(mediaCandidatesFoundStatus(candidates.assets.length));
       if (candidates.assets.length === 0) {
         Alert.alert(libraryImportMessages.noMusicFoundTitle, libraryImportMessages.noMatchingMusicMessage);
@@ -174,7 +174,7 @@ const Library: React.FC = () => {
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
       setImportStatus(libraryImportMessages.importingMetadataAndCovers);
-      const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, 'Metadaten-Import läuft zu lange.');
+      const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataImportTimeout);
       setImportStatus(tracksSavingStatus(mediaResult.songs.length));
       setSongs(mergeSongs(songs, mediaResult.songs));
       setActiveTab('tracks');
@@ -195,7 +195,7 @@ const Library: React.FC = () => {
     setImportStatus(libraryImportMessages.readingId3Metadata);
     try {
       setLoading(true);
-      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, 'Metadaten-Aktualisierung läuft zu lange. Bitte später erneut versuchen.');
+      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataRefreshTimeout);
       if (result.updated > 0) setSongs(result.songs);
       Alert.alert(libraryImportMessages.metadataUpdatedTitle, metadataRefreshSummary(result.updated, result.skipped, result.failed));
     } catch (error) {
