@@ -56,7 +56,12 @@ import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
-import { libraryFolderMessages } from '../utils/libraryFolderMessages';
+import {
+  getDuplicateScanFolderAlert,
+  getScanFolderCancelledAlert,
+  getScanFolderUnavailableAlert,
+  getScanFolderUnsupportedAlert,
+} from '../utils/libraryFolderMessages';
 import { librarySettingsMessages } from '../utils/librarySettingsMessages';
 import {
   buildImportedSongsUpdate,
@@ -129,25 +134,29 @@ const Library: React.FC = () => {
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
     if (!canUseScanFolderPicker(Platform.OS)) {
-      Alert.alert(libraryFolderMessages.unsupportedTitle, libraryFolderMessages.folderPickerUnsupportedMessage);
+      const unsupportedAlert = getScanFolderUnsupportedAlert();
+      Alert.alert(unsupportedAlert.title, unsupportedAlert.message);
       return;
     }
     try {
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
       if (!hasGrantedDirectoryPermission(permission)) {
-        Alert.alert(libraryFolderMessages.cancelledTitle, libraryFolderMessages.noFolderSelectedMessage);
+        const cancelledAlert = getScanFolderCancelledAlert();
+        Alert.alert(cancelledAlert.title, cancelledAlert.message);
         return;
       }
       const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
       const next = await addScanFolder(folder);
       if (!wasScanFolderAdded(scanFolders, next)) {
-        Alert.alert(libraryFolderMessages.duplicateTitle, libraryFolderMessages.duplicateFolderMessage);
+        const duplicateAlert = getDuplicateScanFolderAlert();
+        Alert.alert(duplicateAlert.title, duplicateAlert.message);
         return;
       }
       setScanFolders(next);
       setActiveTab('folders');
     } catch {
-      Alert.alert(libraryFolderMessages.unsupportedTitle, libraryFolderMessages.folderPickerUnavailableMessage);
+      const unavailableAlert = getScanFolderUnavailableAlert();
+      Alert.alert(unavailableAlert.title, unavailableAlert.message);
     }
   };
 
