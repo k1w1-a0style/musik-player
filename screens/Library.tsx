@@ -63,7 +63,7 @@ import {
   getScanFolderUnavailableAlert,
   getScanFolderUnsupportedAlert,
 } from '../utils/libraryFolderMessages';
-import { librarySettingsMessages } from '../utils/librarySettingsMessages';
+import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
   buildImportedSongsUpdate,
   getEmptyMediaLibraryImportAlert,
@@ -138,6 +138,12 @@ const Library: React.FC = () => {
     setActiveTab(update.activeTab);
     setMenuOpen(false);
   }, [scanFolders]);
+
+  const openSettings = useCallback(() => {
+    const settingsAlert = getLibrarySettingsComingSoonAlert();
+    setMenuOpen(false);
+    Alert.alert(settingsAlert.title, settingsAlert.message);
+  }, []);
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
@@ -345,7 +351,7 @@ const Library: React.FC = () => {
           onRefreshMetadata={refreshMetadataFromFiles}
           onAddFolder={onAddScanFolder}
           onShowFolders={showScanFolders}
-          onOpenSettings={() => { setMenuOpen(false); Alert.alert(librarySettingsMessages.title, librarySettingsMessages.comingSoonMessage); }}
+          onOpenSettings={openSettings}
         />
       </Screen>
     </AppBackground>
