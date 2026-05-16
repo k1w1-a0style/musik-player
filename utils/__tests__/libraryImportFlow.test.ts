@@ -2,8 +2,10 @@ import {
   buildImportedSongsUpdate,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
+  getImportStoppedAlert,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
+  getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
@@ -89,6 +91,34 @@ test('getMetadataRefreshCompleteAlert returns metadata refresh summary alert', (
   expect(getMetadataRefreshCompleteAlert(2, 3, 4)).toEqual({
     title: 'Metadaten aktualisiert',
     message: '2 Tracks aktualisiert. 3 übersprungen. 4 fehlgeschlagen.',
+  });
+});
+
+test('getImportStoppedAlert uses error message when available', () => {
+  expect(getImportStoppedAlert(new Error('Boom'))).toEqual({
+    title: 'Import gestoppt',
+    message: 'Boom',
+  });
+});
+
+test('getImportStoppedAlert uses fallback for non-error values', () => {
+  expect(getImportStoppedAlert('oops')).toEqual({
+    title: 'Import gestoppt',
+    message: 'Medienbibliothek konnte nicht gelesen werden.',
+  });
+});
+
+test('getMetadataUpdateStoppedAlert uses error message when available', () => {
+  expect(getMetadataUpdateStoppedAlert(new Error('ID3 kaputt'))).toEqual({
+    title: 'Metadaten-Update gestoppt',
+    message: 'ID3 kaputt',
+  });
+});
+
+test('getMetadataUpdateStoppedAlert uses fallback for non-error values', () => {
+  expect(getMetadataUpdateStoppedAlert(null)).toEqual({
+    title: 'Metadaten-Update gestoppt',
+    message: 'Metadaten konnten nicht aktualisiert werden.',
   });
 });
 
