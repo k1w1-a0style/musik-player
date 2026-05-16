@@ -1,9 +1,17 @@
+import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
+import type { LibraryTab } from './libraryTabs';
 import { libraryImportMessages } from './libraryImportMessages';
+import { mergeSongs } from './libraryPresentation';
 
 interface LibraryAlertMessage {
   title: string;
   message: string;
+}
+
+interface ImportedSongsUpdate {
+  songs: Song[];
+  activeTab: LibraryTab;
 }
 
 export const shouldImportFromScanFolders = (activeFolders: ScanFolder[], platformOs: string): boolean =>
@@ -26,6 +34,11 @@ export const hasMediaLibraryCandidates = (count: number): boolean =>
 export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.noMusicFoundTitle,
   message: libraryImportMessages.noMatchingMusicMessage,
+});
+
+export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate => ({
+  songs: mergeSongs(existingSongs, importedSongs),
+  activeTab: 'tracks',
 });
 
 export const getEmptyScanImportAlert = (errors: readonly unknown[] | undefined): LibraryAlertMessage => {
