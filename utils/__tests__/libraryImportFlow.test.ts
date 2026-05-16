@@ -1,4 +1,10 @@
-import { getEmptyScanImportAlert, hasImportErrors, shouldImportFromScanFolders } from '../libraryImportFlow';
+import {
+  getEmptyMediaLibraryImportAlert,
+  getEmptyScanImportAlert,
+  hasImportErrors,
+  hasMediaLibraryCandidates,
+  shouldImportFromScanFolders,
+} from '../libraryImportFlow';
 import type { ScanFolder } from '../../types/ScanFolder';
 
 const folder = (id = 'f1'): ScanFolder => ({
@@ -19,6 +25,18 @@ test('hasImportErrors checks optional error arrays', () => {
   expect(hasImportErrors(undefined)).toBe(false);
   expect(hasImportErrors([])).toBe(false);
   expect(hasImportErrors(['boom'])).toBe(true);
+});
+
+test('hasMediaLibraryCandidates checks candidate counts', () => {
+  expect(hasMediaLibraryCandidates(0)).toBe(false);
+  expect(hasMediaLibraryCandidates(1)).toBe(true);
+});
+
+test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
+  expect(getEmptyMediaLibraryImportAlert()).toEqual({
+    title: 'Keine Musik gefunden',
+    message: 'Es wurden keine passenden Musikdateien gefunden.',
+  });
 });
 
 test('getEmptyScanImportAlert returns scan failed alert when errors exist', () => {
