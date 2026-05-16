@@ -51,6 +51,7 @@ import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
+import { libraryFolderMessages } from '../utils/libraryFolderMessages';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
@@ -107,25 +108,25 @@ const Library: React.FC = () => {
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
     if (Platform.OS !== 'android') {
-      Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl wird aktuell nur unter Android unterstützt.');
+      Alert.alert(libraryFolderMessages.unsupportedTitle, libraryFolderMessages.folderPickerUnsupportedMessage);
       return;
     }
     try {
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
       if (!permission.granted || !permission.directoryUri) {
-        Alert.alert('Abgebrochen', 'Es wurde kein Ordner ausgewählt.');
+        Alert.alert(libraryFolderMessages.cancelledTitle, libraryFolderMessages.noFolderSelectedMessage);
         return;
       }
       const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
       const next = await addScanFolder(folder);
       if (next.length === scanFolders.length) {
-        Alert.alert('Hinweis', 'Dieser Ordner ist bereits in der Scan-Liste.');
+        Alert.alert(libraryFolderMessages.duplicateTitle, libraryFolderMessages.duplicateFolderMessage);
         return;
       }
       setScanFolders(next);
       setActiveTab('folders');
     } catch {
-      Alert.alert('Nicht unterstützt', 'Die Ordnerauswahl ist auf diesem Gerät nicht verfügbar. Nutze stattdessen den normalen Import.');
+      Alert.alert(libraryFolderMessages.unsupportedTitle, libraryFolderMessages.folderPickerUnavailableMessage);
     }
   };
 
