@@ -14,6 +14,13 @@ test('exports stable static import and refresh messages', () => {
   expect(libraryImportMessages.partiallyImportedMessage).toMatch(/Importierbare Songs/);
 });
 
+test('exports stable timeout messages', () => {
+  expect(libraryImportMessages.scanFoldersTimeout).toBe('Import läuft zu lange. Bitte kleinere Ordner testen oder Ordnerberechtigung neu setzen.');
+  expect(libraryImportMessages.mediaLibraryScanTimeout).toBe('Medienbibliothek-Scan läuft zu lange.');
+  expect(libraryImportMessages.metadataImportTimeout).toBe('Metadaten-Import läuft zu lange.');
+  expect(libraryImportMessages.metadataRefreshTimeout).toBe('Metadaten-Aktualisierung läuft zu lange. Bitte später erneut versuchen.');
+});
+
 test('formats scan and import status messages', () => {
   expect(scanFoldersReadingStatus(2)).toBe('Scan-Ordner werden gelesen… (2)');
   expect(tracksFoundStatus(42)).toBe('42 Tracks gefunden. Bibliothek wird aktualisiert…');
