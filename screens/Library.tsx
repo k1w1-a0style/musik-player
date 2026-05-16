@@ -45,7 +45,12 @@ import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/li
 import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
-import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
+import {
+  buildScanFolderFromDirectoryUri,
+  canUseScanFolderPicker,
+  getEnabledScanFolders,
+  hasGrantedDirectoryPermission,
+} from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
@@ -122,13 +127,13 @@ const Library: React.FC = () => {
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
-    if (Platform.OS !== 'android') {
+    if (!canUseScanFolderPicker(Platform.OS)) {
       Alert.alert(libraryFolderMessages.unsupportedTitle, libraryFolderMessages.folderPickerUnsupportedMessage);
       return;
     }
     try {
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (!permission.granted || !permission.directoryUri) {
+      if (!hasGrantedDirectoryPermission(permission)) {
         Alert.alert(libraryFolderMessages.cancelledTitle, libraryFolderMessages.noFolderSelectedMessage);
         return;
       }
