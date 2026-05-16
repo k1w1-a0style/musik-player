@@ -12,7 +12,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Grid2X2, Heart, List, Play, Shuffle } from 'lucide-react-native';
+import { Grid2X2, List } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -27,6 +27,7 @@ import LibraryTabs from '../components/LibraryTabs';
 import LibraryImportStatus from '../components/LibraryImportStatus';
 import LibrarySectionHeader from '../components/LibrarySectionHeader';
 import LibraryMenuModal from '../components/LibraryMenuModal';
+import LibraryPlaybackActions from '../components/LibraryPlaybackActions';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -296,9 +297,14 @@ const Library: React.FC = () => {
         ) : (
           <View style={styles.listShell}>
             <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
-              {activeTab === 'favorites' && <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} />}
-              <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" accessibilityState={{ disabled: songsForActiveList.length === 0 }} disabled={songsForActiveList.length === 0} onPress={handleShufflePress} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, songsForActiveList.length === 0 && styles.disabled]}><Shuffle color={theme.palette.text.primary} size={17} /></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => songsForActiveList[0] && handleSongPress(songsForActiveList[0], songsForActiveList)}><Play color={theme.palette.text.primary} size={17} /></Pressable>
+              <LibraryPlaybackActions
+                disabled={songsForActiveList.length === 0}
+                showFavoriteIcon={activeTab === 'favorites'}
+                onShuffle={handleShufflePress}
+                onPlay={() => {
+                  if (songsForActiveList[0]) handleSongPress(songsForActiveList[0], songsForActiveList);
+                }}
+              />
             </LibrarySectionHeader>
             <FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
           </View>
@@ -327,13 +333,10 @@ const styles = StyleSheet.create({
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
   smallToggle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  roundButton: { width: 36, height: 36, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
-  disabled: { opacity: 0.45 },
-  pressed: { opacity: 0.72 },
 });
 
 export default Library;
