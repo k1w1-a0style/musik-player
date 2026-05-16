@@ -1,7 +1,7 @@
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
-import { libraryImportMessages } from './libraryImportMessages';
+import { libraryImportMessages, metadataRefreshSummary } from './libraryImportMessages';
 import { mergeSongs } from './libraryPresentation';
 
 interface LibraryAlertMessage {
@@ -45,6 +45,11 @@ export const shouldApplyMetadataRefresh = (updated: number): boolean =>
 export const getNoSongsMetadataAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.noSongsTitle,
   message: libraryImportMessages.noSongsMetadataMessage,
+});
+
+export const getMetadataRefreshCompleteAlert = (updated: number, skipped: number, failed: number): LibraryAlertMessage => ({
+  title: libraryImportMessages.metadataUpdatedTitle,
+  message: metadataRefreshSummary(updated, skipped, failed),
 });
 
 export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate => ({
