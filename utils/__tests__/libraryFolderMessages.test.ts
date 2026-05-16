@@ -1,4 +1,10 @@
-import { libraryFolderMessages } from '../libraryFolderMessages';
+import {
+  getDuplicateScanFolderAlert,
+  getScanFolderCancelledAlert,
+  getScanFolderUnavailableAlert,
+  getScanFolderUnsupportedAlert,
+  libraryFolderMessages,
+} from '../libraryFolderMessages';
 
 test('exports stable scan folder alert messages', () => {
   expect(libraryFolderMessages.unsupportedTitle).toBe('Nicht unterstützt');
@@ -8,4 +14,23 @@ test('exports stable scan folder alert messages', () => {
   expect(libraryFolderMessages.noFolderSelectedMessage).toBe('Es wurde kein Ordner ausgewählt.');
   expect(libraryFolderMessages.duplicateTitle).toBe('Hinweis');
   expect(libraryFolderMessages.duplicateFolderMessage).toBe('Dieser Ordner ist bereits in der Scan-Liste.');
+});
+
+test('builds scan folder alert payloads', () => {
+  expect(getScanFolderUnsupportedAlert()).toEqual({
+    title: 'Nicht unterstützt',
+    message: 'Die Ordnerauswahl wird aktuell nur unter Android unterstützt.',
+  });
+  expect(getScanFolderUnavailableAlert()).toEqual({
+    title: 'Nicht unterstützt',
+    message: 'Die Ordnerauswahl ist auf diesem Gerät nicht verfügbar. Nutze stattdessen den normalen Import.',
+  });
+  expect(getScanFolderCancelledAlert()).toEqual({
+    title: 'Abgebrochen',
+    message: 'Es wurde kein Ordner ausgewählt.',
+  });
+  expect(getDuplicateScanFolderAlert()).toEqual({
+    title: 'Hinweis',
+    message: 'Dieser Ordner ist bereits in der Scan-Liste.',
+  });
 });
