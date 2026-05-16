@@ -12,6 +12,14 @@ export const shouldImportFromScanFolders = (activeFolders: ScanFolder[], platfor
 export const hasImportErrors = (errors: readonly unknown[] | undefined): boolean =>
   (errors?.length ?? 0) > 0;
 
+export const hasMediaLibraryCandidates = (count: number): boolean =>
+  count > 0;
+
+export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
+  title: libraryImportMessages.noMusicFoundTitle,
+  message: libraryImportMessages.noMatchingMusicMessage,
+});
+
 export const getEmptyScanImportAlert = (errors: readonly unknown[] | undefined): LibraryAlertMessage => {
   if (hasImportErrors(errors)) {
     return {
