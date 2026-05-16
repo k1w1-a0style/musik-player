@@ -50,6 +50,7 @@ import {
   canUseScanFolderPicker,
   getEnabledScanFolders,
   hasGrantedDirectoryPermission,
+  wasScanFolderAdded,
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
@@ -139,7 +140,7 @@ const Library: React.FC = () => {
       }
       const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
       const next = await addScanFolder(folder);
-      if (next.length === scanFolders.length) {
+      if (!wasScanFolderAdded(scanFolders, next)) {
         Alert.alert(libraryFolderMessages.duplicateTitle, libraryFolderMessages.duplicateFolderMessage);
         return;
       }
