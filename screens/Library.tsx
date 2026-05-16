@@ -62,6 +62,7 @@ import {
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
   hasSongsForMetadataRefresh,
+  shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import {
@@ -210,7 +211,7 @@ const Library: React.FC = () => {
     try {
       setLoading(true);
       const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataRefreshTimeout);
-      if (result.updated > 0) setSongs(result.songs);
+      if (shouldApplyMetadataRefresh(result.updated)) setSongs(result.songs);
       Alert.alert(libraryImportMessages.metadataUpdatedTitle, metadataRefreshSummary(result.updated, result.skipped, result.failed));
     } catch (error) {
       Alert.alert(libraryImportMessages.metadataUpdateStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.metadataUpdateFallbackError);
