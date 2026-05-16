@@ -53,7 +53,13 @@ import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
 import { libraryFolderMessages } from '../utils/libraryFolderMessages';
 import { librarySettingsMessages } from '../utils/librarySettingsMessages';
-import { getEmptyScanImportAlert, hasImportErrors, shouldImportFromScanFolders } from '../utils/libraryImportFlow';
+import {
+  getEmptyMediaLibraryImportAlert,
+  getEmptyScanImportAlert,
+  hasImportErrors,
+  hasMediaLibraryCandidates,
+  shouldImportFromScanFolders,
+} from '../utils/libraryImportFlow';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
@@ -166,8 +172,9 @@ const Library: React.FC = () => {
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, libraryImportMessages.mediaLibraryScanTimeout);
       setImportStatus(mediaCandidatesFoundStatus(candidates.assets.length));
-      if (candidates.assets.length === 0) {
-        Alert.alert(libraryImportMessages.noMusicFoundTitle, libraryImportMessages.noMatchingMusicMessage);
+      if (!hasMediaLibraryCandidates(candidates.assets.length)) {
+        const emptyAlert = getEmptyMediaLibraryImportAlert();
+        Alert.alert(emptyAlert.title, emptyAlert.message);
         return;
       }
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
