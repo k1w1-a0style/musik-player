@@ -3,11 +3,14 @@ import {
   canUseScanFolderPicker,
   getEnabledScanFolders,
   hasGrantedDirectoryPermission,
+  wasScanFolderAdded,
 } from '../libraryScanFolders';
 
 jest.mock('../libraryPresentation', () => ({
   displayFolderName: (folder: { uri: string }) => folder.uri.includes('Music') ? 'Music' : 'Ordner',
 }));
+
+const folder = (id: string) => ({ id, name: id, uri: `content://${id}`, addedAt: 1, enabled: true });
 
 test('getEnabledScanFolders filters disabled folders', () => {
   const folders = [
@@ -30,6 +33,12 @@ test('hasGrantedDirectoryPermission requires grant and directory uri', () => {
   expect(hasGrantedDirectoryPermission({ granted: false, directoryUri: 'content://Music' })).toBe(false);
   expect(hasGrantedDirectoryPermission({ granted: true, directoryUri: '' })).toBe(false);
   expect(hasGrantedDirectoryPermission({ granted: true })).toBe(false);
+});
+
+test('wasScanFolderAdded checks whether a folder was added', () => {
+  expect(wasScanFolderAdded([folder('a')], [folder('a'), folder('b')])).toBe(true);
+  expect(wasScanFolderAdded([folder('a')], [folder('a')])).toBe(false);
+  expect(wasScanFolderAdded([folder('a'), folder('b')], [folder('a')])).toBe(false);
 });
 
 test('buildScanFolderFromDirectoryUri creates deterministic scan folder', () => {
