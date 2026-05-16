@@ -7,7 +7,6 @@ import {
   FlatList,
   Pressable,
   Alert,
-  ActivityIndicator,
   Modal,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
@@ -27,6 +26,7 @@ import LibraryAlbumTile from '../components/LibraryAlbumTile';
 import LibrarySearchBar from '../components/LibrarySearchBar';
 import LibraryTopBar from '../components/LibraryTopBar';
 import LibraryTabs from '../components/LibraryTabs';
+import LibraryImportStatus from '../components/LibraryImportStatus';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -268,7 +268,7 @@ const Library: React.FC = () => {
         <LibraryTabs activeTab={activeTab} onChangeTab={setActiveTab} />
 
         {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
-        {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? libraryImportMessages.importRunning}</Text></View>}
+        {loading && <LibraryImportStatus status={importStatus} />}
 
         {activeTab === 'folders' ? (
           <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Scan-Ordner</Text><Text style={styles.folderCount}>{activeFolders} aktiv</Text></View><FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
@@ -292,8 +292,6 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  importStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.075)' },
-  importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, flex: 1 },
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
