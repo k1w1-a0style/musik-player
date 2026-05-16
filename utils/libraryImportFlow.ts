@@ -14,6 +14,9 @@ interface ImportedSongsUpdate {
   activeTab: LibraryTab;
 }
 
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
+
 export const shouldImportFromScanFolders = (activeFolders: ScanFolder[], platformOs: string): boolean =>
   activeFolders.length > 0 && platformOs === 'android';
 
@@ -50,6 +53,16 @@ export const getNoSongsMetadataAlert = (): LibraryAlertMessage => ({
 export const getMetadataRefreshCompleteAlert = (updated: number, skipped: number, failed: number): LibraryAlertMessage => ({
   title: libraryImportMessages.metadataUpdatedTitle,
   message: metadataRefreshSummary(updated, skipped, failed),
+});
+
+export const getImportStoppedAlert = (error: unknown): LibraryAlertMessage => ({
+  title: libraryImportMessages.importStoppedTitle,
+  message: getErrorMessage(error, libraryImportMessages.importFallbackError),
+});
+
+export const getMetadataUpdateStoppedAlert = (error: unknown): LibraryAlertMessage => ({
+  title: libraryImportMessages.metadataUpdateStoppedTitle,
+  message: getErrorMessage(error, libraryImportMessages.metadataUpdateFallbackError),
 });
 
 export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate => ({
