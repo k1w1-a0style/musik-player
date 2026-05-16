@@ -39,7 +39,6 @@ import {
   displayAlbum,
   displayArtist,
   groupSongs,
-  mergeSongs,
   type LibraryGroupItem,
 } from '../utils/libraryPresentation';
 import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
@@ -54,6 +53,7 @@ import { withTimeout } from '../utils/withTimeout';
 import { libraryFolderMessages } from '../utils/libraryFolderMessages';
 import { librarySettingsMessages } from '../utils/librarySettingsMessages';
 import {
+  buildImportedSongsUpdate,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
@@ -161,8 +161,9 @@ const Library: React.FC = () => {
           return;
         }
         if (hasImportErrors(result.errors)) Alert.alert(libraryImportMessages.partiallyImportedTitle, libraryImportMessages.partiallyImportedMessage);
-        setSongs(mergeSongs(songs, result.songs));
-        setActiveTab('tracks');
+        const update = buildImportedSongsUpdate(songs, result.songs);
+        setSongs(update.songs);
+        setActiveTab(update.activeTab);
         return;
       }
 
@@ -185,8 +186,9 @@ const Library: React.FC = () => {
       setImportStatus(libraryImportMessages.importingMetadataAndCovers);
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataImportTimeout);
       setImportStatus(tracksSavingStatus(mediaResult.songs.length));
-      setSongs(mergeSongs(songs, mediaResult.songs));
-      setActiveTab('tracks');
+      const update = buildImportedSongsUpdate(songs, mediaResult.songs);
+      setSongs(update.songs);
+      setActiveTab(update.activeTab);
     } catch (error) {
       Alert.alert(libraryImportMessages.importStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.importFallbackError);
     } finally {
