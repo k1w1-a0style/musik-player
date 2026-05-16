@@ -17,7 +17,11 @@ const LibraryPlaybackActions: React.FC<LibraryPlaybackActionsProps> = ({
   onPlay,
 }) => (
   <View style={styles.actions} testID="library-playback-actions">
-    {showFavoriteIcon && <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} testID="library-favorites-indicator" />}
+    {showFavoriteIcon && (
+      <View testID="library-favorites-indicator">
+        <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} />
+      </View>
+    )}
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Zufällig abspielen"
