@@ -1,8 +1,10 @@
 import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
+  getMediaLibraryPermissionDeniedAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
+  hasMediaLibraryPermission,
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
 import type { ScanFolder } from '../../types/ScanFolder';
@@ -25,6 +27,19 @@ test('hasImportErrors checks optional error arrays', () => {
   expect(hasImportErrors(undefined)).toBe(false);
   expect(hasImportErrors([])).toBe(false);
   expect(hasImportErrors(['boom'])).toBe(true);
+});
+
+test('hasMediaLibraryPermission only accepts granted status', () => {
+  expect(hasMediaLibraryPermission('granted')).toBe(true);
+  expect(hasMediaLibraryPermission('denied')).toBe(false);
+  expect(hasMediaLibraryPermission('undetermined')).toBe(false);
+});
+
+test('getMediaLibraryPermissionDeniedAlert returns permission alert', () => {
+  expect(getMediaLibraryPermissionDeniedAlert()).toEqual({
+    title: 'Berechtigung benötigt',
+    message: 'Ohne Zugriff können keine Songs importiert werden.',
+  });
 });
 
 test('hasMediaLibraryCandidates checks candidate counts', () => {
