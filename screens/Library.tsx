@@ -15,7 +15,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Grid2X2, Heart, List, MoreVertical, Play, Search, Shuffle } from 'lucide-react-native';
+import { Grid2X2, Heart, List, Play, Shuffle } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -26,6 +26,7 @@ import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import LibraryGroupRow from '../components/LibraryGroupRow';
 import LibraryAlbumTile from '../components/LibraryAlbumTile';
 import LibrarySearchBar from '../components/LibrarySearchBar';
+import LibraryTopBar from '../components/LibraryTopBar';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -262,13 +263,7 @@ const Library: React.FC = () => {
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
-        <View style={styles.topBar}>
-          <Text style={styles.brand}>K1W1 Music</Text>
-          <View style={styles.topActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Suche öffnen" onPress={() => setSearchOpen(value => !value)} style={styles.iconButton}><Search color={theme.palette.text.primary} size={22} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Mehr Optionen" onPress={() => setMenuOpen(true)} style={styles.iconButton}><MoreVertical color={theme.palette.text.primary} size={22} /></Pressable>
-          </View>
-        </View>
+        <LibraryTopBar onToggleSearch={() => setSearchOpen(value => !value)} onOpenMenu={() => setMenuOpen(true)} />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroller} contentContainerStyle={styles.tabsRow}>
           {LIBRARY_TABS.map(tab => {
@@ -302,10 +297,6 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 },
-  brand: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   tabsScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 48, marginBottom: 8 },
   tabsRow: { alignItems: 'flex-end', gap: 15, paddingHorizontal: 20, paddingRight: 34 },
   tabButton: { paddingVertical: 4 },
