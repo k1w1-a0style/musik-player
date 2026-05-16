@@ -64,14 +64,14 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
   });
 });
 
-test('buildImportedSongsUpdate merges songs and selects tracks tab', () => {
+test('buildImportedSongsUpdate merges songs, sorts by title and selects tracks tab', () => {
   const update = buildImportedSongsUpdate([song('old'), song('same', 'Old title')], [song('same', 'New title'), song('new')]);
 
   expect(update.activeTab).toBe('tracks');
   expect(update.songs).toEqual([
-    song('old'),
-    song('same', 'New title'),
     song('new'),
+    song('same', 'New title'),
+    song('old'),
   ]);
 });
 
