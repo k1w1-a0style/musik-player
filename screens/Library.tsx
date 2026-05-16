@@ -57,6 +57,7 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
+  getMetadataRefreshCompleteAlert,
   getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
@@ -68,7 +69,6 @@ import {
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
-  metadataRefreshSummary,
   scanFoldersReadingStatus,
   tracksFoundStatus,
   tracksSavingStatus,
@@ -212,7 +212,8 @@ const Library: React.FC = () => {
       setLoading(true);
       const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataRefreshTimeout);
       if (shouldApplyMetadataRefresh(result.updated)) setSongs(result.songs);
-      Alert.alert(libraryImportMessages.metadataUpdatedTitle, metadataRefreshSummary(result.updated, result.skipped, result.failed));
+      const completeAlert = getMetadataRefreshCompleteAlert(result.updated, result.skipped, result.failed);
+      Alert.alert(completeAlert.title, completeAlert.message);
     } catch (error) {
       Alert.alert(libraryImportMessages.metadataUpdateStoppedTitle, error instanceof Error ? error.message : libraryImportMessages.metadataUpdateFallbackError);
     } finally {
