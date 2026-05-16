@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  ScrollView,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -27,6 +26,7 @@ import LibraryGroupRow from '../components/LibraryGroupRow';
 import LibraryAlbumTile from '../components/LibraryAlbumTile';
 import LibrarySearchBar from '../components/LibrarySearchBar';
 import LibraryTopBar from '../components/LibraryTopBar';
+import LibraryTabs from '../components/LibraryTabs';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -44,7 +44,7 @@ import {
 } from '../utils/libraryPresentation';
 import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import { shuffleItems } from '../utils/libraryShuffle';
-import { countActiveScanFolders, getLibraryEmptyMessage, LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
+import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
@@ -265,12 +265,7 @@ const Library: React.FC = () => {
       <Screen testID="library-screen" contentStyle={styles.container}>
         <LibraryTopBar onToggleSearch={() => setSearchOpen(value => !value)} onOpenMenu={() => setMenuOpen(true)} />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroller} contentContainerStyle={styles.tabsRow}>
-          {LIBRARY_TABS.map(tab => {
-            const active = activeTab === tab.key;
-            return <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={`${tab.label} anzeigen`} onPress={() => setActiveTab(tab.key)} style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}><Text style={active ? styles.tabActive : styles.tabMuted}>{tab.label}</Text></Pressable>;
-          })}
-        </ScrollView>
+        <LibraryTabs activeTab={activeTab} onChangeTab={setActiveTab} />
 
         {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
         {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? libraryImportMessages.importRunning}</Text></View>}
@@ -297,11 +292,6 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  tabsScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 48, marginBottom: 8 },
-  tabsRow: { alignItems: 'flex-end', gap: 15, paddingHorizontal: 20, paddingRight: 34 },
-  tabButton: { paddingVertical: 4 },
-  tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 14 },
-  tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 23, letterSpacing: -0.8 },
   importStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.075)' },
   importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, flex: 1 },
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
