@@ -1,4 +1,9 @@
-import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../libraryScanFolders';
+import {
+  buildScanFolderFromDirectoryUri,
+  canUseScanFolderPicker,
+  getEnabledScanFolders,
+  hasGrantedDirectoryPermission,
+} from '../libraryScanFolders';
 
 jest.mock('../libraryPresentation', () => ({
   displayFolderName: (folder: { uri: string }) => folder.uri.includes('Music') ? 'Music' : 'Ordner',
@@ -12,6 +17,19 @@ test('getEnabledScanFolders filters disabled folders', () => {
   ];
 
   expect(getEnabledScanFolders(folders).map(folder => folder.id)).toEqual(['a', 'c']);
+});
+
+test('canUseScanFolderPicker only allows android', () => {
+  expect(canUseScanFolderPicker('android')).toBe(true);
+  expect(canUseScanFolderPicker('ios')).toBe(false);
+  expect(canUseScanFolderPicker('web')).toBe(false);
+});
+
+test('hasGrantedDirectoryPermission requires grant and directory uri', () => {
+  expect(hasGrantedDirectoryPermission({ granted: true, directoryUri: 'content://Music' })).toBe(true);
+  expect(hasGrantedDirectoryPermission({ granted: false, directoryUri: 'content://Music' })).toBe(false);
+  expect(hasGrantedDirectoryPermission({ granted: true, directoryUri: '' })).toBe(false);
+  expect(hasGrantedDirectoryPermission({ granted: true })).toBe(false);
 });
 
 test('buildScanFolderFromDirectoryUri creates deterministic scan folder', () => {
