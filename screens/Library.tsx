@@ -53,6 +53,7 @@ import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
 import { libraryFolderMessages } from '../utils/libraryFolderMessages';
 import { librarySettingsMessages } from '../utils/librarySettingsMessages';
+import { getEmptyScanImportAlert, hasImportErrors, shouldImportFromScanFolders } from '../utils/libraryImportFlow';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
@@ -137,7 +138,7 @@ const Library: React.FC = () => {
     try {
       setLoading(true);
       const activeFolders = getEnabledScanFolders(scanFolders);
-      if (activeFolders.length > 0 && Platform.OS === 'android') {
+      if (shouldImportFromScanFolders(activeFolders, Platform.OS)) {
         setImportStatus(scanFoldersReadingStatus(activeFolders.length));
         const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, libraryImportMessages.scanFoldersTimeout);
         setImportStatus(tracksFoundStatus(result.songs.length));
@@ -147,13 +148,11 @@ const Library: React.FC = () => {
           setScanFolders(await getScanFolders());
         }
         if (result.songs.length === 0) {
-          Alert.alert(
-            result.errors.length > 0 ? libraryImportMessages.scanFailedTitle : libraryImportMessages.noMusicFoundTitle,
-            result.errors.length > 0 ? libraryImportMessages.scanFailedMessage : libraryImportMessages.noAudioInScanFoldersMessage,
-          );
+          const emptyAlert = getEmptyScanImportAlert(result.errors);
+          Alert.alert(emptyAlert.title, emptyAlert.message);
           return;
         }
-        if (result.errors.length > 0) Alert.alert(libraryImportMessages.partiallyImportedTitle, libraryImportMessages.partiallyImportedMessage);
+        if (hasImportErrors(result.errors)) Alert.alert(libraryImportMessages.partiallyImportedTitle, libraryImportMessages.partiallyImportedMessage);
         setSongs(mergeSongs(songs, result.songs));
         setActiveTab('tracks');
         return;
