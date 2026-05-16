@@ -12,6 +12,14 @@ export const shouldImportFromScanFolders = (activeFolders: ScanFolder[], platfor
 export const hasImportErrors = (errors: readonly unknown[] | undefined): boolean =>
   (errors?.length ?? 0) > 0;
 
+export const hasMediaLibraryPermission = (status: string): boolean =>
+  status === 'granted';
+
+export const getMediaLibraryPermissionDeniedAlert = (): LibraryAlertMessage => ({
+  title: libraryImportMessages.permissionRequiredTitle,
+  message: libraryImportMessages.permissionRequiredMessage,
+});
+
 export const hasMediaLibraryCandidates = (count: number): boolean =>
   count > 0;
 
