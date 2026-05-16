@@ -50,16 +50,16 @@ test('calls menu action callbacks', () => {
 });
 
 test('disables import and metadata actions while loading', () => {
-  const { getByText } = renderMenu({ loading: true });
+  const { getByTestId } = renderMenu({ loading: true });
 
-  expect(getByText('Importieren / Rescan').parent?.props.accessibilityState.disabled).toBe(true);
-  expect(getByText('Metadaten aktualisieren').parent?.props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-importieren-rescan').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-metadaten-aktualisieren').props.accessibilityState.disabled).toBe(true);
 });
 
 test('disables metadata action without songs', () => {
-  const { getByText } = renderMenu({ hasSongs: false });
+  const { getByTestId } = renderMenu({ hasSongs: false });
 
-  expect(getByText('Metadaten aktualisieren').parent?.props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-metadaten-aktualisieren').props.accessibilityState.disabled).toBe(true);
 });
 
 test('calls onClose when backdrop is pressed', () => {
