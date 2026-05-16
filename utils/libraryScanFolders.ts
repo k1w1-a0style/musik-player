@@ -1,4 +1,5 @@
 import type { ScanFolder } from '../types/ScanFolder';
+import type { LibraryTab } from './libraryTabs';
 import { displayFolderName } from './libraryPresentation';
 
 interface BuildScanFolderOptions {
@@ -9,6 +10,11 @@ interface BuildScanFolderOptions {
 interface DirectoryPermissionResultLike {
   granted?: boolean;
   directoryUri?: string | null;
+}
+
+interface ScanFolderStateUpdate {
+  scanFolders: ScanFolder[];
+  activeTab: LibraryTab;
 }
 
 const randomSuffix = (random: () => number): string =>
@@ -25,6 +31,11 @@ export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionRes
 
 export const wasScanFolderAdded = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): boolean =>
   nextFolders.length > previousFolders.length;
+
+export const buildScanFolderStateUpdate = (scanFolders: ScanFolder[]): ScanFolderStateUpdate => ({
+  scanFolders,
+  activeTab: 'folders',
+});
 
 export const buildScanFolderFromDirectoryUri = (
   directoryUri: string,
