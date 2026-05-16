@@ -5,14 +5,12 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Pressable,
   Alert,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Grid2X2, List } from 'lucide-react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
@@ -28,6 +26,7 @@ import LibraryImportStatus from '../components/LibraryImportStatus';
 import LibrarySectionHeader from '../components/LibrarySectionHeader';
 import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryPlaybackActions from '../components/LibraryPlaybackActions';
+import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -70,7 +69,6 @@ const DEMO_SONGS: Song[] = [
   { id: 'demo-3', title: 'SoundHelix Song 3', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
 ];
 
-type AlbumViewMode = 'grid' | 'list';
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
 
@@ -101,7 +99,7 @@ const Library: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
-  const [albumViewMode, setAlbumViewMode] = useState<AlbumViewMode>('grid');
+  const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
 
   useEffect(() => {
     getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
@@ -280,7 +278,7 @@ const Library: React.FC = () => {
           <View style={styles.listShell}>
             <LibrarySectionHeader title="Alben">
               <Text style={styles.folderCount}>{albumGroups.length}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Albumansicht wechseln" onPress={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} style={styles.smallToggle}>{albumViewMode === 'grid' ? <List color={theme.palette.text.secondary} size={16} /> : <Grid2X2 color={theme.palette.text.secondary} size={16} />}</Pressable>
+              <LibraryAlbumViewToggle mode={albumViewMode} onToggle={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} />
             </LibrarySectionHeader>
             {albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}
           </View>
@@ -332,7 +330,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
-  smallToggle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
