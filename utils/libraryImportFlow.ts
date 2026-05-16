@@ -39,6 +39,9 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
 export const hasSongsForMetadataRefresh = (count: number): boolean =>
   count > 0;
 
+export const shouldApplyMetadataRefresh = (updated: number): boolean =>
+  updated > 0;
+
 export const getNoSongsMetadataAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.noSongsTitle,
   message: libraryImportMessages.noSongsMetadataMessage,
