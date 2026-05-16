@@ -1,4 +1,5 @@
 import {
+  buildImportedSongsUpdate,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
@@ -8,6 +9,7 @@ import {
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
 import type { ScanFolder } from '../../types/ScanFolder';
+import type { Song } from '../../types/Song';
 
 const folder = (id = 'f1'): ScanFolder => ({
   id,
@@ -15,6 +17,14 @@ const folder = (id = 'f1'): ScanFolder => ({
   uri: `content://${id}`,
   addedAt: 1,
   enabled: true,
+});
+
+const song = (id: string, title = id): Song => ({
+  id,
+  title,
+  artist: 'Artist',
+  album: 'Album',
+  uri: `file://${id}.mp3`,
 });
 
 test('shouldImportFromScanFolders only uses folders on android', () => {
@@ -52,6 +62,17 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
     title: 'Keine Musik gefunden',
     message: 'Es wurden keine passenden Musikdateien gefunden.',
   });
+});
+
+test('buildImportedSongsUpdate merges songs and selects tracks tab', () => {
+  const update = buildImportedSongsUpdate([song('old'), song('same', 'Old title')], [song('same', 'New title'), song('new')]);
+
+  expect(update.activeTab).toBe('tracks');
+  expect(update.songs).toEqual([
+    song('old'),
+    song('same', 'New title'),
+    song('new'),
+  ]);
 });
 
 test('getEmptyScanImportAlert returns scan failed alert when errors exist', () => {
