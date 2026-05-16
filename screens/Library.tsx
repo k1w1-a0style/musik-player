@@ -27,6 +27,7 @@ import LibrarySearchBar from '../components/LibrarySearchBar';
 import LibraryTopBar from '../components/LibraryTopBar';
 import LibraryTabs from '../components/LibraryTabs';
 import LibraryImportStatus from '../components/LibraryImportStatus';
+import LibrarySectionHeader from '../components/LibrarySectionHeader';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -271,15 +272,37 @@ const Library: React.FC = () => {
         {loading && <LibraryImportStatus status={importStatus} />}
 
         {activeTab === 'folders' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Scan-Ordner</Text><Text style={styles.folderCount}>{activeFolders} aktiv</Text></View><FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
+          <View style={styles.listShell}>
+            <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
+            <FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
+          </View>
         ) : activeTab === 'albums' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Alben</Text><View style={styles.listHeaderActions}><Text style={styles.folderCount}>{albumGroups.length}</Text><Pressable accessibilityRole="button" accessibilityLabel="Albumansicht wechseln" onPress={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} style={styles.smallToggle}>{albumViewMode === 'grid' ? <List color={theme.palette.text.secondary} size={16} /> : <Grid2X2 color={theme.palette.text.secondary} size={16} />}</Pressable></View></View>{albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}</View>
+          <View style={styles.listShell}>
+            <LibrarySectionHeader title="Alben">
+              <Text style={styles.folderCount}>{albumGroups.length}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Albumansicht wechseln" onPress={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} style={styles.smallToggle}>{albumViewMode === 'grid' ? <List color={theme.palette.text.secondary} size={16} /> : <Grid2X2 color={theme.palette.text.secondary} size={16} />}</Pressable>
+            </LibrarySectionHeader>
+            {albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}
+          </View>
         ) : activeTab === 'artists' || activeTab === 'genres' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>{activeTab === 'artists' ? 'Interpreten' : 'Genres'}</Text><Text style={styles.folderCount}>{activeTab === 'artists' ? artistGroups.length : genreGroups.length}</Text></View><FlatList data={activeTab === 'artists' ? artistGroups : genreGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
+          <View style={styles.listShell}>
+            <LibrarySectionHeader title={activeTab === 'artists' ? 'Interpreten' : 'Genres'} count={activeTab === 'artists' ? artistGroups.length : genreGroups.length} />
+            <FlatList data={activeTab === 'artists' ? artistGroups : genreGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
+          </View>
         ) : activeTab === 'playlists' ? (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>Playlisten</Text><Text style={styles.folderCount}>{playlistItems.length}</Text></View><FlatList data={playlistItems} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderPlaylistItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
+          <View style={styles.listShell}>
+            <LibrarySectionHeader title="Playlisten" count={playlistItems.length} />
+            <FlatList data={playlistItems} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderPlaylistItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
+          </View>
         ) : (
-          <View style={styles.listShell}><View style={styles.listHeader}><Text style={styles.sortLabel}>{activeTab === 'favorites' ? 'Favoriten' : 'Name'}</Text><View style={styles.listHeaderActions}>{activeTab === 'favorites' && <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} />}<Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" accessibilityState={{ disabled: songsForActiveList.length === 0 }} disabled={songsForActiveList.length === 0} onPress={handleShufflePress} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, songsForActiveList.length === 0 && styles.disabled]}><Shuffle color={theme.palette.text.primary} size={17} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => songsForActiveList[0] && handleSongPress(songsForActiveList[0], songsForActiveList)}><Play color={theme.palette.text.primary} size={17} /></Pressable></View></View><FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /></View>
+          <View style={styles.listShell}>
+            <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
+              {activeTab === 'favorites' && <Heart color={theme.palette.primary} size={17} fill={theme.palette.primary} />}
+              <Pressable accessibilityRole="button" accessibilityLabel="Zufällig abspielen" accessibilityState={{ disabled: songsForActiveList.length === 0 }} disabled={songsForActiveList.length === 0} onPress={handleShufflePress} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed, songsForActiveList.length === 0 && styles.disabled]}><Shuffle color={theme.palette.text.primary} size={17} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Abspielen" style={styles.roundButton} onPress={() => songsForActiveList[0] && handleSongPress(songsForActiveList[0], songsForActiveList)}><Play color={theme.palette.text.primary} size={17} /></Pressable>
+            </LibrarySectionHeader>
+            <FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
+          </View>
         )}
 
         <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
@@ -293,10 +316,7 @@ const Library: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
-  listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  sortLabel: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, fontSize: 14 },
   folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
-  listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smallToggle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   roundButton: { width: 36, height: 36, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingBottom: 96 },
@@ -306,7 +326,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
-  menuCard: { width: 250, borderRadius: 22, backgroundColor: '#3b3b3f', paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
+  menuCard: { width: 250, borderRadius: 22, backgroundColor: '#3b3f', paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
 });
 
 export default Library;
