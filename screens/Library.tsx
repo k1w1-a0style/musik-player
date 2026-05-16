@@ -8,7 +8,6 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  TextInput,
   Modal,
   ScrollView,
 } from 'react-native';
@@ -26,6 +25,7 @@ import LibraryFolderRow from '../components/LibraryFolderRow';
 import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import LibraryGroupRow from '../components/LibraryGroupRow';
 import LibraryAlbumTile from '../components/LibraryAlbumTile';
+import LibrarySearchBar from '../components/LibrarySearchBar';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -277,7 +277,7 @@ const Library: React.FC = () => {
           })}
         </ScrollView>
 
-        {searchOpen && <View style={styles.searchWrap}><Search color={theme.palette.text.muted} size={18} /><TextInput value={query} onChangeText={setQuery} placeholder="Titel, Artist, Album, Genre suchen" placeholderTextColor={theme.palette.text.muted} style={styles.searchInput} autoFocus /></View>}
+        {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
         {loading && <View style={styles.importStatusRow}><ActivityIndicator color={theme.palette.primary} size="small" /><Text style={styles.importStatusText}>{importStatus ?? libraryImportMessages.importRunning}</Text></View>}
 
         {activeTab === 'folders' ? (
@@ -311,8 +311,6 @@ const styles = StyleSheet.create({
   tabButton: { paddingVertical: 4 },
   tabMuted: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 14 },
   tabActive: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 23, letterSpacing: -0.8 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18, paddingHorizontal: 12, marginHorizontal: 20, marginBottom: 8, gap: 8 },
-  searchInput: { flex: 1, color: theme.palette.text.primary, fontFamily: theme.fonts.body, paddingVertical: 8, fontSize: 13 },
   importStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.075)' },
   importStatusText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, flex: 1 },
   listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
