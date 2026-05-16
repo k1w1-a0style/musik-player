@@ -132,6 +132,13 @@ const Library: React.FC = () => {
     [displayedSongs, playlists, query],
   );
 
+  const showScanFolders = useCallback(() => {
+    const update = buildScanFolderStateUpdate(scanFolders);
+    setScanFolders(update.scanFolders);
+    setActiveTab(update.activeTab);
+    setMenuOpen(false);
+  }, [scanFolders]);
+
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
     if (!canUseScanFolderPicker(Platform.OS)) {
@@ -337,7 +344,7 @@ const Library: React.FC = () => {
           onImport={importFromDevice}
           onRefreshMetadata={refreshMetadataFromFiles}
           onAddFolder={onAddScanFolder}
-          onShowFolders={() => { setActiveTab('folders'); setMenuOpen(false); }}
+          onShowFolders={showScanFolders}
           onOpenSettings={() => { setMenuOpen(false); Alert.alert(librarySettingsMessages.title, librarySettingsMessages.comingSoonMessage); }}
         />
       </Screen>
