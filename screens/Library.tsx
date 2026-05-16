@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Platform,
-  View,
   Text,
   StyleSheet,
   FlatList,
@@ -27,6 +26,7 @@ import LibrarySectionHeader from '../components/LibrarySectionHeader';
 import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryPlaybackActions from '../components/LibraryPlaybackActions';
 import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import LibraryListShell from '../components/LibraryListShell';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -270,30 +270,30 @@ const Library: React.FC = () => {
         {loading && <LibraryImportStatus status={importStatus} />}
 
         {activeTab === 'folders' ? (
-          <View style={styles.listShell}>
+          <LibraryListShell testID="library-folders-shell">
             <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
             <FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </View>
+          </LibraryListShell>
         ) : activeTab === 'albums' ? (
-          <View style={styles.listShell}>
+          <LibraryListShell testID="library-albums-shell">
             <LibrarySectionHeader title="Alben">
               <Text style={styles.folderCount}>{albumGroups.length}</Text>
               <LibraryAlbumViewToggle mode={albumViewMode} onToggle={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} />
             </LibrarySectionHeader>
             {albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}
-          </View>
+          </LibraryListShell>
         ) : activeTab === 'artists' || activeTab === 'genres' ? (
-          <View style={styles.listShell}>
+          <LibraryListShell testID={`library-${activeTab}-shell`}>
             <LibrarySectionHeader title={activeTab === 'artists' ? 'Interpreten' : 'Genres'} count={activeTab === 'artists' ? artistGroups.length : genreGroups.length} />
             <FlatList data={activeTab === 'artists' ? artistGroups : genreGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </View>
+          </LibraryListShell>
         ) : activeTab === 'playlists' ? (
-          <View style={styles.listShell}>
+          <LibraryListShell testID="library-playlists-shell">
             <LibrarySectionHeader title="Playlisten" count={playlistItems.length} />
             <FlatList data={playlistItems} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderPlaylistItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </View>
+          </LibraryListShell>
         ) : (
-          <View style={styles.listShell}>
+          <LibraryListShell testID={`library-${activeTab}-shell`}>
             <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
               <LibraryPlaybackActions
                 disabled={songsForActiveList.length === 0}
@@ -305,7 +305,7 @@ const Library: React.FC = () => {
               />
             </LibrarySectionHeader>
             <FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </View>
+          </LibraryListShell>
         )}
 
         <LibraryMenuModal
@@ -328,7 +328,6 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  listShell: { flex: 1, marginTop: 0, marginHorizontal: 0, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'rgba(255,255,255,0.055)' },
   folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
