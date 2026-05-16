@@ -48,6 +48,7 @@ import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from 
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
+import { withTimeout } from '../utils/withTimeout';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
@@ -73,20 +74,6 @@ type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
 
 const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
-
-const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(message)), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-};
 
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
