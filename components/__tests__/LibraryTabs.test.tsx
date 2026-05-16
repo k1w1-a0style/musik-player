@@ -5,7 +5,7 @@ import LibraryTabs from '../LibraryTabs';
 test('renders library tabs', () => {
   const { getByText } = render(<LibraryTabs activeTab="tracks" onChangeTab={jest.fn()} />);
 
-  expect(getByText('Titel')).toBeTruthy();
+  expect(getByText('Tracks')).toBeTruthy();
   expect(getByText('Alben')).toBeTruthy();
   expect(getByText('Interpreten')).toBeTruthy();
 });
