@@ -47,6 +47,7 @@ import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from 
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import {
   buildScanFolderFromDirectoryUri,
+  buildScanFolderStateUpdate,
   canUseScanFolderPicker,
   getEnabledScanFolders,
   hasGrantedDirectoryPermission,
@@ -152,8 +153,9 @@ const Library: React.FC = () => {
         Alert.alert(duplicateAlert.title, duplicateAlert.message);
         return;
       }
-      setScanFolders(next);
-      setActiveTab('folders');
+      const update = buildScanFolderStateUpdate(next);
+      setScanFolders(update.scanFolders);
+      setActiveTab(update.activeTab);
     } catch {
       const unavailableAlert = getScanFolderUnavailableAlert();
       Alert.alert(unavailableAlert.title, unavailableAlert.message);
