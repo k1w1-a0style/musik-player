@@ -48,6 +48,7 @@ import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from 
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { buildScanFolderFromDirectoryUri, getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
+import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { withTimeout } from '../utils/withTimeout';
 import {
   libraryImportMessages,
@@ -63,17 +64,10 @@ declare const __DEV__: boolean;
 const SONG_ROW_HEIGHT = 62;
 const GROUP_ROW_HEIGHT = 66;
 const IMPORT_TIMEOUT_MS = 90_000;
-const isDevDemoSongsEnabled = __DEV__ && process.env.NODE_ENV !== 'test';
-const DEMO_SONGS: Song[] = [
-  { id: 'demo-1', title: 'SoundHelix Song 1', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-  { id: 'demo-2', title: 'SoundHelix Song 2', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
-  { id: 'demo-3', title: 'SoundHelix Song 3', artist: 'SoundHelix', album: 'Demo', uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-];
+const NODE_ENV = process.env.NODE_ENV;
 
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
-
-const isDemoSong = (song: Song): boolean => song.id.startsWith('demo-');
 
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -98,7 +92,7 @@ const Library: React.FC = () => {
   }, [activeTab]);
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = useMemo(() => (isDevDemoSongsEnabled && isReady && songs.length === 0 ? DEMO_SONGS : songs), [isReady, songs]);
+  const displayedSongs = useMemo(() => getLibraryDisplaySongs(songs, isReady, __DEV__, NODE_ENV), [isReady, songs]);
   const filteredSongs = useMemo(() => filterLibrarySongs(displayedSongs, query), [displayedSongs, query]);
   const favoriteSongs = useMemo(() => filterFavoriteSongs(filteredSongs, favoriteIds), [favoriteIds, filteredSongs]);
   const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
