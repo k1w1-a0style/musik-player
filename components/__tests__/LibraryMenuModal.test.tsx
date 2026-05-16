@@ -1,0 +1,72 @@
+import React from 'react';
+import { fireEvent, render } from '@testing-library/react-native';
+import LibraryMenuModal from '../LibraryMenuModal';
+
+const defaultProps = {
+  visible: true,
+  loading: false,
+  isReady: true,
+  hasSongs: true,
+  activeFolders: 2,
+  onClose: jest.fn(),
+  onImport: jest.fn(),
+  onRefreshMetadata: jest.fn(),
+  onAddFolder: jest.fn(),
+  onShowFolders: jest.fn(),
+  onOpenSettings: jest.fn(),
+};
+
+const renderMenu = (patch: Partial<typeof defaultProps> = {}) => render(<LibraryMenuModal {...defaultProps} {...patch} />);
+
+test('renders menu actions', () => {
+  const { getByText } = renderMenu();
+
+  expect(getByText('Importieren / Rescan')).toBeTruthy();
+  expect(getByText('Metadaten aktualisieren')).toBeTruthy();
+  expect(getByText('Ordner hinzufügen')).toBeTruthy();
+  expect(getByText('Aktive Scan-Ordner: 2')).toBeTruthy();
+  expect(getByText('Einstellungen')).toBeTruthy();
+});
+
+test('calls menu action callbacks', () => {
+  const onImport = jest.fn();
+  const onRefreshMetadata = jest.fn();
+  const onAddFolder = jest.fn();
+  const onShowFolders = jest.fn();
+  const onOpenSettings = jest.fn();
+  const { getByText } = renderMenu({ onImport, onRefreshMetadata, onAddFolder, onShowFolders, onOpenSettings });
+
+  fireEvent.press(getByText('Importieren / Rescan'));
+  fireEvent.press(getByText('Metadaten aktualisieren'));
+  fireEvent.press(getByText('Ordner hinzufügen'));
+  fireEvent.press(getByText('Aktive Scan-Ordner: 2'));
+  fireEvent.press(getByText('Einstellungen'));
+
+  expect(onImport).toHaveBeenCalledTimes(1);
+  expect(onRefreshMetadata).toHaveBeenCalledTimes(1);
+  expect(onAddFolder).toHaveBeenCalledTimes(1);
+  expect(onShowFolders).toHaveBeenCalledTimes(1);
+  expect(onOpenSettings).toHaveBeenCalledTimes(1);
+});
+
+test('disables import and metadata actions while loading', () => {
+  const { getByText } = renderMenu({ loading: true });
+
+  expect(getByText('Importieren / Rescan').parent?.props.accessibilityState.disabled).toBe(true);
+  expect(getByText('Metadaten aktualisieren').parent?.props.accessibilityState.disabled).toBe(true);
+});
+
+test('disables metadata action without songs', () => {
+  const { getByText } = renderMenu({ hasSongs: false });
+
+  expect(getByText('Metadaten aktualisieren').parent?.props.accessibilityState.disabled).toBe(true);
+});
+
+test('calls onClose when backdrop is pressed', () => {
+  const onClose = jest.fn();
+  const { getByTestId } = renderMenu({ onClose });
+
+  fireEvent.press(getByTestId('library-menu-backdrop'));
+
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
