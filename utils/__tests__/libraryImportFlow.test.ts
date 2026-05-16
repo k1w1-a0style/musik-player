@@ -3,6 +3,7 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getMediaLibraryPermissionDeniedAlert,
+  getMetadataRefreshCompleteAlert,
   getNoSongsMetadataAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
@@ -81,6 +82,13 @@ test('getNoSongsMetadataAlert returns metadata refresh empty-state alert', () =>
   expect(getNoSongsMetadataAlert()).toEqual({
     title: 'Keine Songs',
     message: 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.',
+  });
+});
+
+test('getMetadataRefreshCompleteAlert returns metadata refresh summary alert', () => {
+  expect(getMetadataRefreshCompleteAlert(2, 3, 4)).toEqual({
+    title: 'Metadaten aktualisiert',
+    message: '2 Tracks aktualisiert. 3 übersprungen. 4 fehlgeschlagen.',
   });
 });
 
