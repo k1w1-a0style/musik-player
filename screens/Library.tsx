@@ -56,8 +56,10 @@ import { librarySettingsMessages } from '../utils/librarySettingsMessages';
 import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
+  getMediaLibraryPermissionDeniedAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
+  hasMediaLibraryPermission,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import {
@@ -166,8 +168,9 @@ const Library: React.FC = () => {
 
       setImportStatus(libraryImportMessages.scanningMediaLibrary);
       const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(libraryImportMessages.permissionRequiredTitle, libraryImportMessages.permissionRequiredMessage);
+      if (!hasMediaLibraryPermission(status)) {
+        const permissionAlert = getMediaLibraryPermissionDeniedAlert();
+        Alert.alert(permissionAlert.title, permissionAlert.message);
         return;
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, libraryImportMessages.mediaLibraryScanTimeout);
