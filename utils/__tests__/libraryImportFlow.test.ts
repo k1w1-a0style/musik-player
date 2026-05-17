@@ -15,6 +15,7 @@ import {
   shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
+import { libraryImportMessages, metadataRefreshSummary } from '../libraryImportMessages';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
 
@@ -54,8 +55,8 @@ test('hasMediaLibraryPermission only accepts granted status', () => {
 
 test('getMediaLibraryPermissionDeniedAlert returns permission alert', () => {
   expect(getMediaLibraryPermissionDeniedAlert()).toEqual({
-    title: 'Berechtigung benötigt',
-    message: 'Ohne Zugriff können keine Songs importiert werden.',
+    title: libraryImportMessages.permissionRequiredTitle,
+    message: libraryImportMessages.permissionRequiredMessage,
   });
 });
 
@@ -66,15 +67,15 @@ test('hasMediaLibraryCandidates checks candidate counts', () => {
 
 test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
   expect(getEmptyMediaLibraryImportAlert()).toEqual({
-    title: 'Keine Musik gefunden',
-    message: 'Es wurden keine passenden Musikdateien gefunden.',
+    title: libraryImportMessages.noMusicFoundTitle,
+    message: libraryImportMessages.noMatchingMusicMessage,
   });
 });
 
 test('getPartialScanImportAlert returns partial import alert', () => {
   expect(getPartialScanImportAlert()).toEqual({
-    title: 'Teilweise importiert',
-    message: 'Einige Dateien konnten nicht gelesen werden. Die lesbaren Tracks wurden importiert.',
+    title: libraryImportMessages.partiallyImportedTitle,
+    message: libraryImportMessages.partiallyImportedMessage,
   });
 });
 
@@ -90,43 +91,43 @@ test('shouldApplyMetadataRefresh checks updated counts', () => {
 
 test('getNoSongsMetadataAlert returns metadata refresh empty-state alert', () => {
   expect(getNoSongsMetadataAlert()).toEqual({
-    title: 'Keine Songs',
-    message: 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.',
+    title: libraryImportMessages.noSongsTitle,
+    message: libraryImportMessages.noSongsMetadataMessage,
   });
 });
 
 test('getMetadataRefreshCompleteAlert returns metadata refresh summary alert', () => {
   expect(getMetadataRefreshCompleteAlert(2, 3, 4)).toEqual({
-    title: 'Metadaten aktualisiert',
-    message: '2 Tracks aktualisiert. 3 übersprungen. 4 fehlgeschlagen.',
+    title: libraryImportMessages.metadataUpdatedTitle,
+    message: metadataRefreshSummary(2, 3, 4),
   });
 });
 
 test('getImportStoppedAlert uses error message when available', () => {
   expect(getImportStoppedAlert(new Error('Boom'))).toEqual({
-    title: 'Import gestoppt',
+    title: libraryImportMessages.importStoppedTitle,
     message: 'Boom',
   });
 });
 
 test('getImportStoppedAlert uses fallback for non-error values', () => {
   expect(getImportStoppedAlert('oops')).toEqual({
-    title: 'Import gestoppt',
-    message: 'Medienbibliothek konnte nicht gelesen werden.',
+    title: libraryImportMessages.importStoppedTitle,
+    message: libraryImportMessages.importFallbackError,
   });
 });
 
 test('getMetadataUpdateStoppedAlert uses error message when available', () => {
-  expect(getMetadataUpdateStoppedAlert(new Error('ID3 kaputt'))).toEqual({
-    title: 'Metadaten-Update gestoppt',
-    message: 'ID3 kaputt',
+  expect(getMetadataUpdateStoppedAlert(new Error('Broken ID3'))).toEqual({
+    title: libraryImportMessages.metadataUpdateStoppedTitle,
+    message: 'Broken ID3',
   });
 });
 
 test('getMetadataUpdateStoppedAlert uses fallback for non-error values', () => {
   expect(getMetadataUpdateStoppedAlert(null)).toEqual({
-    title: 'Metadaten-Update gestoppt',
-    message: 'Metadaten konnten nicht aktualisiert werden.',
+    title: libraryImportMessages.metadataUpdateStoppedTitle,
+    message: libraryImportMessages.metadataUpdateFallbackError,
   });
 });
 
@@ -143,14 +144,14 @@ test('buildImportedSongsUpdate merges songs, sorts by title and selects tracks t
 
 test('getEmptyScanImportAlert returns scan failed alert when errors exist', () => {
   expect(getEmptyScanImportAlert(['boom'])).toEqual({
-    title: 'Scan fehlgeschlagen',
-    message: 'In den Scan-Ordnern wurden keine importierbaren Songs gefunden. Einige Ordner/Dateien waren nicht lesbar.',
+    title: libraryImportMessages.scanFailedTitle,
+    message: libraryImportMessages.scanFailedMessage,
   });
 });
 
 test('getEmptyScanImportAlert returns no music alert without errors', () => {
   expect(getEmptyScanImportAlert([])).toEqual({
-    title: 'Keine Musik gefunden',
-    message: 'In den gewählten Scan-Ordnern wurden keine Audio-Dateien gefunden.',
+    title: libraryImportMessages.noMusicFoundTitle,
+    message: libraryImportMessages.noAudioInScanFoldersMessage,
   });
 });
