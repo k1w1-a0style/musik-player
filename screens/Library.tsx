@@ -55,7 +55,7 @@ import {
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
-import { getChangedFolderUpdates } from '../utils/libraryFolderUpdates';
+import { buildFolderUpdatesResult } from '../utils/libraryFolderUpdates';
 import { withTimeout } from '../utils/withTimeout';
 import {
   getDuplicateScanFolderAlert,
@@ -194,6 +194,14 @@ const Library: React.FC = () => {
     }
   };
 
+  const persistChangedFolderUpdates = useCallback(async (folderUpdates: ScanFolder[] | undefined): Promise<void> => {
+    const updatesResult = buildFolderUpdatesResult(scanFolders, folderUpdates);
+    if (updatesResult.kind === 'none') return;
+
+    for (const folder of updatesResult.updates) await updateScanFolder(folder.id, { lastError: folder.lastError });
+    setScanFolders(await getScanFolders());
+  }, [scanFolders]);
+
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     setImportStatus(scanProgress.readingStatus);
@@ -204,11 +212,7 @@ const Library: React.FC = () => {
     );
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
-    if (changedFolderUpdates.length > 0) {
-      for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
-      setScanFolders(await getScanFolders());
-    }
+    await persistChangedFolderUpdates(result.folderUpdates);
     const scanResult = buildScanImportResult(songs, result.songs, result.errors);
     if (scanResult.kind === 'empty') {
       showAlert(scanResult.alert);
@@ -216,7 +220,7 @@ const Library: React.FC = () => {
     }
     if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
     applyImportedSongsUpdate(scanResult.update);
-  }, [applyImportedSongsUpdate, scanFolders, showAlert, songs]);
+  }, [applyImportedSongsUpdate, persistChangedFolderUpdates, showAlert, songs]);
 
   const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy): Promise<void> => {
     setImportStatus(importCopy.scanningMediaLibraryStatus);
