@@ -7,7 +7,6 @@ import {
   Alert,
 } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
-import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
@@ -44,27 +43,10 @@ import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/li
 import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
-import {
-  buildDirectoryPermissionSelectionResult,
-  buildScanFolderFromDirectoryUri,
-  buildScanFolderPickerAvailabilityResult,
-  buildScanFolderStateUpdate,
-  getEnabledScanFolders,
-} from '../utils/libraryScanFolders';
+import { getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
-import {
-  persistAddedScanFolder,
-  persistChangedFolderErrorUpdates,
-  persistRemovedScanFolder,
-} from '../utils/libraryScanFolderPersistence';
 import { withTimeout } from '../utils/withTimeout';
-import {
-  getDuplicateScanFolderAlert,
-  getScanFolderCancelledAlert,
-  getScanFolderUnavailableAlert,
-  getScanFolderUnsupportedAlert,
-} from '../utils/libraryFolderMessages';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
   buildMediaLibraryCandidatesResult,
@@ -82,6 +64,7 @@ import {
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
+import { useLibraryScanFolderActions } from '../hooks/useLibraryScanFolderActions';
 
 declare const __DEV__: boolean;
 
@@ -94,7 +77,6 @@ type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
 type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
-type ScanFolderStateUpdate = ReturnType<typeof buildScanFolderStateUpdate>;
 
 interface LibraryAlertCopy {
   title: string;
@@ -139,57 +121,24 @@ const Library: React.FC = () => {
     setActiveTab(update.activeTab);
   }, [setSongs]);
 
-  const applyScanFolderStateUpdate = useCallback((update: ScanFolderStateUpdate) => {
-    setScanFolders(update.scanFolders);
-    setActiveTab(update.activeTab);
-  }, [setScanFolders]);
-
-  const showScanFolders = useCallback(() => {
-    const update = buildScanFolderStateUpdate(scanFolders);
-    applyScanFolderStateUpdate(update);
-    setMenuOpen(false);
-  }, [applyScanFolderStateUpdate, scanFolders]);
+  const {
+    showScanFolders,
+    onAddScanFolder,
+    persistChangedFolderUpdates,
+    removeFolder,
+  } = useLibraryScanFolderActions({
+    scanFolders,
+    setScanFolders,
+    setActiveTab,
+    setMenuOpen,
+    showAlert,
+  });
 
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
     showAlert(settingsAlert);
   }, [showAlert]);
-
-  const onAddScanFolder = async (): Promise<void> => {
-    setMenuOpen(false);
-    const pickerResult = buildScanFolderPickerAvailabilityResult(Platform.OS);
-    if (pickerResult.kind === 'unsupported') {
-      const unsupportedAlert = getScanFolderUnsupportedAlert();
-      showAlert(unsupportedAlert);
-      return;
-    }
-    try {
-      const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      const permissionResult = buildDirectoryPermissionSelectionResult(permission);
-      if (permissionResult.kind === 'cancelled') {
-        const cancelledAlert = getScanFolderCancelledAlert();
-        showAlert(cancelledAlert);
-        return;
-      }
-      const folder = buildScanFolderFromDirectoryUri(permissionResult.directoryUri);
-      const addResult = await persistAddedScanFolder(scanFolders, folder);
-      if (addResult.kind === 'duplicate') {
-        const duplicateAlert = getDuplicateScanFolderAlert();
-        showAlert(duplicateAlert);
-        return;
-      }
-      applyScanFolderStateUpdate(addResult.update);
-    } catch {
-      const unavailableAlert = getScanFolderUnavailableAlert();
-      showAlert(unavailableAlert);
-    }
-  };
-
-  const persistChangedFolderUpdates = useCallback(async (folderUpdates: ScanFolder[] | undefined): Promise<void> => {
-    const updatedFolders = await persistChangedFolderErrorUpdates(scanFolders, folderUpdates);
-    if (updatedFolders) setScanFolders(updatedFolders);
-  }, [scanFolders, setScanFolders]);
 
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
@@ -311,10 +260,6 @@ const Library: React.FC = () => {
   const renderPlaylistItem = useCallback(({ item }: { item: PlaylistItem }) => (
     <LibraryPlaylistRow playlist={item} onPlay={playlistId => void playPlaylist(playlistId)} />
   ), [playPlaylist]);
-
-  const removeFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
-    setScanFolders(await persistRemovedScanFolder(folder.id));
-  }, [setScanFolders]);
 
   const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
     <LibraryFolderRow folder={item} onRemove={removeFolder} />
