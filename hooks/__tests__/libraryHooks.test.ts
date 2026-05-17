@@ -7,6 +7,7 @@ import {
   useLibraryPlaybackActions,
   useLibraryRenderers,
   useLibraryScanFolderActions,
+  useLibraryScreenState,
   useLibraryStoredState,
   useLibraryViewState,
 } from '../libraryHooks';
@@ -18,6 +19,7 @@ import { useLibraryNavigationActions as directUseLibraryNavigationActions } from
 import { useLibraryPlaybackActions as directUseLibraryPlaybackActions } from '../useLibraryPlaybackActions';
 import { useLibraryRenderers as directUseLibraryRenderers } from '../useLibraryRenderers';
 import { useLibraryScanFolderActions as directUseLibraryScanFolderActions } from '../useLibraryScanFolderActions';
+import { useLibraryScreenState as directUseLibraryScreenState } from '../useLibraryScreenState';
 import { useLibraryStoredState as directUseLibraryStoredState } from '../useLibraryStoredState';
 import { useLibraryViewState as directUseLibraryViewState } from '../useLibraryViewState';
 
@@ -30,6 +32,7 @@ test('exports library hooks', () => {
   expect(useLibraryPlaybackActions).toBe(directUseLibraryPlaybackActions);
   expect(useLibraryRenderers).toBe(directUseLibraryRenderers);
   expect(useLibraryScanFolderActions).toBe(directUseLibraryScanFolderActions);
+  expect(useLibraryScreenState).toBe(directUseLibraryScreenState);
   expect(useLibraryStoredState).toBe(directUseLibraryStoredState);
   expect(useLibraryViewState).toBe(directUseLibraryViewState);
 });
