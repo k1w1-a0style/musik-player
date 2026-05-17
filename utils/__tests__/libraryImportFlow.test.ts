@@ -212,10 +212,11 @@ test('buildImportedSongsUpdate merges songs, sorts by title and selects tracks t
   ]);
 });
 
-test('buildMediaLibraryImportResult builds imported songs update', () => {
-  expect(buildMediaLibraryImportResult([song('old')], [song('new')])).toEqual(
-    buildImportedSongsUpdate([song('old')], [song('new')]),
-  );
+test('buildMediaLibraryImportResult returns success update', () => {
+  expect(buildMediaLibraryImportResult([song('old')], [song('new')])).toEqual({
+    kind: 'success',
+    update: buildImportedSongsUpdate([song('old')], [song('new')]),
+  });
 });
 
 test('buildScanImportResult returns empty alert when no songs were imported', () => {
