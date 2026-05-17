@@ -46,12 +46,12 @@ import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import {
+  buildDirectoryPermissionSelectionResult,
+  buildScanFolderAddResult,
   buildScanFolderFromDirectoryUri,
   buildScanFolderStateUpdate,
   canUseScanFolderPicker,
   getEnabledScanFolders,
-  hasGrantedDirectoryPermission,
-  wasScanFolderAdded,
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
@@ -167,21 +167,22 @@ const Library: React.FC = () => {
     }
     try {
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (!hasGrantedDirectoryPermission(permission)) {
+      const permissionResult = buildDirectoryPermissionSelectionResult(permission);
+      if (permissionResult.kind === 'cancelled') {
         const cancelledAlert = getScanFolderCancelledAlert();
         showAlert(cancelledAlert);
         return;
       }
-      const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
+      const folder = buildScanFolderFromDirectoryUri(permissionResult.directoryUri);
       const next = await addScanFolder(folder);
-      if (!wasScanFolderAdded(scanFolders, next)) {
+      const addResult = buildScanFolderAddResult(scanFolders, next);
+      if (addResult.kind === 'duplicate') {
         const duplicateAlert = getDuplicateScanFolderAlert();
         showAlert(duplicateAlert);
         return;
       }
-      const update = buildScanFolderStateUpdate(next);
-      setScanFolders(update.scanFolders);
-      setActiveTab(update.activeTab);
+      setScanFolders(addResult.update.scanFolders);
+      setActiveTab(addResult.update.activeTab);
     } catch {
       const unavailableAlert = getScanFolderUnavailableAlert();
       showAlert(unavailableAlert);
