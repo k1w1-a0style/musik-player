@@ -32,7 +32,7 @@ import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
-import { getFavoriteSongIds, getScanFolders, removeScanFolder } from '../utils/storage';
+import { getFavoriteSongIds, getScanFolders } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
@@ -55,6 +55,7 @@ import {
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { persistAddedScanFolder } from '../utils/libraryScanFolderAddPersistence';
+import { persistRemovedScanFolder } from '../utils/libraryScanFolderRemovePersistence';
 import { persistChangedFolderErrorUpdates } from '../utils/libraryFolderUpdatePersistence';
 import { withTimeout } from '../utils/withTimeout';
 import {
@@ -319,9 +320,13 @@ const Library: React.FC = () => {
     <LibraryPlaylistRow playlist={item} onPlay={playlistId => void playPlaylist(playlistId)} />
   ), [playPlaylist]);
 
+  const removeFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
+    setScanFolders(await persistRemovedScanFolder(folder.id));
+  }, []);
+
   const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
-    <LibraryFolderRow folder={item} onRemove={async folder => setScanFolders(await removeScanFolder(folder.id))} />
-  ), []);
+    <LibraryFolderRow folder={item} onRemove={removeFolder} />
+  ), [removeFolder]);
 
   const activeFolders = countActiveScanFolders(scanFolders);
   const emptyMessage = getLibraryEmptyMessage(activeTab);
