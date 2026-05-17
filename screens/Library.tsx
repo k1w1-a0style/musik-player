@@ -71,6 +71,7 @@ import {
   getImportStoppedAlert,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
+  getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getPartialScanImportAlert,
@@ -244,10 +245,11 @@ const Library: React.FC = () => {
       Alert.alert(noSongsAlert.title, noSongsAlert.message);
       return;
     }
-    setImportStatus(libraryImportMessages.readingId3Metadata);
+    const refreshCopy = getMetadataRefreshFlowCopy();
+    setImportStatus(refreshCopy.readingStatus);
     try {
       setLoading(true);
-      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataRefreshTimeout);
+      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
       if (shouldApplyMetadataRefresh(result.updated)) setSongs(result.songs);
       const completeAlert = getMetadataRefreshCompleteAlert(result.updated, result.skipped, result.failed);
       Alert.alert(completeAlert.title, completeAlert.message);
