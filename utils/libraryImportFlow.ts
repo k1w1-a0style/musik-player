@@ -39,6 +39,11 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
   message: libraryImportMessages.noMatchingMusicMessage,
 });
 
+export const getPartialScanImportAlert = (): LibraryAlertMessage => ({
+  title: libraryImportMessages.partiallyImportedTitle,
+  message: libraryImportMessages.partiallyImportedMessage,
+});
+
 export const hasSongsForMetadataRefresh = (count: number): boolean =>
   count > 0;
 
