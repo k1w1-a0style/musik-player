@@ -6,5 +6,6 @@ export { useLibraryNavigationActions } from './useLibraryNavigationActions';
 export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
+export { useLibraryScreenState } from './useLibraryScreenState';
 export { useLibraryStoredState } from './useLibraryStoredState';
 export { useLibraryViewState } from './useLibraryViewState';
