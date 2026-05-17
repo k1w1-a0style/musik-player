@@ -1,6 +1,7 @@
 import {
   buildImportedSongsUpdate,
   buildMediaLibraryCandidatesResult,
+  buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
   buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
@@ -209,6 +210,12 @@ test('buildImportedSongsUpdate merges songs, sorts by title and selects tracks t
     song('same', 'New title'),
     song('old'),
   ]);
+});
+
+test('buildMediaLibraryImportResult builds imported songs update', () => {
+  expect(buildMediaLibraryImportResult([song('old')], [song('new')])).toEqual(
+    buildImportedSongsUpdate([song('old')], [song('new')]),
+  );
 });
 
 test('buildScanImportResult returns empty alert when no songs were imported', () => {
