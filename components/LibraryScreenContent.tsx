@@ -5,7 +5,7 @@ import LibraryMenuModal, { type LibraryMenuModalProps } from './LibraryMenuModal
 import LibrarySearchBar from './LibrarySearchBar';
 import LibraryTabContent, { type LibraryTabContentProps } from './LibraryTabContent';
 import LibraryTabs from './LibraryTabs';
-import LibraryTopBar from './LibraryTopBar';
+import LibraryTopBar, { type LibraryTopBarProps } from './LibraryTopBar';
 import type { LibraryTab } from '../utils/libraryTabs';
 
 export interface LibraryScreenContentProps {
@@ -18,7 +18,7 @@ export interface LibraryScreenContentProps {
   setActiveTab: Dispatch<SetStateAction<LibraryTab>>;
   setQuery: Dispatch<SetStateAction<string>>;
   tabContentProps: LibraryTabContentProps;
-  topBarProps: React.ComponentProps<typeof LibraryTopBar>;
+  topBarProps: LibraryTopBarProps;
 }
 
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
