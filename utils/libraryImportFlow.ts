@@ -1,7 +1,12 @@
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
-import { libraryImportMessages, metadataRefreshSummary } from './libraryImportMessages';
+import {
+  libraryImportMessages,
+  metadataRefreshSummary,
+  scanFoldersReadingStatus,
+  tracksFoundStatus,
+} from './libraryImportMessages';
 import { mergeSongs } from './libraryPresentation';
 
 interface LibraryAlertMessage {
@@ -12,6 +17,12 @@ interface LibraryAlertMessage {
 interface ImportedSongsUpdate {
   songs: Song[];
   activeTab: LibraryTab;
+}
+
+interface ScanImportProgressCopy {
+  readingStatus: string;
+  foundStatus: string;
+  timeoutMessage: string;
 }
 
 interface LibraryImportFlowCopy {
@@ -56,6 +67,12 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
 export const getPartialScanImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.partiallyImportedTitle,
   message: libraryImportMessages.partiallyImportedMessage,
+});
+
+export const getScanImportProgressCopy = (activeFolderCount: number, foundSongCount: number): ScanImportProgressCopy => ({
+  readingStatus: scanFoldersReadingStatus(activeFolderCount),
+  foundStatus: tracksFoundStatus(foundSongCount),
+  timeoutMessage: libraryImportMessages.scanFoldersTimeout,
 });
 
 export const getLibraryImportFlowCopy = (): LibraryImportFlowCopy => ({
