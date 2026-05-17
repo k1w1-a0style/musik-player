@@ -119,13 +119,16 @@ jest.mock('../useLibraryViewState', () => ({
 test('returns library screen props from composed hooks', () => {
   const { result } = renderHook(() => useLibraryController());
 
-  expect(result.current.activeTab).toBe('tracks');
   expect(result.current.importStatus).toBeNull();
   expect(result.current.loading).toBe(false);
   expect(result.current.query).toBe('');
   expect(result.current.searchOpen).toBe(false);
   expect(result.current.menuModalProps).toEqual({ visible: false });
   expect(result.current.tabContentProps).toEqual({ activeTab: 'tracks' });
+  expect(result.current.tabsProps).toEqual({
+    activeTab: 'tracks',
+    onChangeTab: expect.any(Function),
+  });
   expect(result.current.topBarProps).toEqual({
     onOpenMenu: expect.any(Function),
     onToggleSearch: expect.any(Function),
