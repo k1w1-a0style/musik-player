@@ -89,6 +89,8 @@ const NODE_ENV = process.env.NODE_ENV;
 
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
+type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
+type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
 
 interface LibraryAlertCopy {
   title: string;
@@ -210,8 +212,7 @@ const Library: React.FC = () => {
     applyImportedSongsUpdate(scanResult.update);
   }, [applyImportedSongsUpdate, scanFolders, showAlert, songs]);
 
-  const importFromMediaLibrary = useCallback(async (): Promise<void> => {
-    const importCopy = getLibraryImportFlowCopy();
+  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy): Promise<void> => {
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await MediaLibrary.requestPermissionsAsync();
     const permissionResult = buildMediaLibraryPermissionResult(status);
@@ -253,7 +254,7 @@ const Library: React.FC = () => {
         return;
       }
 
-      await importFromMediaLibrary();
+      await importFromMediaLibrary(importCopy);
     } catch (error) {
       const stoppedAlert = getImportStoppedAlert(error);
       showAlert(stoppedAlert);
@@ -263,6 +264,14 @@ const Library: React.FC = () => {
     }
   };
 
+  const runMetadataRefresh = useCallback(async (refreshCopy: MetadataRefreshFlowCopy): Promise<void> => {
+    setImportStatus(refreshCopy.readingStatus);
+    const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
+    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
+    if (refreshResult.shouldApplyUpdate) setSongs(refreshResult.songs);
+    showAlert(refreshResult.alert);
+  }, [setSongs, showAlert, songs]);
+
   const refreshMetadataFromFiles = async (): Promise<void> => {
     setMenuOpen(false);
     const availabilityResult = buildMetadataRefreshAvailabilityResult(songs.length);
@@ -271,13 +280,9 @@ const Library: React.FC = () => {
       return;
     }
     const refreshCopy = getMetadataRefreshFlowCopy();
-    setImportStatus(refreshCopy.readingStatus);
     try {
       setLoading(true);
-      const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
-      const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
-      if (refreshResult.shouldApplyUpdate) setSongs(refreshResult.songs);
-      showAlert(refreshResult.alert);
+      await runMetadataRefresh(refreshCopy);
     } catch (error) {
       const stoppedAlert = getMetadataUpdateStoppedAlert(error);
       showAlert(stoppedAlert);
