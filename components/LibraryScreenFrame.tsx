@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 import AppBackground from './AppBackground';
 import Screen from './Screen';
 
-interface LibraryScreenFrameProps {
+export interface LibraryScreenFrameProps {
   children: React.ReactNode;
 }
 
