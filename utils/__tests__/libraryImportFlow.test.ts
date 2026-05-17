@@ -7,6 +7,7 @@ import {
   getMetadataRefreshCompleteAlert,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
+  getPartialScanImportAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
@@ -67,6 +68,13 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
   expect(getEmptyMediaLibraryImportAlert()).toEqual({
     title: 'Keine Musik gefunden',
     message: 'Es wurden keine passenden Musikdateien gefunden.',
+  });
+});
+
+test('getPartialScanImportAlert returns partial import alert', () => {
+  expect(getPartialScanImportAlert()).toEqual({
+    title: 'Teilweise importiert',
+    message: 'Einige Dateien konnten nicht gelesen werden. Die lesbaren Tracks wurden importiert.',
   });
 });
 
