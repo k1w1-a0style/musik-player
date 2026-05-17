@@ -8,7 +8,7 @@ import LibraryTabs from './LibraryTabs';
 import LibraryTopBar from './LibraryTopBar';
 import type { LibraryTab } from '../utils/libraryTabs';
 
-interface LibraryScreenContentProps {
+export interface LibraryScreenContentProps {
   activeTab: LibraryTab;
   importStatus: string | null;
   loading: boolean;
