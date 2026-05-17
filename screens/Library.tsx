@@ -11,6 +11,7 @@ import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryTabContent from '../components/LibraryTabContent';
 import {
   useLibraryAlerts,
+  useLibraryComponentProps,
   useLibraryImportActions,
   useLibraryMenuActions,
   useLibraryMetadataRefreshActions,
@@ -22,7 +23,6 @@ import {
   useLibraryStoredState,
   useLibraryViewState,
 } from '../hooks/libraryHooks';
-import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../utils/libraryComponentProps';
 
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
@@ -141,41 +141,37 @@ const Library: React.FC = () => {
     songsForActiveList,
   });
 
-  const tabContentProps = buildLibraryTabContentProps({
-    activeTab,
+  const { menuModalProps, tabContentProps } = useLibraryComponentProps({
     activeFolders,
+    activeTab,
     albumGroups,
     albumViewMode,
     artistGroups,
+    closeMenu,
     emptyMessage,
     genreGroups,
     getSongItemLayout,
-    onPlayActiveList: handlePlayActiveList,
-    onShuffle: handleShufflePress,
-    onToggleAlbumView: toggleAlbumView,
-    playlistItems,
-    renderAlbumTile,
-    renderFolderItem,
-    renderGroupItem,
-    renderPlaylistItem,
-    renderSongItem,
-    scanFolders,
-    songKeyExtractor,
-    songsForActiveList,
-  });
-
-  const menuModalProps = buildLibraryMenuModalProps({
-    activeFolders,
-    closeMenu,
+    handlePlayActiveList,
+    handleShufflePress,
     importFromDevice,
     isReady,
     loading,
     menuOpen,
     onAddScanFolder,
     openSettings,
+    playlistItems,
     refreshMetadataFromFiles,
+    renderAlbumTile,
+    renderFolderItem,
+    renderGroupItem,
+    renderPlaylistItem,
+    renderSongItem,
+    scanFolders,
     showScanFolders,
+    songKeyExtractor,
     songsCount: songs.length,
+    songsForActiveList,
+    toggleAlbumView,
   });
 
   return (
