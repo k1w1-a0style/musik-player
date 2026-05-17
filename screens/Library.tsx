@@ -54,9 +54,11 @@ import {
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
-import { persistAddedScanFolder } from '../utils/libraryScanFolderAddPersistence';
-import { persistRemovedScanFolder } from '../utils/libraryScanFolderRemovePersistence';
-import { persistChangedFolderErrorUpdates } from '../utils/libraryFolderUpdatePersistence';
+import {
+  persistAddedScanFolder,
+  persistChangedFolderErrorUpdates,
+  persistRemovedScanFolder,
+} from '../utils/libraryScanFolderPersistence';
 import { withTimeout } from '../utils/withTimeout';
 import {
   getDuplicateScanFolderAlert,
