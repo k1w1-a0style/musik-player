@@ -23,11 +23,11 @@ import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryImportActions,
   useLibraryMetadataRefreshActions,
+  useLibraryPlaybackActions,
   useLibraryRenderers,
   useLibraryScanFolderActions,
   useLibraryStoredState,
 } from '../hooks/libraryHooks';
-import { shuffleItems } from '../utils/libraryShuffle';
 import { type LibraryTab } from '../utils/libraryTabs';
 
 declare const __DEV__: boolean;
@@ -134,23 +134,22 @@ const Library: React.FC = () => {
     removeFolder,
   });
 
+  const {
+    handlePlayActiveList,
+    handleShufflePress,
+    toggleAlbumView,
+  } = useLibraryPlaybackActions({
+    handleSongPress,
+    playSong,
+    setAlbumViewMode,
+    songsForActiveList,
+  });
+
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
     showAlert(settingsAlert);
   }, [showAlert]);
-
-  const handleShufflePress = useCallback(() => {
-    if (songsForActiveList.length === 0) return;
-    const shuffled = shuffleItems(songsForActiveList);
-    void playSong(shuffled[0], shuffled);
-  }, [playSong, songsForActiveList]);
-  const handlePlayActiveList = useCallback(() => {
-    if (songsForActiveList[0]) handleSongPress(songsForActiveList[0], songsForActiveList);
-  }, [handleSongPress, songsForActiveList]);
-  const toggleAlbumView = useCallback(() => {
-    setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid');
-  }, []);
 
   return (
     <AppBackground>
