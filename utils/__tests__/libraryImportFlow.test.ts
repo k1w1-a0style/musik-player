@@ -4,6 +4,7 @@ import {
   buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
   buildMetadataRefreshAvailabilityResult,
+  buildMetadataRefreshResult,
   buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
@@ -169,6 +170,22 @@ test('buildMetadataRefreshAvailabilityResult returns ready result with songs', (
 test('shouldApplyMetadataRefresh checks updated counts', () => {
   expect(shouldApplyMetadataRefresh(0)).toBe(false);
   expect(shouldApplyMetadataRefresh(1)).toBe(true);
+});
+
+test('buildMetadataRefreshResult returns apply flag, songs and completion alert', () => {
+  expect(buildMetadataRefreshResult([song('updated')], 1, 2, 3)).toEqual({
+    shouldApplyUpdate: true,
+    songs: [song('updated')],
+    alert: getMetadataRefreshCompleteAlert(1, 2, 3),
+  });
+});
+
+test('buildMetadataRefreshResult does not apply updates when updated count is zero', () => {
+  expect(buildMetadataRefreshResult([song('same')], 0, 2, 0)).toEqual({
+    shouldApplyUpdate: false,
+    songs: [song('same')],
+    alert: getMetadataRefreshCompleteAlert(0, 2, 0),
+  });
 });
 
 test('getNoSongsMetadataAlert returns metadata refresh empty-state alert', () => {
