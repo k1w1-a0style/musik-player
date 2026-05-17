@@ -1,4 +1,4 @@
-import { getChangedFolderUpdates, shouldPersistFolderErrorUpdate } from '../libraryFolderUpdates';
+import { buildFolderUpdatesResult, getChangedFolderUpdates, shouldPersistFolderErrorUpdate } from '../libraryFolderUpdates';
 import type { ScanFolder } from '../../types/ScanFolder';
 
 const folder = (patch: Partial<ScanFolder>): ScanFolder => ({
@@ -31,4 +31,19 @@ test('returns only changed folder updates', () => {
   const updated = [folder({ id: 'a', lastError: 'same' }), folder({ id: 'b', lastError: 'new' }), folder({ id: 'c', lastError: 'new folder' })];
 
   expect(getChangedFolderUpdates(current, updated).map(item => item.id)).toEqual(['b', 'c']);
+});
+
+test('buildFolderUpdatesResult returns none without changed updates', () => {
+  expect(buildFolderUpdatesResult([folder({})], undefined)).toEqual({ kind: 'none' });
+  expect(buildFolderUpdatesResult([folder({ id: 'a', lastError: 'same' })], [folder({ id: 'a', lastError: 'same' })])).toEqual({ kind: 'none' });
+});
+
+test('buildFolderUpdatesResult returns changed updates', () => {
+  const current = [folder({ id: 'a', lastError: 'same' }), folder({ id: 'b', lastError: 'old' })];
+  const updated = [folder({ id: 'a', lastError: 'same' }), folder({ id: 'b', lastError: 'new' })];
+
+  expect(buildFolderUpdatesResult(current, updated)).toEqual({
+    kind: 'changed',
+    updates: [folder({ id: 'b', lastError: 'new' })],
+  });
 });
