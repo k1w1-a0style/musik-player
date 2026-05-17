@@ -3,6 +3,7 @@ import {
   buildMediaLibraryCandidatesResult,
   buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
+  buildMetadataRefreshAvailabilityResult,
   buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
@@ -152,6 +153,17 @@ test('getMetadataRefreshFlowCopy returns status and timeout copy', () => {
 test('hasSongsForMetadataRefresh checks song counts', () => {
   expect(hasSongsForMetadataRefresh(0)).toBe(false);
   expect(hasSongsForMetadataRefresh(1)).toBe(true);
+});
+
+test('buildMetadataRefreshAvailabilityResult returns empty alert without songs', () => {
+  expect(buildMetadataRefreshAvailabilityResult(0)).toEqual({
+    kind: 'empty',
+    alert: getNoSongsMetadataAlert(),
+  });
+});
+
+test('buildMetadataRefreshAvailabilityResult returns ready result with songs', () => {
+  expect(buildMetadataRefreshAvailabilityResult(1)).toEqual({ kind: 'ready' });
 });
 
 test('shouldApplyMetadataRefresh checks updated counts', () => {
