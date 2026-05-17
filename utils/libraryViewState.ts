@@ -1,4 +1,4 @@
-import type { Song } from '../types/Song';
+import type { Playlist, Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { getLibraryDisplaySongs } from './libraryDemoSongs';
 import { groupSongs } from './libraryPresentation';
@@ -12,7 +12,7 @@ interface LibraryViewStateOptions {
   isDev: boolean;
   isReady: boolean;
   nodeEnv: string | undefined;
-  playlists: Array<{ id: string; name: string; songIds: string[] }>;
+  playlists: Playlist[];
   query: string;
   scanFolders: ScanFolder[];
   songs: Song[];
