@@ -17,10 +17,32 @@ interface GrantedDirectoryPermissionResult {
   directoryUri: string;
 }
 
+interface GrantedDirectoryPermissionSelectionResult {
+  kind: 'granted';
+  directoryUri: string;
+}
+
+interface CancelledDirectoryPermissionSelectionResult {
+  kind: 'cancelled';
+}
+
+type DirectoryPermissionSelectionResult = GrantedDirectoryPermissionSelectionResult | CancelledDirectoryPermissionSelectionResult;
+
 interface ScanFolderStateUpdate {
   scanFolders: ScanFolder[];
   activeTab: LibraryTab;
 }
+
+interface AddedScanFolderResult {
+  kind: 'added';
+  update: ScanFolderStateUpdate;
+}
+
+interface DuplicateScanFolderResult {
+  kind: 'duplicate';
+}
+
+type ScanFolderAddResult = AddedScanFolderResult | DuplicateScanFolderResult;
 
 const randomSuffix = (random: () => number): string =>
   random().toString(36).slice(2, 8);
@@ -34,6 +56,12 @@ export const canUseScanFolderPicker = (platformOs: string): boolean =>
 export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionResultLike): permission is GrantedDirectoryPermissionResult =>
   permission.granted === true && typeof permission.directoryUri === 'string' && permission.directoryUri.length > 0;
 
+export const buildDirectoryPermissionSelectionResult = (permission: DirectoryPermissionResultLike): DirectoryPermissionSelectionResult => {
+  if (!hasGrantedDirectoryPermission(permission)) return { kind: 'cancelled' };
+
+  return { kind: 'granted', directoryUri: permission.directoryUri };
+};
+
 export const wasScanFolderAdded = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): boolean =>
   nextFolders.length > previousFolders.length;
 
@@ -41,6 +69,12 @@ export const buildScanFolderStateUpdate = (scanFolders: ScanFolder[]): ScanFolde
   scanFolders,
   activeTab: 'folders',
 });
+
+export const buildScanFolderAddResult = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): ScanFolderAddResult => {
+  if (!wasScanFolderAdded(previousFolders, nextFolders)) return { kind: 'duplicate' };
+
+  return { kind: 'added', update: buildScanFolderStateUpdate(nextFolders) };
+};
 
 export const buildScanFolderFromDirectoryUri = (
   directoryUri: string,
