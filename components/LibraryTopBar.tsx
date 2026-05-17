@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MoreVertical, Search } from 'lucide-react-native';
 import { theme } from '../theme';
 
-interface LibraryTopBarProps {
+export interface LibraryTopBarProps {
   title?: string;
   onToggleSearch: () => void;
   onOpenMenu: () => void;
