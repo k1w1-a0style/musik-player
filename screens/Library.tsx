@@ -22,6 +22,7 @@ import {
   useLibraryStoredState,
   useLibraryViewState,
 } from '../hooks/libraryHooks';
+import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../utils/libraryComponentProps';
 
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
@@ -140,6 +141,43 @@ const Library: React.FC = () => {
     songsForActiveList,
   });
 
+  const tabContentProps = buildLibraryTabContentProps({
+    activeTab,
+    activeFolders,
+    albumGroups,
+    albumViewMode,
+    artistGroups,
+    emptyMessage,
+    genreGroups,
+    getSongItemLayout,
+    onPlayActiveList: handlePlayActiveList,
+    onShuffle: handleShufflePress,
+    onToggleAlbumView: toggleAlbumView,
+    playlistItems,
+    renderAlbumTile,
+    renderFolderItem,
+    renderGroupItem,
+    renderPlaylistItem,
+    renderSongItem,
+    scanFolders,
+    songKeyExtractor,
+    songsForActiveList,
+  });
+
+  const menuModalProps = buildLibraryMenuModalProps({
+    activeFolders,
+    closeMenu,
+    importFromDevice,
+    isReady,
+    loading,
+    menuOpen,
+    onAddScanFolder,
+    openSettings,
+    refreshMetadataFromFiles,
+    showScanFolders,
+    songsCount: songs.length,
+  });
+
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
@@ -150,42 +188,9 @@ const Library: React.FC = () => {
         {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
         {loading && <LibraryImportStatus status={importStatus} />}
 
-        <LibraryTabContent
-          activeTab={activeTab}
-          activeFolders={activeFolders}
-          albumGroups={albumGroups}
-          albumViewMode={albumViewMode}
-          artistGroups={artistGroups}
-          emptyMessage={emptyMessage}
-          genreGroups={genreGroups}
-          getSongItemLayout={getSongItemLayout}
-          onPlayActiveList={handlePlayActiveList}
-          onShuffle={handleShufflePress}
-          onToggleAlbumView={toggleAlbumView}
-          playlistItems={playlistItems}
-          renderAlbumTile={renderAlbumTile}
-          renderFolderItem={renderFolderItem}
-          renderGroupItem={renderGroupItem}
-          renderPlaylistItem={renderPlaylistItem}
-          renderSongItem={renderSongItem}
-          scanFolders={scanFolders}
-          songKeyExtractor={songKeyExtractor}
-          songsForActiveList={songsForActiveList}
-        />
+        <LibraryTabContent {...tabContentProps} />
 
-        <LibraryMenuModal
-          visible={menuOpen}
-          loading={loading}
-          isReady={isReady}
-          hasSongs={songs.length > 0}
-          activeFolders={activeFolders}
-          onClose={closeMenu}
-          onImport={importFromDevice}
-          onRefreshMetadata={refreshMetadataFromFiles}
-          onAddFolder={onAddScanFolder}
-          onShowFolders={showScanFolders}
-          onOpenSettings={openSettings}
-        />
+        <LibraryMenuModal {...menuModalProps} />
       </Screen>
     </AppBackground>
   );
