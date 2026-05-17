@@ -32,7 +32,7 @@ import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
-import { addScanFolder, getFavoriteSongIds, getScanFolders, removeScanFolder, updateScanFolder } from '../utils/storage';
+import { addScanFolder, getFavoriteSongIds, getScanFolders, removeScanFolder } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
@@ -55,7 +55,7 @@ import {
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
-import { buildFolderUpdatesResult } from '../utils/libraryFolderUpdates';
+import { persistChangedFolderErrorUpdates } from '../utils/libraryFolderUpdatePersistence';
 import { withTimeout } from '../utils/withTimeout';
 import {
   getDuplicateScanFolderAlert,
@@ -195,11 +195,8 @@ const Library: React.FC = () => {
   };
 
   const persistChangedFolderUpdates = useCallback(async (folderUpdates: ScanFolder[] | undefined): Promise<void> => {
-    const updatesResult = buildFolderUpdatesResult(scanFolders, folderUpdates);
-    if (updatesResult.kind === 'none') return;
-
-    for (const folder of updatesResult.updates) await updateScanFolder(folder.id, { lastError: folder.lastError });
-    setScanFolders(await getScanFolders());
+    const updatedFolders = await persistChangedFolderErrorUpdates(scanFolders, folderUpdates);
+    if (updatedFolders) setScanFolders(updatedFolders);
   }, [scanFolders]);
 
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
