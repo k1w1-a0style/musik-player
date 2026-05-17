@@ -14,6 +14,11 @@ interface ImportedSongsUpdate {
   activeTab: LibraryTab;
 }
 
+interface MetadataRefreshFlowCopy {
+  readingStatus: string;
+  timeoutMessage: string;
+}
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -42,6 +47,11 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
 export const getPartialScanImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.partiallyImportedTitle,
   message: libraryImportMessages.partiallyImportedMessage,
+});
+
+export const getMetadataRefreshFlowCopy = (): MetadataRefreshFlowCopy => ({
+  readingStatus: libraryImportMessages.readingId3Metadata,
+  timeoutMessage: libraryImportMessages.metadataRefreshTimeout,
 });
 
 export const hasSongsForMetadataRefresh = (count: number): boolean =>
