@@ -69,6 +69,7 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getImportStoppedAlert,
+  getLibraryImportFlowCopy,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
@@ -83,7 +84,6 @@ import {
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import {
-  libraryImportMessages,
   mediaCandidatesFoundStatus,
   scanFoldersReadingStatus,
   tracksFoundStatus,
@@ -179,13 +179,14 @@ const Library: React.FC = () => {
 
   const importFromDevice = async (): Promise<void> => {
     setMenuOpen(false);
-    setImportStatus(libraryImportMessages.preparingImport);
+    const importCopy = getLibraryImportFlowCopy();
+    setImportStatus(importCopy.preparingStatus);
     try {
       setLoading(true);
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (shouldImportFromScanFolders(activeFolders, Platform.OS)) {
         setImportStatus(scanFoldersReadingStatus(activeFolders.length));
-        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, libraryImportMessages.scanFoldersTimeout);
+        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, importCopy.scanFoldersTimeoutMessage);
         setImportStatus(tracksFoundStatus(result.songs.length));
         const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
         if (changedFolderUpdates.length > 0) {
@@ -207,14 +208,14 @@ const Library: React.FC = () => {
         return;
       }
 
-      setImportStatus(libraryImportMessages.scanningMediaLibrary);
+      setImportStatus(importCopy.scanningMediaLibraryStatus);
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (!hasMediaLibraryPermission(status)) {
         const permissionAlert = getMediaLibraryPermissionDeniedAlert();
         Alert.alert(permissionAlert.title, permissionAlert.message);
         return;
       }
-      const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, libraryImportMessages.mediaLibraryScanTimeout);
+      const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
       setImportStatus(mediaCandidatesFoundStatus(candidates.assets.length));
       if (!hasMediaLibraryCandidates(candidates.assets.length)) {
         const emptyAlert = getEmptyMediaLibraryImportAlert();
@@ -223,8 +224,8 @@ const Library: React.FC = () => {
       }
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
       if (!shouldImport) return;
-      setImportStatus(libraryImportMessages.importingMetadataAndCovers);
-      const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, libraryImportMessages.metadataImportTimeout);
+      setImportStatus(importCopy.importingMetadataAndCoversStatus);
+      const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, importCopy.metadataImportTimeoutMessage);
       setImportStatus(tracksSavingStatus(mediaResult.songs.length));
       const update = buildImportedSongsUpdate(songs, mediaResult.songs);
       setSongs(update.songs);
