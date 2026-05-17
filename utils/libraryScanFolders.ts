@@ -17,6 +17,16 @@ interface GrantedDirectoryPermissionResult {
   directoryUri: string;
 }
 
+interface AvailableScanFolderPickerResult {
+  kind: 'available';
+}
+
+interface UnsupportedScanFolderPickerResult {
+  kind: 'unsupported';
+}
+
+type ScanFolderPickerAvailabilityResult = AvailableScanFolderPickerResult | UnsupportedScanFolderPickerResult;
+
 interface GrantedDirectoryPermissionSelectionResult {
   kind: 'granted';
   directoryUri: string;
@@ -52,6 +62,12 @@ export const getEnabledScanFolders = (folders: ScanFolder[]): ScanFolder[] =>
 
 export const canUseScanFolderPicker = (platformOs: string): boolean =>
   platformOs === 'android';
+
+export const buildScanFolderPickerAvailabilityResult = (platformOs: string): ScanFolderPickerAvailabilityResult => {
+  if (!canUseScanFolderPicker(platformOs)) return { kind: 'unsupported' };
+
+  return { kind: 'available' };
+};
 
 export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionResultLike): permission is GrantedDirectoryPermissionResult =>
   permission.granted === true && typeof permission.directoryUri === 'string' && permission.directoryUri.length > 0;
