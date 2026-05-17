@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryImportActions } from '../useLibraryImportActions';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
@@ -77,11 +77,9 @@ test('uses scan folder import on android when active scan folders exist', async 
     />,
   );
 
-  await act(async () => {
-    await screen.getByText('import').props.onPress();
-  });
+  fireEvent.press(screen.getByText('import'));
 
-  expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')], platformOs: 'android' });
+  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')], platformOs: 'android' }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
 });
 
@@ -96,10 +94,8 @@ test('uses media library import when no active scan folders exist', async () => 
     />,
   );
 
-  await act(async () => {
-    await screen.getByText('import').props.onPress();
-  });
+  fireEvent.press(screen.getByText('import'));
 
+  await waitFor(() => expect(requestMediaLibraryPermissionsAsync).toHaveBeenCalledTimes(1));
   expect(importSongsFromSourcesImpl).not.toHaveBeenCalled();
-  expect(requestMediaLibraryPermissionsAsync).toHaveBeenCalledTimes(1);
 });
