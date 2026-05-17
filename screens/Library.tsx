@@ -6,13 +6,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
-import SongCard from '../components/SongCard';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import LibraryFolderRow from '../components/LibraryFolderRow';
-import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
-import LibraryGroupRow from '../components/LibraryGroupRow';
-import LibraryAlbumTile from '../components/LibraryAlbumTile';
 import LibrarySearchBar from '../components/LibrarySearchBar';
 import LibraryTopBar from '../components/LibraryTopBar';
 import LibraryTabs from '../components/LibraryTabs';
@@ -22,33 +17,22 @@ import LibraryTabContent from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
-import type { ScanFolder } from '../types/ScanFolder';
 import { APP_STACK_ROUTES } from '../types/routes';
-import {
-  displayAlbum,
-  displayArtist,
-  type LibraryGroupItem,
-} from '../utils/libraryPresentation';
-import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
-import { shuffleItems } from '../utils/libraryShuffle';
-import { type LibraryTab } from '../utils/libraryTabs';
-import { isDemoSong } from '../utils/libraryDemoSongs';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryImportActions,
   useLibraryMetadataRefreshActions,
+  useLibraryRenderers,
   useLibraryScanFolderActions,
   useLibraryStoredState,
 } from '../hooks/libraryHooks';
+import { shuffleItems } from '../utils/libraryShuffle';
+import { type LibraryTab } from '../utils/libraryTabs';
 
 declare const __DEV__: boolean;
 
-const SONG_ROW_HEIGHT = 62;
 const NODE_ENV = process.env.NODE_ENV;
-
-type GroupItem = LibraryGroupItem;
-type PlaylistItem = LibraryPlaylistItem;
 
 interface LibraryAlertCopy {
   title: string;
@@ -127,36 +111,34 @@ const Library: React.FC = () => {
     showAlert,
   });
 
+  const handleOpenTrackInfo = useCallback((song: Song) => {
+    navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id });
+  }, [navigation]);
+
+  const {
+    getSongItemLayout,
+    handleSongPress,
+    renderAlbumTile,
+    renderFolderItem,
+    renderGroupItem,
+    renderPlaylistItem,
+    renderSongItem,
+    songKeyExtractor,
+  } = useLibraryRenderers({
+    currentSongId,
+    filteredSongs,
+    isPlaying,
+    onOpenTrackInfo: handleOpenTrackInfo,
+    playPlaylist,
+    playSong,
+    removeFolder,
+  });
+
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
     showAlert(settingsAlert);
   }, [showAlert]);
-
-  const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => void playSong(song, queue), [filteredSongs, playSong]);
-  const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
-  const keyExtractor = useCallback((item: Song) => item.id, []);
-  const getItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({ length: SONG_ROW_HEIGHT, offset: SONG_ROW_HEIGHT * index, index }), []);
-
-  const renderItem = useCallback(({ item }: { item: Song }) => (
-    <SongCard song={{ ...item, artist: displayArtist(item), album: displayAlbum(item) }} isCurrent={currentSongId === item.id} isPlaying={currentSongId === item.id && isPlaying} onPressSong={song => handleSongPress(song, filteredSongs)} onInfoSong={isDemoSong(item) ? undefined : handleInfoSong} />
-  ), [currentSongId, filteredSongs, handleInfoSong, handleSongPress, isPlaying]);
-
-  const renderGroupItem = useCallback(({ item }: { item: GroupItem }) => (
-    <LibraryGroupRow group={item} onPress={group => group.songs[0] && handleSongPress(group.songs[0], group.songs)} />
-  ), [handleSongPress]);
-
-  const renderAlbumTile = useCallback(({ item }: { item: GroupItem }) => (
-    <LibraryAlbumTile album={item} onPress={album => album.songs[0] && handleSongPress(album.songs[0], album.songs)} />
-  ), [handleSongPress]);
-
-  const renderPlaylistItem = useCallback(({ item }: { item: PlaylistItem }) => (
-    <LibraryPlaylistRow playlist={item} onPlay={playlistId => void playPlaylist(playlistId)} />
-  ), [playPlaylist]);
-
-  const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
-    <LibraryFolderRow folder={item} onRemove={removeFolder} />
-  ), [removeFolder]);
 
   const handleShufflePress = useCallback(() => {
     if (songsForActiveList.length === 0) return;
@@ -188,7 +170,7 @@ const Library: React.FC = () => {
           artistGroups={artistGroups}
           emptyMessage={emptyMessage}
           genreGroups={genreGroups}
-          getSongItemLayout={getItemLayout}
+          getSongItemLayout={getSongItemLayout}
           onPlayActiveList={handlePlayActiveList}
           onShuffle={handleShufflePress}
           onToggleAlbumView={toggleAlbumView}
@@ -197,9 +179,9 @@ const Library: React.FC = () => {
           renderFolderItem={renderFolderItem}
           renderGroupItem={renderGroupItem}
           renderPlaylistItem={renderPlaylistItem}
-          renderSongItem={renderItem}
+          renderSongItem={renderSongItem}
           scanFolders={scanFolders}
-          songKeyExtractor={keyExtractor}
+          songKeyExtractor={songKeyExtractor}
           songsForActiveList={songsForActiveList}
         />
 
