@@ -1,31 +1,28 @@
 import React from 'react';
-import type { Dispatch, SetStateAction } from 'react';
-import LibraryImportStatus from './LibraryImportStatus';
+import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
 import LibraryMenuModal, { type LibraryMenuModalProps } from './LibraryMenuModal';
-import LibrarySearchBar from './LibrarySearchBar';
+import LibrarySearchBar, { type LibrarySearchBarProps } from './LibrarySearchBar';
 import LibraryTabContent, { type LibraryTabContentProps } from './LibraryTabContent';
 import LibraryTabs, { type LibraryTabsProps } from './LibraryTabs';
 import LibraryTopBar, { type LibraryTopBarProps } from './LibraryTopBar';
 
 export interface LibraryScreenContentProps {
-  importStatus: string | null;
+  importStatusProps: LibraryImportStatusProps;
   loading: boolean;
   menuModalProps: LibraryMenuModalProps;
-  query: string;
+  searchBarProps: LibrarySearchBarProps;
   searchOpen: boolean;
-  setQuery: Dispatch<SetStateAction<string>>;
   tabContentProps: LibraryTabContentProps;
   tabsProps: LibraryTabsProps;
   topBarProps: LibraryTopBarProps;
 }
 
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
-  importStatus,
+  importStatusProps,
   loading,
   menuModalProps,
-  query,
+  searchBarProps,
   searchOpen,
-  setQuery,
   tabContentProps,
   tabsProps,
   topBarProps,
@@ -35,8 +32,8 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
 
     <LibraryTabs {...tabsProps} />
 
-    {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
-    {loading && <LibraryImportStatus status={importStatus} />}
+    {searchOpen && <LibrarySearchBar {...searchBarProps} />}
+    {loading && <LibraryImportStatus {...importStatusProps} />}
 
     <LibraryTabContent {...tabContentProps} />
 
