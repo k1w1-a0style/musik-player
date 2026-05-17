@@ -81,6 +81,13 @@ interface AvailableMediaLibraryCandidatesResult {
 
 type MediaLibraryCandidatesResult = EmptyMediaLibraryCandidatesResult | AvailableMediaLibraryCandidatesResult;
 
+interface SuccessfulMediaLibraryImportResult {
+  kind: 'success';
+  update: ImportedSongsUpdate;
+}
+
+type MediaLibraryImportResult = SuccessfulMediaLibraryImportResult;
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -189,8 +196,10 @@ export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: S
   activeTab: 'tracks',
 });
 
-export const buildMediaLibraryImportResult = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate =>
-  buildImportedSongsUpdate(existingSongs, importedSongs);
+export const buildMediaLibraryImportResult = (existingSongs: Song[], importedSongs: Song[]): MediaLibraryImportResult => ({
+  kind: 'success',
+  update: buildImportedSongsUpdate(existingSongs, importedSongs),
+});
 
 export const buildScanImportResult = (
   existingSongs: Song[],
