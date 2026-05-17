@@ -14,26 +14,47 @@ jest.mock('../../contexts/MusicContext', () => ({
   })),
 }));
 
-jest.mock('../libraryHooks', () => ({
+jest.mock('../useLibraryAlerts', () => ({
   useLibraryAlerts: jest.fn(() => ({ showAlert: jest.fn() })),
+}));
+
+jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => ({
     menuModalProps: { visible: false },
     tabContentProps: { activeTab: 'tracks' },
   })),
+}));
+
+jest.mock('../useLibraryImportActions', () => ({
   useLibraryImportActions: jest.fn(() => ({ importFromDevice: jest.fn() })),
+}));
+
+jest.mock('../useLibraryMenuActions', () => ({
   useLibraryMenuActions: jest.fn(() => ({
     closeMenu: jest.fn(),
     openMenu: jest.fn(),
     openSettings: jest.fn(),
     toggleSearch: jest.fn(),
   })),
+}));
+
+jest.mock('../useLibraryMetadataRefreshActions', () => ({
   useLibraryMetadataRefreshActions: jest.fn(() => ({ refreshMetadataFromFiles: jest.fn() })),
+}));
+
+jest.mock('../useLibraryNavigationActions', () => ({
   useLibraryNavigationActions: jest.fn(() => ({ openTrackInfo: jest.fn() })),
+}));
+
+jest.mock('../useLibraryPlaybackActions', () => ({
   useLibraryPlaybackActions: jest.fn(() => ({
     handlePlayActiveList: jest.fn(),
     handleShufflePress: jest.fn(),
     toggleAlbumView: jest.fn(),
   })),
+}));
+
+jest.mock('../useLibraryRenderers', () => ({
   useLibraryRenderers: jest.fn(() => ({
     getSongItemLayout: jest.fn(),
     handleSongPress: jest.fn(),
@@ -44,12 +65,18 @@ jest.mock('../libraryHooks', () => ({
     renderSongItem: jest.fn(),
     songKeyExtractor: jest.fn(),
   })),
+}));
+
+jest.mock('../useLibraryScanFolderActions', () => ({
   useLibraryScanFolderActions: jest.fn(() => ({
     showScanFolders: jest.fn(),
     onAddScanFolder: jest.fn(),
     persistChangedFolderUpdates: jest.fn(),
     removeFolder: jest.fn(),
   })),
+}));
+
+jest.mock('../useLibraryScreenState', () => ({
   useLibraryScreenState: jest.fn(() => ({
     activeTab: 'tracks',
     albumViewMode: 'grid',
@@ -66,11 +93,17 @@ jest.mock('../libraryHooks', () => ({
     setQuery: jest.fn(),
     setSearchOpen: jest.fn(),
   })),
+}));
+
+jest.mock('../useLibraryStoredState', () => ({
   useLibraryStoredState: jest.fn(() => ({
     scanFolders: [],
     setScanFolders: jest.fn(),
     favoriteIds: [],
   })),
+}));
+
+jest.mock('../useLibraryViewState', () => ({
   useLibraryViewState: jest.fn(() => ({
     activeFolders: 0,
     albumGroups: [],
