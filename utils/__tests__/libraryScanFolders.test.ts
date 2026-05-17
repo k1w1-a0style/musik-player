@@ -2,6 +2,7 @@ import {
   buildDirectoryPermissionSelectionResult,
   buildScanFolderAddResult,
   buildScanFolderFromDirectoryUri,
+  buildScanFolderPickerAvailabilityResult,
   buildScanFolderStateUpdate,
   canUseScanFolderPicker,
   getEnabledScanFolders,
@@ -29,6 +30,11 @@ test('canUseScanFolderPicker only allows android', () => {
   expect(canUseScanFolderPicker('android')).toBe(true);
   expect(canUseScanFolderPicker('ios')).toBe(false);
   expect(canUseScanFolderPicker('web')).toBe(false);
+});
+
+test('buildScanFolderPickerAvailabilityResult returns availability by platform', () => {
+  expect(buildScanFolderPickerAvailabilityResult('android')).toEqual({ kind: 'available' });
+  expect(buildScanFolderPickerAvailabilityResult('ios')).toEqual({ kind: 'unsupported' });
 });
 
 test('hasGrantedDirectoryPermission requires grant and directory uri', () => {
