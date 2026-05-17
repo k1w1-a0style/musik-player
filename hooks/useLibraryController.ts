@@ -164,15 +164,17 @@ export const useLibraryController = (): LibraryScreenContentProps => {
   });
 
   return {
-    activeTab,
     importStatus,
     loading,
     menuModalProps,
     query,
     searchOpen,
-    setActiveTab,
     setQuery,
     tabContentProps,
+    tabsProps: {
+      activeTab,
+      onChangeTab: setActiveTab,
+    },
     topBarProps: {
       onOpenMenu: openMenu,
       onToggleSearch: toggleSearch,
