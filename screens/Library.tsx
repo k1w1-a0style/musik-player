@@ -70,6 +70,7 @@ import {
   getEmptyScanImportAlert,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
+  getMediaLibraryImportProgressCopy,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
@@ -84,10 +85,6 @@ import {
   shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
-import {
-  mediaCandidatesFoundStatus,
-  tracksSavingStatus,
-} from '../utils/libraryImportMessages';
 
 declare const __DEV__: boolean;
 
@@ -217,7 +214,8 @@ const Library: React.FC = () => {
         return;
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
-      setImportStatus(mediaCandidatesFoundStatus(candidates.assets.length));
+      const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
+      setImportStatus(candidateProgress.candidatesFoundStatus);
       if (!hasMediaLibraryCandidates(candidates.assets.length)) {
         const emptyAlert = getEmptyMediaLibraryImportAlert();
         Alert.alert(emptyAlert.title, emptyAlert.message);
@@ -227,7 +225,8 @@ const Library: React.FC = () => {
       if (!shouldImport) return;
       setImportStatus(importCopy.importingMetadataAndCoversStatus);
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, importCopy.metadataImportTimeoutMessage);
-      setImportStatus(tracksSavingStatus(mediaResult.songs.length));
+      const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
+      setImportStatus(savingProgress.savingStatus);
       const update = buildImportedSongsUpdate(songs, mediaResult.songs);
       setSongs(update.songs);
       setActiveTab(update.activeTab);
