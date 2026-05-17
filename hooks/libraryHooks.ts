@@ -1,3 +1,4 @@
+export { useLibraryAlerts } from './useLibraryAlerts';
 export { useLibraryImportActions } from './useLibraryImportActions';
 export { useLibraryMenuActions } from './useLibraryMenuActions';
 export { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
