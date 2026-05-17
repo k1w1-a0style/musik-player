@@ -72,5 +72,5 @@ test('buildLibraryViewState uses favorite songs as active list on favorites tab'
   });
 
   expect(state.songsForActiveList.map(item => item.id)).toEqual(['b']);
-  expect(state.emptyMessage).toBe('Keine Favoriten gefunden.');
+  expect(state.emptyMessage).toBe('Noch keine Favoriten markiert.');
 });
