@@ -99,6 +99,12 @@ interface ReadyMetadataRefreshAvailabilityResult {
 
 type MetadataRefreshAvailabilityResult = EmptyMetadataRefreshAvailabilityResult | ReadyMetadataRefreshAvailabilityResult;
 
+interface MetadataRefreshResult {
+  shouldApplyUpdate: boolean;
+  songs: Song[];
+  alert: LibraryAlertMessage;
+}
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -201,6 +207,12 @@ export const getNoSongsMetadataAlert = (): LibraryAlertMessage => ({
 export const getMetadataRefreshCompleteAlert = (updated: number, skipped: number, failed: number): LibraryAlertMessage => ({
   title: libraryImportMessages.metadataUpdatedTitle,
   message: metadataRefreshSummary(updated, skipped, failed),
+});
+
+export const buildMetadataRefreshResult = (songs: Song[], updated: number, skipped: number, failed: number): MetadataRefreshResult => ({
+  shouldApplyUpdate: shouldApplyMetadataRefresh(updated),
+  songs,
+  alert: getMetadataRefreshCompleteAlert(updated, skipped, failed),
 });
 
 export const getImportStoppedAlert = (error: unknown): LibraryAlertMessage => ({
