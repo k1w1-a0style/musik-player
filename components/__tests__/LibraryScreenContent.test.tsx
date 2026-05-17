@@ -13,7 +13,6 @@ jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, n
 const fn = jest.fn();
 
 const baseProps = {
-  activeTab: 'tracks' as const,
   importStatus: 'Import läuft',
   loading: true,
   menuModalProps: {
@@ -31,7 +30,6 @@ const baseProps = {
   },
   query: 'abc',
   searchOpen: true,
-  setActiveTab: fn,
   setQuery: fn,
   tabContentProps: {
     activeTab: 'tracks' as const,
@@ -54,6 +52,10 @@ const baseProps = {
     scanFolders: [],
     songKeyExtractor: (item: { id: string }) => item.id,
     songsForActiveList: [],
+  },
+  tabsProps: {
+    activeTab: 'tracks' as const,
+    onChangeTab: fn,
   },
   topBarProps: {
     onOpenMenu: fn,
