@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import LibraryMenuItem from './LibraryMenuItem';
 
-interface LibraryMenuModalProps {
+export interface LibraryMenuModalProps {
   visible: boolean;
   loading: boolean;
   isReady: boolean;
