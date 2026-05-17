@@ -1,4 +1,6 @@
 import {
+  buildDirectoryPermissionSelectionResult,
+  buildScanFolderAddResult,
   buildScanFolderFromDirectoryUri,
   buildScanFolderStateUpdate,
   canUseScanFolderPicker,
@@ -36,6 +38,18 @@ test('hasGrantedDirectoryPermission requires grant and directory uri', () => {
   expect(hasGrantedDirectoryPermission({ granted: true })).toBe(false);
 });
 
+test('buildDirectoryPermissionSelectionResult returns granted result with uri', () => {
+  expect(buildDirectoryPermissionSelectionResult({ granted: true, directoryUri: 'content://Music' })).toEqual({
+    kind: 'granted',
+    directoryUri: 'content://Music',
+  });
+});
+
+test('buildDirectoryPermissionSelectionResult returns cancelled result without granted uri', () => {
+  expect(buildDirectoryPermissionSelectionResult({ granted: false })).toEqual({ kind: 'cancelled' });
+  expect(buildDirectoryPermissionSelectionResult({ granted: true, directoryUri: '' })).toEqual({ kind: 'cancelled' });
+});
+
 test('wasScanFolderAdded checks whether a folder was added', () => {
   expect(wasScanFolderAdded([folder('a')], [folder('a'), folder('b')])).toBe(true);
   expect(wasScanFolderAdded([folder('a')], [folder('a')])).toBe(false);
@@ -49,6 +63,20 @@ test('buildScanFolderStateUpdate selects folders tab', () => {
     scanFolders,
     activeTab: 'folders',
   });
+});
+
+test('buildScanFolderAddResult returns added result with folder tab update', () => {
+  const previousFolders = [folder('a')];
+  const nextFolders = [folder('a'), folder('b')];
+
+  expect(buildScanFolderAddResult(previousFolders, nextFolders)).toEqual({
+    kind: 'added',
+    update: buildScanFolderStateUpdate(nextFolders),
+  });
+});
+
+test('buildScanFolderAddResult returns duplicate result without added folder', () => {
+  expect(buildScanFolderAddResult([folder('a')], [folder('a')])).toEqual({ kind: 'duplicate' });
 });
 
 test('buildScanFolderFromDirectoryUri creates deterministic scan folder', () => {
