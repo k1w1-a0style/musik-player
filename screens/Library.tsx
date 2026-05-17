@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet } from 'react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
@@ -9,7 +9,6 @@ import LibraryTabs from '../components/LibraryTabs';
 import LibraryImportStatus from '../components/LibraryImportStatus';
 import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryTabContent from '../components/LibraryTabContent';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import {
   useLibraryAlerts,
   useLibraryImportActions,
@@ -19,20 +18,29 @@ import {
   useLibraryPlaybackActions,
   useLibraryRenderers,
   useLibraryScanFolderActions,
+  useLibraryScreenState,
   useLibraryStoredState,
   useLibraryViewState,
 } from '../hooks/libraryHooks';
-import { type LibraryTab } from '../utils/libraryTabs';
 
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
-  const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
-  const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
+  const {
+    activeTab,
+    albumViewMode,
+    importStatus,
+    loading,
+    menuOpen,
+    query,
+    searchOpen,
+    setActiveTab,
+    setAlbumViewMode,
+    setImportStatus,
+    setLoading,
+    setMenuOpen,
+    setQuery,
+    setSearchOpen,
+  } = useLibraryScreenState();
   const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
   const { openTrackInfo } = useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
