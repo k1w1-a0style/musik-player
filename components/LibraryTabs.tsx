@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { theme } from '../theme';
 import { LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
 
-interface LibraryTabsProps {
+export interface LibraryTabsProps {
   activeTab: LibraryTab;
   onChangeTab: (tab: LibraryTab) => void;
 }
