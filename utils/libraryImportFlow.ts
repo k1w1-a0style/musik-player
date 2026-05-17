@@ -59,6 +59,17 @@ interface SuccessfulScanImportResult {
 
 type ScanImportResult = EmptyScanImportResult | SuccessfulScanImportResult;
 
+interface EmptyMediaLibraryCandidatesResult {
+  kind: 'empty';
+  alert: LibraryAlertMessage;
+}
+
+interface AvailableMediaLibraryCandidatesResult {
+  kind: 'available';
+}
+
+type MediaLibraryCandidatesResult = EmptyMediaLibraryCandidatesResult | AvailableMediaLibraryCandidatesResult;
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -83,6 +94,17 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.noMusicFoundTitle,
   message: libraryImportMessages.noMatchingMusicMessage,
 });
+
+export const buildMediaLibraryCandidatesResult = (candidateCount: number): MediaLibraryCandidatesResult => {
+  if (!hasMediaLibraryCandidates(candidateCount)) {
+    return {
+      kind: 'empty',
+      alert: getEmptyMediaLibraryImportAlert(),
+    };
+  }
+
+  return { kind: 'available' };
+};
 
 export const getPartialScanImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.partiallyImportedTitle,
