@@ -90,6 +90,11 @@ const NODE_ENV = process.env.NODE_ENV;
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
 
+interface LibraryAlertCopy {
+  title: string;
+  message: string;
+}
+
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
@@ -124,6 +129,10 @@ const Library: React.FC = () => {
     [displayedSongs, playlists, query],
   );
 
+  const showAlert = useCallback((alert: LibraryAlertCopy) => {
+    Alert.alert(alert.title, alert.message);
+  }, []);
+
   const showScanFolders = useCallback(() => {
     const update = buildScanFolderStateUpdate(scanFolders);
     setScanFolders(update.scanFolders);
@@ -134,28 +143,28 @@ const Library: React.FC = () => {
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
-    Alert.alert(settingsAlert.title, settingsAlert.message);
-  }, []);
+    showAlert(settingsAlert);
+  }, [showAlert]);
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
     if (!canUseScanFolderPicker(Platform.OS)) {
       const unsupportedAlert = getScanFolderUnsupportedAlert();
-      Alert.alert(unsupportedAlert.title, unsupportedAlert.message);
+      showAlert(unsupportedAlert);
       return;
     }
     try {
       const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync();
       if (!hasGrantedDirectoryPermission(permission)) {
         const cancelledAlert = getScanFolderCancelledAlert();
-        Alert.alert(cancelledAlert.title, cancelledAlert.message);
+        showAlert(cancelledAlert);
         return;
       }
       const folder = buildScanFolderFromDirectoryUri(permission.directoryUri);
       const next = await addScanFolder(folder);
       if (!wasScanFolderAdded(scanFolders, next)) {
         const duplicateAlert = getDuplicateScanFolderAlert();
-        Alert.alert(duplicateAlert.title, duplicateAlert.message);
+        showAlert(duplicateAlert);
         return;
       }
       const update = buildScanFolderStateUpdate(next);
@@ -163,7 +172,7 @@ const Library: React.FC = () => {
       setActiveTab(update.activeTab);
     } catch {
       const unavailableAlert = getScanFolderUnavailableAlert();
-      Alert.alert(unavailableAlert.title, unavailableAlert.message);
+      showAlert(unavailableAlert);
     }
   };
 
@@ -187,10 +196,10 @@ const Library: React.FC = () => {
         }
         const scanResult = buildScanImportResult(songs, result.songs, result.errors);
         if (scanResult.kind === 'empty') {
-          Alert.alert(scanResult.alert.title, scanResult.alert.message);
+          showAlert(scanResult.alert);
           return;
         }
-        if (scanResult.partialAlert) Alert.alert(scanResult.partialAlert.title, scanResult.partialAlert.message);
+        if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
         setSongs(scanResult.update.songs);
         setActiveTab(scanResult.update.activeTab);
         return;
@@ -200,7 +209,7 @@ const Library: React.FC = () => {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       const permissionResult = buildMediaLibraryPermissionResult(status);
       if (permissionResult.kind === 'denied') {
-        Alert.alert(permissionResult.alert.title, permissionResult.alert.message);
+        showAlert(permissionResult.alert);
         return;
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
@@ -208,7 +217,7 @@ const Library: React.FC = () => {
       setImportStatus(candidateProgress.candidatesFoundStatus);
       const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
       if (candidateResult.kind === 'empty') {
-        Alert.alert(candidateResult.alert.title, candidateResult.alert.message);
+        showAlert(candidateResult.alert);
         return;
       }
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
@@ -222,7 +231,7 @@ const Library: React.FC = () => {
       setActiveTab(importResult.update.activeTab);
     } catch (error) {
       const stoppedAlert = getImportStoppedAlert(error);
-      Alert.alert(stoppedAlert.title, stoppedAlert.message);
+      showAlert(stoppedAlert);
     } finally {
       setLoading(false);
       setImportStatus(null);
@@ -233,7 +242,7 @@ const Library: React.FC = () => {
     setMenuOpen(false);
     const availabilityResult = buildMetadataRefreshAvailabilityResult(songs.length);
     if (availabilityResult.kind === 'empty') {
-      Alert.alert(availabilityResult.alert.title, availabilityResult.alert.message);
+      showAlert(availabilityResult.alert);
       return;
     }
     const refreshCopy = getMetadataRefreshFlowCopy();
@@ -243,10 +252,10 @@ const Library: React.FC = () => {
       const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
       const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
       if (refreshResult.shouldApplyUpdate) setSongs(refreshResult.songs);
-      Alert.alert(refreshResult.alert.title, refreshResult.alert.message);
+      showAlert(refreshResult.alert);
     } catch (error) {
       const stoppedAlert = getMetadataUpdateStoppedAlert(error);
-      Alert.alert(stoppedAlert.title, stoppedAlert.message);
+      showAlert(stoppedAlert);
     } finally {
       setLoading(false);
       setImportStatus(null);
