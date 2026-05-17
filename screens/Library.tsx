@@ -67,17 +67,16 @@ import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessa
 import {
   buildImportedSongsUpdate,
   buildMediaLibraryCandidatesResult,
+  buildMediaLibraryPermissionResult,
   buildScanImportResult,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
   getMediaLibraryImportProgressCopy,
-  getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getScanImportProgressCopy,
-  hasMediaLibraryPermission,
   hasSongsForMetadataRefresh,
   shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
@@ -201,9 +200,9 @@ const Library: React.FC = () => {
 
       setImportStatus(importCopy.scanningMediaLibraryStatus);
       const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (!hasMediaLibraryPermission(status)) {
-        const permissionAlert = getMediaLibraryPermissionDeniedAlert();
-        Alert.alert(permissionAlert.title, permissionAlert.message);
+      const permissionResult = buildMediaLibraryPermissionResult(status);
+      if (permissionResult.kind === 'denied') {
+        Alert.alert(permissionResult.alert.title, permissionResult.alert.message);
         return;
       }
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
