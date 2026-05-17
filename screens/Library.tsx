@@ -27,15 +27,14 @@ import { APP_STACK_ROUTES } from '../types/routes';
 import {
   displayAlbum,
   displayArtist,
-  groupSongs,
   type LibraryGroupItem,
 } from '../utils/libraryPresentation';
-import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import { shuffleItems } from '../utils/libraryShuffle';
-import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
-import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
-import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
+import { type LibraryTab } from '../utils/libraryTabs';
+import { isDemoSong } from '../utils/libraryDemoSongs';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
+import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryImportActions,
   useLibraryMetadataRefreshActions,
@@ -69,16 +68,26 @@ const Library: React.FC = () => {
   const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
 
   const currentSongId = currentSong?.id ?? null;
-  const displayedSongs = useMemo(() => getLibraryDisplaySongs(songs, isReady, __DEV__, NODE_ENV), [isReady, songs]);
-  const filteredSongs = useMemo(() => filterLibrarySongs(displayedSongs, query), [displayedSongs, query]);
-  const favoriteSongs = useMemo(() => filterFavoriteSongs(filteredSongs, favoriteIds), [favoriteIds, filteredSongs]);
-  const albumGroups = useMemo(() => groupSongs(filteredSongs, 'album'), [filteredSongs]);
-  const artistGroups = useMemo(() => groupSongs(filteredSongs, 'artist'), [filteredSongs]);
-  const genreGroups = useMemo(() => groupSongs(filteredSongs, 'genre'), [filteredSongs]);
-  const playlistItems = useMemo<PlaylistItem[]>(
-    () => buildLibraryPlaylistItems(playlists, displayedSongs, query),
-    [displayedSongs, playlists, query],
-  );
+  const {
+    activeFolders,
+    albumGroups,
+    artistGroups,
+    emptyMessage,
+    filteredSongs,
+    genreGroups,
+    playlistItems,
+    songsForActiveList,
+  } = useMemo(() => buildLibraryViewState({
+    activeTab,
+    favoriteIds,
+    isDev: __DEV__,
+    isReady,
+    nodeEnv: NODE_ENV,
+    playlists,
+    query,
+    scanFolders,
+    songs,
+  }), [activeTab, favoriteIds, isReady, playlists, query, scanFolders, songs]);
 
   const showAlert = useCallback((alert: LibraryAlertCopy) => {
     Alert.alert(alert.title, alert.message);
@@ -149,10 +158,6 @@ const Library: React.FC = () => {
     <LibraryFolderRow folder={item} onRemove={removeFolder} />
   ), [removeFolder]);
 
-  const activeFolders = countActiveScanFolders(scanFolders);
-  const emptyMessage = getLibraryEmptyMessage(activeTab);
-
-  const songsForActiveList = activeTab === 'favorites' ? favoriteSongs : filteredSongs;
   const handleShufflePress = useCallback(() => {
     if (songsForActiveList.length === 0) return;
     const shuffled = shuffleItems(songsForActiveList);
