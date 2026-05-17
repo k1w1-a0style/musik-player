@@ -186,6 +186,61 @@ const Library: React.FC = () => {
     }
   };
 
+  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
+    const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
+    setImportStatus(scanProgress.readingStatus);
+    const result = await withTimeout(
+      importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }),
+      IMPORT_TIMEOUT_MS,
+      scanProgress.timeoutMessage,
+    );
+    const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
+    setImportStatus(resultProgress.foundStatus);
+    const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
+    if (changedFolderUpdates.length > 0) {
+      for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
+      setScanFolders(await getScanFolders());
+    }
+    const scanResult = buildScanImportResult(songs, result.songs, result.errors);
+    if (scanResult.kind === 'empty') {
+      showAlert(scanResult.alert);
+      return;
+    }
+    if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
+    applyImportedSongsUpdate(scanResult.update);
+  }, [applyImportedSongsUpdate, scanFolders, showAlert, songs]);
+
+  const importFromMediaLibrary = useCallback(async (): Promise<void> => {
+    const importCopy = getLibraryImportFlowCopy();
+    setImportStatus(importCopy.scanningMediaLibraryStatus);
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    const permissionResult = buildMediaLibraryPermissionResult(status);
+    if (permissionResult.kind === 'denied') {
+      showAlert(permissionResult.alert);
+      return;
+    }
+    const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
+    const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
+    setImportStatus(candidateProgress.candidatesFoundStatus);
+    const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
+    if (candidateResult.kind === 'empty') {
+      showAlert(candidateResult.alert);
+      return;
+    }
+    const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
+    if (!shouldImport) return;
+    setImportStatus(importCopy.importingMetadataAndCoversStatus);
+    const mediaResult = await withTimeout(
+      enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length),
+      IMPORT_TIMEOUT_MS,
+      importCopy.metadataImportTimeoutMessage,
+    );
+    const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
+    setImportStatus(savingProgress.savingStatus);
+    const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
+    applyImportedSongsUpdate(importResult.update);
+  }, [applyImportedSongsUpdate, showAlert, songs]);
+
   const importFromDevice = async (): Promise<void> => {
     setMenuOpen(false);
     const importCopy = getLibraryImportFlowCopy();
@@ -194,49 +249,11 @@ const Library: React.FC = () => {
       setLoading(true);
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (shouldImportFromScanFolders(activeFolders, Platform.OS)) {
-        const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
-        setImportStatus(scanProgress.readingStatus);
-        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, scanProgress.timeoutMessage);
-        const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
-        setImportStatus(resultProgress.foundStatus);
-        const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
-        if (changedFolderUpdates.length > 0) {
-          for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
-          setScanFolders(await getScanFolders());
-        }
-        const scanResult = buildScanImportResult(songs, result.songs, result.errors);
-        if (scanResult.kind === 'empty') {
-          showAlert(scanResult.alert);
-          return;
-        }
-        if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-        applyImportedSongsUpdate(scanResult.update);
+        await importFromScanFolders(activeFolders);
         return;
       }
 
-      setImportStatus(importCopy.scanningMediaLibraryStatus);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      const permissionResult = buildMediaLibraryPermissionResult(status);
-      if (permissionResult.kind === 'denied') {
-        showAlert(permissionResult.alert);
-        return;
-      }
-      const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
-      const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
-      setImportStatus(candidateProgress.candidatesFoundStatus);
-      const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
-      if (candidateResult.kind === 'empty') {
-        showAlert(candidateResult.alert);
-        return;
-      }
-      const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
-      if (!shouldImport) return;
-      setImportStatus(importCopy.importingMetadataAndCoversStatus);
-      const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, importCopy.metadataImportTimeoutMessage);
-      const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
-      setImportStatus(savingProgress.savingStatus);
-      const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
-      applyImportedSongsUpdate(importResult.update);
+      await importFromMediaLibrary();
     } catch (error) {
       const stoppedAlert = getImportStoppedAlert(error);
       showAlert(stoppedAlert);
