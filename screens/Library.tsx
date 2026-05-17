@@ -69,15 +69,14 @@ import {
   buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
   buildMetadataRefreshAvailabilityResult,
+  buildMetadataRefreshResult,
   buildScanImportResult,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
   getMediaLibraryImportProgressCopy,
-  getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
   getScanImportProgressCopy,
-  shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 
@@ -242,9 +241,9 @@ const Library: React.FC = () => {
     try {
       setLoading(true);
       const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
-      if (shouldApplyMetadataRefresh(result.updated)) setSongs(result.songs);
-      const completeAlert = getMetadataRefreshCompleteAlert(result.updated, result.skipped, result.failed);
-      Alert.alert(completeAlert.title, completeAlert.message);
+      const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
+      if (refreshResult.shouldApplyUpdate) setSongs(refreshResult.songs);
+      Alert.alert(refreshResult.alert.title, refreshResult.alert.message);
     } catch (error) {
       const stoppedAlert = getMetadataUpdateStoppedAlert(error);
       Alert.alert(stoppedAlert.title, stoppedAlert.message);
