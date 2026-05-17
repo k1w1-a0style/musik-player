@@ -32,7 +32,7 @@ import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
-import { addScanFolder, getFavoriteSongIds, getScanFolders, removeScanFolder } from '../utils/storage';
+import { getFavoriteSongIds, getScanFolders, removeScanFolder } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
@@ -47,7 +47,6 @@ import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from 
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import {
   buildDirectoryPermissionSelectionResult,
-  buildScanFolderAddResult,
   buildScanFolderFromDirectoryUri,
   buildScanFolderPickerAvailabilityResult,
   buildScanFolderStateUpdate,
@@ -55,6 +54,7 @@ import {
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
+import { persistAddedScanFolder } from '../utils/libraryScanFolderAddPersistence';
 import { persistChangedFolderErrorUpdates } from '../utils/libraryFolderUpdatePersistence';
 import { withTimeout } from '../utils/withTimeout';
 import {
@@ -180,8 +180,7 @@ const Library: React.FC = () => {
         return;
       }
       const folder = buildScanFolderFromDirectoryUri(permissionResult.directoryUri);
-      const next = await addScanFolder(folder);
-      const addResult = buildScanFolderAddResult(scanFolders, next);
+      const addResult = await persistAddedScanFolder(scanFolders, folder);
       if (addResult.kind === 'duplicate') {
         const duplicateAlert = getDuplicateScanFolderAlert();
         showAlert(duplicateAlert);
