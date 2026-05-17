@@ -1,5 +1,6 @@
 import {
   buildImportedSongsUpdate,
+  buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getImportStoppedAlert,
@@ -184,6 +185,32 @@ test('buildImportedSongsUpdate merges songs, sorts by title and selects tracks t
     song('same', 'New title'),
     song('old'),
   ]);
+});
+
+test('buildScanImportResult returns empty alert when no songs were imported', () => {
+  expect(buildScanImportResult([song('old')], [], ['boom'])).toEqual({
+    kind: 'empty',
+    alert: getEmptyScanImportAlert(['boom']),
+  });
+});
+
+test('buildScanImportResult returns update and optional partial alert on success', () => {
+  const result = buildScanImportResult([song('old')], [song('new')], ['minor']);
+
+  expect(result).toEqual({
+    kind: 'success',
+    update: buildImportedSongsUpdate([song('old')], [song('new')]),
+    partialAlert: getPartialScanImportAlert(),
+  });
+});
+
+test('buildScanImportResult omits partial alert when success has no errors', () => {
+  const result = buildScanImportResult([song('old')], [song('new')], []);
+
+  expect(result).toEqual({
+    kind: 'success',
+    update: buildImportedSongsUpdate([song('old')], [song('new')]),
+  });
 });
 
 test('getEmptyScanImportAlert returns scan failed alert when errors exist', () => {
