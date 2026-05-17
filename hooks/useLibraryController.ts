@@ -1,3 +1,4 @@
+import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { useLibraryAlerts } from './useLibraryAlerts';
 import { useLibraryComponentProps } from './useLibraryComponentProps';
@@ -12,7 +13,7 @@ import { useLibraryScreenState } from './useLibraryScreenState';
 import { useLibraryStoredState } from './useLibraryStoredState';
 import { useLibraryViewState } from './useLibraryViewState';
 
-export const useLibraryController = () => {
+export const useLibraryController = (): LibraryScreenContentProps => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const {
     activeTab,
