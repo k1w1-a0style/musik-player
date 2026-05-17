@@ -130,7 +130,7 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     songsForActiveList,
   });
 
-  const { menuModalProps, tabContentProps } = useLibraryComponentProps({
+  const componentProps = useLibraryComponentProps({
     activeFolders,
     activeTab,
     albumGroups,
@@ -143,12 +143,15 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     handlePlayActiveList,
     handleShufflePress,
     importFromDevice,
+    importStatus,
     isReady,
     loading,
     menuOpen,
     onAddScanFolder,
+    openMenu,
     openSettings,
     playlistItems,
+    query,
     refreshMetadataFromFiles,
     renderAlbumTile,
     renderFolderItem,
@@ -156,31 +159,19 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     renderPlaylistItem,
     renderSongItem,
     scanFolders,
+    setActiveTab,
+    setQuery,
     showScanFolders,
     songKeyExtractor,
     songsCount: songs.length,
     songsForActiveList,
     toggleAlbumView,
+    toggleSearch,
   });
 
   return {
-    importStatusProps: { status: importStatus },
+    ...componentProps,
     loading,
-    menuModalProps,
-    searchBarProps: {
-      autoFocus: true,
-      onChangeText: setQuery,
-      value: query,
-    },
     searchOpen,
-    tabContentProps,
-    tabsProps: {
-      activeTab,
-      onChangeTab: setActiveTab,
-    },
-    topBarProps: {
-      onOpenMenu: openMenu,
-      onToggleSearch: toggleSearch,
-    },
   };
 };
