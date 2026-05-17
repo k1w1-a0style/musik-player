@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from '../utils/libraryTabs';
 import { loadFavoriteSongIds, loadLibraryStartupState } from '../utils/libraryStorageLoaders';
 
 interface UseLibraryStoredStateResult {
   scanFolders: ScanFolder[];
-  setScanFolders: React.Dispatch<React.SetStateAction<ScanFolder[]>>;
+  setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   favoriteIds: string[];
-  setFavoriteIds: React.Dispatch<React.SetStateAction<string[]>>;
+  setFavoriteIds: Dispatch<SetStateAction<string[]>>;
 }
 
 export const useLibraryStoredState = (activeTab: LibraryTab): UseLibraryStoredStateResult => {
