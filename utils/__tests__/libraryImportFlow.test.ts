@@ -5,6 +5,7 @@ import {
   getImportStoppedAlert,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
+  getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getPartialScanImportAlert,
@@ -76,6 +77,13 @@ test('getPartialScanImportAlert returns partial import alert', () => {
   expect(getPartialScanImportAlert()).toEqual({
     title: libraryImportMessages.partiallyImportedTitle,
     message: libraryImportMessages.partiallyImportedMessage,
+  });
+});
+
+test('getMetadataRefreshFlowCopy returns status and timeout copy', () => {
+  expect(getMetadataRefreshFlowCopy()).toEqual({
+    readingStatus: libraryImportMessages.readingId3Metadata,
+    timeoutMessage: libraryImportMessages.metadataRefreshTimeout,
   });
 });
 
