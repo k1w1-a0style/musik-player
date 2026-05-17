@@ -10,6 +10,7 @@ import {
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getPartialScanImportAlert,
+  getScanImportProgressCopy,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
@@ -17,7 +18,12 @@ import {
   shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../libraryImportFlow';
-import { libraryImportMessages, metadataRefreshSummary } from '../libraryImportMessages';
+import {
+  libraryImportMessages,
+  metadataRefreshSummary,
+  scanFoldersReadingStatus,
+  tracksFoundStatus,
+} from '../libraryImportMessages';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
 
@@ -78,6 +84,14 @@ test('getPartialScanImportAlert returns partial import alert', () => {
   expect(getPartialScanImportAlert()).toEqual({
     title: libraryImportMessages.partiallyImportedTitle,
     message: libraryImportMessages.partiallyImportedMessage,
+  });
+});
+
+test('getScanImportProgressCopy returns scan progress and timeout copy', () => {
+  expect(getScanImportProgressCopy(2, 5)).toEqual({
+    readingStatus: scanFoldersReadingStatus(2),
+    foundStatus: tracksFoundStatus(5),
+    timeoutMessage: libraryImportMessages.scanFoldersTimeout,
   });
 });
 
