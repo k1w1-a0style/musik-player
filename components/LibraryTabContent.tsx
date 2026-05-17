@@ -22,7 +22,7 @@ interface SongItemLayout {
   index: number;
 }
 
-interface LibraryTabContentProps {
+export interface LibraryTabContentProps {
   activeTab: LibraryTab;
   activeFolders: number;
   albumGroups: LibraryGroupItem[];
