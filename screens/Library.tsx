@@ -41,10 +41,12 @@ import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from 
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
-import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
-import { useLibraryScanFolderActions } from '../hooks/useLibraryScanFolderActions';
-import { useLibraryImportActions } from '../hooks/useLibraryImportActions';
-import { useLibraryMetadataRefreshActions } from '../hooks/useLibraryMetadataRefreshActions';
+import {
+  useLibraryImportActions,
+  useLibraryMetadataRefreshActions,
+  useLibraryScanFolderActions,
+  useLibraryStoredState,
+} from '../hooks/libraryHooks';
 
 declare const __DEV__: boolean;
 
