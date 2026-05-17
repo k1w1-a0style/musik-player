@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
@@ -10,7 +10,6 @@ import LibraryImportStatus from '../components/LibraryImportStatus';
 import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryTabContent from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
-import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryAlerts,
   useLibraryImportActions,
@@ -21,12 +20,9 @@ import {
   useLibraryRenderers,
   useLibraryScanFolderActions,
   useLibraryStoredState,
+  useLibraryViewState,
 } from '../hooks/libraryHooks';
 import { type LibraryTab } from '../utils/libraryTabs';
-
-declare const __DEV__: boolean;
-
-const NODE_ENV = process.env.NODE_ENV;
 
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
@@ -51,17 +47,15 @@ const Library: React.FC = () => {
     genreGroups,
     playlistItems,
     songsForActiveList,
-  } = useMemo(() => buildLibraryViewState({
+  } = useLibraryViewState({
     activeTab,
     favoriteIds,
-    isDev: __DEV__,
     isReady,
-    nodeEnv: NODE_ENV,
     playlists,
     query,
     scanFolders,
     songs,
-  }), [activeTab, favoriteIds, isReady, playlists, query, scanFolders, songs]);
+  });
 
   const {
     closeMenu,
