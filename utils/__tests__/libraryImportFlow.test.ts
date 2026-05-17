@@ -1,5 +1,6 @@
 import {
   buildImportedSongsUpdate,
+  buildMediaLibraryCandidatesResult,
   buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
@@ -82,6 +83,17 @@ test('getEmptyMediaLibraryImportAlert returns no matching music alert', () => {
     title: libraryImportMessages.noMusicFoundTitle,
     message: libraryImportMessages.noMatchingMusicMessage,
   });
+});
+
+test('buildMediaLibraryCandidatesResult returns empty alert without candidates', () => {
+  expect(buildMediaLibraryCandidatesResult(0)).toEqual({
+    kind: 'empty',
+    alert: getEmptyMediaLibraryImportAlert(),
+  });
+});
+
+test('buildMediaLibraryCandidatesResult returns available result with candidates', () => {
+  expect(buildMediaLibraryCandidatesResult(1)).toEqual({ kind: 'available' });
 });
 
 test('getPartialScanImportAlert returns partial import alert', () => {
