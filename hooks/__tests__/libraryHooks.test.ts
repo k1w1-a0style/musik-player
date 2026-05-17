@@ -1,6 +1,7 @@
 import {
   useLibraryAlerts,
   useLibraryComponentProps,
+  useLibraryController,
   useLibraryImportActions,
   useLibraryMenuActions,
   useLibraryMetadataRefreshActions,
@@ -14,6 +15,7 @@ import {
 } from '../libraryHooks';
 import { useLibraryAlerts as directUseLibraryAlerts } from '../useLibraryAlerts';
 import { useLibraryComponentProps as directUseLibraryComponentProps } from '../useLibraryComponentProps';
+import { useLibraryController as directUseLibraryController } from '../useLibraryController';
 import { useLibraryImportActions as directUseLibraryImportActions } from '../useLibraryImportActions';
 import { useLibraryMenuActions as directUseLibraryMenuActions } from '../useLibraryMenuActions';
 import { useLibraryMetadataRefreshActions as directUseLibraryMetadataRefreshActions } from '../useLibraryMetadataRefreshActions';
@@ -28,6 +30,7 @@ import { useLibraryViewState as directUseLibraryViewState } from '../useLibraryV
 test('exports library hooks', () => {
   expect(useLibraryAlerts).toBe(directUseLibraryAlerts);
   expect(useLibraryComponentProps).toBe(directUseLibraryComponentProps);
+  expect(useLibraryController).toBe(directUseLibraryController);
   expect(useLibraryImportActions).toBe(directUseLibraryImportActions);
   expect(useLibraryMenuActions).toBe(directUseLibraryMenuActions);
   expect(useLibraryMetadataRefreshActions).toBe(directUseLibraryMetadataRefreshActions);
