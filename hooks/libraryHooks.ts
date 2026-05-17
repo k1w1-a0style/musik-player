@@ -7,3 +7,4 @@ export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 export { useLibraryStoredState } from './useLibraryStoredState';
+export { useLibraryViewState } from './useLibraryViewState';
