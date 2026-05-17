@@ -46,6 +46,19 @@ interface MetadataRefreshFlowCopy {
   timeoutMessage: string;
 }
 
+interface EmptyScanImportResult {
+  kind: 'empty';
+  alert: LibraryAlertMessage;
+}
+
+interface SuccessfulScanImportResult {
+  kind: 'success';
+  update: ImportedSongsUpdate;
+  partialAlert?: LibraryAlertMessage;
+}
+
+type ScanImportResult = EmptyScanImportResult | SuccessfulScanImportResult;
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -131,6 +144,25 @@ export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: S
   songs: mergeSongs(existingSongs, importedSongs),
   activeTab: 'tracks',
 });
+
+export const buildScanImportResult = (
+  existingSongs: Song[],
+  importedSongs: Song[],
+  errors: readonly unknown[] | undefined,
+): ScanImportResult => {
+  if (importedSongs.length === 0) {
+    return {
+      kind: 'empty',
+      alert: getEmptyScanImportAlert(errors),
+    };
+  }
+
+  return {
+    kind: 'success',
+    update: buildImportedSongsUpdate(existingSongs, importedSongs),
+    ...(hasImportErrors(errors) ? { partialAlert: getPartialScanImportAlert() } : {}),
+  };
+};
 
 export const getEmptyScanImportAlert = (errors: readonly unknown[] | undefined): LibraryAlertMessage => {
   if (hasImportErrors(errors)) {
