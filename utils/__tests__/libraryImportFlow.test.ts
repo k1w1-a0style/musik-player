@@ -1,6 +1,7 @@
 import {
   buildImportedSongsUpdate,
   buildMediaLibraryCandidatesResult,
+  buildMediaLibraryPermissionResult,
   buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
@@ -70,6 +71,17 @@ test('getMediaLibraryPermissionDeniedAlert returns permission alert', () => {
   expect(getMediaLibraryPermissionDeniedAlert()).toEqual({
     title: libraryImportMessages.permissionRequiredTitle,
     message: libraryImportMessages.permissionRequiredMessage,
+  });
+});
+
+test('buildMediaLibraryPermissionResult returns granted result for granted status', () => {
+  expect(buildMediaLibraryPermissionResult('granted')).toEqual({ kind: 'granted' });
+});
+
+test('buildMediaLibraryPermissionResult returns denied alert for non-granted status', () => {
+  expect(buildMediaLibraryPermissionResult('denied')).toEqual({
+    kind: 'denied',
+    alert: getMediaLibraryPermissionDeniedAlert(),
   });
 });
 
