@@ -14,7 +14,7 @@ const SONG_ROW_HEIGHT = 62;
 
 type PlaySong = (song: Song, queue: Song[]) => unknown;
 type PlayPlaylist = (playlistId: string) => unknown;
-type RemoveFolder = (folder: ScanFolder) => unknown;
+type RemoveFolder = (folder: ScanFolder) => void | Promise<void>;
 type OpenTrackInfo = (song: Song) => void;
 
 interface UseLibraryRenderersOptions {
