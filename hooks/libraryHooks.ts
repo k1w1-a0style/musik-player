@@ -1,4 +1,5 @@
 export { useLibraryAlerts } from './useLibraryAlerts';
+export { useLibraryComponentProps } from './useLibraryComponentProps';
 export { useLibraryImportActions } from './useLibraryImportActions';
 export { useLibraryMenuActions } from './useLibraryMenuActions';
 export { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
