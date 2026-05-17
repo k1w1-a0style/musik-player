@@ -1,11 +1,34 @@
+import type { LibraryImportStatusProps } from '../components/LibraryImportStatus';
 import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
+import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
 import type { LibraryTabContentProps } from '../components/LibraryTabContent';
+import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryTabsProps } from '../components/LibraryTabs';
+import type { LibraryTopBarProps } from '../components/LibraryTopBar';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
 import type { LibraryGroupItem } from './libraryPresentation';
 import type { LibraryPlaylistItem } from './libraryPlaylists';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+
+interface LibraryTopBarPropsBuilderOptions {
+  openMenu: () => void;
+  toggleSearch: () => void;
+}
+
+interface LibraryTabsPropsBuilderOptions {
+  activeTab: LibraryTab;
+  setActiveTab: (tab: LibraryTab) => void;
+}
+
+interface LibrarySearchBarPropsBuilderOptions {
+  query: string;
+  setQuery: (query: string) => void;
+}
+
+interface LibraryImportStatusPropsBuilderOptions {
+  importStatus: string | null;
+}
 
 interface LibraryTabContentPropsBuilderOptions {
   activeTab: LibraryTab;
@@ -43,6 +66,26 @@ interface LibraryMenuModalPropsBuilderOptions {
   showScanFolders: () => void;
   songsCount: number;
 }
+
+export const buildLibraryTopBarProps = ({ openMenu, toggleSearch }: LibraryTopBarPropsBuilderOptions): LibraryTopBarProps => ({
+  onOpenMenu: openMenu,
+  onToggleSearch: toggleSearch,
+});
+
+export const buildLibraryTabsProps = ({ activeTab, setActiveTab }: LibraryTabsPropsBuilderOptions): LibraryTabsProps => ({
+  activeTab,
+  onChangeTab: setActiveTab,
+});
+
+export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBarPropsBuilderOptions): LibrarySearchBarProps => ({
+  autoFocus: true,
+  onChangeText: setQuery,
+  value: query,
+});
+
+export const buildLibraryImportStatusProps = ({ importStatus }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
+  status: importStatus,
+});
 
 export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuilderOptions): LibraryTabContentProps => ({
   activeTab: options.activeTab,
