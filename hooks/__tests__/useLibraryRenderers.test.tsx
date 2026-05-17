@@ -1,17 +1,45 @@
 import React from 'react';
-import { Button, Text } from 'react-native';
+import { Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryRenderers } from '../useLibraryRenderers';
 import type { Song } from '../../types/Song';
 
-jest.mock('../../components/SongCard', () => ({ song, onPressSong }: { song: Song; onPressSong: (song: Song) => void }) => (
-  <Button title={song.title} onPress={() => onPressSong(song)} />
-));
+jest.mock('../../components/SongCard', () => {
+  const React = require('react');
+  const { Button } = require('react-native');
 
-jest.mock('../../components/LibraryGroupRow', () => () => <Text>Group</Text>);
-jest.mock('../../components/LibraryAlbumTile', () => () => <Text>Album</Text>);
-jest.mock('../../components/LibraryPlaylistRow', () => () => <Text>Playlist</Text>);
-jest.mock('../../components/LibraryFolderRow', () => () => <Text>Folder</Text>);
+  return ({ song, onPressSong }: { song: Song; onPressSong: (song: Song) => void }) => (
+    <Button title={song.title} onPress={() => onPressSong(song)} />
+  );
+});
+
+jest.mock('../../components/LibraryGroupRow', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return () => <Text>Group</Text>;
+});
+
+jest.mock('../../components/LibraryAlbumTile', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return () => <Text>Album</Text>;
+});
+
+jest.mock('../../components/LibraryPlaylistRow', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return () => <Text>Playlist</Text>;
+});
+
+jest.mock('../../components/LibraryFolderRow', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return () => <Text>Folder</Text>;
+});
 
 const song = (id: string): Song => ({
   id,
