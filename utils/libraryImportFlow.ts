@@ -88,6 +88,17 @@ interface SuccessfulMediaLibraryImportResult {
 
 type MediaLibraryImportResult = SuccessfulMediaLibraryImportResult;
 
+interface EmptyMetadataRefreshAvailabilityResult {
+  kind: 'empty';
+  alert: LibraryAlertMessage;
+}
+
+interface ReadyMetadataRefreshAvailabilityResult {
+  kind: 'ready';
+}
+
+type MetadataRefreshAvailabilityResult = EmptyMetadataRefreshAvailabilityResult | ReadyMetadataRefreshAvailabilityResult;
+
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
@@ -167,6 +178,17 @@ export const getMetadataRefreshFlowCopy = (): MetadataRefreshFlowCopy => ({
 
 export const hasSongsForMetadataRefresh = (count: number): boolean =>
   count > 0;
+
+export const buildMetadataRefreshAvailabilityResult = (songCount: number): MetadataRefreshAvailabilityResult => {
+  if (!hasSongsForMetadataRefresh(songCount)) {
+    return {
+      kind: 'empty',
+      alert: getNoSongsMetadataAlert(),
+    };
+  }
+
+  return { kind: 'ready' };
+};
 
 export const shouldApplyMetadataRefresh = (updated: number): boolean =>
   updated > 0;
