@@ -1,8 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Text,
   StyleSheet,
-  FlatList,
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,13 +17,10 @@ import LibrarySearchBar from '../components/LibrarySearchBar';
 import LibraryTopBar from '../components/LibraryTopBar';
 import LibraryTabs from '../components/LibraryTabs';
 import LibraryImportStatus from '../components/LibraryImportStatus';
-import LibrarySectionHeader from '../components/LibrarySectionHeader';
 import LibraryMenuModal from '../components/LibraryMenuModal';
-import LibraryPlaybackActions from '../components/LibraryPlaybackActions';
-import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
-import LibraryListShell from '../components/LibraryListShell';
+import LibraryTabContent from '../components/LibraryTabContent';
+import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
-import { theme } from '../theme';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { APP_STACK_ROUTES } from '../types/routes';
@@ -51,7 +46,6 @@ import {
 declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 62;
-const GROUP_ROW_HEIGHT = 66;
 const NODE_ENV = process.env.NODE_ENV;
 
 type GroupItem = LibraryGroupItem;
@@ -164,6 +158,12 @@ const Library: React.FC = () => {
     const shuffled = shuffleItems(songsForActiveList);
     void playSong(shuffled[0], shuffled);
   }, [playSong, songsForActiveList]);
+  const handlePlayActiveList = useCallback(() => {
+    if (songsForActiveList[0]) handleSongPress(songsForActiveList[0], songsForActiveList);
+  }, [handleSongPress, songsForActiveList]);
+  const toggleAlbumView = useCallback(() => {
+    setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid');
+  }, []);
 
   return (
     <AppBackground>
@@ -175,44 +175,28 @@ const Library: React.FC = () => {
         {searchOpen && <LibrarySearchBar value={query} onChangeText={setQuery} autoFocus />}
         {loading && <LibraryImportStatus status={importStatus} />}
 
-        {activeTab === 'folders' ? (
-          <LibraryListShell testID="library-folders-shell">
-            <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
-            <FlatList data={scanFolders} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderFolderItem} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </LibraryListShell>
-        ) : activeTab === 'albums' ? (
-          <LibraryListShell testID="library-albums-shell">
-            <LibrarySectionHeader title="Alben">
-              <Text style={styles.folderCount}>{albumGroups.length}</Text>
-              <LibraryAlbumViewToggle mode={albumViewMode} onToggle={() => setAlbumViewMode(mode => mode === 'grid' ? 'list' : 'grid')} />
-            </LibrarySectionHeader>
-            {albumViewMode === 'grid' ? <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.albumGridContent} renderItem={renderAlbumTile} numColumns={2} columnWrapperStyle={styles.albumColumn} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} /> : <FlatList data={albumGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />}
-          </LibraryListShell>
-        ) : activeTab === 'artists' || activeTab === 'genres' ? (
-          <LibraryListShell testID={`library-${activeTab}-shell`}>
-            <LibrarySectionHeader title={activeTab === 'artists' ? 'Interpreten' : 'Genres'} count={activeTab === 'artists' ? artistGroups.length : genreGroups.length} />
-            <FlatList data={activeTab === 'artists' ? artistGroups : genreGroups} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderGroupItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </LibraryListShell>
-        ) : activeTab === 'playlists' ? (
-          <LibraryListShell testID="library-playlists-shell">
-            <LibrarySectionHeader title="Playlisten" count={playlistItems.length} />
-            <FlatList data={playlistItems} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={renderPlaylistItem} getItemLayout={(_, index) => ({ length: GROUP_ROW_HEIGHT, offset: GROUP_ROW_HEIGHT * index, index })} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </LibraryListShell>
-        ) : (
-          <LibraryListShell testID={`library-${activeTab}-shell`}>
-            <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
-              <LibraryPlaybackActions
-                disabled={songsForActiveList.length === 0}
-                showFavoriteIcon={activeTab === 'favorites'}
-                onShuffle={handleShufflePress}
-                onPlay={() => {
-                  if (songsForActiveList[0]) handleSongPress(songsForActiveList[0], songsForActiveList);
-                }}
-              />
-            </LibrarySectionHeader>
-            <FlatList data={songsForActiveList} keyExtractor={keyExtractor} contentContainerStyle={styles.listContent} renderItem={renderItem} removeClippedSubviews windowSize={7} initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={80} getItemLayout={getItemLayout} ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>} />
-          </LibraryListShell>
-        )}
+        <LibraryTabContent
+          activeTab={activeTab}
+          activeFolders={activeFolders}
+          albumGroups={albumGroups}
+          albumViewMode={albumViewMode}
+          artistGroups={artistGroups}
+          emptyMessage={emptyMessage}
+          genreGroups={genreGroups}
+          getSongItemLayout={getItemLayout}
+          onPlayActiveList={handlePlayActiveList}
+          onShuffle={handleShufflePress}
+          onToggleAlbumView={toggleAlbumView}
+          playlistItems={playlistItems}
+          renderAlbumTile={renderAlbumTile}
+          renderFolderItem={renderFolderItem}
+          renderGroupItem={renderGroupItem}
+          renderPlaylistItem={renderPlaylistItem}
+          renderSongItem={renderItem}
+          scanFolders={scanFolders}
+          songKeyExtractor={keyExtractor}
+          songsForActiveList={songsForActiveList}
+        />
 
         <LibraryMenuModal
           visible={menuOpen}
@@ -234,11 +218,6 @@ const Library: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 0, paddingTop: 8 },
-  folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
-  listContent: { paddingBottom: 96 },
-  albumGridContent: { paddingBottom: 104 },
-  albumColumn: { gap: 12 },
-  empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
 });
 
 export default Library;
