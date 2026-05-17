@@ -49,8 +49,8 @@ import {
   buildDirectoryPermissionSelectionResult,
   buildScanFolderAddResult,
   buildScanFolderFromDirectoryUri,
+  buildScanFolderPickerAvailabilityResult,
   buildScanFolderStateUpdate,
-  canUseScanFolderPicker,
   getEnabledScanFolders,
 } from '../utils/libraryScanFolders';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
@@ -91,6 +91,7 @@ type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
 type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
+type ScanFolderStateUpdate = ReturnType<typeof buildScanFolderStateUpdate>;
 
 interface LibraryAlertCopy {
   title: string;
@@ -145,12 +146,16 @@ const Library: React.FC = () => {
     setActiveTab(update.activeTab);
   }, [setSongs]);
 
-  const showScanFolders = useCallback(() => {
-    const update = buildScanFolderStateUpdate(scanFolders);
+  const applyScanFolderStateUpdate = useCallback((update: ScanFolderStateUpdate) => {
     setScanFolders(update.scanFolders);
     setActiveTab(update.activeTab);
+  }, []);
+
+  const showScanFolders = useCallback(() => {
+    const update = buildScanFolderStateUpdate(scanFolders);
+    applyScanFolderStateUpdate(update);
     setMenuOpen(false);
-  }, [scanFolders]);
+  }, [applyScanFolderStateUpdate, scanFolders]);
 
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
@@ -160,7 +165,8 @@ const Library: React.FC = () => {
 
   const onAddScanFolder = async (): Promise<void> => {
     setMenuOpen(false);
-    if (!canUseScanFolderPicker(Platform.OS)) {
+    const pickerResult = buildScanFolderPickerAvailabilityResult(Platform.OS);
+    if (pickerResult.kind === 'unsupported') {
       const unsupportedAlert = getScanFolderUnsupportedAlert();
       showAlert(unsupportedAlert);
       return;
@@ -181,8 +187,7 @@ const Library: React.FC = () => {
         showAlert(duplicateAlert);
         return;
       }
-      setScanFolders(addResult.update.scanFolders);
-      setActiveTab(addResult.update.activeTab);
+      applyScanFolderStateUpdate(addResult.update);
     } catch {
       const unavailableAlert = getScanFolderUnavailableAlert();
       showAlert(unavailableAlert);
