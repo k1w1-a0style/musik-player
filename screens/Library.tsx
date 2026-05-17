@@ -95,6 +95,11 @@ interface LibraryAlertCopy {
   message: string;
 }
 
+interface ImportedSongsStateUpdate {
+  songs: Song[];
+  activeTab: LibraryTab;
+}
+
 const Library: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
@@ -132,6 +137,11 @@ const Library: React.FC = () => {
   const showAlert = useCallback((alert: LibraryAlertCopy) => {
     Alert.alert(alert.title, alert.message);
   }, []);
+
+  const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate) => {
+    setSongs(update.songs);
+    setActiveTab(update.activeTab);
+  }, [setSongs]);
 
   const showScanFolders = useCallback(() => {
     const update = buildScanFolderStateUpdate(scanFolders);
@@ -200,8 +210,7 @@ const Library: React.FC = () => {
           return;
         }
         if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-        setSongs(scanResult.update.songs);
-        setActiveTab(scanResult.update.activeTab);
+        applyImportedSongsUpdate(scanResult.update);
         return;
       }
 
@@ -227,8 +236,7 @@ const Library: React.FC = () => {
       const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
       setImportStatus(savingProgress.savingStatus);
       const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
-      setSongs(importResult.update.songs);
-      setActiveTab(importResult.update.activeTab);
+      applyImportedSongsUpdate(importResult.update);
     } catch (error) {
       const stoppedAlert = getImportStoppedAlert(error);
       showAlert(stoppedAlert);
