@@ -14,6 +14,15 @@ interface ImportedSongsUpdate {
   activeTab: LibraryTab;
 }
 
+interface LibraryImportFlowCopy {
+  preparingStatus: string;
+  scanFoldersTimeoutMessage: string;
+  scanningMediaLibraryStatus: string;
+  mediaLibraryScanTimeoutMessage: string;
+  importingMetadataAndCoversStatus: string;
+  metadataImportTimeoutMessage: string;
+}
+
 interface MetadataRefreshFlowCopy {
   readingStatus: string;
   timeoutMessage: string;
@@ -47,6 +56,15 @@ export const getEmptyMediaLibraryImportAlert = (): LibraryAlertMessage => ({
 export const getPartialScanImportAlert = (): LibraryAlertMessage => ({
   title: libraryImportMessages.partiallyImportedTitle,
   message: libraryImportMessages.partiallyImportedMessage,
+});
+
+export const getLibraryImportFlowCopy = (): LibraryImportFlowCopy => ({
+  preparingStatus: libraryImportMessages.preparingImport,
+  scanFoldersTimeoutMessage: libraryImportMessages.scanFoldersTimeout,
+  scanningMediaLibraryStatus: libraryImportMessages.scanningMediaLibrary,
+  mediaLibraryScanTimeoutMessage: libraryImportMessages.mediaLibraryScanTimeout,
+  importingMetadataAndCoversStatus: libraryImportMessages.importingMetadataAndCovers,
+  metadataImportTimeoutMessage: libraryImportMessages.metadataImportTimeout,
 });
 
 export const getMetadataRefreshFlowCopy = (): MetadataRefreshFlowCopy => ({
