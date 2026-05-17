@@ -29,7 +29,6 @@ import { theme } from '../theme';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { APP_STACK_ROUTES } from '../types/routes';
-import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
   displayAlbum,
   displayArtist,
@@ -41,28 +40,20 @@ import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
-import { withTimeout } from '../utils/withTimeout';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
-import {
-  buildMetadataRefreshAvailabilityResult,
-  buildMetadataRefreshResult,
-  getMetadataRefreshFlowCopy,
-  getMetadataUpdateStoppedAlert,
-} from '../utils/libraryImportFlow';
 import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
 import { useLibraryScanFolderActions } from '../hooks/useLibraryScanFolderActions';
 import { useLibraryImportActions } from '../hooks/useLibraryImportActions';
+import { useLibraryMetadataRefreshActions } from '../hooks/useLibraryMetadataRefreshActions';
 
 declare const __DEV__: boolean;
 
 const SONG_ROW_HEIGHT = 62;
 const GROUP_ROW_HEIGHT = 66;
-const IMPORT_TIMEOUT_MS = 90_000;
 const NODE_ENV = process.env.NODE_ENV;
 
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
-type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
 
 interface LibraryAlertCopy {
   title: string;
@@ -122,39 +113,20 @@ const Library: React.FC = () => {
     persistChangedFolderUpdates,
   });
 
+  const { refreshMetadataFromFiles } = useLibraryMetadataRefreshActions({
+    songs,
+    setSongs,
+    setMenuOpen,
+    setLoading,
+    setImportStatus,
+    showAlert,
+  });
+
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
     showAlert(settingsAlert);
   }, [showAlert]);
-
-  const runMetadataRefresh = useCallback(async (refreshCopy: MetadataRefreshFlowCopy): Promise<void> => {
-    setImportStatus(refreshCopy.readingStatus);
-    const result = await withTimeout(refreshSongsFromId3(songs), IMPORT_TIMEOUT_MS, refreshCopy.timeoutMessage);
-    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
-    if (refreshResult.shouldApplyUpdate) setSongs(refreshResult.songs);
-    showAlert(refreshResult.alert);
-  }, [setSongs, showAlert, songs]);
-
-  const refreshMetadataFromFiles = async (): Promise<void> => {
-    setMenuOpen(false);
-    const availabilityResult = buildMetadataRefreshAvailabilityResult(songs.length);
-    if (availabilityResult.kind === 'empty') {
-      showAlert(availabilityResult.alert);
-      return;
-    }
-    const refreshCopy = getMetadataRefreshFlowCopy();
-    try {
-      setLoading(true);
-      await runMetadataRefresh(refreshCopy);
-    } catch (error) {
-      const stoppedAlert = getMetadataUpdateStoppedAlert(error);
-      showAlert(stoppedAlert);
-    } finally {
-      setLoading(false);
-      setImportStatus(null);
-    }
-  };
 
   const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => void playSong(song, queue), [filteredSongs, playSong]);
   const handleInfoSong = useCallback((song: Song) => navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id }), [navigation]);
