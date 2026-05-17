@@ -4,6 +4,7 @@ import {
   getEmptyScanImportAlert,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
+  getMediaLibraryImportProgressCopy,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
@@ -20,9 +21,11 @@ import {
 } from '../libraryImportFlow';
 import {
   libraryImportMessages,
+  mediaCandidatesFoundStatus,
   metadataRefreshSummary,
   scanFoldersReadingStatus,
   tracksFoundStatus,
+  tracksSavingStatus,
 } from '../libraryImportMessages';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
@@ -92,6 +95,13 @@ test('getScanImportProgressCopy returns scan progress and timeout copy', () => {
     readingStatus: scanFoldersReadingStatus(2),
     foundStatus: tracksFoundStatus(5),
     timeoutMessage: libraryImportMessages.scanFoldersTimeout,
+  });
+});
+
+test('getMediaLibraryImportProgressCopy returns media library progress copy', () => {
+  expect(getMediaLibraryImportProgressCopy(7, 3)).toEqual({
+    candidatesFoundStatus: mediaCandidatesFoundStatus(7),
+    savingStatus: tracksSavingStatus(3),
   });
 });
 
