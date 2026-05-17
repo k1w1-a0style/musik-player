@@ -219,9 +219,9 @@ const Library: React.FC = () => {
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, importCopy.metadataImportTimeoutMessage);
       const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
       setImportStatus(savingProgress.savingStatus);
-      const update = buildMediaLibraryImportResult(songs, mediaResult.songs);
-      setSongs(update.songs);
-      setActiveTab(update.activeTab);
+      const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
+      setSongs(importResult.update.songs);
+      setActiveTab(importResult.update.activeTab);
     } catch (error) {
       const stoppedAlert = getImportStoppedAlert(error);
       Alert.alert(stoppedAlert.title, stoppedAlert.message);
