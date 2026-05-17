@@ -16,12 +16,15 @@ const baseOptions = {
   handlePlayActiveList: fn,
   handleShufflePress: fn,
   importFromDevice: fn,
+  importStatus: 'Import läuft',
   isReady: true,
   loading: false,
   menuOpen: true,
   onAddScanFolder: fn,
+  openMenu: fn,
   openSettings: fn,
   playlistItems: [],
+  query: 'abc',
   refreshMetadataFromFiles: fn,
   renderAlbumTile: fn,
   renderFolderItem: fn,
@@ -29,16 +32,33 @@ const baseOptions = {
   renderPlaylistItem: fn,
   renderSongItem: fn,
   scanFolders: [],
+  setActiveTab: fn,
+  setQuery: fn,
   showScanFolders: fn,
   songKeyExtractor: (item: { id: string }) => item.id,
   songsCount: 2,
   songsForActiveList: [],
   toggleAlbumView: fn,
+  toggleSearch: fn,
 };
 
-test('returns tab content and menu modal props', () => {
+test('returns library component props', () => {
   const { result } = renderHook(() => useLibraryComponentProps(baseOptions));
 
+  expect(result.current.topBarProps).toEqual({
+    onOpenMenu: fn,
+    onToggleSearch: fn,
+  });
+  expect(result.current.tabsProps).toEqual({
+    activeTab: 'tracks',
+    onChangeTab: fn,
+  });
+  expect(result.current.searchBarProps).toEqual({
+    autoFocus: true,
+    onChangeText: fn,
+    value: 'abc',
+  });
+  expect(result.current.importStatusProps).toEqual({ status: 'Import läuft' });
   expect(result.current.tabContentProps.activeTab).toBe('tracks');
   expect(result.current.tabContentProps.activeFolders).toBe(1);
   expect(result.current.tabContentProps.emptyMessage).toBe('Leer');
