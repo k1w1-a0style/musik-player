@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryMetadataRefreshActions } from '../useLibraryMetadataRefreshActions';
 import type { Song } from '../../types/Song';
 import { getNoSongsMetadataAlert, getMetadataRefreshCompleteAlert } from '../../utils/libraryImportFlow';
@@ -53,11 +53,9 @@ test('shows empty alert when there are no songs', async () => {
   const refreshSongsFromId3Impl = jest.fn();
   const screen = render(<HookHarness songs={[]} showAlert={showAlert} refreshSongsFromId3Impl={refreshSongsFromId3Impl} />);
 
-  await act(async () => {
-    await screen.getByText('refresh').props.onPress();
-  });
+  fireEvent.press(screen.getByText('refresh'));
 
-  expect(showAlert).toHaveBeenCalledWith(getNoSongsMetadataAlert());
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getNoSongsMetadataAlert()));
   expect(refreshSongsFromId3Impl).not.toHaveBeenCalled();
 });
 
@@ -69,11 +67,9 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
     <HookHarness songs={[song('old')]} setSongs={setSongs} showAlert={showAlert} refreshSongsFromId3Impl={refreshSongsFromId3Impl} />,
   );
 
-  await act(async () => {
-    await screen.getByText('refresh').props.onPress();
-  });
+  fireEvent.press(screen.getByText('refresh'));
 
-  expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')]);
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')]));
   expect(setSongs).toHaveBeenCalledWith([song('updated')]);
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 2, 3));
 });
