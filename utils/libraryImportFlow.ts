@@ -189,6 +189,9 @@ export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: S
   activeTab: 'tracks',
 });
 
+export const buildMediaLibraryImportResult = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate =>
+  buildImportedSongsUpdate(existingSongs, importedSongs);
+
 export const buildScanImportResult = (
   existingSongs: Song[],
   importedSongs: Song[],
