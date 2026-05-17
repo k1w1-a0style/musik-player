@@ -1,45 +1,20 @@
-import React from 'react';
-import { Text } from 'react-native';
+import mockReact from 'react';
+import { Button as mockButton, Text, Text as mockText } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryRenderers } from '../useLibraryRenderers';
 import type { Song } from '../../types/Song';
 
-jest.mock('../../components/SongCard', () => {
-  const React = require('react');
-  const { Button } = require('react-native');
+jest.mock('../../components/SongCard', () => ({ song, onPressSong }: { song: Song; onPressSong: (song: Song) => void }) =>
+  mockReact.createElement(mockButton, { title: song.title, onPress: () => onPressSong(song) }),
+);
 
-  return ({ song, onPressSong }: { song: Song; onPressSong: (song: Song) => void }) => (
-    <Button title={song.title} onPress={() => onPressSong(song)} />
-  );
-});
+jest.mock('../../components/LibraryGroupRow', () => () => mockReact.createElement(mockText, null, 'Group'));
 
-jest.mock('../../components/LibraryGroupRow', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
+jest.mock('../../components/LibraryAlbumTile', () => () => mockReact.createElement(mockText, null, 'Album'));
 
-  return () => <Text>Group</Text>;
-});
+jest.mock('../../components/LibraryPlaylistRow', () => () => mockReact.createElement(mockText, null, 'Playlist'));
 
-jest.mock('../../components/LibraryAlbumTile', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-
-  return () => <Text>Album</Text>;
-});
-
-jest.mock('../../components/LibraryPlaylistRow', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-
-  return () => <Text>Playlist</Text>;
-});
-
-jest.mock('../../components/LibraryFolderRow', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-
-  return () => <Text>Folder</Text>;
-});
+jest.mock('../../components/LibraryFolderRow', () => () => mockReact.createElement(mockText, null, 'Folder'));
 
 const song = (id: string): Song => ({
   id,
