@@ -13,7 +13,7 @@ jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, n
 const fn = jest.fn();
 
 const baseProps = {
-  importStatus: 'Import läuft',
+  importStatusProps: { status: 'Import läuft' },
   loading: true,
   menuModalProps: {
     visible: false,
@@ -28,9 +28,12 @@ const baseProps = {
     onShowFolders: fn,
     onOpenSettings: fn,
   },
-  query: 'abc',
+  searchBarProps: {
+    autoFocus: true,
+    onChangeText: fn,
+    value: 'abc',
+  },
   searchOpen: true,
-  setQuery: fn,
   tabContentProps: {
     activeTab: 'tracks' as const,
     activeFolders: 0,
