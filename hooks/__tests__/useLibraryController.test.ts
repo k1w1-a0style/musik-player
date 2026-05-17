@@ -20,8 +20,22 @@ jest.mock('../useLibraryAlerts', () => ({
 
 jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => ({
+    importStatusProps: { status: null },
     menuModalProps: { visible: false },
+    searchBarProps: {
+      autoFocus: true,
+      onChangeText: jest.fn(),
+      value: '',
+    },
     tabContentProps: { activeTab: 'tracks' },
+    tabsProps: {
+      activeTab: 'tracks',
+      onChangeTab: jest.fn(),
+    },
+    topBarProps: {
+      onOpenMenu: jest.fn(),
+      onToggleSearch: jest.fn(),
+    },
   })),
 }));
 
