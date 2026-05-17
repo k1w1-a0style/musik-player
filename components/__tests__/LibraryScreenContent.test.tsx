@@ -1,14 +1,14 @@
-import React from 'react';
-import { Text } from 'react-native';
+import mockReact from 'react';
+import { Text as mockText } from 'react-native';
 import { render } from '@testing-library/react-native';
 import LibraryScreenContent from '../LibraryScreenContent';
 
-jest.mock('../LibraryTopBar', () => () => <Text>Top Bar</Text>);
-jest.mock('../LibraryTabs', () => () => <Text>Tabs</Text>);
-jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => <Text>Search: {value}</Text>);
-jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => <Text>Status: {status}</Text>);
-jest.mock('../LibraryTabContent', () => () => <Text>Tab Content</Text>);
-jest.mock('../LibraryMenuModal', () => () => <Text>Menu Modal</Text>);
+jest.mock('../LibraryTopBar', () => () => mockReact.createElement(mockText, null, 'Top Bar'));
+jest.mock('../LibraryTabs', () => () => mockReact.createElement(mockText, null, 'Tabs'));
+jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => mockReact.createElement(mockText, null, `Search: ${value}`));
+jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => mockReact.createElement(mockText, null, `Status: ${status}`));
+jest.mock('../LibraryTabContent', () => () => mockReact.createElement(mockText, null, 'Tab Content'));
+jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, null, 'Menu Modal'));
 
 const fn = jest.fn();
 
