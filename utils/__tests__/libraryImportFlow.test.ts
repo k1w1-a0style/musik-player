@@ -3,6 +3,7 @@ import {
   getEmptyMediaLibraryImportAlert,
   getEmptyScanImportAlert,
   getImportStoppedAlert,
+  getLibraryImportFlowCopy,
   getMediaLibraryPermissionDeniedAlert,
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
@@ -77,6 +78,17 @@ test('getPartialScanImportAlert returns partial import alert', () => {
   expect(getPartialScanImportAlert()).toEqual({
     title: libraryImportMessages.partiallyImportedTitle,
     message: libraryImportMessages.partiallyImportedMessage,
+  });
+});
+
+test('getLibraryImportFlowCopy returns import status and timeout copy', () => {
+  expect(getLibraryImportFlowCopy()).toEqual({
+    preparingStatus: libraryImportMessages.preparingImport,
+    scanFoldersTimeoutMessage: libraryImportMessages.scanFoldersTimeout,
+    scanningMediaLibraryStatus: libraryImportMessages.scanningMediaLibrary,
+    mediaLibraryScanTimeoutMessage: libraryImportMessages.mediaLibraryScanTimeout,
+    importingMetadataAndCoversStatus: libraryImportMessages.importingMetadataAndCovers,
+    metadataImportTimeoutMessage: libraryImportMessages.metadataImportTimeout,
   });
 });
 
