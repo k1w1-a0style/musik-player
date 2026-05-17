@@ -12,6 +12,11 @@ interface DirectoryPermissionResultLike {
   directoryUri?: string | null;
 }
 
+interface GrantedDirectoryPermissionResult {
+  granted: true;
+  directoryUri: string;
+}
+
 interface ScanFolderStateUpdate {
   scanFolders: ScanFolder[];
   activeTab: LibraryTab;
@@ -26,7 +31,7 @@ export const getEnabledScanFolders = (folders: ScanFolder[]): ScanFolder[] =>
 export const canUseScanFolderPicker = (platformOs: string): boolean =>
   platformOs === 'android';
 
-export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionResultLike): boolean =>
+export const hasGrantedDirectoryPermission = (permission: DirectoryPermissionResultLike): permission is GrantedDirectoryPermissionResult =>
   permission.granted === true && typeof permission.directoryUri === 'string' && permission.directoryUri.length > 0;
 
 export const wasScanFolderAdded = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): boolean =>
