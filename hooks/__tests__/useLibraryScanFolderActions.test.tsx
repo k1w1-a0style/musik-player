@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryScanFolderActions } from '../useLibraryScanFolderActions';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { LibraryTab } from '../../utils/libraryTabs';
@@ -72,9 +72,7 @@ test('showScanFolders selects folders tab and closes menu', () => {
   const setMenuOpen = jest.fn();
   const screen = render(<HookHarness setScanFolders={setScanFolders} setActiveTab={setActiveTab} setMenuOpen={setMenuOpen} />);
 
-  act(() => {
-    screen.getByText('show').props.onPress();
-  });
+  fireEvent.press(screen.getByText('show'));
 
   expect(setScanFolders).toHaveBeenCalledWith([folder('a')]);
   expect(setActiveTab).toHaveBeenCalledWith('folders');
@@ -86,11 +84,9 @@ test('onAddScanFolder shows unsupported alert on non-android platforms', async (
   const requestDirectoryPermissionsAsync = jest.fn();
   const screen = render(<HookHarness platformOs="ios" showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
 
-  await act(async () => {
-    await screen.getByText('add').props.onPress();
-  });
+  fireEvent.press(screen.getByText('add'));
 
-  expect(showAlert).toHaveBeenCalledWith(getScanFolderUnsupportedAlert());
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderUnsupportedAlert()));
   expect(requestDirectoryPermissionsAsync).not.toHaveBeenCalled();
 });
 
@@ -99,11 +95,9 @@ test('onAddScanFolder shows cancelled alert when picker has no granted uri', asy
   const requestDirectoryPermissionsAsync = jest.fn().mockResolvedValue({ granted: false });
   const screen = render(<HookHarness showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
 
-  await act(async () => {
-    await screen.getByText('add').props.onPress();
-  });
+  fireEvent.press(screen.getByText('add'));
 
-  expect(showAlert).toHaveBeenCalledWith(getScanFolderCancelledAlert());
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderCancelledAlert()));
   expect(mockedPersistAddedScanFolder).not.toHaveBeenCalled();
 });
 
@@ -112,10 +106,8 @@ test('removeFolder persists removal and updates folders', async () => {
   mockedPersistRemovedScanFolder.mockResolvedValue([folder('b')]);
   const screen = render(<HookHarness setScanFolders={setScanFolders} />);
 
-  await act(async () => {
-    await screen.getByText('remove').props.onPress();
-  });
+  fireEvent.press(screen.getByText('remove'));
 
-  expect(mockedPersistRemovedScanFolder).toHaveBeenCalledWith('a');
+  await waitFor(() => expect(mockedPersistRemovedScanFolder).toHaveBeenCalledWith('a'));
   expect(setScanFolders).toHaveBeenCalledWith([folder('b')]);
 });
