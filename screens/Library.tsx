@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Platform,
   Text,
@@ -58,7 +58,6 @@ import {
   persistChangedFolderErrorUpdates,
   persistRemovedScanFolder,
 } from '../utils/libraryScanFolderPersistence';
-import { loadFavoriteSongIds, loadLibraryStartupState } from '../utils/libraryStorageLoaders';
 import { withTimeout } from '../utils/withTimeout';
 import {
   getDuplicateScanFolderAlert,
@@ -82,6 +81,7 @@ import {
   getScanImportProgressCopy,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
+import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
 
 declare const __DEV__: boolean;
 
@@ -111,24 +111,12 @@ const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
   const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
-
-  useEffect(() => {
-    loadLibraryStartupState().then(state => {
-      setScanFolders(state.scanFolders);
-      setFavoriteIds(state.favoriteIds);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'favorites') loadFavoriteSongIds().then(setFavoriteIds);
-  }, [activeTab]);
+  const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
 
   const currentSongId = currentSong?.id ?? null;
   const displayedSongs = useMemo(() => getLibraryDisplaySongs(songs, isReady, __DEV__, NODE_ENV), [isReady, songs]);
@@ -154,7 +142,7 @@ const Library: React.FC = () => {
   const applyScanFolderStateUpdate = useCallback((update: ScanFolderStateUpdate) => {
     setScanFolders(update.scanFolders);
     setActiveTab(update.activeTab);
-  }, []);
+  }, [setScanFolders]);
 
   const showScanFolders = useCallback(() => {
     const update = buildScanFolderStateUpdate(scanFolders);
@@ -201,7 +189,7 @@ const Library: React.FC = () => {
   const persistChangedFolderUpdates = useCallback(async (folderUpdates: ScanFolder[] | undefined): Promise<void> => {
     const updatedFolders = await persistChangedFolderErrorUpdates(scanFolders, folderUpdates);
     if (updatedFolders) setScanFolders(updatedFolders);
-  }, [scanFolders]);
+  }, [scanFolders, setScanFolders]);
 
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
@@ -326,7 +314,7 @@ const Library: React.FC = () => {
 
   const removeFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
     setScanFolders(await persistRemovedScanFolder(folder.id));
-  }, []);
+  }, [setScanFolders]);
 
   const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
     <LibraryFolderRow folder={item} onRemove={removeFolder} />
