@@ -3,9 +3,11 @@ import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
 import {
   libraryImportMessages,
+  mediaCandidatesFoundStatus,
   metadataRefreshSummary,
   scanFoldersReadingStatus,
   tracksFoundStatus,
+  tracksSavingStatus,
 } from './libraryImportMessages';
 import { mergeSongs } from './libraryPresentation';
 
@@ -23,6 +25,11 @@ interface ScanImportProgressCopy {
   readingStatus: string;
   foundStatus: string;
   timeoutMessage: string;
+}
+
+interface MediaLibraryImportProgressCopy {
+  candidatesFoundStatus: string;
+  savingStatus: string;
 }
 
 interface LibraryImportFlowCopy {
@@ -73,6 +80,11 @@ export const getScanImportProgressCopy = (activeFolderCount: number, foundSongCo
   readingStatus: scanFoldersReadingStatus(activeFolderCount),
   foundStatus: tracksFoundStatus(foundSongCount),
   timeoutMessage: libraryImportMessages.scanFoldersTimeout,
+});
+
+export const getMediaLibraryImportProgressCopy = (candidateCount: number, savedSongCount: number): MediaLibraryImportProgressCopy => ({
+  candidatesFoundStatus: mediaCandidatesFoundStatus(candidateCount),
+  savingStatus: tracksSavingStatus(savedSongCount),
 });
 
 export const getLibraryImportFlowCopy = (): LibraryImportFlowCopy => ({
