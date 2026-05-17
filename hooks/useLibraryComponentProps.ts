@@ -1,7 +1,11 @@
 import { useMemo } from 'react';
+import type { LibraryImportStatusProps } from '../components/LibraryImportStatus';
 import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
+import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
 import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryTabsProps } from '../components/LibraryTabs';
+import type { LibraryTopBarProps } from '../components/LibraryTopBar';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../utils/libraryComponentProps';
@@ -22,12 +26,15 @@ interface UseLibraryComponentPropsOptions {
   handlePlayActiveList: () => void;
   handleShufflePress: () => void;
   importFromDevice: () => void;
+  importStatus: string | null;
   isReady: boolean;
   loading: boolean;
   menuOpen: boolean;
   onAddScanFolder: () => void;
+  openMenu: () => void;
   openSettings: () => void;
   playlistItems: LibraryPlaylistItem[];
+  query: string;
   refreshMetadataFromFiles: () => void;
   renderAlbumTile: LibraryTabContentProps['renderAlbumTile'];
   renderFolderItem: LibraryTabContentProps['renderFolderItem'];
@@ -35,16 +42,23 @@ interface UseLibraryComponentPropsOptions {
   renderPlaylistItem: LibraryTabContentProps['renderPlaylistItem'];
   renderSongItem: LibraryTabContentProps['renderSongItem'];
   scanFolders: ScanFolder[];
+  setActiveTab: (tab: LibraryTab) => void;
+  setQuery: (query: string) => void;
   showScanFolders: () => void;
   songKeyExtractor: (item: Song) => string;
   songsCount: number;
   songsForActiveList: Song[];
   toggleAlbumView: () => void;
+  toggleSearch: () => void;
 }
 
 interface UseLibraryComponentPropsResult {
+  importStatusProps: LibraryImportStatusProps;
   menuModalProps: LibraryMenuModalProps;
+  searchBarProps: LibrarySearchBarProps;
   tabContentProps: LibraryTabContentProps;
+  tabsProps: LibraryTabsProps;
+  topBarProps: LibraryTopBarProps;
 }
 
 export const useLibraryComponentProps = ({
@@ -60,12 +74,15 @@ export const useLibraryComponentProps = ({
   handlePlayActiveList,
   handleShufflePress,
   importFromDevice,
+  importStatus,
   isReady,
   loading,
   menuOpen,
   onAddScanFolder,
+  openMenu,
   openSettings,
   playlistItems,
+  query,
   refreshMetadataFromFiles,
   renderAlbumTile,
   renderFolderItem,
@@ -73,12 +90,35 @@ export const useLibraryComponentProps = ({
   renderPlaylistItem,
   renderSongItem,
   scanFolders,
+  setActiveTab,
+  setQuery,
   showScanFolders,
   songKeyExtractor,
   songsCount,
   songsForActiveList,
   toggleAlbumView,
+  toggleSearch,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
+  const topBarProps = useMemo(() => ({
+    onOpenMenu: openMenu,
+    onToggleSearch: toggleSearch,
+  }), [openMenu, toggleSearch]);
+
+  const tabsProps = useMemo(() => ({
+    activeTab,
+    onChangeTab: setActiveTab,
+  }), [activeTab, setActiveTab]);
+
+  const searchBarProps = useMemo(() => ({
+    autoFocus: true,
+    onChangeText: setQuery,
+    value: query,
+  }), [query, setQuery]);
+
+  const importStatusProps = useMemo(() => ({
+    status: importStatus,
+  }), [importStatus]);
+
   const tabContentProps = useMemo(() => buildLibraryTabContentProps({
     activeTab,
     activeFolders,
@@ -149,5 +189,5 @@ export const useLibraryComponentProps = ({
     songsCount,
   ]);
 
-  return { menuModalProps, tabContentProps };
+  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps };
 };
