@@ -164,12 +164,15 @@ export const useLibraryController = (): LibraryScreenContentProps => {
   });
 
   return {
-    importStatus,
+    importStatusProps: { status: importStatus },
     loading,
     menuModalProps,
-    query,
+    searchBarProps: {
+      autoFocus: true,
+      onChangeText: setQuery,
+      value: query,
+    },
     searchOpen,
-    setQuery,
     tabContentProps,
     tabsProps: {
       activeTab,
