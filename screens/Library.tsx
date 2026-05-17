@@ -73,6 +73,7 @@ import {
   getMetadataRefreshCompleteAlert,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
+  getPartialScanImportAlert,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
@@ -195,7 +196,10 @@ const Library: React.FC = () => {
           Alert.alert(emptyAlert.title, emptyAlert.message);
           return;
         }
-        if (hasImportErrors(result.errors)) Alert.alert(libraryImportMessages.partiallyImportedTitle, libraryImportMessages.partiallyImportedMessage);
+        if (hasImportErrors(result.errors)) {
+          const partialAlert = getPartialScanImportAlert();
+          Alert.alert(partialAlert.title, partialAlert.message);
+        }
         const update = buildImportedSongsUpdate(songs, result.songs);
         setSongs(update.songs);
         setActiveTab(update.activeTab);
