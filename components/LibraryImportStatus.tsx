@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 import { libraryImportMessages } from '../utils/libraryImportMessages';
 
-interface LibraryImportStatusProps {
+export interface LibraryImportStatusProps {
   status?: string | null;
 }
 
