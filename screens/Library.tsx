@@ -76,6 +76,7 @@ import {
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getPartialScanImportAlert,
+  getScanImportProgressCopy,
   hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
@@ -85,8 +86,6 @@ import {
 } from '../utils/libraryImportFlow';
 import {
   mediaCandidatesFoundStatus,
-  scanFoldersReadingStatus,
-  tracksFoundStatus,
   tracksSavingStatus,
 } from '../utils/libraryImportMessages';
 
@@ -185,9 +184,11 @@ const Library: React.FC = () => {
       setLoading(true);
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (shouldImportFromScanFolders(activeFolders, Platform.OS)) {
-        setImportStatus(scanFoldersReadingStatus(activeFolders.length));
-        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, importCopy.scanFoldersTimeoutMessage);
-        setImportStatus(tracksFoundStatus(result.songs.length));
+        const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
+        setImportStatus(scanProgress.readingStatus);
+        const result = await withTimeout(importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }), IMPORT_TIMEOUT_MS, scanProgress.timeoutMessage);
+        const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
+        setImportStatus(resultProgress.foundStatus);
         const changedFolderUpdates = getChangedFolderUpdates(scanFolders, result.folderUpdates);
         if (changedFolderUpdates.length > 0) {
           for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
