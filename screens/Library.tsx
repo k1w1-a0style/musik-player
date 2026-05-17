@@ -66,8 +66,8 @@ import {
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
   buildImportedSongsUpdate,
+  buildMediaLibraryCandidatesResult,
   buildScanImportResult,
-  getEmptyMediaLibraryImportAlert,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
   getMediaLibraryImportProgressCopy,
@@ -77,7 +77,6 @@ import {
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
   getScanImportProgressCopy,
-  hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
   hasSongsForMetadataRefresh,
   shouldApplyMetadataRefresh,
@@ -210,9 +209,9 @@ const Library: React.FC = () => {
       const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
       const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
       setImportStatus(candidateProgress.candidatesFoundStatus);
-      if (!hasMediaLibraryCandidates(candidates.assets.length)) {
-        const emptyAlert = getEmptyMediaLibraryImportAlert();
-        Alert.alert(emptyAlert.title, emptyAlert.message);
+      const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
+      if (candidateResult.kind === 'empty') {
+        Alert.alert(candidateResult.alert.title, candidateResult.alert.message);
         return;
       }
       const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
