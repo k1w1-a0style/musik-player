@@ -1,8 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import {
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
@@ -15,6 +12,7 @@ import LibraryTabContent from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
+  useLibraryAlerts,
   useLibraryImportActions,
   useLibraryMenuActions,
   useLibraryMetadataRefreshActions,
@@ -30,11 +28,6 @@ declare const __DEV__: boolean;
 
 const NODE_ENV = process.env.NODE_ENV;
 
-interface LibraryAlertCopy {
-  title: string;
-  message: string;
-}
-
 const Library: React.FC = () => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
@@ -46,6 +39,7 @@ const Library: React.FC = () => {
   const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
   const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
   const { openTrackInfo } = useLibraryNavigationActions();
+  const { showAlert } = useLibraryAlerts();
 
   const currentSongId = currentSong?.id ?? null;
   const {
@@ -68,10 +62,6 @@ const Library: React.FC = () => {
     scanFolders,
     songs,
   }), [activeTab, favoriteIds, isReady, playlists, query, scanFolders, songs]);
-
-  const showAlert = useCallback((alert: LibraryAlertCopy) => {
-    Alert.alert(alert.title, alert.message);
-  }, []);
 
   const {
     closeMenu,
