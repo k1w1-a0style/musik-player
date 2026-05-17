@@ -1,12 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Platform,
   Text,
   StyleSheet,
   FlatList,
   Alert,
 } from 'react-native';
-import * as MediaLibrary from 'expo-media-library';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
@@ -28,7 +26,6 @@ import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from '../components
 import LibraryListShell from '../components/LibraryListShell';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
 import { APP_STACK_ROUTES } from '../types/routes';
@@ -43,28 +40,18 @@ import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/li
 import { shuffleItems } from '../utils/libraryShuffle';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from '../utils/libraryTabs';
 import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
-import { getEnabledScanFolders } from '../utils/libraryScanFolders';
-import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getLibraryDisplaySongs, isDemoSong } from '../utils/libraryDemoSongs';
 import { withTimeout } from '../utils/withTimeout';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
-  buildMediaLibraryCandidatesResult,
-  buildMediaLibraryImportResult,
-  buildMediaLibraryPermissionResult,
   buildMetadataRefreshAvailabilityResult,
   buildMetadataRefreshResult,
-  buildScanImportResult,
-  getImportStoppedAlert,
-  getLibraryImportFlowCopy,
-  getMediaLibraryImportProgressCopy,
   getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
-  getScanImportProgressCopy,
-  shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
 import { useLibraryScanFolderActions } from '../hooks/useLibraryScanFolderActions';
+import { useLibraryImportActions } from '../hooks/useLibraryImportActions';
 
 declare const __DEV__: boolean;
 
@@ -75,17 +62,11 @@ const NODE_ENV = process.env.NODE_ENV;
 
 type GroupItem = LibraryGroupItem;
 type PlaylistItem = LibraryPlaylistItem;
-type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
 
 interface LibraryAlertCopy {
   title: string;
   message: string;
-}
-
-interface ImportedSongsStateUpdate {
-  songs: Song[];
-  activeTab: LibraryTab;
 }
 
 const Library: React.FC = () => {
@@ -116,11 +97,6 @@ const Library: React.FC = () => {
     Alert.alert(alert.title, alert.message);
   }, []);
 
-  const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate) => {
-    setSongs(update.songs);
-    setActiveTab(update.activeTab);
-  }, [setSongs]);
-
   const {
     showScanFolders,
     onAddScanFolder,
@@ -134,83 +110,23 @@ const Library: React.FC = () => {
     showAlert,
   });
 
+  const { importFromDevice } = useLibraryImportActions({
+    scanFolders,
+    songs,
+    setSongs,
+    setActiveTab,
+    setMenuOpen,
+    setLoading,
+    setImportStatus,
+    showAlert,
+    persistChangedFolderUpdates,
+  });
+
   const openSettings = useCallback(() => {
     const settingsAlert = getLibrarySettingsComingSoonAlert();
     setMenuOpen(false);
     showAlert(settingsAlert);
   }, [showAlert]);
-
-  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
-    const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
-    setImportStatus(scanProgress.readingStatus);
-    const result = await withTimeout(
-      importSongsFromSources({ scanFolders: activeFolders, platformOs: Platform.OS }),
-      IMPORT_TIMEOUT_MS,
-      scanProgress.timeoutMessage,
-    );
-    const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
-    setImportStatus(resultProgress.foundStatus);
-    await persistChangedFolderUpdates(result.folderUpdates);
-    const scanResult = buildScanImportResult(songs, result.songs, result.errors);
-    if (scanResult.kind === 'empty') {
-      showAlert(scanResult.alert);
-      return;
-    }
-    if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-    applyImportedSongsUpdate(scanResult.update);
-  }, [applyImportedSongsUpdate, persistChangedFolderUpdates, showAlert, songs]);
-
-  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy): Promise<void> => {
-    setImportStatus(importCopy.scanningMediaLibraryStatus);
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    const permissionResult = buildMediaLibraryPermissionResult(status);
-    if (permissionResult.kind === 'denied') {
-      showAlert(permissionResult.alert);
-      return;
-    }
-    const candidates = await withTimeout(scanMediaLibraryCandidates(), IMPORT_TIMEOUT_MS, importCopy.mediaLibraryScanTimeoutMessage);
-    const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
-    setImportStatus(candidateProgress.candidatesFoundStatus);
-    const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
-    if (candidateResult.kind === 'empty') {
-      showAlert(candidateResult.alert);
-      return;
-    }
-    const shouldImport = await confirmLibraryImport(candidates.assets.length, candidates.skipped.length);
-    if (!shouldImport) return;
-    setImportStatus(importCopy.importingMetadataAndCoversStatus);
-    const mediaResult = await withTimeout(
-      enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length),
-      IMPORT_TIMEOUT_MS,
-      importCopy.metadataImportTimeoutMessage,
-    );
-    const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
-    setImportStatus(savingProgress.savingStatus);
-    const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
-    applyImportedSongsUpdate(importResult.update);
-  }, [applyImportedSongsUpdate, showAlert, songs]);
-
-  const importFromDevice = async (): Promise<void> => {
-    setMenuOpen(false);
-    const importCopy = getLibraryImportFlowCopy();
-    setImportStatus(importCopy.preparingStatus);
-    try {
-      setLoading(true);
-      const activeFolders = getEnabledScanFolders(scanFolders);
-      if (shouldImportFromScanFolders(activeFolders, Platform.OS)) {
-        await importFromScanFolders(activeFolders);
-        return;
-      }
-
-      await importFromMediaLibrary(importCopy);
-    } catch (error) {
-      const stoppedAlert = getImportStoppedAlert(error);
-      showAlert(stoppedAlert);
-    } finally {
-      setLoading(false);
-      setImportStatus(null);
-    }
-  };
 
   const runMetadataRefresh = useCallback(async (refreshCopy: MetadataRefreshFlowCopy): Promise<void> => {
     setImportStatus(refreshCopy.readingStatus);
