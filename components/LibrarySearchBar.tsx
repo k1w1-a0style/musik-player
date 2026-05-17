@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { Search } from 'lucide-react-native';
 import { theme } from '../theme';
 
-interface LibrarySearchBarProps {
+export interface LibrarySearchBarProps {
   value: string;
   onChangeText: (value: string) => void;
   autoFocus?: boolean;
