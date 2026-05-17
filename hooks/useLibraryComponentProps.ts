@@ -1,17 +1,15 @@
 import { useMemo } from 'react';
-import type { LibraryImportStatusProps } from '../components/LibraryImportStatus';
-import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
-import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
+import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
 import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
-import type { LibraryTabsProps } from '../components/LibraryTabs';
-import type { LibraryTopBarProps } from '../components/LibraryTopBar';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../utils/libraryComponentProps';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import type { LibraryTab } from '../utils/libraryTabs';
+
+type UseLibraryComponentPropsResult = Omit<LibraryScreenContentProps, 'loading' | 'searchOpen'>;
 
 interface UseLibraryComponentPropsOptions {
   activeFolders: number;
@@ -50,15 +48,6 @@ interface UseLibraryComponentPropsOptions {
   songsForActiveList: Song[];
   toggleAlbumView: () => void;
   toggleSearch: () => void;
-}
-
-interface UseLibraryComponentPropsResult {
-  importStatusProps: LibraryImportStatusProps;
-  menuModalProps: LibraryMenuModalProps;
-  searchBarProps: LibrarySearchBarProps;
-  tabContentProps: LibraryTabContentProps;
-  tabsProps: LibraryTabsProps;
-  topBarProps: LibraryTopBarProps;
 }
 
 export const useLibraryComponentProps = ({
