@@ -18,10 +18,10 @@ import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle'
 import type { Song } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
 import { APP_STACK_ROUTES } from '../types/routes';
-import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryImportActions,
+  useLibraryMenuActions,
   useLibraryMetadataRefreshActions,
   useLibraryPlaybackActions,
   useLibraryRenderers,
@@ -76,6 +76,17 @@ const Library: React.FC = () => {
   const showAlert = useCallback((alert: LibraryAlertCopy) => {
     Alert.alert(alert.title, alert.message);
   }, []);
+
+  const {
+    closeMenu,
+    openMenu,
+    openSettings,
+    toggleSearch,
+  } = useLibraryMenuActions({
+    setMenuOpen,
+    setSearchOpen,
+    showAlert,
+  });
 
   const {
     showScanFolders,
@@ -145,16 +156,10 @@ const Library: React.FC = () => {
     songsForActiveList,
   });
 
-  const openSettings = useCallback(() => {
-    const settingsAlert = getLibrarySettingsComingSoonAlert();
-    setMenuOpen(false);
-    showAlert(settingsAlert);
-  }, [showAlert]);
-
   return (
     <AppBackground>
       <Screen testID="library-screen" contentStyle={styles.container}>
-        <LibraryTopBar onToggleSearch={() => setSearchOpen(value => !value)} onOpenMenu={() => setMenuOpen(true)} />
+        <LibraryTopBar onToggleSearch={toggleSearch} onOpenMenu={openMenu} />
 
         <LibraryTabs activeTab={activeTab} onChangeTab={setActiveTab} />
 
@@ -190,7 +195,7 @@ const Library: React.FC = () => {
           isReady={isReady}
           hasSongs={songs.length > 0}
           activeFolders={activeFolders}
-          onClose={() => setMenuOpen(false)}
+          onClose={closeMenu}
           onImport={importFromDevice}
           onRefreshMetadata={refreshMetadataFromFiles}
           onAddFolder={onAddScanFolder}
