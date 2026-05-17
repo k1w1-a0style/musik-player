@@ -66,8 +66,8 @@ import {
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
   buildImportedSongsUpdate,
+  buildScanImportResult,
   getEmptyMediaLibraryImportAlert,
-  getEmptyScanImportAlert,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
   getMediaLibraryImportProgressCopy,
@@ -76,9 +76,7 @@ import {
   getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
   getNoSongsMetadataAlert,
-  getPartialScanImportAlert,
   getScanImportProgressCopy,
-  hasImportErrors,
   hasMediaLibraryCandidates,
   hasMediaLibraryPermission,
   hasSongsForMetadataRefresh,
@@ -191,18 +189,14 @@ const Library: React.FC = () => {
           for (const folder of changedFolderUpdates) await updateScanFolder(folder.id, { lastError: folder.lastError });
           setScanFolders(await getScanFolders());
         }
-        if (result.songs.length === 0) {
-          const emptyAlert = getEmptyScanImportAlert(result.errors);
-          Alert.alert(emptyAlert.title, emptyAlert.message);
+        const scanResult = buildScanImportResult(songs, result.songs, result.errors);
+        if (scanResult.kind === 'empty') {
+          Alert.alert(scanResult.alert.title, scanResult.alert.message);
           return;
         }
-        if (hasImportErrors(result.errors)) {
-          const partialAlert = getPartialScanImportAlert();
-          Alert.alert(partialAlert.title, partialAlert.message);
-        }
-        const update = buildImportedSongsUpdate(songs, result.songs);
-        setSongs(update.songs);
-        setActiveTab(update.activeTab);
+        if (scanResult.partialAlert) Alert.alert(scanResult.partialAlert.title, scanResult.partialAlert.message);
+        setSongs(scanResult.update.songs);
+        setActiveTab(scanResult.update.activeTab);
         return;
       }
 
