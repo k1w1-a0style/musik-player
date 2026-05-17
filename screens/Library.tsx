@@ -32,7 +32,6 @@ import { theme } from '../theme';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { AppStackParamList } from '../types/navigation';
 import type { ScanFolder } from '../types/ScanFolder';
-import { getFavoriteSongIds, getScanFolders } from '../utils/storage';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import {
@@ -59,6 +58,7 @@ import {
   persistChangedFolderErrorUpdates,
   persistRemovedScanFolder,
 } from '../utils/libraryScanFolderPersistence';
+import { loadFavoriteSongIds, loadLibraryStartupState } from '../utils/libraryStorageLoaders';
 import { withTimeout } from '../utils/withTimeout';
 import {
   getDuplicateScanFolderAlert,
@@ -120,12 +120,14 @@ const Library: React.FC = () => {
   const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
 
   useEffect(() => {
-    getScanFolders().then(setScanFolders).catch(() => setScanFolders([]));
-    getFavoriteSongIds().then(setFavoriteIds).catch(() => setFavoriteIds([]));
+    loadLibraryStartupState().then(state => {
+      setScanFolders(state.scanFolders);
+      setFavoriteIds(state.favoriteIds);
+    });
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'favorites') getFavoriteSongIds().then(setFavoriteIds).catch(() => setFavoriteIds([]));
+    if (activeTab === 'favorites') loadFavoriteSongIds().then(setFavoriteIds);
   }, [activeTab]);
 
   const currentSongId = currentSong?.id ?? null;
