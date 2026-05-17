@@ -46,6 +46,17 @@ interface MetadataRefreshFlowCopy {
   timeoutMessage: string;
 }
 
+interface DeniedMediaLibraryPermissionResult {
+  kind: 'denied';
+  alert: LibraryAlertMessage;
+}
+
+interface GrantedMediaLibraryPermissionResult {
+  kind: 'granted';
+}
+
+type MediaLibraryPermissionResult = DeniedMediaLibraryPermissionResult | GrantedMediaLibraryPermissionResult;
+
 interface EmptyScanImportResult {
   kind: 'empty';
   alert: LibraryAlertMessage;
@@ -86,6 +97,17 @@ export const getMediaLibraryPermissionDeniedAlert = (): LibraryAlertMessage => (
   title: libraryImportMessages.permissionRequiredTitle,
   message: libraryImportMessages.permissionRequiredMessage,
 });
+
+export const buildMediaLibraryPermissionResult = (status: string): MediaLibraryPermissionResult => {
+  if (!hasMediaLibraryPermission(status)) {
+    return {
+      kind: 'denied',
+      alert: getMediaLibraryPermissionDeniedAlert(),
+    };
+  }
+
+  return { kind: 'granted' };
+};
 
 export const hasMediaLibraryCandidates = (count: number): boolean =>
   count > 0;
