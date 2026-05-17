@@ -65,8 +65,8 @@ import {
 } from '../utils/libraryFolderMessages';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 import {
-  buildImportedSongsUpdate,
   buildMediaLibraryCandidatesResult,
+  buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
   buildScanImportResult,
   getImportStoppedAlert,
@@ -219,7 +219,7 @@ const Library: React.FC = () => {
       const mediaResult = await withTimeout(enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length), IMPORT_TIMEOUT_MS, importCopy.metadataImportTimeoutMessage);
       const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
       setImportStatus(savingProgress.savingStatus);
-      const update = buildImportedSongsUpdate(songs, mediaResult.songs);
+      const update = buildMediaLibraryImportResult(songs, mediaResult.songs);
       setSongs(update.songs);
       setActiveTab(update.activeTab);
     } catch (error) {
