@@ -68,6 +68,7 @@ import {
   buildMediaLibraryCandidatesResult,
   buildMediaLibraryImportResult,
   buildMediaLibraryPermissionResult,
+  buildMetadataRefreshAvailabilityResult,
   buildScanImportResult,
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
@@ -75,9 +76,7 @@ import {
   getMetadataRefreshCompleteAlert,
   getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
-  getNoSongsMetadataAlert,
   getScanImportProgressCopy,
-  hasSongsForMetadataRefresh,
   shouldApplyMetadataRefresh,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
@@ -233,9 +232,9 @@ const Library: React.FC = () => {
 
   const refreshMetadataFromFiles = async (): Promise<void> => {
     setMenuOpen(false);
-    if (!hasSongsForMetadataRefresh(songs.length)) {
-      const noSongsAlert = getNoSongsMetadataAlert();
-      Alert.alert(noSongsAlert.title, noSongsAlert.message);
+    const availabilityResult = buildMetadataRefreshAvailabilityResult(songs.length);
+    if (availabilityResult.kind === 'empty') {
+      Alert.alert(availabilityResult.alert.title, availabilityResult.alert.message);
       return;
     }
     const refreshCopy = getMetadataRefreshFlowCopy();
