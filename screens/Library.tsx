@@ -3,8 +3,6 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
@@ -15,14 +13,12 @@ import LibraryImportStatus from '../components/LibraryImportStatus';
 import LibraryMenuModal from '../components/LibraryMenuModal';
 import LibraryTabContent from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
-import type { Song } from '../types/Song';
-import type { AppStackParamList } from '../types/navigation';
-import { APP_STACK_ROUTES } from '../types/routes';
 import { buildLibraryViewState } from '../utils/libraryViewState';
 import {
   useLibraryImportActions,
   useLibraryMenuActions,
   useLibraryMetadataRefreshActions,
+  useLibraryNavigationActions,
   useLibraryPlaybackActions,
   useLibraryRenderers,
   useLibraryScanFolderActions,
@@ -40,7 +36,6 @@ interface LibraryAlertCopy {
 }
 
 const Library: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
@@ -50,6 +45,7 @@ const Library: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
   const [albumViewMode, setAlbumViewMode] = useState<LibraryAlbumViewMode>('grid');
   const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
+  const { openTrackInfo } = useLibraryNavigationActions();
 
   const currentSongId = currentSong?.id ?? null;
   const {
@@ -122,10 +118,6 @@ const Library: React.FC = () => {
     showAlert,
   });
 
-  const handleOpenTrackInfo = useCallback((song: Song) => {
-    navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id });
-  }, [navigation]);
-
   const {
     getSongItemLayout,
     handleSongPress,
@@ -139,7 +131,7 @@ const Library: React.FC = () => {
     currentSongId,
     filteredSongs,
     isPlaying,
-    onOpenTrackInfo: handleOpenTrackInfo,
+    onOpenTrackInfo: openTrackInfo,
     playPlaylist,
     playSong,
     removeFolder,
