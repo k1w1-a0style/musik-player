@@ -1,11 +1,6 @@
 import React, {
-  useState,
   type ReactNode,
 } from 'react';
-import {
-  type Playlist,
-  type Song,
-} from '../types/Song';
 import { MusicContextProviders } from './MusicContextProviders';
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
@@ -15,6 +10,7 @@ import { useLibraryActions } from './useLibraryActions';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
+import { useMusicProviderState } from './useMusicProviderState';
 import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
@@ -28,14 +24,21 @@ export {
 } from './musicContexts';
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [isReady, setIsReady] = useState(false);
+  const {
+    isReady,
+    setIsReady,
+    songs,
+    setSongsState,
+    currentSong,
+    setCurrentSong,
+    playbackQueue,
+    setPlaybackQueue,
+    playlists,
+    setPlaylists,
+    shuffle,
+    setShuffle,
+  } = useMusicProviderState();
 
-  const [songs, setSongsState] = useState<Song[]>([]);
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-
-  const [shuffle, setShuffle] = useState(false);
   const {
     isPlaying,
     isBuffering,
