@@ -1,7 +1,6 @@
 import React, {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -44,6 +43,7 @@ import {
   renamePlaylistById,
 } from '../utils/playlistState';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
+import { createRequiredContextHook } from './createRequiredContextHook';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -887,30 +887,26 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-export const useMusicContext = (): MusicContextValue => {
-  const ctx = useContext(MusicContext);
-  if (!ctx) {
-    throw new Error('useMusicContext must be used within a MusicProvider');
-  }
-  return ctx;
-};
+export const useMusicContext = createRequiredContextHook(
+  MusicContext,
+  'useMusicContext',
+  'MusicProvider',
+);
 
-export const useLibraryMusicContext = (): LibraryMusicContextValue => {
-  const ctx = useContext(LibraryMusicContext);
-  if (!ctx) throw new Error('useLibraryMusicContext must be used within a MusicProvider');
-  return ctx;
-};
+export const useLibraryMusicContext = createRequiredContextHook(
+  LibraryMusicContext,
+  'useLibraryMusicContext',
+  'MusicProvider',
+);
 
-export const useMiniPlayerMusicContext = (): MiniPlayerMusicContextValue => {
-  const ctx = useContext(MiniPlayerMusicContext);
-  if (!ctx)
-    throw new Error('useMiniPlayerMusicContext must be used within a MusicProvider');
-  return ctx;
-};
+export const useMiniPlayerMusicContext = createRequiredContextHook(
+  MiniPlayerMusicContext,
+  'useMiniPlayerMusicContext',
+  'MusicProvider',
+);
 
-export const useNowPlayingMusicContext = (): NowPlayingMusicContextValue => {
-  const ctx = useContext(NowPlayingMusicContext);
-  if (!ctx)
-    throw new Error('useNowPlayingMusicContext must be used within a MusicProvider');
-  return ctx;
-};
+export const useNowPlayingMusicContext = createRequiredContextHook(
+  NowPlayingMusicContext,
+  'useNowPlayingMusicContext',
+  'MusicProvider',
+);
