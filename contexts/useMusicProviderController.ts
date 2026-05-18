@@ -1,3 +1,9 @@
+import {
+  buildMusicProviderContextEqualizerInput,
+  buildMusicProviderContextPlaybackInput,
+  buildMusicProviderEffectsEqualizerInput,
+  buildMusicProviderEffectsPlaybackInput,
+} from './musicProviderControlInput';
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
 import {
@@ -28,34 +34,9 @@ export const useMusicProviderController = () => {
     setShuffle,
   } = providerState;
 
-  const {
-    playback: {
-      isPlaying,
-      isBuffering,
-      repeatMode,
-      setRepeatMode,
-      cycleRepeatMode,
-      volume,
-      setVolumeState,
-      setVolume,
-      togglePlayPause,
-      stop,
-      seekTo,
-      next,
-      previous,
-    },
-    equalizer: {
-      eqEnabled,
-      setEqEnabled,
-      setEqEnabledState,
-      eqBands,
-      setEqBand,
-      setEqBandsState,
-      eqPreset,
-      applyEqPreset,
-      setEqPreset,
-    },
-  } = useMusicProviderControls();
+  const { playback, equalizer } = useMusicProviderControls();
+  const { isPlaying } = playback;
+  const { eqEnabled, eqBands } = equalizer;
 
   const { eqNative, palette, fftBins, visualizerRunning, visualizerError } =
     useMusicProviderAudioFeatures({
@@ -110,20 +91,8 @@ export const useMusicProviderController = () => {
         persistCurrentSongId,
       },
       state: buildMusicProviderEffectsStateInput(providerState),
-      playback: {
-        repeatMode,
-        setRepeatMode,
-        volume,
-        setVolumeState,
-      },
-      equalizer: {
-        eqEnabled,
-        setEqEnabledState,
-        eqBands,
-        setEqBandsState,
-        eqPreset,
-        setEqPreset,
-      },
+      playback: buildMusicProviderEffectsPlaybackInput(playback),
+      equalizer: buildMusicProviderEffectsEqualizerInput(equalizer),
     }),
   );
 
@@ -135,29 +104,11 @@ export const useMusicProviderController = () => {
         addSongs,
         updateSongMetadata,
       },
-      playback: {
-        isPlaying,
-        isBuffering,
+      playback: buildMusicProviderContextPlaybackInput(playback, {
         playSong,
-        togglePlayPause,
-        stop,
-        seekTo,
-        next,
-        previous,
         toggleShuffle,
-        repeatMode,
-        cycleRepeatMode,
-        volume,
-        setVolume,
-      },
-      equalizer: {
-        eqEnabled,
-        setEqEnabled,
-        eqBands,
-        setEqBand,
-        eqPreset,
-        applyEqPreset,
-      },
+      }),
+      equalizer: buildMusicProviderContextEqualizerInput(equalizer),
       audioFeatures: {
         eqNative,
         fftBins,
