@@ -48,6 +48,7 @@ const SONGS: Song[] = [
 
 const Probe: React.FC = () => {
   const ctx = useMusicContext();
+  const playlist = ctx.playlists[0];
   return (
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
@@ -79,6 +80,9 @@ const Probe: React.FC = () => {
       <Text testID="probe-eq">{ctx.eqPreset}</Text>
       <Text testID="probe-eq-band-0">{String(ctx.eqBands[0])}</Text>
       <Text testID="probe-playlists-count">{String(ctx.playlists.length)}</Text>
+      <Text testID="probe-playlist-id">{playlist?.id ?? '-'}</Text>
+      <Text testID="probe-playlist-name">{playlist?.name ?? '-'}</Text>
+      <Text testID="probe-playlist-song-ids">{playlist?.songIds.join(',') ?? '-'}</Text>
       <Text testID="probe-ready">{String(ctx.isReady)}</Text>
       <Pressable testID="set-songs" onPress={() => ctx.setSongs(SONGS)}>
         <Text>set</Text>
@@ -128,6 +132,12 @@ const Probe: React.FC = () => {
       </Pressable>
       <Pressable testID="add-song-playlist" onPress={() => ctx.addSongToPlaylist('pl-1', 's2')}>
         <Text>add playlist song</Text>
+      </Pressable>
+      <Pressable testID="add-song-playlist-again" onPress={() => ctx.addSongToPlaylist('pl-1', 's2')}>
+        <Text>add playlist song again</Text>
+      </Pressable>
+      <Pressable testID="remove-song-playlist" onPress={() => ctx.removeSongFromPlaylist('pl-1', 's2')}>
+        <Text>remove playlist song</Text>
       </Pressable>
       <Pressable testID="rename-playlist" onPress={() => ctx.renamePlaylist('pl-1', 'New') }>
         <Text>rename playlist</Text>
@@ -269,12 +279,28 @@ describe('MusicContext', () => {
     await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('custom'));
   });
 
-  test('playlist create add rename delete flows', async () => {
-    jest.spyOn(Date, 'now').mockReturnValueOnce(1);
+  test('playlist create add rename remove delete flows', async () => {
+    jest.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce('uuid-playlist');
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
+
     fireEvent.press(getByTestId('create-playlist'));
     await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('1'));
+    expect(getByTestId('probe-playlist-id').props.children).toBe('pl-uuid-playlist');
+    expect(getByTestId('probe-playlist-name').props.children).toBe('Roadtrip');
+
+    fireEvent.press(getByTestId('add-song-playlist'));
+    fireEvent.press(getByTestId('add-song-playlist-again'));
+    await waitFor(() => expect(getByTestId('probe-playlist-song-ids').props.children).toBe('s2'));
+
+    fireEvent.press(getByTestId('rename-playlist'));
+    await waitFor(() => expect(getByTestId('probe-playlist-name').props.children).toBe('New'));
+
+    fireEvent.press(getByTestId('remove-song-playlist'));
+    await waitFor(() => expect(getByTestId('probe-playlist-song-ids').props.children).toBe(''));
+
+    fireEvent.press(getByTestId('delete-playlist'));
+    await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('0'));
   });
 
   test('updateSongMetadata updates library and queued metadata', async () => {
