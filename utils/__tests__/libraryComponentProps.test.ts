@@ -41,10 +41,10 @@ test('buildLibraryImportStatusProps returns import status props', () => {
   expect(buildLibraryImportStatusProps({ importStatus: 'Import läuft' })).toEqual({ status: 'Import läuft' });
 });
 
-test('buildLibraryScreenVisibilityProps returns visibility props', () => {
+test('buildLibraryScreenVisibilityProps returns screen content visibility props', () => {
   expect(buildLibraryScreenVisibilityProps({ loading: true, searchOpen: false })).toEqual({
-    loading: true,
-    searchOpen: false,
+    showImportStatus: true,
+    showSearchBar: false,
   });
 });
 
