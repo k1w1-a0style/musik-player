@@ -1,5 +1,4 @@
 import React, {
-  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -7,15 +6,6 @@ import {
   type Playlist,
   type Song,
 } from '../types/Song';
-import {
-  buildLibraryMusicContextValue,
-  buildMiniPlayerMusicContextValue,
-  buildMusicContextValue,
-  buildNowPlayingMusicContextValue,
-} from './musicContextValues';
-import type {
-  MusicContextValue,
-} from './musicContextTypes';
 import { MusicContextProviders } from './MusicContextProviders';
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
@@ -29,6 +19,7 @@ import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
 import { usePlaylistActions } from './usePlaylistActions';
+import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 export {
   useLibraryMusicContext,
   useMiniPlayerMusicContext,
@@ -163,8 +154,8 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setSongsState,
   });
 
-  const value = useMemo<MusicContextValue>(
-    () => buildMusicContextValue({
+  const { value, libraryValue, miniPlayerValue, nowPlayingValue } =
+    useProvidedMusicContextValues({
       songs,
       setSongs,
       addSongs,
@@ -204,64 +195,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       removeSongFromPlaylist,
       playPlaylist,
       isReady,
-    }),
-    [
-      songs,
-      setSongs,
-      addSongs,
-      updateSongMetadata,
-      currentSong,
-      playbackQueue,
-      isPlaying,
-      isBuffering,
-      playSong,
-      togglePlayPause,
-      stop,
-      seekTo,
-      next,
-      previous,
-      shuffle,
-      toggleShuffle,
-      repeatMode,
-      cycleRepeatMode,
-      volume,
-      setVolume,
-      eqEnabled,
-      setEqEnabled,
-      eqBands,
-      setEqBand,
-      eqPreset,
-      applyEqPreset,
-      eqNative,
-      fftBins,
-      visualizerRunning,
-      visualizerError,
-      palette,
-      playlists,
-      createPlaylist,
-      deletePlaylist,
-      renamePlaylist,
-      addSongToPlaylist,
-      removeSongFromPlaylist,
-      playPlaylist,
-      isReady,
-    ],
-  );
-
-  const libraryValue = useMemo(
-    () => buildLibraryMusicContextValue(value),
-    [value],
-  );
-
-  const miniPlayerValue = useMemo(
-    () => buildMiniPlayerMusicContextValue(value),
-    [value],
-  );
-
-  const nowPlayingValue = useMemo(
-    () => buildNowPlayingMusicContextValue(value),
-    [value],
-  );
+    });
 
   return (
     <MusicContextProviders
