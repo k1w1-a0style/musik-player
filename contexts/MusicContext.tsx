@@ -30,10 +30,6 @@ import {
   findClosestUiEqBandIndex,
 } from '../utils/nativeEqualizer';
 import {
-  hasSameSongIds,
-  rotateQueueFromIndex,
-} from '../utils/playbackQueue';
-import {
   addSongToPlaylistById,
   deletePlaylistById,
   prunePlaylists,
@@ -46,6 +42,10 @@ import {
   buildHydratedPlaybackQueue,
   didSongCoversChange,
 } from '../utils/musicHydration';
+import {
+  buildPlaySongQueuePlan,
+  buildShuffleTogglePlan,
+} from '../utils/playbackPlan';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
@@ -409,23 +409,15 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const playSong = useCallback(
     async (song: Song, queue?: Song[]) => {
       const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
-      const contextQueue = sourceQueue.filter(x => !!x.uri);
-      const requestedSong =
-        contextQueue.find(x => x.id === song.id) ?? (song.uri ? song : undefined);
-      if (!requestedSong) return;
+      const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
+      if (!plan) return;
 
-      const requestedIndex = contextQueue.findIndex(x => x.id === requestedSong.id);
-      const queueWithRequested =
-        requestedIndex >= 0 ? contextQueue : [requestedSong, ...contextQueue];
-      const nativeQueue = nativeQueueRef.current;
-      const nativeIndex = nativeQueue.findIndex(x => x.id === requestedSong.id);
-      const canReuseNativeQueue =
-        nativeIndex >= 0 && hasSameSongIds(nativeQueue, queueWithRequested);
+      const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
 
       if (canReuseNativeQueue && trackPlayerWithSkip.skip) {
-        const orderedQueue = rotateQueueFromIndex(nativeQueue, nativeIndex);
+        const orderedQueue = plan.reusableOrderedQueue;
         queueContextRef.current = orderedQueue;
-        baseQueueContextRef.current = nativeQueue.slice();
+        baseQueueContextRef.current = nativeQueueRef.current.slice();
         setPlaybackQueue(orderedQueue);
         setCurrentSong(requestedSong);
 
@@ -442,8 +434,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       }
 
-      const startIndex = requestedIndex >= 0 ? requestedIndex : 0;
-      const orderedQueue = rotateQueueFromIndex(queueWithRequested, startIndex);
+      const orderedQueue = plan.rebuildOrderedQueue;
       queueContextRef.current = orderedQueue;
       baseQueueContextRef.current = queueWithRequested.slice();
       nativeQueueRef.current = orderedQueue.slice();
@@ -505,54 +496,28 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ? queueContextRef.current
         : songsRef.current.filter(song => !!song.uri)
     ).slice();
-    if (currentQueue.length === 0) return;
-
     const current = await TrackPlayer.getActiveTrack();
     const currentId = current?.id ?? currentSong?.id;
+    const plan = buildShuffleTogglePlan({
+      currentQueue,
+      baseQueue: baseQueueContextRef.current,
+      currentSongId: currentId,
+      shuffleEnabled: shuffle,
+    });
+    if (!plan) return;
 
-    let list = currentQueue.slice();
-    if (!shuffle) {
-      if (baseQueueContextRef.current.length === 0) {
-        baseQueueContextRef.current = currentQueue.slice();
-      }
-      const currentTrack = currentId
-        ? list.find(song => song.id === currentId)
-        : undefined;
-      const rest = list.filter(song => song.id !== currentId);
-      for (let i = rest.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rest[i], rest[j]] = [rest[j], rest[i]];
-      }
-      list = currentTrack ? [currentTrack, ...rest] : rest;
-    } else {
-      const baseQueue =
-        baseQueueContextRef.current.length > 0
-          ? baseQueueContextRef.current
-          : currentQueue;
-      if (currentId) {
-        const curIdx = baseQueue.findIndex(song => song.id === currentId);
-        list =
-          curIdx >= 0
-            ? [...baseQueue.slice(curIdx), ...baseQueue.slice(0, curIdx)]
-            : baseQueue.slice();
-      } else {
-        list = baseQueue.slice();
-      }
-    }
-
-    if (list.length === 0) return;
-    const selectedSong =
-      (currentId ? list.find(song => song.id === currentId) : undefined) ?? list[0];
-    queueContextRef.current = list.slice();
-    setPlaybackQueue(list.slice());
+    const { nextQueue, nextBaseQueue, selectedSong } = plan;
+    queueContextRef.current = nextQueue.slice();
+    baseQueueContextRef.current = nextBaseQueue.slice();
+    setPlaybackQueue(nextQueue.slice());
     if (selectedSong) setCurrentSong(selectedSong);
     setShuffle(prev => !prev);
 
     try {
       const pos = await TrackPlayer.getProgress();
       await TrackPlayer.reset();
-      await TrackPlayer.add(list.map(toTrackPlayerTrack));
-      nativeQueueRef.current = list.slice();
+      await TrackPlayer.add(nextQueue.map(toTrackPlayerTrack));
+      nativeQueueRef.current = nextQueue.slice();
       if (pos.position) await TrackPlayer.seekTo(pos.position);
       await TrackPlayer.play();
     } catch {
