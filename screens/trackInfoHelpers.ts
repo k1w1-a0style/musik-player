@@ -1,3 +1,5 @@
+import type { Song } from '../types/Song';
+
 export const formatDuration = (ms?: number): string => {
   if (!ms || ms <= 0) return 'Nicht verfügbar';
   const totalSec = Math.floor(ms / 1000);
@@ -44,3 +46,12 @@ export const formatCoverStatus = (status?: string): string => {
 
 export const valueOrNA = (value?: string | number): string =>
   value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value);
+
+export const getTrackInfoCoverUri = (song: Song): string | undefined =>
+  song.coverInfo?.uri ?? song.cover;
+
+export const getTrackInfoCoverStatus = (song: Song, coverUri?: string): string =>
+  song.coverInfo?.status ?? (coverUri ? 'unknown' : 'none');
+
+export const formatImportedAt = (value?: string | number): string =>
+  value ? new Date(value).toLocaleString('de-DE') : 'Nicht verfügbar';
