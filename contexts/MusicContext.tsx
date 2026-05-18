@@ -1,8 +1,6 @@
 import React, {
   createContext,
-  useCallback,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -10,7 +8,6 @@ import {
   type Playlist,
   type Song,
 } from '../types/Song';
-import { StorageKeys, storage } from '../utils/storage';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
@@ -31,6 +28,7 @@ import { useEqualizerControls } from './useEqualizerControls';
 import { useLibraryActions } from './useLibraryActions';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
+import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
 import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
@@ -80,19 +78,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
   const palette = useAlbumPalette(currentSong);
 
-  const songsRef = useRef(songs);
-  songsRef.current = songs;
-  const queueContextRef = useRef<Song[]>([]);
-  const baseQueueContextRef = useRef<Song[]>([]);
-  const nativeQueueRef = useRef<Song[]>([]);
-
-  const persistCurrentSongId = useCallback(async (song: Song | null): Promise<void> => {
-    if (!song || !songsRef.current.some(item => item.id === song.id)) {
-      await storage.remove(StorageKeys.CURRENT_SONG_ID);
-      return;
-    }
-    await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
-  }, []);
+  const {
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    persistCurrentSongId,
+  } = useMusicPlaybackRefs(songs);
 
   const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
 
