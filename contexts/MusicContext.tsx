@@ -31,9 +31,7 @@ import {
 } from '../utils/nativeEqualizer';
 import {
   hasSameSongIds,
-  moveSongToFront,
   rotateQueueFromIndex,
-  shuffleQueueKeepingCurrent,
 } from '../utils/playbackQueue';
 import {
   addSongToPlaylistById,
@@ -44,6 +42,10 @@ import {
 } from '../utils/playlistState';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import {
+  buildHydratedPlaybackQueue,
+  didSongCoversChange,
+} from '../utils/musicHydration';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
@@ -149,25 +151,22 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (cancelled) return;
         songsRef.current = sanitizedSongs;
         setSongsState(sanitizedSongs);
-        const changed = sanitizedSongs.some(
-          (song, index) => song.cover !== storedSongs[index]?.cover,
-        );
-        if (changed) await storage.set(StorageKeys.SONGS, sanitizedSongs);
+        if (didSongCoversChange(sanitizedSongs, storedSongs)) {
+          await storage.set(StorageKeys.SONGS, sanitizedSongs);
+        }
 
-        const hydratedQueue = sanitizedSongs.filter(song => !!song.uri);
+        const {
+          hydratedQueue,
+          orderedQueue,
+          restoredSong,
+          shouldClearPersistedCurrentSongId,
+        } = buildHydratedPlaybackQueue(sanitizedSongs, storedCurrentSongId, storedShuffle ?? false);
+
         baseQueueContextRef.current = hydratedQueue.slice();
-
-        const restoredSong = storedCurrentSongId
-          ? hydratedQueue.find(song => song.id === storedCurrentSongId)
-          : undefined;
-        const orderedQueue = storedShuffle
-          ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id)
-          : moveSongToFront(hydratedQueue, restoredSong?.id);
-
         queueContextRef.current = orderedQueue;
         setPlaybackQueue(orderedQueue);
 
-        if (storedCurrentSongId && !restoredSong) {
+        if (shouldClearPersistedCurrentSongId) {
           await storage.remove(StorageKeys.CURRENT_SONG_ID);
         }
 
@@ -352,10 +351,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     (async () => {
       const sanitizedSongs = await sanitizeSongsForStorage(songs);
       if (cancelled) return;
-      const changed = sanitizedSongs.some(
-        (song, index) => song.cover !== songs[index]?.cover,
-      );
-      if (changed) {
+      if (didSongCoversChange(sanitizedSongs, songs)) {
         setSongsState(sanitizedSongs);
         return;
       }
