@@ -14,4 +14,4 @@ export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 export { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
 export { useLibraryStoredState, type UseLibraryStoredStateResult } from './useLibraryStoredState';
-export { useLibraryViewState } from './useLibraryViewState';
+export { useLibraryViewState, type UseLibraryViewStateResult } from './useLibraryViewState';
