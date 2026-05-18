@@ -1,7 +1,16 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 import TrackPlayer, { State, usePlaybackState } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
-import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
+import {
+  applyRepeatModeToTrackPlayer,
+  applyVolumeToTrackPlayer,
+  clampVolume,
+  getNextRepeatMode,
+  seekToMillis,
+  skipToNextSafely,
+  skipToPreviousOrRestart,
+  toggleTrackPlayerPlayback,
+} from './playbackControlHelpers';
 
 export interface PlaybackControls {
   isPlaying: boolean;
@@ -19,11 +28,7 @@ export interface PlaybackControls {
   previous: () => Promise<void>;
 }
 
-export const clampVolume = (volume: number): number =>
-  Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
-
-export const getNextRepeatMode = (repeatMode: RepeatMode): RepeatMode =>
-  repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+export { clampVolume, getNextRepeatMode } from './playbackControlHelpers';
 
 export const usePlaybackControls = (): PlaybackControls => {
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
@@ -34,12 +39,7 @@ export const usePlaybackControls = (): PlaybackControls => {
   const isBuffering = playback.state === State.Buffering || playback.state === State.Loading;
 
   const togglePlayPause = useCallback(async () => {
-    const state = (await TrackPlayer.getPlaybackState()).state;
-    if (state === State.Playing) {
-      await TrackPlayer.pause();
-    } else {
-      await TrackPlayer.play();
-    }
+    await toggleTrackPlayerPlayback();
   }, []);
 
   const stop = useCallback(async () => {
@@ -47,44 +47,26 @@ export const usePlaybackControls = (): PlaybackControls => {
   }, []);
 
   const seekTo = useCallback(async (millis: number) => {
-    await TrackPlayer.seekTo(millis / 1000);
+    await seekToMillis(millis);
   }, []);
 
   const next = useCallback(async () => {
-    try {
-      await TrackPlayer.skipToNext();
-    } catch {
-      // end of queue
-    }
+    await skipToNextSafely();
   }, []);
 
   const previous = useCallback(async () => {
-    try {
-      const { position } = await TrackPlayer.getProgress();
-      if (position > 3) {
-        await TrackPlayer.seekTo(0);
-        return;
-      }
-      await TrackPlayer.skipToPrevious();
-    } catch {
-      try {
-        await TrackPlayer.seekTo(0);
-      } catch {
-        // at start
-      }
-    }
+    await skipToPreviousOrRestart();
   }, []);
 
   const cycleRepeatMode = useCallback(async () => {
     const nextRepeatMode = getNextRepeatMode(repeatMode);
     setRepeatMode(nextRepeatMode);
-    await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(nextRepeatMode));
+    await applyRepeatModeToTrackPlayer(nextRepeatMode);
   }, [repeatMode]);
 
   const setVolume = useCallback(async (nextVolume: number) => {
-    const clampedVolume = clampVolume(nextVolume);
+    const clampedVolume = await applyVolumeToTrackPlayer(nextVolume);
     setVolumeState(clampedVolume);
-    await TrackPlayer.setVolume(clampedVolume);
   }, []);
 
   return {
