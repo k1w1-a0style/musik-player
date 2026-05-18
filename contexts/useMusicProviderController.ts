@@ -1,11 +1,9 @@
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
-import { useCurrentSongSync } from './useCurrentSongSync';
 import { useEqualizerControls } from './useEqualizerControls';
 import { useLibraryActions } from './useLibraryActions';
-import { useMusicHydration } from './useMusicHydration';
-import { useMusicPersistence } from './useMusicPersistence';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
+import { useMusicProviderEffects } from './useMusicProviderEffects';
 import { useMusicProviderState } from './useMusicProviderState';
 import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
@@ -70,32 +68,6 @@ export const useMusicProviderController = () => {
 
   const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
 
-  useMusicHydration({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setIsReady,
-    setSongsState,
-    setCurrentSong,
-    setPlaybackQueue,
-    setPlaylists,
-    setEqEnabledState,
-    setEqBandsState,
-    setEqPreset,
-    setVolumeState,
-    setRepeatMode,
-    setShuffle,
-  });
-
-  useCurrentSongSync({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    setCurrentSong,
-    persistCurrentSongId,
-  });
-
   const { playSong, toggleShuffle } = usePlaybackQueueActions({
     songsRef,
     queueContextRef,
@@ -132,17 +104,32 @@ export const useMusicProviderController = () => {
     playSong,
   });
 
-  useMusicPersistence({
+  useMusicProviderEffects({
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    persistCurrentSongId,
     isReady,
-    volume,
-    shuffle,
-    repeatMode,
-    eqEnabled,
-    eqBands,
-    eqPreset,
-    playlists,
+    setIsReady,
     songs,
     setSongsState,
+    currentSongSetter: setCurrentSong,
+    playbackQueueSetter: setPlaybackQueue,
+    playlists,
+    setPlaylists,
+    shuffle,
+    setShuffle,
+    repeatMode,
+    setRepeatMode,
+    volume,
+    setVolumeState,
+    eqEnabled,
+    setEqEnabledState,
+    eqBands,
+    setEqBandsState,
+    eqPreset,
+    setEqPreset,
   });
 
   return useProvidedMusicContextValues({
