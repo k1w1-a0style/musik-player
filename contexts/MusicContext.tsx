@@ -417,7 +417,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         <MiniPlayerMusicContext.Provider value={miniPlayerValue}>
           <NowPlayingMusicContext.Provider value={nowPlayingValue}>
             {children}
-          </NowPlayingContext.Provider>
+          </NowPlayingMusicContext.Provider>
         </MiniPlayerMusicContext.Provider>
       </LibraryMusicContext.Provider>
     </MusicContext.Provider>
