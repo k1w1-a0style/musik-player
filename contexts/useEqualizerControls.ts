@@ -1,5 +1,10 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
-import { EQ_PRESETS, type EqPresetName } from '../types/Song';
+import type { EqPresetName } from '../types/Song';
+import {
+  createDefaultEqBands,
+  getEqPresetBands,
+  updateEqBandAtIndex,
+} from './equalizerControlHelpers';
 
 interface EqualizerControls {
   eqEnabled: boolean;
@@ -13,19 +18,11 @@ interface EqualizerControls {
   setEqPreset: Dispatch<SetStateAction<EqPresetName | 'custom'>>;
 }
 
-export const updateEqBandAtIndex = (
-  bands: number[],
-  index: number,
-  value: number,
-): number[] => {
-  const next = bands.slice();
-  next[index] = value;
-  return next;
-};
+export { updateEqBandAtIndex } from './equalizerControlHelpers';
 
 export const useEqualizerControls = (): EqualizerControls => {
   const [eqEnabled, setEqEnabledState] = useState(false);
-  const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
+  const [eqBands, setEqBandsState] = useState<number[]>(createDefaultEqBands);
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
 
   const setEqBand = useCallback((index: number, value: number) => {
@@ -34,7 +31,7 @@ export const useEqualizerControls = (): EqualizerControls => {
   }, []);
 
   const applyEqPreset = useCallback((preset: EqPresetName) => {
-    setEqBandsState(EQ_PRESETS[preset].slice());
+    setEqBandsState(getEqPresetBands(preset));
     setEqPreset(preset);
   }, []);
 
