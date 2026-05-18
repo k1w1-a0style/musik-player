@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
-import Visualizer from '../components/Visualizer';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
@@ -12,6 +11,7 @@ import NowPlayingHeader from './NowPlayingHeader';
 import NowPlayingMenuModal from './NowPlayingMenuModal';
 import NowPlayingQueueCard from './NowPlayingQueueCard';
 import NowPlayingTitleRow from './NowPlayingTitleRow';
+import NowPlayingVisualizerSection from './NowPlayingVisualizerSection';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -68,12 +68,13 @@ const NowPlaying: React.FC = () => {
         onToggleFavorite={toggleFavorite}
       />
 
-      {showVisualizer ? (
-        <View style={styles.visualizerWrap}>
-          <Visualizer bins={fftBins} active={isPlaying} color={visualizerColor} height={44} />
-          {!!visualizerHint && <Text style={styles.visualizerHint}>{visualizerHint}</Text>}
-        </View>
-      ) : null}
+      <NowPlayingVisualizerSection
+        visible={showVisualizer}
+        fftBins={fftBins}
+        isPlaying={isPlaying}
+        color={visualizerColor}
+        hint={visualizerHint}
+      />
 
       <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} accent={progressAccent} accentDark={progressAccentDark} />
       <Controls />
@@ -102,8 +103,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
   coverArea: { height: COVER_SIZE + 8, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
-  visualizerWrap: { paddingHorizontal: 20, marginTop: 4, marginBottom: theme.spacing.sm },
-  visualizerHint: { marginTop: 6, textAlign: 'center', color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
 });
 
 export default NowPlaying;
