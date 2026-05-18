@@ -1,4 +1,5 @@
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
+import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
 import { useEqualizerControls } from './useEqualizerControls';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
 import { useMusicProviderActions } from './useMusicProviderActions';
@@ -95,33 +96,43 @@ export const useMusicProviderController = () => {
     setShuffle,
   });
 
-  useMusicProviderEffects({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    persistCurrentSongId,
-    isReady,
-    setIsReady,
-    songs,
-    setSongsState,
-    currentSongSetter: setCurrentSong,
-    playbackQueueSetter: setPlaybackQueue,
-    playlists,
-    setPlaylists,
-    shuffle,
-    setShuffle,
-    repeatMode,
-    setRepeatMode,
-    volume,
-    setVolumeState,
-    eqEnabled,
-    setEqEnabledState,
-    eqBands,
-    setEqBandsState,
-    eqPreset,
-    setEqPreset,
-  });
+  useMusicProviderEffects(
+    buildMusicProviderEffectsInput({
+      refs: {
+        songsRef,
+        queueContextRef,
+        baseQueueContextRef,
+        nativeQueueRef,
+        persistCurrentSongId,
+      },
+      state: {
+        isReady,
+        setIsReady,
+        songs,
+        setSongsState,
+        currentSongSetter: setCurrentSong,
+        playbackQueueSetter: setPlaybackQueue,
+        playlists,
+        setPlaylists,
+        shuffle,
+        setShuffle,
+      },
+      playback: {
+        repeatMode,
+        setRepeatMode,
+        volume,
+        setVolumeState,
+      },
+      equalizer: {
+        eqEnabled,
+        setEqEnabledState,
+        eqBands,
+        setEqBandsState,
+        eqPreset,
+        setEqPreset,
+      },
+    }),
+  );
 
   return useProvidedMusicContextValues(
     buildMusicProviderContextInput({
