@@ -1,12 +1,17 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Playlist, Song } from '../types/Song';
-import { createPlaylistId } from '../utils/playlistIds';
 import {
   addSongToPlaylistById,
   deletePlaylistById,
   removeSongFromPlaylistById,
   renamePlaylistById,
 } from '../utils/playlistState';
+import {
+  appendPlaylist,
+  createPlaylistRecord,
+  runPlayPlaylistAction,
+} from './playlistActionHelpers';
+export { buildPlaylistQueue } from './playlistActionHelpers';
 
 interface PlaylistActionsArgs {
   playlists: Playlist[];
@@ -24,11 +29,6 @@ interface PlaylistActions {
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 
-export const buildPlaylistQueue = (playlist: Playlist, songs: Song[]): Song[] =>
-  playlist.songIds
-    .map(id => songs.find(song => song.id === id))
-    .filter((song): song is Song => !!song);
-
 export const usePlaylistActions = ({
   playlists,
   setPlaylists,
@@ -37,13 +37,8 @@ export const usePlaylistActions = ({
 }: PlaylistActionsArgs): PlaylistActions => {
   const createPlaylist = useCallback(
     (name: string) => {
-      const playlist: Playlist = {
-        id: createPlaylistId(),
-        name,
-        songIds: [],
-        createdAt: Date.now(),
-      };
-      setPlaylists(prev => [...prev, playlist]);
+      const playlist = createPlaylistRecord(name);
+      setPlaylists(prev => appendPlaylist(prev, playlist));
       return playlist;
     },
     [setPlaylists],
@@ -79,10 +74,12 @@ export const usePlaylistActions = ({
 
   const playPlaylist = useCallback(
     async (playlistId: string) => {
-      const playlist = playlists.find(item => item.id === playlistId);
-      if (!playlist) return;
-      const queue = buildPlaylistQueue(playlist, songsRef.current);
-      if (queue.length > 0) await playSong(queue[0], queue);
+      await runPlayPlaylistAction({
+        playlistId,
+        playlists,
+        songs: songsRef.current,
+        playSong,
+      });
     },
     [playSong, playlists, songsRef],
   );
