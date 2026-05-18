@@ -1,12 +1,10 @@
 import { useEqualizerControls } from './useEqualizerControls';
-import { useLibraryActions } from './useLibraryActions';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
+import { useMusicProviderActions } from './useMusicProviderActions';
 import { useMusicProviderAudioFeatures } from './useMusicProviderAudioFeatures';
 import { useMusicProviderEffects } from './useMusicProviderEffects';
 import { useMusicProviderState } from './useMusicProviderState';
 import { usePlaybackControls } from './usePlaybackControls';
-import { usePlaybackQueueActions } from './usePlaybackQueueActions';
-import { usePlaylistActions } from './usePlaylistActions';
 import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 
 export const useMusicProviderController = () => {
@@ -69,40 +67,31 @@ export const useMusicProviderController = () => {
     persistCurrentSongId,
   } = useMusicPlaybackRefs(songs);
 
-  const { playSong, toggleShuffle } = usePlaybackQueueActions({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setPlaybackQueue,
-    setCurrentSong,
-    currentSongId: currentSong?.id,
-    shuffle,
-    setShuffle,
-  });
-
-  const { setSongs, addSongs, updateSongMetadata } = useLibraryActions({
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setSongsState,
-    setCurrentSong,
-    setPlaybackQueue,
-    setPlaylists,
-  });
-
   const {
+    playSong,
+    toggleShuffle,
+    setSongs,
+    addSongs,
+    updateSongMetadata,
     createPlaylist,
     deletePlaylist,
     renamePlaylist,
     addSongToPlaylist,
     removeSongFromPlaylist,
     playPlaylist,
-  } = usePlaylistActions({
+  } = useMusicProviderActions({
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    setSongsState,
+    setCurrentSong,
+    setPlaybackQueue,
     playlists,
     setPlaylists,
-    songsRef,
-    playSong,
+    currentSongId: currentSong?.id,
+    shuffle,
+    setShuffle,
   });
 
   useMusicProviderEffects({
