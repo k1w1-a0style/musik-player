@@ -170,7 +170,8 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
   const next = favorite
     ? Array.from(new Set([...ids, songId]))
     : ids.filter(id => id !== songId);
-  await storage.set(StorageKeys.FAVORITE_SONG_IDS, next);
+  const stored = await storage.set(StorageKeys.FAVORITE_SONG_IDS, next);
+  if (!stored) throw new Error('Failed to persist favorite song ids');
   return next;
 };
 
