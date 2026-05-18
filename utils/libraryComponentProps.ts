@@ -93,9 +93,9 @@ export const buildLibraryImportStatusProps = ({ importStatus }: LibraryImportSta
   status: importStatus,
 });
 
-export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen }: LibraryScreenVisibilityPropsBuilderOptions): Pick<LibraryScreenContentProps, 'loading' | 'searchOpen'> => ({
-  loading,
-  searchOpen,
+export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen }: LibraryScreenVisibilityPropsBuilderOptions): Pick<LibraryScreenContentProps, 'showImportStatus' | 'showSearchBar'> => ({
+  showImportStatus: loading,
+  showSearchBar: searchOpen,
 });
 
 export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuilderOptions): LibraryTabContentProps => ({
