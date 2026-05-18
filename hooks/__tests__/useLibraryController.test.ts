@@ -8,6 +8,7 @@ import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
 import type { UseLibraryMetadataRefreshActionsResult } from '../useLibraryMetadataRefreshActions';
 import type { UseLibraryNavigationActionsResult } from '../useLibraryNavigationActions';
 import type { UseLibraryPlaybackActionsResult } from '../useLibraryPlaybackActions';
+import type { UseLibraryRenderersResult } from '../useLibraryRenderers';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -16,6 +17,7 @@ type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
 const fn = jest.fn();
 const asyncFn = jest.fn(async () => undefined);
+const elementFn = jest.fn(() => null);
 
 const mockMusicContext: MockLibraryMusicContext = {
   songs: [],
@@ -56,6 +58,17 @@ const mockPlaybackActions: UseLibraryPlaybackActionsResult = {
   handlePlayActiveList: fn,
   handleShufflePress: fn,
   toggleAlbumView: fn,
+};
+
+const mockRenderers: UseLibraryRenderersResult = {
+  getSongItemLayout: jest.fn((_, index: number) => ({ length: 62, offset: 62 * index, index })),
+  handleSongPress: fn,
+  renderAlbumTile: elementFn,
+  renderFolderItem: elementFn,
+  renderGroupItem: elementFn,
+  renderPlaylistItem: elementFn,
+  renderSongItem: elementFn,
+  songKeyExtractor: jest.fn(item => item.id),
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -182,16 +195,7 @@ jest.mock('../useLibraryPlaybackActions', () => ({
 }));
 
 jest.mock('../useLibraryRenderers', () => ({
-  useLibraryRenderers: jest.fn(() => ({
-    getSongItemLayout: jest.fn(),
-    handleSongPress: jest.fn(),
-    renderAlbumTile: jest.fn(),
-    renderFolderItem: jest.fn(),
-    renderGroupItem: jest.fn(),
-    renderPlaylistItem: jest.fn(),
-    renderSongItem: jest.fn(),
-    songKeyExtractor: jest.fn(),
-  })),
+  useLibraryRenderers: jest.fn(() => mockRenderers),
 }));
 
 jest.mock('../useLibraryScanFolderActions', () => ({
