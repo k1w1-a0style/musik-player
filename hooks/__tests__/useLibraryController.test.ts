@@ -3,6 +3,7 @@ import { useLibraryController } from '../useLibraryController';
 import type { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
+import type { UseLibraryImportActionsResult } from '../useLibraryImportActions';
 import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
@@ -27,6 +28,10 @@ const mockMusicContext: MockLibraryMusicContext = {
 
 const mockAlerts: UseLibraryAlertsResult = {
   showAlert: fn,
+};
+
+const mockImportActions: UseLibraryImportActionsResult = {
+  importFromDevice: asyncFn,
 };
 
 const mockMenuActions: UseLibraryMenuActionsResult = {
@@ -140,7 +145,7 @@ jest.mock('../useLibraryComponentProps', () => ({
 }));
 
 jest.mock('../useLibraryImportActions', () => ({
-  useLibraryImportActions: jest.fn(() => ({ importFromDevice: jest.fn() })),
+  useLibraryImportActions: jest.fn(() => mockImportActions),
 }));
 
 jest.mock('../useLibraryMenuActions', () => ({
