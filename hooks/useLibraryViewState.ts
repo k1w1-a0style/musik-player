@@ -20,6 +20,8 @@ interface UseLibraryViewStateOptions {
   songs: Song[];
 }
 
+export type UseLibraryViewStateResult = ReturnType<typeof buildLibraryViewState>;
+
 export const useLibraryViewState = ({
   activeTab,
   favoriteIds,
@@ -30,7 +32,7 @@ export const useLibraryViewState = ({
   query,
   scanFolders,
   songs,
-}: UseLibraryViewStateOptions) => useMemo(() => buildLibraryViewState({
+}: UseLibraryViewStateOptions): UseLibraryViewStateResult => useMemo(() => buildLibraryViewState({
   activeTab,
   favoriteIds,
   isDev,
