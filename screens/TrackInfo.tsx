@@ -1,45 +1,35 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
-import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
-import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
-import { APP_STACK_ROUTES } from '../types/routes';
 import {
   formatBytes,
   formatCoverStatus,
   formatDuration,
-  formatImportedAt,
   formatSampleRate,
-  getTrackInfoCoverStatus,
-  getTrackInfoCoverUri,
   valueOrNA,
 } from './trackInfoHelpers';
+import { useTrackInfoScreenState } from './useTrackInfoScreenState';
 
 const dangerColor = theme.palette.error;
-type TrackInfoRoute = RouteProp<AppStackParamList, 'TrackInfo'>;
 
 const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ label, value, long = false }) => (
   <Text style={long ? styles.longRow : styles.row}>{label}: {value}</Text>
 );
 
 const TrackInfo: React.FC = () => {
-  const route = useRoute<TrackInfoRoute>();
-  const navigation = useNavigation<NavigationProp<AppStackParamList>>();
-  const { songs, setSongs } = useLibraryMusicContext();
-  const songsRef = useRef(songs);
-  const [coverFailed, setCoverFailed] = useState(false);
-
-  songsRef.current = songs;
-
-  const song = useMemo(() => songs.find(s => s.id === route.params.songId), [route.params.songId, songs]);
-
-  useEffect(() => {
-    setCoverFailed(false);
-  }, [song?.id, song?.cover]);
+  const {
+    song,
+    coverUri,
+    coverStatus,
+    importedAt,
+    coverFailed,
+    setCoverFailed,
+    openTagEditor,
+    removeFromLibrary,
+  } = useTrackInfoScreenState();
 
   if (!song) {
     return (
@@ -50,28 +40,6 @@ const TrackInfo: React.FC = () => {
       </AppBackground>
     );
   }
-
-  const coverUri = getTrackInfoCoverUri(song);
-  const coverStatus = getTrackInfoCoverStatus(song, coverUri);
-  const importedAt = formatImportedAt(song.fileInfo?.importedAt);
-
-  const removeFromLibrary = (): void => {
-    Alert.alert(
-      'Aus Bibliothek entfernen?',
-      'Der Track wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Entfernen',
-          style: 'destructive',
-          onPress: () => {
-            setSongs(songsRef.current.filter(item => item.id !== song.id));
-            navigation.goBack();
-          },
-        },
-      ],
-    );
-  };
 
   return (
     <AppBackground>
@@ -87,7 +55,7 @@ const TrackInfo: React.FC = () => {
 
           <Text style={styles.header}>TrackInfo</Text>
           <View style={styles.actionRow}>
-            <Pressable accessibilityRole="button" style={styles.editButton} onPress={() => navigation.navigate(APP_STACK_ROUTES.TAG_EDITOR, { songId: song.id })}>
+            <Pressable accessibilityRole="button" style={styles.editButton} onPress={openTagEditor}>
               <Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Track aus Bibliothek entfernen" style={styles.removeButton} onPress={removeFromLibrary}>
