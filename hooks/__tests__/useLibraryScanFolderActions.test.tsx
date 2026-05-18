@@ -1,9 +1,8 @@
 import React from 'react';
 import { Button } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { useLibraryScanFolderActions } from '../useLibraryScanFolderActions';
+import { useLibraryScanFolderActions, type UseLibraryScanFolderActionsOptions } from '../useLibraryScanFolderActions';
 import type { ScanFolder } from '../../types/ScanFolder';
-import type { LibraryTab } from '../../utils/libraryTabs';
 import { persistAddedScanFolder, persistRemovedScanFolder } from '../../utils/libraryScanFolderPersistence';
 import { getScanFolderCancelledAlert, getScanFolderUnsupportedAlert } from '../../utils/libraryFolderMessages';
 
@@ -24,15 +23,7 @@ const folder = (id: string): ScanFolder => ({
   enabled: true,
 });
 
-interface HookHarnessProps {
-  scanFolders?: ScanFolder[];
-  platformOs?: string;
-  requestDirectoryPermissionsAsync?: () => Promise<{ granted?: boolean; directoryUri?: string | null }>;
-  setScanFolders?: React.Dispatch<React.SetStateAction<ScanFolder[]>>;
-  setActiveTab?: React.Dispatch<React.SetStateAction<LibraryTab>>;
-  setMenuOpen?: React.Dispatch<React.SetStateAction<boolean>>;
-  showAlert?: jest.Mock;
-}
+type HookHarnessProps = Partial<UseLibraryScanFolderActionsOptions>;
 
 const HookHarness = ({
   scanFolders = [folder('a')],
@@ -43,7 +34,7 @@ const HookHarness = ({
   setMenuOpen = jest.fn(),
   showAlert = jest.fn(),
 }: HookHarnessProps) => {
-  const actions = useLibraryScanFolderActions({
+  const options: UseLibraryScanFolderActionsOptions = {
     scanFolders,
     setScanFolders,
     setActiveTab,
@@ -51,7 +42,9 @@ const HookHarness = ({
     showAlert,
     platformOs,
     requestDirectoryPermissionsAsync,
-  });
+  };
+
+  const actions = useLibraryScanFolderActions(options);
 
   return (
     <>
