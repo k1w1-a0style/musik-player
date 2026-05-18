@@ -4,7 +4,7 @@ import { useLibraryActions } from './useLibraryActions';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
 import { usePlaylistActions } from './usePlaylistActions';
 
-interface MusicProviderActionsArgs {
+export interface MusicProviderActionsArgs {
   songsRef: MutableRefObject<Song[]>;
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
