@@ -4,6 +4,7 @@ import {
   buildMusicProviderEffectsEqualizerInput,
   buildMusicProviderEffectsPlaybackInput,
 } from './musicProviderControlInput';
+import { buildMusicProviderContextAudioFeatureInput } from './musicProviderAudioFeatureInput';
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
 import {
@@ -36,13 +37,12 @@ export const useMusicProviderController = () => {
   const { isPlaying } = playback;
   const { eqEnabled, eqBands } = equalizer;
 
-  const { eqNative, palette, fftBins, visualizerRunning, visualizerError } =
-    useMusicProviderAudioFeatures({
-      currentSong,
-      eqEnabled,
-      eqBands,
-      isPlaying,
-    });
+  const audioFeatures = useMusicProviderAudioFeatures({
+    currentSong,
+    eqEnabled,
+    eqBands,
+    isPlaying,
+  });
 
   const {
     songsRef,
@@ -107,13 +107,7 @@ export const useMusicProviderController = () => {
         toggleShuffle,
       }),
       equalizer: buildMusicProviderContextEqualizerInput(equalizer),
-      audioFeatures: {
-        eqNative,
-        fftBins,
-        visualizerRunning,
-        visualizerError,
-        palette,
-      },
+      audioFeatures: buildMusicProviderContextAudioFeatureInput(audioFeatures),
       playlists: {
         createPlaylist,
         deletePlaylist,
