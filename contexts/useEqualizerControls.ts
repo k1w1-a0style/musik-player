@@ -6,7 +6,7 @@ import {
   updateEqBandAtIndex,
 } from './equalizerControlHelpers';
 
-interface EqualizerControls {
+export interface EqualizerControls {
   eqEnabled: boolean;
   setEqEnabled: (value: boolean) => void;
   setEqEnabledState: Dispatch<SetStateAction<boolean>>;
