@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import { useMusicHydration } from '../useMusicHydration';
 import { StorageKeys, storage } from '../../utils/storage';
-import type { Playlist, RepeatMode, Song } from '../../types/Song';
+import type { EqPresetName, Playlist, RepeatMode, Song } from '../../types/Song';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',
@@ -41,7 +41,7 @@ const HydrationProbe = () => {
   const [, setPlaylists] = useState<Playlist[]>([]);
   const [, setEqEnabled] = useState(false);
   const [, setEqBands] = useState<number[]>([]);
-  const [, setEqPreset] = useState<'flat' | 'rock' | 'pop' | 'jazz' | 'classical' | 'custom'>('flat');
+  const [, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
   const [, setVolume] = useState(1);
   const [, setRepeatMode] = useState<RepeatMode>('off');
   const [, setShuffle] = useState(false);
