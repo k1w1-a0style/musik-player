@@ -1,7 +1,9 @@
+import { createRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import {
   applyStoredPlaybackSettings,
+  hydrateStoredSongs,
   loadStoredMusicHydrationState,
   type StoredMusicHydrationState,
 } from '../musicHydrationHelpers';
@@ -39,6 +41,90 @@ describe('musicHydrationHelpers', () => {
       shuffle: true,
       currentSongId: 's1',
     });
+  });
+
+  test('hydrates stored songs and native queue', async () => {
+    const songsRef = createRef<Song[]>();
+    const queueContextRef = createRef<Song[]>();
+    const baseQueueContextRef = createRef<Song[]>();
+    const nativeQueueRef = createRef<Song[]>();
+    songsRef.current = [];
+    queueContextRef.current = [];
+    baseQueueContextRef.current = [];
+    nativeQueueRef.current = [];
+    const setSongsState = jest.fn();
+    const setCurrentSong = jest.fn();
+    const setPlaybackQueue = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setSongsState,
+      setCurrentSong,
+      setPlaybackQueue,
+      isCancelled: () => false,
+    });
+
+    expect(songsRef.current).toEqual(songs);
+    expect(queueContextRef.current).toEqual(songs);
+    expect(baseQueueContextRef.current).toEqual(songs);
+    expect(nativeQueueRef.current).toEqual(songs);
+    expect(setSongsState).toHaveBeenCalledWith(songs);
+    expect(setCurrentSong).toHaveBeenCalledWith(songs[0]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith(songs);
+    expect(TrackPlayer.reset).toHaveBeenCalled();
+    expect(TrackPlayer.add).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })]));
+  });
+
+  test('skips stored song hydration when cancelled', async () => {
+    const songsRef = createRef<Song[]>();
+    const queueContextRef = createRef<Song[]>();
+    const baseQueueContextRef = createRef<Song[]>();
+    const nativeQueueRef = createRef<Song[]>();
+    songsRef.current = [];
+    queueContextRef.current = [];
+    baseQueueContextRef.current = [];
+    nativeQueueRef.current = [];
+    const setSongsState = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setSongsState,
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => true,
+    });
+
+    expect(songsRef.current).toEqual([]);
+    expect(setSongsState).not.toHaveBeenCalled();
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
   });
 
   test('applies stored playback settings to state and TrackPlayer', () => {
