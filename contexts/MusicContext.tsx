@@ -12,7 +12,6 @@ import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
   Event,
-  RepeatMode as RNTPRepeatMode,
   State,
   usePlaybackState,
 } from 'react-native-track-player';
@@ -27,6 +26,12 @@ import { StorageKeys, storage } from '../utils/storage';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { createPlaylistId } from '../utils/playlistIds';
+import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
+import {
+  clampNativeEqMillibel,
+  dbToMillibel,
+  findClosestUiEqBandIndex,
+} from '../utils/nativeEqualizer';
 import {
   hasSameSongIds,
   moveSongToFront,
@@ -159,13 +164,6 @@ const toTrack = (s: Song) => ({
   artwork: getSongArtworkUri(s),
   duration: s.duration ? s.duration / 1000 : undefined,
 });
-
-const toRNTPRepeatMode = (mode: RepeatMode): RNTPRepeatMode =>
-  mode === 'off'
-    ? RNTPRepeatMode.Off
-    : mode === 'one'
-      ? RNTPRepeatMode.Track
-      : RNTPRepeatMode.Queue;
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -316,7 +314,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       if (storedRepeat) {
         setRepeatMode(storedRepeat);
-        TrackPlayer.setRepeatMode(toRNTPRepeatMode(storedRepeat)).catch(() => undefined);
+        TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(storedRepeat)).catch(() => undefined);
       }
       if (storedShuffle != null) setShuffle(storedShuffle);
       setIsReady(true);
@@ -373,20 +371,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     if (!eqNative || !eqNative.available) return;
     if (!eqEnabled) return;
-    const UI_FREQS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+    const nativeRange = [eqNative.minMillibel, eqNative.maxMillibel] as const;
     eqNative.bands.forEach(band => {
-      // Find the closest UI band by center freq
-      let bestIdx = 0;
-      let bestDist = Infinity;
-      UI_FREQS.forEach((f, i) => {
-        const d = Math.abs(f - band.centerFreqHz);
-        if (d < bestDist) {
-          bestDist = d;
-          bestIdx = i;
-        }
-      });
-      const dB = eqBands[bestIdx] ?? 0;
-      const millibel = Math.round(dB * 100); // 1 dB = 100 mB
+      const uiBandIndex = findClosestUiEqBandIndex(band.centerFreqHz);
+      const dB = eqBands[uiBandIndex] ?? 0;
+      const millibel = clampNativeEqMillibel(dbToMillibel(dB), nativeRange);
       SystemAudio.eqSetBandLevel(band.index, millibel);
     });
   }, [eqBands, eqEnabled, eqNative]);
@@ -701,7 +690,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const next: RepeatMode =
       repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     setRepeatMode(next);
-    await TrackPlayer.setRepeatMode(toRNTPRepeatMode(next));
+    await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(next));
   }, [repeatMode]);
 
   const setVolume = useCallback(async (v: number) => {
