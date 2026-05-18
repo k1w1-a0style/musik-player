@@ -37,6 +37,7 @@ const NowPlaying: React.FC = () => {
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const [favorite, setFavorite] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const queue: Song[] = useMemo(
@@ -49,6 +50,7 @@ const NowPlaying: React.FC = () => {
     let cancelled = false;
     if (!currentSong?.id) {
       setFavorite(false);
+      setFavoritePending(false);
       return;
     }
     isFavoriteSongId(currentSong.id).then(value => {
@@ -82,11 +84,20 @@ const NowPlaying: React.FC = () => {
   }, [currentSong, navigation]);
 
   const toggleFavorite = useCallback(() => {
-    if (!currentSong?.id) return;
+    if (!currentSong?.id || favoritePending) return;
+    const songId = currentSong.id;
+    const previous = favorite;
     const next = !favorite;
     setFavorite(next);
-    void setFavoriteSongId(currentSong.id, next);
-  }, [currentSong?.id, favorite]);
+    setFavoritePending(true);
+    void setFavoriteSongId(songId, next)
+      .catch(() => {
+        setFavorite(previous);
+      })
+      .finally(() => {
+        setFavoritePending(false);
+      });
+  }, [currentSong?.id, favorite, favoritePending]);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -119,7 +130,7 @@ const NowPlaying: React.FC = () => {
           <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
           <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
         </View>
-        <Pressable onPress={toggleFavorite} style={styles.heartBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Track favorisieren">
+        <Pressable disabled={favoritePending} onPress={toggleFavorite} style={styles.heartBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Track favorisieren" accessibilityState={{ disabled: favoritePending }}>
           <Heart color={favorite ? theme.palette.primary : theme.palette.text.primary} fill={favorite ? theme.palette.primary : 'transparent'} size={22} />
         </Pressable>
       </View>
