@@ -7,6 +7,7 @@ import type { UseLibraryImportActionsResult } from '../useLibraryImportActions';
 import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
 import type { UseLibraryMetadataRefreshActionsResult } from '../useLibraryMetadataRefreshActions';
 import type { UseLibraryNavigationActionsResult } from '../useLibraryNavigationActions';
+import type { UseLibraryPlaybackActionsResult } from '../useLibraryPlaybackActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -49,6 +50,12 @@ const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
 
 const mockNavigationActions: UseLibraryNavigationActionsResult = {
   openTrackInfo: fn,
+};
+
+const mockPlaybackActions: UseLibraryPlaybackActionsResult = {
+  handlePlayActiveList: fn,
+  handleShufflePress: fn,
+  toggleAlbumView: fn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -171,11 +178,7 @@ jest.mock('../useLibraryNavigationActions', () => ({
 }));
 
 jest.mock('../useLibraryPlaybackActions', () => ({
-  useLibraryPlaybackActions: jest.fn(() => ({
-    handlePlayActiveList: jest.fn(),
-    handleShufflePress: jest.fn(),
-    toggleAlbumView: jest.fn(),
-  })),
+  useLibraryPlaybackActions: jest.fn(() => mockPlaybackActions),
 }));
 
 jest.mock('../useLibraryRenderers', () => ({
