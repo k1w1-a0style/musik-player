@@ -379,9 +379,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // ---- Native equalizer init ----
   useEffect(() => {
     let cancelled = false;
-    SystemAudio.eqInit().then(info => {
-      if (!cancelled) setEqNative(info);
-    });
+    SystemAudio.eqInit()
+      .then(info => {
+        if (!cancelled) setEqNative(info);
+      })
+      .catch(() => {
+        if (!cancelled) setEqNative(null);
+      });
     return () => {
       cancelled = true;
       SystemAudio.eqRelease();
