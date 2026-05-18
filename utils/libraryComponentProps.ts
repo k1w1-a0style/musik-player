@@ -11,26 +11,26 @@ import type { LibraryTab } from './libraryTabs';
 import type { LibraryGroupItem } from './libraryPresentation';
 import type { LibraryPlaylistItem } from './libraryPlaylists';
 
-interface LibraryTopBarPropsBuilderOptions {
+export interface LibraryTopBarPropsBuilderOptions {
   openMenu: () => void;
   toggleSearch: () => void;
 }
 
-interface LibraryTabsPropsBuilderOptions {
+export interface LibraryTabsPropsBuilderOptions {
   activeTab: LibraryTab;
   setActiveTab: (tab: LibraryTab) => void;
 }
 
-interface LibrarySearchBarPropsBuilderOptions {
+export interface LibrarySearchBarPropsBuilderOptions {
   query: string;
   setQuery: (query: string) => void;
 }
 
-interface LibraryImportStatusPropsBuilderOptions {
+export interface LibraryImportStatusPropsBuilderOptions {
   importStatus: string | null;
 }
 
-interface LibraryTabContentPropsBuilderOptions {
+export interface LibraryTabContentPropsBuilderOptions {
   activeTab: LibraryTab;
   activeFolders: number;
   albumGroups: LibraryGroupItem[];
@@ -53,7 +53,7 @@ interface LibraryTabContentPropsBuilderOptions {
   songsForActiveList: Song[];
 }
 
-interface LibraryMenuModalPropsBuilderOptions {
+export interface LibraryMenuModalPropsBuilderOptions {
   activeFolders: number;
   closeMenu: () => void;
   importFromDevice: () => void;
