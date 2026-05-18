@@ -27,6 +27,19 @@ import { StorageKeys, storage } from '../utils/storage';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { createPlaylistId } from '../utils/playlistIds';
+import {
+  hasSameSongIds,
+  moveSongToFront,
+  rotateQueueFromIndex,
+  shuffleQueueKeepingCurrent,
+} from '../utils/playbackQueue';
+import {
+  addSongToPlaylistById,
+  deletePlaylistById,
+  prunePlaylists,
+  removeSongFromPlaylistById,
+  renamePlaylistById,
+} from '../utils/playlistState';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -153,49 +166,6 @@ const toRNTPRepeatMode = (mode: RepeatMode): RNTPRepeatMode =>
     : mode === 'one'
       ? RNTPRepeatMode.Track
       : RNTPRepeatMode.Queue;
-
-const moveSongToFront = (queue: Song[], songId?: string): Song[] => {
-  if (!songId) return queue.slice();
-  const idx = queue.findIndex(song => song.id === songId);
-  return idx >= 0 ? [...queue.slice(idx), ...queue.slice(0, idx)] : queue.slice();
-};
-
-const rotateQueueFromIndex = (queue: Song[], index: number): Song[] =>
-  index > 0 ? [...queue.slice(index), ...queue.slice(0, index)] : queue.slice();
-
-const hasSameSongIds = (a: Song[], b: Song[]): boolean => {
-  if (a.length !== b.length) return false;
-  const counts = new Map<string, number>();
-  a.forEach(song => counts.set(song.id, (counts.get(song.id) ?? 0) + 1));
-  return b.every(song => {
-    const next = (counts.get(song.id) ?? 0) - 1;
-    if (next < 0) return false;
-    if (next === 0) counts.delete(song.id);
-    else counts.set(song.id, next);
-    return true;
-  });
-};
-
-const prunePlaylists = (items: Playlist[], validSongIds: Set<string>): Playlist[] => {
-  let changed = false;
-  const next = items.map(playlist => {
-    const songIds = playlist.songIds.filter(songId => validSongIds.has(songId));
-    if (songIds.length !== playlist.songIds.length) changed = true;
-    return songIds.length === playlist.songIds.length ? playlist : { ...playlist, songIds };
-  });
-  return changed ? next : items;
-};
-
-const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string): Song[] => {
-  const ordered = moveSongToFront(queue, currentSongId);
-  if (ordered.length <= 2) return ordered;
-  const [current, ...rest] = ordered;
-  for (let i = rest.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [rest[i], rest[j]] = [rest[j], rest[i]];
-  }
-  return current ? [current, ...rest] : rest;
-};
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -767,26 +737,16 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return playlist;
   }, []);
   const deletePlaylist = useCallback((id: string) => {
-    setPlaylists(prev => prev.filter(p => p.id !== id));
+    setPlaylists(prev => deletePlaylistById(prev, id));
   }, []);
   const renamePlaylist = useCallback((id: string, name: string) => {
-    setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, name } : p)));
+    setPlaylists(prev => renamePlaylistById(prev, id, name));
   }, []);
   const addSongToPlaylist = useCallback((playlistId: string, songId: string) => {
-    setPlaylists(prev =>
-      prev.map(p =>
-        p.id === playlistId && !p.songIds.includes(songId)
-          ? { ...p, songIds: [...p.songIds, songId] }
-          : p,
-      ),
-    );
+    setPlaylists(prev => addSongToPlaylistById(prev, playlistId, songId));
   }, []);
   const removeSongFromPlaylist = useCallback((playlistId: string, songId: string) => {
-    setPlaylists(prev =>
-      prev.map(p =>
-        p.id === playlistId ? { ...p, songIds: p.songIds.filter(s => s !== songId) } : p,
-      ),
-    );
+    setPlaylists(prev => removeSongFromPlaylistById(prev, playlistId, songId));
   }, []);
   const playPlaylist = useCallback(
     async (playlistId: string) => {
