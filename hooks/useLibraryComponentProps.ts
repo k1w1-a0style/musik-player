@@ -4,7 +4,14 @@ import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../utils/libraryComponentProps';
+import {
+  buildLibraryImportStatusProps,
+  buildLibraryMenuModalProps,
+  buildLibrarySearchBarProps,
+  buildLibraryTabContentProps,
+  buildLibraryTabsProps,
+  buildLibraryTopBarProps,
+} from '../utils/libraryComponentProps';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import type { LibraryTab } from '../utils/libraryTabs';
@@ -88,24 +95,23 @@ export const useLibraryComponentProps = ({
   toggleAlbumView,
   toggleSearch,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
-  const topBarProps = useMemo(() => ({
-    onOpenMenu: openMenu,
-    onToggleSearch: toggleSearch,
+  const topBarProps = useMemo(() => buildLibraryTopBarProps({
+    openMenu,
+    toggleSearch,
   }), [openMenu, toggleSearch]);
 
-  const tabsProps = useMemo(() => ({
+  const tabsProps = useMemo(() => buildLibraryTabsProps({
     activeTab,
-    onChangeTab: setActiveTab,
+    setActiveTab,
   }), [activeTab, setActiveTab]);
 
-  const searchBarProps = useMemo(() => ({
-    autoFocus: true,
-    onChangeText: setQuery,
-    value: query,
+  const searchBarProps = useMemo(() => buildLibrarySearchBarProps({
+    query,
+    setQuery,
   }), [query, setQuery]);
 
-  const importStatusProps = useMemo(() => ({
-    status: importStatus,
+  const importStatusProps = useMemo(() => buildLibraryImportStatusProps({
+    importStatus,
   }), [importStatus]);
 
   const tabContentProps = useMemo(() => buildLibraryTabContentProps({
