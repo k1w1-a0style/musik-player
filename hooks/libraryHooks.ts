@@ -35,7 +35,15 @@ export {
   type UseLibraryPlaybackActionsOptions,
   type UseLibraryPlaybackActionsResult,
 } from './useLibraryPlaybackActions';
-export { useLibraryRenderers } from './useLibraryRenderers';
+export {
+  useLibraryRenderers,
+  type LibraryRendererOpenTrackInfo,
+  type LibraryRendererPlayPlaylist,
+  type LibraryRendererPlaySong,
+  type LibraryRendererRemoveFolder,
+  type UseLibraryRenderersOptions,
+  type UseLibraryRenderersResult,
+} from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 export { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
 export { useLibraryStoredState, type UseLibraryStoredStateResult } from './useLibraryStoredState';
