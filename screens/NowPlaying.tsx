@@ -3,9 +3,6 @@ import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal }
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNowPlayingMusicContext } from '../contexts/MusicContext';
-import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
 import ModernControls from '../components/ModernControls';
@@ -14,23 +11,34 @@ import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
-import { useNowPlayingFavorite } from './useNowPlayingFavorite';
-import { useNowPlayingMenu } from './useNowPlayingMenu';
-import { useNowPlayingPresentation } from './useNowPlayingPresentation';
-import { useNowPlayingQueue } from './useNowPlayingQueue';
+import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 0.20)));
 const QUEUE_ROW_HEIGHT = 44;
 
 const NowPlaying: React.FC = () => {
-  const insets = useSafeAreaInsets();
-  const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
-  const { position, duration } = usePlaybackProgress();
-  const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
-  const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo } = useNowPlayingMenu(currentSong?.id);
-  const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
   const {
+    currentSong,
+    seekTo,
+    isPlaying,
+    volume,
+    setVolume,
+    fftBins,
+    position,
+    duration,
+    bottomInset,
+    showVisualizer,
+    favorite,
+    favoritePending,
+    toggleFavorite,
+    menuOpen,
+    openMenu,
+    closeMenu,
+    handleClose,
+    openTrackInfo,
+    queue,
+    playQueueItemById,
     accent,
     gradientColors,
     albumTitle,
@@ -39,13 +47,7 @@ const NowPlaying: React.FC = () => {
     progressAccent,
     progressAccentDark,
     visualizerColor,
-  } = useNowPlayingPresentation({
-    currentSong,
-    palette,
-    visualizerError,
-  });
-
-  const showVisualizer = false;
+  } = useNowPlayingScreenState();
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -111,7 +113,7 @@ const NowPlaying: React.FC = () => {
         </View>
       )}
 
-      <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} onOpenTrackInfo={openTrackInfo} />
+      <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={bottomInset} onOpenTrackInfo={openTrackInfo} />
 
       <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={closeMenu}>
         <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
