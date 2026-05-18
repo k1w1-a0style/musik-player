@@ -1,6 +1,7 @@
 import type { LibraryImportStatusProps } from '../components/LibraryImportStatus';
 import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
 import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
+import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
 import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { LibraryTabsProps } from '../components/LibraryTabs';
@@ -28,6 +29,11 @@ export interface LibrarySearchBarPropsBuilderOptions {
 
 export interface LibraryImportStatusPropsBuilderOptions {
   importStatus: string | null;
+}
+
+export interface LibraryScreenVisibilityPropsBuilderOptions {
+  loading: boolean;
+  searchOpen: boolean;
 }
 
 export interface LibraryTabContentPropsBuilderOptions {
@@ -85,6 +91,11 @@ export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBar
 
 export const buildLibraryImportStatusProps = ({ importStatus }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
   status: importStatus,
+});
+
+export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen }: LibraryScreenVisibilityPropsBuilderOptions): Pick<LibraryScreenContentProps, 'loading' | 'searchOpen'> => ({
+  loading,
+  searchOpen,
 });
 
 export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuilderOptions): LibraryTabContentProps => ({
