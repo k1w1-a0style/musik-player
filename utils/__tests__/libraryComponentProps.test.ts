@@ -1,4 +1,44 @@
-import { buildLibraryMenuModalProps, buildLibraryTabContentProps } from '../libraryComponentProps';
+import {
+  buildLibraryImportStatusProps,
+  buildLibraryMenuModalProps,
+  buildLibrarySearchBarProps,
+  buildLibraryTabContentProps,
+  buildLibraryTabsProps,
+  buildLibraryTopBarProps,
+} from '../libraryComponentProps';
+
+test('buildLibraryTopBarProps returns top bar props', () => {
+  const openMenu = jest.fn();
+  const toggleSearch = jest.fn();
+
+  expect(buildLibraryTopBarProps({ openMenu, toggleSearch })).toEqual({
+    onOpenMenu: openMenu,
+    onToggleSearch: toggleSearch,
+  });
+});
+
+test('buildLibraryTabsProps returns tabs props', () => {
+  const setActiveTab = jest.fn();
+
+  expect(buildLibraryTabsProps({ activeTab: 'albums', setActiveTab })).toEqual({
+    activeTab: 'albums',
+    onChangeTab: setActiveTab,
+  });
+});
+
+test('buildLibrarySearchBarProps returns search bar props', () => {
+  const setQuery = jest.fn();
+
+  expect(buildLibrarySearchBarProps({ query: 'abc', setQuery })).toEqual({
+    autoFocus: true,
+    onChangeText: setQuery,
+    value: 'abc',
+  });
+});
+
+test('buildLibraryImportStatusProps returns import status props', () => {
+  expect(buildLibraryImportStatusProps({ importStatus: 'Import läuft' })).toEqual({ status: 'Import läuft' });
+});
 
 test('buildLibraryTabContentProps returns tab content props', () => {
   const fn = jest.fn();
