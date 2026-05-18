@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
+import { Disc3, Heart } from 'lucide-react-native';
 import Controls from '../components/Controls';
 import ProgressBar from '../components/ProgressBar';
 import ModernControls from '../components/ModernControls';
@@ -11,6 +11,8 @@ import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
+import NowPlayingHeader from './NowPlayingHeader';
+import NowPlayingMenuItem from './NowPlayingMenuItem';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -118,8 +120,8 @@ const NowPlaying: React.FC = () => {
       <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={closeMenu}>
         <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
           <View style={styles.menuCard}>
-            <MenuItem label="TrackInfo öffnen" onPress={openTrackInfo} />
-            <MenuItem label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onPress={() => { toggleFavorite(); closeMenu(); }} />
+            <NowPlayingMenuItem label="TrackInfo öffnen" onPress={openTrackInfo} />
+            <NowPlayingMenuItem label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onPress={() => { toggleFavorite(); closeMenu(); }} />
           </View>
         </Pressable>
       </Modal>
@@ -134,27 +136,6 @@ interface QueuePreviewRowProps {
   isCurrent: boolean;
   onPress: (songId: string) => void;
 }
-
-const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: { albumTitle: string; onClose: () => void; onMore: () => void }) => (
-  <View style={styles.headerBar}>
-    <Pressable testID="now-playing-close" style={styles.headerBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Now Playing schließen">
-      <ChevronDown color={theme.palette.text.primary} size={22} />
-    </Pressable>
-    <View style={styles.headerTitleWrap}>
-      <Text style={styles.headerEyebrow}>JETZT LÄUFT</Text>
-      <Text style={styles.headerTitle} numberOfLines={1}>{albumTitle}</Text>
-    </View>
-    <Pressable testID="now-playing-more" style={styles.headerBtn} onPress={onMore} accessibilityRole="button" accessibilityLabel="Now Playing Menü öffnen">
-      <MoreHorizontal color={theme.palette.text.primary} size={22} />
-    </Pressable>
-  </View>
-));
-
-const MenuItem: React.FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
-  <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}>
-    <Text style={styles.menuText}>{label}</Text>
-  </Pressable>
-);
 
 const QueuePreviewRow = React.memo(({ id, title, artist, isCurrent, onPress }: QueuePreviewRowProps) => {
   const handlePress = React.useCallback(() => onPress(id), [id, onPress]);
@@ -201,11 +182,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
   glowOrb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, top: 150, left: SCREEN_W / 2 - 130, opacity: 0.14 },
-  headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 2 },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitleWrap: { alignItems: 'center', flex: 1 },
-  headerEyebrow: { color: theme.palette.text.muted, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
-  headerTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, marginTop: 2 },
   coverArea: { height: COVER_SIZE + 8, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
   coverCard: { width: COVER_SIZE, height: COVER_SIZE, borderRadius: 22, overflow: 'hidden', backgroundColor: theme.palette.surface, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 10 },
   coverImage: { width: '100%', height: '100%' },
@@ -237,9 +213,6 @@ const styles = StyleSheet.create({
   glassRow: { flex: 1 },
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22, backgroundColor: 'rgba(0,0,0,0.20)' },
   menuCard: { width: 235, borderRadius: 20, backgroundColor: '#343438', paddingVertical: 8, borderWidth: 1, borderColor: theme.palette.border },
-  menuItem: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 18 },
-  menuText: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 16 },
-  pressed: { opacity: 0.72 },
 });
 
 export default NowPlaying;
