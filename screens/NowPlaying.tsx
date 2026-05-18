@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal }
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ChevronDown, Disc3, Heart, MoreHorizontal } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNowPlayingMusicContext } from '../contexts/MusicContext';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
@@ -16,9 +15,9 @@ import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
-import { APP_STACK_ROUTES } from '../types/routes';
 import { formatVisualizerHint } from './nowPlayingHelpers';
 import { useNowPlayingFavorite } from './useNowPlayingFavorite';
+import { useNowPlayingMenu } from './useNowPlayingMenu';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -26,12 +25,11 @@ const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 
 const QUEUE_ROW_HEIGHT = 44;
 
 const NowPlaying: React.FC = () => {
-  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
-  const [menuOpen, setMenuOpen] = React.useState(false);
   const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
+  const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo } = useNowPlayingMenu(currentSong?.id);
   const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
 
   const showVisualizer = false;
@@ -41,16 +39,6 @@ const NowPlaying: React.FC = () => {
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
   const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
   const artworkUri = getSongArtworkUri(currentSong);
-
-  const handleClose = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
-
-  const openTrackInfo = useCallback(() => {
-    setMenuOpen(false);
-    if (!currentSong) return;
-    navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: currentSong.id });
-  }, [currentSong, navigation]);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
@@ -72,7 +60,7 @@ const NowPlaying: React.FC = () => {
       <BlurView pointerEvents="none" intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={() => setMenuOpen(true)} />
+      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
 
       <View style={styles.coverArea}>
         <CoverArtwork song={currentSong} artworkUri={artworkUri} isPlaying={isPlaying} accent={accent} />
@@ -118,11 +106,11 @@ const NowPlaying: React.FC = () => {
 
       <BottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={insets.bottom} onOpenTrackInfo={openTrackInfo} />
 
-      <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+      <Modal transparent animationType="fade" visible={menuOpen} onRequestClose={closeMenu}>
+        <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
           <View style={styles.menuCard}>
             <MenuItem label="TrackInfo öffnen" onPress={openTrackInfo} />
-            <MenuItem label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onPress={() => { toggleFavorite(); setMenuOpen(false); }} />
+            <MenuItem label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onPress={() => { toggleFavorite(); closeMenu(); }} />
           </View>
         </Pressable>
       </Modal>
