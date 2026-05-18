@@ -5,6 +5,7 @@ import * as MediaLibrary from 'expo-media-library';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from '../utils/libraryTabs';
+import type { LibraryAlertCopy } from './useLibraryAlerts';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getEnabledScanFolders } from '../utils/libraryScanFolders';
@@ -21,11 +22,6 @@ import {
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 
-interface LibraryAlertCopy {
-  title: string;
-  message: string;
-}
-
 interface ImportedSongsStateUpdate {
   songs: Song[];
   activeTab: LibraryTab;
@@ -35,7 +31,7 @@ type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 type RequestMediaLibraryPermissions = () => Promise<{ status: string }>;
 type TimeoutRunner = <T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => Promise<T>;
 
-interface UseLibraryImportActionsOptions {
+export interface UseLibraryImportActionsOptions {
   scanFolders: ScanFolder[];
   songs: Song[];
   setSongs: (songs: Song[]) => void;
@@ -55,7 +51,7 @@ interface UseLibraryImportActionsOptions {
   withTimeoutImpl?: TimeoutRunner;
 }
 
-interface UseLibraryImportActionsResult {
+export interface UseLibraryImportActionsResult {
   importFromDevice: () => Promise<void>;
 }
 
