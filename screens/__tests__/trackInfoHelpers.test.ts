@@ -2,9 +2,24 @@ import {
   formatBytes,
   formatCoverStatus,
   formatDuration,
+  formatImportedAt,
   formatSampleRate,
+  getTrackInfoCoverStatus,
+  getTrackInfoCoverUri,
   valueOrNA,
 } from '../trackInfoHelpers';
+import type { Song } from '../../types/Song';
+
+const song: Song = {
+  id: 's1',
+  title: 'Song',
+  artist: 'Artist',
+  cover: 'file:///fallback.jpg',
+  coverInfo: {
+    status: 'cached',
+    uri: 'file:///cached.jpg',
+  },
+};
 
 describe('trackInfoHelpers', () => {
   test('formats durations', () => {
@@ -41,5 +56,29 @@ describe('trackInfoHelpers', () => {
     expect(valueOrNA('')).toBe('Nicht verfügbar');
     expect(valueOrNA('Song')).toBe('Song');
     expect(valueOrNA(2024)).toBe('2024');
+  });
+
+  test('gets cover uri and status from track info metadata', () => {
+    expect(getTrackInfoCoverUri(song)).toBe('file:///cached.jpg');
+    expect(getTrackInfoCoverStatus(song, 'file:///cached.jpg')).toBe('cached');
+  });
+
+  test('falls back to song cover and unknown status', () => {
+    const fallbackSong: Song = { id: 's2', title: 'Fallback', artist: 'Artist', cover: 'file:///cover.jpg' };
+
+    expect(getTrackInfoCoverUri(fallbackSong)).toBe('file:///cover.jpg');
+    expect(getTrackInfoCoverStatus(fallbackSong, 'file:///cover.jpg')).toBe('unknown');
+  });
+
+  test('uses none cover status without any cover uri', () => {
+    const noCoverSong: Song = { id: 's3', title: 'No Cover', artist: 'Artist' };
+
+    expect(getTrackInfoCoverUri(noCoverSong)).toBeUndefined();
+    expect(getTrackInfoCoverStatus(noCoverSong)).toBe('none');
+  });
+
+  test('formats imported dates', () => {
+    expect(formatImportedAt()).toBe('Nicht verfügbar');
+    expect(formatImportedAt('2024-01-02T03:04:05.000Z')).toContain('2024');
   });
 });
