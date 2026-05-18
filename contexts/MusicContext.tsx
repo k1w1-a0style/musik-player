@@ -20,7 +20,6 @@ import {
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
-import { getSongArtworkUri } from '../utils/songArtwork';
 import { createPlaylistId } from '../utils/playlistIds';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import {
@@ -55,9 +54,10 @@ import type {
   MusicContextValue,
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
+import { useAlbumPalette } from './useAlbumPalette';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
-import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
+import SystemAudio, { type EqInitResult } from 'expo-system-audio';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
@@ -87,12 +87,12 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
   const [eqNative, setEqNative] = useState<EqInitResult | null>(null);
 
-  // Visualizer + palette. Native FFT capture stays opt-in; normal playback must not
-  // request RECORD_AUDIO or stream high-frequency state updates by default.
+  // Visualizer stays opt-in; normal playback must not request RECORD_AUDIO
+  // or stream high-frequency state updates by default.
   const [fftBins, setFftBins] = useState<number[]>(() => new Array(16).fill(0));
   const [visualizerRunning, setVisualizerRunning] = useState(false);
   const [visualizerError, setVisualizerError] = useState<string | null>(null);
-  const [palette, setPalette] = useState<PaletteResult | null>(null);
+  const palette = useAlbumPalette(currentSong);
 
   const songsRef = useRef(songs);
   songsRef.current = songs;
@@ -212,27 +212,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (shouldStopVisualizerForPlaybackState(isPlaying)) SystemAudio.visualizerStop();
   }, [isPlaying]);
 
-  // ---- Palette extraction for current track cover ----
-  const currentArtworkUri = getSongArtworkUri(currentSong);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentArtworkUri) {
-      setPalette(null);
-      return;
-    }
-    SystemAudio.extractPalette(currentArtworkUri)
-      .then(p => {
-        if (!cancelled) setPalette(p);
-      })
-      .catch(() => {
-        if (!cancelled) setPalette(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentArtworkUri]);
-
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
   useMusicPersistence({
@@ -282,6 +261,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       () => undefined,
     );
   }, []);
+
   // ---- Playback ----
   const persistRequestedSong = useCallback(async (requestedSong: Song): Promise<void> => {
     const isLibrarySong = songsRef.current.some(item => item.id === requestedSong.id);
