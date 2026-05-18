@@ -4,6 +4,7 @@ import {
   applyStoredPlaybackSettings,
   hydrateStoredSongs,
   loadStoredMusicHydrationState,
+  runMusicHydration,
   type StoredMusicHydrationState,
 } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
@@ -159,5 +160,69 @@ describe('musicHydrationHelpers', () => {
     expect(setShuffle).toHaveBeenCalledWith(true);
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
+  });
+
+  test('runs full music hydration and marks provider ready', async () => {
+    await storage.set(StorageKeys.SONGS, songs);
+    await storage.set(StorageKeys.PLAYLISTS, playlists);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+
+    const songsRef = createSongRef();
+    const queueContextRef = createSongRef();
+    const baseQueueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
+    const setIsReady = jest.fn();
+    const setSongsState = jest.fn();
+    const setPlaybackQueue = jest.fn();
+    const setPlaylists = jest.fn();
+
+    await runMusicHydration({
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setIsReady,
+      setSongsState,
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue,
+      setPlaylists,
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setSongsState).toHaveBeenCalledWith(songs);
+    expect(setPlaybackQueue).toHaveBeenCalledWith(songs);
+    expect(setPlaylists).toHaveBeenCalledWith(playlists);
+    expect(setIsReady).toHaveBeenCalledWith(true);
+  });
+
+  test('does not mark provider ready when hydration is cancelled', async () => {
+    const setIsReady = jest.fn();
+
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => true,
+    });
+
+    expect(setIsReady).not.toHaveBeenCalled();
   });
 });
