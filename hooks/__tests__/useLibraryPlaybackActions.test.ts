@@ -1,7 +1,9 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { useState } from 'react';
-import { useLibraryPlaybackActions } from '../useLibraryPlaybackActions';
+import { useLibraryPlaybackActions, type UseLibraryPlaybackActionsOptions } from '../useLibraryPlaybackActions';
 import type { Song } from '../../types/Song';
+
+type HarnessOptions = Partial<Pick<UseLibraryPlaybackActionsOptions, 'handleSongPress' | 'playSong' | 'songsForActiveList'>>;
 
 const song = (id: string): Song => ({
   id,
@@ -15,14 +17,16 @@ const useHarness = ({
   handleSongPress = jest.fn(),
   playSong = jest.fn(),
   songsForActiveList = [song('a'), song('b')],
-} = {}) => {
+}: HarnessOptions = {}) => {
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'list'>('grid');
-  const actions = useLibraryPlaybackActions({
+  const options: UseLibraryPlaybackActionsOptions = {
     handleSongPress,
     playSong,
     setAlbumViewMode,
     songsForActiveList,
-  });
+  };
+
+  const actions = useLibraryPlaybackActions(options);
 
   return { actions, albumViewMode };
 };
