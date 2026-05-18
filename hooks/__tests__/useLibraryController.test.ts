@@ -6,6 +6,7 @@ import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps
 import type { UseLibraryImportActionsResult } from '../useLibraryImportActions';
 import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
 import type { UseLibraryMetadataRefreshActionsResult } from '../useLibraryMetadataRefreshActions';
+import type { UseLibraryNavigationActionsResult } from '../useLibraryNavigationActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -44,6 +45,10 @@ const mockMenuActions: UseLibraryMenuActionsResult = {
 
 const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
   refreshMetadataFromFiles: asyncFn,
+};
+
+const mockNavigationActions: UseLibraryNavigationActionsResult = {
+  openTrackInfo: fn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -162,7 +167,7 @@ jest.mock('../useLibraryMetadataRefreshActions', () => ({
 }));
 
 jest.mock('../useLibraryNavigationActions', () => ({
-  useLibraryNavigationActions: jest.fn(() => ({ openTrackInfo: jest.fn() })),
+  useLibraryNavigationActions: jest.fn(() => mockNavigationActions),
 }));
 
 jest.mock('../useLibraryPlaybackActions', () => ({
