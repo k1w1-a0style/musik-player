@@ -17,12 +17,9 @@ import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { APP_STACK_ROUTES } from '../types/routes';
-import {
-  buildNowPlayingQueue,
-  buildQueueById,
-  formatVisualizerHint,
-} from './nowPlayingHelpers';
+import { formatVisualizerHint } from './nowPlayingHelpers';
 import { useNowPlayingFavorite } from './useNowPlayingFavorite';
+import { useNowPlayingQueue } from './useNowPlayingQueue';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 0.20)));
@@ -35,12 +32,7 @@ const NowPlaying: React.FC = () => {
   const { position, duration } = usePlaybackProgress();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
-
-  const queue: Song[] = useMemo(
-    () => buildNowPlayingQueue(playbackQueue, currentSong),
-    [playbackQueue, currentSong],
-  );
-  const queueById = useMemo(() => buildQueueById(queue), [queue]);
+  const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
 
   const showVisualizer = false;
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
@@ -53,12 +45,6 @@ const NowPlaying: React.FC = () => {
   const handleClose = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
-
-  const playQueueItemById = useCallback((songId: string) => {
-    const item = queueById.get(songId);
-    if (!item || item.id === currentSong?.id) return;
-    void playSong(item, queue);
-  }, [currentSong?.id, playSong, queue, queueById]);
 
   const openTrackInfo = useCallback(() => {
     setMenuOpen(false);
