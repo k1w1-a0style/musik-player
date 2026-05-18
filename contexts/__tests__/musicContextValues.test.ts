@@ -1,7 +1,6 @@
 import {
   buildLibraryMusicContextValue,
   buildMiniPlayerMusicContextValue,
-  buildMusicContextValue,
   buildNowPlayingMusicContextValue,
 } from '../musicContextValues';
 import type { MusicContextValue } from '../musicContextTypes';
@@ -55,10 +54,6 @@ const baseValue: MusicContextValue = {
 };
 
 describe('music context value builders', () => {
-  test('keeps the full context value unchanged', () => {
-    expect(buildMusicContextValue(baseValue)).toBe(baseValue);
-  });
-
   test('builds the library slice', () => {
     expect(buildLibraryMusicContextValue(baseValue)).toEqual({
       songs: baseValue.songs,
