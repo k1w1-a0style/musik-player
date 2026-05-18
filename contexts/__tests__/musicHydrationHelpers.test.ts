@@ -1,4 +1,3 @@
-import { createRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import {
@@ -12,6 +11,7 @@ import type { Playlist, Song } from '../../types/Song';
 
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
 const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }];
+const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
@@ -44,14 +44,10 @@ describe('musicHydrationHelpers', () => {
   });
 
   test('hydrates stored songs and native queue', async () => {
-    const songsRef = createRef<Song[]>();
-    const queueContextRef = createRef<Song[]>();
-    const baseQueueContextRef = createRef<Song[]>();
-    const nativeQueueRef = createRef<Song[]>();
-    songsRef.current = [];
-    queueContextRef.current = [];
-    baseQueueContextRef.current = [];
-    nativeQueueRef.current = [];
+    const songsRef = createSongRef();
+    const queueContextRef = createSongRef();
+    const baseQueueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
     const setSongsState = jest.fn();
     const setCurrentSong = jest.fn();
     const setPlaybackQueue = jest.fn();
@@ -90,14 +86,10 @@ describe('musicHydrationHelpers', () => {
   });
 
   test('skips stored song hydration when cancelled', async () => {
-    const songsRef = createRef<Song[]>();
-    const queueContextRef = createRef<Song[]>();
-    const baseQueueContextRef = createRef<Song[]>();
-    const nativeQueueRef = createRef<Song[]>();
-    songsRef.current = [];
-    queueContextRef.current = [];
-    baseQueueContextRef.current = [];
-    nativeQueueRef.current = [];
+    const songsRef = createSongRef();
+    const queueContextRef = createSongRef();
+    const baseQueueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
     const setSongsState = jest.fn();
 
     await hydrateStoredSongs({
