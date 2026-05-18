@@ -5,6 +5,8 @@ import {
   getCurrentQueueSnapshot,
   persistRequestedSongId,
   rebuildNativePlaybackQueue,
+  runPlaySongQueueAction,
+  runShuffleQueueAction,
 } from '../playbackQueueActionHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
@@ -12,9 +14,18 @@ import type { Song } from '../../types/Song';
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
   { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+  { id: 's3', title: 'Three', artist: 'A', uri: 'file:///s3.mp3' },
 ];
 
 const createSongRef = (current: Song[] = []) => ({ current });
+const createQueueArgs = () => ({
+  songsRef: createSongRef(songs),
+  queueContextRef: createSongRef(),
+  baseQueueContextRef: createSongRef(),
+  nativeQueueRef: createSongRef(),
+  setPlaybackQueue: jest.fn(),
+  setCurrentSong: jest.fn(),
+});
 
 describe('playbackQueueActionHelpers', () => {
   beforeEach(async () => {
@@ -66,6 +77,38 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.add).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })]));
     expect(nativeQueueRef.current).toEqual(songs);
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(12);
+    expect(TrackPlayer.play).toHaveBeenCalled();
+  });
+
+  test('runs play-song queue action with full rebuild', async () => {
+    const args = createQueueArgs();
+
+    await runPlaySongQueueAction({ ...args, song: songs[1] });
+
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[1]);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[1], songs[2], songs[0]]);
+    expect(args.nativeQueueRef.current).toEqual([songs[1], songs[2], songs[0]]);
+    expect(TrackPlayer.reset).toHaveBeenCalled();
+    expect(TrackPlayer.play).toHaveBeenCalled();
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s2');
+  });
+
+  test('runs shuffle queue action and rebuilds native queue', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = songs.slice();
+    args.baseQueueContextRef.current = songs.slice();
+    const setShuffle = jest.fn();
+
+    await runShuffleQueueAction({
+      ...args,
+      currentSongId: 's1',
+      shuffle: false,
+      setShuffle,
+    });
+
+    expect(setShuffle).toHaveBeenCalled();
+    expect(args.setPlaybackQueue).toHaveBeenCalled();
+    expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
 });
