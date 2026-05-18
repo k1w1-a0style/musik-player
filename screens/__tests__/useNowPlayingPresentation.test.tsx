@@ -16,7 +16,12 @@ const song: Song = {
 const PresentationProbe = ({ visualizerError }: { visualizerError: string | null }) => {
   const presentation = useNowPlayingPresentation({
     currentSong: song,
-    palette: { dominant: '#111111', vibrant: '#222222', darkVibrant: '#333333' },
+    palette: {
+      dominant: '#111111',
+      vibrant: '#222222',
+      darkVibrant: '#333333',
+      lightVibrant: '#444444',
+    },
     visualizerError,
   });
 
@@ -28,6 +33,9 @@ const PresentationProbe = ({ visualizerError }: { visualizerError: string | null
       <Text testID="artwork-uri">{presentation.artworkUri}</Text>
       <Text testID="hint">{presentation.visualizerHint ?? 'none'}</Text>
       <Text testID="gradient-count">{presentation.gradientColors.length}</Text>
+      <Text testID="progress-accent">{presentation.progressAccent}</Text>
+      <Text testID="progress-accent-dark">{presentation.progressAccentDark}</Text>
+      <Text testID="visualizer-color">{presentation.visualizerColor}</Text>
     </>
   );
 };
@@ -44,6 +52,9 @@ describe('useNowPlayingPresentation', () => {
     expect(getByTestId('gradient-count').props.children).toBe(
       theme.gradients.nowPlayingBackdrop('#222222', '#333333').length,
     );
+    expect(getByTestId('progress-accent').props.children).toBe('#222222');
+    expect(getByTestId('progress-accent-dark').props.children).toBe('#444444');
+    expect(getByTestId('visualizer-color').props.children).toBe('#222222');
   });
 
   test('hides neutral visualizer hints', () => {
