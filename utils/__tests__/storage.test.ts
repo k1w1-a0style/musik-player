@@ -1,6 +1,7 @@
 import {
   addScanFolder,
   clearScanFolders,
+  getFavoriteSongIds,
   getScanFolders,
   removeScanFolder,
   storage,
@@ -41,5 +42,31 @@ describe('storage', () => {
     await removeScanFolder('1');
     expect(await getScanFolders()).toEqual([]);
     await clearScanFolders();
+  });
+
+  test('filters invalid favorite ids', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1', 2, 's2', null]);
+    expect(await getFavoriteSongIds()).toEqual(['s1', 's2']);
+  });
+
+  test('rejects invalid persisted settings', async () => {
+    await storage.set(StorageKeys.VOLUME, 2);
+    await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
+    await storage.set(StorageKeys.SHUFFLE, 'yes');
+
+    expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
+    expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
+    expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
+  });
+
+  test('filters invalid songs and playlists', async () => {
+    const song = { id: 's1', title: 'Song', artist: 'Artist' };
+    const playlist = { id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 1 };
+
+    await storage.set(StorageKeys.SONGS, [song, { title: 'Broken' }]);
+    await storage.set(StorageKeys.PLAYLISTS, [playlist, { id: 'pl-2', name: 'Broken', songIds: [1], createdAt: 1 }]);
+
+    expect(await storage.get(StorageKeys.SONGS)).toEqual([song]);
+    expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([playlist]);
   });
 });
