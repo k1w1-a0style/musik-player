@@ -5,6 +5,7 @@ import {
   buildMusicProviderEffectsPlaybackInput,
 } from './musicProviderControlInput';
 import { buildMusicProviderContextAudioFeatureInput } from './musicProviderAudioFeatureInput';
+import { buildMusicProviderAudioFeaturesInput } from './musicProviderAudioFeaturesInput';
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
 import {
@@ -30,15 +31,14 @@ export const useMusicProviderController = () => {
   const { songs, currentSong } = providerState;
 
   const { playback, equalizer } = useMusicProviderControls();
-  const { isPlaying } = playback;
-  const { eqEnabled, eqBands } = equalizer;
 
-  const audioFeatures = useMusicProviderAudioFeatures({
-    currentSong,
-    eqEnabled,
-    eqBands,
-    isPlaying,
-  });
+  const audioFeatures = useMusicProviderAudioFeatures(
+    buildMusicProviderAudioFeaturesInput({
+      providerState,
+      playback,
+      equalizer,
+    }),
+  );
 
   const playbackRefs = useMusicPlaybackRefs(songs);
 
