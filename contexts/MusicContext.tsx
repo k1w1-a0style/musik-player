@@ -1,14 +1,12 @@
 import React, {
   createContext,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import TrackPlayer, {
-  Event,
   State,
   usePlaybackState,
 } from 'react-native-track-player';
@@ -47,6 +45,7 @@ import type {
 } from './musicContextTypes';
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
+import { useCurrentSongSync } from './useCurrentSongSync';
 import { useEqualizerControls } from './useEqualizerControls';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
@@ -127,25 +126,13 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setShuffle,
   });
 
-  // Keep "currentSong" in sync with active track
-  useEffect(() => {
-    const sub = TrackPlayer.addEventListener(
-      Event.PlaybackActiveTrackChanged,
-      async data => {
-        const track = data.track;
-        if (!track) return;
-        const s =
-          songsRef.current.find(x => x.id === track.id) ??
-          queueContextRef.current.find(x => x.id === track.id) ??
-          baseQueueContextRef.current.find(x => x.id === track.id);
-        if (s) {
-          setCurrentSong(s);
-          await persistCurrentSongId(s);
-        }
-      },
-    );
-    return () => sub.remove();
-  }, [persistCurrentSongId]);
+  useCurrentSongSync({
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    setCurrentSong,
+    persistCurrentSongId,
+  });
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
