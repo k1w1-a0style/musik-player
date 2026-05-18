@@ -46,8 +46,8 @@ const baseOptions = {
 test('returns library component props', () => {
   const { result } = renderHook(() => useLibraryComponentProps(baseOptions));
 
-  expect(result.current.loading).toBe(false);
-  expect(result.current.searchOpen).toBe(true);
+  expect(result.current.showImportStatus).toBe(false);
+  expect(result.current.showSearchBar).toBe(true);
   expect(result.current.topBarProps).toEqual({
     onOpenMenu: fn,
     onToggleSearch: fn,
