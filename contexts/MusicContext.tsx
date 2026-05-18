@@ -23,9 +23,6 @@ import { StorageKeys, storage } from '../utils/storage';
 import { createPlaylistId } from '../utils/playlistIds';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import {
-  buildNativeEqBandUpdates,
-  canUseNativeEq,
-  shouldApplyNativeEqBands,
   shouldApplyVisualizerFrame,
   shouldStopVisualizerForPlaybackState,
 } from '../utils/audioEffects';
@@ -57,7 +54,8 @@ import type {
 import { useAlbumPalette } from './useAlbumPalette';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
-import SystemAudio, { type EqInitResult } from 'expo-system-audio';
+import { useNativeEqualizer } from './useNativeEqualizer';
+import SystemAudio from 'expo-system-audio';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
@@ -85,7 +83,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [eqEnabled, setEqEnabledState] = useState(false);
   const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
-  const [eqNative, setEqNative] = useState<EqInitResult | null>(null);
+  const eqNative = useNativeEqualizer(eqEnabled, eqBands);
 
   // Visualizer stays opt-in; normal playback must not request RECORD_AUDIO
   // or stream high-frequency state updates by default.
@@ -153,37 +151,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
     return () => sub.remove();
   }, [persistCurrentSongId]);
-
-  // ---- Native equalizer init ----
-  useEffect(() => {
-    let cancelled = false;
-    SystemAudio.eqInit()
-      .then(info => {
-        if (!cancelled) setEqNative(info);
-      })
-      .catch(() => {
-        if (!cancelled) setEqNative(null);
-      });
-    return () => {
-      cancelled = true;
-      SystemAudio.eqRelease();
-    };
-  }, []);
-
-  // Apply native EQ enable + bands whenever they change. The 10 UI bands
-  // are mapped onto the device's actual band count (typically 5) by
-  // sampling the closest UI band for each native center frequency.
-  useEffect(() => {
-    if (!canUseNativeEq(eqNative)) return;
-    SystemAudio.eqSetEnabled(eqEnabled);
-  }, [eqEnabled, eqNative]);
-
-  useEffect(() => {
-    if (!shouldApplyNativeEqBands(eqNative, eqEnabled)) return;
-    buildNativeEqBandUpdates(eqNative, eqBands).forEach(update => {
-      SystemAudio.eqSetBandLevel(update.index, update.millibel);
-    });
-  }, [eqBands, eqEnabled, eqNative]);
 
   // ---- Visualizer ----
   useEffect(() => {
