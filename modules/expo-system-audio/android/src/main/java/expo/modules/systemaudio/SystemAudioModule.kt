@@ -320,15 +320,41 @@ class SystemAudioModule : Module() {
   private fun cacheArtworkBytes(sourceUri: String, bytes: ByteArray, extension: String): String? {
     val ctx = appContext.reactContext ?: return null
     return try {
-      val dir = File(ctx.cacheDir, "embedded-artwork")
+      val dir = File(ctx.cacheDir, EMBEDDED_ARTWORK_CACHE_DIR)
       if (!dir.exists()) dir.mkdirs()
       val safeName = "${Integer.toHexString(sourceUri.hashCode())}-${Integer.toHexString(bytes.contentHashCode())}.$extension"
       val out = File(dir, safeName)
       if (!out.exists()) out.writeBytes(bytes)
+      out.setLastModified(System.currentTimeMillis())
+      trimEmbeddedArtworkCache(dir)
       "file://${out.absolutePath}"
     } catch (e: Throwable) {
       Log.d(TAG, "embedded artwork cache failed ${e.javaClass.simpleName}: ${e.message}")
       null
+    }
+  }
+
+  private fun trimEmbeddedArtworkCache(dir: File) {
+    try {
+      val files = dir.listFiles()
+        ?.filter { it.isFile }
+        ?.sortedByDescending { it.lastModified() }
+        ?: return
+      var totalBytes = 0L
+      var keptFiles = 0
+      files.forEach { file ->
+        val fileSize = file.length()
+        val keepFile = keptFiles < MAX_EMBEDDED_ARTWORK_CACHE_FILES &&
+          totalBytes + fileSize <= MAX_EMBEDDED_ARTWORK_CACHE_BYTES
+        if (keepFile) {
+          totalBytes += fileSize
+          keptFiles += 1
+        } else if (!file.delete()) {
+          Log.d(TAG, "embedded artwork cache trim skipped file=${file.absolutePath.safeLogUri()}")
+        }
+      }
+    } catch (e: Throwable) {
+      Log.d(TAG, "embedded artwork cache trim failed ${e.javaClass.simpleName}: ${e.message}")
     }
   }
 
@@ -364,5 +390,8 @@ class SystemAudioModule : Module() {
 
   private companion object {
     private const val TAG = "SystemAudio"
+    private const val EMBEDDED_ARTWORK_CACHE_DIR = "embedded-artwork"
+    private const val MAX_EMBEDDED_ARTWORK_CACHE_FILES = 200
+    private const val MAX_EMBEDDED_ARTWORK_CACHE_BYTES = 25L * 1024L * 1024L
   }
 }
