@@ -17,6 +17,8 @@ export interface LibraryScreenContentProps {
   topBarProps: LibraryTopBarProps;
 }
 
+export type LibraryScreenVisibilityProps = Pick<LibraryScreenContentProps, 'showImportStatus' | 'showSearchBar'>;
+
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
   importStatusProps,
   menuModalProps,
