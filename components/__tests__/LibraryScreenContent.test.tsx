@@ -14,7 +14,6 @@ const fn = jest.fn();
 
 const baseProps = {
   importStatusProps: { status: 'Import läuft' },
-  loading: true,
   menuModalProps: {
     visible: false,
     loading: false,
@@ -33,7 +32,8 @@ const baseProps = {
     onChangeText: fn,
     value: 'abc',
   },
-  searchOpen: true,
+  showImportStatus: true,
+  showSearchBar: true,
   tabContentProps: {
     activeTab: 'tracks' as const,
     activeFolders: 0,
@@ -78,7 +78,7 @@ test('renders library screen sections', () => {
 });
 
 test('hides search and status when inactive', () => {
-  const screen = render(<LibraryScreenContent {...baseProps} loading={false} searchOpen={false} />);
+  const screen = render(<LibraryScreenContent {...baseProps} showImportStatus={false} showSearchBar={false} />);
 
   expect(screen.queryByText('Search: abc')).toBeNull();
   expect(screen.queryByText('Status: Import läuft')).toBeNull();
