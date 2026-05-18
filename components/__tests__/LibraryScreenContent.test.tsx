@@ -1,7 +1,7 @@
 import mockReact from 'react';
 import { Text as mockText } from 'react-native';
 import { render } from '@testing-library/react-native';
-import LibraryScreenContent from '../LibraryScreenContent';
+import LibraryScreenContent, { type LibraryScreenContentProps } from '../LibraryScreenContent';
 
 jest.mock('../LibraryTopBar', () => () => mockReact.createElement(mockText, null, 'Top Bar'));
 jest.mock('../LibraryTabs', () => () => mockReact.createElement(mockText, null, 'Tabs'));
@@ -12,7 +12,7 @@ jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, n
 
 const fn = jest.fn();
 
-const baseProps = {
+const baseProps: LibraryScreenContentProps = {
   importStatusProps: { status: 'Import läuft' },
   menuModalProps: {
     visible: false,
