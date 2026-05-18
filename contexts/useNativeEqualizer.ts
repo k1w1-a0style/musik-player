@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import SystemAudio, { type EqInitResult } from 'expo-system-audio';
+import type { EqInitResult } from 'expo-system-audio';
 import {
-  buildNativeEqBandUpdates,
-  canUseNativeEq,
-  shouldApplyNativeEqBands,
-} from '../utils/audioEffects';
+  applyNativeEqualizerBands,
+  applyNativeEqualizerEnabled,
+  initNativeEqualizer,
+  releaseNativeEqualizer,
+} from './nativeEqualizerHelpers';
 
 export const useNativeEqualizer = (
   eqEnabled: boolean,
@@ -15,30 +16,22 @@ export const useNativeEqualizer = (
   useEffect(() => {
     let cancelled = false;
 
-    SystemAudio.eqInit()
-      .then(info => {
-        if (!cancelled) setEqNative(info);
-      })
-      .catch(() => {
-        if (!cancelled) setEqNative(null);
-      });
+    initNativeEqualizer().then(info => {
+      if (!cancelled) setEqNative(info);
+    });
 
     return () => {
       cancelled = true;
-      SystemAudio.eqRelease();
+      releaseNativeEqualizer();
     };
   }, []);
 
   useEffect(() => {
-    if (!canUseNativeEq(eqNative)) return;
-    SystemAudio.eqSetEnabled(eqEnabled);
+    applyNativeEqualizerEnabled(eqNative, eqEnabled);
   }, [eqEnabled, eqNative]);
 
   useEffect(() => {
-    if (!shouldApplyNativeEqBands(eqNative, eqEnabled)) return;
-    buildNativeEqBandUpdates(eqNative, eqBands).forEach(update => {
-      SystemAudio.eqSetBandLevel(update.index, update.millibel);
-    });
+    applyNativeEqualizerBands(eqNative, eqEnabled, eqBands);
   }, [eqBands, eqEnabled, eqNative]);
 
   return eqNative;
