@@ -3,6 +3,7 @@ import { useLibraryController } from '../useLibraryController';
 import type { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
+import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -26,6 +27,13 @@ const mockMusicContext: MockLibraryMusicContext = {
 
 const mockAlerts: UseLibraryAlertsResult = {
   showAlert: fn,
+};
+
+const mockMenuActions: UseLibraryMenuActionsResult = {
+  closeMenu: fn,
+  openMenu: fn,
+  openSettings: fn,
+  toggleSearch: fn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -136,12 +144,7 @@ jest.mock('../useLibraryImportActions', () => ({
 }));
 
 jest.mock('../useLibraryMenuActions', () => ({
-  useLibraryMenuActions: jest.fn(() => ({
-    closeMenu: jest.fn(),
-    openMenu: jest.fn(),
-    openSettings: jest.fn(),
-    toggleSearch: jest.fn(),
-  })),
+  useLibraryMenuActions: jest.fn(() => mockMenuActions),
 }));
 
 jest.mock('../useLibraryMetadataRefreshActions', () => ({
