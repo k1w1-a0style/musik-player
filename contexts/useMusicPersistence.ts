@@ -5,6 +5,7 @@ import {
   persistIfChanged,
   prepareSongsForPersistence,
 } from './musicPersistenceHelpers';
+import { usePersistedSetting } from './usePersistedSetting';
 
 interface UseMusicPersistenceArgs {
   isReady: boolean;
@@ -33,40 +34,13 @@ export const useMusicPersistence = ({
 }: UseMusicPersistenceArgs): void => {
   const persistedRefs = useRef<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.VOLUME, volume, persistedRefs.current);
-  }, [volume, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.SHUFFLE, shuffle, persistedRefs.current);
-  }, [shuffle, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.REPEAT_MODE, repeatMode, persistedRefs.current);
-  }, [repeatMode, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs.current);
-  }, [eqEnabled, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_BANDS, eqBands, persistedRefs.current);
-  }, [eqBands, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_PRESET, eqPreset, persistedRefs.current);
-  }, [eqPreset, isReady]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.PLAYLISTS, playlists, persistedRefs.current);
-  }, [playlists, isReady]);
+  usePersistedSetting(isReady, StorageKeys.VOLUME, volume, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.SHUFFLE, shuffle, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.REPEAT_MODE, repeatMode, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.EQ_PRESET, eqPreset, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
 
   useEffect(() => {
     if (!isReady) return;
