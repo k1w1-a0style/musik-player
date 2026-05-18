@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
+import type { LibraryAlertCopy } from './useLibraryAlerts';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import { withTimeout } from '../utils/withTimeout';
 import {
@@ -10,15 +11,10 @@ import {
   getMetadataUpdateStoppedAlert,
 } from '../utils/libraryImportFlow';
 
-interface LibraryAlertCopy {
-  title: string;
-  message: string;
-}
-
 type MetadataRefreshFlowCopy = ReturnType<typeof getMetadataRefreshFlowCopy>;
 type TimeoutRunner = <T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => Promise<T>;
 
-interface UseLibraryMetadataRefreshActionsOptions {
+export interface UseLibraryMetadataRefreshActionsOptions {
   songs: Song[];
   setSongs: (songs: Song[]) => void;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
@@ -30,7 +26,7 @@ interface UseLibraryMetadataRefreshActionsOptions {
   withTimeoutImpl?: TimeoutRunner;
 }
 
-interface UseLibraryMetadataRefreshActionsResult {
+export interface UseLibraryMetadataRefreshActionsResult {
   refreshMetadataFromFiles: () => Promise<void>;
 }
 
