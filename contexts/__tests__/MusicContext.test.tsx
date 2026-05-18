@@ -49,6 +49,7 @@ const SONGS: Song[] = [
 const Probe: React.FC = () => {
   const ctx = useMusicContext();
   const playlist = ctx.playlists[0];
+  const playlistId = playlist?.id ?? 'missing-playlist';
   return (
     <>
       <Text testID="probe-current">{ctx.currentSong?.id ?? '-'}</Text>
@@ -130,19 +131,19 @@ const Probe: React.FC = () => {
       <Pressable testID="create-playlist" onPress={() => ctx.createPlaylist('Roadtrip')}>
         <Text>create playlist</Text>
       </Pressable>
-      <Pressable testID="add-song-playlist" onPress={() => ctx.addSongToPlaylist('pl-1', 's2')}>
+      <Pressable testID="add-song-playlist" onPress={() => ctx.addSongToPlaylist(playlistId, 's2')}>
         <Text>add playlist song</Text>
       </Pressable>
-      <Pressable testID="add-song-playlist-again" onPress={() => ctx.addSongToPlaylist('pl-1', 's2')}>
+      <Pressable testID="add-song-playlist-again" onPress={() => ctx.addSongToPlaylist(playlistId, 's2')}>
         <Text>add playlist song again</Text>
       </Pressable>
-      <Pressable testID="remove-song-playlist" onPress={() => ctx.removeSongFromPlaylist('pl-1', 's2')}>
+      <Pressable testID="remove-song-playlist" onPress={() => ctx.removeSongFromPlaylist(playlistId, 's2')}>
         <Text>remove playlist song</Text>
       </Pressable>
-      <Pressable testID="rename-playlist" onPress={() => ctx.renamePlaylist('pl-1', 'New') }>
+      <Pressable testID="rename-playlist" onPress={() => ctx.renamePlaylist(playlistId, 'New') }>
         <Text>rename playlist</Text>
       </Pressable>
-      <Pressable testID="delete-playlist" onPress={() => ctx.deletePlaylist('pl-1')}>
+      <Pressable testID="delete-playlist" onPress={() => ctx.deletePlaylist(playlistId)}>
         <Text>delete playlist</Text>
       </Pressable>
       <Pressable testID="cycle-repeat" onPress={() => ctx.cycleRepeatMode()}>
@@ -280,13 +281,14 @@ describe('MusicContext', () => {
   });
 
   test('playlist create add rename remove delete flows', async () => {
-    jest.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce('uuid-playlist');
+    const uuid = '00000000-0000-4000-8000-000000000001';
+    jest.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce(uuid);
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
 
     fireEvent.press(getByTestId('create-playlist'));
     await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('1'));
-    expect(getByTestId('probe-playlist-id').props.children).toBe('pl-uuid-playlist');
+    expect(getByTestId('probe-playlist-id').props.children).toBe(`pl-${uuid}`);
     expect(getByTestId('probe-playlist-name').props.children).toBe('Roadtrip');
 
     fireEvent.press(getByTestId('add-song-playlist'));
