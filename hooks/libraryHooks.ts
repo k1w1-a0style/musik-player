@@ -10,7 +10,11 @@ export {
 } from './useLibraryComponentProps';
 export { useLibraryController, type UseLibraryControllerResult } from './useLibraryController';
 export { useLibraryImportActions } from './useLibraryImportActions';
-export { useLibraryMenuActions } from './useLibraryMenuActions';
+export {
+  useLibraryMenuActions,
+  type UseLibraryMenuActionsOptions,
+  type UseLibraryMenuActionsResult,
+} from './useLibraryMenuActions';
 export { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
 export { useLibraryNavigationActions } from './useLibraryNavigationActions';
 export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
