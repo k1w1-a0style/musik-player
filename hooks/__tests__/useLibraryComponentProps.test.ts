@@ -1,9 +1,9 @@
 import { renderHook } from '@testing-library/react-native';
-import { useLibraryComponentProps } from '../useLibraryComponentProps';
+import { useLibraryComponentProps, type UseLibraryComponentPropsOptions } from '../useLibraryComponentProps';
 
 const fn = jest.fn();
 
-const baseOptions = {
+const baseOptions: UseLibraryComponentPropsOptions = {
   activeFolders: 1,
   activeTab: 'tracks' as const,
   albumGroups: [],
