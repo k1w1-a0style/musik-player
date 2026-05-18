@@ -9,6 +9,7 @@ import type { EqInitResult } from 'expo-system-audio';
 
 const eqNative: EqInitResult = {
   available: true,
+  enabled: true,
   minMillibel: -300,
   maxMillibel: 300,
   bands: [
