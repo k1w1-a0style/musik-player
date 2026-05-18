@@ -98,6 +98,21 @@ describe('NowPlaying cover fallback', () => {
     );
   });
 
+  test('favorite icon rolls back when persistence fails', async () => {
+    mockIsFavoriteSongId.mockResolvedValue(false);
+    mockSetFavoriteSongId.mockRejectedValueOnce(new Error('storage full'));
+    const { getByLabelText, UNSAFE_getByProps } = render(<NowPlaying />);
+    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
+
+    fireEvent.press(getByLabelText('Track favorisieren'));
+
+    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+    await waitFor(() =>
+      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
+    );
+    expect(UNSAFE_getByProps({ accessibilityLabel: 'Track favorisieren' }).props.accessibilityState?.disabled).toBe(false);
+  });
+
   test('close button remains interactive and triggers goBack', () => {
     const { getByTestId, getByLabelText } = render(<NowPlaying />);
     expect(getByLabelText('Now Playing schließen')).toBeTruthy();
