@@ -1,5 +1,4 @@
 import React, {
-  createContext,
   useMemo,
   useState,
   type ReactNode,
@@ -8,7 +7,6 @@ import {
   type Playlist,
   type Song,
 } from '../types/Song';
-import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
   buildMiniPlayerMusicContextValue,
@@ -16,11 +14,9 @@ import {
   buildNowPlayingMusicContextValue,
 } from './musicContextValues';
 import type {
-  LibraryMusicContextValue,
-  MiniPlayerMusicContextValue,
   MusicContextValue,
-  NowPlayingMusicContextValue,
 } from './musicContextTypes';
+import { MusicContextProviders } from './MusicContextProviders';
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
 import { useCurrentSongSync } from './useCurrentSongSync';
@@ -33,11 +29,12 @@ import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
 import { usePlaylistActions } from './usePlaylistActions';
-
-const MusicContext = createContext<MusicContextValue | null>(null);
-const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
-const MiniPlayerMusicContext = createContext<MiniPlayerMusicContextValue | null>(null);
-const NowPlayingMusicContext = createContext<NowPlayingMusicContextValue | null>(null);
+export {
+  useLibraryMusicContext,
+  useMiniPlayerMusicContext,
+  useMusicContext,
+  useNowPlayingMusicContext,
+} from './musicContexts';
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -251,54 +248,29 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     ],
   );
 
-  const libraryValue = useMemo<LibraryMusicContextValue>(
+  const libraryValue = useMemo(
     () => buildLibraryMusicContextValue(value),
     [value],
   );
 
-  const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(
+  const miniPlayerValue = useMemo(
     () => buildMiniPlayerMusicContextValue(value),
     [value],
   );
 
-  const nowPlayingValue = useMemo<NowPlayingMusicContextValue>(
+  const nowPlayingValue = useMemo(
     () => buildNowPlayingMusicContextValue(value),
     [value],
   );
 
   return (
-    <MusicContext.Provider value={value}>
-      <LibraryMusicContext.Provider value={libraryValue}>
-        <MiniPlayerMusicContext.Provider value={miniPlayerValue}>
-          <NowPlayingMusicContext.Provider value={nowPlayingValue}>
-            {children}
-          </NowPlayingMusicContext.Provider>
-        </MiniPlayerMusicContext.Provider>
-      </LibraryMusicContext.Provider>
-    </MusicContext.Provider>
+    <MusicContextProviders
+      value={value}
+      libraryValue={libraryValue}
+      miniPlayerValue={miniPlayerValue}
+      nowPlayingValue={nowPlayingValue}
+    >
+      {children}
+    </MusicContextProviders>
   );
 };
-
-export const useMusicContext = createRequiredContextHook(
-  MusicContext,
-  'useMusicContext',
-  'MusicProvider',
-);
-
-export const useLibraryMusicContext = createRequiredContextHook(
-  LibraryMusicContext,
-  'useLibraryMusicContext',
-  'MusicProvider',
-);
-
-export const useMiniPlayerMusicContext = createRequiredContextHook(
-  MiniPlayerMusicContext,
-  'useMiniPlayerMusicContext',
-  'MusicProvider',
-);
-
-export const useNowPlayingMusicContext = createRequiredContextHook(
-  NowPlayingMusicContext,
-  'useNowPlayingMusicContext',
-  'MusicProvider',
-);
