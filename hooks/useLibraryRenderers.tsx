@@ -12,19 +12,30 @@ import { isDemoSong } from '../utils/libraryDemoSongs';
 
 const SONG_ROW_HEIGHT = 62;
 
-type PlaySong = (song: Song, queue: Song[]) => unknown;
-type PlayPlaylist = (playlistId: string) => unknown;
-type RemoveFolder = (folder: ScanFolder) => void | Promise<void>;
-type OpenTrackInfo = (song: Song) => void;
+export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
+export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
+export type LibraryRendererRemoveFolder = (folder: ScanFolder) => void | Promise<void>;
+export type LibraryRendererOpenTrackInfo = (song: Song) => void;
 
-interface UseLibraryRenderersOptions {
+export interface UseLibraryRenderersOptions {
   currentSongId: string | null;
   filteredSongs: Song[];
   isPlaying: boolean;
-  onOpenTrackInfo: OpenTrackInfo;
-  playPlaylist: PlayPlaylist;
-  playSong: PlaySong;
-  removeFolder: RemoveFolder;
+  onOpenTrackInfo: LibraryRendererOpenTrackInfo;
+  playPlaylist: LibraryRendererPlayPlaylist;
+  playSong: LibraryRendererPlaySong;
+  removeFolder: LibraryRendererRemoveFolder;
+}
+
+export interface UseLibraryRenderersResult {
+  getSongItemLayout: (_: ArrayLike<Song> | null | undefined, index: number) => { length: number; offset: number; index: number };
+  handleSongPress: (song: Song, queue?: Song[]) => void;
+  renderAlbumTile: ({ item }: { item: LibraryGroupItem }) => React.ReactElement;
+  renderFolderItem: ({ item }: { item: ScanFolder }) => React.ReactElement;
+  renderGroupItem: ({ item }: { item: LibraryGroupItem }) => React.ReactElement;
+  renderPlaylistItem: ({ item }: { item: LibraryPlaylistItem }) => React.ReactElement;
+  renderSongItem: ({ item }: { item: Song }) => React.ReactElement;
+  songKeyExtractor: (item: Song) => string;
 }
 
 export const useLibraryRenderers = ({
@@ -35,7 +46,7 @@ export const useLibraryRenderers = ({
   playPlaylist,
   playSong,
   removeFolder,
-}: UseLibraryRenderersOptions) => {
+}: UseLibraryRenderersOptions): UseLibraryRenderersResult => {
   const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => {
     void playSong(song, queue);
   }, [filteredSongs, playSong]);
