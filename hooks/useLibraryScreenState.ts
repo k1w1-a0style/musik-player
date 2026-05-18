@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { LibraryTab } from '../utils/libraryTabs';
 
-interface UseLibraryScreenStateResult {
+export interface UseLibraryScreenStateResult {
   activeTab: LibraryTab;
   albumViewMode: LibraryAlbumViewMode;
   importStatus: string | null;
