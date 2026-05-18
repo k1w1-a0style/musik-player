@@ -1,7 +1,7 @@
 import mockReact from 'react';
 import { Button as mockButton, Text, Text as mockText } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
-import { useLibraryRenderers } from '../useLibraryRenderers';
+import { useLibraryRenderers, type UseLibraryRenderersOptions } from '../useLibraryRenderers';
 import type { Song } from '../../types/Song';
 
 jest.mock('../../components/SongCard', () => ({ song, onPressSong }: { song: Song; onPressSong: (song: Song) => void }) =>
@@ -25,7 +25,7 @@ const song = (id: string): Song => ({
 });
 
 const HookHarness = ({ playSong = jest.fn() }: { playSong?: jest.Mock }) => {
-  const renderers = useLibraryRenderers({
+  const options: UseLibraryRenderersOptions = {
     currentSongId: 'a',
     filteredSongs: [song('a'), song('b')],
     isPlaying: true,
@@ -33,7 +33,9 @@ const HookHarness = ({ playSong = jest.fn() }: { playSong?: jest.Mock }) => {
     playPlaylist: jest.fn(),
     playSong,
     removeFolder: jest.fn(),
-  });
+  };
+
+  const renderers = useLibraryRenderers(options);
 
   return (
     <>
