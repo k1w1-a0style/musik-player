@@ -15,17 +15,19 @@ import {
   type LibraryTopBarPropsBuilderOptions,
 } from '../utils/libraryComponentProps';
 
-interface UseLibraryScreenVisibilityOptions {
+export interface UseLibraryScreenVisibilityOptions {
   searchOpen: boolean;
 }
 
-type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
+export type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryTabsPropsBuilderOptions
   & LibrarySearchBarPropsBuilderOptions
   & LibraryImportStatusPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
   & LibraryTabContentPropsBuilderOptions
   & UseLibraryScreenVisibilityOptions;
+
+export type UseLibraryComponentPropsResult = LibraryScreenContentProps;
 
 export const useLibraryComponentProps = ({
   activeFolders,
@@ -65,7 +67,7 @@ export const useLibraryComponentProps = ({
   songsCount,
   songsForActiveList,
   toggleSearch,
-}: UseLibraryComponentPropsOptions): LibraryScreenContentProps => {
+}: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
     openMenu,
     toggleSearch,
