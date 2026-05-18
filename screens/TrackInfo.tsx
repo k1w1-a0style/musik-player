@@ -1,11 +1,6 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
-import AppBackground from '../components/AppBackground';
-import Screen from '../components/Screen';
-import { theme } from '../theme';
-import TrackInfoActions from './TrackInfoActions';
-import TrackInfoCover from './TrackInfoCover';
-import TrackInfoSections from './TrackInfoSections';
+import TrackInfoContent from './TrackInfoContent';
+import TrackInfoNotFound from './TrackInfoNotFound';
 import { useTrackInfoScreenState } from './useTrackInfoScreenState';
 
 const TrackInfo: React.FC = () => {
@@ -20,48 +15,20 @@ const TrackInfo: React.FC = () => {
     removeFromLibrary,
   } = useTrackInfoScreenState();
 
-  if (!song) {
-    return (
-      <AppBackground>
-        <Screen contentStyle={styles.container}>
-          <Text style={styles.error}>Song nicht gefunden.</Text>
-        </Screen>
-      </AppBackground>
-    );
-  }
+  if (!song) return <TrackInfoNotFound />;
 
   return (
-    <AppBackground>
-      <Screen contentStyle={styles.container}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <TrackInfoCover
-            coverUri={coverUri}
-            coverFailed={coverFailed}
-            onCoverError={() => setCoverFailed(true)}
-          />
-
-          <Text style={styles.header}>TrackInfo</Text>
-          <TrackInfoActions
-            onOpenTagEditor={openTagEditor}
-            onRemoveFromLibrary={removeFromLibrary}
-          />
-          <TrackInfoSections
-            song={song}
-            coverUri={coverUri}
-            coverStatus={coverStatus}
-            importedAt={importedAt}
-          />
-        </ScrollView>
-      </Screen>
-    </AppBackground>
+    <TrackInfoContent
+      song={song}
+      coverUri={coverUri}
+      coverStatus={coverStatus}
+      importedAt={importedAt}
+      coverFailed={coverFailed}
+      onCoverError={() => setCoverFailed(true)}
+      onOpenTagEditor={openTagEditor}
+      onRemoveFromLibrary={removeFromLibrary}
+    />
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: theme.spacing.md, paddingBottom: 120, gap: 6 },
-  header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
-  error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
-});
 
 export default TrackInfo;
