@@ -8,7 +8,7 @@ declare const __DEV__: boolean;
 
 const NODE_ENV = process.env.NODE_ENV;
 
-interface UseLibraryViewStateOptions {
+export interface UseLibraryViewStateOptions {
   activeTab: LibraryTab;
   favoriteIds: string[];
   isDev?: boolean;
