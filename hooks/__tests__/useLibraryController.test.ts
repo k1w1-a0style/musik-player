@@ -21,12 +21,14 @@ jest.mock('../useLibraryAlerts', () => ({
 jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => ({
     importStatusProps: { status: null },
+    loading: false,
     menuModalProps: { visible: false },
     searchBarProps: {
       autoFocus: true,
       onChangeText: jest.fn(),
       value: '',
     },
+    searchOpen: false,
     tabContentProps: { activeTab: 'tracks' },
     tabsProps: {
       activeTab: 'tracks',
