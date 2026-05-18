@@ -21,12 +21,10 @@ import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 export const useMusicProviderController = () => {
   const providerState = useMusicProviderState();
   const {
-    isReady,
     songs,
     setSongsState,
     currentSong,
     setCurrentSong,
-    playbackQueue,
     setPlaybackQueue,
     playlists,
     setPlaylists,
