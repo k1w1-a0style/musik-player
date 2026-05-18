@@ -1,6 +1,7 @@
 import {
   buildLibraryImportStatusProps,
   buildLibraryMenuModalProps,
+  buildLibraryScreenVisibilityProps,
   buildLibrarySearchBarProps,
   buildLibraryTabContentProps,
   buildLibraryTabsProps,
@@ -38,6 +39,13 @@ test('buildLibrarySearchBarProps returns search bar props', () => {
 
 test('buildLibraryImportStatusProps returns import status props', () => {
   expect(buildLibraryImportStatusProps({ importStatus: 'Import läuft' })).toEqual({ status: 'Import läuft' });
+});
+
+test('buildLibraryScreenVisibilityProps returns visibility props', () => {
+  expect(buildLibraryScreenVisibilityProps({ loading: true, searchOpen: false })).toEqual({
+    loading: true,
+    searchOpen: false,
+  });
 });
 
 test('buildLibraryTabContentProps returns tab content props', () => {
