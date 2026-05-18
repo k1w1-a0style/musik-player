@@ -12,12 +12,11 @@ import NowPlayingMenuModal from './NowPlayingMenuModal';
 import NowPlayingQueueCard from './NowPlayingQueueCard';
 import NowPlayingTitleRow from './NowPlayingTitleRow';
 import NowPlayingVisualizerSection from './NowPlayingVisualizerSection';
+import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 0.20)));
-const QUEUE_CARD_MAX_HEIGHT = Math.min(236, Math.max(132, Math.floor(SCREEN_H * 0.27)));
-const GLOW_LEFT = SCREEN_W / 2 - 130;
+const layoutMetrics = buildNowPlayingLayoutMetrics({ width: SCREEN_W, height: SCREEN_H });
 
 const NowPlaying: React.FC = () => {
   const {
@@ -53,12 +52,18 @@ const NowPlaying: React.FC = () => {
 
   return (
     <Screen style={styles.root} testID="now-playing-screen" contentStyle={styles.content}>
-      <NowPlayingBackdrop gradientColors={gradientColors} accent={accent} glowLeft={GLOW_LEFT} />
+      <NowPlayingBackdrop gradientColors={gradientColors} accent={accent} glowLeft={layoutMetrics.glowLeft} />
 
       <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
 
-      <View style={styles.coverArea}>
-        <NowPlayingCoverArtwork song={currentSong} artworkUri={artworkUri} isPlaying={isPlaying} accent={accent} coverSize={COVER_SIZE} />
+      <View style={[styles.coverArea, { height: layoutMetrics.coverAreaHeight }]}>
+        <NowPlayingCoverArtwork
+          song={currentSong}
+          artworkUri={artworkUri}
+          isPlaying={isPlaying}
+          accent={accent}
+          coverSize={layoutMetrics.coverSize}
+        />
       </View>
 
       <NowPlayingTitleRow
@@ -82,7 +87,7 @@ const NowPlaying: React.FC = () => {
       <NowPlayingQueueCard
         queue={queue}
         currentSongId={currentSong?.id}
-        maxHeight={QUEUE_CARD_MAX_HEIGHT}
+        maxHeight={layoutMetrics.queueCardMaxHeight}
         onPlayQueueItem={playQueueItemById}
       />
 
@@ -102,7 +107,7 @@ const NowPlaying: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
-  coverArea: { height: COVER_SIZE + 8, alignItems: 'center', justifyContent: 'center', marginTop: 0 },
+  coverArea: { alignItems: 'center', justifyContent: 'center', marginTop: 0 },
 });
 
 export default NowPlaying;
