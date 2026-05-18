@@ -3,10 +3,10 @@ import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { useNowPlayingScreenState } from '../useNowPlayingScreenState';
 
-const song = { id: 's1', title: 'One', artist: 'A' };
-const seekTo = jest.fn(async () => undefined);
-const setVolume = jest.fn(async () => undefined);
-const playSong = jest.fn(async () => undefined);
+const mockSong = { id: 's1', title: 'One', artist: 'A' };
+const mockSeekTo = jest.fn(async () => undefined);
+const mockSetVolume = jest.fn(async () => undefined);
+const mockPlaySong = jest.fn(async () => undefined);
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 12 }),
@@ -14,16 +14,16 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('../../contexts/MusicContext', () => ({
   useNowPlayingMusicContext: () => ({
-    playbackQueue: [song],
-    currentSong: song,
-    seekTo,
+    playbackQueue: [mockSong],
+    currentSong: mockSong,
+    seekTo: mockSeekTo,
     isPlaying: true,
     volume: 0.8,
-    setVolume,
+    setVolume: mockSetVolume,
     palette: { vibrant: '#123456' },
     fftBins: [1, 2, 3],
     visualizerError: null,
-    playSong,
+    playSong: mockPlaySong,
   }),
 }));
 
@@ -40,19 +40,18 @@ jest.mock('../useNowPlayingFavorite', () => ({
 }));
 
 jest.mock('../useNowPlayingMenu', () => ({
-  useNowPlayingMenu: (songId?: string) => ({
+  useNowPlayingMenu: () => ({
     menuOpen: false,
     openMenu: jest.fn(),
     closeMenu: jest.fn(),
     handleClose: jest.fn(),
     openTrackInfo: jest.fn(),
-    menuSongId: songId,
   }),
 }));
 
 jest.mock('../useNowPlayingQueue', () => ({
   useNowPlayingQueue: () => ({
-    queue: [song],
+    queue: [mockSong],
     playQueueItemById: jest.fn(),
   }),
 }));
