@@ -88,10 +88,14 @@ describe('NowPlaying cover fallback', () => {
   test('favorite icon persists an actionable favorite state', async () => {
     mockIsFavoriteSongId.mockResolvedValue(false);
     const { getByLabelText } = render(<NowPlaying />);
-    const favorite = getByLabelText('Track favorisieren');
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
-    fireEvent.press(favorite);
+
+    fireEvent.press(getByLabelText('Track favorisieren'));
+
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+    await waitFor(() =>
+      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
+    );
   });
 
   test('close button remains interactive and triggers goBack', () => {
