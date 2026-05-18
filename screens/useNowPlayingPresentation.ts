@@ -18,6 +18,9 @@ interface NowPlayingPresentationState {
   albumTitle: string;
   visualizerHint: string | null;
   artworkUri?: string;
+  progressAccent: string;
+  progressAccentDark: string;
+  visualizerColor: string;
 }
 
 export const useNowPlayingPresentation = ({
@@ -34,6 +37,9 @@ export const useNowPlayingPresentation = ({
   const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
   const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
   const artworkUri = getSongArtworkUri(currentSong);
+  const progressAccent = palette?.vibrant ?? theme.palette.primary;
+  const progressAccentDark = palette?.lightVibrant ?? theme.palette.primaryDark;
+  const visualizerColor = palette?.vibrant ?? theme.palette.primary;
 
   return {
     accent,
@@ -42,5 +48,8 @@ export const useNowPlayingPresentation = ({
     albumTitle,
     visualizerHint,
     artworkUri,
+    progressAccent,
+    progressAccentDark,
+    visualizerColor,
   };
 };
