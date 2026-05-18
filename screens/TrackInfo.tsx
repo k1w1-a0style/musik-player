@@ -12,7 +12,10 @@ import {
   formatBytes,
   formatCoverStatus,
   formatDuration,
+  formatImportedAt,
   formatSampleRate,
+  getTrackInfoCoverStatus,
+  getTrackInfoCoverUri,
   valueOrNA,
 } from './trackInfoHelpers';
 
@@ -48,11 +51,9 @@ const TrackInfo: React.FC = () => {
     );
   }
 
-  const coverUri = song.coverInfo?.uri ?? song.cover;
-  const coverStatus = song.coverInfo?.status ?? (coverUri ? 'unknown' : 'none');
-  const importedAt = song.fileInfo?.importedAt
-    ? new Date(song.fileInfo.importedAt).toLocaleString('de-DE')
-    : 'Nicht verfügbar';
+  const coverUri = getTrackInfoCoverUri(song);
+  const coverStatus = getTrackInfoCoverStatus(song, coverUri);
+  const importedAt = formatImportedAt(song.fileInfo?.importedAt);
 
   const removeFromLibrary = (): void => {
     Alert.alert(
