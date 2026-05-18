@@ -718,6 +718,6 @@ export const useMiniPlayerMusicContext = createRequiredContextHook(
 
 export const useNowPlayingMusicContext = createRequiredContextHook(
   NowPlayingMusicContext,
-  'useNowPlayingContext',
+  'useNowPlayingMusicContext',
   'MusicProvider',
 );
