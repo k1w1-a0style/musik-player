@@ -2,24 +2,59 @@ import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 
+const fn = jest.fn();
+
 const mockComponentProps: UseLibraryComponentPropsResult = {
   importStatusProps: { status: null },
-  menuModalProps: { visible: false },
+  menuModalProps: {
+    visible: false,
+    loading: false,
+    isReady: true,
+    hasSongs: false,
+    activeFolders: 0,
+    onClose: fn,
+    onImport: fn,
+    onRefreshMetadata: fn,
+    onAddFolder: fn,
+    onShowFolders: fn,
+    onOpenSettings: fn,
+  },
   searchBarProps: {
     autoFocus: true,
-    onChangeText: jest.fn(),
+    onChangeText: fn,
     value: '',
   },
   showImportStatus: false,
   showSearchBar: false,
-  tabContentProps: { activeTab: 'tracks' },
+  tabContentProps: {
+    activeTab: 'tracks',
+    activeFolders: 0,
+    albumGroups: [],
+    albumViewMode: 'grid',
+    artistGroups: [],
+    emptyMessage: 'Leer',
+    genreGroups: [],
+    getSongItemLayout: fn,
+    onPlayActiveList: fn,
+    onShuffle: fn,
+    onToggleAlbumView: fn,
+    playlistItems: [],
+    renderAlbumTile: fn,
+    renderFolderItem: fn,
+    renderGroupItem: fn,
+    renderPlaylistItem: fn,
+    renderSongItem: fn,
+    scanFolders: [],
+    songKeyExtractor: item => item.id,
+    songsForActiveList: [],
+  },
   tabsProps: {
     activeTab: 'tracks',
-    onChangeTab: jest.fn(),
+    onChangeTab: fn,
   },
   topBarProps: {
-    onOpenMenu: jest.fn(),
-    onToggleSearch: jest.fn(),
+    onOpenMenu: fn,
+    onToggleSearch: fn,
   },
 };
 
@@ -146,8 +181,8 @@ test('returns library screen props from composed hooks', () => {
     value: '',
   });
   expect(result.current.showSearchBar).toBe(false);
-  expect(result.current.menuModalProps).toEqual({ visible: false });
-  expect(result.current.tabContentProps).toEqual({ activeTab: 'tracks' });
+  expect(result.current.menuModalProps).toEqual(mockComponentProps.menuModalProps);
+  expect(result.current.tabContentProps).toEqual(mockComponentProps.tabContentProps);
   expect(result.current.tabsProps).toEqual({
     activeTab: 'tracks',
     onChangeTab: expect.any(Function),
