@@ -1,6 +1,5 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Music2 } from 'lucide-react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
@@ -11,9 +10,9 @@ import {
   formatSampleRate,
   valueOrNA,
 } from './trackInfoHelpers';
+import TrackInfoActions from './TrackInfoActions';
+import TrackInfoCover from './TrackInfoCover';
 import { useTrackInfoScreenState } from './useTrackInfoScreenState';
-
-const dangerColor = theme.palette.error;
 
 const InfoRow: React.FC<{ label: string; value: string; long?: boolean }> = ({ label, value, long = false }) => (
   <Text style={long ? styles.longRow : styles.row}>{label}: {value}</Text>
@@ -45,24 +44,17 @@ const TrackInfo: React.FC = () => {
     <AppBackground>
       <Screen contentStyle={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.coverWrap}>
-            {coverUri && !coverFailed ? (
-              <Image source={{ uri: coverUri }} style={styles.cover} onError={() => setCoverFailed(true)} />
-            ) : (
-              <Music2 color={theme.palette.text.muted} size={42} />
-            )}
-          </View>
+          <TrackInfoCover
+            coverUri={coverUri}
+            coverFailed={coverFailed}
+            onCoverError={() => setCoverFailed(true)}
+          />
 
           <Text style={styles.header}>TrackInfo</Text>
-          <View style={styles.actionRow}>
-            <Pressable accessibilityRole="button" style={styles.editButton} onPress={openTagEditor}>
-              <Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Track aus Bibliothek entfernen" style={styles.removeButton} onPress={removeFromLibrary}>
-              <Text style={styles.removeButtonText}>Aus Bibliothek entfernen</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.hint}>Hinweis: Entfernen löscht nicht die Datei vom Gerät.</Text>
+          <TrackInfoActions
+            onOpenTagEditor={openTagEditor}
+            onRemoveFromLibrary={removeFromLibrary}
+          />
           <Text style={styles.section}>Basis</Text>
           <InfoRow label="Titel" value={valueOrNA(song.title)} />
           <InfoRow label="Artist" value={valueOrNA(song.artist)} />
@@ -103,26 +95,8 @@ const TrackInfo: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: theme.spacing.md, paddingBottom: 120, gap: 6 },
-  coverWrap: {
-    width: 130,
-    height: 130,
-    borderRadius: 16,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: theme.palette.surfaceElevated,
-    marginBottom: 8,
-  },
-  cover: { width: '100%', height: '100%' },
   header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 2 },
   section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
-  editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' },
-  editButtonText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
-  removeButton: { borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: dangerColor },
-  removeButtonText: { color: dangerColor, fontFamily: theme.fonts.heading, fontSize: 13 },
-  hint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 4 },
   row: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   longRow: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 13 },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 16 },
