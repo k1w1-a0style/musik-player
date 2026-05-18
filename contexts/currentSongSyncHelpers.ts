@@ -2,15 +2,19 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 
 interface SyncCurrentSongFromTrackArgs {
-  event: { track?: { id?: unknown } | null };
+  event: unknown;
   songSources: Song[][];
   setCurrentSong: Dispatch<SetStateAction<Song | null>>;
   persistCurrentSongId: (song: Song | null) => Promise<void>;
 }
 
-export const getTrackIdFromActiveTrackEvent = (
-  event: { track?: { id?: unknown } | null },
-): string | undefined => (typeof event.track?.id === 'string' ? event.track.id : undefined);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+export const getTrackIdFromActiveTrackEvent = (event: unknown): string | undefined => {
+  if (!isRecord(event) || !isRecord(event.track)) return undefined;
+  return typeof event.track.id === 'string' ? event.track.id : undefined;
+};
 
 export const findTrackSongById = (
   trackId: string | undefined,
