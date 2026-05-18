@@ -4,7 +4,7 @@ import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from '../utils/libraryTabs';
 import { loadFavoriteSongIds, loadLibraryStartupState } from '../utils/libraryStorageLoaders';
 
-interface UseLibraryStoredStateResult {
+export interface UseLibraryStoredStateResult {
   scanFolders: ScanFolder[];
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   favoriteIds: string[];
