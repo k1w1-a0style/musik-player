@@ -19,7 +19,11 @@ export {
   type UseLibraryMenuActionsOptions,
   type UseLibraryMenuActionsResult,
 } from './useLibraryMenuActions';
-export { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
+export {
+  useLibraryMetadataRefreshActions,
+  type UseLibraryMetadataRefreshActionsOptions,
+  type UseLibraryMetadataRefreshActionsResult,
+} from './useLibraryMetadataRefreshActions';
 export { useLibraryNavigationActions } from './useLibraryNavigationActions';
 export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
