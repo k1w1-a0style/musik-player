@@ -35,7 +35,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   if (queue.length <= 1) return null;
 
   return (
-    <View style={[styles.queueCard, { maxHeight }]}> 
+    <View style={[styles.queueCard, { maxHeight }]}>
       <View style={styles.queueHeaderRow}>
         <Text style={styles.queueEyebrow}>QUEUE</Text>
         <Text style={styles.queueCount}>{queue.length} Tracks</Text>
