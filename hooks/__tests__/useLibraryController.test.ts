@@ -1,11 +1,27 @@
 import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
+import type { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
 
+type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
+
 const fn = jest.fn();
+const asyncFn = jest.fn(async () => undefined);
+
+const mockMusicContext: MockLibraryMusicContext = {
+  songs: [],
+  setSongs: fn,
+  currentSong: null,
+  playSong: asyncFn,
+  isReady: true,
+  isPlaying: false,
+  updateSongMetadata: fn,
+  playlists: [],
+  playPlaylist: asyncFn,
+};
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
   importStatusProps: { status: null },
@@ -99,16 +115,7 @@ const mockViewState: UseLibraryViewStateResult = {
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: jest.fn(() => ({
-    songs: [],
-    setSongs: jest.fn(),
-    currentSong: null,
-    playSong: jest.fn(),
-    isReady: true,
-    isPlaying: false,
-    playlists: [],
-    playPlaylist: jest.fn(),
-  })),
+  useLibraryMusicContext: jest.fn(() => mockMusicContext),
 }));
 
 jest.mock('../useLibraryAlerts', () => ({
