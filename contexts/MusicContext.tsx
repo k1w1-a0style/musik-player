@@ -50,104 +50,13 @@ import {
   buildMusicContextValue,
   buildNowPlayingMusicContextValue,
 } from './musicContextValues';
+import type {
+  LibraryMusicContextValue,
+  MiniPlayerMusicContextValue,
+  MusicContextValue,
+  NowPlayingMusicContextValue,
+} from './musicContextTypes';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
-
-interface MusicContextValue {
-  // Library
-  songs: Song[];
-  setSongs: (s: Song[]) => void;
-  addSongs: (s: Song[]) => void;
-  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
-
-  // Playback
-  currentSong: Song | null;
-  playbackQueue: Song[];
-  isPlaying: boolean;
-  isBuffering: boolean;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  togglePlayPause: () => Promise<void>;
-  stop: () => Promise<void>;
-  seekTo: (millis: number) => Promise<void>;
-  next: () => Promise<void>;
-  previous: () => Promise<void>;
-
-  // Queue / modes
-  shuffle: boolean;
-  toggleShuffle: () => Promise<void>;
-  repeatMode: RepeatMode;
-  cycleRepeatMode: () => Promise<void>;
-
-  // Volume
-  volume: number;
-  setVolume: (v: number) => Promise<void>;
-
-  // EQ (UI-only, persisted as preset)
-  eqEnabled: boolean;
-  setEqEnabled: (v: boolean) => void;
-  eqBands: number[];
-  setEqBand: (i: number, v: number) => void;
-  eqPreset: EqPresetName | 'custom';
-  applyEqPreset: (p: EqPresetName) => void;
-  /** Native equalizer info — null while unsupported / loading */
-  eqNative: EqInitResult | null;
-
-  // Visualizer
-  fftBins: number[];
-  visualizerRunning: boolean;
-  visualizerError: string | null;
-
-  // Album palette of the currently playing track
-  palette: PaletteResult | null;
-
-  // Playlists
-  playlists: Playlist[];
-  createPlaylist: (name: string) => Playlist;
-  deletePlaylist: (id: string) => void;
-  renamePlaylist: (id: string, name: string) => void;
-  addSongToPlaylist: (playlistId: string, songId: string) => void;
-  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
-  playPlaylist: (playlistId: string) => Promise<void>;
-
-  // Lifecycle
-  isReady: boolean;
-}
-
-interface LibraryMusicContextValue {
-  songs: Song[];
-  setSongs: (s: Song[]) => void;
-  currentSong: Song | null;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  isReady: boolean;
-  isPlaying: boolean;
-  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
-  playlists: Playlist[];
-  playPlaylist: (playlistId: string) => Promise<void>;
-}
-
-interface MiniPlayerMusicContextValue {
-  currentSong: Song | null;
-  isPlaying: boolean;
-  togglePlayPause: () => Promise<void>;
-  next: () => Promise<void>;
-  previous: () => Promise<void>;
-  canSkipNext: boolean;
-  canSkipPrevious: boolean;
-}
-
-interface NowPlayingMusicContextValue {
-  playbackQueue: Song[];
-  currentSong: Song | null;
-  seekTo: (millis: number) => Promise<void>;
-  isPlaying: boolean;
-  volume: number;
-  setVolume: (v: number) => Promise<void>;
-  palette: PaletteResult | null;
-  fftBins: number[];
-  visualizerRunning: boolean;
-  visualizerError: string | null;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  canSkip: boolean;
-}
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
