@@ -1,12 +1,11 @@
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
-import { useEqualizerControls } from './useEqualizerControls';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
 import { useMusicProviderActions } from './useMusicProviderActions';
 import { useMusicProviderAudioFeatures } from './useMusicProviderAudioFeatures';
+import { useMusicProviderControls } from './useMusicProviderControls';
 import { useMusicProviderEffects } from './useMusicProviderEffects';
 import { useMusicProviderState } from './useMusicProviderState';
-import { usePlaybackControls } from './usePlaybackControls';
 import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 
 export const useMusicProviderController = () => {
@@ -26,32 +25,33 @@ export const useMusicProviderController = () => {
   } = useMusicProviderState();
 
   const {
-    isPlaying,
-    isBuffering,
-    repeatMode,
-    setRepeatMode,
-    cycleRepeatMode,
-    volume,
-    setVolumeState,
-    setVolume,
-    togglePlayPause,
-    stop,
-    seekTo,
-    next,
-    previous,
-  } = usePlaybackControls();
-
-  const {
-    eqEnabled,
-    setEqEnabled,
-    setEqEnabledState,
-    eqBands,
-    setEqBand,
-    setEqBandsState,
-    eqPreset,
-    applyEqPreset,
-    setEqPreset,
-  } = useEqualizerControls();
+    playback: {
+      isPlaying,
+      isBuffering,
+      repeatMode,
+      setRepeatMode,
+      cycleRepeatMode,
+      volume,
+      setVolumeState,
+      setVolume,
+      togglePlayPause,
+      stop,
+      seekTo,
+      next,
+      previous,
+    },
+    equalizer: {
+      eqEnabled,
+      setEqEnabled,
+      setEqEnabledState,
+      eqBands,
+      setEqBand,
+      setEqBandsState,
+      eqPreset,
+      applyEqPreset,
+      setEqPreset,
+    },
+  } = useMusicProviderControls();
 
   const { eqNative, palette, fftBins, visualizerRunning, visualizerError } =
     useMusicProviderAudioFeatures({
