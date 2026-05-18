@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
 import type { useLibraryMusicContext } from '../../contexts/MusicContext';
+import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
@@ -21,6 +22,10 @@ const mockMusicContext: MockLibraryMusicContext = {
   updateSongMetadata: fn,
   playlists: [],
   playPlaylist: asyncFn,
+};
+
+const mockAlerts: UseLibraryAlertsResult = {
+  showAlert: fn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -119,7 +124,7 @@ jest.mock('../../contexts/MusicContext', () => ({
 }));
 
 jest.mock('../useLibraryAlerts', () => ({
-  useLibraryAlerts: jest.fn(() => ({ showAlert: jest.fn() })),
+  useLibraryAlerts: jest.fn(() => mockAlerts),
 }));
 
 jest.mock('../useLibraryComponentProps', () => ({
