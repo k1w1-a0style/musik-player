@@ -8,6 +8,7 @@ import {
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
+import { cleanupCoverCache } from './coverCacheCleanup';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
 
@@ -161,5 +162,6 @@ export const sanitizeSongCover = async (song: Song): Promise<Song> => {
 
 export const sanitizeSongsForStorage = async (songs: Song[]): Promise<Song[]> => {
   const sanitized = await Promise.all(songs.map(sanitizeSongCover));
+  void cleanupCoverCache(sanitized);
   return sanitized;
 };
