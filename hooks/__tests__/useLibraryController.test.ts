@@ -1,3 +1,4 @@
+import React from 'react';
 import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
 import type { useLibraryMusicContext } from '../../contexts/MusicContext';
@@ -18,7 +19,7 @@ type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
 const fn = jest.fn();
 const asyncFn = jest.fn(async () => undefined);
-const elementFn = jest.fn(() => null);
+const elementFn = jest.fn(() => React.createElement(React.Fragment));
 
 const mockMusicContext: MockLibraryMusicContext = {
   songs: [],
