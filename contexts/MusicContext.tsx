@@ -12,14 +12,7 @@ import {
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
-import { createPlaylistId } from '../utils/playlistIds';
-import {
-  addSongToPlaylistById,
-  deletePlaylistById,
-  prunePlaylists,
-  removeSongFromPlaylistById,
-  renamePlaylistById,
-} from '../utils/playlistState';
+import { prunePlaylists } from '../utils/playlistState';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
@@ -43,6 +36,7 @@ import { useMusicPersistence } from './useMusicPersistence';
 import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
+import { usePlaylistActions } from './usePlaylistActions';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
@@ -143,6 +137,20 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setShuffle,
   });
 
+  const {
+    createPlaylist,
+    deletePlaylist,
+    renamePlaylist,
+    addSongToPlaylist,
+    removeSongFromPlaylist,
+    playPlaylist,
+  } = usePlaylistActions({
+    playlists,
+    setPlaylists,
+    songsRef,
+    playSong,
+  });
+
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
   useMusicPersistence({
@@ -192,41 +200,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       () => undefined,
     );
   }, []);
-
-  // ---- Playlists ----
-  const createPlaylist = useCallback((name: string) => {
-    const playlist: Playlist = {
-      id: createPlaylistId(),
-      name,
-      songIds: [],
-      createdAt: Date.now(),
-    };
-    setPlaylists(prev => [...prev, playlist]);
-    return playlist;
-  }, []);
-  const deletePlaylist = useCallback((id: string) => {
-    setPlaylists(prev => deletePlaylistById(prev, id));
-  }, []);
-  const renamePlaylist = useCallback((id: string, name: string) => {
-    setPlaylists(prev => renamePlaylistById(prev, id, name));
-  }, []);
-  const addSongToPlaylist = useCallback((playlistId: string, songId: string) => {
-    setPlaylists(prev => addSongToPlaylistById(prev, playlistId, songId));
-  }, []);
-  const removeSongFromPlaylist = useCallback((playlistId: string, songId: string) => {
-    setPlaylists(prev => removeSongFromPlaylistById(prev, playlistId, songId));
-  }, []);
-  const playPlaylist = useCallback(
-    async (playlistId: string) => {
-      const p = playlists.find(x => x.id === playlistId);
-      if (!p) return;
-      const queue = p.songIds
-        .map(id => songsRef.current.find(s => s.id === id))
-        .filter((x): x is Song => !!x);
-      if (queue.length > 0) await playSong(queue[0], queue);
-    },
-    [playlists, playSong],
-  );
 
   const value = useMemo<MusicContextValue>(
     () => buildMusicContextValue({
