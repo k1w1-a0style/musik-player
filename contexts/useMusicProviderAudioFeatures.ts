@@ -4,7 +4,7 @@ import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
 import { useNativeEqualizer } from './useNativeEqualizer';
 
-interface MusicProviderAudioFeatures {
+export interface MusicProviderAudioFeatures {
   eqNative: EqInitResult | null;
   palette: PaletteResult | null;
   fftBins: number[];
