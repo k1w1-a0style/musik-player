@@ -1,12 +1,16 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 
-interface LibraryAlertCopy {
+export interface LibraryAlertCopy {
   title: string;
   message: string;
 }
 
-export const useLibraryAlerts = () => {
+export interface UseLibraryAlertsResult {
+  showAlert: (alert: LibraryAlertCopy) => void;
+}
+
+export const useLibraryAlerts = (): UseLibraryAlertsResult => {
   const showAlert = useCallback((alert: LibraryAlertCopy) => {
     Alert.alert(alert.title, alert.message);
   }, []);
