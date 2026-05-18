@@ -4,6 +4,7 @@ import {
   getFavoriteSongIds,
   getScanFolders,
   removeScanFolder,
+  setFavoriteSongId,
   storage,
   StorageKeys,
   updateScanFolder,
@@ -13,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 describe('storage', () => {
   beforeEach(() => {
     (AsyncStorage as unknown as { __reset: () => void }).__reset();
+    jest.restoreAllMocks();
   });
 
   test('round-trips JSON-serialisable values', async () => {
@@ -47,6 +49,12 @@ describe('storage', () => {
   test('filters invalid favorite ids', async () => {
     await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1', 2, 's2', null]);
     expect(await getFavoriteSongIds()).toEqual(['s1', 's2']);
+  });
+
+  test('setFavoriteSongId surfaces persistence failures', async () => {
+    jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(setFavoriteSongId('s1', true)).rejects.toThrow('Failed to persist favorite song ids');
   });
 
   test('rejects invalid persisted settings', async () => {
