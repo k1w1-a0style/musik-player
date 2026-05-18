@@ -4,7 +4,7 @@ import { useCurrentSongSync } from './useCurrentSongSync';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 
-interface MusicProviderEffectsArgs {
+export interface MusicProviderEffectsArgs {
   songsRef: MutableRefObject<Song[]>;
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
