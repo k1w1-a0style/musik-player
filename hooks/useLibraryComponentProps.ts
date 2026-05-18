@@ -3,21 +3,19 @@ import type { LibraryScreenContentProps } from '../components/LibraryScreenConte
 import {
   buildLibraryImportStatusProps,
   buildLibraryMenuModalProps,
+  buildLibraryScreenVisibilityProps,
   buildLibrarySearchBarProps,
   buildLibraryTabContentProps,
   buildLibraryTabsProps,
   buildLibraryTopBarProps,
   type LibraryImportStatusPropsBuilderOptions,
   type LibraryMenuModalPropsBuilderOptions,
+  type LibraryScreenVisibilityPropsBuilderOptions,
   type LibrarySearchBarPropsBuilderOptions,
   type LibraryTabContentPropsBuilderOptions,
   type LibraryTabsPropsBuilderOptions,
   type LibraryTopBarPropsBuilderOptions,
 } from '../utils/libraryComponentProps';
-
-export interface UseLibraryScreenVisibilityOptions {
-  searchOpen: boolean;
-}
 
 export type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryTabsPropsBuilderOptions
@@ -25,7 +23,7 @@ export type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryImportStatusPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
   & LibraryTabContentPropsBuilderOptions
-  & UseLibraryScreenVisibilityOptions;
+  & LibraryScreenVisibilityPropsBuilderOptions;
 
 export type UseLibraryComponentPropsResult = LibraryScreenContentProps;
 
@@ -86,6 +84,11 @@ export const useLibraryComponentProps = ({
   const importStatusProps = useMemo(() => buildLibraryImportStatusProps({
     importStatus,
   }), [importStatus]);
+
+  const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
+    loading,
+    searchOpen,
+  }), [loading, searchOpen]);
 
   const tabContentProps = useMemo(() => buildLibraryTabContentProps({
     activeTab,
@@ -157,5 +160,5 @@ export const useLibraryComponentProps = ({
     songsCount,
   ]);
 
-  return { importStatusProps, loading, menuModalProps, searchBarProps, searchOpen, tabContentProps, tabsProps, topBarProps };
+  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, ...visibilityProps };
 };
