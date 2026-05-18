@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from '../utils/libraryTabs';
+import type { LibraryAlertCopy } from './useLibraryAlerts';
 import {
   buildDirectoryPermissionSelectionResult,
   buildScanFolderFromDirectoryUri,
@@ -22,11 +23,6 @@ import {
   persistRemovedScanFolder,
 } from '../utils/libraryScanFolderPersistence';
 
-interface LibraryAlertCopy {
-  title: string;
-  message: string;
-}
-
 interface DirectoryPermissionResultLike {
   granted?: boolean;
   directoryUri?: string | null;
@@ -36,7 +32,7 @@ type RequestDirectoryPermissions = () => Promise<DirectoryPermissionResultLike>;
 
 type ScanFolderStateUpdate = ReturnType<typeof buildScanFolderStateUpdate>;
 
-interface UseLibraryScanFolderActionsOptions {
+export interface UseLibraryScanFolderActionsOptions {
   scanFolders: ScanFolder[];
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   setActiveTab: Dispatch<SetStateAction<LibraryTab>>;
@@ -46,7 +42,7 @@ interface UseLibraryScanFolderActionsOptions {
   requestDirectoryPermissionsAsync?: RequestDirectoryPermissions;
 }
 
-interface UseLibraryScanFolderActionsResult {
+export interface UseLibraryScanFolderActionsResult {
   showScanFolders: () => void;
   onAddScanFolder: () => Promise<void>;
   persistChangedFolderUpdates: (folderUpdates: ScanFolder[] | undefined) => Promise<void>;
