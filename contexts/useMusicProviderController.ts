@@ -11,6 +11,7 @@ import {
   buildMusicProviderContextLibraryInput,
   buildMusicProviderContextPlaylistInput,
 } from './musicProviderActionInput';
+import { buildMusicProviderEffectsRefsInput } from './musicProviderRefsInput';
 import {
   buildMusicProviderContextStateInput,
   buildMusicProviderEffectsStateInput,
@@ -48,13 +49,13 @@ export const useMusicProviderController = () => {
     isPlaying,
   });
 
+  const playbackRefs = useMusicPlaybackRefs(songs);
   const {
     songsRef,
     queueContextRef,
     baseQueueContextRef,
     nativeQueueRef,
-    persistCurrentSongId,
-  } = useMusicPlaybackRefs(songs);
+  } = playbackRefs;
 
   const actions = useMusicProviderActions({
     songsRef,
@@ -73,13 +74,7 @@ export const useMusicProviderController = () => {
 
   useMusicProviderEffects(
     buildMusicProviderEffectsInput({
-      refs: {
-        songsRef,
-        queueContextRef,
-        baseQueueContextRef,
-        nativeQueueRef,
-        persistCurrentSongId,
-      },
+      refs: buildMusicProviderEffectsRefsInput(playbackRefs),
       state: buildMusicProviderEffectsStateInput(providerState),
       playback: buildMusicProviderEffectsPlaybackInput(playback),
       equalizer: buildMusicProviderEffectsEqualizerInput(equalizer),
