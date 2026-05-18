@@ -6,13 +6,21 @@ import {
   buildLibraryTabContentProps,
   buildLibraryTabsProps,
   buildLibraryTopBarProps,
+  type LibraryImportStatusPropsBuilderOptions,
+  type LibraryMenuModalPropsBuilderOptions,
+  type LibraryScreenVisibilityPropsBuilderOptions,
+  type LibrarySearchBarPropsBuilderOptions,
+  type LibraryTabContentPropsBuilderOptions,
+  type LibraryTabsPropsBuilderOptions,
+  type LibraryTopBarPropsBuilderOptions,
 } from '../libraryComponentProps';
 
 test('buildLibraryTopBarProps returns top bar props', () => {
   const openMenu = jest.fn();
   const toggleSearch = jest.fn();
+  const options: LibraryTopBarPropsBuilderOptions = { openMenu, toggleSearch };
 
-  expect(buildLibraryTopBarProps({ openMenu, toggleSearch })).toEqual({
+  expect(buildLibraryTopBarProps(options)).toEqual({
     onOpenMenu: openMenu,
     onToggleSearch: toggleSearch,
   });
@@ -20,8 +28,9 @@ test('buildLibraryTopBarProps returns top bar props', () => {
 
 test('buildLibraryTabsProps returns tabs props', () => {
   const setActiveTab = jest.fn();
+  const options: LibraryTabsPropsBuilderOptions = { activeTab: 'albums', setActiveTab };
 
-  expect(buildLibraryTabsProps({ activeTab: 'albums', setActiveTab })).toEqual({
+  expect(buildLibraryTabsProps(options)).toEqual({
     activeTab: 'albums',
     onChangeTab: setActiveTab,
   });
@@ -29,8 +38,9 @@ test('buildLibraryTabsProps returns tabs props', () => {
 
 test('buildLibrarySearchBarProps returns search bar props', () => {
   const setQuery = jest.fn();
+  const options: LibrarySearchBarPropsBuilderOptions = { query: 'abc', setQuery };
 
-  expect(buildLibrarySearchBarProps({ query: 'abc', setQuery })).toEqual({
+  expect(buildLibrarySearchBarProps(options)).toEqual({
     autoFocus: true,
     onChangeText: setQuery,
     value: 'abc',
@@ -38,11 +48,15 @@ test('buildLibrarySearchBarProps returns search bar props', () => {
 });
 
 test('buildLibraryImportStatusProps returns import status props', () => {
-  expect(buildLibraryImportStatusProps({ importStatus: 'Import läuft' })).toEqual({ status: 'Import läuft' });
+  const options: LibraryImportStatusPropsBuilderOptions = { importStatus: 'Import läuft' };
+
+  expect(buildLibraryImportStatusProps(options)).toEqual({ status: 'Import läuft' });
 });
 
 test('buildLibraryScreenVisibilityProps returns screen content visibility props', () => {
-  expect(buildLibraryScreenVisibilityProps({ loading: true, searchOpen: false })).toEqual({
+  const options: LibraryScreenVisibilityPropsBuilderOptions = { loading: true, searchOpen: false };
+
+  expect(buildLibraryScreenVisibilityProps(options)).toEqual({
     showImportStatus: true,
     showSearchBar: false,
   });
@@ -50,7 +64,7 @@ test('buildLibraryScreenVisibilityProps returns screen content visibility props'
 
 test('buildLibraryTabContentProps returns tab content props', () => {
   const fn = jest.fn();
-  const props = buildLibraryTabContentProps({
+  const options: LibraryTabContentPropsBuilderOptions = {
     activeTab: 'tracks',
     activeFolders: 2,
     albumGroups: [],
@@ -71,7 +85,9 @@ test('buildLibraryTabContentProps returns tab content props', () => {
     scanFolders: [],
     songKeyExtractor: item => item.id,
     songsForActiveList: [],
-  });
+  };
+
+  const props = buildLibraryTabContentProps(options);
 
   expect(props.activeTab).toBe('tracks');
   expect(props.activeFolders).toBe(2);
@@ -82,7 +98,7 @@ test('buildLibraryTabContentProps returns tab content props', () => {
 
 test('buildLibraryMenuModalProps returns menu modal props', () => {
   const fn = jest.fn();
-  const props = buildLibraryMenuModalProps({
+  const options: LibraryMenuModalPropsBuilderOptions = {
     activeFolders: 3,
     closeMenu: fn,
     importFromDevice: fn,
@@ -94,7 +110,9 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 5,
-  });
+  };
+
+  const props = buildLibraryMenuModalProps(options);
 
   expect(props.visible).toBe(true);
   expect(props.loading).toBe(false);
@@ -111,7 +129,7 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
 
 test('buildLibraryMenuModalProps marks empty library when song count is zero', () => {
   const fn = jest.fn();
-  const props = buildLibraryMenuModalProps({
+  const options: LibraryMenuModalPropsBuilderOptions = {
     activeFolders: 0,
     closeMenu: fn,
     importFromDevice: fn,
@@ -123,7 +141,9 @@ test('buildLibraryMenuModalProps marks empty library when song count is zero', (
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 0,
-  });
+  };
+
+  const props = buildLibraryMenuModalProps(options);
 
   expect(props.visible).toBe(false);
   expect(props.hasSongs).toBe(false);
