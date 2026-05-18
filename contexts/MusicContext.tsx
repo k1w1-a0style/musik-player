@@ -25,10 +25,12 @@ import { getSongArtworkUri } from '../utils/songArtwork';
 import { createPlaylistId } from '../utils/playlistIds';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import {
-  clampNativeEqMillibel,
-  dbToMillibel,
-  findClosestUiEqBandIndex,
-} from '../utils/nativeEqualizer';
+  buildNativeEqBandUpdates,
+  canUseNativeEq,
+  shouldApplyNativeEqBands,
+  shouldApplyVisualizerFrame,
+  shouldStopVisualizerForPlaybackState,
+} from '../utils/audioEffects';
 import {
   addSongToPlaylistById,
   deletePlaylistById,
@@ -241,19 +243,14 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // are mapped onto the device's actual band count (typically 5) by
   // sampling the closest UI band for each native center frequency.
   useEffect(() => {
-    if (!eqNative || !eqNative.available) return;
+    if (!canUseNativeEq(eqNative)) return;
     SystemAudio.eqSetEnabled(eqEnabled);
   }, [eqEnabled, eqNative]);
 
   useEffect(() => {
-    if (!eqNative || !eqNative.available) return;
-    if (!eqEnabled) return;
-    const nativeRange = [eqNative.minMillibel, eqNative.maxMillibel] as const;
-    eqNative.bands.forEach(band => {
-      const uiBandIndex = findClosestUiEqBandIndex(band.centerFreqHz);
-      const dB = eqBands[uiBandIndex] ?? 0;
-      const millibel = clampNativeEqMillibel(dbToMillibel(dB), nativeRange);
-      SystemAudio.eqSetBandLevel(band.index, millibel);
+    if (!shouldApplyNativeEqBands(eqNative, eqEnabled)) return;
+    buildNativeEqBandUpdates(eqNative, eqBands).forEach(update => {
+      SystemAudio.eqSetBandLevel(update.index, update.millibel);
     });
   }, [eqBands, eqEnabled, eqNative]);
 
@@ -261,7 +258,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     const subFft = SystemAudio.onFft(data => {
       const now = Date.now();
-      if (now - lastVisualizerUpdateRef.current < VISUALIZER_UPDATE_INTERVAL_MS) return;
+      if (!shouldApplyVisualizerFrame(now, lastVisualizerUpdateRef.current, VISUALIZER_UPDATE_INTERVAL_MS)) return;
       lastVisualizerUpdateRef.current = now;
       setFftBins(data);
     });
@@ -281,7 +278,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // RECORD_AUDIO and can overload older Android devices when combined with
   // heavy UI rendering. A future explicit visualizer toggle can start it.
   useEffect(() => {
-    if (!isPlaying) SystemAudio.visualizerStop();
+    if (shouldStopVisualizerForPlaybackState(isPlaying)) SystemAudio.visualizerStop();
   }, [isPlaying]);
 
   // ---- Palette extraction for current track cover ----
@@ -721,6 +718,6 @@ export const useMiniPlayerMusicContext = createRequiredContextHook(
 
 export const useNowPlayingMusicContext = createRequiredContextHook(
   NowPlayingMusicContext,
-  'useNowPlayingMusicContext',
+  'useNowPlayingContext',
   'MusicProvider',
 );
