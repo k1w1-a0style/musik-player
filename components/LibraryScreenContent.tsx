@@ -8,10 +8,10 @@ import LibraryTopBar, { type LibraryTopBarProps } from './LibraryTopBar';
 
 export interface LibraryScreenContentProps {
   importStatusProps: LibraryImportStatusProps;
-  loading: boolean;
   menuModalProps: LibraryMenuModalProps;
   searchBarProps: LibrarySearchBarProps;
-  searchOpen: boolean;
+  showImportStatus: boolean;
+  showSearchBar: boolean;
   tabContentProps: LibraryTabContentProps;
   tabsProps: LibraryTabsProps;
   topBarProps: LibraryTopBarProps;
@@ -19,10 +19,10 @@ export interface LibraryScreenContentProps {
 
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
   importStatusProps,
-  loading,
   menuModalProps,
   searchBarProps,
-  searchOpen,
+  showImportStatus,
+  showSearchBar,
   tabContentProps,
   tabsProps,
   topBarProps,
@@ -32,8 +32,8 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
 
     <LibraryTabs {...tabsProps} />
 
-    {searchOpen && <LibrarySearchBar {...searchBarProps} />}
-    {loading && <LibraryImportStatus {...importStatusProps} />}
+    {showSearchBar && <LibrarySearchBar {...searchBarProps} />}
+    {showImportStatus && <LibraryImportStatus {...importStatusProps} />}
 
     <LibraryTabContent {...tabContentProps} />
 
