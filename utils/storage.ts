@@ -21,20 +21,6 @@ export const StorageKeys = {
 
 type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
 
-type StoredValueByKey = {
-  [StorageKeys.SONGS]: Song[];
-  [StorageKeys.PLAYLISTS]: Playlist[];
-  [StorageKeys.CURRENT_SONG_ID]: string;
-  [StorageKeys.EQ_PRESET]: EqPresetName | 'custom';
-  [StorageKeys.EQ_BANDS]: number[];
-  [StorageKeys.EQ_ENABLED]: boolean;
-  [StorageKeys.VOLUME]: number;
-  [StorageKeys.REPEAT_MODE]: RepeatMode;
-  [StorageKeys.SHUFFLE]: boolean;
-  [StorageKeys.SCAN_FOLDERS]: ScanFolder[];
-  [StorageKeys.FAVORITE_SONG_IDS]: string[];
-};
-
 const songFileInfoSchema = z.object({
   filename: z.string().optional(),
   uri: z.string().optional(),
@@ -169,18 +155,6 @@ export const storage = {
   },
 };
 
-const isScanFolder = (value: unknown): value is ScanFolder => {
-  if (!value || typeof value !== 'object') return false;
-  const folder = value as Partial<ScanFolder>;
-  return (
-    typeof folder.id === 'string' &&
-    typeof folder.name === 'string' &&
-    typeof folder.uri === 'string' &&
-    typeof folder.addedAt === 'number' &&
-    typeof folder.enabled === 'boolean'
-  );
-};
-
 export const getFavoriteSongIds = async (): Promise<string[]> => {
   const value = await storage.get<unknown>(StorageKeys.FAVORITE_SONG_IDS);
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -202,8 +176,7 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
 
 export const getScanFolders = async (): Promise<ScanFolder[]> => {
   const value = await storage.get<unknown>(StorageKeys.SCAN_FOLDERS);
-  if (!Array.isArray(value)) return [];
-  return value.filter(isScanFolder);
+  return Array.isArray(value) ? value : [];
 };
 
 export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
