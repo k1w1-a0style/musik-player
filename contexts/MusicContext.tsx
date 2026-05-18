@@ -26,6 +26,7 @@ import {
 import { StorageKeys, storage } from '../utils/storage';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { createPlaylistId } from '../utils/playlistIds';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -611,9 +612,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       nativeQueueRef.current = orderedQueue.slice();
       setPlaybackQueue(orderedQueue);
 
+      setCurrentSong(requestedSong);
       await TrackPlayer.reset();
       await TrackPlayer.add(orderedQueue.map(toTrack));
-      setCurrentSong(requestedSong);
       await TrackPlayer.play();
       await persistRequestedSong(requestedSong);
     },
@@ -703,8 +704,11 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     if (list.length === 0) return;
+    const selectedSong =
+      (currentId ? list.find(song => song.id === currentId) : undefined) ?? list[0];
     queueContextRef.current = list.slice();
     setPlaybackQueue(list.slice());
+    if (selectedSong) setCurrentSong(selectedSong);
     setShuffle(prev => !prev);
 
     try {
@@ -750,7 +754,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // ---- Playlists ----
   const createPlaylist = useCallback((name: string) => {
     const playlist: Playlist = {
-      id: `pl-${Date.now()}`,
+      id: createPlaylistId(),
       name,
       songIds: [],
       createdAt: Date.now(),
@@ -910,7 +914,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       next,
       previous,
       canSkipNext: playbackQueue.length > 1,
-      canSkipPrevious: playbackQueue.length > 1,
+      canSkipPrevious: currentSong !== null,
     }),
     [currentSong, isPlaying, togglePlayPause, next, previous, playbackQueue.length],
   );
