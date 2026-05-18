@@ -11,6 +11,7 @@ import {
   buildMusicProviderContextLibraryInput,
   buildMusicProviderContextPlaylistInput,
 } from './musicProviderActionInput';
+import { buildMusicProviderActionsInput } from './musicProviderActionsInput';
 import { buildMusicProviderEffectsRefsInput } from './musicProviderRefsInput';
 import {
   buildMusicProviderContextStateInput,
@@ -26,17 +27,7 @@ import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 
 export const useMusicProviderController = () => {
   const providerState = useMusicProviderState();
-  const {
-    songs,
-    setSongsState,
-    currentSong,
-    setCurrentSong,
-    setPlaybackQueue,
-    playlists,
-    setPlaylists,
-    shuffle,
-    setShuffle,
-  } = providerState;
+  const { songs, currentSong } = providerState;
 
   const { playback, equalizer } = useMusicProviderControls();
   const { isPlaying } = playback;
@@ -50,27 +41,14 @@ export const useMusicProviderController = () => {
   });
 
   const playbackRefs = useMusicPlaybackRefs(songs);
-  const {
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-  } = playbackRefs;
 
-  const actions = useMusicProviderActions({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setSongsState,
-    setCurrentSong,
-    setPlaybackQueue,
-    playlists,
-    setPlaylists,
-    currentSongId: currentSong?.id,
-    shuffle,
-    setShuffle,
-  });
+  const actions = useMusicProviderActions(
+    buildMusicProviderActionsInput({
+      playbackRefs,
+      providerState,
+      currentSongId: currentSong?.id,
+    }),
+  );
 
   useMusicProviderEffects(
     buildMusicProviderEffectsInput({
