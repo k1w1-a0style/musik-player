@@ -1,11 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { StorageKeys } from '../utils/storage';
-import {
-  persistIfChanged,
-  prepareSongsForPersistence,
-} from './musicPersistenceHelpers';
 import { usePersistedSetting } from './usePersistedSetting';
+import { usePersistedSongs } from './usePersistedSongs';
 
 interface UseMusicPersistenceArgs {
   isReady: boolean;
@@ -41,21 +38,5 @@ export const useMusicPersistence = ({
   usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_PRESET, eqPreset, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
-
-  useEffect(() => {
-    if (!isReady) return;
-    let cancelled = false;
-    (async () => {
-      const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs);
-      if (cancelled) return;
-      if (coversChanged) {
-        setSongsState(sanitizedSongs);
-        return;
-      }
-      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [songs, isReady, setSongsState]);
+  usePersistedSongs(isReady, songs, setSongsState, persistedRefs);
 };
