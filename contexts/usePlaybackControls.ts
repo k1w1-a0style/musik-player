@@ -4,7 +4,6 @@ import type { RepeatMode } from '../types/Song';
 import {
   applyRepeatModeToTrackPlayer,
   applyVolumeToTrackPlayer,
-  clampVolume,
   getNextRepeatMode,
   seekToMillis,
   skipToNextSafely,
