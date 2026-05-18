@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -14,10 +14,9 @@ import GlassCard from '../components/GlassCard';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
-import { getSongArtworkUri } from '../utils/songArtwork';
-import { formatVisualizerHint } from './nowPlayingHelpers';
 import { useNowPlayingFavorite } from './useNowPlayingFavorite';
 import { useNowPlayingMenu } from './useNowPlayingMenu';
+import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -31,14 +30,13 @@ const NowPlaying: React.FC = () => {
   const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
   const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo } = useNowPlayingMenu(currentSong?.id);
   const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
+  const { accent, gradientColors, albumTitle, visualizerHint, artworkUri } = useNowPlayingPresentation({
+    currentSong,
+    palette,
+    visualizerError,
+  });
 
   const showVisualizer = false;
-  const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
-  const accentDark = palette?.darkVibrant ?? palette?.darkMuted ?? theme.palette.backgroundDeep;
-  const gradientColors = theme.gradients.nowPlayingBackdrop(accent, accentDark);
-  const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
-  const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
-  const artworkUri = getSongArtworkUri(currentSong);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
