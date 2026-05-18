@@ -5,7 +5,11 @@ import type { Song } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
 import { APP_STACK_ROUTES } from '../types/routes';
 
-export const useLibraryNavigationActions = () => {
+export interface UseLibraryNavigationActionsResult {
+  openTrackInfo: (song: Song) => void;
+}
+
+export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult => {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
 
   const openTrackInfo = useCallback((song: Song) => {
