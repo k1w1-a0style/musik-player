@@ -7,9 +7,12 @@ import {
   didSongCoversChange,
 } from '../utils/musicHydration';
 import { StorageKeys, storage } from '../utils/storage';
-import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import {
+  applyStoredPlaybackSettings,
+  loadStoredMusicHydrationState,
+} from './musicHydrationHelpers';
 
 interface UseMusicHydrationArgs {
   songsRef: MutableRefObject<Song[]>;
@@ -51,39 +54,18 @@ export const useMusicHydration = ({
 
     (async () => {
       await setupTrackPlayer();
-
-      const [
-        storedSongs,
-        storedPlaylists,
-        storedEqEnabled,
-        storedEqBands,
-        storedEqPreset,
-        storedVolume,
-        storedRepeat,
-        storedShuffle,
-        storedCurrentSongId,
-      ] = await Promise.all([
-        storage.get<Song[]>(StorageKeys.SONGS),
-        storage.get<Playlist[]>(StorageKeys.PLAYLISTS),
-        storage.get<boolean>(StorageKeys.EQ_ENABLED),
-        storage.get<number[]>(StorageKeys.EQ_BANDS),
-        storage.get<EqPresetName | 'custom'>(StorageKeys.EQ_PRESET),
-        storage.get<number>(StorageKeys.VOLUME),
-        storage.get<RepeatMode>(StorageKeys.REPEAT_MODE),
-        storage.get<boolean>(StorageKeys.SHUFFLE),
-        storage.get<string>(StorageKeys.CURRENT_SONG_ID),
-      ]);
+      const stored = await loadStoredMusicHydrationState();
 
       if (cancelled) return;
 
-      if (storedSongs) {
-        const sanitizedSongs = await sanitizeSongsForStorage(storedSongs);
+      if (stored.songs) {
+        const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
         if (cancelled) return;
 
         songsRef.current = sanitizedSongs;
         setSongsState(sanitizedSongs);
 
-        if (didSongCoversChange(sanitizedSongs, storedSongs)) {
+        if (didSongCoversChange(sanitizedSongs, stored.songs)) {
           await storage.set(StorageKeys.SONGS, sanitizedSongs);
         }
 
@@ -92,7 +74,11 @@ export const useMusicHydration = ({
           orderedQueue,
           restoredSong,
           shouldClearPersistedCurrentSongId,
-        } = buildHydratedPlaybackQueue(sanitizedSongs, storedCurrentSongId, storedShuffle ?? false);
+        } = buildHydratedPlaybackQueue(
+          sanitizedSongs,
+          stored.currentSongId,
+          stored.shuffle ?? false,
+        );
 
         baseQueueContextRef.current = hydratedQueue.slice();
         queueContextRef.current = orderedQueue;
@@ -114,19 +100,16 @@ export const useMusicHydration = ({
         }
       }
 
-      if (storedPlaylists) setPlaylists(storedPlaylists);
-      if (storedEqEnabled != null) setEqEnabledState(storedEqEnabled);
-      if (storedEqBands) setEqBandsState(storedEqBands);
-      if (storedEqPreset) setEqPreset(storedEqPreset);
-      if (storedVolume != null) {
-        setVolumeState(storedVolume);
-        TrackPlayer.setVolume(storedVolume).catch(() => undefined);
-      }
-      if (storedRepeat) {
-        setRepeatMode(storedRepeat);
-        TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(storedRepeat)).catch(() => undefined);
-      }
-      if (storedShuffle != null) setShuffle(storedShuffle);
+      applyStoredPlaybackSettings({
+        stored,
+        setPlaylists,
+        setEqEnabledState,
+        setEqBandsState,
+        setEqPreset,
+        setVolumeState,
+        setRepeatMode,
+        setShuffle,
+      });
 
       setIsReady(true);
     })();
