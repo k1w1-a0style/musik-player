@@ -44,6 +44,12 @@ import {
 } from '../utils/playlistState';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { createRequiredContextHook } from './createRequiredContextHook';
+import {
+  buildLibraryMusicContextValue,
+  buildMiniPlayerMusicContextValue,
+  buildMusicContextValue,
+  buildNowPlayingMusicContextValue,
+} from './musicContextValues';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -722,7 +728,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const value = useMemo<MusicContextValue>(
-    () => ({
+    () => buildMusicContextValue({
       songs,
       setSongs,
       addSongs,
@@ -807,71 +813,18 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const libraryValue = useMemo<LibraryMusicContextValue>(
-    () => ({
-      songs,
-      setSongs,
-      currentSong,
-      playSong,
-      isReady,
-      isPlaying,
-      updateSongMetadata,
-      playlists,
-      playPlaylist,
-    }),
-    [
-      songs,
-      setSongs,
-      currentSong,
-      playSong,
-      isReady,
-      isPlaying,
-      updateSongMetadata,
-      playlists,
-      playPlaylist,
-    ],
+    () => buildLibraryMusicContextValue(value),
+    [value],
   );
 
   const miniPlayerValue = useMemo<MiniPlayerMusicContextValue>(
-    () => ({
-      currentSong,
-      isPlaying,
-      togglePlayPause,
-      next,
-      previous,
-      canSkipNext: playbackQueue.length > 1,
-      canSkipPrevious: currentSong !== null,
-    }),
-    [currentSong, isPlaying, togglePlayPause, next, previous, playbackQueue.length],
+    () => buildMiniPlayerMusicContextValue(value),
+    [value],
   );
 
   const nowPlayingValue = useMemo<NowPlayingMusicContextValue>(
-    () => ({
-      playbackQueue,
-      currentSong,
-      seekTo,
-      isPlaying,
-      volume,
-      setVolume,
-      palette,
-      fftBins,
-      visualizerRunning,
-      visualizerError,
-      playSong,
-      canSkip: playbackQueue.length > 1,
-    }),
-    [
-      playbackQueue,
-      currentSong,
-      seekTo,
-      isPlaying,
-      volume,
-      setVolume,
-      palette,
-      fftBins,
-      visualizerRunning,
-      visualizerError,
-      playSong,
-    ],
+    () => buildNowPlayingMusicContextValue(value),
+    [value],
   );
 
   return (
