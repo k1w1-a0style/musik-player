@@ -20,7 +20,6 @@ import {
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
-import { sanitizeSongsForStorage } from '../utils/coverCache';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { createPlaylistId } from '../utils/playlistIds';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
@@ -38,12 +37,7 @@ import {
   removeSongFromPlaylistById,
   renamePlaylistById,
 } from '../utils/playlistState';
-import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
-import {
-  buildHydratedPlaybackQueue,
-  didSongCoversChange,
-} from '../utils/musicHydration';
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
@@ -61,6 +55,7 @@ import type {
   MusicContextValue,
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
+import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
@@ -121,87 +116,23 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     playback.state === State.Buffering || playback.state === State.Loading;
 
   // ---- Setup + Hydration ----
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await setupTrackPlayer();
-
-      const [
-        storedSongs,
-        storedPlaylists,
-        storedEqEnabled,
-        storedEqBands,
-        storedEqPreset,
-        storedVolume,
-        storedRepeat,
-        storedShuffle,
-        storedCurrentSongId,
-      ] = await Promise.all([
-        storage.get<Song[]>(StorageKeys.SONGS),
-        storage.get<Playlist[]>(StorageKeys.PLAYLISTS),
-        storage.get<boolean>(StorageKeys.EQ_ENABLED),
-        storage.get<number[]>(StorageKeys.EQ_BANDS),
-        storage.get<EqPresetName | 'custom'>(StorageKeys.EQ_PRESET),
-        storage.get<number>(StorageKeys.VOLUME),
-        storage.get<RepeatMode>(StorageKeys.REPEAT_MODE),
-        storage.get<boolean>(StorageKeys.SHUFFLE),
-        storage.get<string>(StorageKeys.CURRENT_SONG_ID),
-      ]);
-      if (cancelled) return;
-      if (storedSongs) {
-        const sanitizedSongs = await sanitizeSongsForStorage(storedSongs);
-        if (cancelled) return;
-        songsRef.current = sanitizedSongs;
-        setSongsState(sanitizedSongs);
-        if (didSongCoversChange(sanitizedSongs, storedSongs)) {
-          await storage.set(StorageKeys.SONGS, sanitizedSongs);
-        }
-
-        const {
-          hydratedQueue,
-          orderedQueue,
-          restoredSong,
-          shouldClearPersistedCurrentSongId,
-        } = buildHydratedPlaybackQueue(sanitizedSongs, storedCurrentSongId, storedShuffle ?? false);
-
-        baseQueueContextRef.current = hydratedQueue.slice();
-        queueContextRef.current = orderedQueue;
-        setPlaybackQueue(orderedQueue);
-
-        if (shouldClearPersistedCurrentSongId) {
-          await storage.remove(StorageKeys.CURRENT_SONG_ID);
-        }
-
-        if (restoredSong) {
-          setCurrentSong(restoredSong);
-          try {
-            await TrackPlayer.reset();
-            await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
-            nativeQueueRef.current = orderedQueue.slice();
-          } catch {
-            // ignore hydration queue init failures
-          }
-        }
-      }
-      if (storedPlaylists) setPlaylists(storedPlaylists);
-      if (storedEqEnabled != null) setEqEnabledState(storedEqEnabled);
-      if (storedEqBands) setEqBandsState(storedEqBands);
-      if (storedEqPreset) setEqPreset(storedEqPreset);
-      if (storedVolume != null) {
-        setVolumeState(storedVolume);
-        TrackPlayer.setVolume(storedVolume).catch(() => undefined);
-      }
-      if (storedRepeat) {
-        setRepeatMode(storedRepeat);
-        TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(storedRepeat)).catch(() => undefined);
-      }
-      if (storedShuffle != null) setShuffle(storedShuffle);
-      setIsReady(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useMusicHydration({
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    setIsReady,
+    setSongsState,
+    setCurrentSong,
+    setPlaybackQueue,
+    setPlaylists,
+    setEqEnabledState,
+    setEqBandsState,
+    setEqPreset,
+    setVolumeState,
+    setRepeatMode,
+    setShuffle,
+  });
 
   // Keep "currentSong" in sync with active track
   useEffect(() => {
