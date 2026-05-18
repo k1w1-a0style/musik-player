@@ -1,11 +1,9 @@
-import { useAlbumPalette } from './useAlbumPalette';
-import { useAudioVisualizer } from './useAudioVisualizer';
 import { useEqualizerControls } from './useEqualizerControls';
 import { useLibraryActions } from './useLibraryActions';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
+import { useMusicProviderAudioFeatures } from './useMusicProviderAudioFeatures';
 import { useMusicProviderEffects } from './useMusicProviderEffects';
 import { useMusicProviderState } from './useMusicProviderState';
-import { useNativeEqualizer } from './useNativeEqualizer';
 import { usePlaybackControls } from './usePlaybackControls';
 import { usePlaybackQueueActions } from './usePlaybackQueueActions';
 import { usePlaylistActions } from './usePlaylistActions';
@@ -55,8 +53,13 @@ export const useMusicProviderController = () => {
     setEqPreset,
   } = useEqualizerControls();
 
-  const eqNative = useNativeEqualizer(eqEnabled, eqBands);
-  const palette = useAlbumPalette(currentSong);
+  const { eqNative, palette, fftBins, visualizerRunning, visualizerError } =
+    useMusicProviderAudioFeatures({
+      currentSong,
+      eqEnabled,
+      eqBands,
+      isPlaying,
+    });
 
   const {
     songsRef,
@@ -65,8 +68,6 @@ export const useMusicProviderController = () => {
     nativeQueueRef,
     persistCurrentSongId,
   } = useMusicPlaybackRefs(songs);
-
-  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
 
   const { playSong, toggleShuffle } = usePlaybackQueueActions({
     songsRef,
