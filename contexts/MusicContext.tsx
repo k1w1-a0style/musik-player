@@ -13,8 +13,6 @@ import TrackPlayer, {
   usePlaybackState,
 } from 'react-native-track-player';
 import {
-  EQ_PRESETS,
-  type EqPresetName,
   type Playlist,
   type RepeatMode,
   type Song,
@@ -49,6 +47,7 @@ import type {
 } from './musicContextTypes';
 import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
+import { useEqualizerControls } from './useEqualizerControls';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { useNativeEqualizer } from './useNativeEqualizer';
@@ -74,9 +73,17 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const [volume, setVolumeState] = useState(1);
 
-  const [eqEnabled, setEqEnabledState] = useState(false);
-  const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
-  const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
+  const {
+    eqEnabled,
+    setEqEnabled,
+    setEqEnabledState,
+    eqBands,
+    setEqBand,
+    setEqBandsState,
+    eqPreset,
+    applyEqPreset,
+    setEqPreset,
+  } = useEqualizerControls();
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
   const palette = useAlbumPalette(currentSong);
 
@@ -331,21 +338,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setVolumeState(nextVolume);
     await TrackPlayer.setVolume(nextVolume);
   }, []);
-
-  // ---- EQ (UI preset) ----
-  const setEqBand = useCallback((i: number, v: number) => {
-    setEqBandsState(prev => {
-      const next = prev.slice();
-      next[i] = v;
-      return next;
-    });
-    setEqPreset('custom');
-  }, []);
-  const applyEqPreset = useCallback((p: EqPresetName) => {
-    setEqBandsState(EQ_PRESETS[p].slice());
-    setEqPreset(p);
-  }, []);
-  const setEqEnabled = useCallback((v: boolean) => setEqEnabledState(v), []);
 
   // ---- Playlists ----
   const createPlaylist = useCallback((name: string) => {
