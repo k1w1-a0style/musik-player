@@ -13,5 +13,5 @@ export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 export { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
-export { useLibraryStoredState } from './useLibraryStoredState';
+export { useLibraryStoredState, type UseLibraryStoredStateResult } from './useLibraryStoredState';
 export { useLibraryViewState } from './useLibraryViewState';
