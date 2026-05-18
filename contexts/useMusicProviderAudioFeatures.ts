@@ -12,17 +12,19 @@ export interface MusicProviderAudioFeatures {
   visualizerError: string | null;
 }
 
+export interface MusicProviderAudioFeaturesArgs {
+  currentSong: Song | null;
+  eqEnabled: boolean;
+  eqBands: number[];
+  isPlaying: boolean;
+}
+
 export const useMusicProviderAudioFeatures = ({
   currentSong,
   eqEnabled,
   eqBands,
   isPlaying,
-}: {
-  currentSong: Song | null;
-  eqEnabled: boolean;
-  eqBands: number[];
-  isPlaying: boolean;
-}): MusicProviderAudioFeatures => {
+}: MusicProviderAudioFeaturesArgs): MusicProviderAudioFeatures => {
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
   const palette = useAlbumPalette(currentSong);
   const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
