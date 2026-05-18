@@ -1,0 +1,103 @@
+import React from 'react';
+import { Text } from 'react-native';
+import { render } from '@testing-library/react-native';
+import { useNowPlayingScreenState } from '../useNowPlayingScreenState';
+
+const song = { id: 's1', title: 'One', artist: 'A' };
+const seekTo = jest.fn(async () => undefined);
+const setVolume = jest.fn(async () => undefined);
+const playSong = jest.fn(async () => undefined);
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ bottom: 12 }),
+}));
+
+jest.mock('../../contexts/MusicContext', () => ({
+  useNowPlayingMusicContext: () => ({
+    playbackQueue: [song],
+    currentSong: song,
+    seekTo,
+    isPlaying: true,
+    volume: 0.8,
+    setVolume,
+    palette: { vibrant: '#123456' },
+    fftBins: [1, 2, 3],
+    visualizerError: null,
+    playSong,
+  }),
+}));
+
+jest.mock('../../contexts/PlaybackProgressContext', () => ({
+  usePlaybackProgress: () => ({ position: 3, duration: 9 }),
+}));
+
+jest.mock('../useNowPlayingFavorite', () => ({
+  useNowPlayingFavorite: (songId?: string) => ({
+    favorite: songId === 's1',
+    favoritePending: false,
+    toggleFavorite: jest.fn(),
+  }),
+}));
+
+jest.mock('../useNowPlayingMenu', () => ({
+  useNowPlayingMenu: (songId?: string) => ({
+    menuOpen: false,
+    openMenu: jest.fn(),
+    closeMenu: jest.fn(),
+    handleClose: jest.fn(),
+    openTrackInfo: jest.fn(),
+    menuSongId: songId,
+  }),
+}));
+
+jest.mock('../useNowPlayingQueue', () => ({
+  useNowPlayingQueue: () => ({
+    queue: [song],
+    playQueueItemById: jest.fn(),
+  }),
+}));
+
+jest.mock('../useNowPlayingPresentation', () => ({
+  useNowPlayingPresentation: () => ({
+    accent: '#123456',
+    gradientColors: ['#111111', '#222222'],
+    albumTitle: 'Album',
+    visualizerHint: null,
+    artworkUri: 'file:///cover.jpg',
+    progressAccent: '#123456',
+    progressAccentDark: '#654321',
+    visualizerColor: '#123456',
+  }),
+}));
+
+const ScreenStateProbe = () => {
+  const state = useNowPlayingScreenState();
+
+  return (
+    <>
+      <Text testID="song-id">{state.currentSong?.id}</Text>
+      <Text testID="bottom-inset">{state.bottomInset}</Text>
+      <Text testID="favorite">{String(state.favorite)}</Text>
+      <Text testID="queue-count">{state.queue.length}</Text>
+      <Text testID="album-title">{state.albumTitle}</Text>
+      <Text testID="position">{state.position}</Text>
+      <Text testID="duration">{state.duration}</Text>
+      <Text testID="show-visualizer">{String(state.showVisualizer)}</Text>
+    </>
+  );
+};
+
+describe('useNowPlayingScreenState', () => {
+  test('combines now playing screen state', () => {
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    expect(getByTestId('song-id').props.children).toBe('s1');
+    expect(getByTestId('bottom-inset').props.children).toBe(12);
+    expect(getByTestId('favorite').props.children).toBe('true');
+    expect(getByTestId('queue-count').props.children).toBe(1);
+    expect(getByTestId('album-title').props.children).toBe('Album');
+    expect(getByTestId('position').props.children).toBe(3);
+    expect(getByTestId('duration').props.children).toBe(9);
+    expect(getByTestId('show-visualizer').props.children).toBe('false');
+  });
+});
