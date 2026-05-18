@@ -1,4 +1,8 @@
-export { useLibraryAlerts } from './useLibraryAlerts';
+export {
+  useLibraryAlerts,
+  type LibraryAlertCopy,
+  type UseLibraryAlertsResult,
+} from './useLibraryAlerts';
 export {
   useLibraryComponentProps,
   type UseLibraryComponentPropsOptions,
