@@ -1,7 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import Controls from '../components/Controls';
-import ProgressBar from '../components/ProgressBar';
 import { theme } from '../theme';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
@@ -9,6 +7,7 @@ import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
 import NowPlayingCoverArtwork from './NowPlayingCoverArtwork';
 import NowPlayingHeader from './NowPlayingHeader';
 import NowPlayingMenuModal from './NowPlayingMenuModal';
+import NowPlayingPlaybackSection from './NowPlayingPlaybackSection';
 import NowPlayingQueueCard from './NowPlayingQueueCard';
 import NowPlayingTitleRow from './NowPlayingTitleRow';
 import NowPlayingVisualizerSection from './NowPlayingVisualizerSection';
@@ -81,8 +80,13 @@ const NowPlaying: React.FC = () => {
         hint={visualizerHint}
       />
 
-      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} accent={progressAccent} accentDark={progressAccentDark} />
-      <Controls />
+      <NowPlayingPlaybackSection
+        position={position}
+        duration={duration}
+        onSeek={seekTo}
+        progressAccent={progressAccent}
+        progressAccentDark={progressAccentDark}
+      />
 
       <NowPlayingQueueCard
         queue={queue}
