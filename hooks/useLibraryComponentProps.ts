@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
-import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
@@ -11,6 +10,12 @@ import {
   buildLibraryTabContentProps,
   buildLibraryTabsProps,
   buildLibraryTopBarProps,
+  type LibraryImportStatusPropsBuilderOptions,
+  type LibraryMenuModalPropsBuilderOptions,
+  type LibrarySearchBarPropsBuilderOptions,
+  type LibraryTabContentPropsBuilderOptions,
+  type LibraryTabsPropsBuilderOptions,
+  type LibraryTopBarPropsBuilderOptions,
 } from '../utils/libraryComponentProps';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
@@ -18,44 +23,27 @@ import type { LibraryTab } from '../utils/libraryTabs';
 
 type UseLibraryComponentPropsResult = Omit<LibraryScreenContentProps, 'loading' | 'searchOpen'>;
 
-interface UseLibraryComponentPropsOptions {
-  activeFolders: number;
-  activeTab: LibraryTab;
-  albumGroups: LibraryGroupItem[];
-  albumViewMode: LibraryAlbumViewMode;
-  artistGroups: LibraryGroupItem[];
-  closeMenu: () => void;
-  emptyMessage: string;
-  genreGroups: LibraryGroupItem[];
-  getSongItemLayout: LibraryTabContentProps['getSongItemLayout'];
-  handlePlayActiveList: () => void;
-  handleShufflePress: () => void;
-  importFromDevice: () => void;
-  importStatus: string | null;
-  isReady: boolean;
-  loading: boolean;
-  menuOpen: boolean;
-  onAddScanFolder: () => void;
-  openMenu: () => void;
-  openSettings: () => void;
-  playlistItems: LibraryPlaylistItem[];
-  query: string;
-  refreshMetadataFromFiles: () => void;
-  renderAlbumTile: LibraryTabContentProps['renderAlbumTile'];
-  renderFolderItem: LibraryTabContentProps['renderFolderItem'];
-  renderGroupItem: LibraryTabContentProps['renderGroupItem'];
-  renderPlaylistItem: LibraryTabContentProps['renderPlaylistItem'];
-  renderSongItem: LibraryTabContentProps['renderSongItem'];
-  scanFolders: ScanFolder[];
-  setActiveTab: (tab: LibraryTab) => void;
-  setQuery: (query: string) => void;
-  showScanFolders: () => void;
-  songKeyExtractor: (item: Song) => string;
-  songsCount: number;
-  songsForActiveList: Song[];
-  toggleAlbumView: () => void;
-  toggleSearch: () => void;
-}
+type UseLibraryChromePropsOptions = LibraryTopBarPropsBuilderOptions
+  & LibraryTabsPropsBuilderOptions
+  & LibrarySearchBarPropsBuilderOptions
+  & LibraryImportStatusPropsBuilderOptions;
+
+type UseLibraryComponentPropsOptions = UseLibraryChromePropsOptions
+  & LibraryMenuModalPropsBuilderOptions
+  & Omit<LibraryTabContentPropsBuilderOptions, 'onPlayActiveList' | 'onShuffle' | 'onToggleAlbumView'>
+  & {
+    handlePlayActiveList: () => void;
+    handleShufflePress: () => void;
+    toggleAlbumView: () => void;
+    albumViewMode: LibraryAlbumViewMode;
+    albumGroups: LibraryGroupItem[];
+    artistGroups: LibraryGroupItem[];
+    genreGroups: LibraryGroupItem[];
+    playlistItems: LibraryPlaylistItem[];
+    scanFolders: ScanFolder[];
+    songKeyExtractor: (item: Song) => string;
+    songsForActiveList: Song[];
+  };
 
 export const useLibraryComponentProps = ({
   activeFolders,
