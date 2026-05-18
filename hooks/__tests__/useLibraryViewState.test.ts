@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react-native';
-import { useLibraryViewState } from '../useLibraryViewState';
+import { useLibraryViewState, type UseLibraryViewStateOptions } from '../useLibraryViewState';
 import type { Song } from '../../types/Song';
 import type { ScanFolder } from '../../types/ScanFolder';
 
@@ -22,7 +22,7 @@ const folder = (id: string, enabled: boolean): ScanFolder => ({
 });
 
 test('returns derived library view state', () => {
-  const { result } = renderHook(() => useLibraryViewState({
+  const options: UseLibraryViewStateOptions = {
     activeTab: 'tracks',
     favoriteIds: ['b'],
     isDev: false,
@@ -35,7 +35,9 @@ test('returns derived library view state', () => {
       song({ id: 'a', title: 'Alpha' }),
       song({ id: 'b', title: 'Beta' }),
     ],
-  }));
+  };
+
+  const { result } = renderHook(() => useLibraryViewState(options));
 
   expect(result.current.activeFolders).toBe(1);
   expect(result.current.filteredSongs.map(item => item.id)).toEqual(['b']);
