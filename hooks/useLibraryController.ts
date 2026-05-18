@@ -130,7 +130,7 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     songsForActiveList,
   });
 
-  const componentProps = useLibraryComponentProps({
+  return useLibraryComponentProps({
     activeFolders,
     activeTab,
     albumGroups,
@@ -160,6 +160,7 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     renderPlaylistItem,
     renderSongItem,
     scanFolders,
+    searchOpen,
     setActiveTab,
     setQuery,
     showScanFolders,
@@ -168,10 +169,4 @@ export const useLibraryController = (): LibraryScreenContentProps => {
     songsForActiveList,
     toggleSearch,
   });
-
-  return {
-    ...componentProps,
-    loading,
-    searchOpen,
-  };
 };
