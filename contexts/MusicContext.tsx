@@ -6,14 +6,11 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import TrackPlayer from 'react-native-track-player';
 import {
   type Playlist,
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
-import { prunePlaylists } from '../utils/playlistState';
-import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
@@ -31,6 +28,7 @@ import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
 import { useCurrentSongSync } from './useCurrentSongSync';
 import { useEqualizerControls } from './useEqualizerControls';
+import { useLibraryActions } from './useLibraryActions';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { useNativeEqualizer } from './useNativeEqualizer';
@@ -137,6 +135,16 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setShuffle,
   });
 
+  const { setSongs, addSongs, updateSongMetadata } = useLibraryActions({
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    setSongsState,
+    setCurrentSong,
+    setPlaybackQueue,
+    setPlaylists,
+  });
+
   const {
     createPlaylist,
     deletePlaylist,
@@ -165,41 +173,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     songs,
     setSongsState,
   });
-
-  // ---- Library ----
-  const setSongs = useCallback((s: Song[]) => {
-    const validSongIds = new Set(s.map(song => song.id));
-    setPlaylists(prev => prunePlaylists(prev, validSongIds));
-    setSongsState(s);
-  }, []);
-
-  const addSongs = useCallback((s: Song[]) => {
-    setSongsState(prev => {
-      const existing = new Set(prev.map(x => x.id));
-      return [...prev, ...s.filter(x => !existing.has(x.id))];
-    });
-  }, []);
-
-  const updateSongMetadata = useCallback((songId: string, patch: Partial<Song>) => {
-    const patchSong = (song: Song): Song =>
-      song.id === songId ? { ...song, ...patch } : song;
-    setSongsState(prev => prev.map(patchSong));
-    setCurrentSong(prev => (prev?.id === songId ? { ...prev, ...patch } : prev));
-    setPlaybackQueue(prev => prev.map(patchSong));
-    queueContextRef.current = queueContextRef.current.map(patchSong);
-    baseQueueContextRef.current = baseQueueContextRef.current.map(patchSong);
-    nativeQueueRef.current = nativeQueueRef.current.map(patchSong);
-
-    const queueIndex = nativeQueueRef.current.findIndex(song => song.id === songId);
-    const queuedPatchedSong =
-      (queueIndex >= 0 ? nativeQueueRef.current[queueIndex] : undefined) ??
-      baseQueueContextRef.current.find(song => song.id === songId);
-    if (!queuedPatchedSong || queueIndex < 0) return;
-
-    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(queuedPatchedSong)).catch(
-      () => undefined,
-    );
-  }, []);
 
   const value = useMemo<MusicContextValue>(
     () => buildMusicContextValue({
