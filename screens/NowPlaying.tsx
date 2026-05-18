@@ -30,7 +30,16 @@ const NowPlaying: React.FC = () => {
   const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
   const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo } = useNowPlayingMenu(currentSong?.id);
   const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
-  const { accent, gradientColors, albumTitle, visualizerHint, artworkUri } = useNowPlayingPresentation({
+  const {
+    accent,
+    gradientColors,
+    albumTitle,
+    visualizerHint,
+    artworkUri,
+    progressAccent,
+    progressAccentDark,
+    visualizerColor,
+  } = useNowPlayingPresentation({
     currentSong,
     palette,
     visualizerError,
@@ -76,12 +85,12 @@ const NowPlaying: React.FC = () => {
 
       {showVisualizer ? (
         <View style={styles.visualizerWrap}>
-          <Visualizer bins={fftBins} active={isPlaying} color={palette?.vibrant ?? theme.palette.primary} height={44} />
+          <Visualizer bins={fftBins} active={isPlaying} color={visualizerColor} height={44} />
           {!!visualizerHint && <Text style={styles.visualizerHint}>{visualizerHint}</Text>}
         </View>
       ) : null}
 
-      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} accent={palette?.vibrant ?? theme.palette.primary} accentDark={palette?.lightVibrant ?? theme.palette.primaryDark} />
+      <ProgressBar currentPosition={position} duration={duration} onSeek={seekTo} accent={progressAccent} accentDark={progressAccentDark} />
       <Controls />
 
       {queue.length > 1 && (
