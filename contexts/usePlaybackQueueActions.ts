@@ -1,7 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import {
-  persistRequestedSongId,
   runPlaySongQueueAction,
   runShuffleQueueAction,
 } from './playbackQueueActionHelpers';
