@@ -21,14 +21,14 @@ jest.mock('../useLibraryAlerts', () => ({
 jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => ({
     importStatusProps: { status: null },
-    loading: false,
     menuModalProps: { visible: false },
     searchBarProps: {
       autoFocus: true,
       onChangeText: jest.fn(),
       value: '',
     },
-    searchOpen: false,
+    showImportStatus: false,
+    showSearchBar: false,
     tabContentProps: { activeTab: 'tracks' },
     tabsProps: {
       activeTab: 'tracks',
@@ -136,13 +136,13 @@ test('returns library screen props from composed hooks', () => {
   const { result } = renderHook(() => useLibraryController());
 
   expect(result.current.importStatusProps).toEqual({ status: null });
-  expect(result.current.loading).toBe(false);
+  expect(result.current.showImportStatus).toBe(false);
   expect(result.current.searchBarProps).toEqual({
     autoFocus: true,
     onChangeText: expect.any(Function),
     value: '',
   });
-  expect(result.current.searchOpen).toBe(false);
+  expect(result.current.showSearchBar).toBe(false);
   expect(result.current.menuModalProps).toEqual({ visible: false });
   expect(result.current.tabContentProps).toEqual({ activeTab: 'tracks' });
   expect(result.current.tabsProps).toEqual({
