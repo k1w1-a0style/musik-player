@@ -12,9 +12,9 @@ const eqNative: EqInitResult = {
   minMillibel: -300,
   maxMillibel: 300,
   bands: [
-    { index: 0, centerFreqHz: 60, levelMillibel: 0 },
-    { index: 1, centerFreqHz: 1000, levelMillibel: 0 },
-    { index: 2, centerFreqHz: 16000, levelMillibel: 0 },
+    { index: 0, centerFreqHz: 60 },
+    { index: 1, centerFreqHz: 1000 },
+    { index: 2, centerFreqHz: 16000 },
   ],
 };
 
