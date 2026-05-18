@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, Dimensions, FlatList, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -17,12 +17,12 @@ import { theme } from '../theme';
 import Screen from '../components/Screen';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { APP_STACK_ROUTES } from '../types/routes';
-import { isFavoriteSongId, setFavoriteSongId } from '../utils/storage';
 import {
   buildNowPlayingQueue,
   buildQueueById,
   formatVisualizerHint,
 } from './nowPlayingHelpers';
+import { useNowPlayingFavorite } from './useNowPlayingFavorite';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 118, Math.max(140, Math.floor(SCREEN_H * 0.20)));
@@ -33,28 +33,14 @@ const NowPlaying: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { playbackQueue, currentSong, seekTo, isPlaying, volume, setVolume, palette, fftBins, visualizerError, playSong } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
-  const [favorite, setFavorite] = useState(false);
-  const [favoritePending, setFavoritePending] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const { favorite, favoritePending, toggleFavorite } = useNowPlayingFavorite(currentSong?.id);
 
   const queue: Song[] = useMemo(
     () => buildNowPlayingQueue(playbackQueue, currentSong),
     [playbackQueue, currentSong],
   );
   const queueById = useMemo(() => buildQueueById(queue), [queue]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentSong?.id) {
-      setFavorite(false);
-      setFavoritePending(false);
-      return;
-    }
-    isFavoriteSongId(currentSong.id).then(value => {
-      if (!cancelled) setFavorite(value);
-    });
-    return () => { cancelled = true; };
-  }, [currentSong?.id]);
 
   const showVisualizer = false;
   const accent = palette?.vibrant ?? palette?.dominant ?? theme.palette.accent;
@@ -79,22 +65,6 @@ const NowPlaying: React.FC = () => {
     if (!currentSong) return;
     navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: currentSong.id });
   }, [currentSong, navigation]);
-
-  const toggleFavorite = useCallback(() => {
-    if (!currentSong?.id || favoritePending) return;
-    const songId = currentSong.id;
-    const previous = favorite;
-    const next = !favorite;
-    setFavorite(next);
-    setFavoritePending(true);
-    void setFavoriteSongId(songId, next)
-      .catch(() => {
-        setFavorite(previous);
-      })
-      .finally(() => {
-        setFavoritePending(false);
-      });
-  }, [currentSong?.id, favorite, favoritePending]);
 
   const renderQueueItem = useCallback(
     ({ item }: { item: Song }) => (
