@@ -1,8 +1,5 @@
 import { useMemo } from 'react';
 import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
-import type { Song } from '../types/Song';
-import type { ScanFolder } from '../types/ScanFolder';
 import {
   buildLibraryImportStatusProps,
   buildLibraryMenuModalProps,
@@ -17,9 +14,6 @@ import {
   type LibraryTabsPropsBuilderOptions,
   type LibraryTopBarPropsBuilderOptions,
 } from '../utils/libraryComponentProps';
-import type { LibraryGroupItem } from '../utils/libraryPresentation';
-import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
-import type { LibraryTab } from '../utils/libraryTabs';
 
 type UseLibraryComponentPropsResult = Omit<LibraryScreenContentProps, 'loading' | 'searchOpen'>;
 
@@ -35,14 +29,6 @@ type UseLibraryComponentPropsOptions = UseLibraryChromePropsOptions
     handlePlayActiveList: () => void;
     handleShufflePress: () => void;
     toggleAlbumView: () => void;
-    albumViewMode: LibraryAlbumViewMode;
-    albumGroups: LibraryGroupItem[];
-    artistGroups: LibraryGroupItem[];
-    genreGroups: LibraryGroupItem[];
-    playlistItems: LibraryPlaylistItem[];
-    scanFolders: ScanFolder[];
-    songKeyExtractor: (item: Song) => string;
-    songsForActiveList: Song[];
   };
 
 export const useLibraryComponentProps = ({
