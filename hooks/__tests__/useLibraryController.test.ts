@@ -1,5 +1,27 @@
 import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
+import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
+
+const mockComponentProps: UseLibraryComponentPropsResult = {
+  importStatusProps: { status: null },
+  menuModalProps: { visible: false },
+  searchBarProps: {
+    autoFocus: true,
+    onChangeText: jest.fn(),
+    value: '',
+  },
+  showImportStatus: false,
+  showSearchBar: false,
+  tabContentProps: { activeTab: 'tracks' },
+  tabsProps: {
+    activeTab: 'tracks',
+    onChangeTab: jest.fn(),
+  },
+  topBarProps: {
+    onOpenMenu: jest.fn(),
+    onToggleSearch: jest.fn(),
+  },
+};
 
 jest.mock('../../contexts/MusicContext', () => ({
   useLibraryMusicContext: jest.fn(() => ({
@@ -19,26 +41,7 @@ jest.mock('../useLibraryAlerts', () => ({
 }));
 
 jest.mock('../useLibraryComponentProps', () => ({
-  useLibraryComponentProps: jest.fn(() => ({
-    importStatusProps: { status: null },
-    menuModalProps: { visible: false },
-    searchBarProps: {
-      autoFocus: true,
-      onChangeText: jest.fn(),
-      value: '',
-    },
-    showImportStatus: false,
-    showSearchBar: false,
-    tabContentProps: { activeTab: 'tracks' },
-    tabsProps: {
-      activeTab: 'tracks',
-      onChangeTab: jest.fn(),
-    },
-    topBarProps: {
-      onOpenMenu: jest.fn(),
-      onToggleSearch: jest.fn(),
-    },
-  })),
+  useLibraryComponentProps: jest.fn(() => mockComponentProps),
 }));
 
 jest.mock('../useLibraryImportActions', () => ({
