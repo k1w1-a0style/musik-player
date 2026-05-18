@@ -1,27 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import SystemAudio, { type PaletteResult } from 'expo-system-audio';
+import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import {
+  extractAlbumPalette,
+  getAlbumPaletteArtworkUri,
+} from './albumPaletteHelpers';
 
 export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null => {
   const [palette, setPalette] = useState<PaletteResult | null>(null);
-  const currentArtworkUri = useMemo(() => getSongArtworkUri(currentSong), [currentSong]);
+  const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!currentArtworkUri) {
-      setPalette(null);
-      return;
-    }
-
-    SystemAudio.extractPalette(currentArtworkUri)
-      .then(nextPalette => {
-        if (!cancelled) setPalette(nextPalette);
-      })
-      .catch(() => {
-        if (!cancelled) setPalette(null);
-      });
+    extractAlbumPalette(currentArtworkUri).then(nextPalette => {
+      if (!cancelled) setPalette(nextPalette);
+    });
 
     return () => {
       cancelled = true;
