@@ -28,7 +28,13 @@ export {
   useLibraryNavigationActions,
   type UseLibraryNavigationActionsResult,
 } from './useLibraryNavigationActions';
-export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
+export {
+  useLibraryPlaybackActions,
+  type HandleSongPress,
+  type PlaySong,
+  type UseLibraryPlaybackActionsOptions,
+  type UseLibraryPlaybackActionsResult,
+} from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 export { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
