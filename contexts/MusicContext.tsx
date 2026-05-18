@@ -61,6 +61,7 @@ import type {
   MusicContextValue,
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
+import { useMusicPersistence } from './useMusicPersistence';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
@@ -104,7 +105,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const baseQueueContextRef = useRef<Song[]>([]);
   const nativeQueueRef = useRef<Song[]>([]);
   const lastVisualizerUpdateRef = useRef(0);
-  const persistedRefs = useRef<Record<string, string>>({});
 
   const persistCurrentSongId = useCallback(async (song: Song | null): Promise<void> => {
     if (!song || !songsRef.current.some(item => item.id === song.id)) {
@@ -304,60 +304,18 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
-  const persistIfChanged = useCallback(
-    async <T,>(key: string, value: T): Promise<void> => {
-      const serialized = JSON.stringify(value);
-      if (persistedRefs.current[key] === serialized) return;
-      const stored = await storage.set(key, value);
-      if (stored) persistedRefs.current[key] = serialized;
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.VOLUME, volume);
-  }, [volume, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.SHUFFLE, shuffle);
-  }, [shuffle, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.REPEAT_MODE, repeatMode);
-  }, [repeatMode, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_ENABLED, eqEnabled);
-  }, [eqEnabled, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_BANDS, eqBands);
-  }, [eqBands, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_PRESET, eqPreset);
-  }, [eqPreset, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.PLAYLISTS, playlists);
-  }, [playlists, isReady, persistIfChanged]);
-  useEffect(() => {
-    if (!isReady) return;
-    let cancelled = false;
-    (async () => {
-      const sanitizedSongs = await sanitizeSongsForStorage(songs);
-      if (cancelled) return;
-      if (didSongCoversChange(sanitizedSongs, songs)) {
-        setSongsState(sanitizedSongs);
-        return;
-      }
-      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [songs, isReady, persistIfChanged]);
+  useMusicPersistence({
+    isReady,
+    volume,
+    shuffle,
+    repeatMode,
+    eqEnabled,
+    eqBands,
+    eqPreset,
+    playlists,
+    songs,
+    setSongsState,
+  });
 
   // ---- Library ----
   const setSongs = useCallback((s: Song[]) => {
