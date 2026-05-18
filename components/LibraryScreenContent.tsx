@@ -6,18 +6,19 @@ import LibraryTabContent, { type LibraryTabContentProps } from './LibraryTabCont
 import LibraryTabs, { type LibraryTabsProps } from './LibraryTabs';
 import LibraryTopBar, { type LibraryTopBarProps } from './LibraryTopBar';
 
-export interface LibraryScreenContentProps {
+export interface LibraryScreenVisibilityProps {
+  showImportStatus: boolean;
+  showSearchBar: boolean;
+}
+
+export interface LibraryScreenContentProps extends LibraryScreenVisibilityProps {
   importStatusProps: LibraryImportStatusProps;
   menuModalProps: LibraryMenuModalProps;
   searchBarProps: LibrarySearchBarProps;
-  showImportStatus: boolean;
-  showSearchBar: boolean;
   tabContentProps: LibraryTabContentProps;
   tabsProps: LibraryTabsProps;
   topBarProps: LibraryTopBarProps;
 }
-
-export type LibraryScreenVisibilityProps = Pick<LibraryScreenContentProps, 'showImportStatus' | 'showSearchBar'>;
 
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
   importStatusProps,
