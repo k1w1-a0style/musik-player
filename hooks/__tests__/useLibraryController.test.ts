@@ -3,6 +3,7 @@ import { useLibraryController } from '../useLibraryController';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
+import type { UseLibraryViewStateResult } from '../useLibraryViewState';
 
 const fn = jest.fn();
 
@@ -82,6 +83,19 @@ const mockStoredState: UseLibraryStoredStateResult = {
   setScanFolders: fn,
   favoriteIds: [],
   setFavoriteIds: fn,
+};
+
+const mockViewState: UseLibraryViewStateResult = {
+  activeFolders: 0,
+  albumGroups: [],
+  artistGroups: [],
+  displayedSongs: [],
+  emptyMessage: 'Leer',
+  favoriteSongs: [],
+  filteredSongs: [],
+  genreGroups: [],
+  playlistItems: [],
+  songsForActiveList: [],
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -165,16 +179,7 @@ jest.mock('../useLibraryStoredState', () => ({
 }));
 
 jest.mock('../useLibraryViewState', () => ({
-  useLibraryViewState: jest.fn(() => ({
-    activeFolders: 0,
-    albumGroups: [],
-    artistGroups: [],
-    emptyMessage: 'Leer',
-    filteredSongs: [],
-    genreGroups: [],
-    playlistItems: [],
-    songsForActiveList: [],
-  })),
+  useLibraryViewState: jest.fn(() => mockViewState),
 }));
 
 test('returns library screen props from composed hooks', () => {
