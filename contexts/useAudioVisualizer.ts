@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import SystemAudio from 'expo-system-audio';
 import {
-  shouldApplyVisualizerFrame,
-  shouldStopVisualizerForPlaybackState,
-} from '../utils/audioEffects';
-
-const VISUALIZER_UPDATE_INTERVAL_MS = 120;
+  createDefaultFftBins,
+  createVisualizerSubscriptions,
+  getVisualizerError,
+  shouldAcceptVisualizerFrame,
+  stopVisualizer,
+  stopVisualizerWhenPlaybackRequires,
+} from './audioVisualizerHelpers';
 
 export interface AudioVisualizerState {
   fftBins: number[];
@@ -14,34 +15,34 @@ export interface AudioVisualizerState {
 }
 
 export const useAudioVisualizer = (isPlaying: boolean): AudioVisualizerState => {
-  const [fftBins, setFftBins] = useState<number[]>(() => new Array(16).fill(0));
+  const [fftBins, setFftBins] = useState<number[]>(createDefaultFftBins);
   const [visualizerRunning, setVisualizerRunning] = useState(false);
   const [visualizerError, setVisualizerError] = useState<string | null>(null);
   const lastVisualizerUpdateRef = useRef(0);
 
   useEffect(() => {
-    const subFft = SystemAudio.onFft(data => {
-      const now = Date.now();
-      if (!shouldApplyVisualizerFrame(now, lastVisualizerUpdateRef.current, VISUALIZER_UPDATE_INTERVAL_MS)) return;
-      lastVisualizerUpdateRef.current = now;
-      setFftBins(data);
-    });
-    const subState = SystemAudio.onVisualizerState(event => {
-      setVisualizerRunning(event.running);
-      setVisualizerError(event.running ? null : event.reason);
+    const subscriptions = createVisualizerSubscriptions({
+      onFft: data => {
+        const now = Date.now();
+        if (!shouldAcceptVisualizerFrame(now, lastVisualizerUpdateRef.current)) return;
+        lastVisualizerUpdateRef.current = now;
+        setFftBins(data);
+      },
+      onState: event => {
+        setVisualizerRunning(event.running);
+        setVisualizerError(getVisualizerError(event.running, event.reason));
+      },
     });
 
-    SystemAudio.visualizerStop();
+    stopVisualizer();
 
     return () => {
-      subFft.remove();
-      subState.remove();
-      SystemAudio.visualizerStop();
+      subscriptions.remove();
     };
   }, []);
 
   useEffect(() => {
-    if (shouldStopVisualizerForPlaybackState(isPlaying)) SystemAudio.visualizerStop();
+    stopVisualizerWhenPlaybackRequires(isPlaying);
   }, [isPlaying]);
 
   return { fftBins, visualizerRunning, visualizerError };
