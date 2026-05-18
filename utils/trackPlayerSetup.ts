@@ -1,6 +1,7 @@
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
+  type UpdateOptions,
 } from 'react-native-track-player';
 
 const SETUP_ALREADY_DONE_PATTERNS = [
@@ -9,7 +10,7 @@ const SETUP_ALREADY_DONE_PATTERNS = [
   /trackplayer\s+is\s+already\s+initialized/i,
 ];
 
-export const TRACK_PLAYER_OPTIONS = {
+export const TRACK_PLAYER_OPTIONS: UpdateOptions = {
   android: {
     appKilledPlaybackBehavior:
       AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
@@ -31,7 +32,7 @@ export const TRACK_PLAYER_OPTIONS = {
     Capability.SeekTo,
   ],
   progressUpdateEventInterval: 2,
-} as const;
+};
 
 export type TrackPlayerSetupLogger = (message: string, error?: unknown) => void;
 
