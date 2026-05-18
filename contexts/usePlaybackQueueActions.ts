@@ -5,8 +5,12 @@ import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
 } from '../utils/playbackPlan';
-import { StorageKeys, storage } from '../utils/storage';
-import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import {
+  applyPlaybackQueueState,
+  getCurrentQueueSnapshot,
+  persistRequestedSongId,
+  rebuildNativePlaybackQueue,
+} from './playbackQueueActionHelpers';
 
 const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
   skip?: (index: number, initialPosition?: number) => Promise<void>;
@@ -29,17 +33,7 @@ interface PlaybackQueueActions {
   toggleShuffle: () => Promise<void>;
 }
 
-export const persistRequestedSongId = async (
-  requestedSong: Song,
-  librarySongs: Song[],
-): Promise<void> => {
-  const isLibrarySong = librarySongs.some(item => item.id === requestedSong.id);
-  if (isLibrarySong) {
-    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
-    return;
-  }
-  await storage.remove(StorageKeys.CURRENT_SONG_ID);
-};
+export { persistRequestedSongId } from './playbackQueueActionHelpers';
 
 export const usePlaybackQueueActions = ({
   songsRef,
@@ -62,10 +56,15 @@ export const usePlaybackQueueActions = ({
 
       if (canReuseNativeQueue && trackPlayerWithSkip.skip) {
         const orderedQueue = plan.reusableOrderedQueue;
-        queueContextRef.current = orderedQueue;
-        baseQueueContextRef.current = nativeQueueRef.current.slice();
-        setPlaybackQueue(orderedQueue);
-        setCurrentSong(requestedSong);
+        applyPlaybackQueueState({
+          queueContextRef,
+          baseQueueContextRef,
+          setPlaybackQueue,
+          setCurrentSong,
+          orderedQueue,
+          baseQueue: nativeQueueRef.current,
+          selectedSong: requestedSong,
+        });
 
         try {
           const activeTrack = await TrackPlayer.getActiveTrack();
@@ -81,26 +80,24 @@ export const usePlaybackQueueActions = ({
       }
 
       const orderedQueue = plan.rebuildOrderedQueue;
-      queueContextRef.current = orderedQueue;
-      baseQueueContextRef.current = queueWithRequested.slice();
-      nativeQueueRef.current = orderedQueue.slice();
-      setPlaybackQueue(orderedQueue);
+      applyPlaybackQueueState({
+        queueContextRef,
+        baseQueueContextRef,
+        setPlaybackQueue,
+        setCurrentSong,
+        orderedQueue,
+        baseQueue: queueWithRequested,
+        selectedSong: requestedSong,
+      });
 
-      setCurrentSong(requestedSong);
-      await TrackPlayer.reset();
-      await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
-      await TrackPlayer.play();
+      await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef);
       await persistRequestedSongId(requestedSong, songsRef.current);
     },
     [baseQueueContextRef, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, songsRef],
   );
 
   const toggleShuffle = useCallback(async () => {
-    const currentQueue = (
-      queueContextRef.current.length > 0
-        ? queueContextRef.current
-        : songsRef.current.filter(song => !!song.uri)
-    ).slice();
+    const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
     const current = await TrackPlayer.getActiveTrack();
     const activeSongId = current?.id ?? currentSongId;
     const plan = buildShuffleTogglePlan({
@@ -112,19 +109,20 @@ export const usePlaybackQueueActions = ({
     if (!plan) return;
 
     const { nextQueue, nextBaseQueue, selectedSong } = plan;
-    queueContextRef.current = nextQueue.slice();
-    baseQueueContextRef.current = nextBaseQueue.slice();
-    setPlaybackQueue(nextQueue.slice());
-    if (selectedSong) setCurrentSong(selectedSong);
+    applyPlaybackQueueState({
+      queueContextRef,
+      baseQueueContextRef,
+      setPlaybackQueue,
+      setCurrentSong,
+      orderedQueue: nextQueue.slice(),
+      baseQueue: nextBaseQueue,
+      selectedSong,
+    });
     setShuffle(prev => !prev);
 
     try {
       const pos = await TrackPlayer.getProgress();
-      await TrackPlayer.reset();
-      await TrackPlayer.add(nextQueue.map(toTrackPlayerTrack));
-      nativeQueueRef.current = nextQueue.slice();
-      if (pos.position) await TrackPlayer.seekTo(pos.position);
-      await TrackPlayer.play();
+      await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
     } catch {
       // ignore shuffle queue rebuild failures
     }
