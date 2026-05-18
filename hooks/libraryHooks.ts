@@ -24,7 +24,10 @@ export {
   type UseLibraryMetadataRefreshActionsOptions,
   type UseLibraryMetadataRefreshActionsResult,
 } from './useLibraryMetadataRefreshActions';
-export { useLibraryNavigationActions } from './useLibraryNavigationActions';
+export {
+  useLibraryNavigationActions,
+  type UseLibraryNavigationActionsResult,
+} from './useLibraryNavigationActions';
 export { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 export { useLibraryRenderers } from './useLibraryRenderers';
 export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
