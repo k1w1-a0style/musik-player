@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import {
   buildLibraryMusicContextValue,
   buildMiniPlayerMusicContextValue,
-  buildMusicContextValue,
   buildNowPlayingMusicContextValue,
 } from './musicContextValues';
 import type {
@@ -61,7 +60,7 @@ export const useProvidedMusicContextValues = ({
   isReady,
 }: MusicContextValue): ProvidedMusicContextValues => {
   const value = useMemo<MusicContextValue>(
-    () => buildMusicContextValue({
+    () => ({
       songs,
       setSongs,
       addSongs,
