@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
@@ -64,7 +64,10 @@ const TrackInfo: React.FC = () => {
   const route = useRoute<TrackInfoRoute>();
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const { songs, setSongs } = useLibraryMusicContext();
+  const songsRef = useRef(songs);
   const [coverFailed, setCoverFailed] = useState(false);
+
+  songsRef.current = songs;
 
   const song = useMemo(() => songs.find(s => s.id === route.params.songId), [route.params.songId, songs]);
 
@@ -98,7 +101,7 @@ const TrackInfo: React.FC = () => {
           text: 'Entfernen',
           style: 'destructive',
           onPress: () => {
-            setSongs(songs.filter(item => item.id !== song.id));
+            setSongs(songsRef.current.filter(item => item.id !== song.id));
             navigation.goBack();
           },
         },
