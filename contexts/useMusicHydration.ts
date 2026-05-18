@@ -1,11 +1,6 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
-import { setupTrackPlayer } from '../utils/trackPlayerSetup';
-import {
-  applyStoredPlaybackSettings,
-  hydrateStoredSongs,
-  loadStoredMusicHydrationState,
-} from './musicHydrationHelpers';
+import { runMusicHydration } from './musicHydrationHelpers';
 
 interface UseMusicHydrationArgs {
   songsRef: MutableRefObject<Song[]>;
@@ -45,39 +40,24 @@ export const useMusicHydration = ({
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      await setupTrackPlayer();
-      const stored = await loadStoredMusicHydrationState();
-
-      if (cancelled) return;
-
-      await hydrateStoredSongs({
-        stored,
-        songsRef,
-        queueContextRef,
-        baseQueueContextRef,
-        nativeQueueRef,
-        setSongsState,
-        setCurrentSong,
-        setPlaybackQueue,
-        isCancelled: () => cancelled,
-      });
-
-      if (cancelled) return;
-
-      applyStoredPlaybackSettings({
-        stored,
-        setPlaylists,
-        setEqEnabledState,
-        setEqBandsState,
-        setEqPreset,
-        setVolumeState,
-        setRepeatMode,
-        setShuffle,
-      });
-
-      setIsReady(true);
-    })();
+    void runMusicHydration({
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setIsReady,
+      setSongsState,
+      setCurrentSong,
+      setPlaybackQueue,
+      setPlaylists,
+      setEqEnabledState,
+      setEqBandsState,
+      setEqPreset,
+      setVolumeState,
+      setRepeatMode,
+      setShuffle,
+      isCancelled: () => cancelled,
+    });
 
     return () => {
       cancelled = true;
