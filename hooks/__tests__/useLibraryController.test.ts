@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
+import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 
 const fn = jest.fn();
 
@@ -56,6 +57,23 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     onOpenMenu: fn,
     onToggleSearch: fn,
   },
+};
+
+const mockScreenState: UseLibraryScreenStateResult = {
+  activeTab: 'tracks',
+  albumViewMode: 'grid',
+  importStatus: null,
+  loading: false,
+  menuOpen: false,
+  query: '',
+  searchOpen: false,
+  setActiveTab: fn,
+  setAlbumViewMode: fn,
+  setImportStatus: fn,
+  setLoading: fn,
+  setMenuOpen: fn,
+  setQuery: fn,
+  setSearchOpen: fn,
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -131,22 +149,7 @@ jest.mock('../useLibraryScanFolderActions', () => ({
 }));
 
 jest.mock('../useLibraryScreenState', () => ({
-  useLibraryScreenState: jest.fn(() => ({
-    activeTab: 'tracks',
-    albumViewMode: 'grid',
-    importStatus: null,
-    loading: false,
-    menuOpen: false,
-    query: '',
-    searchOpen: false,
-    setActiveTab: jest.fn(),
-    setAlbumViewMode: jest.fn(),
-    setImportStatus: jest.fn(),
-    setLoading: jest.fn(),
-    setMenuOpen: jest.fn(),
-    setQuery: jest.fn(),
-    setSearchOpen: jest.fn(),
-  })),
+  useLibraryScreenState: jest.fn(() => mockScreenState),
 }));
 
 jest.mock('../useLibraryStoredState', () => ({
