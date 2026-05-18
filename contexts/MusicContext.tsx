@@ -6,18 +6,13 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import TrackPlayer, {
-  State,
-  usePlaybackState,
-} from 'react-native-track-player';
+import TrackPlayer from 'react-native-track-player';
 import {
   type Playlist,
-  type RepeatMode,
   type Song,
 } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
 import { createPlaylistId } from '../utils/playlistIds';
-import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import {
   addSongToPlaylistById,
   deletePlaylistById,
@@ -50,6 +45,7 @@ import { useEqualizerControls } from './useEqualizerControls';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { useNativeEqualizer } from './useNativeEqualizer';
+import { usePlaybackControls } from './usePlaybackControls';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
@@ -69,8 +65,21 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   const [shuffle, setShuffle] = useState(false);
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
-  const [volume, setVolumeState] = useState(1);
+  const {
+    isPlaying,
+    isBuffering,
+    repeatMode,
+    setRepeatMode,
+    cycleRepeatMode,
+    volume,
+    setVolumeState,
+    setVolume,
+    togglePlayPause,
+    stop,
+    seekTo,
+    next,
+    previous,
+  } = usePlaybackControls();
 
   const {
     eqEnabled,
@@ -100,11 +109,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
   }, []);
 
-  const playback = usePlaybackState();
-
-  const isPlaying = playback.state === State.Playing;
-  const isBuffering =
-    playback.state === State.Buffering || playback.state === State.Loading;
   const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
 
   // ---- Setup + Hydration ----
@@ -237,47 +241,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     [persistRequestedSong],
   );
 
-  const togglePlayPause = useCallback(async () => {
-    const state = (await TrackPlayer.getPlaybackState()).state;
-    if (state === State.Playing) {
-      await TrackPlayer.pause();
-    } else {
-      await TrackPlayer.play();
-    }
-  }, []);
-
-  const stop = useCallback(async () => {
-    await TrackPlayer.stop();
-  }, []);
-
-  const seekTo = useCallback(async (millis: number) => {
-    await TrackPlayer.seekTo(millis / 1000);
-  }, []);
-
-  const next = useCallback(async () => {
-    try {
-      await TrackPlayer.skipToNext();
-    } catch {
-      /* end of queue */
-    }
-  }, []);
-  const previous = useCallback(async () => {
-    try {
-      const { position } = await TrackPlayer.getProgress();
-      if (position > 3) {
-        await TrackPlayer.seekTo(0);
-        return;
-      }
-      await TrackPlayer.skipToPrevious();
-    } catch {
-      try {
-        await TrackPlayer.seekTo(0);
-      } catch {
-        /* at start */
-      }
-    }
-  }, []);
-
   const toggleShuffle = useCallback(async () => {
     const currentQueue = (
       queueContextRef.current.length > 0
@@ -312,19 +275,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       /* ignore */
     }
   }, [currentSong?.id, shuffle]);
-
-  const cycleRepeatMode = useCallback(async () => {
-    const next: RepeatMode =
-      repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
-    setRepeatMode(next);
-    await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(next));
-  }, [repeatMode]);
-
-  const setVolume = useCallback(async (v: number) => {
-    const nextVolume = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
-    setVolumeState(nextVolume);
-    await TrackPlayer.setVolume(nextVolume);
-  }, []);
 
   // ---- Playlists ----
   const createPlaylist = useCallback((name: string) => {
@@ -467,7 +417,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         <MiniPlayerMusicContext.Provider value={miniPlayerValue}>
           <NowPlayingMusicContext.Provider value={nowPlayingValue}>
             {children}
-          </NowPlayingMusicContext.Provider>
+          </NowPlayingContext.Provider>
         </MiniPlayerMusicContext.Provider>
       </LibraryMusicContext.Provider>
     </MusicContext.Provider>
