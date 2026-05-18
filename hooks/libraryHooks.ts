@@ -9,7 +9,11 @@ export {
   type UseLibraryComponentPropsResult,
 } from './useLibraryComponentProps';
 export { useLibraryController, type UseLibraryControllerResult } from './useLibraryController';
-export { useLibraryImportActions } from './useLibraryImportActions';
+export {
+  useLibraryImportActions,
+  type UseLibraryImportActionsOptions,
+  type UseLibraryImportActionsResult,
+} from './useLibraryImportActions';
 export {
   useLibraryMenuActions,
   type UseLibraryMenuActionsOptions,
