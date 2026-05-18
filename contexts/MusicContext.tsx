@@ -23,10 +23,6 @@ import { StorageKeys, storage } from '../utils/storage';
 import { createPlaylistId } from '../utils/playlistIds';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import {
-  shouldApplyVisualizerFrame,
-  shouldStopVisualizerForPlaybackState,
-} from '../utils/audioEffects';
-import {
   addSongToPlaylistById,
   deletePlaylistById,
   prunePlaylists,
@@ -52,17 +48,15 @@ import type {
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
 import { useAlbumPalette } from './useAlbumPalette';
+import { useAudioVisualizer } from './useAudioVisualizer';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { useNativeEqualizer } from './useNativeEqualizer';
-import SystemAudio from 'expo-system-audio';
 
 const MusicContext = createContext<MusicContextValue | null>(null);
 const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
 const MiniPlayerMusicContext = createContext<MiniPlayerMusicContextValue | null>(null);
 const NowPlayingMusicContext = createContext<NowPlayingMusicContextValue | null>(null);
-
-const VISUALIZER_UPDATE_INTERVAL_MS = 120;
 
 const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
   skip?: (index: number, initialPosition?: number) => Promise<void>;
@@ -84,12 +78,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [eqBands, setEqBandsState] = useState<number[]>(EQ_PRESETS.flat.slice());
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
-
-  // Visualizer stays opt-in; normal playback must not request RECORD_AUDIO
-  // or stream high-frequency state updates by default.
-  const [fftBins, setFftBins] = useState<number[]>(() => new Array(16).fill(0));
-  const [visualizerRunning, setVisualizerRunning] = useState(false);
-  const [visualizerError, setVisualizerError] = useState<string | null>(null);
   const palette = useAlbumPalette(currentSong);
 
   const songsRef = useRef(songs);
@@ -97,7 +85,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const queueContextRef = useRef<Song[]>([]);
   const baseQueueContextRef = useRef<Song[]>([]);
   const nativeQueueRef = useRef<Song[]>([]);
-  const lastVisualizerUpdateRef = useRef(0);
 
   const persistCurrentSongId = useCallback(async (song: Song | null): Promise<void> => {
     if (!song || !songsRef.current.some(item => item.id === song.id)) {
@@ -112,6 +99,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const isPlaying = playback.state === State.Playing;
   const isBuffering =
     playback.state === State.Buffering || playback.state === State.Loading;
+  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
 
   // ---- Setup + Hydration ----
   useMusicHydration({
@@ -151,33 +139,6 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
     return () => sub.remove();
   }, [persistCurrentSongId]);
-
-  // ---- Visualizer ----
-  useEffect(() => {
-    const subFft = SystemAudio.onFft(data => {
-      const now = Date.now();
-      if (!shouldApplyVisualizerFrame(now, lastVisualizerUpdateRef.current, VISUALIZER_UPDATE_INTERVAL_MS)) return;
-      lastVisualizerUpdateRef.current = now;
-      setFftBins(data);
-    });
-    const subState = SystemAudio.onVisualizerState(e => {
-      setVisualizerRunning(e.running);
-      setVisualizerError(e.running ? null : e.reason);
-    });
-    SystemAudio.visualizerStop();
-    return () => {
-      subFft.remove();
-      subState.remove();
-      SystemAudio.visualizerStop();
-    };
-  }, []);
-
-  // Keep the native visualizer off during normal playback. It requires
-  // RECORD_AUDIO and can overload older Android devices when combined with
-  // heavy UI rendering. A future explicit visualizer toggle can start it.
-  useEffect(() => {
-    if (shouldStopVisualizerForPlaybackState(isPlaying)) SystemAudio.visualizerStop();
-  }, [isPlaying]);
 
   // Persist settings — but only AFTER hydration to avoid the initial state
   // (e.g. volume=1) overwriting persisted values from a previous session.
