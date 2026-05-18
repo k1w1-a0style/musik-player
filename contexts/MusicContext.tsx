@@ -43,6 +43,7 @@ import {
   renamePlaylistById,
 } from '../utils/playlistState';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
+import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { createRequiredContextHook } from './createRequiredContextHook';
 import {
   buildLibraryMusicContextValue,
@@ -68,16 +69,6 @@ const VISUALIZER_UPDATE_INTERVAL_MS = 120;
 const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
   skip?: (index: number, initialPosition?: number) => Promise<void>;
 };
-
-const toTrack = (s: Song) => ({
-  id: s.id,
-  url: s.uri ?? '',
-  title: s.title,
-  artist: s.artist,
-  album: s.album,
-  artwork: getSongArtworkUri(s),
-  duration: s.duration ? s.duration / 1000 : undefined,
-});
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -184,7 +175,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setCurrentSong(restoredSong);
           try {
             await TrackPlayer.reset();
-            await TrackPlayer.add(orderedQueue.map(toTrack));
+            await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
             nativeQueueRef.current = orderedQueue.slice();
           } catch {
             // ignore hydration queue init failures
@@ -405,7 +396,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       baseQueueContextRef.current.find(song => song.id === songId);
     if (!queuedPatchedSong || queueIndex < 0) return;
 
-    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrack(queuedPatchedSong)).catch(
+    void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(queuedPatchedSong)).catch(
       () => undefined,
     );
   }, []);
@@ -464,7 +455,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       setCurrentSong(requestedSong);
       await TrackPlayer.reset();
-      await TrackPlayer.add(orderedQueue.map(toTrack));
+      await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
       await TrackPlayer.play();
       await persistRequestedSong(requestedSong);
     },
@@ -564,7 +555,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       const pos = await TrackPlayer.getProgress();
       await TrackPlayer.reset();
-      await TrackPlayer.add(list.map(toTrack));
+      await TrackPlayer.add(list.map(toTrackPlayerTrack));
       nativeQueueRef.current = list.slice();
       if (pos.position) await TrackPlayer.seekTo(pos.position);
       await TrackPlayer.play();
