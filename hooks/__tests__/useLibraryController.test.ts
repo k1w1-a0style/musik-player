@@ -5,6 +5,7 @@ import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryImportActionsResult } from '../useLibraryImportActions';
 import type { UseLibraryMenuActionsResult } from '../useLibraryMenuActions';
+import type { UseLibraryMetadataRefreshActionsResult } from '../useLibraryMetadataRefreshActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -39,6 +40,10 @@ const mockMenuActions: UseLibraryMenuActionsResult = {
   openMenu: fn,
   openSettings: fn,
   toggleSearch: fn,
+};
+
+const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
+  refreshMetadataFromFiles: asyncFn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -153,7 +158,7 @@ jest.mock('../useLibraryMenuActions', () => ({
 }));
 
 jest.mock('../useLibraryMetadataRefreshActions', () => ({
-  useLibraryMetadataRefreshActions: jest.fn(() => ({ refreshMetadataFromFiles: jest.fn() })),
+  useLibraryMetadataRefreshActions: jest.fn(() => mockMetadataRefreshActions),
 }));
 
 jest.mock('../useLibraryNavigationActions', () => ({
