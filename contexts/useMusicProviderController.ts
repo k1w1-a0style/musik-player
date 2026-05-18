@@ -8,6 +8,10 @@ import { buildMusicProviderContextAudioFeatureInput } from './musicProviderAudio
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
 import {
+  buildMusicProviderContextLibraryInput,
+  buildMusicProviderContextPlaylistInput,
+} from './musicProviderActionInput';
+import {
   buildMusicProviderContextStateInput,
   buildMusicProviderEffectsStateInput,
 } from './musicProviderStateInput';
@@ -52,19 +56,7 @@ export const useMusicProviderController = () => {
     persistCurrentSongId,
   } = useMusicPlaybackRefs(songs);
 
-  const {
-    playSong,
-    toggleShuffle,
-    setSongs,
-    addSongs,
-    updateSongMetadata,
-    createPlaylist,
-    deletePlaylist,
-    renamePlaylist,
-    addSongToPlaylist,
-    removeSongFromPlaylist,
-    playPlaylist,
-  } = useMusicProviderActions({
+  const actions = useMusicProviderActions({
     songsRef,
     queueContextRef,
     baseQueueContextRef,
@@ -97,25 +89,14 @@ export const useMusicProviderController = () => {
   return useProvidedMusicContextValues(
     buildMusicProviderContextInput({
       state: buildMusicProviderContextStateInput(providerState),
-      library: {
-        setSongs,
-        addSongs,
-        updateSongMetadata,
-      },
+      library: buildMusicProviderContextLibraryInput(actions),
       playback: buildMusicProviderContextPlaybackInput(playback, {
-        playSong,
-        toggleShuffle,
+        playSong: actions.playSong,
+        toggleShuffle: actions.toggleShuffle,
       }),
       equalizer: buildMusicProviderContextEqualizerInput(equalizer),
       audioFeatures: buildMusicProviderContextAudioFeatureInput(audioFeatures),
-      playlists: {
-        createPlaylist,
-        deletePlaylist,
-        renamePlaylist,
-        addSongToPlaylist,
-        removeSongFromPlaylist,
-        playPlaylist,
-      },
+      playlists: buildMusicProviderContextPlaylistInput(actions),
     }),
   );
 };
