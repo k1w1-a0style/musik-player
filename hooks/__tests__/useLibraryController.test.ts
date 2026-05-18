@@ -9,6 +9,7 @@ import type { UseLibraryMetadataRefreshActionsResult } from '../useLibraryMetada
 import type { UseLibraryNavigationActionsResult } from '../useLibraryNavigationActions';
 import type { UseLibraryPlaybackActionsResult } from '../useLibraryPlaybackActions';
 import type { UseLibraryRenderersResult } from '../useLibraryRenderers';
+import type { UseLibraryScanFolderActionsResult } from '../useLibraryScanFolderActions';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
@@ -69,6 +70,13 @@ const mockRenderers: UseLibraryRenderersResult = {
   renderPlaylistItem: elementFn,
   renderSongItem: elementFn,
   songKeyExtractor: jest.fn(item => item.id),
+};
+
+const mockScanFolderActions: UseLibraryScanFolderActionsResult = {
+  showScanFolders: fn,
+  onAddScanFolder: asyncFn,
+  persistChangedFolderUpdates: asyncFn,
+  removeFolder: asyncFn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -199,12 +207,7 @@ jest.mock('../useLibraryRenderers', () => ({
 }));
 
 jest.mock('../useLibraryScanFolderActions', () => ({
-  useLibraryScanFolderActions: jest.fn(() => ({
-    showScanFolders: jest.fn(),
-    onAddScanFolder: jest.fn(),
-    persistChangedFolderUpdates: jest.fn(),
-    removeFolder: jest.fn(),
-  })),
+  useLibraryScanFolderActions: jest.fn(() => mockScanFolderActions),
 }));
 
 jest.mock('../useLibraryScreenState', () => ({
