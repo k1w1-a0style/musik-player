@@ -8,6 +8,7 @@ import {
   didSongCoversChange,
 } from '../utils/musicHydration';
 import { StorageKeys, storage } from '../utils/storage';
+import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
 export interface StoredMusicHydrationState {
@@ -43,6 +44,10 @@ export interface HydrateStoredSongsArgs {
   setCurrentSong: Dispatch<SetStateAction<Song | null>>;
   setPlaybackQueue: Dispatch<SetStateAction<Song[]>>;
   isCancelled: () => boolean;
+}
+
+export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
+  setIsReady: Dispatch<SetStateAction<boolean>>;
 }
 
 export const loadStoredMusicHydrationState = async (): Promise<StoredMusicHydrationState> => {
@@ -158,4 +163,22 @@ export const applyStoredPlaybackSettings = ({
     TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(stored.repeatMode)).catch(() => undefined);
   }
   if (stored.shuffle != null) setShuffle(stored.shuffle);
+};
+
+export const runMusicHydration = async ({
+  setIsReady,
+  isCancelled,
+  ...args
+}: RunMusicHydrationArgs): Promise<void> => {
+  await setupTrackPlayer();
+  const stored = await loadStoredMusicHydrationState();
+
+  if (isCancelled()) return;
+
+  await hydrateStoredSongs({ stored, isCancelled, ...args });
+
+  if (isCancelled()) return;
+
+  applyStoredPlaybackSettings({ stored, ...args });
+  setIsReady(true);
 };
