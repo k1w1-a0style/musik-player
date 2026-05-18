@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
-import { sanitizeSongsForStorage } from '../utils/coverCache';
-import { didSongCoversChange } from '../utils/musicHydration';
-import { StorageKeys, storage } from '../utils/storage';
+import { StorageKeys } from '../utils/storage';
+import {
+  persistIfChanged,
+  prepareSongsForPersistence,
+} from './musicPersistenceHelpers';
 
 interface UseMusicPersistenceArgs {
   isReady: boolean;
@@ -31,65 +33,55 @@ export const useMusicPersistence = ({
 }: UseMusicPersistenceArgs): void => {
   const persistedRefs = useRef<Record<string, string>>({});
 
-  const persistIfChanged = useCallback(
-    async <T,>(key: string, value: T): Promise<void> => {
-      const serialized = JSON.stringify(value);
-      if (persistedRefs.current[key] === serialized) return;
-      const stored = await storage.set(key, value);
-      if (stored) persistedRefs.current[key] = serialized;
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!isReady) return;
+    void persistIfChanged(StorageKeys.VOLUME, volume, persistedRefs.current);
+  }, [volume, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.VOLUME, volume);
-  }, [volume, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.SHUFFLE, shuffle, persistedRefs.current);
+  }, [shuffle, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.SHUFFLE, shuffle);
-  }, [shuffle, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.REPEAT_MODE, repeatMode, persistedRefs.current);
+  }, [repeatMode, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.REPEAT_MODE, repeatMode);
-  }, [repeatMode, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs.current);
+  }, [eqEnabled, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_ENABLED, eqEnabled);
-  }, [eqEnabled, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.EQ_BANDS, eqBands, persistedRefs.current);
+  }, [eqBands, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_BANDS, eqBands);
-  }, [eqBands, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.EQ_PRESET, eqPreset, persistedRefs.current);
+  }, [eqPreset, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(StorageKeys.EQ_PRESET, eqPreset);
-  }, [eqPreset, isReady, persistIfChanged]);
-
-  useEffect(() => {
-    if (!isReady) return;
-    void persistIfChanged(StorageKeys.PLAYLISTS, playlists);
-  }, [playlists, isReady, persistIfChanged]);
+    void persistIfChanged(StorageKeys.PLAYLISTS, playlists, persistedRefs.current);
+  }, [playlists, isReady]);
 
   useEffect(() => {
     if (!isReady) return;
     let cancelled = false;
     (async () => {
-      const sanitizedSongs = await sanitizeSongsForStorage(songs);
+      const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs);
       if (cancelled) return;
-      if (didSongCoversChange(sanitizedSongs, songs)) {
+      if (coversChanged) {
         setSongsState(sanitizedSongs);
         return;
       }
-      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs);
+      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
     })();
     return () => {
       cancelled = true;
     };
-  }, [songs, isReady, persistIfChanged, setSongsState]);
+  }, [songs, isReady, setSongsState]);
 };
