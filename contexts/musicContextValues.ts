@@ -5,8 +5,6 @@ import type {
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
 
-export const buildMusicContextValue = (value: MusicContextValue): MusicContextValue => value;
-
 export const buildLibraryMusicContextValue = ({
   songs,
   setSongs,
