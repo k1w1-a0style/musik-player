@@ -1,0 +1,81 @@
+import type { EqInitResult, PaletteResult } from 'expo-system-audio';
+import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
+
+export interface MusicContextValue {
+  songs: Song[];
+  setSongs: (s: Song[]) => void;
+  addSongs: (s: Song[]) => void;
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  currentSong: Song | null;
+  playbackQueue: Song[];
+  isPlaying: boolean;
+  isBuffering: boolean;
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  togglePlayPause: () => Promise<void>;
+  stop: () => Promise<void>;
+  seekTo: (millis: number) => Promise<void>;
+  next: () => Promise<void>;
+  previous: () => Promise<void>;
+  shuffle: boolean;
+  toggleShuffle: () => Promise<void>;
+  repeatMode: RepeatMode;
+  cycleRepeatMode: () => Promise<void>;
+  volume: number;
+  setVolume: (v: number) => Promise<void>;
+  eqEnabled: boolean;
+  setEqEnabled: (v: boolean) => void;
+  eqBands: number[];
+  setEqBand: (i: number, v: number) => void;
+  eqPreset: EqPresetName | 'custom';
+  applyEqPreset: (p: EqPresetName) => void;
+  eqNative: EqInitResult | null;
+  fftBins: number[];
+  visualizerRunning: boolean;
+  visualizerError: string | null;
+  palette: PaletteResult | null;
+  playlists: Playlist[];
+  createPlaylist: (name: string) => Playlist;
+  deletePlaylist: (id: string) => void;
+  renamePlaylist: (id: string, name: string) => void;
+  addSongToPlaylist: (playlistId: string, songId: string) => void;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
+  playPlaylist: (playlistId: string) => Promise<void>;
+  isReady: boolean;
+}
+
+export interface LibraryMusicContextValue {
+  songs: Song[];
+  setSongs: (s: Song[]) => void;
+  currentSong: Song | null;
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  isReady: boolean;
+  isPlaying: boolean;
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  playlists: Playlist[];
+  playPlaylist: (playlistId: string) => Promise<void>;
+}
+
+export interface MiniPlayerMusicContextValue {
+  currentSong: Song | null;
+  isPlaying: boolean;
+  togglePlayPause: () => Promise<void>;
+  next: () => Promise<void>;
+  previous: () => Promise<void>;
+  canSkipNext: boolean;
+  canSkipPrevious: boolean;
+}
+
+export interface NowPlayingMusicContextValue {
+  playbackQueue: Song[];
+  currentSong: Song | null;
+  seekTo: (millis: number) => Promise<void>;
+  isPlaying: boolean;
+  volume: number;
+  setVolume: (v: number) => Promise<void>;
+  palette: PaletteResult | null;
+  fftBins: number[];
+  visualizerRunning: boolean;
+  visualizerError: string | null;
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  canSkip: boolean;
+}
