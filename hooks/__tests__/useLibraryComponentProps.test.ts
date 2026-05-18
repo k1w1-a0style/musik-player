@@ -33,6 +33,7 @@ const baseOptions = {
   renderPlaylistItem: fn,
   renderSongItem: fn,
   scanFolders: [],
+  searchOpen: true,
   setActiveTab: fn,
   setQuery: fn,
   showScanFolders: fn,
@@ -45,6 +46,8 @@ const baseOptions = {
 test('returns library component props', () => {
   const { result } = renderHook(() => useLibraryComponentProps(baseOptions));
 
+  expect(result.current.loading).toBe(false);
+  expect(result.current.searchOpen).toBe(true);
   expect(result.current.topBarProps).toEqual({
     onOpenMenu: fn,
     onToggleSearch: fn,
