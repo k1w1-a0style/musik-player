@@ -1,5 +1,9 @@
 import { buildMusicProviderContextInput } from './musicProviderContextInput';
 import { buildMusicProviderEffectsInput } from './musicProviderEffectsInput';
+import {
+  buildMusicProviderContextStateInput,
+  buildMusicProviderEffectsStateInput,
+} from './musicProviderStateInput';
 import { useMusicPlaybackRefs } from './useMusicPlaybackRefs';
 import { useMusicProviderActions } from './useMusicProviderActions';
 import { useMusicProviderAudioFeatures } from './useMusicProviderAudioFeatures';
@@ -9,9 +13,9 @@ import { useMusicProviderState } from './useMusicProviderState';
 import { useProvidedMusicContextValues } from './useProvidedMusicContextValues';
 
 export const useMusicProviderController = () => {
+  const providerState = useMusicProviderState();
   const {
     isReady,
-    setIsReady,
     songs,
     setSongsState,
     currentSong,
@@ -22,7 +26,7 @@ export const useMusicProviderController = () => {
     setPlaylists,
     shuffle,
     setShuffle,
-  } = useMusicProviderState();
+  } = providerState;
 
   const {
     playback: {
@@ -105,18 +109,7 @@ export const useMusicProviderController = () => {
         nativeQueueRef,
         persistCurrentSongId,
       },
-      state: {
-        isReady,
-        setIsReady,
-        songs,
-        setSongsState,
-        currentSongSetter: setCurrentSong,
-        playbackQueueSetter: setPlaybackQueue,
-        playlists,
-        setPlaylists,
-        shuffle,
-        setShuffle,
-      },
+      state: buildMusicProviderEffectsStateInput(providerState),
       playback: {
         repeatMode,
         setRepeatMode,
@@ -136,14 +129,7 @@ export const useMusicProviderController = () => {
 
   return useProvidedMusicContextValues(
     buildMusicProviderContextInput({
-      state: {
-        songs,
-        currentSong,
-        playbackQueue,
-        playlists,
-        shuffle,
-        isReady,
-      },
+      state: buildMusicProviderContextStateInput(providerState),
       library: {
         setSongs,
         addSongs,
