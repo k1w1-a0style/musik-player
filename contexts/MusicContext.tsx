@@ -9,8 +9,6 @@ import React, {
   type ReactNode,
 } from 'react';
 import TrackPlayer, {
-  AppKilledPlaybackBehavior,
-  Capability,
   Event,
   State,
   usePlaybackState,
@@ -45,6 +43,7 @@ import {
   removeSongFromPlaylistById,
   renamePlaylistById,
 } from '../utils/playlistState';
+import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import SystemAudio, { type EqInitResult, type PaletteResult } from 'expo-system-audio';
 
 interface MusicContextValue {
@@ -215,34 +214,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
-        await TrackPlayer.updateOptions({
-          android: {
-            appKilledPlaybackBehavior:
-              AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
-          },
-          capabilities: [
-            Capability.Play,
-            Capability.Pause,
-            Capability.SkipToNext,
-            Capability.SkipToPrevious,
-            Capability.SeekTo,
-            Capability.Stop,
-          ],
-          compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
-          notificationCapabilities: [
-            Capability.Play,
-            Capability.Pause,
-            Capability.SkipToNext,
-            Capability.SkipToPrevious,
-            Capability.SeekTo,
-          ],
-          progressUpdateEventInterval: 2,
-        });
-      } catch {
-        // Already set up
-      }
+      await setupTrackPlayer();
 
       const [
         storedSongs,
