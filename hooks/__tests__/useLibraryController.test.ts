@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
+import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 
 const fn = jest.fn();
 
@@ -74,6 +75,13 @@ const mockScreenState: UseLibraryScreenStateResult = {
   setMenuOpen: fn,
   setQuery: fn,
   setSearchOpen: fn,
+};
+
+const mockStoredState: UseLibraryStoredStateResult = {
+  scanFolders: [],
+  setScanFolders: fn,
+  favoriteIds: [],
+  setFavoriteIds: fn,
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -153,11 +161,7 @@ jest.mock('../useLibraryScreenState', () => ({
 }));
 
 jest.mock('../useLibraryStoredState', () => ({
-  useLibraryStoredState: jest.fn(() => ({
-    scanFolders: [],
-    setScanFolders: jest.fn(),
-    favoriteIds: [],
-  })),
+  useLibraryStoredState: jest.fn(() => mockStoredState),
 }));
 
 jest.mock('../useLibraryViewState', () => ({
