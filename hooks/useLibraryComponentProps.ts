@@ -17,19 +17,12 @@ import {
 
 type UseLibraryComponentPropsResult = Omit<LibraryScreenContentProps, 'loading' | 'searchOpen'>;
 
-type UseLibraryChromePropsOptions = LibraryTopBarPropsBuilderOptions
+type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryTabsPropsBuilderOptions
   & LibrarySearchBarPropsBuilderOptions
-  & LibraryImportStatusPropsBuilderOptions;
-
-type UseLibraryComponentPropsOptions = UseLibraryChromePropsOptions
+  & LibraryImportStatusPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
-  & Omit<LibraryTabContentPropsBuilderOptions, 'onPlayActiveList' | 'onShuffle' | 'onToggleAlbumView'>
-  & {
-    handlePlayActiveList: () => void;
-    handleShufflePress: () => void;
-    toggleAlbumView: () => void;
-  };
+  & LibraryTabContentPropsBuilderOptions;
 
 export const useLibraryComponentProps = ({
   activeFolders,
@@ -41,14 +34,15 @@ export const useLibraryComponentProps = ({
   emptyMessage,
   genreGroups,
   getSongItemLayout,
-  handlePlayActiveList,
-  handleShufflePress,
   importFromDevice,
   importStatus,
   isReady,
   loading,
   menuOpen,
   onAddScanFolder,
+  onPlayActiveList,
+  onShuffle,
+  onToggleAlbumView,
   openMenu,
   openSettings,
   playlistItems,
@@ -66,7 +60,6 @@ export const useLibraryComponentProps = ({
   songKeyExtractor,
   songsCount,
   songsForActiveList,
-  toggleAlbumView,
   toggleSearch,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
@@ -97,9 +90,9 @@ export const useLibraryComponentProps = ({
     emptyMessage,
     genreGroups,
     getSongItemLayout,
-    onPlayActiveList: handlePlayActiveList,
-    onShuffle: handleShufflePress,
-    onToggleAlbumView: toggleAlbumView,
+    onPlayActiveList,
+    onShuffle,
+    onToggleAlbumView,
     playlistItems,
     renderAlbumTile,
     renderFolderItem,
@@ -118,8 +111,9 @@ export const useLibraryComponentProps = ({
     emptyMessage,
     genreGroups,
     getSongItemLayout,
-    handlePlayActiveList,
-    handleShufflePress,
+    onPlayActiveList,
+    onShuffle,
+    onToggleAlbumView,
     playlistItems,
     renderAlbumTile,
     renderFolderItem,
@@ -129,7 +123,6 @@ export const useLibraryComponentProps = ({
     scanFolders,
     songKeyExtractor,
     songsForActiveList,
-    toggleAlbumView,
   ]);
 
   const menuModalProps = useMemo(() => buildLibraryMenuModalProps({
