@@ -1,7 +1,6 @@
-import type { LibraryScreenContentProps } from '../components/LibraryScreenContent';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { useLibraryAlerts } from './useLibraryAlerts';
-import { useLibraryComponentProps } from './useLibraryComponentProps';
+import { useLibraryComponentProps, type UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 import { useLibraryImportActions } from './useLibraryImportActions';
 import { useLibraryMenuActions } from './useLibraryMenuActions';
 import { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
@@ -13,7 +12,7 @@ import { useLibraryScreenState } from './useLibraryScreenState';
 import { useLibraryStoredState } from './useLibraryStoredState';
 import { useLibraryViewState } from './useLibraryViewState';
 
-export type UseLibraryControllerResult = LibraryScreenContentProps;
+export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
 
 export const useLibraryController = (): UseLibraryControllerResult => {
   const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
