@@ -1,0 +1,80 @@
+import React from 'react';
+import { Text } from 'react-native';
+import { render } from '@testing-library/react-native';
+import { useProvidedMusicContextValues } from '../useProvidedMusicContextValues';
+import type { MusicContextValue } from '../musicContextTypes';
+
+const noopAsync = async () => undefined;
+const noop = () => undefined;
+
+const baseValue: MusicContextValue = {
+  songs: [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }],
+  setSongs: noop,
+  addSongs: noop,
+  updateSongMetadata: noop,
+  currentSong: { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+  playbackQueue: [
+    { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+    { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+  ],
+  isPlaying: true,
+  isBuffering: false,
+  playSong: noopAsync,
+  togglePlayPause: noopAsync,
+  stop: noopAsync,
+  seekTo: noopAsync,
+  next: noopAsync,
+  previous: noopAsync,
+  shuffle: false,
+  toggleShuffle: noopAsync,
+  repeatMode: 'off',
+  cycleRepeatMode: noopAsync,
+  volume: 0.8,
+  setVolume: noopAsync,
+  eqEnabled: false,
+  setEqEnabled: noop,
+  eqBands: new Array(10).fill(0),
+  setEqBand: noop,
+  eqPreset: 'flat',
+  applyEqPreset: noop,
+  eqNative: null,
+  fftBins: [1, 2, 3],
+  visualizerRunning: false,
+  visualizerError: null,
+  palette: null,
+  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
+  createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2 }),
+  deletePlaylist: noop,
+  renamePlaylist: noop,
+  addSongToPlaylist: noop,
+  removeSongFromPlaylist: noop,
+  playPlaylist: noopAsync,
+  isReady: true,
+};
+
+const ValuesProbe = () => {
+  const { value, libraryValue, miniPlayerValue, nowPlayingValue } =
+    useProvidedMusicContextValues(baseValue);
+
+  return (
+    <>
+      <Text testID="full-ready">{String(value.isReady)}</Text>
+      <Text testID="library-songs">{libraryValue.songs.length}</Text>
+      <Text testID="mini-can-next">{String(miniPlayerValue.canSkipNext)}</Text>
+      <Text testID="now-can-skip">{String(nowPlayingValue.canSkip)}</Text>
+      <Text testID="now-volume">{String(nowPlayingValue.volume)}</Text>
+    </>
+  );
+};
+
+describe('useProvidedMusicContextValues', () => {
+  test('builds provided context values from the full music value', () => {
+    const { getByTestId } = render(<ValuesProbe />);
+
+    expect(getByTestId('full-ready').props.children).toBe('true');
+    expect(getByTestId('library-songs').props.children).toBe(1);
+    expect(getByTestId('mini-can-next').props.children).toBe('true');
+    expect(getByTestId('now-can-skip').props.children).toBe('true');
+    expect(getByTestId('now-volume').props.children).toBe('0.8');
+  });
+});
