@@ -15,14 +15,17 @@ import {
   type LibraryTopBarPropsBuilderOptions,
 } from '../utils/libraryComponentProps';
 
-type UseLibraryComponentPropsResult = Omit<LibraryScreenContentProps, 'loading' | 'searchOpen'>;
+interface UseLibraryScreenVisibilityOptions {
+  searchOpen: boolean;
+}
 
 type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryTabsPropsBuilderOptions
   & LibrarySearchBarPropsBuilderOptions
   & LibraryImportStatusPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
-  & LibraryTabContentPropsBuilderOptions;
+  & LibraryTabContentPropsBuilderOptions
+  & UseLibraryScreenVisibilityOptions;
 
 export const useLibraryComponentProps = ({
   activeFolders,
@@ -54,6 +57,7 @@ export const useLibraryComponentProps = ({
   renderPlaylistItem,
   renderSongItem,
   scanFolders,
+  searchOpen,
   setActiveTab,
   setQuery,
   showScanFolders,
@@ -61,7 +65,7 @@ export const useLibraryComponentProps = ({
   songsCount,
   songsForActiveList,
   toggleSearch,
-}: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
+}: UseLibraryComponentPropsOptions): LibraryScreenContentProps => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
     openMenu,
     toggleSearch,
@@ -151,5 +155,5 @@ export const useLibraryComponentProps = ({
     songsCount,
   ]);
 
-  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps };
+  return { importStatusProps, loading, menuModalProps, searchBarProps, searchOpen, tabContentProps, tabsProps, topBarProps };
 };
