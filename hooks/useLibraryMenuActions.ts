@@ -1,23 +1,26 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import type { LibraryAlertCopy } from './useLibraryAlerts';
 import { getLibrarySettingsComingSoonAlert } from '../utils/librarySettingsMessages';
 
-interface LibraryAlertCopy {
-  title: string;
-  message: string;
-}
-
-interface UseLibraryMenuActionsOptions {
+export interface UseLibraryMenuActionsOptions {
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
   showAlert: (alert: LibraryAlertCopy) => void;
+}
+
+export interface UseLibraryMenuActionsResult {
+  closeMenu: () => void;
+  openMenu: () => void;
+  openSettings: () => void;
+  toggleSearch: () => void;
 }
 
 export const useLibraryMenuActions = ({
   setMenuOpen,
   setSearchOpen,
   showAlert,
-}: UseLibraryMenuActionsOptions) => {
+}: UseLibraryMenuActionsOptions): UseLibraryMenuActionsResult => {
   const toggleSearch = useCallback(() => {
     setSearchOpen(value => !value);
   }, [setSearchOpen]);
