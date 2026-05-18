@@ -44,7 +44,11 @@ export {
   type UseLibraryRenderersOptions,
   type UseLibraryRenderersResult,
 } from './useLibraryRenderers';
-export { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
+export {
+  useLibraryScanFolderActions,
+  type UseLibraryScanFolderActionsOptions,
+  type UseLibraryScanFolderActionsResult,
+} from './useLibraryScanFolderActions';
 export { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
 export { useLibraryStoredState, type UseLibraryStoredStateResult } from './useLibraryStoredState';
 export {
