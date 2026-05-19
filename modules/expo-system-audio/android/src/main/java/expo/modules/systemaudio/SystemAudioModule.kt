@@ -244,8 +244,9 @@ class SystemAudioModule : Module() {
           val comma = uri.indexOf(',')
           if (comma < 0) null
           else {
-            val bytes = Base64.decode(uri.substring(comma + 1), Base64.DEFAULT)
-            if (bytes.size.toLong() > MAX_PALETTE_IMAGE_BYTES) return null
+            val base64Payload = uri.substring(comma + 1)
+            if (decodedBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
+            val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
           }
@@ -371,6 +372,25 @@ class SystemAudioModule : Module() {
     "image/png" -> "png"
     "image/webp" -> "webp"
     else -> "jpg"
+  }
+
+  private fun decodedBase64ByteLength(value: String): Long {
+    var cleanLength = 0L
+    var last = '\u0000'
+    var secondLast = '\u0000'
+    value.forEach { char ->
+      if (!char.isWhitespace()) {
+        secondLast = last
+        last = char
+        cleanLength += 1
+      }
+    }
+    val padding = when {
+      cleanLength >= 2 && secondLast == '=' && last == '=' -> 2L
+      cleanLength >= 1 && last == '=' -> 1L
+      else -> 0L
+    }
+    return (cleanLength * 3L / 4L) - padding
   }
 
   private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
