@@ -1,32 +1,40 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 
+const logRemotePlaybackError = (action: string, error: unknown): void => {
+  console.warn(`[PlaybackService] Remote ${action} failed`, error);
+};
+
+const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>): void => {
+  run().catch(error => logRemotePlaybackError(action, error));
+};
+
 /**
  * Background service registered in index.js.
  * Handles remote controls from Lockscreen / Notification / Bluetooth.
  */
 export const PlaybackService = async (): Promise<void> => {
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
-    TrackPlayer.play().catch(() => undefined);
+    handleRemotePlaybackAction('play', () => TrackPlayer.play());
   });
   TrackPlayer.addEventListener(Event.RemotePause, () => {
-    TrackPlayer.pause().catch(() => undefined);
+    handleRemotePlaybackAction('pause', () => TrackPlayer.pause());
   });
   TrackPlayer.addEventListener(Event.RemoteStop, () => {
-    TrackPlayer.stop().catch(() => undefined);
+    handleRemotePlaybackAction('stop', () => TrackPlayer.stop());
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    TrackPlayer.skipToNext().catch(() => undefined);
+    handleRemotePlaybackAction('next', () => TrackPlayer.skipToNext());
   });
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    TrackPlayer.skipToPrevious().catch(() => undefined);
+    handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious());
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
-    TrackPlayer.seekTo(position).catch(() => undefined);
+    handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {
-    TrackPlayer.seekBy(interval ?? 10).catch(() => undefined);
+    handleRemotePlaybackAction('jump forward', () => TrackPlayer.seekBy(interval ?? 10));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => {
-    TrackPlayer.seekBy(-(interval ?? 10)).catch(() => undefined);
+    handleRemotePlaybackAction('jump backward', () => TrackPlayer.seekBy(-(interval ?? 10)));
   });
 };
