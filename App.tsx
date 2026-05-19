@@ -2,10 +2,9 @@ import 'react-native-gesture-handler';
 import React from 'react';
 import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { AppStackParamList, AppTabParamList } from './types/navigation';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { AppStackParamList } from './types/navigation';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   BricolageGrotesque_400Regular,
@@ -13,23 +12,17 @@ import {
   BricolageGrotesque_600SemiBold,
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
-import { Library as LibraryIcon, ListMusic, Sliders, Image as ImageIcon } from 'lucide-react-native';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { MusicProvider } from './contexts/MusicContext';
 import { PlaybackProgressProvider } from './contexts/PlaybackProgressContext';
-import Library from './screens/Library';
 import NowPlaying from './screens/NowPlaying';
-import Playlists from './screens/Playlists';
-import Equalizer from './screens/Equalizer';
-import Covers from './screens/Covers';
 import TrackInfo from './screens/TrackInfo';
 import TagEditor from './screens/TagEditor';
-import MiniPlayer from './components/MiniPlayer';
+import TabsShell from './navigation/TabsShell';
 import { theme } from './theme';
-import { APP_STACK_ROUTES, APP_TAB_ROUTES } from './types/routes';
+import { APP_STACK_ROUTES } from './types/routes';
 
-const Tab = createBottomTabNavigator<AppTabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 const navTheme = {
@@ -44,40 +37,6 @@ const navTheme = {
     border: theme.palette.border,
     notification: theme.palette.accent,
   },
-};
-
-const TabsShell: React.FC<{ openNowPlaying: () => void }> = ({ openNowPlaying }) => {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={{ flex: 1 }}>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: theme.palette.surface,
-            borderTopColor: theme.palette.border,
-            height: 66 + insets.bottom,
-            paddingBottom: Math.max(8, insets.bottom),
-            paddingTop: 6,
-          },
-          tabBarLabelStyle: {
-            fontFamily: theme.fonts.body,
-            fontSize: 10,
-            letterSpacing: 0.4,
-          },
-          tabBarActiveTintColor: theme.palette.primary,
-          tabBarInactiveTintColor: theme.palette.text.muted,
-        }}
-      >
-        <Tab.Screen name={APP_TAB_ROUTES.LIBRARY} component={Library} options={{ tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} /> }} />
-        <Tab.Screen name={APP_TAB_ROUTES.PLAYLISTS} component={Playlists} options={{ tabBarIcon: ({ color, size }) => <ListMusic color={color} size={size} /> }} />
-        <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
-        <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
-      </Tab.Navigator>
-      <MiniPlayer onOpen={openNowPlaying} />
-    </View>
-  );
 };
 
 export default function App(): React.ReactElement {
