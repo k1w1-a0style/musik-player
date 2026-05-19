@@ -1,16 +1,15 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Switch, ScrollView, Pressable } from 'react-native';
 import Slider from '@react-native-community/slider';
-import Svg, { Path, Line } from 'react-native-svg';
 import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import GlassCard from '../components/GlassCard';
 import { EQ_BAND_LABELS } from '../types/Song';
 import { theme } from '../theme';
+import EqualizerCurveChart from './EqualizerCurveChart';
+import EqualizerStatusCard from './EqualizerStatusCard';
 import {
   buildEqualizerCurvePath,
-  formatHz,
   PRESET_KEYS,
   PRESET_LABELS,
 } from './equalizerHelpers';
@@ -29,27 +28,8 @@ const Equalizer: React.FC = () => {
           <Switch value={eqEnabled} onValueChange={setEqEnabled} trackColor={{ false: theme.palette.border, true: theme.palette.primary }} thumbColor={theme.palette.text.primary} />
         </View>
 
-        <GlassCard style={styles.statusCard}>
-          {eqNative?.available ? (
-            <>
-              <Text style={styles.statusBadge}>● EXPERIMENTELL</Text>
-              <Text style={styles.statusText}>Native Equalizer-API verfügbar. Wirkung kann je nach Gerät, Android-Version und Audio-Session variieren.</Text>
-              <Text style={styles.statusFreq}>{eqNative.bands.map(b => formatHz(b.centerFreqHz)).join(' · ')} Hz</Text>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.statusBadge, styles.statusBadgeOff]}>○ NUR UI</Text>
-              <Text style={styles.statusText}>Native Equalizer-API nicht verfügbar. Auf Custom-Dev-Client / EAS-Build erneut prüfen.</Text>
-            </>
-          )}
-        </GlassCard>
-
-        <View style={styles.curveWrap}>
-          <Svg width="100%" height="80" viewBox="0 0 320 80">
-            <Line x1="0" y1="40" x2="320" y2="40" stroke={theme.palette.borderStrong} strokeDasharray="4,4" strokeWidth="1" />
-            <Path d={curvePath} stroke={theme.palette.primary} strokeWidth={2} fill="rgba(245,179,1,0.08)" />
-          </Svg>
-        </View>
+        <EqualizerStatusCard eqNative={eqNative} />
+        <EqualizerCurveChart curvePath={curvePath} />
 
         <Text style={styles.sectionTitle}>Presets</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
@@ -84,12 +64,6 @@ const styles = StyleSheet.create({
   eyebrow: { color: theme.palette.primary, fontSize: 10, letterSpacing: 1.8, fontFamily: theme.fonts.body },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md },
   title: { fontSize: 32, fontFamily: theme.fonts.display, letterSpacing: -1, color: theme.palette.text.primary },
-  statusCard: { marginBottom: theme.spacing.md },
-  statusBadge: { color: theme.palette.warning, fontSize: 11, letterSpacing: 1.6, fontFamily: theme.fonts.heading, marginBottom: 6 },
-  statusBadgeOff: { color: theme.palette.warning },
-  statusText: { color: theme.palette.text.secondary, fontSize: 12, fontFamily: theme.fonts.body, lineHeight: 18 },
-  statusFreq: { color: theme.palette.text.muted, fontSize: 11, fontFamily: theme.fonts.mono, marginTop: 6 },
-  curveWrap: { marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.palette.border, backgroundColor: theme.palette.surface, borderRadius: theme.borderRadius.md, padding: 8 },
   sectionTitle: { color: theme.palette.text.muted, fontSize: 11, letterSpacing: 1.6, fontFamily: theme.fonts.body, marginBottom: theme.spacing.sm },
   presetRow: { flexDirection: 'row', gap: theme.spacing.sm, paddingVertical: theme.spacing.xs, paddingRight: theme.spacing.md },
   preset: { paddingHorizontal: theme.spacing.md, paddingVertical: 10, borderRadius: theme.borderRadius.pill, backgroundColor: theme.palette.surface, borderWidth: 1, borderColor: theme.palette.border },
