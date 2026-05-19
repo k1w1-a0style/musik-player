@@ -53,6 +53,10 @@ describe('useTrackInfoScreenState', () => {
     mockRouteSongId = 's1';
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('builds selected song state', () => {
     const { getByTestId } = render(<TrackInfoStateProbe />);
 
