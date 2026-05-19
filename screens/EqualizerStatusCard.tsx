@@ -1,20 +1,12 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
+import type { EqInitResult } from 'expo-system-audio';
 import GlassCard from '../components/GlassCard';
 import { theme } from '../theme';
 import { formatHz } from './equalizerHelpers';
 
-interface EqualizerNativeBand {
-  centerFreqHz: number;
-}
-
-interface EqualizerNativeState {
-  available?: boolean;
-  bands?: EqualizerNativeBand[];
-}
-
 interface EqualizerStatusCardProps {
-  eqNative?: EqualizerNativeState | null;
+  eqNative: EqInitResult | null;
 }
 
 const EqualizerStatusCard: React.FC<EqualizerStatusCardProps> = ({ eqNative }) => (
@@ -23,7 +15,7 @@ const EqualizerStatusCard: React.FC<EqualizerStatusCardProps> = ({ eqNative }) =
       <>
         <Text style={styles.statusBadge}>● EXPERIMENTELL</Text>
         <Text style={styles.statusText}>Native Equalizer-API verfügbar. Wirkung kann je nach Gerät, Android-Version und Audio-Session variieren.</Text>
-        <Text style={styles.statusFreq}>{eqNative.bands?.map(b => formatHz(b.centerFreqHz)).join(' · ')} Hz</Text>
+        <Text style={styles.statusFreq}>{eqNative.bands.map(b => formatHz(b.centerFreqHz)).join(' · ')} Hz</Text>
       </>
     ) : (
       <>
