@@ -1,38 +1,21 @@
-import React, { useState } from 'react';
-import { Text, StyleSheet, FlatList, Alert } from 'react-native';
-import { useMusicContext } from '../contexts/MusicContext';
+import React from 'react';
+import { Text, StyleSheet, FlatList } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
 import PlaylistCreateForm from './PlaylistCreateForm';
 import PlaylistListItem from './PlaylistListItem';
-import { countValidPlaylistSongs, normalizePlaylistName } from './playlistHelpers';
+import { usePlaylistsScreenState } from './usePlaylistsScreenState';
 
 const Playlists: React.FC = () => {
-  const { playlists, createPlaylist, deletePlaylist, playPlaylist, songs } =
-    useMusicContext();
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-
-  const handleCreatePlaylist = (): void => {
-    const trimmed = normalizePlaylistName(newPlaylistName);
-    if (!trimmed) {
-      Alert.alert('Fehler', 'Bitte gib einen Namen für die Playlist ein.');
-      return;
-    }
-    createPlaylist(trimmed);
-    setNewPlaylistName('');
-  };
-
-  const handleDeletePlaylist = (id: string, name: string): void => {
-    Alert.alert(`Playlist „${name}" löschen?`, 'Die Playlist wird unwiderruflich entfernt.', [
-      { text: 'Abbrechen', style: 'cancel' },
-      {
-        text: 'Löschen',
-        style: 'destructive',
-        onPress: () => deletePlaylist(id),
-      },
-    ]);
-  };
+  const {
+    newPlaylistName,
+    setNewPlaylistName,
+    playlistEntries,
+    handleCreatePlaylist,
+    handleDeletePlaylist,
+    playPlaylist,
+  } = usePlaylistsScreenState();
 
   return (
     <AppBackground>
@@ -47,13 +30,13 @@ const Playlists: React.FC = () => {
         />
 
         <FlatList
-          data={playlists}
-          keyExtractor={item => item.id}
+          data={playlistEntries}
+          keyExtractor={item => item.playlist.id}
           contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}
           renderItem={({ item }) => (
             <PlaylistListItem
-              playlist={item}
-              validSongCount={countValidPlaylistSongs(item, songs)}
+              playlist={item.playlist}
+              validSongCount={item.validSongCount}
               onPlay={playPlaylist}
               onDelete={handleDeletePlaylist}
             />
