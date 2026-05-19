@@ -14,6 +14,10 @@ import {
   type LibraryTabsPropsBuilderOptions,
   type LibraryTopBarPropsBuilderOptions,
 } from '../libraryComponentProps';
+import type { Song } from '../../types/Song';
+import type { ScanFolder } from '../../types/ScanFolder';
+import type { LibraryGroupItem } from '../libraryPresentation';
+import type { LibraryPlaylistItem } from '../libraryPlaylists';
 
 test('buildLibraryTopBarProps returns top bar props', () => {
   const openMenu = jest.fn();
@@ -94,6 +98,65 @@ test('buildLibraryTabContentProps returns tab content props', () => {
   expect(props.emptyMessage).toBe('Leer');
   expect(props.getSongItemLayout).toBe(fn);
   expect(props.onShuffle).toBe(fn);
+});
+
+test('buildLibraryTabContentProps preserves list and renderer references', () => {
+  const song: Song = { id: 's1', title: 'Song', artist: 'Artist' };
+  const folder: ScanFolder = {
+    id: 'folder-1',
+    name: 'Music',
+    uri: 'file:///music',
+    addedAt: 1,
+    enabled: true,
+  };
+  const group: LibraryGroupItem = {
+    id: 'album:One',
+    title: 'One',
+    subtitle: '1 Track',
+    songs: [song],
+  };
+  const playlist: LibraryPlaylistItem = {
+    id: 'playlist-1',
+    name: 'Playlist',
+    songs: [song],
+    validCount: 1,
+    totalCount: 1,
+  };
+  const fn = jest.fn();
+  const songKeyExtractor = jest.fn((item: Song) => item.id);
+
+  const props = buildLibraryTabContentProps({
+    activeTab: 'playlists',
+    activeFolders: 1,
+    albumGroups: [group],
+    albumViewMode: 'list',
+    artistGroups: [group],
+    emptyMessage: 'Leer',
+    genreGroups: [group],
+    getSongItemLayout: fn,
+    onPlayActiveList: fn,
+    onShuffle: fn,
+    onToggleAlbumView: fn,
+    playlistItems: [playlist],
+    renderAlbumTile: fn,
+    renderFolderItem: fn,
+    renderGroupItem: fn,
+    renderPlaylistItem: fn,
+    renderSongItem: fn,
+    scanFolders: [folder],
+    songKeyExtractor,
+    songsForActiveList: [song],
+  });
+
+  expect(props.albumGroups).toEqual([group]);
+  expect(props.artistGroups).toEqual([group]);
+  expect(props.genreGroups).toEqual([group]);
+  expect(props.playlistItems).toEqual([playlist]);
+  expect(props.scanFolders).toEqual([folder]);
+  expect(props.songsForActiveList).toEqual([song]);
+  expect(props.renderPlaylistItem).toBe(fn);
+  expect(props.songKeyExtractor(song)).toBe('s1');
+  expect(songKeyExtractor).toHaveBeenCalledWith(song);
 });
 
 test('buildLibraryMenuModalProps returns menu modal props', () => {
