@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { theme } from '../theme';
 import LibraryMenuItem from './LibraryMenuItem';
 
 export interface LibraryMenuModalProps {
@@ -44,7 +45,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
 
 const styles = StyleSheet.create({
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24, backgroundColor: 'rgba(0,0,0,0.10)' },
-  menuCard: { width: 250, borderRadius: 22, backgroundColor: '#3b3b3f', paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
+  menuCard: { width: 250, borderRadius: 22, backgroundColor: theme.palette.surfaceElevated, paddingVertical: 10, shadowColor: theme.palette.backgroundDeep, shadowOpacity: 0.35, shadowRadius: 18, elevation: 10 },
 });
 
 export default LibraryMenuModal;
