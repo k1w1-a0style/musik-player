@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import {
@@ -27,6 +26,7 @@ import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { pickTagEditorCover } from './tagEditorCoverPicker';
+import TagEditorFields from './TagEditorFields';
 import {
   blockingReasonMessage,
   buildDraftFromDirtyFields,
@@ -34,7 +34,6 @@ import {
   buildMetadataPatchFromDraft,
   capabilityReason,
   ERROR_MESSAGES,
-  FIELDS,
   type FormState,
   hasRemovableCover,
   safetyNotice,
@@ -109,6 +108,11 @@ const TagEditor: React.FC = () => {
     setRemoveCover(false);
   };
 
+  const handleChangeField = (key: keyof EditableTrackTags, value: string): void => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    setDirty(prev => ({ ...prev, [key]: true }));
+  };
+
   const onSaveConfirmed = async (): Promise<void> => {
     setSaving(true);
     try {
@@ -160,23 +164,11 @@ const TagEditor: React.FC = () => {
             </View>
           )}
 
-          {FIELDS.map(field => (
-            <View key={field.key} style={styles.fieldWrap}>
-              <Text style={styles.label}>{field.label}</Text>
-              <TextInput
-                testID={`input-${field.key}`}
-                placeholder="Nicht verfügbar"
-                placeholderTextColor={theme.palette.text.muted}
-                value={form[field.key]}
-                editable={capability.canWrite && !saving}
-                onChangeText={value => {
-                  setForm(prev => ({ ...prev, [field.key]: value }));
-                  setDirty(prev => ({ ...prev, [field.key]: true }));
-                }}
-                style={[styles.input, !capability.canWrite && styles.inputReadOnly]}
-              />
-            </View>
-          ))}
+          <TagEditorFields
+            form={form}
+            editable={capability.canWrite && !saving}
+            onChangeField={handleChangeField}
+          />
 
           <Pressable
             testID="remove-cover"
@@ -266,18 +258,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.heading,
     fontSize: 22,
   },
-  fieldWrap: { gap: 4 },
-  label: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    borderRadius: theme.radii.input,
-    padding: 10,
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.body,
-    backgroundColor: theme.palette.surface,
-  },
-  inputReadOnly: { opacity: 0.8 },
   toggle: {
     padding: 12,
     borderRadius: theme.radii.input,
