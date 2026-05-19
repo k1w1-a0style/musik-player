@@ -56,3 +56,22 @@ test('filters by playlist name and song metadata', () => {
   expect(buildLibraryPlaylistItems(playlists, songs, 'techno').map(item => item.id)).toEqual(['p1']);
   expect(buildLibraryPlaylistItems(playlists, songs, 'singer').map(item => item.id)).toEqual(['p2']);
 });
+
+test('filters with trimmed case-insensitive query', () => {
+  const items = buildLibraryPlaylistItems(
+    [playlist({ id: 'p1', name: 'Hard Mix', songIds: [] })],
+    [],
+    '  HARD  ',
+  );
+
+  expect(items.map(item => item.id)).toEqual(['p1']);
+});
+
+test('filters by display metadata fallbacks', () => {
+  const songs = [song({ id: 's1', title: 'Kick', artist: '', album: undefined, genre: undefined })];
+  const playlists = [playlist({ id: 'p1', name: 'Fallback Mix', songIds: ['s1'] })];
+
+  expect(buildLibraryPlaylistItems(playlists, songs, 'unbekannt').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'unbekanntes album').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'unbekanntes genre').map(item => item.id)).toEqual(['p1']);
+});
