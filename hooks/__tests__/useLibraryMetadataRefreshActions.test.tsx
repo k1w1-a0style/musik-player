@@ -3,7 +3,11 @@ import { Button } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryMetadataRefreshActions } from '../useLibraryMetadataRefreshActions';
 import type { Song } from '../../types/Song';
-import { getNoSongsMetadataAlert, getMetadataRefreshCompleteAlert } from '../../utils/libraryImportFlow';
+import {
+  getMetadataRefreshCompleteAlert,
+  getMetadataUpdateStoppedAlert,
+  getNoSongsMetadataAlert,
+} from '../../utils/libraryImportFlow';
 
 const song = (id: string): Song => ({
   id,
@@ -41,6 +45,7 @@ const HookHarness = ({
     setLoading,
     setImportStatus,
     showAlert,
+    importTimeoutMs: 100,
     refreshSongsFromId3Impl,
     withTimeoutImpl,
   });
@@ -51,25 +56,106 @@ const HookHarness = ({
 test('shows empty alert when there are no songs', async () => {
   const showAlert = jest.fn();
   const refreshSongsFromId3Impl = jest.fn();
-  const screen = render(<HookHarness songs={[]} showAlert={showAlert} refreshSongsFromId3Impl={refreshSongsFromId3Impl} />);
+  const setMenuOpen = jest.fn();
+  const setLoading = jest.fn();
+  const screen = render(
+    <HookHarness
+      songs={[]}
+      setMenuOpen={setMenuOpen}
+      setLoading={setLoading}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+    />,
+  );
 
   fireEvent.press(screen.getByText('refresh'));
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getNoSongsMetadataAlert()));
   expect(refreshSongsFromId3Impl).not.toHaveBeenCalled();
+  expect(setMenuOpen).toHaveBeenCalledWith(false);
+  expect(setLoading).not.toHaveBeenCalledWith(true);
 });
 
 test('refreshes metadata, applies updated songs and shows completion alert', async () => {
   const setSongs = jest.fn();
+  const setMenuOpen = jest.fn();
+  const setLoading = jest.fn();
+  const setImportStatus = jest.fn();
   const showAlert = jest.fn();
   const refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 2, failed: 3 });
+  const withTimeoutImpl = jest.fn(<T,>(promise: Promise<T>) => promise);
   const screen = render(
-    <HookHarness songs={[song('old')]} setSongs={setSongs} showAlert={showAlert} refreshSongsFromId3Impl={refreshSongsFromId3Impl} />,
+    <HookHarness
+      songs={[song('old')]}
+      setSongs={setSongs}
+      setMenuOpen={setMenuOpen}
+      setLoading={setLoading}
+      setImportStatus={setImportStatus}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
   );
 
   fireEvent.press(screen.getByText('refresh'));
 
   await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')]));
+  expect(withTimeoutImpl).toHaveBeenCalledWith(expect.any(Promise), 100, expect.any(String));
   expect(setSongs).toHaveBeenCalledWith([song('updated')]);
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 2, 3));
+  expect(setMenuOpen).toHaveBeenCalledWith(false);
+  expect(setLoading).toHaveBeenNthCalledWith(1, true);
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test('does not apply songs when refresh updated count is zero', async () => {
+  const setSongs = jest.fn();
+  const setLoading = jest.fn();
+  const setImportStatus = jest.fn();
+  const showAlert = jest.fn();
+  const refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('same')], updated: 0, skipped: 1, failed: 0 });
+  const screen = render(
+    <HookHarness
+      songs={[song('old')]}
+      setSongs={setSongs}
+      setLoading={setLoading}
+      setImportStatus={setImportStatus}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(0, 1, 0)));
+  expect(setSongs).not.toHaveBeenCalled();
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test('shows stopped alert and clears loading when refresh throws', async () => {
+  const setSongs = jest.fn();
+  const setLoading = jest.fn();
+  const setImportStatus = jest.fn();
+  const showAlert = jest.fn();
+  const error = new Error('kaputt');
+  const refreshSongsFromId3Impl = jest.fn().mockRejectedValue(error);
+  const screen = render(
+    <HookHarness
+      songs={[song('old')]}
+      setSongs={setSongs}
+      setLoading={setLoading}
+      setImportStatus={setImportStatus}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(error)));
+  expect(setSongs).not.toHaveBeenCalled();
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
