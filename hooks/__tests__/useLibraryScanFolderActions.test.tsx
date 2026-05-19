@@ -3,8 +3,17 @@ import { Button } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryScanFolderActions, type UseLibraryScanFolderActionsOptions } from '../useLibraryScanFolderActions';
 import type { ScanFolder } from '../../types/ScanFolder';
-import { persistAddedScanFolder, persistRemovedScanFolder } from '../../utils/libraryScanFolderPersistence';
-import { getScanFolderCancelledAlert, getScanFolderUnsupportedAlert } from '../../utils/libraryFolderMessages';
+import {
+  persistAddedScanFolder,
+  persistChangedFolderErrorUpdates,
+  persistRemovedScanFolder,
+} from '../../utils/libraryScanFolderPersistence';
+import {
+  getDuplicateScanFolderAlert,
+  getScanFolderCancelledAlert,
+  getScanFolderUnavailableAlert,
+  getScanFolderUnsupportedAlert,
+} from '../../utils/libraryFolderMessages';
 
 jest.mock('../../utils/libraryScanFolderPersistence', () => ({
   persistAddedScanFolder: jest.fn(),
@@ -13,6 +22,7 @@ jest.mock('../../utils/libraryScanFolderPersistence', () => ({
 }));
 
 const mockedPersistAddedScanFolder = jest.mocked(persistAddedScanFolder);
+const mockedPersistChangedFolderErrorUpdates = jest.mocked(persistChangedFolderErrorUpdates);
 const mockedPersistRemovedScanFolder = jest.mocked(persistRemovedScanFolder);
 
 const folder = (id: string): ScanFolder => ({
@@ -50,6 +60,8 @@ const HookHarness = ({
     <>
       <Button title="show" onPress={actions.showScanFolders} />
       <Button title="add" onPress={() => void actions.onAddScanFolder()} />
+      <Button title="persist" onPress={() => void actions.persistChangedFolderUpdates([folder('changed')])} />
+      <Button title="persist-empty" onPress={() => void actions.persistChangedFolderUpdates(undefined)} />
       <Button title="remove" onPress={() => void actions.removeFolder(scanFolders[0])} />
     </>
   );
@@ -92,6 +104,62 @@ test('onAddScanFolder shows cancelled alert when picker has no granted uri', asy
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderCancelledAlert()));
   expect(mockedPersistAddedScanFolder).not.toHaveBeenCalled();
+});
+
+test('onAddScanFolder persists added folder and activates folders tab', async () => {
+  const setScanFolders = jest.fn();
+  const setActiveTab = jest.fn();
+  const setMenuOpen = jest.fn();
+  mockedPersistAddedScanFolder.mockResolvedValue({
+    kind: 'added',
+    update: { scanFolders: [folder('a'), folder('b')], activeTab: 'folders' },
+  });
+  const screen = render(<HookHarness setScanFolders={setScanFolders} setActiveTab={setActiveTab} setMenuOpen={setMenuOpen} />);
+
+  fireEvent.press(screen.getByText('add'));
+
+  await waitFor(() => expect(mockedPersistAddedScanFolder).toHaveBeenCalled());
+  expect(setMenuOpen).toHaveBeenCalledWith(false);
+  expect(setScanFolders).toHaveBeenCalledWith([folder('a'), folder('b')]);
+  expect(setActiveTab).toHaveBeenCalledWith('folders');
+});
+
+test('onAddScanFolder shows duplicate alert when persistence reports duplicate', async () => {
+  const showAlert = jest.fn();
+  mockedPersistAddedScanFolder.mockResolvedValue({ kind: 'duplicate' });
+  const screen = render(<HookHarness showAlert={showAlert} />);
+
+  fireEvent.press(screen.getByText('add'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getDuplicateScanFolderAlert()));
+});
+
+test('onAddScanFolder shows unavailable alert when picker or persistence fails', async () => {
+  const showAlert = jest.fn();
+  const requestDirectoryPermissionsAsync = jest.fn().mockRejectedValue(new Error('boom'));
+  const screen = render(<HookHarness showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
+
+  fireEvent.press(screen.getByText('add'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderUnavailableAlert()));
+});
+
+test('persistChangedFolderUpdates updates folders only when persistence returns updates', async () => {
+  const setScanFolders = jest.fn();
+  mockedPersistChangedFolderErrorUpdates.mockResolvedValue([folder('changed')]);
+  const screen = render(<HookHarness setScanFolders={setScanFolders} />);
+
+  fireEvent.press(screen.getByText('persist'));
+
+  await waitFor(() => expect(mockedPersistChangedFolderErrorUpdates).toHaveBeenCalledWith([folder('a')], [folder('changed')]));
+  expect(setScanFolders).toHaveBeenCalledWith([folder('changed')]);
+
+  mockedPersistChangedFolderErrorUpdates.mockResolvedValueOnce(undefined);
+  setScanFolders.mockClear();
+  fireEvent.press(screen.getByText('persist-empty'));
+
+  await waitFor(() => expect(mockedPersistChangedFolderErrorUpdates).toHaveBeenCalledWith([folder('a')], undefined));
+  expect(setScanFolders).not.toHaveBeenCalled();
 });
 
 test('removeFolder persists removal and updates folders', async () => {
