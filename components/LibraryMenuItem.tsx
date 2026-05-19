@@ -28,8 +28,8 @@ const LibraryMenuItem: React.FC<LibraryMenuItemProps> = ({ label, onPress, disab
 
 const styles = StyleSheet.create({
   menuItem: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 22 },
-  menuText: { color: '#f4f4f5', fontFamily: theme.fonts.body, fontSize: 18, letterSpacing: -0.3 },
-  menuTextMuted: { color: '#b9b9bd', fontSize: 14 },
+  menuText: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 18, letterSpacing: -0.3 },
+  menuTextMuted: { color: theme.palette.text.secondary, fontSize: 14 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
 });
