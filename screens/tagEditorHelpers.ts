@@ -6,6 +6,7 @@ import type {
   TagWriterErrorCode,
   WriteTagsResult,
 } from '../types/TagEdit';
+import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { normalizeEditableTags } from '../utils/tagValidation';
 
 export type FormState = Record<keyof EditableTrackTags, string>;
@@ -124,6 +125,31 @@ export const buildFormAfterSave = (
     }
   }
   return next;
+};
+
+export const buildMetadataPatchFromDraft = (
+  draft: TagEditDraft,
+  replacementCover?: PickedTagCover | null,
+): Partial<Song> => {
+  const normalizedTags = normalizeEditableTags(draft.tags);
+  const metadataPatch: Partial<Song> = {};
+
+  for (const field of FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
+    metadataPatch[field.key] = normalizedTags[field.key];
+  }
+
+  if (draft.removeCover) {
+    metadataPatch.cover = undefined;
+    metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
+  }
+
+  if (draft.cover) {
+    metadataPatch.cover = replacementCover?.uri;
+    metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
+  }
+
+  return metadataPatch;
 };
 
 const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> =
