@@ -36,6 +36,10 @@ test('displayFolderName prefers derived folder name', () => {
   expect(displayFolderName({ id: 'f2', name: 'Fallback', uri: 'content://Other', addedAt: 1, enabled: true })).toBe('Fallback');
 });
 
+test('displayFolderName falls back to generic folder label', () => {
+  expect(displayFolderName({ id: 'f3', name: '', uri: 'content://Other', addedAt: 1, enabled: true })).toBe('Ordner');
+});
+
 test('mergeSongs dedupes by uri and keeps newest imported fields', () => {
   const merged = mergeSongs(
     [song({ id: 'old', title: 'Old', artist: 'A', uri: 'file:///same.mp3' })],
@@ -44,6 +48,15 @@ test('mergeSongs dedupes by uri and keeps newest imported fields', () => {
 
   expect(merged).toHaveLength(1);
   expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
+});
+
+test('mergeSongs dedupes by id when uri is missing', () => {
+  const merged = mergeSongs(
+    [song({ id: 'same', title: 'Old', artist: 'A' })],
+    [song({ id: 'same', title: 'New', artist: 'B', album: 'Album' })],
+  );
+
+  expect(merged).toEqual([song({ id: 'same', title: 'New', artist: 'B', album: 'Album' })]);
 });
 
 test('groupSongs groups and sorts with cover fallback', () => {
@@ -57,4 +70,10 @@ test('groupSongs groups and sorts with cover fallback', () => {
   expect(groups[0].subtitle).toBe('2 Tracks');
   expect(groups[0].cover).toBe('cover-a');
   expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Gamma']);
+});
+
+test('groupSongs uses singular subtitle for one track', () => {
+  const groups = groupSongs([song({ id: '1', title: 'Alpha', artist: 'A', genre: 'Techno' })], 'genre');
+
+  expect(groups[0].subtitle).toBe('1 Track');
 });
