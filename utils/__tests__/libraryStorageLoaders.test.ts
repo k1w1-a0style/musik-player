@@ -29,6 +29,28 @@ test('loadLibraryStartupState returns scan folders and favorite ids', async () =
   ).resolves.toEqual({ scanFolders, favoriteIds });
 });
 
+test('loadLibraryStartupState falls back only scan folders when folder storage fails', async () => {
+  const favoriteIds = ['song-1'];
+
+  await expect(
+    loadLibraryStartupState({
+      getScanFoldersImpl: jest.fn().mockRejectedValue(new Error('folders failed')),
+      getFavoriteSongIdsImpl: jest.fn().mockResolvedValue(favoriteIds),
+    }),
+  ).resolves.toEqual({ scanFolders: [], favoriteIds });
+});
+
+test('loadLibraryStartupState falls back only favorite ids when favorite storage fails', async () => {
+  const scanFolders = [folder('music')];
+
+  await expect(
+    loadLibraryStartupState({
+      getScanFoldersImpl: jest.fn().mockResolvedValue(scanFolders),
+      getFavoriteSongIdsImpl: jest.fn().mockRejectedValue(new Error('favorites failed')),
+    }),
+  ).resolves.toEqual({ scanFolders, favoriteIds: [] });
+});
+
 test('loadLibraryStartupState returns fallbacks when storage fails', async () => {
   await expect(
     loadLibraryStartupState({
