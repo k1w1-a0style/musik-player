@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { StyleSheet, ScrollView } from 'react-native';
-import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
@@ -9,12 +8,19 @@ import EqualizerCurveChart from './EqualizerCurveChart';
 import EqualizerHeader from './EqualizerHeader';
 import EqualizerPresetList from './EqualizerPresetList';
 import EqualizerStatusCard from './EqualizerStatusCard';
-import { buildEqualizerCurvePath } from './equalizerHelpers';
+import { useEqualizerScreenState } from './useEqualizerScreenState';
 
 const Equalizer: React.FC = () => {
-  const { eqEnabled, setEqEnabled, eqBands, setEqBand, eqPreset, applyEqPreset, eqNative } = useMusicContext();
-
-  const curvePath = useMemo(() => buildEqualizerCurvePath(eqBands), [eqBands]);
+  const {
+    eqEnabled,
+    setEqEnabled,
+    eqBands,
+    setEqBand,
+    eqPreset,
+    applyEqPreset,
+    eqNative,
+    curvePath,
+  } = useEqualizerScreenState();
 
   return (
     <AppBackground>
