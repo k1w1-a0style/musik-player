@@ -67,6 +67,7 @@
   "overrides": {
     "postcss": "^8.5.10",
     "ws": "^8.20.1",
-    "brace-expansion": "^5.0.6"
+    "brace-expansion": "^5.0.6",
+    "@tootallnate/once": "^3.0.1"
   }
 }
