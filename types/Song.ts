@@ -62,3 +62,4 @@ export const EQ_PRESETS = {
 export type EqPresetName = keyof typeof EQ_PRESETS;
 
 export const EQ_BAND_LABELS = ['60', '170', '310', '600', '1K', '3K', '6K', '12K', '14K', '16K'];
+export const EQ_BAND_COUNT = EQ_BAND_LABELS.length;
