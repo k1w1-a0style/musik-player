@@ -9,6 +9,7 @@ import {
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
 import { cleanupCoverCache } from './coverCacheCleanup';
+import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
 export const MAX_CACHED_COVER_BYTES = 2 * 1024 * 1024;
@@ -17,29 +18,6 @@ export const COVER_SANITIZE_BATCH_SIZE = 20;
 export const isBase64ImageDataUri = (value?: string): boolean => {
   if (!value) return false;
   return DATA_URI_RE.test(value.trim());
-};
-
-const extensionFromMimeSubtype = (subtype: string): string => {
-  const normalized = subtype.toLowerCase();
-  if (normalized.includes('png')) return 'png';
-  if (normalized.includes('webp')) return 'webp';
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
-  return 'jpg';
-};
-
-const detectSubtypeFromBytes = (bytes: Uint8Array): 'jpeg' | 'png' | 'webp' | undefined => {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
-  if (
-    bytes.length >= 8
-    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
-  ) return 'png';
-  if (
-    bytes.length >= 12
-    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
-  ) return 'webp';
-  return undefined;
 };
 
 const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
@@ -71,24 +49,6 @@ const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
     }
   }
   return out.subarray(0, j);
-};
-
-const matchesMimeSignature = (bytes: Uint8Array, subtype: string): boolean => {
-  const normalized = subtype.toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) {
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  }
-  if (normalized.includes('png')) {
-    return bytes.length >= 8
-      && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-      && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
-  }
-  if (normalized.includes('webp')) {
-    return bytes.length >= 12
-      && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-  }
-  return false;
 };
 
 const hashString = (value: string): string => {
@@ -130,15 +90,14 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
     if (!isLikelyValidBase64Payload(base64)) return undefined;
     if (getDecodedBase64ByteLength(base64) > MAX_CACHED_COVER_BYTES) return undefined;
     const prefixBytes = base64PrefixToBytes(base64);
-    const declaredSubtype = match[1] ?? 'jpeg';
-    const detectedSubtype = detectSubtypeFromBytes(prefixBytes);
-    const knownDeclared = /(jpeg|jpg|png|webp)/i.test(declaredSubtype);
-    if (knownDeclared) {
-      if (!matchesMimeSignature(prefixBytes, declaredSubtype)) return undefined;
-    } else if (!detectedSubtype) {
+    const declaredMime = normalizeImageMime(match[1]);
+    const detectedMime = detectImageMimeFromBytes(prefixBytes);
+    if (declaredMime) {
+      if (detectedMime !== declaredMime) return undefined;
+    } else if (!detectedMime) {
       return undefined;
     }
-    const ext = extensionFromMimeSubtype(detectedSubtype ?? declaredSubtype);
+    const ext = imageExtensionFromMime(detectedMime ?? declaredMime ?? 'image/jpeg');
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
