@@ -56,6 +56,33 @@ test('buildLibraryViewState derives filtered library lists and groups', () => {
   expect(state.playlistItems).toHaveLength(1);
 });
 
+test('buildLibraryViewState builds sorted playlist items with valid counts', () => {
+  const songs = [
+    song({ id: 'a', title: 'Alpha', artist: 'One' }),
+    song({ id: 'b', title: 'Beta', artist: 'Two' }),
+  ];
+
+  const state = buildLibraryViewState({
+    activeTab: 'playlists',
+    favoriteIds: [],
+    isDev: false,
+    isReady: true,
+    nodeEnv: 'test',
+    playlists: [
+      playlist({ id: 'workout', name: 'Workout', songIds: ['b', 'missing'] }),
+      playlist({ id: 'alpha', name: 'Alpha Mix', songIds: ['a', 'b'] }),
+    ],
+    query: '',
+    scanFolders: [],
+    songs,
+  });
+
+  expect(state.playlistItems.map(item => item.name)).toEqual(['Alpha Mix', 'Workout']);
+  expect(state.playlistItems.find(item => item.name === 'Alpha Mix')?.validCount).toBe(2);
+  expect(state.playlistItems.find(item => item.name === 'Workout')?.validCount).toBe(1);
+  expect(state.playlistItems.find(item => item.name === 'Workout')?.totalCount).toBe(2);
+});
+
 test('buildLibraryViewState uses favorite songs as active list on favorites tab', () => {
   const songs = [song({ id: 'a', title: 'Alpha' }), song({ id: 'b', title: 'Beta' })];
 
