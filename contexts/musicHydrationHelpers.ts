@@ -159,12 +159,12 @@ export const applyStoredPlaybackSettings = ({
   if (stored.playlists) setPlaylists(stored.playlists);
   if (stored.eqEnabled != null) setEqEnabledState(stored.eqEnabled);
   if (stored.eqBands?.length === EQ_BAND_COUNT) setEqBandsState(stored.eqBands);
-  if (stored.eqPreset) setEqPreset(stored.eqPreset);
+  if (stored.eqPreset != null) setEqPreset(stored.eqPreset);
   if (stored.volume != null) {
     setVolumeState(stored.volume);
     TrackPlayer.setVolume(stored.volume).catch(() => undefined);
   }
-  if (stored.repeatMode) {
+  if (stored.repeatMode != null) {
     setRepeatMode(stored.repeatMode);
     TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(stored.repeatMode)).catch(() => undefined);
   }
