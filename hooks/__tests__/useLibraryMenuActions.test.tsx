@@ -58,7 +58,7 @@ describe('useLibraryMenuActions', () => {
     expect(setMenuOpen).toHaveBeenCalledWith(false);
     expect(showAlert).toHaveBeenCalledWith({
       title: 'Einstellungen',
-      message: 'Einstellungen folgen später.',
+      message: 'Theme- und App-Einstellungen kommen im nächsten Schritt.',
     });
   });
 });
