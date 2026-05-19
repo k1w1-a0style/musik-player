@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import {
   runPlaySongQueueAction,
@@ -35,37 +35,42 @@ export const usePlaybackQueueActions = ({
   shuffle,
   setShuffle,
 }: PlaybackQueueActionsArgs): PlaybackQueueActions => {
-  const playSong = useCallback(
-    async (song: Song, queue?: Song[]) => {
-      await runPlaySongQueueAction({
-        song,
-        queue,
-        songsRef,
-        queueContextRef,
-        baseQueueContextRef,
-        nativeQueueRef,
-        setPlaybackQueue,
-        setCurrentSong,
-      });
-    },
-    [baseQueueContextRef, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, songsRef],
-  );
+  const queueActionLockRef = useRef<Promise<void>>(Promise.resolve());
 
-  const toggleShuffle = useCallback(async () => {
-    await runShuffleQueueAction({
+  const enqueueQueueAction = useCallback((action: () => Promise<void>): Promise<void> => {
+    const run = queueActionLockRef.current.catch(() => undefined).then(action);
+    queueActionLockRef.current = run.catch(() => undefined);
+    return run;
+  }, []);
+
+  const playSong = useCallback(
+    async (song: Song, queue?: Song[]) => enqueueQueueAction(() => runPlaySongQueueAction({
+      song,
+      queue,
       songsRef,
       queueContextRef,
       baseQueueContextRef,
       nativeQueueRef,
       setPlaybackQueue,
       setCurrentSong,
-      currentSongId,
-      shuffle,
-      setShuffle,
-    });
-  }, [
+    })),
+    [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, songsRef],
+  );
+
+  const toggleShuffle = useCallback(async () => enqueueQueueAction(() => runShuffleQueueAction({
+    songsRef,
+    queueContextRef,
+    baseQueueContextRef,
+    nativeQueueRef,
+    setPlaybackQueue,
+    setCurrentSong,
+    currentSongId,
+    shuffle,
+    setShuffle,
+  })), [
     baseQueueContextRef,
     currentSongId,
+    enqueueQueueAction,
     nativeQueueRef,
     queueContextRef,
     setCurrentSong,
