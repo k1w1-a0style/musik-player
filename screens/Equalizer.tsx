@@ -6,35 +6,19 @@ import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import GlassCard from '../components/GlassCard';
-import { EQ_BAND_LABELS, EQ_PRESETS, type EqPresetName } from '../types/Song';
+import { EQ_BAND_LABELS } from '../types/Song';
 import { theme } from '../theme';
-
-const PRESET_LABELS: Record<EqPresetName, string> = { flat: 'Flat', rock: 'Rock', pop: 'Pop', jazz: 'Jazz', bassBoost: 'Bass+', vocal: 'Vocal', electronic: 'Electronic' };
-const PRESET_KEYS = Object.keys(EQ_PRESETS) as EqPresetName[];
-const formatHz = (hz: number): string => (hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`);
+import {
+  buildEqualizerCurvePath,
+  formatHz,
+  PRESET_KEYS,
+  PRESET_LABELS,
+} from './equalizerHelpers';
 
 const Equalizer: React.FC = () => {
   const { eqEnabled, setEqEnabled, eqBands, setEqBand, eqPreset, applyEqPreset, eqNative } = useMusicContext();
 
-  const curvePath = useMemo(() => {
-    const width = 320;
-    const height = 80;
-    const points = eqBands.map((db, i) => {
-      const x = (i / Math.max(1, eqBands.length - 1)) * width;
-      const y = ((12 - db) / 24) * height;
-      return { x, y };
-    });
-    if (points.length < 2) return 'M0,40 L320,40';
-    let d = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length; i += 1) {
-      const p0 = points[i - 1];
-      const p1 = points[i];
-      const cx1 = p0.x + (p1.x - p0.x) / 3;
-      const cx2 = p0.x + ((p1.x - p0.x) * 2) / 3;
-      d += ` C ${cx1} ${p0.y}, ${cx2} ${p1.y}, ${p1.x} ${p1.y}`;
-    }
-    return d;
-  }, [eqBands]);
+  const curvePath = useMemo(() => buildEqualizerCurvePath(eqBands), [eqBands]);
 
   return (
     <AppBackground>
