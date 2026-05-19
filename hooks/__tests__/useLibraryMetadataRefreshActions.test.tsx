@@ -83,7 +83,11 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
   const setImportStatus = jest.fn();
   const showAlert = jest.fn();
   const refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 2, failed: 3 });
-  const withTimeoutImpl = jest.fn(<T,>(promise: Promise<T>) => promise);
+  const withTimeoutCalls = jest.fn();
+  const withTimeoutImpl = <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+    withTimeoutCalls(promise, timeoutMs, timeoutMessage);
+    return promise;
+  };
   const screen = render(
     <HookHarness
       songs={[song('old')]}
@@ -100,7 +104,7 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
   fireEvent.press(screen.getByText('refresh'));
 
   await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')]));
-  expect(withTimeoutImpl).toHaveBeenCalledWith(expect.any(Promise), 100, expect.any(String));
+  expect(withTimeoutCalls).toHaveBeenCalledWith(expect.any(Promise), 100, expect.any(String));
   expect(setSongs).toHaveBeenCalledWith([song('updated')]);
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 2, 3));
   expect(setMenuOpen).toHaveBeenCalledWith(false);
