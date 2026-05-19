@@ -6,11 +6,13 @@ import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import SongCard from '../components/SongCard';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { displayAlbum, displayArtist, type LibraryGroupItem } from '../utils/libraryPresentation';
+import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
-import { isDemoSong } from '../utils/libraryDemoSongs';
-
-const SONG_ROW_HEIGHT = 62;
+import {
+  buildSongCardSong,
+  getLibrarySongItemLayout,
+  shouldShowTrackInfoAction,
+} from '../utils/libraryRendererHelpers';
 
 export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
 export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
@@ -53,19 +55,15 @@ export const useLibraryRenderers = ({
 
   const songKeyExtractor = useCallback((item: Song) => item.id, []);
 
-  const getSongItemLayout = useCallback((_: ArrayLike<Song> | null | undefined, index: number) => ({
-    length: SONG_ROW_HEIGHT,
-    offset: SONG_ROW_HEIGHT * index,
-    index,
-  }), []);
+  const getSongItemLayout = useCallback(getLibrarySongItemLayout, []);
 
   const renderSongItem = useCallback(({ item }: { item: Song }) => (
     <SongCard
-      song={{ ...item, artist: displayArtist(item), album: displayAlbum(item) }}
+      song={buildSongCardSong(item)}
       isCurrent={currentSongId === item.id}
       isPlaying={currentSongId === item.id && isPlaying}
       onPressSong={song => handleSongPress(song, filteredSongs)}
-      onInfoSong={isDemoSong(item) ? undefined : onOpenTrackInfo}
+      onInfoSong={shouldShowTrackInfoAction(item) ? onOpenTrackInfo : undefined}
     />
   ), [currentSongId, filteredSongs, handleSongPress, isPlaying, onOpenTrackInfo]);
 
