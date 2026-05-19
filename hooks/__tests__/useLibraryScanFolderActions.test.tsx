@@ -154,7 +154,7 @@ test('persistChangedFolderUpdates updates folders only when persistence returns 
   await waitFor(() => expect(mockedPersistChangedFolderErrorUpdates).toHaveBeenCalledWith([folder('a')], [folder('changed')]));
   expect(setScanFolders).toHaveBeenCalledWith([folder('changed')]);
 
-  mockedPersistChangedFolderErrorUpdates.mockResolvedValueOnce(undefined);
+  mockedPersistChangedFolderErrorUpdates.mockResolvedValueOnce(null);
   setScanFolders.mockClear();
   fireEvent.press(screen.getByText('persist-empty'));
 
