@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import {
   useNavigation,
@@ -26,6 +24,7 @@ import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { pickTagEditorCover } from './tagEditorCoverPicker';
+import TagEditorCoverControls from './TagEditorCoverControls';
 import TagEditorFields from './TagEditorFields';
 import TagEditorNotices from './TagEditorNotices';
 import {
@@ -162,55 +161,20 @@ const TagEditor: React.FC = () => {
             onChangeField={handleChangeField}
           />
 
-          <Pressable
-            testID="remove-cover"
-            accessibilityRole="switch"
-            accessibilityState={{
-              checked: removeCover,
-              disabled: !capability.canWrite || !hasCover || saving || hasReplacementCover,
-            }}
-            style={[styles.toggle, hasReplacementCover && styles.disabledButton]}
-            disabled={!capability.canWrite || !hasCover || saving || hasReplacementCover}
-            onPress={() => {
+          <TagEditorCoverControls
+            canWrite={capability.canWrite}
+            saving={saving}
+            hasCover={hasCover}
+            removeCover={removeCover}
+            replacementCover={replacementCover}
+            onToggleRemoveCover={() => {
               setReplacementCover(null);
               setRemoveCover(v => !v);
             }}
-          >
-            <Text style={styles.toggleText}>
-              Cover entfernen: {removeCover ? 'Ja' : 'Nein'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            testID="pick-cover"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !capability.canWrite || saving }}
-            disabled={!capability.canWrite || saving}
-            style={({ pressed }) => [
-              styles.toggle,
-              pressed && styles.pressed,
-              (!capability.canWrite || saving) && styles.disabledButton,
-            ]}
-            onPress={() => {
+            onPickCover={() => {
               void handlePickCover();
             }}
-          >
-            <Text style={styles.toggleText}>
-              Cover auswählen: {hasReplacementCover ? 'Ausgewählt' : 'JPG/PNG'}
-            </Text>
-            <Text style={styles.helperText}>
-              Maximal 5 MB. Ein neues Cover ersetzt ein bestehendes Cover beim Speichern.
-            </Text>
-          </Pressable>
-
-          {replacementCover?.uri && (
-            <View testID="cover-preview" style={styles.coverPreviewWrap}>
-              <Image source={{ uri: replacementCover.uri }} style={styles.coverPreview} />
-              <Text style={styles.helperText}>
-                {replacementCover.mimeType} · {Math.round(replacementCover.sizeBytes / 1024)} KB
-              </Text>
-            </View>
-          )}
+          />
 
           <Pressable
             testID="save-button"
@@ -250,25 +214,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.heading,
     fontSize: 22,
   },
-  toggle: {
-    padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  toggleText: { color: theme.palette.text.primary },
-  helperText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6 },
-  coverPreviewWrap: {
-    padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surface,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    alignItems: 'center',
-    gap: 8,
-  },
-  coverPreview: { width: 130, height: 130, borderRadius: 18 },
   saveButton: {
     padding: 12,
     borderRadius: theme.radii.input,
@@ -280,7 +225,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.surfaceElevated,
   },
   disabledButton: { opacity: 0.5 },
-  pressed: { opacity: 0.72 },
   saveText: {
     color: theme.palette.text.primary,
     textAlign: 'center',
