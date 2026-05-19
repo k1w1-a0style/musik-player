@@ -12,6 +12,7 @@ import type { Playlist, Song } from '../../types/Song';
 
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
 const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }];
+const eqBands = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationHelpers', () => {
@@ -24,7 +25,7 @@ describe('musicHydrationHelpers', () => {
     await storage.set(StorageKeys.SONGS, songs);
     await storage.set(StorageKeys.PLAYLISTS, playlists);
     await storage.set(StorageKeys.EQ_ENABLED, true);
-    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3]);
+    await storage.set(StorageKeys.EQ_BANDS, eqBands);
     await storage.set(StorageKeys.EQ_PRESET, 'rock');
     await storage.set(StorageKeys.VOLUME, 0.7);
     await storage.set(StorageKeys.REPEAT_MODE, 'all');
@@ -35,7 +36,7 @@ describe('musicHydrationHelpers', () => {
       songs,
       playlists,
       eqEnabled: true,
-      eqBands: [1, 2, 3],
+      eqBands,
       eqPreset: 'rock',
       volume: 0.7,
       repeatMode: 'all',
@@ -120,12 +121,45 @@ describe('musicHydrationHelpers', () => {
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
   });
 
+  test('stops native queue hydration when cancelled after TrackPlayer reset', async () => {
+    const nativeQueueRef = createSongRef();
+    let cancelled = false;
+    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
+      cancelled = true;
+    });
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => cancelled,
+    });
+
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(nativeQueueRef.current).toEqual([]);
+  });
+
   test('applies stored playback settings to state and TrackPlayer', () => {
     const stored: StoredMusicHydrationState = {
       songs: null,
       playlists,
       eqEnabled: true,
-      eqBands: [1, 2, 3],
+      eqBands,
       eqPreset: 'rock',
       volume: 0.7,
       repeatMode: 'all',
@@ -153,13 +187,40 @@ describe('musicHydrationHelpers', () => {
 
     expect(setPlaylists).toHaveBeenCalledWith(playlists);
     expect(setEqEnabledState).toHaveBeenCalledWith(true);
-    expect(setEqBandsState).toHaveBeenCalledWith([1, 2, 3]);
+    expect(setEqBandsState).toHaveBeenCalledWith(eqBands);
     expect(setEqPreset).toHaveBeenCalledWith('rock');
     expect(setVolumeState).toHaveBeenCalledWith(0.7);
     expect(setRepeatMode).toHaveBeenCalledWith('all');
     expect(setShuffle).toHaveBeenCalledWith(true);
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
+  });
+
+  test('skips invalid stored eq band arrays when applying settings', () => {
+    const setEqBandsState = jest.fn();
+
+    applyStoredPlaybackSettings({
+      stored: {
+        songs: null,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: [1, 2, 3],
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: null,
+        currentSongId: null,
+      },
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState,
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+    });
+
+    expect(setEqBandsState).not.toHaveBeenCalled();
   });
 
   test('runs full music hydration and marks provider ready', async () => {
