@@ -127,6 +127,39 @@ export const buildFormAfterSave = (
   return next;
 };
 
+const applyEditableTagPatch = (
+  metadataPatch: Partial<Song>,
+  key: keyof EditableTrackTags,
+  value: string | undefined,
+): void => {
+  switch (key) {
+    case 'title':
+      metadataPatch.title = value;
+      break;
+    case 'artist':
+      metadataPatch.artist = value;
+      break;
+    case 'album':
+      metadataPatch.album = value;
+      break;
+    case 'year':
+      metadataPatch.year = value;
+      break;
+    case 'genre':
+      metadataPatch.genre = value;
+      break;
+    case 'trackNumber':
+      metadataPatch.trackNumber = value;
+      break;
+    case 'discNumber':
+      metadataPatch.discNumber = value;
+      break;
+    case 'comment':
+      metadataPatch.comment = value;
+      break;
+  }
+};
+
 export const buildMetadataPatchFromDraft = (
   draft: TagEditDraft,
   replacementCover?: PickedTagCover | null,
@@ -136,7 +169,7 @@ export const buildMetadataPatchFromDraft = (
 
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    metadataPatch[field.key] = normalizedTags[field.key];
+    applyEditableTagPatch(metadataPatch, field.key, normalizedTags[field.key]);
   }
 
   if (draft.removeCover) {
