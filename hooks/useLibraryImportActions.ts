@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
@@ -76,6 +76,8 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
+  const importInFlightRef = useRef(false);
+
   const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate) => {
     setSongs(update.songs);
     setActiveTab(update.activeTab);
@@ -132,6 +134,8 @@ export const useLibraryImportActions = ({
   }, [applyImportedSongsUpdate, confirmLibraryImportImpl, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   const importFromDevice = useCallback(async (): Promise<void> => {
+    if (importInFlightRef.current) return;
+    importInFlightRef.current = true;
     setMenuOpen(false);
     const importCopy = getLibraryImportFlowCopy();
     setImportStatus(importCopy.preparingStatus);
@@ -148,6 +152,7 @@ export const useLibraryImportActions = ({
       const stoppedAlert = getImportStoppedAlert(error);
       showAlert(stoppedAlert);
     } finally {
+      importInFlightRef.current = false;
       setLoading(false);
       setImportStatus(null);
     }
