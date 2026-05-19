@@ -15,8 +15,6 @@ import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -182,6 +180,10 @@ class SystemAudioModule : Module() {
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
+      if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
+        Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogUri()}")
+        return@AsyncFunction null
+      }
       val mimeType = detectImageMime(bytes) ?: run {
         Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogUri()}")
         return@AsyncFunction null
@@ -243,26 +245,14 @@ class SystemAudioModule : Module() {
           if (comma < 0) null
           else {
             val bytes = Base64.decode(uri.substring(comma + 1), Base64.DEFAULT)
+            if (bytes.size.toLong() > MAX_PALETTE_IMAGE_BYTES) return null
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
           }
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
-          val connection = (URL(uri).openConnection() as? HttpURLConnection) ?: return null
-          try {
-            connection.connectTimeout = 4000
-            connection.readTimeout = 4000
-            connection.useCaches = false
-            connection.instanceFollowRedirects = true
-            connection.connect()
-            if (connection.responseCode !in 200..299) return null
-            connection.inputStream.use {
-              val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-              BitmapFactory.decodeStream(it, null, opts)
-            }
-          } finally {
-            connection.disconnect()
-          }
+          Log.d(TAG, "remote palette extraction blocked uri=${uri.safeLogUri()}")
+          null
         }
         else -> {
           val ctx = appContext.reactContext ?: return null
@@ -299,8 +289,10 @@ class SystemAudioModule : Module() {
           }
           retriever.setDataSource(path)
         }
-        uri.startsWith("http://") || uri.startsWith("https://") ->
-          retriever.setDataSource(uri, emptyMap<String, String>())
+        uri.startsWith("http://") || uri.startsWith("https://") -> {
+          Log.d(TAG, "remote embedded artwork extraction blocked uri=${uri.safeLogUri()}")
+          return null
+        }
         else -> retriever.setDataSource(uri)
       }
       val artwork = retriever.embeddedPicture
@@ -318,6 +310,7 @@ class SystemAudioModule : Module() {
   }
 
   private fun cacheArtworkBytes(sourceUri: String, bytes: ByteArray, extension: String): String? {
+    if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) return null
     val ctx = appContext.reactContext ?: return null
     return try {
       val dir = File(ctx.cacheDir, EMBEDDED_ARTWORK_CACHE_DIR)
@@ -393,5 +386,7 @@ class SystemAudioModule : Module() {
     private const val EMBEDDED_ARTWORK_CACHE_DIR = "embedded-artwork"
     private const val MAX_EMBEDDED_ARTWORK_CACHE_FILES = 200
     private const val MAX_EMBEDDED_ARTWORK_CACHE_BYTES = 25L * 1024L * 1024L
+    private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
+    private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
   }
 }
