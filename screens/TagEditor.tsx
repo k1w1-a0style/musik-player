@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import {
   useNavigation,
   useRoute,
@@ -26,14 +25,14 @@ import type { EditableTrackTags, TagWriterErrorCode } from '../types/TagEdit';
 import { getTagEditCapability } from '../utils/tagEditCapability';
 import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
-import { buildEditableCoverFromPickerAsset, type PickedTagCover } from '../utils/tagCoverPicker';
+import type { PickedTagCover } from '../utils/tagCoverPicker';
+import { pickTagEditorCover } from './tagEditorCoverPicker';
 import {
   blockingReasonMessage,
   buildDraftFromDirtyFields,
   buildFormAfterSave,
   buildMetadataPatchFromDraft,
   capabilityReason,
-  COVER_PICK_ERROR_MESSAGES,
   ERROR_MESSAGES,
   FIELDS,
   type FormState,
@@ -100,26 +99,14 @@ const TagEditor: React.FC = () => {
 
   const handlePickCover = async (): Promise<void> => {
     if (!capability.canWrite || saving) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.9,
-      base64: true,
-    });
-    if (result.canceled) {
-      setStatus('Cover-Auswahl abgebrochen.');
-      return;
-    }
-    const asset = result.assets[0];
-    const coverResult = buildEditableCoverFromPickerAsset(asset);
-    if (!coverResult.ok) {
-      setStatus(COVER_PICK_ERROR_MESSAGES[coverResult.reason]);
-      return;
-    }
-    setReplacementCover(coverResult.cover);
+
+    const result = await pickTagEditorCover();
+    setStatus(result.message);
+
+    if (result.status !== 'selected') return;
+
+    setReplacementCover(result.cover);
     setRemoveCover(false);
-    setStatus('Neues Cover ausgewählt. Speichern schreibt es in die Datei.');
   };
 
   const onSaveConfirmed = async (): Promise<void> => {
