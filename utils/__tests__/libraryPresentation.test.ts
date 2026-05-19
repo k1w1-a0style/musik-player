@@ -17,6 +17,8 @@ const song = (patch: Partial<Song>): Song => ({
   album: patch.album,
   genre: patch.genre,
   cover: patch.cover,
+  duration: patch.duration,
+  fileInfo: patch.fileInfo,
 });
 
 test('cleans SAF/content labels to readable names', () => {
@@ -57,6 +59,31 @@ test('mergeSongs dedupes by id when uri is missing', () => {
   );
 
   expect(merged).toEqual([song({ id: 'same', title: 'New', artist: 'B', album: 'Album' })]);
+});
+
+test('mergeSongs dedupes by stable file fingerprint when uri representation changed', () => {
+  const merged = mergeSongs(
+    [song({
+      id: 'old',
+      title: 'Old',
+      artist: 'A',
+      uri: 'file:///storage/emulated/0/Music/song.mp3',
+      duration: 123,
+      fileInfo: { filename: 'song.mp3', size: 1000, uri: 'file:///storage/emulated/0/Music/song.mp3' },
+    })],
+    [song({
+      id: 'new',
+      title: 'New',
+      artist: 'B',
+      album: 'Album',
+      uri: 'content://media/external/audio/media/42',
+      duration: 123,
+      fileInfo: { filename: 'song.mp3', size: 1000, uri: 'content://media/external/audio/media/42' },
+    })],
+  );
+
+  expect(merged).toHaveLength(1);
+  expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
 });
 
 test('groupSongs groups and sorts with cover fallback', () => {
