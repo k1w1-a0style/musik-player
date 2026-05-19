@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
-import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
+import { EQ_BAND_COUNT, type EqPresetName, type Playlist, type RepeatMode, type Song } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
 import {
@@ -107,6 +107,7 @@ export const hydrateStoredSongs = async ({
 
   if (didSongCoversChange(sanitizedSongs, stored.songs)) {
     await storage.set(StorageKeys.SONGS, sanitizedSongs);
+    if (isCancelled()) return;
   }
 
   const {
@@ -126,6 +127,7 @@ export const hydrateStoredSongs = async ({
 
   if (shouldClearPersistedCurrentSongId) {
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    if (isCancelled()) return;
   }
 
   if (!restoredSong) return;
@@ -133,7 +135,11 @@ export const hydrateStoredSongs = async ({
   setCurrentSong(restoredSong);
   try {
     await TrackPlayer.reset();
+    if (isCancelled()) return;
+
     await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
+    if (isCancelled()) return;
+
     nativeQueueRef.current = orderedQueue.slice();
   } catch {
     // ignore hydration queue init failures
@@ -152,7 +158,7 @@ export const applyStoredPlaybackSettings = ({
 }: ApplyStoredPlaybackSettingsArgs): void => {
   if (stored.playlists) setPlaylists(stored.playlists);
   if (stored.eqEnabled != null) setEqEnabledState(stored.eqEnabled);
-  if (stored.eqBands) setEqBandsState(stored.eqBands);
+  if (stored.eqBands?.length === EQ_BAND_COUNT) setEqBandsState(stored.eqBands);
   if (stored.eqPreset) setEqPreset(stored.eqPreset);
   if (stored.volume != null) {
     setVolumeState(stored.volume);
@@ -171,6 +177,8 @@ export const runMusicHydration = async ({
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
   await setupTrackPlayer();
+  if (isCancelled()) return;
+
   const stored = await loadStoredMusicHydrationState();
 
   if (isCancelled()) return;
