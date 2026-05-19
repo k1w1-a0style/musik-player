@@ -42,6 +42,14 @@ test('loads startup scan folders and favorite ids on mount', async () => {
   expect(mockedLoadFavoriteSongIds).not.toHaveBeenCalled();
 });
 
+test('loads fresh favorite ids when mounted on favorites tab', async () => {
+  const view = render(<HookViewer activeTab="favorites" />);
+
+  await waitFor(() => expect(mockedLoadFavoriteSongIds).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(view.getByTestId('stored-state').props.children).toBe('music|fresh-favorite'));
+  expect(mockedLoadLibraryStartupState).toHaveBeenCalledTimes(1);
+});
+
 test('reloads favorite ids when favorites tab becomes active', async () => {
   const view = render(<HookViewer activeTab="tracks" />);
   await waitFor(() => expect(view.getByTestId('stored-state').props.children).toBe('music|startup-favorite'));
