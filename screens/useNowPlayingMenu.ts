@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { AppStackParamList } from '../types/navigation';
 import { APP_STACK_ROUTES } from '../types/routes';
 
 interface NowPlayingMenuState {
@@ -11,7 +13,7 @@ interface NowPlayingMenuState {
 }
 
 export const useNowPlayingMenu = (songId?: string): NowPlayingMenuState => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const openMenu = useCallback(() => {
