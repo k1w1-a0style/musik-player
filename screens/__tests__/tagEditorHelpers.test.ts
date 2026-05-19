@@ -7,6 +7,8 @@ import {
   type FormState,
 } from '../tagEditorHelpers';
 import type { Song } from '../../types/Song';
+import type { WriteTagsResult } from '../../types/TagEdit';
+import type { PickedTagCover } from '../../utils/tagCoverPicker';
 
 const song: Song = {
   id: 's1',
@@ -27,6 +29,12 @@ const form: FormState = {
   discNumber: '',
   comment: '',
 };
+
+const writeResult = (status: WriteTagsResult['status']): WriteTagsResult => ({
+  status,
+  sourceUri: 'file:///song.mp3',
+  warnings: [],
+});
 
 describe('tagEditorHelpers', () => {
   test('builds initial form from song', () => {
@@ -63,10 +71,10 @@ describe('tagEditorHelpers', () => {
   });
 
   test('adds replacement cover patch', () => {
-    const cover = {
+    const cover: PickedTagCover = {
       uri: 'file:///new-cover.jpg',
       mimeType: 'image/jpeg',
-      base64: 'abc',
+      data: new Uint8Array([1, 2, 3]),
       sizeBytes: 1234,
     };
     const draft = buildDraftFromDirtyFields('s1', form, {}, false, cover);
@@ -83,9 +91,9 @@ describe('tagEditorHelpers', () => {
   });
 
   test('maps status messages', () => {
-    expect(statusMessage({ status: 'written' })).toBe('Metadaten erfolgreich geschrieben.');
-    expect(statusMessage({ status: 'noop' })).toBe('Keine Änderung.');
-    expect(statusMessage({ status: 'rolledBack' })).toBe('Änderung wurde zurückgerollt.');
-    expect(statusMessage({ status: 'blocked', reasons: [] })).toBe('Schreiben blockiert.');
+    expect(statusMessage(writeResult('written'))).toBe('Metadaten erfolgreich geschrieben.');
+    expect(statusMessage(writeResult('noop'))).toBe('Keine Änderung.');
+    expect(statusMessage(writeResult('rolledBack'))).toBe('Änderung wurde zurückgerollt.');
+    expect(statusMessage(writeResult('blocked'))).toBe('Schreiben blockiert.');
   });
 });
