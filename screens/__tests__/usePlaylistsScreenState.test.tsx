@@ -49,7 +49,7 @@ const PlaylistsStateProbe = () => {
       <Pressable testID="set-name" onPress={() => state.setNewPlaylistName('  Techno  ')} />
       <Pressable testID="create" onPress={state.handleCreatePlaylist} />
       <Pressable testID="delete" onPress={() => state.handleDeletePlaylist('p1', 'Main')} />
-      <Pressable testID="play" onPress={() => state.playPlaylist('p1')} />
+      <Pressable testID="play" onPress={() => { void state.playPlaylist('p1'); }} />
     </>
   );
 };
