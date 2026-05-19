@@ -11,6 +11,8 @@ import type { Song } from '../types/Song';
 import { cleanupCoverCache } from './coverCacheCleanup';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
+export const MAX_CACHED_COVER_BYTES = 2 * 1024 * 1024;
+export const COVER_SANITIZE_BATCH_SIZE = 20;
 
 export const isBase64ImageDataUri = (value?: string): boolean => {
   if (!value) return false;
@@ -41,6 +43,12 @@ const detectSubtypeFromBytes = (bytes: Uint8Array): 'jpeg' | 'png' | 'webp' | un
 };
 
 const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
+
+const getDecodedBase64ByteLength = (value: string): number => {
+  const clean = value.replace(/\s+/g, '');
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  return Math.floor((clean.length * 3) / 4) - padding;
+};
 
 const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -120,6 +128,7 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
 
     const base64 = trimmed.slice(match[0].length);
     if (!isLikelyValidBase64Payload(base64)) return undefined;
+    if (getDecodedBase64ByteLength(base64) > MAX_CACHED_COVER_BYTES) return undefined;
     const prefixBytes = base64PrefixToBytes(base64);
     const declaredSubtype = match[1] ?? 'jpeg';
     const detectedSubtype = detectSubtypeFromBytes(prefixBytes);
@@ -161,7 +170,11 @@ export const sanitizeSongCover = async (song: Song): Promise<Song> => {
 };
 
 export const sanitizeSongsForStorage = async (songs: Song[]): Promise<Song[]> => {
-  const sanitized = await Promise.all(songs.map(sanitizeSongCover));
+  const sanitized: Song[] = [];
+  for (let i = 0; i < songs.length; i += COVER_SANITIZE_BATCH_SIZE) {
+    const batch = songs.slice(i, i + COVER_SANITIZE_BATCH_SIZE);
+    sanitized.push(...await Promise.all(batch.map(sanitizeSongCover)));
+  }
   void cleanupCoverCache(sanitized);
   return sanitized;
 };
