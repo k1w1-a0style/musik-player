@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
-import { EQ_PRESETS, type EqPresetName, type RepeatMode, type Song, type Playlist } from '../types/Song';
+import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName, type RepeatMode, type Song, type Playlist } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
 
@@ -84,6 +84,7 @@ const eqPresetSchema = z.union([
 ]);
 
 const repeatModeSchema = z.enum(['off', 'one', 'all']);
+const eqBandsSchema = z.array(z.number().finite()).length(EQ_BAND_COUNT);
 
 const parseArray = <T>(value: unknown, schema: z.ZodType<T>): T[] | null => {
   if (!Array.isArray(value)) return null;
@@ -114,7 +115,7 @@ const parseStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.EQ_PRESET:
       return parseScalar(value, eqPresetSchema);
     case StorageKeys.EQ_BANDS:
-      return parseArray(value, z.number());
+      return parseScalar(value, eqBandsSchema);
     case StorageKeys.EQ_ENABLED:
     case StorageKeys.SHUFFLE:
       return parseScalar(value, z.boolean());
