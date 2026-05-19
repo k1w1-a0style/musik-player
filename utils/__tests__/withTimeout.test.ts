@@ -25,3 +25,15 @@ test('clears timer when promise resolves', async () => {
   clearTimeoutSpy.mockRestore();
   jest.useRealTimers();
 });
+
+test('clears timer when promise rejects before timeout', async () => {
+  jest.useFakeTimers();
+  const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+  const promise = withTimeout(Promise.reject(new Error('source failed')), 100, 'too slow');
+
+  await expect(promise).rejects.toThrow('source failed');
+
+  expect(clearTimeoutSpy).toHaveBeenCalled();
+  clearTimeoutSpy.mockRestore();
+  jest.useRealTimers();
+});
