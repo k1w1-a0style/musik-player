@@ -1,11 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import {
   useNavigation,
   useRoute,
@@ -24,6 +18,7 @@ import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { pickTagEditorCover } from './tagEditorCoverPicker';
+import TagEditorActions from './TagEditorActions';
 import TagEditorCoverControls from './TagEditorCoverControls';
 import TagEditorFields from './TagEditorFields';
 import TagEditorNotices from './TagEditorNotices';
@@ -176,30 +171,15 @@ const TagEditor: React.FC = () => {
             }}
           />
 
-          <Pressable
-            testID="save-button"
-            accessibilityState={{ disabled: !canSave }}
-            style={[styles.saveButton, !canSave && styles.disabledButton]}
-            disabled={!canSave}
-            onPress={() =>
-              Alert.alert('Bestätigung', 'Metadaten wirklich in Datei schreiben?', [
-                { text: 'Abbrechen', style: 'cancel' },
-                {
-                  text: 'Speichern',
-                  onPress: () => {
-                    void onSaveConfirmed();
-                  },
-                },
-              ])
-            }
-          >
-            <Text style={styles.saveText}>{saving ? 'Speichern…' : 'Speichern'}</Text>
-          </Pressable>
-
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.saveText}>Zurück</Text>
-          </Pressable>
-          {status && <Text style={styles.status}>{status}</Text>}
+          <TagEditorActions
+            canSave={canSave}
+            saving={saving}
+            status={status}
+            onConfirmSave={() => {
+              void onSaveConfirmed();
+            }}
+            onBack={() => navigation.goBack()}
+          />
         </ScrollView>
       </Screen>
     </AppBackground>
@@ -214,23 +194,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.heading,
     fontSize: 22,
   },
-  saveButton: {
-    padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.primary,
-  },
-  backButton: {
-    padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surfaceElevated,
-  },
-  disabledButton: { opacity: 0.5 },
-  saveText: {
-    color: theme.palette.text.primary,
-    textAlign: 'center',
-    fontFamily: theme.fonts.heading,
-  },
-  status: { color: theme.palette.text.secondary },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading },
 });
 
