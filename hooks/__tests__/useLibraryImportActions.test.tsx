@@ -108,6 +108,27 @@ test('uses scan folder import on android when active scan folders exist', async 
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
+test('ignores overlapping import requests while one is running', async () => {
+  let resolveImport: (value: { songs: Song[]; errors: never[]; folderUpdates: undefined }) => void = () => undefined;
+  const importPromise = new Promise<{ songs: Song[]; errors: never[]; folderUpdates: undefined }>(resolve => {
+    resolveImport = resolve;
+  });
+  const importSongsFromSourcesImpl = jest.fn().mockReturnValue(importPromise);
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+  fireEvent.press(screen.getByText('import'));
+
+  expect(importSongsFromSourcesImpl).toHaveBeenCalledTimes(1);
+  resolveImport({ songs: [song('scan-song')], errors: [], folderUpdates: undefined });
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+});
+
 test('shows empty scan alert without applying song update', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [], errors: [], folderUpdates: undefined });
   const screen = render(
