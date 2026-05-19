@@ -81,6 +81,17 @@ describe('storage', () => {
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
   });
 
+  test('rejects eq band arrays with invalid values or unexpected length', async () => {
+    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3]);
+    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toBeNull();
+
+    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3, 4, 5, 6, 7, 'invalid', 9, 10]);
+    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toBeNull();
+
+    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
   test('filters invalid songs and playlists', async () => {
     const song = { id: 's1', title: 'Song', artist: 'Artist' };
     const playlist = { id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 1 };
