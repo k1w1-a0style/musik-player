@@ -3,7 +3,6 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
-import { buildDraftFromDirtyFields, hasRemovableCover } from './tagEditorHelpers';
 import TagEditorActions from './TagEditorActions';
 import TagEditorCoverControls from './TagEditorCoverControls';
 import TagEditorFields from './TagEditorFields';
