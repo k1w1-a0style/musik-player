@@ -24,17 +24,46 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
 
   const libraryValue = useMemo(
     () => buildLibraryMusicContextValue(value),
-    [value],
+    [
+      value.songs,
+      value.setSongs,
+      value.currentSong,
+      value.playSong,
+      value.isReady,
+      value.isPlaying,
+      value.updateSongMetadata,
+      value.playlists,
+      value.playPlaylist,
+    ],
   );
 
   const miniPlayerValue = useMemo(
     () => buildMiniPlayerMusicContextValue(value),
-    [value],
+    [
+      value.currentSong,
+      value.isPlaying,
+      value.togglePlayPause,
+      value.next,
+      value.previous,
+      value.playbackQueue,
+    ],
   );
 
   const nowPlayingValue = useMemo(
     () => buildNowPlayingMusicContextValue(value),
-    [value],
+    [
+      value.playbackQueue,
+      value.currentSong,
+      value.seekTo,
+      value.isPlaying,
+      value.volume,
+      value.setVolume,
+      value.palette,
+      value.fftBins,
+      value.visualizerRunning,
+      value.visualizerError,
+      value.playSong,
+    ],
   );
 
   return { value, libraryValue, miniPlayerValue, nowPlayingValue };
