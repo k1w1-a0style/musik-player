@@ -22,12 +22,12 @@ const RootNavigator: React.FC = () => (
       <Stack.Screen
         name={APP_STACK_ROUTES.TRACK_INFO}
         component={TrackInfo}
-        options={{ headerShown: true, title: 'TrackInfo' }}
+        options={{ headerShown: true, title: 'Track-Info' }}
       />
       <Stack.Screen
         name={APP_STACK_ROUTES.TAG_EDITOR}
         component={TagEditor}
-        options={{ headerShown: true, title: 'Tag Editor' }}
+        options={{ headerShown: true, title: 'Tags bearbeiten' }}
       />
       <Stack.Screen
         name={APP_STACK_ROUTES.NOW_PLAYING}
