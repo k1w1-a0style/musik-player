@@ -27,6 +27,7 @@ import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { pickTagEditorCover } from './tagEditorCoverPicker';
 import TagEditorFields from './TagEditorFields';
+import TagEditorNotices from './TagEditorNotices';
 import {
   blockingReasonMessage,
   buildDraftFromDirtyFields,
@@ -91,6 +92,7 @@ const TagEditor: React.FC = () => {
   const hasChanges = Object.keys(draft.tags).length > 0 || draft.removeCover === true || hasReplacementCover;
   const canSave =
     capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving;
+  const capabilityMessage = capability.canWrite ? undefined : capabilityReason(capability.reason);
   const blockedReasonMessage = blockingReasonMessage(
     plan.blockingReasons as TagWriterErrorCode[],
   );
@@ -148,21 +150,11 @@ const TagEditor: React.FC = () => {
       <Screen contentStyle={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.header}>Tag Editor</Text>
-          {!capability.canWrite && (
-            <View style={styles.warningBox}>
-              <Text style={styles.warning}>{capabilityReason(capability.reason)}</Text>
-            </View>
-          )}
-          {!!blockedReasonMessage && (
-            <View style={styles.warningBox}>
-              <Text style={styles.warning}>{blockedReasonMessage}</Text>
-            </View>
-          )}
-          {!!safetyMessage && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoText}>{safetyMessage}</Text>
-            </View>
-          )}
+          <TagEditorNotices
+            capabilityMessage={capabilityMessage}
+            blockedReasonMessage={blockedReasonMessage}
+            safetyMessage={safetyMessage}
+          />
 
           <TagEditorFields
             form={form}
@@ -294,22 +286,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.fonts.heading,
   },
-  warningBox: {
-    backgroundColor: 'rgba(255, 111, 138, 0.12)',
-    borderColor: 'rgba(255, 111, 138, 0.4)',
-    borderWidth: 1,
-    borderRadius: theme.radii.input,
-    padding: 10,
-  },
-  warning: { color: theme.palette.error, fontFamily: theme.fonts.body },
-  infoBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: theme.palette.border,
-    borderWidth: 1,
-    borderRadius: theme.radii.input,
-    padding: 10,
-  },
-  infoText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
   status: { color: theme.palette.text.secondary },
   error: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading },
 });
