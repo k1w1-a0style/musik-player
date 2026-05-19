@@ -1,15 +1,13 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Text, StyleSheet, FlatList } from 'react-native';
-import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
 import AlbumTile from './AlbumTile';
-import { buildAlbumGroups } from './coversHelpers';
+import { useCoversScreenState } from './useCoversScreenState';
 
 const Covers: React.FC = () => {
-  const { songs, playSong } = useMusicContext();
-  const albums = useMemo(() => buildAlbumGroups(songs), [songs]);
+  const { albums, playSong } = useCoversScreenState();
 
   return (
     <AppBackground>
