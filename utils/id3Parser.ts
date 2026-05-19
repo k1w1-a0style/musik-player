@@ -9,6 +9,7 @@
 
 import * as FileSystem from 'expo-file-system';
 import { readAsStringAsync, EncodingType, getInfoAsync } from 'expo-file-system/legacy';
+import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 
 export interface Id3Tags {
   title?: string;
@@ -24,8 +25,6 @@ export interface Id3Tags {
 }
 const HEAD_READ_LIMIT = 1024 * 1024;
 const TAIL_READ_LIMIT = 1024 * 1024;
-
-type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number => {
   return (
@@ -212,52 +211,13 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   return out;
 };
 
-const detectMimeFromMagicBytes = (bytes: Uint8Array): ImageMime | undefined => {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
-    return 'image/jpeg';
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47 &&
-    bytes[4] === 0x0d &&
-    bytes[5] === 0x0a &&
-    bytes[6] === 0x1a &&
-    bytes[7] === 0x0a
-  )
-    return 'image/png';
-  if (
-    bytes.length >= 12 &&
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  )
-    return 'image/webp';
-  return undefined;
-};
-
-const normalizeMime = (value?: string): ImageMime | undefined => {
-  if (!value) return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'image/jpeg';
-  if (normalized.includes('png')) return 'image/png';
-  if (normalized.includes('webp')) return 'image/webp';
-  return undefined;
-};
-
 const buildCoverDataUri = (
   imageBytes: Uint8Array,
   mimeHint?: string,
 ): string | undefined => {
   if (imageBytes.length === 0) return undefined;
-  const hintMime = normalizeMime(mimeHint);
-  const magicMime = detectMimeFromMagicBytes(imageBytes);
+  const hintMime = normalizeImageMime(mimeHint);
+  const magicMime = detectImageMimeFromBytes(imageBytes);
   const mime = magicMime ?? hintMime;
   if (hintMime && !magicMime) return undefined;
   if (!mime) return undefined;
