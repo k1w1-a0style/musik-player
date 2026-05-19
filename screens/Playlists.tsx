@@ -13,6 +13,11 @@ import { useMusicContext } from '../contexts/MusicContext';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { theme } from '../theme';
+import {
+  countValidPlaylistSongs,
+  formatPlaylistSongCount,
+  normalizePlaylistName,
+} from './playlistHelpers';
 
 const Playlists: React.FC = () => {
   const { playlists, createPlaylist, deletePlaylist, playPlaylist, songs } =
@@ -20,7 +25,7 @@ const Playlists: React.FC = () => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
 
   const handleCreatePlaylist = (): void => {
-    const trimmed = newPlaylistName.trim();
+    const trimmed = normalizePlaylistName(newPlaylistName);
     if (!trimmed) {
       Alert.alert('Fehler', 'Bitte gib einen Namen für die Playlist ein.');
       return;
@@ -74,7 +79,7 @@ const Playlists: React.FC = () => {
           keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}
           renderItem={({ item }) => {
-            const valid = item.songIds.filter(id => songs.find(s => s.id === id)).length;
+            const valid = countValidPlaylistSongs(item, songs);
             return (
               <View style={styles.playlistItem} testID={`playlist-item-${item.id}`}>
                 <View style={styles.playlistIcon}>
@@ -84,9 +89,7 @@ const Playlists: React.FC = () => {
                   <Text style={styles.playlistName} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  <Text style={styles.songCount}>
-                    {valid} {valid === 1 ? 'Titel' : 'Titel'}
-                  </Text>
+                  <Text style={styles.songCount}>{formatPlaylistSongCount(valid)}</Text>
                 </View>
                 <Pressable
                   testID={`play-playlist-${item.id}`}
