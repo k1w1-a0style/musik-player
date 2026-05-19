@@ -7,8 +7,10 @@ type CacheFileSystem = {
   cacheDirectory?: string | null;
   getInfoAsync?: (uri: string) => Promise<{ exists: boolean }>;
   readDirectoryAsync?: (uri: string) => Promise<string[]>;
-  [key: string]: unknown;
+  deleteAsync?: (uri: string, options?: { idempotent?: boolean }) => Promise<void>;
 };
+
+const CLEANUP_DELETE_BATCH_SIZE = 20;
 
 const getFileSystem = (): CacheFileSystem => LegacyFileSystem as CacheFileSystem;
 
@@ -44,6 +46,17 @@ const getReferencedFileNames = (songs: Song[], directory: string): Set<string> =
   return referenced;
 };
 
+const deleteFilesInBatches = async (
+  fileNames: string[],
+  directory: string,
+  eraseFile: (uri: string, options?: { idempotent?: boolean }) => Promise<void>,
+): Promise<void> => {
+  for (let i = 0; i < fileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
+    const batch = fileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
+    await Promise.all(batch.map(fileName => eraseFile(`${directory}/${fileName}`, { idempotent: true })));
+  }
+};
+
 export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
   const directory = getCoverCacheDirectory();
   if (!directory) return;
@@ -53,9 +66,7 @@ export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
     const fallbackFs = getFallbackFileSystem();
     const getInfo = fs.getInfoAsync ?? fallbackFs.getInfoAsync;
     const readDirectory = fs.readDirectoryAsync ?? fallbackFs.readDirectoryAsync;
-    const eraseFile = (fs[`${'delete'}Async`] ?? fallbackFs[`${'delete'}Async`]) as
-      | ((uri: string, options?: { idempotent?: boolean }) => Promise<void>)
-      | undefined;
+    const eraseFile = fs.deleteAsync ?? fallbackFs.deleteAsync;
     if (!getInfo || !readDirectory || !eraseFile) return;
 
     const info = await getInfo(directory);
@@ -63,11 +74,8 @@ export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
 
     const referencedFileNames = getReferencedFileNames(songs, directory);
     const cachedFileNames = await readDirectory(directory);
-    await Promise.all(
-      cachedFileNames
-        .filter(fileName => !referencedFileNames.has(fileName))
-        .map(fileName => eraseFile(`${directory}/${fileName}`, { idempotent: true })),
-    );
+    const orphanedFileNames = cachedFileNames.filter(fileName => !referencedFileNames.has(fileName));
+    await deleteFilesInBatches(orphanedFileNames, directory, eraseFile);
   } catch {
     // Best-effort cache maintenance must not break library hydration or persistence.
   }
