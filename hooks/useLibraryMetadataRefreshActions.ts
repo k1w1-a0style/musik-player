@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryAlertCopy } from './useLibraryAlerts';
@@ -43,6 +43,8 @@ export const useLibraryMetadataRefreshActions = ({
   refreshSongsFromId3Impl = refreshSongsFromId3,
   withTimeoutImpl = withTimeout,
 }: UseLibraryMetadataRefreshActionsOptions): UseLibraryMetadataRefreshActionsResult => {
+  const refreshInFlightRef = useRef(false);
+
   const runMetadataRefresh = useCallback(async (refreshCopy: MetadataRefreshFlowCopy): Promise<void> => {
     setImportStatus(refreshCopy.readingStatus);
     const result = await withTimeoutImpl(refreshSongsFromId3Impl(songs), importTimeoutMs, refreshCopy.timeoutMessage);
@@ -52,9 +54,12 @@ export const useLibraryMetadataRefreshActions = ({
   }, [importTimeoutMs, refreshSongsFromId3Impl, setImportStatus, setSongs, showAlert, songs, withTimeoutImpl]);
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     setMenuOpen(false);
     const availabilityResult = buildMetadataRefreshAvailabilityResult(songs.length);
     if (availabilityResult.kind === 'empty') {
+      refreshInFlightRef.current = false;
       showAlert(availabilityResult.alert);
       return;
     }
@@ -67,6 +72,7 @@ export const useLibraryMetadataRefreshActions = ({
       const stoppedAlert = getMetadataUpdateStoppedAlert(error);
       showAlert(stoppedAlert);
     } finally {
+      refreshInFlightRef.current = false;
       setLoading(false);
       setImportStatus(null);
     }
