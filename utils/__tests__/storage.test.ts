@@ -32,6 +32,13 @@ describe('storage', () => {
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
   });
 
+  test('scan folders ignore duplicate uris', async () => {
+    await addScanFolder({ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true });
+    await addScanFolder({ id: '2', name: 'Music Duplicate', uri: 'content://music', addedAt: 2, enabled: true });
+
+    expect(await getScanFolders()).toEqual([{ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
+  });
+
   test('scan folders ignore malformed data', async () => {
     await storage.set(StorageKeys.SCAN_FOLDERS, [{ bad: true }, { id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: false }]);
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: false }]);
@@ -44,6 +51,13 @@ describe('storage', () => {
     await removeScanFolder('1');
     expect(await getScanFolders()).toEqual([]);
     await clearScanFolders();
+  });
+
+  test('updateScanFolder preserves folder id even if patch contains id', async () => {
+    await storage.set(StorageKeys.SCAN_FOLDERS, [{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: true }]);
+    await updateScanFolder('1', { id: 'changed', name: 'Renamed' });
+
+    expect(await getScanFolders()).toEqual([{ id: '1', name: 'Renamed', uri: 'u', addedAt: 0, enabled: true }]);
   });
 
   test('filters invalid favorite ids', async () => {
