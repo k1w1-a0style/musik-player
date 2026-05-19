@@ -16,7 +16,7 @@ import {
   type NavigationProp,
   type RouteProp,
 } from '@react-navigation/native';
-import type { Song, SongCoverInfo } from '../types/Song';
+import type { Song } from '../types/Song';
 import type { AppStackParamList } from '../types/navigation';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
@@ -26,12 +26,12 @@ import type { EditableTrackTags, TagWriterErrorCode } from '../types/TagEdit';
 import { getTagEditCapability } from '../utils/tagEditCapability';
 import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
-import { normalizeEditableTags } from '../utils/tagValidation';
 import { buildEditableCoverFromPickerAsset, type PickedTagCover } from '../utils/tagCoverPicker';
 import {
   blockingReasonMessage,
   buildDraftFromDirtyFields,
   buildFormAfterSave,
+  buildMetadataPatchFromDraft,
   capabilityReason,
   COVER_PICK_ERROR_MESSAGES,
   ERROR_MESSAGES,
@@ -127,32 +127,7 @@ const TagEditor: React.FC = () => {
     try {
       const result = await writeTagsToFile(song, draft);
       if (result.status === 'written') {
-        const normalizedTags = normalizeEditableTags(draft.tags);
-        const metadataPatch: Partial<Song> = {};
-        for (const field of FIELDS) {
-          if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-          const value = normalizedTags[field.key];
-          if (
-            field.key === 'title' ||
-            field.key === 'artist' ||
-            field.key === 'album' ||
-            field.key === 'year' ||
-            field.key === 'genre' ||
-            field.key === 'trackNumber' ||
-            field.key === 'discNumber' ||
-            field.key === 'comment'
-          ) {
-            metadataPatch[field.key] = value;
-          }
-        }
-        if (draft.removeCover) {
-          metadataPatch.cover = undefined;
-          metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
-        }
-        if (draft.cover) {
-          metadataPatch.cover = replacementCover?.uri;
-          metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
-        }
+        const metadataPatch = buildMetadataPatchFromDraft(draft, replacementCover);
         updateSongMetadata(song.id, metadataPatch);
         const updatedSong: Song = { ...song, ...metadataPatch };
         setForm(buildFormAfterSave(updatedSong, form, draft));
