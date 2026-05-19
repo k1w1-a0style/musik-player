@@ -36,7 +36,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
 
 const styles = StyleSheet.create({
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22, backgroundColor: 'rgba(0,0,0,0.20)' },
-  menuCard: { width: 235, borderRadius: 20, backgroundColor: '#343438', paddingVertical: 8, borderWidth: 1, borderColor: theme.palette.border },
+  menuCard: { width: 235, borderRadius: 20, backgroundColor: theme.palette.surfaceElevated, paddingVertical: 8, borderWidth: 1, borderColor: theme.palette.border },
 });
 
 export default NowPlayingMenuModal;
