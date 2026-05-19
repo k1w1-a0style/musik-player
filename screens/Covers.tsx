@@ -6,31 +6,11 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { getSongArtworkUri } from '../utils/songArtwork';
-
-interface AlbumGroup {
-  name: string;
-  songs: Song[];
-  artworkUri?: string;
-}
-
-const UNKNOWN_ALBUM = 'Unbekannt';
-
-const buildAlbumGroups = (songs: Song[]): AlbumGroup[] => {
-  const grouped = songs.reduce<Record<string, Song[]>>((acc, song) => {
-    const key = song.album?.trim() || UNKNOWN_ALBUM;
-    (acc[key] ||= []).push(song);
-    return acc;
-  }, {});
-
-  return Object.entries(grouped)
-    .map(([name, list]) => ({
-      name,
-      songs: list,
-      artworkUri: list.map(getSongArtworkUri).find(Boolean),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-};
+import {
+  buildAlbumGroups,
+  formatAlbumSongCount,
+  type AlbumGroup,
+} from './coversHelpers';
 
 const Covers: React.FC = () => {
   const { songs, playSong } = useMusicContext();
@@ -101,9 +81,7 @@ const AlbumTile = React.memo<AlbumTileProps>(({ album, onPressAlbum }) => {
       <Text style={styles.tileTitle} numberOfLines={1}>
         {album.name}
       </Text>
-      <Text style={styles.tileMeta}>
-        {album.songs.length} {album.songs.length === 1 ? 'Titel' : 'Titel'}
-      </Text>
+      <Text style={styles.tileMeta}>{formatAlbumSongCount(album.songs.length)}</Text>
     </Pressable>
   );
 });
