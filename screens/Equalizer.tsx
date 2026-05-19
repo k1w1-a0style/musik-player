@@ -1,13 +1,5 @@
 import React from 'react';
-import { StyleSheet, ScrollView } from 'react-native';
-import AppBackground from '../components/AppBackground';
-import Screen from '../components/Screen';
-import { theme } from '../theme';
-import EqualizerBandSliders from './EqualizerBandSliders';
-import EqualizerCurveChart from './EqualizerCurveChart';
-import EqualizerHeader from './EqualizerHeader';
-import EqualizerPresetList from './EqualizerPresetList';
-import EqualizerStatusCard from './EqualizerStatusCard';
+import EqualizerContent from './EqualizerContent';
 import { useEqualizerScreenState } from './useEqualizerScreenState';
 
 const Equalizer: React.FC = () => {
@@ -23,21 +15,17 @@ const Equalizer: React.FC = () => {
   } = useEqualizerScreenState();
 
   return (
-    <AppBackground>
-      <Screen style={styles.container} testID="equalizer-screen" contentStyle={styles.content}><ScrollView>
-        <EqualizerHeader eqEnabled={eqEnabled} onToggleEnabled={setEqEnabled} />
-        <EqualizerStatusCard eqNative={eqNative} />
-        <EqualizerCurveChart curvePath={curvePath} />
-        <EqualizerPresetList eqPreset={eqPreset} onApplyPreset={applyEqPreset} />
-        <EqualizerBandSliders eqEnabled={eqEnabled} eqBands={eqBands} onChangeBand={setEqBand} />
-      </ScrollView></Screen>
-    </AppBackground>
+    <EqualizerContent
+      eqEnabled={eqEnabled}
+      onToggleEnabled={setEqEnabled}
+      eqBands={eqBands}
+      onChangeBand={setEqBand}
+      eqPreset={eqPreset}
+      onApplyPreset={applyEqPreset}
+      eqNative={eqNative}
+      curvePath={curvePath}
+    />
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { paddingHorizontal: theme.spacing.md, paddingTop: 8 },
-});
 
 export default Equalizer;
