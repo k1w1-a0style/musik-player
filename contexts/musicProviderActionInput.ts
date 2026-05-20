@@ -8,6 +8,7 @@ type ContextLibraryInput = Pick<
 type ContextPlaylistInput = Pick<
   MusicContextValue,
   | 'createPlaylist'
+  | 'saveQueueAsPlaylist'
   | 'deletePlaylist'
   | 'renamePlaylist'
   | 'addSongToPlaylist'
@@ -30,6 +31,7 @@ export const buildMusicProviderContextLibraryInput = ({
 
 export const buildMusicProviderContextPlaylistInput = ({
   createPlaylist,
+  saveQueueAsPlaylist,
   deletePlaylist,
   renamePlaylist,
   addSongToPlaylist,
@@ -37,6 +39,7 @@ export const buildMusicProviderContextPlaylistInput = ({
   playPlaylist,
 }: PlaylistActionsInput): ContextPlaylistInput => ({
   createPlaylist,
+  saveQueueAsPlaylist,
   deletePlaylist,
   renamePlaylist,
   addSongToPlaylist,
