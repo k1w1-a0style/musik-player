@@ -50,6 +50,14 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   RollbackFailed: 'Rollback fehlgeschlagen.',
 };
 
+export const tagWriterErrorMessage = (code: TagWriterErrorCode, message?: string): string => {
+  if (code === 'WriteNotImplemented') {
+    if (message?.includes('ID3v2.2')) return ID3V22_UNSUPPORTED_MESSAGE;
+    if (message?.includes('ID3v2.4')) return ID3V24_UNSUPPORTED_MESSAGE;
+  }
+  return ERROR_MESSAGES[code] ?? 'Speichern fehlgeschlagen.';
+};
+
 export const COVER_PICK_ERROR_MESSAGES = {
   missingBase64: 'Cover konnte nicht gelesen werden. Bitte anderes Bild wählen.',
   unsupportedMime: 'Nur JPG/JPEG und PNG werden als Cover unterstützt.',
