@@ -273,7 +273,7 @@ export const enrichMediaLibraryAssets = async (
   skippedCount = 0,
   options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = false, readId3Tags = false } = options;
+  const { loadNativeCover = true, readId3Tags = true } = options;
   const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -316,7 +316,7 @@ export const scanFromSafFolders = async (
   folders: ScanFolder[],
   options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = false, readId3Tags = false } = options;
+  const { loadNativeCover = true, readId3Tags = true } = options;
   const songs: Song[] = [];
   const errors: string[] = [];
   const skipped: string[] = [];
@@ -353,7 +353,7 @@ export const scanFromSafFolders = async (
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs, loadNativeCovers = false, readId3Tags = false } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers = true, readId3Tags = true } = options;
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
   const importOptions = { loadNativeCover: loadNativeCovers, readId3Tags };
   if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, importOptions);
