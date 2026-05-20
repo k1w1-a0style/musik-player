@@ -40,6 +40,7 @@ type AudioFeatureInput = Pick<
 type PlaylistInput = Pick<
   MusicContextValue,
   | 'createPlaylist'
+  | 'saveQueueAsPlaylist'
   | 'deletePlaylist'
   | 'renamePlaylist'
   | 'addSongToPlaylist'
