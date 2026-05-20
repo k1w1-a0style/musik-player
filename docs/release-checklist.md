@@ -13,16 +13,16 @@
 
 ```bash
 npm ci --no-audit --no-fund
-npm run typecheck
+npm run typecheck -- --pretty false
 npm test -- --runInBand
 npm run lint:ci
 npx expo config --json | jq -r '.name, .scheme, .slug, .android.package, .newArchEnabled'
-npx expo config --json | jq '.android.permissions, .ios.infoPlist.NSMicrophoneUsageDescription // empty'
+npx expo config --json | jq '.android.permissions, .android.blockedPermissions, .ios.infoPlist.NSMicrophoneUsageDescription // empty'
 ```
 
 - [ ] Typecheck grün
 - [ ] Tests grün
-- [ ] Lint grün
+- [ ] Lint grün; `lint:ci` darf Warnungen nicht verstecken
 - [ ] Expo Config Werte stimmen
 
 ## Permissions
@@ -32,8 +32,14 @@ npx expo config --json | jq '.android.permissions, .ios.infoPlist.NSMicrophoneUs
 - [ ] Keine neuen Permissions hinzugefügt
 - [ ] Android enthält `READ_MEDIA_AUDIO`
 - [ ] Android enthält `FOREGROUND_SERVICE_MEDIA_PLAYBACK`
-- [ ] Android blockiert Foto-/Video-Media-Permissions (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`)
+- [ ] Android blockiert Mikrofon-/Foto-/Video-Media-Permissions (`RECORD_AUDIO`, `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`)
 - [ ] Generiertes `AndroidManifest.xml` enthält keine Foto-/Video-/Mikrofon-Permissions
+
+```bash
+rm -rf android
+npx expo prebuild --platform android --no-install --clean
+npm run check:android-permissions
+```
 
 ## Android Preview Build
 
@@ -58,6 +64,8 @@ npx eas build --platform android --profile preview
 - [ ] Bluetooth/Headset Controls Smoke Test, wenn verfügbar
 - [ ] Repeat/Shuffle Restore Smoke Test nach App-Neustart
 - [ ] Import/SAF Smoke Test (Import läuft, SAF-Ordnerauswahl verständlich)
+- [ ] ID3 Smoke Test mit MP3 v2.2/v2.3/v2.4 lesen; v2.2 Textfelder müssen beim Import sichtbar sein
+- [ ] Cover Smoke Test (embedded Cover wird angezeigt; zu große/ungültige Cover bleiben stabil)
 - [ ] Tag Edit Smoke Test (Save/No-op/Error Zustände sichtbar)
 - [ ] Tag Edit Size-Limit Smoke Test (zu große Dateien werden blockiert, bevor geschrieben wird)
 - [ ] Cover Remove Smoke Test (`removeCover` funktioniert nur wenn verfügbar)
@@ -65,12 +73,12 @@ npx eas build --platform android --profile preview
 - [ ] MiniPlayer/NowPlaying Smoke Test (disabled states + Navigation)
 - [ ] TrackInfo/TagEditor Smoke Test (fehlende Felder = „Nicht verfügbar“)
 - [ ] Equalizer Smoke Test (Status geräteabhängig/experimentell, kein falsches Versprechen)
-- [ ] Visualizer Smoke Test (kein Mikrofon-Prompt)
+- [ ] Visualizer Smoke Test (kein Mikrofon-Prompt; native FFT bleibt deaktivierter No-op)
 
 ## Known limitations
 
 - SAF/content:// Writes sind bewusst read-only; direkte SAF-Tag-Writes sind nicht implementiert
 - Cover ersetzen nicht implementiert
-- Visualizer/FFT release-safe deaktiviert/optional
+- Visualizer/FFT release-safe deaktiviert; native Android-Visualizer-API wird nicht verdrahtet
 - MP4/M4A Writes funktionieren nur für bekannte sichere Atom-Layouts
 - Sehr große Dateien werden beim In-App-Tag-Schreiben blockiert
