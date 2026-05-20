@@ -2,7 +2,7 @@
  * Native-safe ID3v2 Parser.
  *
  * Reads binary data from a local file URI via expo-file-system's File API
- * and decodes ID3v2.3/v2.4 frames (TIT2, TPE1, TALB, TYER, TCON, APIC).
+ * and decodes common ID3v2.2/v2.3/v2.4 text and cover frames.
  *
  * No native module required — works in managed Expo workflow.
  */
@@ -275,7 +275,7 @@ const decodePIC = (bytes: Uint8Array, start: number, end: number): string | unde
 
 /**
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
- * Supports ID3v2.3 and ID3v2.4 headers (ID3v2.2 omitted for simplicity).
+ * Supports common ID3v2.2/v2.3/v2.4 text and cover frames.
  */
 export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   const tags: Id3Tags = {};
@@ -292,21 +292,62 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   const end = Math.min(bytes.length, 10 + totalSize);
 
   let p = 10;
+  let commentFallback: string | undefined;
   if (majorVersion === 2) {
     while (p + 6 <= end) {
       const id = readLatin1(bytes, p, p + 3);
       if (!id || id.charCodeAt(0) === 0) break;
+      if (!/^[A-Z0-9]{3}$/.test(id)) break;
       const frameSize = (bytes[p + 3] << 16) | (bytes[p + 4] << 8) | bytes[p + 5];
       if (frameSize <= 0 || p + 6 + frameSize > end) break;
-      if (id === 'PIC' && !tags.cover) {
-        const cover = decodePIC(bytes, p + 6, p + 6 + frameSize);
-        if (cover) tags.cover = cover;
+      const bodyStart = p + 6;
+      const bodyEnd = bodyStart + frameSize;
+      switch (id) {
+        case 'TT2':
+          tags.title = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TP1':
+        case 'TP2':
+          if (!tags.artist) tags.artist = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TAL':
+          tags.album = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TYE':
+          tags.year = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TCO':
+          tags.genre = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TRK':
+          tags.trackNumber = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TPA':
+          tags.discNumber = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'COM': {
+          const comm = decodeComm(bytes, bodyStart, bodyEnd);
+          if (comm?.text) {
+            if (!comm.description) tags.comment = comm.text;
+            else if (!commentFallback) commentFallback = comm.text;
+          }
+          break;
+        }
+        case 'PIC': {
+          if (!tags.cover) {
+            const cover = decodePIC(bytes, bodyStart, bodyEnd);
+            if (cover) tags.cover = cover;
+          }
+          break;
+        }
+        default:
+          break;
       }
       p += 6 + frameSize;
     }
+    if (!tags.comment && commentFallback) tags.comment = commentFallback;
     return tags;
   }
-  let commentFallback: string | undefined;
   while (p + 10 <= end) {
     const id = readLatin1(bytes, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;
