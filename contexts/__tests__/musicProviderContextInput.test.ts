@@ -38,6 +38,7 @@ const baseValue: MusicContextValue = {
   palette: null,
   playlists: [],
   createPlaylist: () => ({ id: 'pl-1', name: 'New', songIds: [], createdAt: 1 }),
+  saveQueueAsPlaylist: () => ({ id: 'pl-2', name: 'Queue', songIds: ['s1'], createdAt: 2 }),
   deletePlaylist: noop,
   renamePlaylist: noop,
   addSongToPlaylist: noop,
@@ -95,6 +96,7 @@ describe('buildMusicProviderContextInput', () => {
         },
         playlists: {
           createPlaylist: baseValue.createPlaylist,
+          saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
           deletePlaylist: baseValue.deletePlaylist,
           renamePlaylist: baseValue.renamePlaylist,
           addSongToPlaylist: baseValue.addSongToPlaylist,
