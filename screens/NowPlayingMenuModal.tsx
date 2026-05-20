@@ -9,6 +9,7 @@ interface NowPlayingMenuModalProps {
   onClose: () => void;
   onOpenTrackInfo: () => void;
   onToggleFavorite: () => void;
+  onSaveQueueAsPlaylist: () => void;
 }
 
 const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
@@ -17,11 +18,19 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   onClose,
   onOpenTrackInfo,
   onToggleFavorite,
+  onSaveQueueAsPlaylist,
 }) => (
   <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
     <Pressable style={styles.menuBackdrop} onPress={onClose}>
       <View style={styles.menuCard}>
         <NowPlayingMenuItem label="TrackInfo öffnen" onPress={onOpenTrackInfo} />
+        <NowPlayingMenuItem
+          label="Queue speichern"
+          onPress={() => {
+            onSaveQueueAsPlaylist();
+            onClose();
+          }}
+        />
         <NowPlayingMenuItem
           label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
           onPress={() => {
