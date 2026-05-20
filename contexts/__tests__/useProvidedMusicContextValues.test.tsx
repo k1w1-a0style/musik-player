@@ -6,6 +6,7 @@ import type { MusicContextValue } from '../musicContextTypes';
 
 const noopAsync = async () => undefined;
 const noop = () => undefined;
+const saveQueueAsPlaylist = () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3 });
 
 const baseValue: MusicContextValue = {
   songs: [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }],
@@ -44,6 +45,7 @@ const baseValue: MusicContextValue = {
   palette: null,
   playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
   createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2 }),
+  saveQueueAsPlaylist,
   deletePlaylist: noop,
   renamePlaylist: noop,
   addSongToPlaylist: noop,
@@ -63,6 +65,7 @@ const ValuesProbe = () => {
       <Text testID="mini-can-next">{String(miniPlayerValue.canSkipNext)}</Text>
       <Text testID="now-can-skip">{String(nowPlayingValue.canSkip)}</Text>
       <Text testID="now-volume">{String(nowPlayingValue.volume)}</Text>
+      <Text testID="now-queue-save-name">{nowPlayingValue.saveQueueAsPlaylist('Queue', nowPlayingValue.playbackQueue)?.name}</Text>
     </>
   );
 };
@@ -76,5 +79,6 @@ describe('useProvidedMusicContextValues', () => {
     expect(getByTestId('mini-can-next').props.children).toBe('true');
     expect(getByTestId('now-can-skip').props.children).toBe('true');
     expect(getByTestId('now-volume').props.children).toBe('0.8');
+    expect(getByTestId('now-queue-save-name').props.children).toBe('Queue');
   });
 });
