@@ -37,6 +37,7 @@ const NowPlaying: React.FC = () => {
     closeMenu,
     handleClose,
     openTrackInfo,
+    saveCurrentQueueAsPlaylist,
     queue,
     playQueueItemById,
     accent,
@@ -103,6 +104,7 @@ const NowPlaying: React.FC = () => {
         onClose={closeMenu}
         onOpenTrackInfo={openTrackInfo}
         onToggleFavorite={toggleFavorite}
+        onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
       />
     </Screen>
   );
