@@ -48,7 +48,7 @@ false
 ]
 ```
 
-`android.permission.RECORD_AUDIO` darf nicht erscheinen.
+`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert.
 
 ## Preview APK bauen
 
@@ -71,7 +71,7 @@ Der `preview`-Build ist in `eas.json` als APK ohne Credentials konfiguriert und 
 - Tag Editor mit `content://`/SAF-Datei prüfen: muss read-only bleiben
 - Tag Editor mit sehr großer Datei prüfen: muss vor dem Schreiben blockieren
 - Equalizer öffnen: Status darf geräteabhängig/experimentell anzeigen
-- Visualizer prüfen: kein Mikrofon-Permission-Prompt
+- Visualizer prüfen: kein Permission-Prompt; native FFT bleibt deaktiviert
 
 ## Nach dem Build
 
