@@ -35,6 +35,7 @@ export interface MusicContextValue {
   palette: PaletteResult | null;
   playlists: Playlist[];
   createPlaylist: (name: string) => Playlist;
+  saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addSongToPlaylist: (playlistId: string, songId: string) => void;
@@ -77,5 +78,6 @@ export interface NowPlayingMusicContextValue {
   visualizerRunning: boolean;
   visualizerError: string | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   canSkip: boolean;
 }
