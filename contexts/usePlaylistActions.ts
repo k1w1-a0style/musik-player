@@ -9,6 +9,7 @@ import {
 import {
   appendPlaylist,
   createPlaylistRecord,
+  createPlaylistRecordFromQueue,
   runPlayPlaylistAction,
 } from './playlistActionHelpers';
 export { buildPlaylistQueue } from './playlistActionHelpers';
@@ -22,6 +23,7 @@ interface PlaylistActionsArgs {
 
 interface PlaylistActions {
   createPlaylist: (name: string) => Playlist;
+  saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addSongToPlaylist: (playlistId: string, songId: string) => void;
@@ -38,6 +40,16 @@ export const usePlaylistActions = ({
   const createPlaylist = useCallback(
     (name: string) => {
       const playlist = createPlaylistRecord(name);
+      setPlaylists(prev => appendPlaylist(prev, playlist));
+      return playlist;
+    },
+    [setPlaylists],
+  );
+
+  const saveQueueAsPlaylist = useCallback(
+    (name: string, queue: Song[]) => {
+      const playlist = createPlaylistRecordFromQueue(name, queue);
+      if (!playlist) return null;
       setPlaylists(prev => appendPlaylist(prev, playlist));
       return playlist;
     },
@@ -86,6 +98,7 @@ export const usePlaylistActions = ({
 
   return {
     createPlaylist,
+    saveQueueAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     addSongToPlaylist,
