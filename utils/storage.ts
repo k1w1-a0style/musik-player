@@ -81,22 +81,64 @@ const scanFolderSchema = z.object({
   lastError: z.string().optional(),
 }).passthrough();
 
-const isScanFolder = (value: unknown): value is ScanFolder => {
-  const result = scanFolderSchema.safeParse(value);
-  return result.success;
+const isScanFolder = (value: unknown): value is ScanFolder => scanFolderSchema.safeParse(value).success;
+
+const filterArray = <T>(value: unknown, schema: z.ZodType<T>): T[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const result = schema.safeParse(item);
+    return result.success ? [result.data] : [];
+  });
 };
 
 const parseJsonArray = <T>(value: string | null, schema: z.ZodType<T>): T[] => {
   if (!value) return [];
   try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap(item => {
-      const result = schema.safeParse(item);
-      return result.success ? [result.data] : [];
-    });
+    return filterArray(JSON.parse(value), schema);
   } catch {
     return [];
+  }
+};
+
+const isRepeatMode = (value: unknown): value is 'off' | 'one' | 'all' =>
+  value === 'off' || value === 'one' || value === 'all';
+
+const isEqPresetName = (value: unknown): value is EqPresetName =>
+  typeof value === 'string' && value in EQ_PRESETS;
+
+const isValidVolume = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+
+const isValidEqBands = (value: unknown): value is number[] =>
+  Array.isArray(value) &&
+  value.length === EQ_BAND_COUNT &&
+  value.every(item => typeof item === 'number' && Number.isFinite(item));
+
+const validateStoredValue = (key: string, value: unknown): unknown | null => {
+  switch (key) {
+    case StorageKeys.SONGS:
+      return filterArray(value, songSchema);
+    case StorageKeys.PLAYLISTS:
+      return filterArray(value, playlistSchema);
+    case StorageKeys.SCAN_FOLDERS:
+      return filterArray(value, scanFolderSchema);
+    case StorageKeys.FAVORITE_SONG_IDS:
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+    case StorageKeys.CURRENT_SONG_ID:
+      return typeof value === 'string' ? value : null;
+    case StorageKeys.EQ_PRESET:
+      return isEqPresetName(value) ? value : null;
+    case StorageKeys.EQ_BANDS:
+      return isValidEqBands(value) ? value : null;
+    case StorageKeys.EQ_ENABLED:
+    case StorageKeys.SHUFFLE:
+      return typeof value === 'boolean' ? value : null;
+    case StorageKeys.VOLUME:
+      return isValidVolume(value) ? value : null;
+    case StorageKeys.REPEAT_MODE:
+      return isRepeatMode(value) ? value : null;
+    default:
+      return value;
   }
 };
 
@@ -115,7 +157,7 @@ export const storage = {
     try {
       const raw = await AsyncStorage.getItem(storageKey(key));
       if (raw == null) return null;
-      return JSON.parse(raw) as T;
+      return validateStoredValue(key, JSON.parse(raw)) as T | null;
     } catch {
       return null;
     }
@@ -166,8 +208,8 @@ export const storage = {
     if (!value) return [...EQ_PRESETS.flat];
     try {
       const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed) || parsed.length !== EQ_BAND_COUNT) return [...EQ_PRESETS.flat];
-      return parsed.map(Number);
+      if (!isValidEqBands(parsed)) return [...EQ_PRESETS.flat];
+      return parsed;
     } catch {
       return [...EQ_PRESETS.flat];
     }
@@ -227,7 +269,11 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
   const next = favorite
     ? Array.from(new Set([...ids, songId]))
     : ids.filter(id => id !== songId);
-  await storage.setFavoriteSongIds(next);
+  try {
+    await storage.setFavoriteSongIds(next);
+  } catch (error) {
+    throw new Error(`Failed to persist favorite song ids: ${String(error)}`);
+  }
   return next;
 };
 
