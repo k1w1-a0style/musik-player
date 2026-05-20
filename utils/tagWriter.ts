@@ -298,14 +298,15 @@ const textFrame = (id: string, value: string): Uint8Array => {
 };
 const commFrame = (value: string): Uint8Array => {
   const textBytes = encodeUtf16Bom(value);
-  const body = new Uint8Array(1 + 3 + 2 + textBytes.length);
+  const descriptorBytes = encodeUtf16Bom('');
+  const body = new Uint8Array(1 + 3 + descriptorBytes.length + textBytes.length);
   let offset = 0;
   body[offset++] = 0x01;
   body[offset++] = 0x65;
   body[offset++] = 0x6e;
   body[offset++] = 0x67;
-  body[offset++] = 0x00;
-  body[offset++] = 0x00;
+  body.set(descriptorBytes, offset);
+  offset += descriptorBytes.length;
   body.set(textBytes, offset);
   return frame('COMM', body);
 };
@@ -405,8 +406,10 @@ export const buildId3v23TagFromDraft = (
     replacement.push(textFrame('TPE1', tags.artist));
   if (hasDraftTagIntent(draft, 'album') && tags.album)
     replacement.push(textFrame('TALB', tags.album));
-  if (hasDraftTagIntent(draft, 'year') && tags.year)
+  if (hasDraftTagIntent(draft, 'year') && tags.year) {
     replacement.push(textFrame('TYER', tags.year));
+    replacement.push(textFrame('TDRC', tags.year));
+  }
   if (hasDraftTagIntent(draft, 'genre') && tags.genre)
     replacement.push(textFrame('TCON', tags.genre));
   if (hasDraftTagIntent(draft, 'trackNumber') && tags.trackNumber)

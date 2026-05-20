@@ -153,13 +153,13 @@ describe('tagWriter mp3 id3v2.3', () => {
     expect(payload.includes(0xfe)).toBe(true);
   });
 
-  test('year uses TYER and drops TDRC', () => {
+  test('year writes both TYER and TDRC when year is edited', () => {
     const tdrc = mkFrame('TDRC', u8(0, '2'.charCodeAt(0)));
     const src = new Uint8Array([...mkTag([tdrc]), 9, 9]);
     const out = applyTagEditToBuffer(src, 'mp3', { songId: '1', tags: { year: '2020' } });
-    const s = new TextDecoder().decode(out);
-    expect(s.includes('TYER')).toBe(true);
-    expect(s.includes('TDRC')).toBe(false);
+    const ids = frameIds(out);
+    expect(ids).toContain('TYER');
+    expect(ids).toContain('TDRC');
   });
 
   test('partial title edit preserves untouched artist/album', () => {
@@ -239,6 +239,23 @@ describe('tagWriter mp3 id3v2.3', () => {
     const ids = frameIds(out);
     expect(ids).toContain('COMM');
     expect(ids).toContain('TPE1');
+  });
+
+  test('comment frame uses UTF-16 empty descriptor with BOM terminator', () => {
+    const out = applyTagEditToBuffer(u8(1, 2, 3), 'mp3', {
+      songId: '1',
+      tags: { comment: 'New' },
+    });
+    const frameStart = 10;
+    const frameSize =
+      (out[frameStart + 4] << 24) |
+      (out[frameStart + 5] << 16) |
+      (out[frameStart + 6] << 8) |
+      out[frameStart + 7];
+    const body = out.slice(frameStart + 10, frameStart + 10 + frameSize);
+
+    expect(String.fromCharCode(out[frameStart], out[frameStart + 1], out[frameStart + 2], out[frameStart + 3])).toBe('COMM');
+    expect(Array.from(body.slice(0, 8))).toEqual([0x01, 0x65, 0x6e, 0x67, 0xff, 0xfe, 0x00, 0x00]);
   });
 
   test('unicode comment is written via COMM frame', () => {
