@@ -56,6 +56,7 @@ export const buildNowPlayingMusicContextValue = ({
   visualizerRunning,
   visualizerError,
   playSong,
+  saveQueueAsPlaylist,
 }: MusicContextValue): NowPlayingMusicContextValue => ({
   playbackQueue,
   currentSong,
@@ -68,5 +69,6 @@ export const buildNowPlayingMusicContextValue = ({
   visualizerRunning,
   visualizerError,
   playSong,
+  saveQueueAsPlaylist,
   canSkip: playbackQueue.length > 1,
 });
