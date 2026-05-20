@@ -80,6 +80,19 @@ describe('playbackPlan helpers', () => {
     expect(plan?.selectedSong?.id).toBe('s3');
   });
 
+  test('builds shuffle-off fallback plan when current song is no longer in base queue', () => {
+    const shuffled = [songs[1], songs[2], songs[0]];
+    const plan = buildShuffleTogglePlan({
+      currentQueue: shuffled,
+      baseQueue: songs,
+      currentSongId: 'removed-song',
+      shuffleEnabled: true,
+    });
+
+    expect(plan?.nextQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
+    expect(plan?.selectedSong?.id).toBe('s1');
+  });
+
   test('returns null for empty shuffle queue', () => {
     expect(buildShuffleTogglePlan({ currentQueue: [], baseQueue: [], shuffleEnabled: false })).toBeNull();
   });
