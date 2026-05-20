@@ -9,7 +9,6 @@ module.exports = {
     'node_modules/(?!(jest-)?react-native|@react-native|@react-navigation|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-clone-referenced-element|@unimodules/.*|sentry-expo|native-base|react-native-svg|lucide-react-native|expo-modules-core|expo-blur|expo-linear-gradient|react-native-track-player)',
   ],
   setupFiles: ['<rootDir>/jest.setup.js'],
-  setupFilesAfterEnv: ['<rootDir>/jest.afterEnv.js'],
   moduleNameMapper: {
     '^react-native-track-player$': '<rootDir>/__mocks__/react-native-track-player.js',
     '^@react-native-async-storage/async-storage$':
