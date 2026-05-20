@@ -189,7 +189,8 @@ test('shows content URI read-only safety notice', () => {
     },
   ];
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/Dateien sind aktuell read-only/)).toBeTruthy();
+  expect(getByText(/geschützten Android-Ordner/)).toBeTruthy();
+  expect(getByText(/lokalen Musikordner/)).toBeTruthy();
 });
 
 test('unchanged form does not write', () => {
