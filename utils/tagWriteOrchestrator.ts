@@ -14,6 +14,8 @@ import {
 } from './tagEditCapability';
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
 
+export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
+
 const buildRollbackSteps = (targetUri: string): string[] => [
   'Abort replacement and keep original file untouched.',
   `If replacement started, restore backup copy to ${targetUri}.`,
@@ -46,10 +48,16 @@ const containerWarning = (container: TagEditableContainer): string | undefined =
   return undefined;
 };
 
+const getKnownFileSize = (song: Song): number | undefined => {
+  const size = song.fileInfo?.size;
+  return typeof size === 'number' && Number.isFinite(size) && size >= 0 ? size : undefined;
+};
+
 export const validateWritePreconditions = (
   song: Song,
   draft: TagEditDraft,
   platform?: string,
+  maxFileSizeBytes = DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
 ): TagWriterErrorCode[] => {
   const errors: TagWriterErrorCode[] = [];
   const uri = song.fileInfo?.uri ?? song.uri;
@@ -57,6 +65,7 @@ export const validateWritePreconditions = (
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
   const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
+  const knownFileSize = getKnownFileSize(song);
 
   const tagValidation = validateEditableTags(normalized.tags);
   if (!tagValidation.valid || !validateCoverPayload(normalized.cover))
@@ -64,6 +73,8 @@ export const validateWritePreconditions = (
   if (!uri || uriType === 'unknown' || uriType === 'remote')
     errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
+  if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
+    errors.push('FileTooLarge');
   if (uriType === 'content') errors.push('MissingWritePermission');
   if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
     errors.push('WriteNotImplemented');
@@ -81,6 +92,7 @@ export const createTagWriteOperationPlan = (
   song: Song,
   draft: TagEditDraft,
   platform?: string,
+  maxFileSizeBytes = DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
 ): WriteOperationPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const safeUri = uri ?? '';
@@ -92,6 +104,12 @@ export const createTagWriteOperationPlan = (
   if (containerWarn) warnings.push(containerWarn);
   if (draft.removeCover && draft.cover)
     warnings.push('removeCover=true takes precedence over cover payload.');
+  const knownFileSize = getKnownFileSize(song);
+  if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes) {
+    warnings.push(
+      `File is larger than ${Math.round(maxFileSizeBytes / (1024 * 1024))} MB, so in-app tag writing is blocked before reading bytes.`,
+    );
+  }
   if (uriType === 'content')
     warnings.push(
       'SAF providers are treated as read-only because direct replace semantics are not safe yet.',
@@ -101,7 +119,7 @@ export const createTagWriteOperationPlan = (
       'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
     );
 
-  const blockingReasons = validateWritePreconditions(song, draft, platform);
+  const blockingReasons = validateWritePreconditions(song, draft, platform, maxFileSizeBytes);
   const plan: WriteOperationPlan = {
     sourceUri: safeUri,
     targetUri: safeUri,
