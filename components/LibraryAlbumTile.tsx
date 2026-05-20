@@ -8,6 +8,9 @@ interface LibraryAlbumTileProps {
   onPress: (album: LibraryGroupItem) => void;
 }
 
+export const getAlbumTileFallbackLetter = (title: string): string =>
+  title.trim().slice(0, 1).toUpperCase() || '?';
+
 const LibraryAlbumTile: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => (
   <Pressable
     accessibilityRole="button"
@@ -20,7 +23,7 @@ const LibraryAlbumTile: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) =
       {album.cover ? (
         <Image source={{ uri: album.cover }} style={styles.albumImage} testID={`library-album-cover-${album.id}`} />
       ) : (
-        <Text style={styles.albumLetter}>{album.title.slice(0, 1).toUpperCase()}</Text>
+        <Text style={styles.albumLetter}>{getAlbumTileFallbackLetter(album.title)}</Text>
       )}
     </View>
     <Text style={styles.albumTitle} numberOfLines={2}>{album.title}</Text>
