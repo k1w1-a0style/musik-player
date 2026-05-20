@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
-import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName, type RepeatMode, type Song, type Playlist } from '../types/Song';
+import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
 
@@ -40,173 +40,143 @@ const songAudioInfoSchema = z.object({
 }).passthrough();
 
 const songCoverInfoSchema = z.object({
-  status: z.enum(['none', 'embedded', 'cached', 'external', 'unknown']).optional(),
+  status: z.enum(['embedded', 'cached', 'external', 'none', 'error']).optional(),
   uri: z.string().optional(),
+  reason: z.string().optional(),
 }).passthrough();
 
 const songSchema = z.object({
-  id: z.string().min(1),
+  id: z.string(),
   title: z.string(),
   artist: z.string(),
   album: z.string().optional(),
-  uri: z.string().optional(),
-  cover: z.string().optional(),
   duration: z.number().optional(),
+  cover: z.string().optional(),
+  uri: z.string().optional(),
+  isFavorite: z.boolean().optional(),
   year: z.string().optional(),
   genre: z.string().optional(),
   trackNumber: z.string().optional(),
   discNumber: z.string().optional(),
   comment: z.string().optional(),
-  favorite: z.boolean().optional(),
   fileInfo: songFileInfoSchema.optional(),
   audioInfo: songAudioInfoSchema.optional(),
   coverInfo: songCoverInfoSchema.optional(),
 }).passthrough();
 
 const playlistSchema = z.object({
-  id: z.string().min(1),
+  id: z.string(),
   name: z.string(),
-  songIds: z.array(z.string()),
-  createdAt: z.number(),
+  songIds: z.array(z.string()).default([]),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
 }).passthrough();
 
 const scanFolderSchema = z.object({
-  id: z.string().min(1),
+  id: z.string(),
   name: z.string(),
   uri: z.string(),
   addedAt: z.number(),
-  enabled: z.boolean(),
+  enabled: z.boolean().default(true),
+  lastError: z.string().optional(),
 }).passthrough();
 
-const eqPresetSchema = z.union([
-  z.enum(Object.keys(EQ_PRESETS) as [EqPresetName, ...EqPresetName[]]),
-  z.literal('custom'),
-]);
-
-const repeatModeSchema = z.enum(['off', 'one', 'all']);
-const eqBandsSchema = z.array(z.number().finite()).length(EQ_BAND_COUNT);
-
-const parseArray = <T>(value: unknown, schema: z.ZodType<T>): T[] | null => {
-  if (!Array.isArray(value)) return null;
-  return value.reduce<T[]>((validItems, item) => {
-    const parsed = schema.safeParse(item);
-    if (parsed.success) validItems.push(parsed.data);
-    return validItems;
-  }, []);
-};
-
-const parseScalar = <T>(value: unknown, schema: z.ZodType<T>): T | null => {
-  const parsed = schema.safeParse(value);
-  return parsed.success ? parsed.data : null;
-};
-
-const parseStoredValue = (key: string, value: unknown): unknown | null => {
-  switch (key as StorageKey) {
-    case StorageKeys.SONGS:
-      return parseArray(value, songSchema);
-    case StorageKeys.PLAYLISTS:
-      return parseArray(value, playlistSchema);
-    case StorageKeys.SCAN_FOLDERS:
-      return parseArray(value, scanFolderSchema);
-    case StorageKeys.FAVORITE_SONG_IDS:
-      return parseArray(value, z.string());
-    case StorageKeys.CURRENT_SONG_ID:
-      return parseScalar(value, z.string());
-    case StorageKeys.EQ_PRESET:
-      return parseScalar(value, eqPresetSchema);
-    case StorageKeys.EQ_BANDS:
-      return parseScalar(value, eqBandsSchema);
-    case StorageKeys.EQ_ENABLED:
-    case StorageKeys.SHUFFLE:
-      return parseScalar(value, z.boolean());
-    case StorageKeys.VOLUME:
-      return parseScalar(value, z.number().finite().min(0).max(1));
-    case StorageKeys.REPEAT_MODE:
-      return parseScalar(value, repeatModeSchema);
-    default:
-      return value;
+const parseJsonArray = <T>(value: string | null, schema: z.ZodType<T>): T[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(item => schema.parse(item));
+  } catch {
+    return [];
   }
 };
 
+const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(PREFIX + key);
+const setItem = async (key: StorageKey, value: string): Promise<void> => {
+  await AsyncStorage.setItem(PREFIX + key, value);
+};
+const removeItem = async (key: StorageKey): Promise<void> => {
+  await AsyncStorage.removeItem(PREFIX + key);
+};
+
 export const storage = {
-  async get<T>(key: string): Promise<T | null> {
+  async getSongs() {
+    return parseJsonArray(await getItem(StorageKeys.SONGS), songSchema);
+  },
+  async setSongs(songs: unknown[]) {
+    await setItem(StorageKeys.SONGS, JSON.stringify(songs));
+  },
+  async getPlaylists() {
+    return parseJsonArray(await getItem(StorageKeys.PLAYLISTS), playlistSchema);
+  },
+  async setPlaylists(playlists: unknown[]) {
+    await setItem(StorageKeys.PLAYLISTS, JSON.stringify(playlists));
+  },
+  async getCurrentSongId() {
+    return await getItem(StorageKeys.CURRENT_SONG_ID);
+  },
+  async setCurrentSongId(songId?: string | null) {
+    if (!songId) await removeItem(StorageKeys.CURRENT_SONG_ID);
+    else await setItem(StorageKeys.CURRENT_SONG_ID, songId);
+  },
+  async getEqPreset(): Promise<EqPresetName> {
+    const value = await getItem(StorageKeys.EQ_PRESET);
+    return value && value in EQ_PRESETS ? value as EqPresetName : 'flat';
+  },
+  async setEqPreset(preset: EqPresetName) {
+    await setItem(StorageKeys.EQ_PRESET, preset);
+  },
+  async getEqBands() {
+    const value = await getItem(StorageKeys.EQ_BANDS);
+    if (!value) return [...EQ_PRESETS.flat.bands];
     try {
-      const raw = await AsyncStorage.getItem(PREFIX + key);
-      if (raw == null) return null;
-      const parsed = JSON.parse(raw) as unknown;
-      return parseStoredValue(key, parsed) as T | null;
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed) || parsed.length !== EQ_BAND_COUNT) return [...EQ_PRESETS.flat.bands];
+      return parsed.map(Number);
     } catch {
-      return null;
+      return [...EQ_PRESETS.flat.bands];
     }
   },
-  async set<T>(key: string, value: T): Promise<boolean> {
-    try {
-      await AsyncStorage.setItem(PREFIX + key, JSON.stringify(value));
-      return true;
-    } catch {
-      return false;
-    }
+  async setEqBands(bands: number[]) {
+    await setItem(StorageKeys.EQ_BANDS, JSON.stringify(bands));
   },
-  async remove(key: string): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(PREFIX + key);
-    } catch {
-      /* ignore */
-    }
+  async getEqEnabled() {
+    return (await getItem(StorageKeys.EQ_ENABLED)) === 'true';
   },
-};
-
-export const getFavoriteSongIds = async (): Promise<string[]> => {
-  const value = await storage.get<unknown>(StorageKeys.FAVORITE_SONG_IDS);
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-};
-
-export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
-  const ids = await getFavoriteSongIds();
-  return ids.includes(songId);
-};
-
-export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
-  const ids = await getFavoriteSongIds();
-  const next = favorite
-    ? Array.from(new Set([...ids, songId]))
-    : ids.filter(id => id !== songId);
-  const stored = await storage.set(StorageKeys.FAVORITE_SONG_IDS, next);
-  if (!stored) throw new Error('Failed to persist favorite song ids');
-  return next;
-};
-
-export const getScanFolders = async (): Promise<ScanFolder[]> => {
-  const value = await storage.get<unknown>(StorageKeys.SCAN_FOLDERS);
-  return Array.isArray(value) ? value : [];
-};
-
-export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
-  await storage.set(StorageKeys.SCAN_FOLDERS, folders);
-};
-
-export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  if (folders.some(existing => existing.uri === folder.uri)) return folders;
-  const next = [...folders, folder];
-  await saveScanFolders(next);
-  return next;
-};
-
-export const removeScanFolder = async (id: string): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  const next = folders.filter(folder => folder.id !== id);
-  await saveScanFolders(next);
-  return next;
-};
-
-export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  const next = folders.map(folder => (folder.id === id ? { ...folder, ...patch, id: folder.id } : folder));
-  await saveScanFolders(next);
-  return next;
-};
-
-export const clearScanFolders = async (): Promise<void> => {
-  await storage.remove(StorageKeys.SCAN_FOLDERS);
+  async setEqEnabled(enabled: boolean) {
+    await setItem(StorageKeys.EQ_ENABLED, String(enabled));
+  },
+  async getVolume() {
+    const value = Number(await getItem(StorageKeys.VOLUME));
+    return Number.isFinite(value) ? value : 1;
+  },
+  async setVolume(volume: number) {
+    await setItem(StorageKeys.VOLUME, String(volume));
+  },
+  async getRepeatMode() {
+    const value = await getItem(StorageKeys.REPEAT_MODE);
+    return value === 'one' || value === 'all' ? value : 'off';
+  },
+  async setRepeatMode(mode: 'off' | 'one' | 'all') {
+    await setItem(StorageKeys.REPEAT_MODE, mode);
+  },
+  async getShuffle() {
+    return (await getItem(StorageKeys.SHUFFLE)) === 'true';
+  },
+  async setShuffle(enabled: boolean) {
+    await setItem(StorageKeys.SHUFFLE, String(enabled));
+  },
+  async getScanFolders(): Promise<ScanFolder[]> {
+    return parseJsonArray(await getItem(StorageKeys.SCAN_FOLDERS), scanFolderSchema);
+  },
+  async setScanFolders(folders: ScanFolder[]) {
+    await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(folders));
+  },
+  async getFavoriteSongIds(): Promise<string[]> {
+    return parseJsonArray(await getItem(StorageKeys.FAVORITE_SONG_IDS), z.string());
+  },
+  async setFavoriteSongIds(songIds: string[]) {
+    await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(songIds));
+  },
 };
