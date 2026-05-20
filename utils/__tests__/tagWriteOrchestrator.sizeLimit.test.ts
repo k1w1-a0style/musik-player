@@ -2,7 +2,7 @@ import {
   assertSafeWriteAllowed,
   createTagWriteOperationPlan,
   DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
-  dryRunWriteTags,
+  simulateTagWriteOperation,
 } from '../tagWriteOrchestrator';
 import type { Song } from '../../types/Song';
 
@@ -45,10 +45,12 @@ describe('tag write orchestrator size limit', () => {
   });
 
   it('surfaces FileTooLarge in dry run output', () => {
-    const result = dryRunWriteTags(
+    const plan = createTagWriteOperationPlan(
       songWithSize(DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES + 1024),
       draft,
+      'android',
     );
+    const result = simulateTagWriteOperation(plan);
 
     expect(result.ok).toBe(false);
     expect(result.primaryBlockingReason).toBe('FileTooLarge');
