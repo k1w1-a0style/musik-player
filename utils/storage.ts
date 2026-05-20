@@ -40,9 +40,8 @@ const songAudioInfoSchema = z.object({
 }).passthrough();
 
 const songCoverInfoSchema = z.object({
-  status: z.enum(['embedded', 'cached', 'external', 'none', 'error']).optional(),
+  status: z.enum(['none', 'embedded', 'cached', 'external', 'unknown']).optional(),
   uri: z.string().optional(),
-  reason: z.string().optional(),
 }).passthrough();
 
 const songSchema = z.object({
@@ -53,6 +52,7 @@ const songSchema = z.object({
   duration: z.number().optional(),
   cover: z.string().optional(),
   uri: z.string().optional(),
+  favorite: z.boolean().optional(),
   isFavorite: z.boolean().optional(),
   year: z.string().optional(),
   genre: z.string().optional(),
@@ -81,26 +81,60 @@ const scanFolderSchema = z.object({
   lastError: z.string().optional(),
 }).passthrough();
 
+const isScanFolder = (value: unknown): value is ScanFolder => {
+  const result = scanFolderSchema.safeParse(value);
+  return result.success;
+};
+
 const parseJsonArray = <T>(value: string | null, schema: z.ZodType<T>): T[] => {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(item => schema.parse(item));
+    return parsed.flatMap(item => {
+      const result = schema.safeParse(item);
+      return result.success ? [result.data] : [];
+    });
   } catch {
     return [];
   }
 };
 
-const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(PREFIX + key);
+const storageKey = (key: string): string => PREFIX + key;
+
+const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
-  await AsyncStorage.setItem(PREFIX + key, value);
+  await AsyncStorage.setItem(storageKey(key), value);
 };
 const removeItem = async (key: StorageKey): Promise<void> => {
-  await AsyncStorage.removeItem(PREFIX + key);
+  await AsyncStorage.removeItem(storageKey(key));
 };
 
 export const storage = {
+  async get<T>(key: string): Promise<T | null> {
+    try {
+      const raw = await AsyncStorage.getItem(storageKey(key));
+      if (raw == null) return null;
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  },
+  async set<T>(key: string, value: T): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(storageKey(key), JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async remove(key: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(storageKey(key));
+    } catch {
+      /* ignore */
+    }
+  },
   async getSongs() {
     return parseJsonArray(await getItem(StorageKeys.SONGS), songSchema);
   },
@@ -129,13 +163,13 @@ export const storage = {
   },
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);
-    if (!value) return [...EQ_PRESETS.flat.bands];
+    if (!value) return [...EQ_PRESETS.flat];
     try {
       const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed) || parsed.length !== EQ_BAND_COUNT) return [...EQ_PRESETS.flat.bands];
+      if (!Array.isArray(parsed) || parsed.length !== EQ_BAND_COUNT) return [...EQ_PRESETS.flat];
       return parsed.map(Number);
     } catch {
-      return [...EQ_PRESETS.flat.bands];
+      return [...EQ_PRESETS.flat];
     }
   },
   async setEqBands(bands: number[]) {
@@ -179,4 +213,52 @@ export const storage = {
   async setFavoriteSongIds(songIds: string[]) {
     await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(songIds));
   },
+};
+
+export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
+
+export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
+  const ids = await getFavoriteSongIds();
+  return ids.includes(songId);
+};
+
+export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
+  const ids = await getFavoriteSongIds();
+  const next = favorite
+    ? Array.from(new Set([...ids, songId]))
+    : ids.filter(id => id !== songId);
+  await storage.setFavoriteSongIds(next);
+  return next;
+};
+
+export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScanFolders();
+
+export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
+  await storage.setScanFolders(folders.filter(isScanFolder));
+};
+
+export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> => {
+  const folders = await getScanFolders();
+  if (folders.some(existing => existing.uri === folder.uri)) return folders;
+  const next = [...folders, folder];
+  await saveScanFolders(next);
+  return next;
+};
+
+export const removeScanFolder = async (id: string): Promise<ScanFolder[]> => {
+  const folders = await getScanFolders();
+  const next = folders.filter(folder => folder.id !== id);
+  await saveScanFolders(next);
+  return next;
+};
+
+export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): Promise<ScanFolder[]> => {
+  const folders = await getScanFolders();
+  const next = folders.map(folder => (folder.id === id ? { ...folder, ...patch, id: folder.id } : folder));
+  await saveScanFolders(next);
+  return next;
+};
+
+export const clearScanFolders = async (): Promise<void> => {
+  await storage.remove(StorageKeys.SCAN_FOLDERS);
 };
