@@ -20,11 +20,11 @@ import {
   buildFormAfterSave,
   buildMetadataPatchFromDraft,
   capabilityReason,
-  ERROR_MESSAGES,
   type FormState,
   hasRemovableCover,
   safetyNotice,
   statusMessage,
+  tagWriterErrorMessage,
   toInitialForm,
 } from './tagEditorHelpers';
 
@@ -118,7 +118,7 @@ export const useTagEditorScreenState = () => {
       setStatus(statusMessage(result));
     } catch (error) {
       if (error instanceof TagWriterError) {
-        setStatus(ERROR_MESSAGES[error.code] ?? 'Speichern fehlgeschlagen.');
+        setStatus(tagWriterErrorMessage(error.code, error.message));
       } else {
         setStatus('Speichern fehlgeschlagen.');
       }
