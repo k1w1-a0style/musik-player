@@ -8,6 +8,28 @@ export const createPlaylistRecord = (name: string, now: number = Date.now()): Pl
   createdAt: now,
 });
 
+export const createPlaylistRecordFromQueue = (
+  name: string,
+  queue: Song[],
+  now: number = Date.now(),
+): Playlist | null => {
+  const seenSongIds = new Set<string>();
+  const songIds = queue
+    .map(song => song.id)
+    .filter(songId => {
+      if (!songId || seenSongIds.has(songId)) return false;
+      seenSongIds.add(songId);
+      return true;
+    });
+
+  if (songIds.length === 0) return null;
+
+  return {
+    ...createPlaylistRecord(name.trim() || 'Gespeicherte Queue', now),
+    songIds,
+  };
+};
+
 export const appendPlaylist = (playlists: Playlist[], playlist: Playlist): Playlist[] => [
   ...playlists,
   playlist,
