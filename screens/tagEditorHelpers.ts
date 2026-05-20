@@ -13,8 +13,12 @@ export type FormState = Record<keyof EditableTrackTags, string>;
 
 const SAF_READ_ONLY_MESSAGE =
   'Diese Datei liegt in einem geschützten Android-Ordner. Kopiere sie zuerst in einen lokalen Musikordner, um Tags bearbeiten zu können.';
+const ID3V22_UNSUPPORTED_MESSAGE =
+  'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.4 oder ein noch nicht unterstütztes Tag-Layout. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen.';
+  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen; bitte extern nach ID3v2.3 konvertieren oder die Datei unverändert lassen.';
+const TAG_LAYOUT_UNSUPPORTED_MESSAGE =
+  'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE =
   'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
@@ -33,7 +37,9 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   MissingWritePermission: SAF_READ_ONLY_MESSAGE,
   UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
-  WriteNotImplemented: ID3V24_UNSUPPORTED_MESSAGE,
+  WriteNotImplemented: TAG_LAYOUT_UNSUPPORTED_MESSAGE,
+  WriteNotImplementedV22: ID3V22_UNSUPPORTED_MESSAGE,
+  WriteNotImplementedV24: ID3V24_UNSUPPORTED_MESSAGE,
   InvalidTagData: 'Ungültige Metadaten. Bitte Eingaben prüfen.',
   FileTooLarge:
     'Datei ist für sicheres In-App-Tag-Schreiben zu groß. Bitte extern bearbeiten oder kleinere Dateien nutzen.',
@@ -88,6 +94,8 @@ export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | u
   if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;
   if (reasons.includes('FileTooLarge'))
     return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
+  if (reasons.includes('WriteNotImplementedV22')) return ID3V22_UNSUPPORTED_MESSAGE;
+  if (reasons.includes('WriteNotImplementedV24')) return ID3V24_UNSUPPORTED_MESSAGE;
   if (reasons.includes('WriteNotImplemented')) return FILE_REPLACE_UNSUPPORTED_MESSAGE;
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
   if (reasons.includes('UnsupportedUri'))
