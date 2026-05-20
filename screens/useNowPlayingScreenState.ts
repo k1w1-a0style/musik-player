@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNowPlayingMusicContext } from '../contexts/MusicContext';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
@@ -19,6 +20,7 @@ export const useNowPlayingScreenState = () => {
     fftBins,
     visualizerError,
     playSong,
+    saveQueueAsPlaylist,
   } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
@@ -29,6 +31,15 @@ export const useNowPlayingScreenState = () => {
     palette,
     visualizerError,
   });
+
+  const saveCurrentQueueAsPlaylist = () => {
+    const playlist = saveQueueAsPlaylist('Gespeicherte Queue', playbackQueue);
+    if (!playlist) {
+      Alert.alert('Queue speichern', 'Die aktuelle Queue enthält keine Songs.');
+      return;
+    }
+    Alert.alert('Playlist gespeichert', `„${playlist.name}“ wurde erstellt.`);
+  };
 
   return {
     currentSong,
@@ -41,6 +52,7 @@ export const useNowPlayingScreenState = () => {
     duration,
     bottomInset: insets.bottom,
     showVisualizer: false,
+    saveCurrentQueueAsPlaylist,
     ...favoriteState,
     ...menuState,
     ...queueState,
