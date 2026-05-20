@@ -18,9 +18,11 @@ const initialPlaylist: Playlist = {
 
 const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
   const [playlists, setPlaylists] = useState<Playlist[]>([initialPlaylist]);
+  const [lastSavedQueuePlaylistName, setLastSavedQueuePlaylistName] = useState('');
   const songsRef = useRef<Song[]>(songs);
   const {
     createPlaylist,
+    saveQueueAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     addSongToPlaylist,
@@ -32,7 +34,24 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
     <>
       <Text testID="names">{playlists.map(playlist => playlist.name).join(',')}</Text>
       <Text testID="song-ids">{playlists[0]?.songIds.join(',') ?? ''}</Text>
+      <Text testID="saved-queue-name">{lastSavedQueuePlaylistName}</Text>
       <Button testID="create" title="create" onPress={() => createPlaylist('Created')} />
+      <Button
+        testID="save-queue"
+        title="save queue"
+        onPress={() => {
+          const playlist = saveQueueAsPlaylist('Queue Mix', [songs[0], songs[1], songs[0]]);
+          setLastSavedQueuePlaylistName(playlist?.name ?? 'none');
+        }}
+      />
+      <Button
+        testID="save-empty-queue"
+        title="save empty queue"
+        onPress={() => {
+          const playlist = saveQueueAsPlaylist('Empty', []);
+          setLastSavedQueuePlaylistName(playlist?.name ?? 'none');
+        }}
+      />
       <Button testID="rename" title="rename" onPress={() => renamePlaylist('pl-1', 'Renamed')} />
       <Button testID="add" title="add" onPress={() => addSongToPlaylist('pl-1', 's2')} />
       <Button testID="remove" title="remove" onPress={() => removeSongFromPlaylist('pl-1', 's1')} />
@@ -54,12 +73,20 @@ describe('usePlaylistActions', () => {
     ]);
   });
 
-  test('creates, renames, adds, removes and deletes playlists', () => {
+  test('creates, saves queues, renames, adds, removes and deletes playlists', () => {
     const playSong = jest.fn(async () => undefined);
     const { getByTestId } = render(<PlaylistProbe playSong={playSong} />);
 
     act(() => fireEvent.press(getByTestId('create')));
     expect(getByTestId('names').props.children).toContain('Created');
+
+    act(() => fireEvent.press(getByTestId('save-queue')));
+    expect(getByTestId('names').props.children).toContain('Queue Mix');
+    expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix');
+
+    act(() => fireEvent.press(getByTestId('save-empty-queue')));
+    expect(getByTestId('names').props.children).not.toContain('Empty');
+    expect(getByTestId('saved-queue-name').props.children).toBe('none');
 
     act(() => fireEvent.press(getByTestId('rename')));
     expect(getByTestId('names').props.children).toContain('Renamed');
@@ -71,7 +98,7 @@ describe('usePlaylistActions', () => {
     expect(getByTestId('song-ids').props.children).toBe('s2');
 
     act(() => fireEvent.press(getByTestId('delete')));
-    expect(getByTestId('names').props.children).toBe('Created');
+    expect(getByTestId('names').props.children).toBe('Created,Queue Mix');
   });
 
   test('plays the playlist queue from its first song', async () => {
