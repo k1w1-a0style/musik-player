@@ -40,6 +40,8 @@ export type TagWriterErrorCode =
   | 'InvalidTagData'
   | 'FileTooLarge'
   | 'WriteNotImplemented'
+  | 'WriteNotImplementedV22'
+  | 'WriteNotImplementedV24'
   | 'BackupFailed'
   | 'TempWriteFailed'
   | 'ReplaceFailed'
