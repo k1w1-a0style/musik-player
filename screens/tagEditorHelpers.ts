@@ -11,6 +11,13 @@ import { normalizeEditableTags } from '../utils/tagValidation';
 
 export type FormState = Record<keyof EditableTrackTags, string>;
 
+const SAF_READ_ONLY_MESSAGE =
+  'Diese Datei liegt in einem geschützten Android-Ordner. Kopiere sie zuerst in einen lokalen Musikordner, um Tags bearbeiten zu können.';
+const ID3V24_UNSUPPORTED_MESSAGE =
+  'Diese MP3 nutzt ID3v2.4 oder ein noch nicht unterstütztes Tag-Layout. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen.';
+const FILE_REPLACE_UNSUPPORTED_MESSAGE =
+  'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
+
 export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
   { key: 'title', label: 'Titel' },
   { key: 'artist', label: 'Künstler' },
@@ -23,11 +30,10 @@ export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
 ];
 
 export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
-  MissingWritePermission:
-    'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.',
+  MissingWritePermission: SAF_READ_ONLY_MESSAGE,
   UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
-  WriteNotImplemented: 'Sicheres Ersetzen auf dieser Plattform noch nicht unterstützt.',
+  WriteNotImplemented: ID3V24_UNSUPPORTED_MESSAGE,
   InvalidTagData: 'Ungültige Metadaten. Bitte Eingaben prüfen.',
   FileTooLarge:
     'Datei ist für sicheres In-App-Tag-Schreiben zu groß. Bitte extern bearbeiten oder kleinere Dateien nutzen.',
@@ -79,12 +85,10 @@ export const capabilityReason = (reason?: string): string =>
   reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
 
 export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
-  if (reasons.includes('MissingWritePermission'))
-    return 'SAF/content:// Schreiben ist noch nicht unterstützt. Du kannst die Datei anzeigen, aber Tags nicht direkt speichern.';
+  if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;
   if (reasons.includes('FileTooLarge'))
     return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
-  if (reasons.includes('WriteNotImplemented'))
-    return 'iOS/Web file://: sicherer Replace nicht unterstützt.';
+  if (reasons.includes('WriteNotImplemented')) return FILE_REPLACE_UNSUPPORTED_MESSAGE;
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
   if (reasons.includes('UnsupportedUri'))
     return 'URI ist nicht schreibbar (remote/unknown).';
@@ -99,7 +103,7 @@ export const safetyNotice = (song: Song): string | undefined => {
     ''
   ).toLowerCase();
   if (uri?.startsWith('content://')) {
-    return 'SAF/content:// Dateien sind aktuell read-only. Zum Bearbeiten bitte eine lokale file:// Kopie verwenden.';
+    return SAF_READ_ONLY_MESSAGE;
   }
   if (container === 'm4a' || container === 'mp4') {
     return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben. Manche Dateien bleiben bewusst blockiert.';
