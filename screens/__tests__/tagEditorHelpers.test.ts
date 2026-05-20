@@ -107,7 +107,16 @@ describe('tagEditorHelpers', () => {
   });
 
   test('explains unsupported tag write layouts separately from platform replace support', () => {
-    expect(ERROR_MESSAGES.WriteNotImplemented).toContain('ID3v2.4');
+    expect(ERROR_MESSAGES.WriteNotImplemented).toContain('Tag-Layout');
     expect(blockingReasonMessage(['WriteNotImplemented'])).toContain('Sicheres Ersetzen');
+  });
+
+  test('explains ID3v2.2 and ID3v2.4 write blocks with specific messages', () => {
+    expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.2');
+    expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.3');
+    expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('ID3v2.4');
+    expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('ID3v2.3');
+    expect(blockingReasonMessage(['WriteNotImplementedV22'])).toContain('ID3v2.2');
+    expect(blockingReasonMessage(['WriteNotImplementedV24'])).toContain('ID3v2.4');
   });
 });
