@@ -41,6 +41,7 @@ const baseValue: MusicContextValue = {
   palette: null,
   playlists: [],
   createPlaylist: () => ({ id: 'pl-1', name: 'New', songIds: [], createdAt: 1 }),
+  saveQueueAsPlaylist: () => ({ id: 'pl-2', name: 'Queue', songIds: ['s1'], createdAt: 2 }),
   deletePlaylist: noop,
   renamePlaylist: noop,
   addSongToPlaylist: noop,
@@ -56,6 +57,7 @@ const ValueProbe = () => {
       <Text testID="ready">{String(value.isReady)}</Text>
       <Text testID="songs-count">{value.songs.length}</Text>
       <Text testID="volume">{String(value.volume)}</Text>
+      <Text testID="queue-save-name">{value.saveQueueAsPlaylist('Queue', value.playbackQueue)?.name}</Text>
     </>
   );
 };
@@ -67,5 +69,6 @@ describe('useMusicContextValue', () => {
     expect(getByTestId('ready').props.children).toBe('true');
     expect(getByTestId('songs-count').props.children).toBe(1);
     expect(getByTestId('volume').props.children).toBe('0.8');
+    expect(getByTestId('queue-save-name').props.children).toBe('Queue');
   });
 });
