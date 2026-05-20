@@ -1,40 +1,32 @@
 package expo.modules.systemaudio
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.media.audiofx.Equalizer
-import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
-import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 /**
- * Bridges Android's AudioEffect APIs (Equalizer + Visualizer) and the
- * androidx.palette color extraction to JavaScript.
+ * Bridges Android's Equalizer API and the androidx.palette color extraction
+ * to JavaScript.
  *
  * The Equalizer is attached to audioSession=0 (output mix) which affects
  * all audio coming out of the device while the app holds the effect.
  * Requires MODIFY_AUDIO_SETTINGS (auto-granted at install on most devices).
  *
- * The Visualizer also attaches to audioSession=0 and requires RECORD_AUDIO
- * at runtime on Android 9+ — the JS side asks the user, this module
- * simply reports back whether it could start.
+ * Native FFT/Visualizer capture is intentionally disabled for release builds.
+ * Android's Visualizer API can require microphone-style runtime permission on
+ * modern devices, so this module keeps visualizer calls as safe no-ops.
  */
 class SystemAudioModule : Module() {
   private var equalizer: Equalizer? = null
-  private var visualizer: Visualizer? = null
-  private var fftBins: Int = 16
-
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
 
@@ -86,79 +78,13 @@ class SystemAudioModule : Module() {
 
     // ---------- Visualizer ----------
 
-    AsyncFunction("visualizerStart") { bins: Int ->
-      val ctx = appContext.reactContext ?: return@AsyncFunction false
-      val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
-        PackageManager.PERMISSION_GRANTED
-      if (!granted) {
-        sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "no_permission"))
-        return@AsyncFunction false
-      }
-      try {
-        releaseVisualizer()
-        fftBins = bins.coerceIn(8, 128)
-        val v = Visualizer(0)
-        val sizeRange = Visualizer.getCaptureSizeRange()
-        v.captureSize = sizeRange[1].coerceAtMost(1024)
-        v.scalingMode = Visualizer.SCALING_MODE_NORMALIZED
-        v.setDataCaptureListener(
-          object : Visualizer.OnDataCaptureListener {
-            override fun onWaveFormDataCapture(
-              v: Visualizer?,
-              waveform: ByteArray?,
-              samplingRate: Int,
-            ) {}
-
-            override fun onFftDataCapture(
-              v: Visualizer?,
-              fft: ByteArray?,
-              samplingRate: Int,
-            ) {
-              val data = fft ?: return
-              val halfSize = data.size / 2
-              val mags = DoubleArray(halfSize)
-              for (i in 0 until halfSize) {
-                val real = data[2 * i].toInt()
-                val imag = data[2 * i + 1].toInt()
-                mags[i] = sqrt((real * real + imag * imag).toDouble())
-              }
-              val out = DoubleArray(fftBins)
-              if (halfSize > 0) {
-                val logMin = 0.0
-                val logMax = kotlin.math.ln(halfSize.toDouble())
-                for (b in 0 until fftBins) {
-                  val lo = kotlin.math.exp(logMin + (logMax - logMin) * b / fftBins)
-                    .toInt().coerceIn(0, halfSize - 1)
-                  val hi = kotlin.math.exp(logMin + (logMax - logMin) * (b + 1) / fftBins)
-                    .toInt().coerceAtLeast(lo + 1).coerceAtMost(halfSize)
-                  var sum = 0.0
-                  var n = 0
-                  for (i in lo until hi) {
-                    sum += mags[i]; n += 1
-                  }
-                  out[b] = if (n > 0) sum / n else 0.0
-                }
-              }
-              val normalized = out.map { (it / 140.0).coerceIn(0.0, 1.0) }
-              sendEvent("onFftData", mapOf("data" to normalized))
-            }
-          },
-          Visualizer.getMaxCaptureRate() / 2,
-          false,
-          true,
-        )
-        v.enabled = true
-        visualizer = v
-        sendEvent("onVisualizerStateChanged", mapOf("running" to true, "reason" to "ok"))
-        true
-      } catch (e: Throwable) {
-        sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to (e.message ?: "error")))
-        false
-      }
+    AsyncFunction("visualizerStart") { _: Int ->
+      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "disabled"))
+      false
     }
 
     Function("visualizerStop") {
-      releaseVisualizer()
+      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "stopped"))
     }
 
     // ---------- Palette / artwork extraction ----------
@@ -198,7 +124,6 @@ class SystemAudioModule : Module() {
     }
 
     OnDestroy {
-      releaseVisualizer()
       releaseEqualizer()
     }
   }
@@ -219,15 +144,6 @@ class SystemAudioModule : Module() {
       equalizer?.release()
     } catch (_: Throwable) {}
     equalizer = null
-  }
-
-  private fun releaseVisualizer() {
-    try {
-      visualizer?.enabled = false
-      visualizer?.release()
-    } catch (_: Throwable) {}
-    visualizer = null
-    sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "stopped"))
   }
 
   private fun hex(rgb: Int): String {
