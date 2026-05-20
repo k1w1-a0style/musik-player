@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import LibraryAlbumTile from '../LibraryAlbumTile';
+import LibraryAlbumTile, { getAlbumTileFallbackLetter } from '../LibraryAlbumTile';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 
 const album = (patch: Partial<LibraryGroupItem> = {}): LibraryGroupItem => ({
@@ -22,6 +22,13 @@ test('renders first letter when no cover exists', () => {
   const { getByText } = render(<LibraryAlbumTile album={album({ title: 'techno tools' })} onPress={jest.fn()} />);
 
   expect(getByText('T')).toBeTruthy();
+});
+
+test('renders fallback question mark for blank album titles', () => {
+  const { getByText } = render(<LibraryAlbumTile album={album({ title: '   ' })} onPress={jest.fn()} />);
+
+  expect(getByText('?')).toBeTruthy();
+  expect(getAlbumTileFallbackLetter('')).toBe('?');
 });
 
 test('renders cover when available', () => {
