@@ -8,6 +8,7 @@ const mockNavigate = jest.fn();
 const pendingFavoriteLookup = () => new Promise<boolean>(() => undefined);
 const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(pendingFavoriteLookup);
 const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
+const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Queue', songIds: ['s1'], createdAt: 1 }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -30,6 +31,7 @@ const mockNowPlayingContext = {
   visualizerRunning: false,
   visualizerError: null as string | null,
   playSong: jest.fn(async () => undefined),
+  saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -61,6 +63,7 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.visualizerError = null;
     mockGoBack.mockClear();
     mockNavigate.mockClear();
+    mockSaveQueueAsPlaylist.mockClear();
     mockIsFavoriteSongId.mockClear();
     mockSetFavoriteSongId.mockClear();
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
@@ -124,5 +127,14 @@ describe('NowPlaying cover fallback', () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
     fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
     expect(getByText('TrackInfo öffnen')).toBeTruthy();
+    expect(getByText('Queue speichern')).toBeTruthy();
+  });
+
+  test('queue save menu item saves the current queue as playlist', () => {
+    const { getByLabelText, getByText } = render(<NowPlaying />);
+    fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
+    fireEvent.press(getByText('Queue speichern'));
+
+    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith('Gespeicherte Queue', mockNowPlayingContext.playbackQueue);
   });
 });
