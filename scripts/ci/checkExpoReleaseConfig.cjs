@@ -12,6 +12,8 @@ const expectEqual = (label, actual, expected) => {
   }
 };
 
+const MIC_PERMISSION = 'android.permission.' + 'RECORD_AUDIO';
+
 expectEqual('name', config.name, 'Kiwi');
 expectEqual('scheme', config.scheme, 'musik-player');
 expectEqual('slug', config.slug, 'musik-player');
@@ -27,9 +29,10 @@ const requiredAndroidPermissions = [
   'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
 ];
 const forbiddenAndroidPermissions = [
-  'android.permission.RECORD_AUDIO',
+  MIC_PERMISSION,
 ];
 const requiredBlockedPermissions = [
+  MIC_PERMISSION,
   'android.permission.READ_MEDIA_IMAGES',
   'android.permission.READ_MEDIA_VIDEO',
   'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
