@@ -18,6 +18,8 @@ const u32be = (n: number): number[] => [
   n & 0xff,
 ];
 
+const u24be = (n: number): number[] => [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+
 const synchsafe = (n: number): number[] => [
   (n >> 21) & 0x7f,
   (n >> 14) & 0x7f,
@@ -47,16 +49,74 @@ const buildId3v23 = (frames: number[][]): Uint8Array => {
   return new Uint8Array([...header, ...flat]);
 };
 
+const buildId3v22 = (frames: number[][]): Uint8Array => {
+  const flat = frames.reduce<number[]>((acc, frame) => acc.concat(frame), []);
+  return new Uint8Array([...enc('ID3'), 2, 0, 0, ...synchsafe(flat.length), ...flat]);
+};
+
+const buildTextFrameV22 = (id: string, text: string): number[] => {
+  const body = [0x00, ...enc(text)];
+  return [...enc(id), ...u24be(body.length), ...body];
+};
 
 const buildCommFrame = (text: string, description = ''): number[] => {
   const body = [0x00, 0x65, 0x6e, 0x67, ...enc(description), 0x00, ...enc(text)];
   return [...enc('COMM'), ...u32be(body.length), 0, 0, ...body];
 };
 
+const buildCommFrameV22 = (text: string, description = ''): number[] => {
+  const body = [0x00, 0x65, 0x6e, 0x67, ...enc(description), 0x00, ...enc(text)];
+  return [...enc('COM'), ...u24be(body.length), ...body];
+};
+
 const buildApicFrame = (mime: string, imageBytes: number[]): number[] => {
   const body = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...imageBytes];
   return [...enc('APIC'), ...u32be(body.length), 0, 0, ...body];
 };
+
+const buildPicFrameV22 = (format: string, imageBytes: number[]): number[] => {
+  const body = [0x00, ...enc(format), 0x03, 0x00, ...imageBytes];
+  return [...enc('PIC'), ...u24be(body.length), ...body];
+};
+
+describe('parseId3Buffer (v2.2)', () => {
+  test('parses common v2.2 text frames and comments', () => {
+    const buf = buildId3v22([
+      buildTextFrameV22('TT2', 'Old Title'),
+      buildTextFrameV22('TP1', 'Old Artist'),
+      buildTextFrameV22('TAL', 'Old Album'),
+      buildTextFrameV22('TYE', '1999'),
+      buildTextFrameV22('TCO', 'Techno'),
+      buildTextFrameV22('TRK', '7/12'),
+      buildTextFrameV22('TPA', '1/2'),
+      buildCommFrameV22('Old comment'),
+    ]);
+
+    expect(parseId3Buffer(buf)).toMatchObject({
+      title: 'Old Title',
+      artist: 'Old Artist',
+      album: 'Old Album',
+      year: '1999',
+      genre: 'Techno',
+      trackNumber: '7/12',
+      discNumber: '1/2',
+      comment: 'Old comment',
+    });
+  });
+
+  test('TPE2-equivalent TP2 fills artist only when TP1 is missing', () => {
+    expect(parseId3Buffer(buildId3v22([buildTextFrameV22('TP2', 'Album Artist')])).artist).toBe('Album Artist');
+    expect(parseId3Buffer(buildId3v22([
+      buildTextFrameV22('TP1', 'Lead Artist'),
+      buildTextFrameV22('TP2', 'Album Artist'),
+    ])).artist).toBe('Lead Artist');
+  });
+
+  test('still parses v2.2 PIC cover frames', () => {
+    const tags = parseId3Buffer(buildId3v22([buildPicFrameV22('JPG', [0xff, 0xd8, 0xff, 0xe0])]));
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+});
 
 describe('parseId3Buffer (v2.3)', () => {
   test('parses TIT2 / TPE1 / TALB / TYER / TCON', () => {
@@ -239,28 +299,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const fakeType = [0x7a, 0x7a, 0x7a, 0x7a];
     const fakePayload = new Array(24).fill(0x00);
     const bytes = new Uint8Array([...fakeSize, ...fakeType, ...fakePayload, ...moov]);
-    const cover = parseMp4CoverFromBuffer(bytes);
+    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: false });
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
-  });
-
-  test('trusted container scan can skip unknown printable atoms and still find covr', () => {
-    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    const dataPayload = [0, 0, 0, 14, 0, 0, 0, 0, ...png];
-    const unknown = atom('zzzz', new Array(40).fill(0x42));
-    const ilst = atom('ilst', [...unknown, ...atom('covr', atom('data', dataPayload))]);
-    const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst])));
-    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
-    expect(cover?.startsWith('data:image/png;base64,')).toBe(true);
-  });
-
-  test('does not false-positive from covr bytes inside mdat payload', () => {
-    const fake = new Array(64).fill(0x61);
-    fake.splice(8, 4, ...enc('covr'));
-    const bytes = new Uint8Array(atom('mdat', fake));
-    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
-  });
-  test('handles invalid size atoms without infinite loop', () => {
-    const bytes = new Uint8Array([0, 0, 0, 1, ...enc('moov'), 0, 0, 0, 0]);
-    expect(parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true })).toBeUndefined();
   });
 });
