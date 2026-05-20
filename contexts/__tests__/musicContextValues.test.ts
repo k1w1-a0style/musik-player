@@ -45,6 +45,7 @@ const baseValue: MusicContextValue = {
   palette: null,
   playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
   createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2 }),
+  saveQueueAsPlaylist: () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3 }),
   deletePlaylist: noop,
   renamePlaylist: noop,
   addSongToPlaylist: noop,
@@ -82,6 +83,7 @@ describe('music context value builders', () => {
       playbackQueue: baseValue.playbackQueue,
       currentSong: baseValue.currentSong,
       volume: 0.8,
+      saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
       canSkip: true,
     });
   });
