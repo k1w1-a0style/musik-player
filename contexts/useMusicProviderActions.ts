@@ -57,6 +57,7 @@ export const useMusicProviderActions = ({
 
   const {
     createPlaylist,
+    saveQueueAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     addSongToPlaylist,
@@ -76,6 +77,7 @@ export const useMusicProviderActions = ({
     addSongs,
     updateSongMetadata,
     createPlaylist,
+    saveQueueAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     addSongToPlaylist,
