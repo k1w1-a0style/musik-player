@@ -1,7 +1,10 @@
 import {
+  blockingReasonMessage,
   buildDraftFromDirtyFields,
   buildMetadataPatchFromDraft,
+  ERROR_MESSAGES,
   hasRemovableCover,
+  safetyNotice,
   statusMessage,
   toInitialForm,
   type FormState,
@@ -95,5 +98,16 @@ describe('tagEditorHelpers', () => {
     expect(statusMessage(writeResult('noop'))).toBe('Keine Änderung.');
     expect(statusMessage(writeResult('rolledBack'))).toBe('Änderung wurde zurückgerollt.');
     expect(statusMessage(writeResult('blocked'))).toBe('Schreiben blockiert.');
+  });
+
+  test('explains protected Android content URIs with an actionable copy hint', () => {
+    expect(blockingReasonMessage(['MissingWritePermission'])).toContain('Kopiere sie zuerst in einen lokalen Musikordner');
+    expect(safetyNotice({ id: 's3', title: 'Protected', artist: 'Artist', uri: 'content://music/song.mp3' })).toContain('Kopiere sie zuerst in einen lokalen Musikordner');
+    expect(ERROR_MESSAGES.MissingWritePermission).toContain('geschützten Android-Ordner');
+  });
+
+  test('explains unsupported tag write layouts separately from platform replace support', () => {
+    expect(ERROR_MESSAGES.WriteNotImplemented).toContain('ID3v2.4');
+    expect(blockingReasonMessage(['WriteNotImplemented'])).toContain('Sicheres Ersetzen');
   });
 });
