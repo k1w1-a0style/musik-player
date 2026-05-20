@@ -1,11 +1,8 @@
 import React from 'react';
 import { FlatList, StyleSheet, Text, type ListRenderItem } from 'react-native';
-import LibraryAlbumTile from './LibraryAlbumTile';
 import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from './LibraryAlbumViewToggle';
-import LibraryGroupRow from './LibraryGroupRow';
 import LibraryListShell from './LibraryListShell';
 import LibraryPlaybackActions from './LibraryPlaybackActions';
-import LibraryPlaylistRow from './LibraryPlaylistRow';
 import LibrarySectionHeader from './LibrarySectionHeader';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
