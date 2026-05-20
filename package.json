@@ -6,7 +6,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",
-    "lint:ci": "eslint . --quiet",
+    "lint:ci": "eslint . --max-warnings=0",
     "test": "jest",
     "test:silent": "jest --runInBand",
     "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs"
