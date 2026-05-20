@@ -2,6 +2,7 @@ import {
   appendPlaylist,
   buildPlaylistQueue,
   createPlaylistRecord,
+  createPlaylistRecordFromQueue,
   runPlayPlaylistAction,
 } from '../playlistActionHelpers';
 import type { Playlist, Song } from '../../types/Song';
@@ -30,6 +31,25 @@ describe('playlistActionHelpers', () => {
     expect(created.songIds).toEqual([]);
     expect(created.createdAt).toBe(123);
     expect(created.id).toEqual(expect.any(String));
+  });
+
+  test('creates playlist records from playback queues', () => {
+    const created = createPlaylistRecordFromQueue('Queue Mix', [songs[0], songs[1], songs[0]], 123);
+
+    expect(created).toMatchObject({
+      name: 'Queue Mix',
+      songIds: ['s1', 's2'],
+      createdAt: 123,
+    });
+    expect(created?.id).toEqual(expect.any(String));
+  });
+
+  test('returns null for empty queue playlists', () => {
+    expect(createPlaylistRecordFromQueue('Empty', [], 123)).toBeNull();
+  });
+
+  test('uses fallback name for unnamed queue playlists', () => {
+    expect(createPlaylistRecordFromQueue('   ', songs, 123)?.name).toBe('Gespeicherte Queue');
   });
 
   test('appends playlists immutably', () => {
