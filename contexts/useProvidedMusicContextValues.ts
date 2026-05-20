@@ -63,6 +63,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       value.visualizerRunning,
       value.visualizerError,
       value.playSong,
+      value.saveQueueAsPlaylist,
     ],
   );
 
