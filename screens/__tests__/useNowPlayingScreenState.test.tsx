@@ -7,6 +7,7 @@ const mockSong = { id: 's1', title: 'One', artist: 'A' };
 const mockSeekTo = jest.fn(async () => undefined);
 const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
+const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Queue', songIds: ['s1'], createdAt: 1 }));
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 12 }),
@@ -24,6 +25,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     fftBins: [1, 2, 3],
     visualizerError: null,
     playSong: mockPlaySong,
+    saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
   }),
 }));
 
@@ -82,6 +84,7 @@ const ScreenStateProbe = () => {
       <Text testID="position">{state.position}</Text>
       <Text testID="duration">{state.duration}</Text>
       <Text testID="show-visualizer">{String(state.showVisualizer)}</Text>
+      <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
     </>
   );
 };
@@ -98,5 +101,6 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('position').props.children).toBe(3);
     expect(getByTestId('duration').props.children).toBe(9);
     expect(getByTestId('show-visualizer').props.children).toBe('false');
+    expect(getByTestId('can-save-queue').props.children).toBe('true');
   });
 });
