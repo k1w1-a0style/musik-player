@@ -25,11 +25,11 @@ npx eas login
 ## Lokale Gates vor dem Build
 
 ```bash
-npm run typecheck
+npm run typecheck -- --pretty false
 npm test -- --runInBand
 npm run lint:ci
 npx expo config --json | jq -r '.name, .scheme, .slug, .android.package, .newArchEnabled'
-npx expo config --json | jq '.android.permissions, .ios.infoPlist.NSMicrophoneUsageDescription // empty'
+npx expo config --json | jq '.android.permissions, .android.blockedPermissions, .ios.infoPlist.NSMicrophoneUsageDescription // empty'
 ```
 
 Erwartete Werte:
@@ -50,6 +50,16 @@ false
 
 `android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert.
 
+## Generiertes Android Manifest prüfen
+
+```bash
+rm -rf android
+npx expo prebuild --platform android --no-install --clean
+npm run check:android-permissions
+```
+
+Der Check muss vor dem Preview-Build grün sein. Danach kann der lokal generierte `android/`-Ordner wieder gelöscht werden; er ist nur Prebuild-Output.
+
 ## Preview APK bauen
 
 ```bash
@@ -67,11 +77,13 @@ Der `preview`-Build ist in `eas.json` als APK ohne Credentials konfiguriert und 
 - Background/Lockscreen/Notification testen
 - Bluetooth/Headset Controls testen, wenn verfügbar
 - Repeat/Shuffle setzen, App schließen, App neu öffnen und Zustand prüfen
+- Import mit MP3 ID3v2.2/v2.3/v2.4 prüfen
+- Embedded Cover prüfen
 - Tag Editor mit kleiner lokaler Datei testen
 - Tag Editor mit `content://`/SAF-Datei prüfen: muss read-only bleiben
 - Tag Editor mit sehr großer Datei prüfen: muss vor dem Schreiben blockieren
 - Equalizer öffnen: Status darf geräteabhängig/experimentell anzeigen
-- Visualizer prüfen: kein Permission-Prompt; native FFT bleibt deaktiviert
+- Visualizer prüfen: kein Permission-Prompt; native FFT bleibt deaktivierter No-op
 
 ## Nach dem Build
 
