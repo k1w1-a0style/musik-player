@@ -5,6 +5,7 @@ import {
   hydrateStoredSongs,
   loadStoredMusicHydrationState,
   runMusicHydration,
+  sanitizeStoredPlaylistsForHydration,
   type StoredMusicHydrationState,
 } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
@@ -43,6 +44,24 @@ describe('musicHydrationHelpers', () => {
       shuffle: true,
       currentSongId: 's1',
     });
+  });
+
+  test('sanitizes hydrated playlists against the stored library', () => {
+    const stored: StoredMusicHydrationState = {
+      songs,
+      playlists: [{ id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1 }],
+      eqEnabled: null,
+      eqBands: null,
+      eqPreset: null,
+      volume: null,
+      repeatMode: null,
+      shuffle: null,
+      currentSongId: null,
+    };
+
+    expect(sanitizeStoredPlaylistsForHydration(stored)).toEqual([
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+    ]);
   });
 
   test('hydrates stored songs and native queue', async () => {
@@ -194,6 +213,39 @@ describe('musicHydrationHelpers', () => {
     expect(setShuffle).toHaveBeenCalledWith(true);
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
+  });
+
+  test('persists sanitized playlists when applying stored playback settings', async () => {
+    const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1 };
+    const setPlaylists = jest.fn();
+
+    applyStoredPlaybackSettings({
+      stored: {
+        songs,
+        playlists: [dirtyPlaylist],
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: null,
+        currentSongId: null,
+      },
+      setPlaylists,
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+    });
+
+    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+    ]);
+    expect(setPlaylists).toHaveBeenCalledWith([
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+    ]);
   });
 
   test('skips invalid stored eq band arrays when applying settings', () => {
