@@ -162,6 +162,13 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
   }
 };
 
+const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
+  if (key in StorageKeys || Object.values(StorageKeys).includes(key as StorageKey)) {
+    return validateStoredValue(key, value);
+  }
+  return value;
+};
+
 const storageKey = (key: string): string => PREFIX + key;
 
 const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
@@ -184,7 +191,7 @@ export const storage = {
   },
   async set<T>(key: string, value: T): Promise<boolean> {
     try {
-      await AsyncStorage.setItem(storageKey(key), JSON.stringify(value));
+      await AsyncStorage.setItem(storageKey(key), JSON.stringify(normalizeValueForWrite(key, value)));
       return true;
     } catch {
       return false;
