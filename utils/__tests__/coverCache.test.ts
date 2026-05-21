@@ -69,18 +69,43 @@ describe('coverCache', () => {
     expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
-  test('preserves original base64 cover when file write fails', async () => {
-    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+  test('strips embedded base64 cover when file write fails', async () => {
+    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('write rejected'));
     const originalCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
-    const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
+    const songs: Song[] = [
+      {
+        id: 'fail-1',
+        title: 'A',
+        artist: 'B',
+        cover: originalCover,
+        coverInfo: { status: 'embedded', uri: originalCover },
+      },
+    ];
 
     const result = await sanitizeSongsForStorage(songs);
 
-    expect(result[0].cover).toBe(originalCover);
-    expect(result[0].cover).not.toBeUndefined();
+    expect(result[0].cover).toBeUndefined();
+    expect(result[0].coverInfo).toEqual({ status: 'none' });
   });
 
-  test('ignores invalid base64 payload', async () => {
+  test('strips invalid embedded base64 cover during storage sanitizing', async () => {
+    const songs: Song[] = [
+      {
+        id: 'bad-cover',
+        title: 'A',
+        artist: 'B',
+        cover: 'data:image/jpeg;base64,??',
+        coverInfo: { status: 'embedded', uri: 'data:image/jpeg;base64,??' },
+      },
+    ];
+
+    const result = await sanitizeSongsForStorage(songs);
+
+    expect(result[0].cover).toBeUndefined();
+    expect(result[0].coverInfo).toEqual({ status: 'none' });
+  });
+
+  test('ignores invalid base64 payload for direct cache attempt', async () => {
     await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
   });
 
