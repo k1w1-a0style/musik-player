@@ -5,6 +5,9 @@ import {
   patchNullableSongById,
   patchSongById,
   patchSongRefs,
+  pruneNullableSongByValidIds,
+  pruneSongsByValidIds,
+  syncSongRefsToLibrary,
   updateNativeMetadataForSong,
 } from '../libraryActionHelpers';
 import type { Song } from '../../types/Song';
@@ -55,6 +58,32 @@ describe('libraryActionHelpers', () => {
 
   test('still allows URI-less songs when ids are unique', () => {
     expect(mergeUniqueSongs([song('s1')], [song('s2'), song('s1')]).map(item => item.id)).toEqual(['s1', 's2']);
+  });
+
+  test('prunes songs by valid ids while preserving order', () => {
+    const validSongIds = new Set(['s2', 's4']);
+    const input = [song('s1'), song('s2'), song('s3'), song('s4')];
+
+    expect(pruneSongsByValidIds(input, validSongIds).map(item => item.id)).toEqual(['s2', 's4']);
+    expect(pruneSongsByValidIds(songs, new Set(['s1', 's2']))).toBe(songs);
+  });
+
+  test('prunes nullable current song by valid ids', () => {
+    expect(pruneNullableSongByValidIds(songs[0], new Set(['s2']))).toBeNull();
+    expect(pruneNullableSongByValidIds(songs[0], new Set(['s1']))).toBe(songs[0]);
+    expect(pruneNullableSongByValidIds(null, new Set(['s1']))).toBeNull();
+  });
+
+  test('syncs queue refs to the current library', () => {
+    const queueRef = createSongRef([song('s1'), song('s2'), song('missing')]);
+    const baseRef = createSongRef([song('missing'), song('s2')]);
+    const nativeRef = createSongRef([song('s1'), song('missing')]);
+
+    syncSongRefsToLibrary(new Set(['s1', 's2']), [queueRef, baseRef, nativeRef]);
+
+    expect(queueRef.current.map(item => item.id)).toEqual(['s1', 's2']);
+    expect(baseRef.current.map(item => item.id)).toEqual(['s2']);
+    expect(nativeRef.current.map(item => item.id)).toEqual(['s1']);
   });
 
   test('patches song values by id', () => {
