@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image } from 'react-native';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
 const mockGoBack = jest.fn();
@@ -99,6 +99,28 @@ describe('NowPlaying cover fallback', () => {
     await waitFor(() =>
       expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
     );
+  });
+
+  test('favorite icon ignores stale storage reads after optimistic toggle', async () => {
+    let resolveFavoriteLookup: (value: boolean) => void = () => undefined;
+    mockIsFavoriteSongId.mockImplementationOnce(
+      () => new Promise<boolean>(resolve => {
+        resolveFavoriteLookup = resolve;
+      }),
+    );
+    mockSetFavoriteSongId.mockResolvedValueOnce(['s1']);
+    const { getByLabelText } = render(<NowPlaying />);
+    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
+
+    fireEvent.press(getByLabelText('Track favorisieren'));
+    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+
+    await act(async () => {
+      resolveFavoriteLookup(false);
+    });
+
+    expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false);
+    expect(getByLabelText('Track favorisieren').props.accessibilityState?.selected).toBe(true);
   });
 
   test('favorite icon rolls back when persistence fails', async () => {
