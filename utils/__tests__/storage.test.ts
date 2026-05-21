@@ -3,6 +3,7 @@ import {
   clearScanFolders,
   getFavoriteSongIds,
   getScanFolders,
+  normalizeFavoriteSongIds,
   removeScanFolder,
   setFavoriteSongId,
   storage,
@@ -60,9 +61,22 @@ describe('storage', () => {
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'Renamed', uri: 'u', addedAt: 0, enabled: true }]);
   });
 
-  test('filters invalid favorite ids', async () => {
-    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1', 2, 's2', null]);
+  test('normalizes favorite ids', () => {
+    expect(normalizeFavoriteSongIds(['s1', ' s2 ', '', 's1', 2, null, 's2'])).toEqual(['s1', 's2']);
+  });
+
+  test('filters invalid favorite ids and removes duplicates', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1', 2, 's2', null, 's1', ' s2 ', '']);
     expect(await getFavoriteSongIds()).toEqual(['s1', 's2']);
+  });
+
+  test('setFavoriteSongId trims ids, dedupes additions and ignores empty ids', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1']);
+
+    await expect(setFavoriteSongId(' s2 ', true)).resolves.toEqual(['s1', 's2']);
+    await expect(setFavoriteSongId('s2', true)).resolves.toEqual(['s1', 's2']);
+    await expect(setFavoriteSongId(' ', true)).resolves.toEqual(['s1', 's2']);
+    await expect(setFavoriteSongId('s1', false)).resolves.toEqual(['s2']);
   });
 
   test('setFavoriteSongId surfaces persistence failures', async () => {
