@@ -11,6 +11,7 @@ type CacheFileSystem = {
 };
 
 const CLEANUP_DELETE_BATCH_SIZE = 20;
+const CACHE_FILE_NAME_RE = /^[a-f0-9]+-[a-f0-9]+\.(?:jpg|jpeg|png|webp)$/i;
 
 const getFileSystem = (): CacheFileSystem => LegacyFileSystem as CacheFileSystem;
 
@@ -27,12 +28,15 @@ export const getCoverCacheDirectory = (): string | undefined => {
   return baseDir ? `${baseDir}covers` : undefined;
 };
 
+export const isSafeCoverCacheFileName = (fileName: string): boolean =>
+  CACHE_FILE_NAME_RE.test(fileName) && !fileName.includes('/') && !fileName.includes('\\');
+
 const getCachedCoverFileName = (uri: string | undefined, directory: string): string | undefined => {
   if (!uri) return undefined;
   const prefix = `${directory}/`;
   if (!uri.startsWith(prefix)) return undefined;
   const fileName = uri.slice(prefix.length).split(/[?#]/)[0];
-  return fileName.length > 0 ? fileName : undefined;
+  return fileName.length > 0 && isSafeCoverCacheFileName(fileName) ? fileName : undefined;
 };
 
 const getReferencedFileNames = (songs: Song[], directory: string): Set<string> => {
@@ -51,8 +55,9 @@ const deleteFilesInBatches = async (
   directory: string,
   eraseFile: (uri: string, options?: { idempotent?: boolean }) => Promise<void>,
 ): Promise<void> => {
-  for (let i = 0; i < fileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
-    const batch = fileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
+  const safeFileNames = fileNames.filter(isSafeCoverCacheFileName);
+  for (let i = 0; i < safeFileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
+    const batch = safeFileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
     await Promise.all(batch.map(fileName => eraseFile(`${directory}/${fileName}`, { idempotent: true })));
   }
 };
@@ -74,7 +79,9 @@ export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
 
     const referencedFileNames = getReferencedFileNames(songs, directory);
     const cachedFileNames = await readDirectory(directory);
-    const orphanedFileNames = cachedFileNames.filter(fileName => !referencedFileNames.has(fileName));
+    const orphanedFileNames = cachedFileNames.filter(
+      fileName => isSafeCoverCacheFileName(fileName) && !referencedFileNames.has(fileName),
+    );
     await deleteFilesInBatches(orphanedFileNames, directory, eraseFile);
   } catch {
     // Best-effort cache maintenance must not break library hydration or persistence.
