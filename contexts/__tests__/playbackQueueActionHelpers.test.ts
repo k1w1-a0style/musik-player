@@ -48,25 +48,28 @@ describe('playbackQueueActionHelpers', () => {
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
-  test('applies playback queue state to refs and setters', () => {
+  test('applies playback queue state to refs and setters with copied arrays', () => {
     const queueContextRef = createSongRef();
     const baseQueueContextRef = createSongRef();
     const setPlaybackQueue = jest.fn();
     const setCurrentSong = jest.fn();
+    const orderedQueue = [songs[1], songs[0]];
 
     applyPlaybackQueueState({
       queueContextRef,
       baseQueueContextRef,
       setPlaybackQueue,
       setCurrentSong,
-      orderedQueue: [songs[1], songs[0]],
+      orderedQueue,
       baseQueue: songs,
       selectedSong: songs[1],
     });
 
-    expect(queueContextRef.current).toEqual([songs[1], songs[0]]);
+    expect(queueContextRef.current).toEqual(orderedQueue);
+    expect(queueContextRef.current).not.toBe(orderedQueue);
     expect(baseQueueContextRef.current).toEqual(songs);
-    expect(setPlaybackQueue).toHaveBeenCalledWith([songs[1], songs[0]]);
+    expect(baseQueueContextRef.current).not.toBe(songs);
+    expect(setPlaybackQueue).toHaveBeenCalledWith(orderedQueue);
     expect(setCurrentSong).toHaveBeenCalledWith(songs[1]);
   });
 
@@ -89,6 +92,7 @@ describe('playbackQueueActionHelpers', () => {
     await expect(rebuildNativePlaybackQueue(songs, nativeQueueRef)).rejects.toThrow('native add failed');
 
     expect(nativeQueueRef.current).toEqual([]);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
   });
 
   test('runs play-song queue action with full rebuild', async () => {
@@ -102,6 +106,21 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s2');
+  });
+
+  test('runPlaySongQueueAction does not update UI state when native rebuild fails', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = [songs[0]];
+    args.baseQueueContextRef.current = [songs[0]];
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+
+    await expect(runPlaySongQueueAction({ ...args, song: songs[1] })).rejects.toThrow('native add failed');
+
+    expect(args.queueContextRef.current).toEqual([songs[0]]);
+    expect(args.baseQueueContextRef.current).toEqual([songs[0]]);
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
   test('runs shuffle queue action and rebuilds native queue', async () => {
@@ -123,7 +142,7 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
 
-  test('runShuffleQueueAction clears stale native refs when native rebuild fails', async () => {
+  test('runShuffleQueueAction leaves UI state unchanged when native rebuild fails', async () => {
     const args = createQueueArgs();
     args.queueContextRef.current = songs.slice();
     args.baseQueueContextRef.current = songs.slice();
@@ -138,9 +157,11 @@ describe('playbackQueueActionHelpers', () => {
       setShuffle,
     });
 
-    expect(setShuffle).toHaveBeenCalled();
-    expect(args.setPlaybackQueue).toHaveBeenCalled();
-    expect(args.setCurrentSong).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }));
+    expect(setShuffle).not.toHaveBeenCalled();
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.queueContextRef.current).toEqual(songs);
+    expect(args.baseQueueContextRef.current).toEqual(songs);
     expect(args.nativeQueueRef.current).toEqual([]);
   });
 });
