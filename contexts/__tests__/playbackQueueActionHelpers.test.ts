@@ -31,6 +31,8 @@ describe('playbackQueueActionHelpers', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     jest.clearAllMocks();
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(undefined);
+    (TrackPlayer.getProgress as jest.Mock).mockResolvedValue({ position: 12 });
   });
 
   test('uses active queue snapshot or playable library songs', () => {
@@ -69,7 +71,7 @@ describe('playbackQueueActionHelpers', () => {
   });
 
   test('rebuilds native playback queue and resumes position', async () => {
-    const nativeQueueRef = createSongRef();
+    const nativeQueueRef = createSongRef([songs[2]]);
 
     await rebuildNativePlaybackQueue(songs, nativeQueueRef, 12);
 
@@ -78,6 +80,15 @@ describe('playbackQueueActionHelpers', () => {
     expect(nativeQueueRef.current).toEqual(songs);
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(12);
     expect(TrackPlayer.play).toHaveBeenCalled();
+  });
+
+  test('rebuildNativePlaybackQueue clears stale native refs when add fails', async () => {
+    const nativeQueueRef = createSongRef([songs[2]]);
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+
+    await expect(rebuildNativePlaybackQueue(songs, nativeQueueRef)).rejects.toThrow('native add failed');
+
+    expect(nativeQueueRef.current).toEqual([]);
   });
 
   test('runs play-song queue action with full rebuild', async () => {
@@ -110,5 +121,26 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.setPlaybackQueue).toHaveBeenCalled();
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
+  });
+
+  test('runShuffleQueueAction clears stale native refs when native rebuild fails', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = songs.slice();
+    args.baseQueueContextRef.current = songs.slice();
+    args.nativeQueueRef.current = [songs[2]];
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+    const setShuffle = jest.fn();
+
+    await runShuffleQueueAction({
+      ...args,
+      currentSongId: 's1',
+      shuffle: false,
+      setShuffle,
+    });
+
+    expect(setShuffle).toHaveBeenCalled();
+    expect(args.setPlaybackQueue).toHaveBeenCalled();
+    expect(args.setCurrentSong).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }));
+    expect(args.nativeQueueRef.current).toEqual([]);
   });
 });
