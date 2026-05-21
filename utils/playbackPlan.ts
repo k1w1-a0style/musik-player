@@ -10,22 +10,38 @@ export interface PlaySongQueuePlan {
   rebuildOrderedQueue: Song[];
 }
 
+export const normalizePlayableQueue = (queue: Song[]): Song[] => {
+  const seenIds = new Set<string>();
+  const playable: Song[] = [];
+  for (const song of queue) {
+    const id = song.id.trim();
+    if (!id || !song.uri || seenIds.has(id)) continue;
+    seenIds.add(id);
+    playable.push(song.id === id ? song : { ...song, id });
+  }
+  return playable;
+};
+
 export const buildPlaySongQueuePlan = (
   song: Song,
   sourceQueue: Song[],
   nativeQueue: Song[],
 ): PlaySongQueuePlan | null => {
-  const contextQueue = sourceQueue.filter(item => !!item.uri);
+  const contextQueue = normalizePlayableQueue(sourceQueue);
+  const normalizedRequestedId = song.id.trim();
+  if (!normalizedRequestedId) return null;
   const requestedSong =
-    contextQueue.find(item => item.id === song.id) ?? (song.uri ? song : undefined);
+    contextQueue.find(item => item.id === normalizedRequestedId) ??
+    (song.uri ? { ...song, id: normalizedRequestedId } : undefined);
   if (!requestedSong) return null;
 
   const requestedIndex = contextQueue.findIndex(item => item.id === requestedSong.id);
   const queueWithRequested =
     requestedIndex >= 0 ? contextQueue : [requestedSong, ...contextQueue];
-  const nativeIndex = nativeQueue.findIndex(item => item.id === requestedSong.id);
+  const playableNativeQueue = normalizePlayableQueue(nativeQueue);
+  const nativeIndex = playableNativeQueue.findIndex(item => item.id === requestedSong.id);
   const canReuseNativeQueue =
-    nativeIndex >= 0 && hasSameSongIds(nativeQueue, queueWithRequested);
+    nativeIndex >= 0 && hasSameSongIds(playableNativeQueue, queueWithRequested);
 
   return {
     requestedSong,
@@ -33,7 +49,7 @@ export const buildPlaySongQueuePlan = (
     nativeIndex,
     canReuseNativeQueue,
     reusableOrderedQueue: canReuseNativeQueue
-      ? rotateQueueFromIndex(nativeQueue, nativeIndex)
+      ? rotateQueueFromIndex(playableNativeQueue, nativeIndex)
       : [],
     rebuildOrderedQueue: rotateQueueFromIndex(
       queueWithRequested,
@@ -61,14 +77,17 @@ export const buildShuffleTogglePlan = ({
   shuffleEnabled: boolean;
   random?: () => number;
 }): ShuffleTogglePlan | null => {
-  if (currentQueue.length === 0) return null;
+  const playableCurrentQueue = normalizePlayableQueue(currentQueue);
+  const playableBaseQueue = normalizePlayableQueue(baseQueue);
+  const normalizedCurrentSongId = currentSongId?.trim() || undefined;
+  if (playableCurrentQueue.length === 0) return null;
 
   if (!shuffleEnabled) {
-    const nextBaseQueue = baseQueue.length === 0 ? currentQueue.slice() : baseQueue.slice();
-    const currentTrack = currentSongId
-      ? currentQueue.find(song => song.id === currentSongId)
+    const nextBaseQueue = playableBaseQueue.length === 0 ? playableCurrentQueue.slice() : playableBaseQueue.slice();
+    const currentTrack = normalizedCurrentSongId
+      ? playableCurrentQueue.find(song => song.id === normalizedCurrentSongId)
       : undefined;
-    const rest = currentQueue.filter(song => song.id !== currentSongId);
+    const rest = playableCurrentQueue.filter(song => song.id !== normalizedCurrentSongId);
 
     for (let i = rest.length - 1; i > 0; i -= 1) {
       const j = Math.floor(random() * (i + 1));
@@ -83,19 +102,19 @@ export const buildShuffleTogglePlan = ({
     };
   }
 
-  const restoreQueue = baseQueue.length > 0 ? baseQueue : currentQueue;
-  const nextQueue = currentSongId
-    ? rotateQueueFromIndex(
-        restoreQueue,
-        Math.max(0, restoreQueue.findIndex(song => song.id === currentSongId)),
-      )
+  const restoreQueue = playableBaseQueue.length > 0 ? playableBaseQueue : playableCurrentQueue;
+  const currentIndex = normalizedCurrentSongId
+    ? restoreQueue.findIndex(song => song.id === normalizedCurrentSongId)
+    : -1;
+  const nextQueue = currentIndex >= 0
+    ? rotateQueueFromIndex(restoreQueue, currentIndex)
     : restoreQueue.slice();
 
   return {
     nextQueue,
-    nextBaseQueue: baseQueue.slice(),
+    nextBaseQueue: playableBaseQueue.slice(),
     selectedSong:
-      (currentSongId ? nextQueue.find(song => song.id === currentSongId) : undefined) ??
+      (normalizedCurrentSongId ? nextQueue.find(song => song.id === normalizedCurrentSongId) : undefined) ??
       nextQueue[0],
   };
 };
