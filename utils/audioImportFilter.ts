@@ -45,9 +45,13 @@ const normalize = (value?: string | null): string => {
   }
 };
 
+const stripQueryAndFragment = (value: string): string => value.split(/[?#]/)[0] ?? '';
+
+const stripUriScheme = (value: string): string =>
+  value.replace(/^[a-z][a-z0-9+.-]*:\/+/i, '');
+
 const pathSegments = (uri?: string | null): string[] =>
-  normalize(uri)
-    .split(/[/?#]/)[0]
+  stripUriScheme(stripQueryAndFragment(normalize(uri)))
     .split('/')
     .map(segment => segment.trim())
     .filter(Boolean);
@@ -56,7 +60,7 @@ const filenameStem = (filename?: string | null, uri?: string | null): string => 
   const normalizedFilename = normalize(filename);
   const fallback = pathSegments(uri).pop() ?? '';
   const base = normalizedFilename || fallback;
-  return base.replace(/\.[^.]+$/, '').trim();
+  return stripQueryAndFragment(base).replace(/\.[^.]+$/, '').trim();
 };
 
 const blockedDirectorySegment = (asset: AudioAssetLike): string | undefined =>
