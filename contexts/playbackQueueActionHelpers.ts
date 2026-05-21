@@ -66,9 +66,9 @@ export const applyPlaybackQueueState = ({
   baseQueue,
   selectedSong,
 }: ApplyPlaybackQueueStateArgs): void => {
-  queueContextRef.current = orderedQueue;
+  queueContextRef.current = orderedQueue.slice();
   baseQueueContextRef.current = baseQueue.slice();
-  setPlaybackQueue(orderedQueue);
+  setPlaybackQueue(orderedQueue.slice());
   if (selectedSong) setCurrentSong(selectedSong);
 };
 
@@ -103,15 +103,6 @@ export const runPlaySongQueueAction = async ({
 
   if (canReuseNativeQueue && trackPlayerWithSkip.skip) {
     const orderedQueue = plan.reusableOrderedQueue;
-    applyPlaybackQueueState({
-      queueContextRef,
-      baseQueueContextRef,
-      setPlaybackQueue,
-      setCurrentSong,
-      orderedQueue,
-      baseQueue: nativeQueueRef.current,
-      selectedSong: requestedSong,
-    });
 
     try {
       const activeTrack = await TrackPlayer.getActiveTrack();
@@ -119,6 +110,15 @@ export const runPlaySongQueueAction = async ({
         await trackPlayerWithSkip.skip(nativeIndex);
       }
       await TrackPlayer.play();
+      applyPlaybackQueueState({
+        queueContextRef,
+        baseQueueContextRef,
+        setPlaybackQueue,
+        setCurrentSong,
+        orderedQueue,
+        baseQueue: nativeQueueRef.current,
+        selectedSong: requestedSong,
+      });
       await persistRequestedSongId(requestedSong, songsRef.current);
       return;
     } catch {
@@ -127,6 +127,7 @@ export const runPlaySongQueueAction = async ({
   }
 
   const orderedQueue = plan.rebuildOrderedQueue;
+  await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef);
   applyPlaybackQueueState({
     queueContextRef,
     baseQueueContextRef,
@@ -136,8 +137,6 @@ export const runPlaySongQueueAction = async ({
     baseQueue: queueWithRequested,
     selectedSong: requestedSong,
   });
-
-  await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef);
   await persistRequestedSongId(requestedSong, songsRef.current);
 };
 
@@ -164,6 +163,15 @@ export const runShuffleQueueAction = async ({
   if (!plan) return;
 
   const { nextQueue, nextBaseQueue, selectedSong } = plan;
+
+  try {
+    const pos = await TrackPlayer.getProgress();
+    await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
+  } catch {
+    nativeQueueRef.current = [];
+    return;
+  }
+
   applyPlaybackQueueState({
     queueContextRef,
     baseQueueContextRef,
@@ -174,11 +182,4 @@ export const runShuffleQueueAction = async ({
     selectedSong,
   });
   setShuffle(prev => !prev);
-
-  try {
-    const pos = await TrackPlayer.getProgress();
-    await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
-  } catch {
-    nativeQueueRef.current = [];
-  }
 };
