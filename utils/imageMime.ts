@@ -15,12 +15,14 @@ export const detectImageMimeFromBytes = (bytes: Uint8Array): SupportedImageMime 
   return undefined;
 };
 
+const stripMimeParameters = (value: string): string => value.split(';')[0]?.trim().toLowerCase() ?? '';
+
 export const normalizeImageMime = (value?: string): SupportedImageMime | undefined => {
   if (!value) return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'image/jpeg';
-  if (normalized.includes('png')) return 'image/png';
-  if (normalized.includes('webp')) return 'image/webp';
+  const normalized = stripMimeParameters(value);
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg' || normalized === 'jpg' || normalized === 'jpeg') return 'image/jpeg';
+  if (normalized === 'image/png' || normalized === 'png') return 'image/png';
+  if (normalized === 'image/webp' || normalized === 'webp') return 'image/webp';
   return undefined;
 };
 
