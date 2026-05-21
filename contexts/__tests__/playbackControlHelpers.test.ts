@@ -10,8 +10,11 @@ import {
   toggleTrackPlayerPlayback,
 } from '../playbackControlHelpers';
 
+const trackPlayer = TrackPlayer as typeof TrackPlayer & { __reset: () => void };
+
 describe('playbackControlHelpers', () => {
   beforeEach(() => {
+    trackPlayer.__reset();
     jest.clearAllMocks();
   });
 
@@ -26,6 +29,25 @@ describe('playbackControlHelpers', () => {
     expect(getNextRepeatMode('off')).toBe('all');
     expect(getNextRepeatMode('all')).toBe('one');
     expect(getNextRepeatMode('one')).toBe('off');
+  });
+
+  test('applies repeat mode to TrackPlayer', async () => {
+    await applyRepeatModeToTrackPlayer('all');
+
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(2);
+  });
+
+  test('propagates repeat mode apply rejections', async () => {
+    (TrackPlayer.setRepeatMode as jest.Mock).mockRejectedValueOnce(new Error('repeat apply rejected'));
+
+    await expect(applyRepeatModeToTrackPlayer('one')).rejects.toThrow('repeat apply rejected');
+  });
+
+  test('applies clamped volume to TrackPlayer', async () => {
+    const volume = await applyVolumeToTrackPlayer(2);
+
+    expect(volume).toBe(1);
+    expect(TrackPlayer.setVolume).toHaveBeenCalledWith(1);
   });
 
   test('toggles TrackPlayer playback from playing to pause', async () => {
@@ -51,10 +73,13 @@ describe('playbackControlHelpers', () => {
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5);
   });
 
-  test('skips next safely', async () => {
+  test('skips next safely and swallows queue boundary rejections', async () => {
     await skipToNextSafely();
+    expect(TrackPlayer.skipToNext).toHaveBeenCalledTimes(1);
 
-    expect(TrackPlayer.skipToNext).toHaveBeenCalled();
+    (TrackPlayer.skipToNext as jest.Mock).mockRejectedValueOnce(new Error('queue boundary'));
+    await expect(skipToNextSafely()).resolves.toBeUndefined();
+    expect(TrackPlayer.skipToNext).toHaveBeenCalledTimes(2);
   });
 
   test('restarts current track when previous is pressed after threshold', async () => {
@@ -66,12 +91,13 @@ describe('playbackControlHelpers', () => {
     expect(TrackPlayer.skipToPrevious).not.toHaveBeenCalled();
   });
 
-  test('applies repeat mode and volume', async () => {
-    await applyRepeatModeToTrackPlayer('all');
-    const volume = await applyVolumeToTrackPlayer(2);
+  test('previous falls back to restart at beginning of queue', async () => {
+    jest.spyOn(TrackPlayer, 'getProgress').mockResolvedValueOnce({ position: 1, duration: 10, buffered: 1 });
+    (TrackPlayer.skipToPrevious as jest.Mock).mockRejectedValueOnce(new Error('queue boundary'));
 
-    expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
-    expect(volume).toBe(1);
-    expect(TrackPlayer.setVolume).toHaveBeenCalledWith(1);
+    await skipToPreviousOrRestart();
+
+    expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.seekTo).toHaveBeenCalledWith(0);
   });
 });
