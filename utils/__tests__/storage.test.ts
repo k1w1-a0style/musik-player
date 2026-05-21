@@ -5,6 +5,7 @@ import {
   getScanFolders,
   normalizeEqBandsForStorage,
   normalizeFavoriteSongIds,
+  normalizeVolumeForStorage,
   removeScanFolder,
   setFavoriteSongId,
   storage,
@@ -87,13 +88,44 @@ describe('storage', () => {
   });
 
   test('rejects invalid persisted settings', async () => {
-    await storage.set(StorageKeys.VOLUME, 2);
+    await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
     await storage.set(StorageKeys.SHUFFLE, 'yes');
 
     expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
     expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
+  });
+
+  test('normalizes volume values for storage', () => {
+    expect(normalizeVolumeForStorage(0.5)).toBe(0.5);
+    expect(normalizeVolumeForStorage(2)).toBe(1);
+    expect(normalizeVolumeForStorage(-1)).toBe(0);
+    expect(normalizeVolumeForStorage(Number.NaN)).toBeNull();
+    expect(normalizeVolumeForStorage('0.5')).toBeNull();
+  });
+
+  test('getVolume defaults to full volume when no value is stored', async () => {
+    expect(await storage.getVolume()).toBe(1);
+  });
+
+  test('getVolume clamps persisted numeric strings and ignores invalid values', async () => {
+    await AsyncStorage.setItem('@musikplayer:volume', '2');
+    expect(await storage.getVolume()).toBe(1);
+
+    await AsyncStorage.setItem('@musikplayer:volume', '-1');
+    expect(await storage.getVolume()).toBe(0);
+
+    await AsyncStorage.setItem('@musikplayer:volume', 'not-a-number');
+    expect(await storage.getVolume()).toBe(1);
+  });
+
+  test('setVolume persists normalized values', async () => {
+    await storage.setVolume(2);
+    expect(await storage.getVolume()).toBe(1);
+
+    await storage.setVolume(Number.NaN);
+    expect(await storage.getVolume()).toBe(1);
   });
 
   test('normalizes eq band arrays to the safe persisted range', () => {
