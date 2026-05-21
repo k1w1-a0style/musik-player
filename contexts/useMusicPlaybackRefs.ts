@@ -10,15 +10,29 @@ export interface MusicPlaybackRefs {
   persistCurrentSongId: (song: Song | null) => Promise<void>;
 }
 
+export const normalizeCurrentSongIdForPersistence = (songId: unknown): string | undefined => {
+  if (typeof songId !== 'string') return undefined;
+  const trimmed = songId.trim();
+  return trimmed || undefined;
+};
+
 export const persistCurrentSongIdForLibrary = async (
   song: Song | null,
   songs: Song[],
 ): Promise<void> => {
-  if (!song || !songs.some(item => item.id === song.id)) {
+  const songId = normalizeCurrentSongIdForPersistence(song?.id);
+  if (!songId) {
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
     return;
   }
-  await storage.set(StorageKeys.CURRENT_SONG_ID, song.id);
+
+  const existsInLibrary = songs.some(item => normalizeCurrentSongIdForPersistence(item.id) === songId);
+  if (!existsInLibrary) {
+    await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    return;
+  }
+
+  await storage.set(StorageKeys.CURRENT_SONG_ID, songId);
 };
 
 export const useMusicPlaybackRefs = (songs: Song[]): MusicPlaybackRefs => {
