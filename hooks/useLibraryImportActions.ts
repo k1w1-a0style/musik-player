@@ -94,14 +94,16 @@ export const useLibraryImportActions = ({
     );
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    await persistChangedFolderUpdates(result.folderUpdates);
+    const persistFolderUpdates = persistChangedFolderUpdates(result.folderUpdates).catch(() => undefined);
     const scanResult = buildScanImportResult(songs, result.songs, result.errors);
     if (scanResult.kind === 'empty') {
+      await persistFolderUpdates;
       showAlert(scanResult.alert);
       return;
     }
     if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
     applyImportedSongsUpdate(scanResult.update);
+    await persistFolderUpdates;
   }, [applyImportedSongsUpdate, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy): Promise<void> => {
