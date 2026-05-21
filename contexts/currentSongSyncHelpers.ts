@@ -8,12 +8,42 @@ interface SyncCurrentSongFromTrackArgs {
   persistCurrentSongId: (song: Song | null) => Promise<void>;
 }
 
+type ActiveTrackEventParseResult =
+  | { kind: 'track'; trackId: string }
+  | { kind: 'clear' }
+  | { kind: 'ignore' };
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const normalizeTrackId = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+};
+
+export const parseActiveTrackEvent = (event: unknown): ActiveTrackEventParseResult => {
+  if (!isRecord(event)) return { kind: 'ignore' };
+
+  const directTrackId = normalizeTrackId(event.trackId);
+  if (directTrackId) return { kind: 'track', trackId: directTrackId };
+
+  if (!Object.prototype.hasOwnProperty.call(event, 'track')) return { kind: 'ignore' };
+  const track = event.track;
+  if (track == null) return { kind: 'clear' };
+
+  if (isRecord(track)) {
+    const id = normalizeTrackId(track.id);
+    return id ? { kind: 'track', trackId: id } : { kind: 'clear' };
+  }
+
+  const id = normalizeTrackId(track);
+  return id ? { kind: 'track', trackId: id } : { kind: 'clear' };
+};
+
 export const getTrackIdFromActiveTrackEvent = (event: unknown): string | undefined => {
-  if (!isRecord(event) || !isRecord(event.track)) return undefined;
-  return typeof event.track.id === 'string' ? event.track.id : undefined;
+  const parsed = parseActiveTrackEvent(event);
+  return parsed.kind === 'track' ? parsed.trackId : undefined;
 };
 
 export const findTrackSongById = (
@@ -34,9 +64,21 @@ export const syncCurrentSongFromActiveTrackEvent = ({
   setCurrentSong,
   persistCurrentSongId,
 }: SyncCurrentSongFromTrackArgs): void => {
-  const trackId = getTrackIdFromActiveTrackEvent(event);
-  const song = findTrackSongById(trackId, songSources);
-  if (!song) return;
+  const parsed = parseActiveTrackEvent(event);
+  if (parsed.kind === 'ignore') return;
+
+  if (parsed.kind === 'clear') {
+    setCurrentSong(null);
+    void persistCurrentSongId(null);
+    return;
+  }
+
+  const song = findTrackSongById(parsed.trackId, songSources);
+  if (!song) {
+    setCurrentSong(null);
+    void persistCurrentSongId(null);
+    return;
+  }
   setCurrentSong(song);
   void persistCurrentSongId(song);
 };
