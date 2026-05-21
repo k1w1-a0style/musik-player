@@ -40,6 +40,30 @@ export const mergeUniqueSongs = (currentSongs: Song[], newSongs: Song[]): Song[]
   return merged;
 };
 
+export const pruneSongsByValidIds = (songs: Song[], validSongIds: Set<string>): Song[] => {
+  let changed = false;
+  const next = songs.filter(song => {
+    const keep = validSongIds.has(song.id);
+    if (!keep) changed = true;
+    return keep;
+  });
+  return changed ? next : songs;
+};
+
+export const pruneNullableSongByValidIds = (
+  song: Song | null,
+  validSongIds: Set<string>,
+): Song | null => (song && !validSongIds.has(song.id) ? null : song);
+
+export const syncSongRefsToLibrary = (
+  validSongIds: Set<string>,
+  refs: Array<MutableRefObject<Song[]>>,
+): void => {
+  refs.forEach(ref => {
+    ref.current = pruneSongsByValidIds(ref.current, validSongIds);
+  });
+};
+
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song =>
   song.id === songId ? { ...song, ...patch } : song;
 
