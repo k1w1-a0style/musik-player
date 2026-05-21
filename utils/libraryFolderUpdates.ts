@@ -14,15 +14,25 @@ type FolderUpdatesResult = NoChangedFolderUpdatesResult | ChangedFolderUpdatesRe
 export const shouldPersistFolderErrorUpdate = (
   original: ScanFolder | undefined,
   updated: Pick<ScanFolder, 'lastError'>,
-): boolean => !original || original.lastError !== updated.lastError;
+): boolean => !!original && original.lastError !== updated.lastError;
+
+export const dedupeFolderUpdatesById = (updatedFolders: ScanFolder[] | undefined): ScanFolder[] => {
+  if (!updatedFolders) return [];
+  const byId = new Map<string, ScanFolder>();
+  updatedFolders.forEach(folder => {
+    if (!folder.id.trim()) return;
+    byId.set(folder.id, folder);
+  });
+  return [...byId.values()];
+};
 
 export const getChangedFolderUpdates = (
   currentFolders: ScanFolder[],
   updatedFolders: ScanFolder[] | undefined,
 ): ScanFolder[] => {
-  if (!updatedFolders) return [];
-  return updatedFolders.filter(folder => {
-    const original = currentFolders.find(item => item.id === folder.id);
+  const currentById = new Map(currentFolders.map(folder => [folder.id, folder]));
+  return dedupeFolderUpdatesById(updatedFolders).filter(folder => {
+    const original = currentById.get(folder.id);
     return shouldPersistFolderErrorUpdate(original, folder);
   });
 };
