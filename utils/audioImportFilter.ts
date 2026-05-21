@@ -2,14 +2,16 @@ import * as MediaLibrary from 'expo-media-library';
 
 export const MIN_MUSIC_DURATION_SECONDS = 45;
 
-type AudioAssetLike = Pick<MediaLibrary.Asset, 'filename' | 'uri'> & Partial<Pick<MediaLibrary.Asset, 'duration'>>;
+type AudioAssetLike = Pick<MediaLibrary.Asset, 'filename' | 'uri'> &
+  Partial<Pick<MediaLibrary.Asset, 'duration'>> & { mimeType?: string | null };
 
-const BLOCKED_AUDIO_PATH_PATTERNS = [
+const BLOCKED_DIRECTORY_SEGMENTS = new Set([
   'whatsapp',
+  'whatsapp audio',
+  'whatsapp voice notes',
   'voice notes',
   'voice_note',
   'voicenote',
-  'ptt-',
   'recordings',
   'recording',
   'recorder',
@@ -21,22 +23,67 @@ const BLOCKED_AUDIO_PATH_PATTERNS = [
   'notification',
   'alarms',
   'alarm',
+]);
+
+const BLOCKED_FILENAME_PREFIXES = [
+  'ptt-',
+  'aud-',
+  'voice recorder',
+  'voice note',
+  'sound recorder',
+  'recording_',
+  'recording-',
+  'recording ',
 ];
 
-const normalize = (value?: string | null): string => value?.toLowerCase().replace(/\\/g, '/') ?? '';
+const normalize = (value?: string | null): string => {
+  const raw = value ?? '';
+  try {
+    return decodeURIComponent(raw).toLowerCase().replace(/\\/g, '/');
+  } catch {
+    return raw.toLowerCase().replace(/\\/g, '/');
+  }
+};
 
-const getAssetHaystack = (asset: AudioAssetLike): string => `${normalize(asset.filename)} ${normalize(asset.uri)}`;
+const pathSegments = (uri?: string | null): string[] =>
+  normalize(uri)
+    .split(/[/?#]/)[0]
+    .split('/')
+    .map(segment => segment.trim())
+    .filter(Boolean);
+
+const filenameStem = (filename?: string | null, uri?: string | null): string => {
+  const normalizedFilename = normalize(filename);
+  const fallback = pathSegments(uri).pop() ?? '';
+  const base = normalizedFilename || fallback;
+  return base.replace(/\.[^.]+$/, '').trim();
+};
+
+const blockedDirectorySegment = (asset: AudioAssetLike): string | undefined =>
+  pathSegments(asset.uri).find(segment => BLOCKED_DIRECTORY_SEGMENTS.has(segment));
+
+const blockedFilenamePrefix = (asset: AudioAssetLike): string | undefined => {
+  const stem = filenameStem(asset.filename, asset.uri);
+  return BLOCKED_FILENAME_PREFIXES.find(prefix => stem.startsWith(prefix));
+};
+
+const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
+  const mime = normalize(asset.mimeType);
+  return mime.startsWith('audio/');
+};
 
 export const getAudioAssetRejectReason = (asset: AudioAssetLike): string | null => {
-  const haystack = getAssetHaystack(asset);
   const duration = typeof asset.duration === 'number' ? asset.duration : undefined;
 
   if (duration != null && duration > 0 && duration < MIN_MUSIC_DURATION_SECONDS) {
     return `shorter-than-${MIN_MUSIC_DURATION_SECONDS}s`;
   }
 
-  const blockedPattern = BLOCKED_AUDIO_PATH_PATTERNS.find(pattern => haystack.includes(pattern));
-  if (blockedPattern) return `blocked-path:${blockedPattern}`;
+  const directorySegment = blockedDirectorySegment(asset);
+  if (directorySegment) return `blocked-path:${directorySegment}`;
+
+  const filenamePrefix = blockedFilenamePrefix(asset);
+  if (filenamePrefix && !hasAudioMimeType(asset)) return `blocked-filename:${filenamePrefix}`;
 
   return null;
 };
