@@ -4,6 +4,7 @@ import {
   prunePlaylists,
   removeSongFromPlaylistById,
   renamePlaylistById,
+  sanitizePlaylists,
 } from '../playlistState';
 import type { Playlist } from '../../types/Song';
 
@@ -22,8 +23,25 @@ describe('playlistState helpers', () => {
     ]);
   });
 
+  test('prunes duplicate song ids while preserving order', () => {
+    const result = prunePlaylists(
+      [{ id: 'pl-1', name: 'One', songIds: ['s1', 'missing', 's1', 's2', 's2'], createdAt: 1 }],
+      new Set(['s1', 's2']),
+    );
+
+    expect(result[0].songIds).toEqual(['s1', 's2']);
+  });
+
   test('returns the same playlist array when pruning does not change anything', () => {
     expect(prunePlaylists(playlists, new Set(['s1', 's2', 's3']))).toBe(playlists);
+  });
+
+  test('sanitizePlaylists removes duplicate ids without requiring a song library', () => {
+    const result = sanitizePlaylists([
+      { id: 'pl-1', name: 'One', songIds: ['s1', 's1', 's2', 's1', 's3'], createdAt: 1 },
+    ]);
+
+    expect(result[0].songIds).toEqual(['s1', 's2', 's3']);
   });
 
   test('renames a playlist by id', () => {
