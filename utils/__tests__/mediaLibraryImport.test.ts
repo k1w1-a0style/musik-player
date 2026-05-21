@@ -329,6 +329,7 @@ describe('mediaLibraryImport', () => {
   });
 
   test('saf fast import uses filename fallback when ID3 is disabled', async () => {
+    (parseId3FromUri as jest.Mock).mockClear();
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
       'content://dir/The%20Artist%20-%20Title.mp3',
     ]);
