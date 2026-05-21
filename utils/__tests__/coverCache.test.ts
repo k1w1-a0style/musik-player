@@ -139,18 +139,18 @@ describe('coverCache', () => {
 
   test('cleans orphaned cached cover files', async () => {
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({
-      exists: uri === 'file:///docs/covers' || uri.includes('keep.jpg'),
+      exists: uri === 'file:///docs/covers' || uri.includes('aaa-bbb.jpg'),
     }));
-    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['keep.jpg', 'old.jpg']);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
 
     await cleanupCoverCache([
-      { id: 'keep', title: 'A', artist: 'B', cover: 'file:///docs/covers/keep.jpg' },
+      { id: 'keep', title: 'A', artist: 'B', cover: 'file:///docs/covers/aaa-bbb.jpg' },
     ]);
 
-    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/old.jpg', {
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
       idempotent: true,
     });
-    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/keep.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', expect.anything());
   });
 
   test('ignores cleanup failures', async () => {
