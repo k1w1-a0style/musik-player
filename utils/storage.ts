@@ -164,6 +164,20 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
   }
 };
 
+const supportsRawStringValue = (key: string): boolean =>
+  key === StorageKeys.CURRENT_SONG_ID ||
+  key === StorageKeys.EQ_PRESET ||
+  key === StorageKeys.REPEAT_MODE;
+
+const parseStoredValue = (key: string, raw: string): unknown | null => {
+  try {
+    return validateStoredValue(key, JSON.parse(raw));
+  } catch {
+    if (supportsRawStringValue(key)) return validateStoredValue(key, raw);
+    return null;
+  }
+};
+
 const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
   if (key in StorageKeys || Object.values(StorageKeys).includes(key as StorageKey)) {
     return validateStoredValue(key, value);
@@ -186,7 +200,7 @@ export const storage = {
     try {
       const raw = await AsyncStorage.getItem(storageKey(key));
       if (raw == null) return null;
-      return validateStoredValue(key, JSON.parse(raw)) as T | null;
+      return parseStoredValue(key, raw) as T | null;
     } catch {
       return null;
     }
@@ -219,7 +233,8 @@ export const storage = {
     await setItem(StorageKeys.PLAYLISTS, JSON.stringify(playlists));
   },
   async getCurrentSongId() {
-    return await getItem(StorageKeys.CURRENT_SONG_ID);
+    const value = await getItem(StorageKeys.CURRENT_SONG_ID);
+    return value == null ? null : (parseStoredValue(StorageKeys.CURRENT_SONG_ID, value) as string | null);
   },
   async setCurrentSongId(songId?: string | null) {
     if (!songId) await removeItem(StorageKeys.CURRENT_SONG_ID);
@@ -227,7 +242,8 @@ export const storage = {
   },
   async getEqPreset(): Promise<EqPresetName> {
     const value = await getItem(StorageKeys.EQ_PRESET);
-    return value && value in EQ_PRESETS ? value as EqPresetName : 'flat';
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.EQ_PRESET, value);
+    return isEqPresetName(parsed) ? parsed : 'flat';
   },
   async setEqPreset(preset: EqPresetName) {
     await setItem(StorageKeys.EQ_PRESET, preset);
@@ -261,7 +277,8 @@ export const storage = {
   },
   async getRepeatMode() {
     const value = await getItem(StorageKeys.REPEAT_MODE);
-    return value === 'one' || value === 'all' ? value : 'off';
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.REPEAT_MODE, value);
+    return parsed === 'one' || parsed === 'all' ? parsed : 'off';
   },
   async setRepeatMode(mode: 'off' | 'one' | 'all') {
     await setItem(StorageKeys.REPEAT_MODE, mode);
