@@ -59,8 +59,8 @@ export const usePlaybackControls = (): PlaybackControls => {
 
   const cycleRepeatMode = useCallback(async () => {
     const nextRepeatMode = getNextRepeatMode(repeatMode);
-    setRepeatMode(nextRepeatMode);
     await applyRepeatModeToTrackPlayer(nextRepeatMode);
+    setRepeatMode(nextRepeatMode);
   }, [repeatMode]);
 
   const setVolume = useCallback(async (nextVolume: number) => {
