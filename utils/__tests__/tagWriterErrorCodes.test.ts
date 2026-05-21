@@ -1,4 +1,4 @@
-import { applyTagEditToBuffer, TagWriterError } from '../tagWriter';
+import { applyTagEditToBuffer, normalizeTagWriterErrorCode, TagWriterError } from '../tagWriter';
 import { tagWriterErrorMessage } from '../../screens/tagEditorHelpers';
 
 const u8 = (...values: number[]) => new Uint8Array(values);
@@ -13,26 +13,26 @@ const id3v24 = new Uint8Array([
   0xaa, 0xbb,
 ]);
 
-describe('tag writer ID3 version error messages', () => {
-  it('keeps the writer conservative for ID3v2.2 and maps it to a specific UI message', () => {
+describe('tag writer ID3 version error codes', () => {
+  it('emits a specific code for ID3v2.2 write blocks', () => {
     try {
       applyTagEditToBuffer(id3v22, 'mp3', { songId: 's1', tags: { title: 'X' } });
       throw new Error('Expected ID3v2.2 write block');
     } catch (error) {
       expect(error).toBeInstanceOf(TagWriterError);
-      expect((error as TagWriterError).code).toBe('WriteNotImplemented');
+      expect((error as TagWriterError).code).toBe('WriteNotImplementedV22');
       expect((error as Error).message).toContain('ID3v2.2');
       expect(tagWriterErrorMessage((error as TagWriterError).code, (error as Error).message)).toContain('ID3v2.2');
     }
   });
 
-  it('keeps the writer conservative for ID3v2.4 and maps it to a specific UI message', () => {
+  it('emits a specific code for ID3v2.4 write blocks', () => {
     try {
       applyTagEditToBuffer(id3v24, 'mp3', { songId: 's1', tags: { title: 'X' } });
       throw new Error('Expected ID3v2.4 write block');
     } catch (error) {
       expect(error).toBeInstanceOf(TagWriterError);
-      expect((error as TagWriterError).code).toBe('WriteNotImplemented');
+      expect((error as TagWriterError).code).toBe('WriteNotImplementedV24');
       expect((error as Error).message).toContain('ID3v2.4');
       expect(tagWriterErrorMessage((error as TagWriterError).code, (error as Error).message)).toContain('ID3v2.4');
     }
@@ -43,6 +43,13 @@ describe('tag writer ID3 version error messages', () => {
 
     expect(error.code).toBe('WriteNotImplemented');
     expect(tagWriterErrorMessage(error.code, error.message)).toContain('Tag-Layout');
+  });
+
+  it('normalizes only known ID3 version messages', () => {
+    expect(normalizeTagWriterErrorCode('WriteNotImplemented', 'Existing ID3v2.2 tags are not supported yet.')).toBe('WriteNotImplementedV22');
+    expect(normalizeTagWriterErrorCode('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.')).toBe('WriteNotImplementedV24');
+    expect(normalizeTagWriterErrorCode('WriteNotImplemented', 'Other unsupported write.')).toBe('WriteNotImplemented');
+    expect(normalizeTagWriterErrorCode('InvalidTagData', 'ID3v2.4 mention inside unrelated error.')).toBe('InvalidTagData');
   });
 
   it('does not affect normal MP3 writes', () => {
