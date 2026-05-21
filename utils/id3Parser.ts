@@ -273,6 +273,29 @@ const decodePIC = (bytes: Uint8Array, start: number, end: number): string | unde
   );
 };
 
+const skipExtendedId3Header = (
+  bytes: Uint8Array,
+  majorVersion: number,
+  flags: number,
+  start: number,
+  end: number,
+): number => {
+  if ((flags & 0x40) === 0) return start;
+  if (majorVersion === 3) {
+    if (start + 4 > end) return end;
+    const extendedSize = decodeSize(bytes, start);
+    if (extendedSize < 6 || start + 4 + extendedSize > end) return end;
+    return start + 4 + extendedSize;
+  }
+  if (majorVersion === 4) {
+    if (start + 4 > end) return end;
+    const extendedSize = decodeSyncsafe(bytes, start);
+    if (extendedSize < 6 || start + extendedSize > end) return end;
+    return start + extendedSize;
+  }
+  return start;
+};
+
 /**
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
  * Supports common ID3v2.2/v2.3/v2.4 text and cover frames.
@@ -288,10 +311,12 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     return tags;
   }
   const majorVersion = bytes[3];
+  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
+  const flags = bytes[5];
   const totalSize = decodeSyncsafe(bytes, 6);
   const end = Math.min(bytes.length, 10 + totalSize);
 
-  let p = 10;
+  let p = majorVersion === 2 ? 10 : skipExtendedId3Header(bytes, majorVersion, flags, 10, end);
   let commentFallback: string | undefined;
   if (majorVersion === 2) {
     while (p + 6 <= end) {
