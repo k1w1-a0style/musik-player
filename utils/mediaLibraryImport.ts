@@ -221,6 +221,13 @@ const dedupeSongsByImportUri = (songs: Song[]): Song[] => {
   });
 };
 
+const addNormalizedSafError = (uri: string, errors: string[], seenErrors: Set<string>): void => {
+  const normalizedUri = normalizeImportUriForDedupe(uri) ?? uri;
+  if (seenErrors.has(normalizedUri)) return;
+  seenErrors.add(normalizedUri);
+  errors.push(normalizedUri);
+};
+
 export const readAudioUrisFromSafDirectory = async (
   directoryUri: string,
   readDirectory: (uri: string) => Promise<string[]> = StorageAccessFramework.readDirectoryAsync,
@@ -228,6 +235,7 @@ export const readAudioUrisFromSafDirectory = async (
   const files: string[] = [];
   const seenFiles = new Set<string>();
   const errors: string[] = [];
+  const seenErrors = new Set<string>();
   const visited = new Set<string>();
 
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
@@ -239,7 +247,7 @@ export const readAudioUrisFromSafDirectory = async (
     try {
       entries = await readDirectory(uri);
     } catch (error) {
-      if (reportError || classifySafReadDirectoryError(error) === 'permission') errors.push(uri);
+      if (reportError || classifySafReadDirectoryError(error) === 'permission') addNormalizedSafError(uri, errors, seenErrors);
       return;
     }
 
