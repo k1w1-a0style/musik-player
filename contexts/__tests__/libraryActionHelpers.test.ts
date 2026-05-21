@@ -1,6 +1,7 @@
 import TrackPlayer from 'react-native-track-player';
 import {
   mergeUniqueSongs,
+  normalizeSongUriForLibraryDedupe,
   patchNullableSongById,
   patchSongById,
   patchSongRefs,
@@ -13,6 +14,14 @@ const songs: Song[] = [
   { id: 's2', title: 'Two', artist: 'B', uri: 'file:///s2.mp3' },
 ];
 
+const song = (id: string, uri?: string, fileUri?: string): Song => ({
+  id,
+  title: id,
+  artist: 'Artist',
+  uri,
+  fileInfo: fileUri ? { uri: fileUri } : undefined,
+});
+
 const createSongRef = (current: Song[] = []) => ({ current });
 
 describe('libraryActionHelpers', () => {
@@ -20,8 +29,32 @@ describe('libraryActionHelpers', () => {
     jest.clearAllMocks();
   });
 
-  test('merges unique songs', () => {
+  test('normalizes song URIs for library-level dedupe', () => {
+    expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///Music/My%20Song.mp3?token=1#x'))).toBe('file:///Music/My Song.mp3');
+    expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///Music\\Song.mp3'))).toBe('file:///Music/Song.mp3');
+    expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///ignored.mp3', 'file:///Music/Real.mp3?x=1'))).toBe('file:///Music/Real.mp3');
+  });
+
+  test('merges unique songs by id', () => {
     expect(mergeUniqueSongs([songs[0]], [songs[0], songs[1]])).toEqual(songs);
+  });
+
+  test('merges by normalized URI so repeated imports do not duplicate tracks', () => {
+    const current = [
+      song('s1', 'file:///Music/Song.mp3?token=1'),
+      song('s2', 'file:///Music/Other.mp3'),
+    ];
+    const incoming = [
+      song('s1', 'file:///Music/Song-duplicate-id.mp3'),
+      song('new-id-same-uri', 'file:///Music/Song.mp3?token=2'),
+      song('s3', 'file:///Music/Third.mp3'),
+    ];
+
+    expect(mergeUniqueSongs(current, incoming).map(item => item.id)).toEqual(['s1', 's2', 's3']);
+  });
+
+  test('still allows URI-less songs when ids are unique', () => {
+    expect(mergeUniqueSongs([song('s1')], [song('s2'), song('s1')]).map(item => item.id)).toEqual(['s1', 's2']);
   });
 
   test('patches song values by id', () => {
