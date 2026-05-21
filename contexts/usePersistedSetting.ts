@@ -9,6 +9,6 @@ export const usePersistedSetting = <T,>(
 ): void => {
   useEffect(() => {
     if (!isReady) return;
-    void persistIfChanged(key, value, persistedRefs.current);
+    void persistIfChanged(key, value, persistedRefs.current).catch(() => undefined);
   }, [isReady, key, persistedRefs, value]);
 };
