@@ -3,6 +3,7 @@ import {
   clearScanFolders,
   getFavoriteSongIds,
   getScanFolders,
+  normalizeEqBandsForStorage,
   normalizeFavoriteSongIds,
   removeScanFolder,
   setFavoriteSongId,
@@ -95,15 +96,30 @@ describe('storage', () => {
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
   });
 
-  test('rejects eq band arrays with invalid values or unexpected length', async () => {
+  test('normalizes eq band arrays to the safe persisted range', () => {
+    expect(normalizeEqBandsForStorage([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN])).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
+    expect(normalizeEqBandsForStorage([1, 2, 3])).toBeNull();
+    expect(normalizeEqBandsForStorage([1, 2, 3, 4, 5, 6, 7, 'invalid', 9, 10])).toBeNull();
+  });
+
+  test('clamps persisted eq band arrays when reading through generic storage', async () => {
+    await storage.set(StorageKeys.EQ_BANDS, [99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN]);
+
+    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
+  });
+
+  test('getEqBands clamps valid-length arrays and falls back for invalid shape', async () => {
+    await storage.set(StorageKeys.EQ_BANDS, [99, -99, 0, 1, 2, 3, 4, 5, 6, Number.POSITIVE_INFINITY]);
+    expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
+
     await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3]);
-    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toBeNull();
+    expect(await storage.getEqBands()).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
 
-    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3, 4, 5, 6, 7, 'invalid', 9, 10]);
-    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toBeNull();
+  test('setEqBands persists normalized values', async () => {
+    await storage.setEqBands([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN]);
 
-    await storage.set(StorageKeys.EQ_BANDS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
   });
 
   test('filters invalid songs and playlists', async () => {
