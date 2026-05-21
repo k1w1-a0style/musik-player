@@ -328,18 +328,14 @@ describe('mediaLibraryImport', () => {
     expect(result.folderUpdates?.[0].lastError).toBeUndefined();
   });
 
-  test('saf import keeps scan lightweight and uses filename fallback', async () => {
+  test('saf fast import uses filename fallback when ID3 is disabled', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
       'content://dir/The%20Artist%20-%20Title.mp3',
     ]);
-    (parseId3FromUri as jest.Mock).mockResolvedValueOnce({
-      title: 'Tag Title',
-      artist: 'Tag Artist',
-      cover: 'data:image/jpeg;base64,AAA',
-    });
-    const result = await mediaImport.scanFromSafFolders([
-      { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
-    ] as any);
+    const result = await mediaImport.scanFromSafFolders(
+      [{ id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true }] as any,
+      { readId3Tags: false },
+    );
     expect(result.songs[0].title).toBe('Title');
     expect(result.songs[0].artist).toBe('The Artist');
     expect(result.songs[0].coverInfo?.status).toBe('none');
