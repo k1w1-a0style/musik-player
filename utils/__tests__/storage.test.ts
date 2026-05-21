@@ -87,6 +87,23 @@ describe('storage', () => {
     await expect(setFavoriteSongId('s1', true)).rejects.toThrow('Failed to persist favorite song ids');
   });
 
+  test('keeps raw and JSON string settings compatible', async () => {
+    await storage.setCurrentSongId('s1');
+    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's2');
+    expect(await storage.getCurrentSongId()).toBe('s2');
+
+    await storage.setEqPreset('rock');
+    expect(await storage.get<string>(StorageKeys.EQ_PRESET)).toBe('rock');
+    await storage.set(StorageKeys.EQ_PRESET, 'jazz');
+    expect(await storage.getEqPreset()).toBe('jazz');
+
+    await storage.setRepeatMode('one');
+    expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBe('one');
+    await storage.set(StorageKeys.REPEAT_MODE, 'all');
+    expect(await storage.getRepeatMode()).toBe('all');
+  });
+
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
