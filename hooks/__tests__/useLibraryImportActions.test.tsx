@@ -108,6 +108,29 @@ test('uses scan folder import on android when active scan folders exist', async 
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
+test('keeps scan import results when folder update persistence rejects', async () => {
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({
+    songs: [song('scan-song')],
+    errors: [],
+    folderUpdates: [folder('music')],
+  });
+  persistChangedFolderUpdates.mockRejectedValueOnce(new Error('folder update rejected'));
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      songs={[song('existing')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]));
+  expect(showAlert).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Import gestoppt' }));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
 test('ignores overlapping import requests while one is running', async () => {
   let resolveImport: (value: { songs: Song[]; errors: never[]; folderUpdates: undefined }) => void = () => undefined;
   const importPromise = new Promise<{ songs: Song[]; errors: never[]; folderUpdates: undefined }>(resolve => {
