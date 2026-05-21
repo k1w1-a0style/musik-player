@@ -83,6 +83,18 @@ const scanFolderSchema = z.object({
 
 const isScanFolder = (value: unknown): value is ScanFolder => scanFolderSchema.safeParse(value).success;
 
+export const normalizeFavoriteSongIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.filter((item): item is string => {
+    if (typeof item !== 'string') return false;
+    const id = item.trim();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  }).map(item => item.trim());
+};
+
 const filterArray = <T>(value: unknown, schema: z.ZodType<T>): T[] => {
   if (!Array.isArray(value)) return [];
   return value.flatMap(item => {
@@ -123,7 +135,7 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.SCAN_FOLDERS:
       return filterArray(value, scanFolderSchema);
     case StorageKeys.FAVORITE_SONG_IDS:
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+      return normalizeFavoriteSongIds(value);
     case StorageKeys.CURRENT_SONG_ID:
       return typeof value === 'string' ? value : null;
     case StorageKeys.EQ_PRESET:
@@ -250,10 +262,10 @@ export const storage = {
     await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(folders));
   },
   async getFavoriteSongIds(): Promise<string[]> {
-    return parseJsonArray(await getItem(StorageKeys.FAVORITE_SONG_IDS), z.string());
+    return normalizeFavoriteSongIds(parseJsonArray(await getItem(StorageKeys.FAVORITE_SONG_IDS), z.string()));
   },
   async setFavoriteSongIds(songIds: string[]) {
-    await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(songIds));
+    await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(normalizeFavoriteSongIds(songIds)));
   },
 };
 
@@ -265,10 +277,12 @@ export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
 };
 
 export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
+  const normalizedSongId = songId.trim();
+  if (!normalizedSongId) return getFavoriteSongIds();
   const ids = await getFavoriteSongIds();
   const next = favorite
-    ? Array.from(new Set([...ids, songId]))
-    : ids.filter(id => id !== songId);
+    ? normalizeFavoriteSongIds([...ids, normalizedSongId])
+    : ids.filter(id => id !== normalizedSongId);
   try {
     await storage.setFavoriteSongIds(next);
   } catch (error) {
