@@ -17,13 +17,17 @@ export const usePersistedSongs = (
     let cancelled = false;
 
     (async () => {
-      const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs);
-      if (cancelled) return;
-      if (coversChanged) {
-        setSongsState(sanitizedSongs);
-        return;
+      try {
+        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs);
+        if (cancelled) return;
+        if (coversChanged) {
+          setSongsState(sanitizedSongs);
+          return;
+        }
+        await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
+      } catch {
+        // Persistence is best-effort; never crash provider effects because storage/cache failed.
       }
-      await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
     })();
 
     return () => {
