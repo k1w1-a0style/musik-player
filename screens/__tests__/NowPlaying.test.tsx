@@ -108,7 +108,7 @@ describe('NowPlaying cover fallback', () => {
         resolveFavoriteLookup = resolve;
       }),
     );
-    mockSetFavoriteSongId.mockResolvedValueOnce(['s1']);
+    mockSetFavoriteSongId.mockResolvedValue(['s1']);
     const { getByLabelText } = render(<NowPlaying />);
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
 
@@ -120,7 +120,8 @@ describe('NowPlaying cover fallback', () => {
     });
 
     expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false);
-    expect(getByLabelText('Track favorisieren').props.accessibilityState?.selected).toBe(true);
+    fireEvent.press(getByLabelText('Track favorisieren'));
+    expect(mockSetFavoriteSongId).toHaveBeenLastCalledWith('s1', false);
   });
 
   test('favorite icon rolls back when persistence fails', async () => {
