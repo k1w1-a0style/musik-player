@@ -1,4 +1,8 @@
-import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from '../imageMime';
+import {
+  detectImageMimeFromBytes,
+  imageExtensionFromMime,
+  normalizeImageMime,
+} from '../imageMime';
 
 describe('imageMime helpers', () => {
   test('detects supported image mime types from magic bytes', () => {
@@ -10,14 +14,23 @@ describe('imageMime helpers', () => {
   test('returns undefined for unsupported or truncated image bytes', () => {
     expect(detectImageMimeFromBytes(new Uint8Array([0xff, 0xd8]))).toBeUndefined();
     expect(detectImageMimeFromBytes(new Uint8Array([0x47, 0x49, 0x46, 0x38]))).toBeUndefined();
+    expect(detectImageMimeFromBytes(new Uint8Array([]))).toBeUndefined();
   });
 
-  test('normalizes common image mime hints', () => {
+  test('normalizes exact supported mime values and simple extensions', () => {
+    expect(normalizeImageMime('image/jpeg')).toBe('image/jpeg');
     expect(normalizeImageMime('image/jpg')).toBe('image/jpeg');
-    expect(normalizeImageMime('JPEG')).toBe('image/jpeg');
-    expect(normalizeImageMime('image/png')).toBe('image/png');
-    expect(normalizeImageMime('image/webp')).toBe('image/webp');
-    expect(normalizeImageMime('image/gif')).toBeUndefined();
+    expect(normalizeImageMime(' JPEG ')).toBe('image/jpeg');
+    expect(normalizeImageMime('image/png; charset=binary')).toBe('image/png');
+    expect(normalizeImageMime('webp')).toBe('image/webp');
+  });
+
+  test('rejects misleading mime strings instead of substring matching', () => {
+    expect(normalizeImageMime('application/not-a-jpeg')).toBeUndefined();
+    expect(normalizeImageMime('text/png-metadata')).toBeUndefined();
+    expect(normalizeImageMime('image/svg+xml')).toBeUndefined();
+    expect(normalizeImageMime('image/jpeg2000')).toBeUndefined();
+    expect(normalizeImageMime(undefined)).toBeUndefined();
   });
 
   test('maps supported mime types to file extensions', () => {
