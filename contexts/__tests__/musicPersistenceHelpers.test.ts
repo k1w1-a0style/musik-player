@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { persistIfChanged, prepareSongsForPersistence } from '../musicPersistenceHelpers';
+import {
+  normalizePersistedValue,
+  persistIfChanged,
+  prepareSongsForPersistence,
+} from '../musicPersistenceHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
-import type { Song } from '../../types/Song';
+import type { Playlist, Song } from '../../types/Song';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',
@@ -28,7 +32,7 @@ describe('musicPersistenceHelpers', () => {
     jest.clearAllMocks();
   });
 
-  test('persists only when serialized value changes', async () => {
+  test('persists only when serialized normalized value changes', async () => {
     const persistedRefs: Record<string, string> = {};
 
     await persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs);
@@ -38,6 +42,22 @@ describe('musicPersistenceHelpers', () => {
     await storage.set(StorageKeys.VOLUME, 0.7);
     await persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs);
     expect(await storage.get(StorageKeys.VOLUME)).toBe(0.7);
+  });
+
+  test('normalizes playlist song ids before persistence', async () => {
+    const dirtyPlaylists: Playlist[] = [
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1', 's1', 's2', 's1'], createdAt: 1 },
+    ];
+    const cleanPlaylists: Playlist[] = [
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1 },
+    ];
+    const persistedRefs: Record<string, string> = {};
+
+    expect(normalizePersistedValue(StorageKeys.PLAYLISTS, dirtyPlaylists)).toEqual(cleanPlaylists);
+    await persistIfChanged(StorageKeys.PLAYLISTS, dirtyPlaylists, persistedRefs);
+
+    expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual(cleanPlaylists);
+    expect(persistedRefs[StorageKeys.PLAYLISTS]).toBe(JSON.stringify(cleanPlaylists));
   });
 
   test('prepares songs for persistence', async () => {
