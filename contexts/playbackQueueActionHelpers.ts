@@ -77,6 +77,7 @@ export const rebuildNativePlaybackQueue = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
 ): Promise<void> => {
+  nativeQueueRef.current = [];
   await TrackPlayer.reset();
   await TrackPlayer.add(queue.map(toTrackPlayerTrack));
   nativeQueueRef.current = queue.slice();
@@ -178,6 +179,6 @@ export const runShuffleQueueAction = async ({
     const pos = await TrackPlayer.getProgress();
     await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
   } catch {
-    // ignore shuffle queue rebuild failures
+    nativeQueueRef.current = [];
   }
 };
