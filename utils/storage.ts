@@ -97,6 +97,11 @@ export const normalizeFavoriteSongIds = (value: unknown): string[] => {
   }).map(item => item.trim());
 };
 
+export const normalizeVolumeForStorage = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(1, value));
+};
+
 const clampEqGain = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(MIN_EQ_GAIN, Math.min(MAX_EQ_GAIN, value));
@@ -131,9 +136,6 @@ const isRepeatMode = (value: unknown): value is 'off' | 'one' | 'all' =>
 const isEqPresetName = (value: unknown): value is EqPresetName =>
   typeof value === 'string' && value in EQ_PRESETS;
 
-const isValidVolume = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
-
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
   switch (key) {
     case StorageKeys.SONGS:
@@ -154,7 +156,7 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.SHUFFLE:
       return typeof value === 'boolean' ? value : null;
     case StorageKeys.VOLUME:
-      return isValidVolume(value) ? value : null;
+      return normalizeVolumeForStorage(value);
     case StorageKeys.REPEAT_MODE:
       return isRepeatMode(value) ? value : null;
     default:
@@ -249,11 +251,13 @@ export const storage = {
     await setItem(StorageKeys.EQ_ENABLED, String(enabled));
   },
   async getVolume() {
-    const value = Number(await getItem(StorageKeys.VOLUME));
-    return Number.isFinite(value) ? value : 1;
+    const value = await getItem(StorageKeys.VOLUME);
+    if (value == null) return 1;
+    const parsed = Number(value);
+    return normalizeVolumeForStorage(parsed) ?? 1;
   },
   async setVolume(volume: number) {
-    await setItem(StorageKeys.VOLUME, String(volume));
+    await setItem(StorageKeys.VOLUME, String(normalizeVolumeForStorage(volume) ?? 1));
   },
   async getRepeatMode() {
     const value = await getItem(StorageKeys.REPEAT_MODE);
