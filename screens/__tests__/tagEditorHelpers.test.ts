@@ -119,9 +119,11 @@ describe('tagEditorHelpers', () => {
     expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('ID3v2.3');
     expect(blockingReasonMessage(['WriteNotImplementedV22'])).toContain('ID3v2.2');
     expect(blockingReasonMessage(['WriteNotImplementedV24'])).toContain('ID3v2.4');
+    expect(tagWriterErrorMessage('WriteNotImplementedV22')).toContain('ID3v2.2');
+    expect(tagWriterErrorMessage('WriteNotImplementedV24')).toContain('ID3v2.4');
   });
 
-  test('maps generic writer version errors to specific ID3 messages by error message', () => {
+  test('keeps legacy generic writer version messages mapped for older errors', () => {
     expect(tagWriterErrorMessage('WriteNotImplemented', 'Existing ID3v2.2 tags are not supported yet.')).toContain('ID3v2.2');
     expect(tagWriterErrorMessage('WriteNotImplemented', 'Rewriting existing ID3v2.4 tags is not supported yet.')).toContain('ID3v2.4');
   });
