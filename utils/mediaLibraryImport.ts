@@ -79,8 +79,17 @@ const safeDecode = (value: string): string => {
   }
 };
 
+const stripUriQueryAndFragment = (uri: string): string => uri.split(/[?#]/)[0] ?? uri;
+
+export const normalizeImportUriForDedupe = (uri?: string): string | undefined => {
+  if (!uri) return undefined;
+  return safeDecode(stripUriQueryAndFragment(uri))
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '') || undefined;
+};
+
 const safDisplayPath = (uri: string): string => {
-  const withoutQuery = uri.split('?')[0] ?? uri;
+  const withoutQuery = stripUriQueryAndFragment(uri);
   const rawSegment = withoutQuery.split('/').pop() ?? withoutQuery;
   const decoded = safeDecode(rawSegment).replace(/^tree\//, '').replace(/^document\//, '');
   const colonIndex = decoded.indexOf(':');
@@ -96,7 +105,7 @@ export const deriveSafDisplayName = (uri: string): string => basenameFromPath(sa
 
 export const deriveExtension = (input?: string): string | undefined => {
   if (!input) return undefined;
-  const segment = basenameFromPath((input.split('?')[0] ?? input));
+  const segment = basenameFromPath(stripUriQueryAndFragment(input));
   const dotIndex = segment.lastIndexOf('.');
   if (dotIndex < 0 || dotIndex === segment.length - 1) return undefined;
   return segment.slice(dotIndex + 1).toLowerCase();
@@ -201,17 +210,30 @@ export const buildSongFromImportSource = async (
   };
 };
 
+const dedupeSongsByImportUri = (songs: Song[]): Song[] => {
+  const seen = new Set<string>();
+  return songs.filter(song => {
+    const key = normalizeImportUriForDedupe(song.uri);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export const readAudioUrisFromSafDirectory = async (
   directoryUri: string,
   readDirectory: (uri: string) => Promise<string[]> = StorageAccessFramework.readDirectoryAsync,
 ): Promise<{ files: string[]; errors: string[] }> => {
   const files: string[] = [];
+  const seenFiles = new Set<string>();
   const errors: string[] = [];
   const visited = new Set<string>();
 
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
-    if (visited.has(uri) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
-    visited.add(uri);
+    const normalizedDirectory = normalizeImportUriForDedupe(uri) ?? uri;
+    if (visited.has(normalizedDirectory) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
+    visited.add(normalizedDirectory);
 
     let entries: string[];
     try {
@@ -224,7 +246,11 @@ export const readAudioUrisFromSafDirectory = async (
     for (const entry of entries) {
       if (files.length >= MAX_SAF_FILES) break;
       if (isAudioFileUri(entry)) {
-        files.push(entry);
+        const normalizedFile = normalizeImportUriForDedupe(entry) ?? entry;
+        if (!seenFiles.has(normalizedFile)) {
+          seenFiles.add(normalizedFile);
+          files.push(entry);
+        }
         continue;
       }
       if (depth < MAX_SAF_DEPTH && shouldAttemptSafDirectoryRead(entry)) await walk(entry, depth + 1, false);
@@ -241,6 +267,7 @@ export const scanAudioAssetsFromMediaLibrary = async (
 ): Promise<AudioImportScanResult> => {
   const { filterLikelyMusic = true } = options;
   const seenIds = new Set<string>();
+  const seenUris = new Set<string>();
   const assets: MediaAsset[] = [];
   const skipped: Array<{ asset: MediaAsset; reason: string }> = [];
   let pageCount = 0;
@@ -256,6 +283,12 @@ export const scanAudioAssetsFromMediaLibrary = async (
         skipped.push({ asset, reason: getAudioAssetRejectReason(asset) ?? 'not-likely-music' });
         continue;
       }
+      const normalizedUri = normalizeImportUriForDedupe(asset.uri);
+      if (normalizedUri && seenUris.has(normalizedUri)) {
+        skipped.push({ asset, reason: 'duplicate-uri' });
+        continue;
+      }
+      if (normalizedUri) seenUris.add(normalizedUri);
       assets.push(asset);
     }
     pageCount += 1;
@@ -301,8 +334,9 @@ export const enrichMediaLibraryAssets = async (
   });
 
   await Promise.all(workers);
-  songs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: songs.length, skipped: skippedCount, errors: errors.length }] };
+  const dedupedSongs = dedupeSongsByImportUri(songs);
+  dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
+  return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
 export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
@@ -347,9 +381,9 @@ export const scanFromSafFolders = async (
     }
   }
 
-  const dedupedSongs = Array.from(new Map(songs.map(song => [song.uri, song])).values()).filter((song): song is Song => !!song);
+  const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length, errors: errors.length }], folderUpdates };
+  return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
