@@ -3,9 +3,41 @@ import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined => {
+  const uri = song.fileInfo?.uri ?? song.uri;
+  if (!uri) return undefined;
+  const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
+  return safeDecode(withoutQuery).replace(/\\/g, '/').replace(/\/+$/, '') || undefined;
+};
+
 export const mergeUniqueSongs = (currentSongs: Song[], newSongs: Song[]): Song[] => {
-  const existing = new Set(currentSongs.map(song => song.id));
-  return [...currentSongs, ...newSongs.filter(song => !existing.has(song.id))];
+  const existingIds = new Set(currentSongs.map(song => song.id));
+  const existingUris = new Set(
+    currentSongs.flatMap(song => {
+      const uri = normalizeSongUriForLibraryDedupe(song);
+      return uri ? [uri] : [];
+    }),
+  );
+  const merged = [...currentSongs];
+
+  for (const song of newSongs) {
+    const normalizedUri = normalizeSongUriForLibraryDedupe(song);
+    if (existingIds.has(song.id)) continue;
+    if (normalizedUri && existingUris.has(normalizedUri)) continue;
+    existingIds.add(song.id);
+    if (normalizedUri) existingUris.add(normalizedUri);
+    merged.push(song);
+  }
+
+  return merged;
 };
 
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song =>
