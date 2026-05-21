@@ -4,6 +4,8 @@ import type { ScanFolder } from '../types/ScanFolder';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
+const MIN_EQ_GAIN = -12;
+const MAX_EQ_GAIN = 12;
 
 export const StorageKeys = {
   SONGS: 'songs',
@@ -95,6 +97,17 @@ export const normalizeFavoriteSongIds = (value: unknown): string[] => {
   }).map(item => item.trim());
 };
 
+const clampEqGain = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(MIN_EQ_GAIN, Math.min(MAX_EQ_GAIN, value));
+};
+
+export const normalizeEqBandsForStorage = (value: unknown): number[] | null => {
+  if (!Array.isArray(value) || value.length !== EQ_BAND_COUNT) return null;
+  if (!value.every(item => typeof item === 'number')) return null;
+  return value.map(clampEqGain);
+};
+
 const filterArray = <T>(value: unknown, schema: z.ZodType<T>): T[] => {
   if (!Array.isArray(value)) return [];
   return value.flatMap(item => {
@@ -121,11 +134,6 @@ const isEqPresetName = (value: unknown): value is EqPresetName =>
 const isValidVolume = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
 
-const isValidEqBands = (value: unknown): value is number[] =>
-  Array.isArray(value) &&
-  value.length === EQ_BAND_COUNT &&
-  value.every(item => typeof item === 'number' && Number.isFinite(item));
-
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
   switch (key) {
     case StorageKeys.SONGS:
@@ -141,7 +149,7 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.EQ_PRESET:
       return isEqPresetName(value) ? value : null;
     case StorageKeys.EQ_BANDS:
-      return isValidEqBands(value) ? value : null;
+      return normalizeEqBandsForStorage(value);
     case StorageKeys.EQ_ENABLED:
     case StorageKeys.SHUFFLE:
       return typeof value === 'boolean' ? value : null;
@@ -219,15 +227,13 @@ export const storage = {
     const value = await getItem(StorageKeys.EQ_BANDS);
     if (!value) return [...EQ_PRESETS.flat];
     try {
-      const parsed = JSON.parse(value);
-      if (!isValidEqBands(parsed)) return [...EQ_PRESETS.flat];
-      return parsed;
+      return normalizeEqBandsForStorage(JSON.parse(value)) ?? [...EQ_PRESETS.flat];
     } catch {
       return [...EQ_PRESETS.flat];
     }
   },
   async setEqBands(bands: number[]) {
-    await setItem(StorageKeys.EQ_BANDS, JSON.stringify(bands));
+    await setItem(StorageKeys.EQ_BANDS, JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat));
   },
   async getEqEnabled() {
     return (await getItem(StorageKeys.EQ_ENABLED)) === 'true';
