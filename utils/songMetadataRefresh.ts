@@ -11,13 +11,20 @@ export interface SongMetadataRefreshResult {
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
 
+export const resolveMetadataRefreshUri = (song: Song): string | undefined => {
+  const primaryUri = song.uri?.trim();
+  if (primaryUri) return primaryUri;
+  const fileInfoUri = song.fileInfo?.uri?.trim();
+  return fileInfoUri || undefined;
+};
+
 const assignChanged = <K extends keyof Song>(patch: Partial<Song>, song: Song, key: K, value?: string): void => {
   if (!hasText(value)) return;
   const normalized = value.trim();
   if (song[key] !== normalized) patch[key] = normalized as Song[K];
 };
 
-const applyTagsToSong = (song: Song, tags: Id3Tags): Song => {
+export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
   const patch: Partial<Song> = {};
   assignChanged(patch, song, 'title', tags.title);
   assignChanged(patch, song, 'artist', tags.artist);
@@ -40,7 +47,7 @@ export const refreshSongsFromId3 = async (songs: Song[]): Promise<SongMetadataRe
   let failed = 0;
 
   for (const song of songs) {
-    const uri = song.uri ?? song.fileInfo?.uri;
+    const uri = resolveMetadataRefreshUri(song);
     if (!uri) {
       skipped += 1;
       refreshed.push(song);
@@ -48,7 +55,7 @@ export const refreshSongsFromId3 = async (songs: Song[]): Promise<SongMetadataRe
     }
     try {
       const tags = await parseId3FromUri(uri);
-      const next = applyTagsToSong(song, tags);
+      const next = applyId3TagsToSong(song, tags);
       if (didSongChange(song, next)) updated += 1;
       refreshed.push(next);
     } catch {
