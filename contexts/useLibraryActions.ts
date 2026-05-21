@@ -6,6 +6,9 @@ import {
   patchNullableSongById,
   patchSongById,
   patchSongRefs,
+  pruneNullableSongByValidIds,
+  pruneSongsByValidIds,
+  syncSongRefsToLibrary,
   updateNativeMetadataForSong,
 } from './libraryActionHelpers';
 
@@ -40,9 +43,20 @@ export const useLibraryActions = ({
     (songs: Song[]) => {
       const validSongIds = new Set(songs.map(song => song.id));
       setPlaylists(prev => prunePlaylists(prev, validSongIds));
+      setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
+      setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
+      syncSongRefsToLibrary(validSongIds, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
       setSongsState(songs);
     },
-    [setPlaylists, setSongsState],
+    [
+      baseQueueContextRef,
+      nativeQueueRef,
+      queueContextRef,
+      setCurrentSong,
+      setPlaybackQueue,
+      setPlaylists,
+      setSongsState,
+    ],
   );
 
   const addSongs = useCallback(
