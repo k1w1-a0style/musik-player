@@ -7,6 +7,7 @@ import {
   buildHydratedPlaybackQueue,
   didSongCoversChange,
 } from '../utils/musicHydration';
+import { prunePlaylists, sanitizePlaylists } from '../utils/playlistState';
 import { StorageKeys, storage } from '../utils/storage';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
@@ -49,6 +50,12 @@ export interface HydrateStoredSongsArgs {
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
 }
+
+export const sanitizeStoredPlaylistsForHydration = (stored: StoredMusicHydrationState): Playlist[] | null => {
+  if (!stored.playlists) return null;
+  if (!stored.songs) return sanitizePlaylists(stored.playlists);
+  return prunePlaylists(stored.playlists, new Set(stored.songs.map(song => song.id)));
+};
 
 export const loadStoredMusicHydrationState = async (): Promise<StoredMusicHydrationState> => {
   const [
@@ -156,7 +163,13 @@ export const applyStoredPlaybackSettings = ({
   setRepeatMode,
   setShuffle,
 }: ApplyStoredPlaybackSettingsArgs): void => {
-  if (stored.playlists) setPlaylists(stored.playlists);
+  const sanitizedPlaylists = sanitizeStoredPlaylistsForHydration(stored);
+  if (sanitizedPlaylists) {
+    setPlaylists(sanitizedPlaylists);
+    if (sanitizedPlaylists !== stored.playlists) {
+      void storage.set(StorageKeys.PLAYLISTS, sanitizedPlaylists).catch(() => undefined);
+    }
+  }
   if (stored.eqEnabled != null) setEqEnabledState(stored.eqEnabled);
   if (stored.eqBands?.length === EQ_BAND_COUNT) setEqBandsState(stored.eqBands);
   if (stored.eqPreset != null) setEqPreset(stored.eqPreset);
