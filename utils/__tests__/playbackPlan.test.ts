@@ -1,6 +1,7 @@
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
+  normalizePlayableQueue,
 } from '../playbackPlan';
 import type { Song } from '../../types/Song';
 
@@ -11,6 +12,18 @@ const songs: Song[] = [
 ];
 
 describe('playbackPlan helpers', () => {
+  test('normalizes playable queue entries before planning', () => {
+    const dirtyQueue: Song[] = [
+      { id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+      { id: 's1', title: 'Duplicate', artist: 'A', uri: 'file:///duplicate.mp3' },
+      { id: 's2', title: 'No Uri', artist: 'A' },
+      { id: '   ', title: 'Blank', artist: 'A', uri: 'file:///blank.mp3' },
+      songs[2],
+    ];
+
+    expect(normalizePlayableQueue(dirtyQueue).map(song => song.id)).toEqual(['s1', 's3']);
+  });
+
   test('builds a rebuild plan with requested song first', () => {
     const plan = buildPlaySongQueuePlan(songs[1], songs, []);
 
@@ -28,6 +41,16 @@ describe('playbackPlan helpers', () => {
     expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s3', 's1', 's2']);
   });
 
+  test('normalizes queues before deciding native queue reuse', () => {
+    const dirtySourceQueue = [songs[0], { ...songs[1], uri: undefined }, songs[1], songs[2], songs[2]];
+    const dirtyNativeQueue = [{ ...songs[0], id: ' s1 ' }, songs[1], songs[2], songs[2]];
+    const plan = buildPlaySongQueuePlan(songs[1], dirtySourceQueue, dirtyNativeQueue);
+
+    expect(plan?.queueWithRequested.map(song => song.id)).toEqual(['s1', 's2', 's3']);
+    expect(plan?.canReuseNativeQueue).toBe(true);
+    expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s2', 's3', 's1']);
+  });
+
   test('returns null when requested song has no playable uri and is not in playable queue', () => {
     const plan = buildPlaySongQueuePlan(
       { id: 'missing', title: 'Missing', artist: 'A' },
@@ -36,6 +59,10 @@ describe('playbackPlan helpers', () => {
     );
 
     expect(plan).toBeNull();
+  });
+
+  test('returns null for blank requested song ids', () => {
+    expect(buildPlaySongQueuePlan({ id: '   ', title: 'Blank', artist: 'A', uri: 'file:///x.mp3' }, songs, [])).toBeNull();
   });
 
   test('inserts an external playable song when it is not in the queue', () => {
@@ -67,6 +94,20 @@ describe('playbackPlan helpers', () => {
     expect(plan?.selectedSong?.id).toBe('s2');
   });
 
+  test('builds shuffle plans from normalized playable queues', () => {
+    const dirtyQueue = [songs[0], { ...songs[1], uri: undefined }, songs[1], songs[2], songs[2]];
+    const plan = buildShuffleTogglePlan({
+      currentQueue: dirtyQueue,
+      baseQueue: [],
+      currentSongId: ' s2 ',
+      shuffleEnabled: false,
+      random: () => 0,
+    });
+
+    expect(plan?.nextQueue.map(song => song.id).sort()).toEqual(['s1', 's2', 's3']);
+    expect(plan?.selectedSong?.id).toBe('s2');
+  });
+
   test('builds shuffle-off plan from base queue rotated to current song', () => {
     const shuffled = [songs[1], songs[2], songs[0]];
     const plan = buildShuffleTogglePlan({
@@ -93,7 +134,11 @@ describe('playbackPlan helpers', () => {
     expect(plan?.selectedSong?.id).toBe('s1');
   });
 
-  test('returns null for empty shuffle queue', () => {
-    expect(buildShuffleTogglePlan({ currentQueue: [], baseQueue: [], shuffleEnabled: false })).toBeNull();
+  test('returns null for empty shuffle queue after filtering unplayable entries', () => {
+    expect(buildShuffleTogglePlan({
+      currentQueue: [{ id: 's1', title: 'No Uri', artist: 'A' }],
+      baseQueue: [],
+      shuffleEnabled: false,
+    })).toBeNull();
   });
 });
