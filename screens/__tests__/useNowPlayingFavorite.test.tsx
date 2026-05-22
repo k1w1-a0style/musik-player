@@ -49,6 +49,7 @@ describe('useNowPlayingFavorite', () => {
     fireEvent.press(getByTestId('toggle'));
 
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+    await waitFor(() => expect(getByTestId('pending').props.children).toBe('false'));
   });
 
   test('resets favorite state without a song id', async () => {
