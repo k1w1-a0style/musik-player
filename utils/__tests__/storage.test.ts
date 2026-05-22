@@ -132,6 +132,26 @@ describe('storage', () => {
     expect(await storage.getRepeatMode()).toBe('all');
   });
 
+  test('persists and restores custom eq preset', async () => {
+    await expect(storage.set(StorageKeys.EQ_PRESET, 'custom')).resolves.toBe(true);
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+  });
+
+  test('continues to accept standard eq preset names', async () => {
+    await expect(storage.set(StorageKeys.EQ_PRESET, 'flat')).resolves.toBe(true);
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
+  });
+
+  test('rejects invalid eq preset strings when reading', async () => {
+    await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+  });
+
+  test('reads raw custom eq preset string via fallback parser', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', 'custom');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+  });
+
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');

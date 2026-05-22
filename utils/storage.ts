@@ -140,6 +140,9 @@ const isRepeatMode = (value: unknown): value is 'off' | 'one' | 'all' =>
 
 const isEqPresetName = (value: unknown): value is EqPresetName =>
   typeof value === 'string' && value in EQ_PRESETS;
+type StoredEqPresetName = EqPresetName | 'custom';
+const isStoredEqPresetName = (value: unknown): value is StoredEqPresetName =>
+  value === 'custom' || isEqPresetName(value);
 
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
   switch (key) {
@@ -154,7 +157,7 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.CURRENT_SONG_ID:
       return normalizeStorageSongId(value) ?? null;
     case StorageKeys.EQ_PRESET:
-      return isEqPresetName(value) ? value : null;
+      return isStoredEqPresetName(value) ? value : null;
     case StorageKeys.EQ_BANDS:
       return normalizeEqBandsForStorage(value);
     case StorageKeys.EQ_ENABLED:
