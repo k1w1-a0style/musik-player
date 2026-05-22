@@ -8,6 +8,10 @@ const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>();
 
 jest.mock('../../utils/storage', () => ({
   isFavoriteSongId: (songId: string) => mockIsFavoriteSongId(songId),
+  normalizeStorageSongId: (songId?: string) => {
+    const trimmed = songId?.trim();
+    return trimmed || undefined;
+  },
   setFavoriteSongId: (songId: string, favorite: boolean) => mockSetFavoriteSongId(songId, favorite),
 }));
 
@@ -38,12 +42,30 @@ describe('useNowPlayingFavorite', () => {
     expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1');
   });
 
+  test('normalizes song ids before favorite lookup and persistence', async () => {
+    const { getByTestId } = render(<FavoriteProbe songId=" s1 " />);
+    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
+
+    fireEvent.press(getByTestId('toggle'));
+
+    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+  });
+
   test('resets favorite state without a song id', async () => {
     const { getByTestId } = render(<FavoriteProbe />);
 
     await waitFor(() => expect(getByTestId('favorite').props.children).toBe('false'));
     expect(getByTestId('pending').props.children).toBe('false');
     expect(mockIsFavoriteSongId).not.toHaveBeenCalled();
+  });
+
+  test('ignores blank song ids', async () => {
+    const { getByTestId } = render(<FavoriteProbe songId="   " />);
+
+    fireEvent.press(getByTestId('toggle'));
+
+    expect(mockIsFavoriteSongId).not.toHaveBeenCalled();
+    expect(mockSetFavoriteSongId).not.toHaveBeenCalled();
   });
 
   test('toggles favorite state optimistically', async () => {
