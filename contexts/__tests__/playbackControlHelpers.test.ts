@@ -4,6 +4,8 @@ import {
   applyVolumeToTrackPlayer,
   clampVolume,
   getNextRepeatMode,
+  isRepeatMode,
+  normalizeRepeatMode,
   normalizeSeekSeconds,
   seekToMillis,
   skipToNextSafely,
@@ -26,10 +28,22 @@ describe('playbackControlHelpers', () => {
     expect(clampVolume(0.4)).toBe(0.4);
   });
 
-  test('cycles repeat modes', () => {
+  test('detects and normalizes repeat modes', () => {
+    expect(isRepeatMode('off')).toBe(true);
+    expect(isRepeatMode('all')).toBe(true);
+    expect(isRepeatMode('one')).toBe(true);
+    expect(isRepeatMode('bad')).toBe(false);
+    expect(isRepeatMode(undefined)).toBe(false);
+    expect(normalizeRepeatMode('bad')).toBe('off');
+    expect(normalizeRepeatMode(undefined)).toBe('off');
+  });
+
+  test('cycles repeat modes and treats invalid values as off', () => {
     expect(getNextRepeatMode('off')).toBe('all');
     expect(getNextRepeatMode('all')).toBe('one');
     expect(getNextRepeatMode('one')).toBe('off');
+    expect(getNextRepeatMode('bad')).toBe('all');
+    expect(getNextRepeatMode(undefined)).toBe('all');
   });
 
   test('normalizes seek targets from milliseconds to safe seconds', () => {
@@ -44,6 +58,12 @@ describe('playbackControlHelpers', () => {
     await applyRepeatModeToTrackPlayer('all');
 
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(2);
+  });
+
+  test('normalizes invalid repeat mode before applying to TrackPlayer', async () => {
+    await applyRepeatModeToTrackPlayer('bad');
+
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(0);
   });
 
   test('propagates repeat mode apply rejections', async () => {
