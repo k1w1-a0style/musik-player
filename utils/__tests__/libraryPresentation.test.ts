@@ -52,6 +52,23 @@ test('mergeSongs dedupes by uri and keeps newest imported fields', () => {
   expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
 });
 
+test('mergeSongs dedupes by normalized uri variants and imported song wins', () => {
+  const existing = song({
+    id: 'old',
+    title: 'Old',
+    artist: 'A',
+    uri: 'file:///Music/Track.mp3?token=1',
+  });
+  const imported = song({
+    id: 'new',
+    title: 'Fresh',
+    artist: 'B',
+    uri: 'file:///music/track.mp3',
+  });
+
+  expect(mergeSongs([existing], [imported])).toEqual([{ ...existing, ...imported }]);
+});
+
 test('mergeSongs dedupes by id when uri is missing', () => {
   const merged = mergeSongs(
     [song({ id: 'same', title: 'Old', artist: 'A' })],
@@ -78,12 +95,19 @@ test('mergeSongs dedupes by stable file fingerprint when uri representation chan
       album: 'Album',
       uri: 'content://media/external/audio/media/42',
       duration: 123,
-      fileInfo: { filename: 'song.mp3', size: 1000, uri: 'content://media/external/audio/media/42' },
+      fileInfo: { filename: ' song.mp3 ', size: 1000, uri: 'content://media/external/audio/media/42' },
     })],
   );
 
   expect(merged).toHaveLength(1);
   expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
+});
+
+test('mergeSongs sorts distinct entries by title', () => {
+  expect(mergeSongs(
+    [song({ id: 'b', title: 'B', uri: 'file:///b.mp3' })],
+    [song({ id: 'a', title: 'A', uri: 'file:///a.mp3' })],
+  ).map(item => item.title)).toEqual(['A', 'B']);
 });
 
 test('groupSongs groups and sorts with cover fallback', () => {
@@ -97,6 +121,19 @@ test('groupSongs groups and sorts with cover fallback', () => {
   expect(groups[0].subtitle).toBe('2 Tracks');
   expect(groups[0].cover).toBe('cover-a');
   expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Gamma']);
+});
+
+test('groupSongs does not mutate original song array order', () => {
+  const songs = [
+    song({ id: '2', title: 'Beta', artist: 'B', album: 'A Album' }),
+    song({ id: '1', title: 'Alpha', artist: 'A', album: 'A Album', cover: 'cover-a' }),
+  ];
+  const originalOrder = songs.map(item => item.id);
+
+  const groups = groupSongs(songs, 'album');
+
+  expect(songs.map(item => item.id)).toEqual(originalOrder);
+  expect(groups[0].songs.map(item => item.id)).toEqual(['1', '2']);
 });
 
 test('groupSongs uses singular subtitle for one track', () => {
