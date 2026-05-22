@@ -11,6 +11,11 @@ const safeDecode = (value: string): string => {
   }
 };
 
+export const normalizeSongIdForLibrary = (songId?: string): string | undefined => {
+  const trimmed = songId?.trim();
+  return trimmed || undefined;
+};
+
 export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) return undefined;
@@ -18,8 +23,20 @@ export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined
   return safeDecode(withoutQuery).replace(/\\/g, '/').replace(/\/+$/, '') || undefined;
 };
 
+const normalizeValidSongIds = (validSongIds: Set<string>): Set<string> => {
+  const normalized = new Set<string>();
+  validSongIds.forEach(songId => {
+    const id = normalizeSongIdForLibrary(songId);
+    if (id) normalized.add(id);
+  });
+  return normalized;
+};
+
 export const mergeUniqueSongs = (currentSongs: Song[], newSongs: Song[]): Song[] => {
-  const existingIds = new Set(currentSongs.map(song => song.id));
+  const existingIds = new Set(currentSongs.flatMap(song => {
+    const id = normalizeSongIdForLibrary(song.id);
+    return id ? [id] : [];
+  }));
   const existingUris = new Set(
     currentSongs.flatMap(song => {
       const uri = normalizeSongUriForLibraryDedupe(song);
@@ -29,23 +46,34 @@ export const mergeUniqueSongs = (currentSongs: Song[], newSongs: Song[]): Song[]
   const merged = [...currentSongs];
 
   for (const song of newSongs) {
+    const normalizedId = normalizeSongIdForLibrary(song.id);
     const normalizedUri = normalizeSongUriForLibraryDedupe(song);
-    if (existingIds.has(song.id)) continue;
+    if (!normalizedId) continue;
+    if (existingIds.has(normalizedId)) continue;
     if (normalizedUri && existingUris.has(normalizedUri)) continue;
-    existingIds.add(song.id);
+    existingIds.add(normalizedId);
     if (normalizedUri) existingUris.add(normalizedUri);
-    merged.push(song);
+    merged.push(song.id === normalizedId ? song : { ...song, id: normalizedId });
   }
 
   return merged;
 };
 
 export const pruneSongsByValidIds = (songs: Song[], validSongIds: Set<string>): Song[] => {
+  const normalizedValidSongIds = normalizeValidSongIds(validSongIds);
   let changed = false;
-  const next = songs.filter(song => {
-    const keep = validSongIds.has(song.id);
-    if (!keep) changed = true;
-    return keep;
+  const next = songs.flatMap(song => {
+    const id = normalizeSongIdForLibrary(song.id);
+    const keep = !!id && normalizedValidSongIds.has(id);
+    if (!keep) {
+      changed = true;
+      return [];
+    }
+    if (id !== song.id) {
+      changed = true;
+      return [{ ...song, id }];
+    }
+    return [song];
   });
   return changed ? next : songs;
 };
@@ -53,7 +81,12 @@ export const pruneSongsByValidIds = (songs: Song[], validSongIds: Set<string>): 
 export const pruneNullableSongByValidIds = (
   song: Song | null,
   validSongIds: Set<string>,
-): Song | null => (song && !validSongIds.has(song.id) ? null : song);
+): Song | null => {
+  if (!song) return null;
+  const id = normalizeSongIdForLibrary(song.id);
+  if (!id || !normalizeValidSongIds(validSongIds).has(id)) return null;
+  return id === song.id ? song : { ...song, id };
+};
 
 export const syncSongRefsToLibrary = (
   validSongIds: Set<string>,
@@ -64,14 +97,18 @@ export const syncSongRefsToLibrary = (
   });
 };
 
-export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song =>
-  song.id === songId ? { ...song, ...patch } : song;
+export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song => {
+  const targetSongId = normalizeSongIdForLibrary(songId);
+  const currentSongId = normalizeSongIdForLibrary(song.id);
+  if (!targetSongId || currentSongId !== targetSongId) return song;
+  return { ...song, ...(song.id === currentSongId ? {} : { id: currentSongId }), ...patch };
+};
 
 export const patchNullableSongById = (
   songId: string,
   patch: Partial<Song>,
   song: Song | null,
-): Song | null => (song?.id === songId ? { ...song, ...patch } : song);
+): Song | null => (song ? patchSongById(songId, patch)(song) : null);
 
 export const patchSongRefs = (
   patchSong: (song: Song) => Song,
@@ -87,10 +124,12 @@ export const updateNativeMetadataForSong = (
   nativeQueueRef: MutableRefObject<Song[]>,
   baseQueueContextRef: MutableRefObject<Song[]>,
 ): void => {
-  const queueIndex = nativeQueueRef.current.findIndex(song => song.id === songId);
+  const targetSongId = normalizeSongIdForLibrary(songId);
+  if (!targetSongId) return;
+  const queueIndex = nativeQueueRef.current.findIndex(song => normalizeSongIdForLibrary(song.id) === targetSongId);
   const queuedPatchedSong =
     (queueIndex >= 0 ? nativeQueueRef.current[queueIndex] : undefined) ??
-    baseQueueContextRef.current.find(song => song.id === songId);
+    baseQueueContextRef.current.find(song => normalizeSongIdForLibrary(song.id) === targetSongId);
   if (!queuedPatchedSong || queueIndex < 0) return;
 
   void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(queuedPatchedSong)).catch(
