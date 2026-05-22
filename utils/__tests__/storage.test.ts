@@ -103,6 +103,18 @@ describe('storage', () => {
     await expect(setFavoriteSongId('s1', true)).rejects.toThrow('Failed to persist favorite song ids');
   });
 
+  test('normalizes current song ids for generic and typed storage access', async () => {
+    await storage.setCurrentSongId(' s1 ');
+    expect(await storage.getCurrentSongId()).toBe('s1');
+    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+
+    await storage.set(StorageKeys.CURRENT_SONG_ID, ' s2 ');
+    expect(await storage.getCurrentSongId()).toBe('s2');
+
+    await storage.setCurrentSongId('   ');
+    expect(await storage.getCurrentSongId()).toBeNull();
+  });
+
   test('keeps raw and JSON string settings compatible', async () => {
     await storage.setCurrentSongId('s1');
     expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
@@ -124,10 +136,12 @@ describe('storage', () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
     await storage.set(StorageKeys.SHUFFLE, 'yes');
+    await storage.set(StorageKeys.CURRENT_SONG_ID, '   ');
 
     expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
     expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
+    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
   test('normalizes volume values for storage', () => {
