@@ -16,6 +16,10 @@ jest.mock('@react-navigation/native', () => ({
 
 jest.mock('../../utils/storage', () => ({
   isFavoriteSongId: (songId: string) => mockIsFavoriteSongId(songId),
+  normalizeStorageSongId: (songId?: string) => {
+    const trimmed = songId?.trim();
+    return trimmed || undefined;
+  },
   setFavoriteSongId: (songId: string, favorite: boolean) => mockSetFavoriteSongId(songId, favorite),
 }));
 
@@ -32,6 +36,13 @@ const mockNowPlayingContext = {
   visualizerError: null as string | null,
   playSong: jest.fn(async () => undefined),
   saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
+};
+
+const setCurrentSongId = (id: string) => {
+  mockNowPlayingContext.currentSong = {
+    ...mockNowPlayingContext.currentSong,
+    id,
+  };
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -61,6 +72,7 @@ jest.mock('../../components/Screen', () => ({ children }: { children?: React.Rea
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingContext.visualizerError = null;
+    setCurrentSongId('s1');
     mockGoBack.mockClear();
     mockNavigate.mockClear();
     mockSaveQueueAsPlaylist.mockClear();
@@ -99,6 +111,27 @@ describe('NowPlaying cover fallback', () => {
     await waitFor(() =>
       expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
     );
+  });
+
+  test('favorite icon normalizes current song id before lookup and persistence', async () => {
+    setCurrentSongId(' s1 ');
+    mockIsFavoriteSongId.mockResolvedValue(false);
+    const { getByLabelText } = render(<NowPlaying />);
+
+    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
+    fireEvent.press(getByLabelText('Track favorisieren'));
+
+    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+  });
+
+  test('favorite icon ignores blank current song ids', async () => {
+    setCurrentSongId('   ');
+    const { getByLabelText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText('Track favorisieren'));
+
+    expect(mockIsFavoriteSongId).not.toHaveBeenCalled();
+    expect(mockSetFavoriteSongId).not.toHaveBeenCalled();
   });
 
   test('favorite icon ignores stale storage reads after optimistic toggle', async () => {
