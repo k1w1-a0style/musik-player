@@ -4,6 +4,7 @@ import {
   applyVolumeToTrackPlayer,
   clampVolume,
   getNextRepeatMode,
+  normalizeSeekSeconds,
   seekToMillis,
   skipToNextSafely,
   skipToPreviousOrRestart,
@@ -29,6 +30,14 @@ describe('playbackControlHelpers', () => {
     expect(getNextRepeatMode('off')).toBe('all');
     expect(getNextRepeatMode('all')).toBe('one');
     expect(getNextRepeatMode('one')).toBe('off');
+  });
+
+  test('normalizes seek targets from milliseconds to safe seconds', () => {
+    expect(normalizeSeekSeconds(5000)).toBe(5);
+    expect(normalizeSeekSeconds(0)).toBe(0);
+    expect(normalizeSeekSeconds(-100)).toBe(0);
+    expect(normalizeSeekSeconds(Number.NaN)).toBe(0);
+    expect(normalizeSeekSeconds(Number.POSITIVE_INFINITY)).toBe(0);
   });
 
   test('applies repeat mode to TrackPlayer', async () => {
@@ -71,6 +80,14 @@ describe('playbackControlHelpers', () => {
     await seekToMillis(5000);
 
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5);
+  });
+
+  test('clamps unsafe seek inputs to zero seconds', async () => {
+    await seekToMillis(-5000);
+    await seekToMillis(Number.NaN);
+
+    expect(TrackPlayer.seekTo).toHaveBeenNthCalledWith(1, 0);
+    expect(TrackPlayer.seekTo).toHaveBeenNthCalledWith(2, 0);
   });
 
   test('skips next safely and swallows queue boundary rejections', async () => {
