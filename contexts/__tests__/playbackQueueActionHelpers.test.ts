@@ -37,7 +37,11 @@ describe('playbackQueueActionHelpers', () => {
 
   test('uses active queue snapshot or playable library songs', () => {
     expect(getCurrentQueueSnapshot([songs[1]], songs)).toEqual([songs[1]]);
-    expect(getCurrentQueueSnapshot([], [...songs, { id: 'no-uri', title: 'No Uri', artist: 'A' }])).toEqual(songs);
+    expect(getCurrentQueueSnapshot([], [
+      ...songs,
+      { id: 'no-uri', title: 'No Uri', artist: 'A' },
+      { id: 'blank-uri', title: 'Blank Uri', artist: 'A', uri: '   ' },
+    ])).toEqual(songs);
   });
 
   test('persists requested song id only for library songs', async () => {
@@ -45,6 +49,17 @@ describe('playbackQueueActionHelpers', () => {
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
 
     await persistRequestedSongId({ id: 'external', title: 'External', artist: 'A', uri: 'file:///x.mp3' }, songs);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
+  test('persists trimmed requested song id for matching library songs', async () => {
+    await persistRequestedSongId(
+      { id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+      [{ ...songs[0], id: 's1' }],
+    );
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+
+    await persistRequestedSongId({ id: '   ', title: 'Blank', artist: 'A', uri: 'file:///blank.mp3' }, songs);
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
