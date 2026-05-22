@@ -8,6 +8,11 @@ export const clampVolume = (volume: number): number =>
 export const getNextRepeatMode = (repeatMode: RepeatMode): RepeatMode =>
   repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
 
+export const normalizeSeekSeconds = (millis: number): number => {
+  if (!Number.isFinite(millis) || millis <= 0) return 0;
+  return millis / 1000;
+};
+
 export const toggleTrackPlayerPlayback = async (): Promise<void> => {
   const state = (await TrackPlayer.getPlaybackState()).state;
   if (state === State.Playing) {
@@ -18,7 +23,7 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
-  await TrackPlayer.seekTo(millis / 1000);
+  await TrackPlayer.seekTo(normalizeSeekSeconds(millis));
 };
 
 export const skipToNextSafely = async (): Promise<void> => {
