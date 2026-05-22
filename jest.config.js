@@ -14,6 +14,7 @@ module.exports = {
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.js',
     '^expo-system-audio$': '<rootDir>/__mocks__/expo-system-audio.js',
+    '^expo-image-picker$': '<rootDir>/__mocks__/expo-image-picker.js',
   },
   testMatch: ['**/__tests__/**/*.test.ts?(x)', '**/?(*.)+(test).ts?(x)'],
   collectCoverageFrom: [
