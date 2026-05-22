@@ -5,8 +5,18 @@ import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
 
-export const getNextRepeatMode = (repeatMode: RepeatMode): RepeatMode =>
-  repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+export const isRepeatMode = (value: unknown): value is RepeatMode =>
+  value === 'off' || value === 'all' || value === 'one';
+
+export const normalizeRepeatMode = (value: unknown): RepeatMode =>
+  isRepeatMode(value) ? value : 'off';
+
+export const getNextRepeatMode = (repeatMode: RepeatMode | unknown): RepeatMode => {
+  const normalizedRepeatMode = normalizeRepeatMode(repeatMode);
+  if (normalizedRepeatMode === 'off') return 'all';
+  if (normalizedRepeatMode === 'all') return 'one';
+  return 'off';
+};
 
 export const normalizeSeekSeconds = (millis: number): number => {
   if (!Number.isFinite(millis) || millis <= 0) return 0;
@@ -51,8 +61,8 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
   }
 };
 
-export const applyRepeatModeToTrackPlayer = async (repeatMode: RepeatMode): Promise<void> => {
-  await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(repeatMode));
+export const applyRepeatModeToTrackPlayer = async (repeatMode: RepeatMode | unknown): Promise<void> => {
+  await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(normalizeRepeatMode(repeatMode)));
 };
 
 export const applyVolumeToTrackPlayer = async (volume: number): Promise<number> => {
