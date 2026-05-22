@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { act, render } from '@testing-library/react-native';
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { findTrackSongById, useCurrentSongSync } from '../useCurrentSongSync';
+import { normalizeActiveTrackId } from '../currentSongSyncHelpers';
 import type { Song } from '../../types/Song';
 
 const librarySong: Song = { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' };
@@ -38,11 +39,25 @@ describe('useCurrentSongSync', () => {
     jest.clearAllMocks();
   });
 
+  test('normalizes active track ids', () => {
+    expect(normalizeActiveTrackId(' s1 ')).toBe('s1');
+    expect(normalizeActiveTrackId(42)).toBe('42');
+    expect(normalizeActiveTrackId('   ')).toBeUndefined();
+    expect(normalizeActiveTrackId(Number.NaN)).toBeUndefined();
+  });
+
   test('finds tracks across library, queue and base queue sources', () => {
     expect(findTrackSongById('s1', [[librarySong], [queueSong]])).toBe(librarySong);
     expect(findTrackSongById('s2', [[librarySong], [queueSong]])).toBe(queueSong);
     expect(findTrackSongById(undefined, [[librarySong]])).toBeUndefined();
     expect(findTrackSongById('missing', [[librarySong]])).toBeUndefined();
+  });
+
+  test('finds tracks by normalized ids', () => {
+    const dirtySong = { ...librarySong, id: ' s1 ' };
+
+    expect(findTrackSongById('s1', [[dirtySong]])).toBe(dirtySong);
+    expect(findTrackSongById(' s1 ', [[librarySong]])).toBe(librarySong);
   });
 
   test('syncs current song when active track changes', () => {
@@ -51,6 +66,18 @@ describe('useCurrentSongSync', () => {
 
     act(() => {
       trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { track: { id: 's2' } });
+    });
+
+    expect(getByTestId('current').props.children).toBe('s2');
+    expect(persistCurrentSongId).toHaveBeenCalledWith(queueSong);
+  });
+
+  test('syncs current song for active track id with surrounding whitespace', () => {
+    const persistCurrentSongId = jest.fn(async () => undefined);
+    const { getByTestId } = render(<SyncProbe persistCurrentSongId={persistCurrentSongId} />);
+
+    act(() => {
+      trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { track: { id: ' s2 ' } });
     });
 
     expect(getByTestId('current').props.children).toBe('s2');
