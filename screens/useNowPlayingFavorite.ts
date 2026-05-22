@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { isFavoriteSongId, setFavoriteSongId } from '../utils/storage';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isFavoriteSongId, normalizeStorageSongId, setFavoriteSongId } from '../utils/storage';
 
 interface NowPlayingFavoriteState {
   favorite: boolean;
@@ -8,6 +8,7 @@ interface NowPlayingFavoriteState {
 }
 
 export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState => {
+  const normalizedSongId = useMemo(() => normalizeStorageSongId(songId), [songId]);
   const [favorite, setFavorite] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
   const requestVersionRef = useRef(0);
@@ -20,21 +21,21 @@ export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState 
     setFavorite(false);
     setFavoritePending(false);
 
-    if (!songId) return () => {
+    if (!normalizedSongId) return () => {
       cancelled = true;
     };
 
-    isFavoriteSongId(songId).then(value => {
+    isFavoriteSongId(normalizedSongId).then(value => {
       if (!cancelled && requestVersionRef.current === requestVersion) setFavorite(value);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [songId]);
+  }, [normalizedSongId]);
 
   const toggleFavorite = useCallback(() => {
-    if (!songId || favoritePending) return;
+    if (!normalizedSongId || favoritePending) return;
 
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
@@ -43,14 +44,14 @@ export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState 
     setFavorite(next);
     setFavoritePending(true);
 
-    void setFavoriteSongId(songId, next)
+    void setFavoriteSongId(normalizedSongId, next)
       .catch(() => {
         if (requestVersionRef.current === requestVersion) setFavorite(previous);
       })
       .finally(() => {
         if (requestVersionRef.current === requestVersion) setFavoritePending(false);
       });
-  }, [favorite, favoritePending, songId]);
+  }, [favorite, favoritePending, normalizedSongId]);
 
   return { favorite, favoritePending, toggleFavorite };
 };
