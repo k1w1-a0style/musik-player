@@ -3,6 +3,7 @@ import type { EqPresetName } from '../types/Song';
 import {
   createDefaultEqBands,
   getEqPresetBands,
+  isValidEqBandIndex,
   updateEqBandAtIndex,
 } from './equalizerControlHelpers';
 
@@ -18,7 +19,7 @@ export interface EqualizerControls {
   setEqPreset: Dispatch<SetStateAction<EqPresetName | 'custom'>>;
 }
 
-export { updateEqBandAtIndex } from './equalizerControlHelpers';
+export { isValidEqBandIndex, updateEqBandAtIndex } from './equalizerControlHelpers';
 
 export const useEqualizerControls = (): EqualizerControls => {
   const [eqEnabled, setEqEnabledState] = useState(false);
@@ -26,6 +27,7 @@ export const useEqualizerControls = (): EqualizerControls => {
   const [eqPreset, setEqPreset] = useState<EqPresetName | 'custom'>('flat');
 
   const setEqBand = useCallback((index: number, value: number) => {
+    if (!isValidEqBandIndex(index)) return;
     setEqBandsState(prev => updateEqBandAtIndex(prev, index, value));
     setEqPreset('custom');
   }, []);
