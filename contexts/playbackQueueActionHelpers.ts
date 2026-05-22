@@ -42,16 +42,29 @@ export interface RunShuffleQueueActionArgs extends PlaybackQueueActionRefs {
   setShuffle: Dispatch<SetStateAction<boolean>>;
 }
 
+const normalizeSongId = (songId?: string): string | undefined => {
+  const trimmed = songId?.trim();
+  return trimmed || undefined;
+};
+
+const isPlayableSong = (song: Song): boolean => Boolean(song.uri?.trim());
+
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
-  (queueContext.length > 0 ? queueContext : librarySongs.filter(song => !!song.uri)).slice();
+  (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
 
 export const persistRequestedSongId = async (
   requestedSong: Song,
   librarySongs: Song[],
 ): Promise<void> => {
-  const isLibrarySong = librarySongs.some(item => item.id === requestedSong.id);
+  const requestedSongId = normalizeSongId(requestedSong.id);
+  if (!requestedSongId) {
+    await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    return;
+  }
+
+  const isLibrarySong = librarySongs.some(item => normalizeSongId(item.id) === requestedSongId);
   if (isLibrarySong) {
-    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSong.id);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSongId);
     return;
   }
   await storage.remove(StorageKeys.CURRENT_SONG_ID);
