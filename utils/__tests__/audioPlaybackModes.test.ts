@@ -7,4 +7,10 @@ describe('audioPlaybackModes', () => {
     expect(toTrackPlayerRepeatMode('one')).toBe(RNTPRepeatMode.Track);
     expect(toTrackPlayerRepeatMode('all')).toBe(RNTPRepeatMode.Queue);
   });
+
+  test('defaults invalid repeat mode values to off', () => {
+    expect(toTrackPlayerRepeatMode('bad')).toBe(RNTPRepeatMode.Off);
+    expect(toTrackPlayerRepeatMode(undefined)).toBe(RNTPRepeatMode.Off);
+    expect(toTrackPlayerRepeatMode(null)).toBe(RNTPRepeatMode.Off);
+  });
 });
