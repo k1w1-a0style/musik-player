@@ -57,7 +57,7 @@ describe('useCurrentSongSync', () => {
     expect(persistCurrentSongId).toHaveBeenCalledWith(queueSong);
   });
 
-  test('ignores unknown active track ids', () => {
+  test('clears persisted current song for unknown active track ids', () => {
     const persistCurrentSongId = jest.fn(async () => undefined);
     const { getByTestId } = render(<SyncProbe persistCurrentSongId={persistCurrentSongId} />);
 
@@ -66,6 +66,6 @@ describe('useCurrentSongSync', () => {
     });
 
     expect(getByTestId('current').props.children).toBe('');
-    expect(persistCurrentSongId).not.toHaveBeenCalled();
+    expect(persistCurrentSongId).toHaveBeenCalledWith(null);
   });
 });
