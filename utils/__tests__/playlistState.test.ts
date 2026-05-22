@@ -23,10 +23,10 @@ describe('playlistState helpers', () => {
     ]);
   });
 
-  test('prunes duplicate song ids while preserving order', () => {
+  test('prunes duplicate, blank and whitespace song ids while preserving order', () => {
     const result = prunePlaylists(
-      [{ id: 'pl-1', name: 'One', songIds: ['s1', 'missing', 's1', 's2', 's2'], createdAt: 1 }],
-      new Set(['s1', 's2']),
+      [{ id: 'pl-1', name: 'One', songIds: [' s1 ', 'missing', 's1', '', '  ', 's2', 's2'], createdAt: 1 }],
+      new Set(['s1', ' s2 ']),
     );
 
     expect(result[0].songIds).toEqual(['s1', 's2']);
@@ -36,31 +36,35 @@ describe('playlistState helpers', () => {
     expect(prunePlaylists(playlists, new Set(['s1', 's2', 's3']))).toBe(playlists);
   });
 
-  test('sanitizePlaylists removes duplicate ids without requiring a song library', () => {
+  test('sanitizePlaylists removes duplicate blank ids without requiring a song library', () => {
     const result = sanitizePlaylists([
-      { id: 'pl-1', name: 'One', songIds: ['s1', 's1', 's2', 's1', 's3'], createdAt: 1 },
+      { id: 'pl-1', name: 'One', songIds: [' s1 ', 's1', '', 's2', '  ', 's1', 's3'], createdAt: 1 },
     ]);
 
     expect(result[0].songIds).toEqual(['s1', 's2', 's3']);
   });
 
-  test('renames a playlist by id', () => {
-    expect(renamePlaylistById(playlists, 'pl-1', 'New')[0].name).toBe('New');
+  test('renames a playlist by normalized id', () => {
+    expect(renamePlaylistById(playlists, ' pl-1 ', 'New')[0].name).toBe('New');
+    expect(renamePlaylistById(playlists, '   ', 'Nope')).toEqual(playlists);
   });
 
-  test('adds a song once to a playlist', () => {
-    const result = addSongToPlaylistById(playlists, 'pl-1', 's3');
+  test('adds a normalized song once to a playlist', () => {
+    const result = addSongToPlaylistById(playlists, ' pl-1 ', ' s3 ');
     expect(result[0].songIds).toEqual(['s1', 's2', 's3']);
 
     const duplicate = addSongToPlaylistById(result, 'pl-1', 's3');
     expect(duplicate[0].songIds).toEqual(['s1', 's2', 's3']);
+    expect(addSongToPlaylistById(result, 'pl-1', '   ')).toEqual(result);
   });
 
-  test('removes a song from a playlist', () => {
-    expect(removeSongFromPlaylistById(playlists, 'pl-1', 's2')[0].songIds).toEqual(['s1']);
+  test('removes a normalized song from a playlist', () => {
+    expect(removeSongFromPlaylistById(playlists, ' pl-1 ', ' s2 ')[0].songIds).toEqual(['s1']);
+    expect(removeSongFromPlaylistById(playlists, 'pl-1', '   ')).toEqual(playlists);
   });
 
-  test('deletes a playlist by id', () => {
-    expect(deletePlaylistById(playlists, 'pl-1').map(playlist => playlist.id)).toEqual(['pl-2']);
+  test('deletes a playlist by normalized id', () => {
+    expect(deletePlaylistById(playlists, ' pl-1 ').map(playlist => playlist.id)).toEqual(['pl-2']);
+    expect(deletePlaylistById(playlists, '   ')).toEqual(playlists);
   });
 });
