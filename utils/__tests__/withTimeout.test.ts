@@ -1,39 +1,46 @@
 import { withTimeout } from '../withTimeout';
 
-test('resolves before timeout', async () => {
-  await expect(withTimeout(Promise.resolve('done'), 100, 'too slow')).resolves.toBe('done');
-});
+describe('withTimeout', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
 
-test('rejects with timeout message', async () => {
-  jest.useFakeTimers();
-  const promise = withTimeout(new Promise<string>(() => undefined), 50, 'timeout hit');
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
 
-  jest.advanceTimersByTime(50);
+  test('resolves with the wrapped promise result before timeout', async () => {
+    await expect(withTimeout(Promise.resolve('ok'), 1000, 'too slow')).resolves.toBe('ok');
+  });
 
-  await expect(promise).rejects.toThrow('timeout hit');
-  jest.useRealTimers();
-});
+  test('rejects with the wrapped promise rejection before timeout', async () => {
+    await expect(withTimeout(Promise.reject(new Error('source failed')), 1000, 'too slow')).rejects.toThrow('source failed');
+  });
 
-test('clears timer when promise resolves', async () => {
-  jest.useFakeTimers();
-  const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-  const promise = withTimeout(Promise.resolve('ok'), 100, 'too slow');
+  test('rejects with timeout message when wrapped promise does not settle in time', async () => {
+    const result = withTimeout(new Promise<string>(() => undefined), 1000, 'timed out');
 
-  await expect(promise).resolves.toBe('ok');
+    jest.advanceTimersByTime(1000);
 
-  expect(clearTimeoutSpy).toHaveBeenCalled();
-  clearTimeoutSpy.mockRestore();
-  jest.useRealTimers();
-});
+    await expect(result).rejects.toThrow('timed out');
+  });
 
-test('clears timer when promise rejects before timeout', async () => {
-  jest.useFakeTimers();
-  const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-  const promise = withTimeout(Promise.reject(new Error('source failed')), 100, 'too slow');
+  test('clears pending timeout after successful resolution', async () => {
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
 
-  await expect(promise).rejects.toThrow('source failed');
+    await withTimeout(Promise.resolve('ok'), 1000, 'too slow');
 
-  expect(clearTimeoutSpy).toHaveBeenCalled();
-  clearTimeoutSpy.mockRestore();
-  jest.useRealTimers();
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test('clears pending timeout after wrapped promise rejection', async () => {
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+
+    await expect(withTimeout(Promise.reject(new Error('source failed')), 1000, 'too slow')).rejects.toThrow('source failed');
+
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
 });
