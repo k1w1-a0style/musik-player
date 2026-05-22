@@ -16,7 +16,7 @@ type ActiveTrackEventParseResult =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-const normalizeTrackId = (value: unknown): string | undefined => {
+export const normalizeActiveTrackId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value.trim() || undefined;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
@@ -25,7 +25,7 @@ const normalizeTrackId = (value: unknown): string | undefined => {
 export const parseActiveTrackEvent = (event: unknown): ActiveTrackEventParseResult => {
   if (!isRecord(event)) return { kind: 'ignore' };
 
-  const directTrackId = normalizeTrackId(event.trackId);
+  const directTrackId = normalizeActiveTrackId(event.trackId);
   if (directTrackId) return { kind: 'track', trackId: directTrackId };
 
   if (!Object.prototype.hasOwnProperty.call(event, 'track')) return { kind: 'ignore' };
@@ -33,11 +33,11 @@ export const parseActiveTrackEvent = (event: unknown): ActiveTrackEventParseResu
   if (track == null) return { kind: 'clear' };
 
   if (isRecord(track)) {
-    const id = normalizeTrackId(track.id);
+    const id = normalizeActiveTrackId(track.id);
     return id ? { kind: 'track', trackId: id } : { kind: 'clear' };
   }
 
-  const id = normalizeTrackId(track);
+  const id = normalizeActiveTrackId(track);
   return id ? { kind: 'track', trackId: id } : { kind: 'clear' };
 };
 
@@ -50,9 +50,10 @@ export const findTrackSongById = (
   trackId: string | undefined,
   songSources: Song[][],
 ): Song | undefined => {
-  if (!trackId) return undefined;
+  const normalizedTrackId = normalizeActiveTrackId(trackId);
+  if (!normalizedTrackId) return undefined;
   for (const source of songSources) {
-    const song = source.find(item => item.id === trackId);
+    const song = source.find(item => normalizeActiveTrackId(item.id) === normalizedTrackId);
     if (song) return song;
   }
   return undefined;
