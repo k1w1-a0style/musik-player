@@ -105,10 +105,19 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
   const grouped = new Map<string, Song[]>();
   for (const song of songs) {
     const label = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
-    grouped.set(label, [...(grouped.get(label) ?? []), song]);
+    const existing = grouped.get(label);
+    if (existing) {
+      existing.push(song);
+    } else {
+      grouped.set(label, [song]);
+    }
   }
 
-  return Array.from(grouped.entries())
+  return groupsFromMap(kind, grouped);
+};
+
+const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>): LibraryGroupItem[] =>
+  Array.from(grouped.entries())
     .map(([title, list]) => {
       const sortedSongs = [...list].sort(byTitle);
       return {
@@ -120,4 +129,37 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));
+
+export const buildLibraryGroups = (songs: Song[]): {
+  albumGroups: LibraryGroupItem[];
+  artistGroups: LibraryGroupItem[];
+  genreGroups: LibraryGroupItem[];
+} => {
+  const albums = new Map<string, Song[]>();
+  const artists = new Map<string, Song[]>();
+  const genres = new Map<string, Song[]>();
+
+  for (const song of songs) {
+    const albumLabel = displayAlbum(song);
+    const artistLabel = displayArtist(song);
+    const genreLabel = displayGenre(song);
+
+    const albumSongs = albums.get(albumLabel);
+    if (albumSongs) albumSongs.push(song);
+    else albums.set(albumLabel, [song]);
+
+    const artistSongs = artists.get(artistLabel);
+    if (artistSongs) artistSongs.push(song);
+    else artists.set(artistLabel, [song]);
+
+    const genreSongs = genres.get(genreLabel);
+    if (genreSongs) genreSongs.push(song);
+    else genres.set(genreLabel, [song]);
+  }
+
+  return {
+    albumGroups: groupsFromMap('album', albums),
+    artistGroups: groupsFromMap('artist', artists),
+    genreGroups: groupsFromMap('genre', genres),
+  };
 };

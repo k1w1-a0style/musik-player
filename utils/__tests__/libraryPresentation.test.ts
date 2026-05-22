@@ -1,4 +1,4 @@
-import { cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, groupSongs, mergeSongs } from '../libraryPresentation';
+import { buildLibraryGroups, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, groupSongs, mergeSongs } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 
 jest.mock('../mediaLibraryImport', () => ({
@@ -140,4 +140,30 @@ test('groupSongs uses singular subtitle for one track', () => {
   const groups = groupSongs([song({ id: '1', title: 'Alpha', artist: 'A', genre: 'Techno' })], 'genre');
 
   expect(groups[0].subtitle).toBe('1 Track');
+});
+
+test('buildLibraryGroups matches individual groupSongs outputs', () => {
+  const songs = [
+    song({ id: '3', title: 'Gamma', artist: 'B', album: 'Z', genre: 'House' }),
+    song({ id: '1', title: 'Alpha', artist: 'A', album: 'A', genre: 'Techno', cover: 'cover-a' }),
+    song({ id: '2', title: 'Beta', artist: 'A', album: 'A', genre: 'Techno' }),
+  ];
+
+  const grouped = buildLibraryGroups(songs);
+
+  expect(grouped.albumGroups).toEqual(groupSongs(songs, 'album'));
+  expect(grouped.artistGroups).toEqual(groupSongs(songs, 'artist'));
+  expect(grouped.genreGroups).toEqual(groupSongs(songs, 'genre'));
+});
+
+test('groupSongs keeps cover selection and title sorting behavior', () => {
+  const groups = groupSongs([
+    song({ id: '2', title: 'Zulu', album: 'Mix', cover: '' }),
+    song({ id: '1', title: 'Alpha', album: 'Mix' }),
+    song({ id: '3', title: 'Beta', album: 'Mix', cover: 'picked-cover' }),
+  ], 'album');
+
+  expect(groups).toHaveLength(1);
+  expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Beta', 'Zulu']);
+  expect(groups[0].cover).toBe('picked-cover');
 });

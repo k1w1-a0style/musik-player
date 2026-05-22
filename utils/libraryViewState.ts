@@ -1,7 +1,7 @@
 import type { Playlist, Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { getLibraryDisplaySongs } from './libraryDemoSongs';
-import { groupSongs } from './libraryPresentation';
+import { buildLibraryGroups } from './libraryPresentation';
 import { buildLibraryPlaylistItems } from './libraryPlaylists';
 import { filterFavoriteSongs, filterLibrarySongs } from './librarySongs';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from './libraryTabs';
@@ -31,18 +31,19 @@ export const buildLibraryViewState = ({
 }: LibraryViewStateOptions) => {
   const displayedSongs = getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv);
   const filteredSongs = filterLibrarySongs(displayedSongs, query);
+  const { albumGroups, artistGroups, genreGroups } = buildLibraryGroups(filteredSongs);
   const favoriteSongs = filterFavoriteSongs(filteredSongs, favoriteIds);
   const songsForActiveList = activeTab === 'favorites' ? favoriteSongs : filteredSongs;
 
   return {
     activeFolders: countActiveScanFolders(scanFolders),
-    albumGroups: groupSongs(filteredSongs, 'album'),
-    artistGroups: groupSongs(filteredSongs, 'artist'),
+    albumGroups,
+    artistGroups,
     displayedSongs,
     emptyMessage: getLibraryEmptyMessage(activeTab),
     favoriteSongs,
     filteredSongs,
-    genreGroups: groupSongs(filteredSongs, 'genre'),
+    genreGroups,
     playlistItems: buildLibraryPlaylistItems(playlists, displayedSongs, query),
     songsForActiveList,
   };
