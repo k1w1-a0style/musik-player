@@ -1,6 +1,7 @@
 import TrackPlayer from 'react-native-track-player';
 import {
   mergeUniqueSongs,
+  normalizeSongIdForLibrary,
   normalizeSongUriForLibraryDedupe,
   patchNullableSongById,
   patchSongById,
@@ -32,14 +33,25 @@ describe('libraryActionHelpers', () => {
     jest.clearAllMocks();
   });
 
+  test('normalizes song ids for library actions', () => {
+    expect(normalizeSongIdForLibrary(' s1 ')).toBe('s1');
+    expect(normalizeSongIdForLibrary('')).toBeUndefined();
+    expect(normalizeSongIdForLibrary('   ')).toBeUndefined();
+    expect(normalizeSongIdForLibrary(undefined)).toBeUndefined();
+  });
+
   test('normalizes song URIs for library-level dedupe', () => {
     expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///Music/My%20Song.mp3?token=1#x'))).toBe('file:///Music/My Song.mp3');
     expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///Music\\Song.mp3'))).toBe('file:///Music/Song.mp3');
     expect(normalizeSongUriForLibraryDedupe(song('a', 'file:///ignored.mp3', 'file:///Music/Real.mp3?x=1'))).toBe('file:///Music/Real.mp3');
   });
 
-  test('merges unique songs by id', () => {
-    expect(mergeUniqueSongs([songs[0]], [songs[0], songs[1]])).toEqual(songs);
+  test('merges unique songs by normalized id', () => {
+    expect(mergeUniqueSongs([songs[0]], [{ ...songs[0], id: ' s1 ' }, songs[1]])).toEqual(songs);
+  });
+
+  test('drops incoming songs with blank ids while merging', () => {
+    expect(mergeUniqueSongs([songs[0]], [song('   ', 'file:///blank.mp3'), songs[1]])).toEqual(songs);
   });
 
   test('merges by normalized URI so repeated imports do not duplicate tracks', () => {
@@ -50,34 +62,34 @@ describe('libraryActionHelpers', () => {
     const incoming = [
       song('s1', 'file:///Music/Song-duplicate-id.mp3'),
       song('new-id-same-uri', 'file:///Music/Song.mp3?token=2'),
-      song('s3', 'file:///Music/Third.mp3'),
+      song(' s3 ', 'file:///Music/Third.mp3'),
     ];
 
     expect(mergeUniqueSongs(current, incoming).map(item => item.id)).toEqual(['s1', 's2', 's3']);
   });
 
   test('still allows URI-less songs when ids are unique', () => {
-    expect(mergeUniqueSongs([song('s1')], [song('s2'), song('s1')]).map(item => item.id)).toEqual(['s1', 's2']);
+    expect(mergeUniqueSongs([song('s1')], [song(' s2 '), song('s1')]).map(item => item.id)).toEqual(['s1', 's2']);
   });
 
-  test('prunes songs by valid ids while preserving order', () => {
-    const validSongIds = new Set(['s2', 's4']);
-    const input = [song('s1'), song('s2'), song('s3'), song('s4')];
+  test('prunes songs by normalized valid ids while preserving order', () => {
+    const validSongIds = new Set([' s2 ', 's4']);
+    const input = [song('s1'), song(' s2 '), song('   '), song('s3'), song('s4')];
 
     expect(pruneSongsByValidIds(input, validSongIds).map(item => item.id)).toEqual(['s2', 's4']);
     expect(pruneSongsByValidIds(songs, new Set(['s1', 's2']))).toBe(songs);
   });
 
-  test('prunes nullable current song by valid ids', () => {
+  test('prunes nullable current song by normalized valid ids', () => {
     expect(pruneNullableSongByValidIds(songs[0], new Set(['s2']))).toBeNull();
-    expect(pruneNullableSongByValidIds(songs[0], new Set(['s1']))).toBe(songs[0]);
+    expect(pruneNullableSongByValidIds({ ...songs[0], id: ' s1 ' }, new Set(['s1']))).toEqual(songs[0]);
     expect(pruneNullableSongByValidIds(null, new Set(['s1']))).toBeNull();
   });
 
   test('syncs queue refs to the current library', () => {
-    const queueRef = createSongRef([song('s1'), song('s2'), song('missing')]);
+    const queueRef = createSongRef([song('s1'), song(' s2 '), song('missing')]);
     const baseRef = createSongRef([song('missing'), song('s2')]);
-    const nativeRef = createSongRef([song('s1'), song('missing')]);
+    const nativeRef = createSongRef([song(' s1 '), song('missing')]);
 
     syncSongRefsToLibrary(new Set(['s1', 's2']), [queueRef, baseRef, nativeRef]);
 
@@ -86,8 +98,9 @@ describe('libraryActionHelpers', () => {
     expect(nativeRef.current.map(item => item.id)).toEqual(['s1']);
   });
 
-  test('patches song values by id', () => {
-    expect(patchSongById('s1', { title: 'Updated' })(songs[0]).title).toBe('Updated');
+  test('patches song values by normalized id', () => {
+    expect(patchSongById(' s1 ', { title: 'Updated' })({ ...songs[0], id: ' s1 ' })).toEqual({ ...songs[0], title: 'Updated' });
+    expect(patchSongById('   ', { title: 'Updated' })(songs[0])).toBe(songs[0]);
     expect(patchSongById('missing', { title: 'Updated' })(songs[0])).toBe(songs[0]);
     expect(patchNullableSongById('s1', { title: 'Updated' }, songs[0])?.title).toBe('Updated');
     expect(patchNullableSongById('missing', { title: 'Updated' }, songs[0])).toBe(songs[0]);
@@ -104,8 +117,8 @@ describe('libraryActionHelpers', () => {
     expect(baseRef.current[0].title).toBe('Updated');
   });
 
-  test('updates native metadata for queued song', () => {
-    const nativeQueueRef = createSongRef([{ ...songs[0], title: 'Updated' }, songs[1]]);
+  test('updates native metadata for queued song by normalized id', () => {
+    const nativeQueueRef = createSongRef([{ ...songs[0], id: ' s1 ', title: 'Updated' }, songs[1]]);
     const baseQueueContextRef = createSongRef(songs.slice());
 
     updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
@@ -116,8 +129,9 @@ describe('libraryActionHelpers', () => {
     );
   });
 
-  test('skips native metadata update when song is not queued', () => {
+  test('skips native metadata update when song is not queued or id is blank', () => {
     updateNativeMetadataForSong('missing', createSongRef(songs.slice()), createSongRef(songs.slice()));
+    updateNativeMetadataForSong('   ', createSongRef(songs.slice()), createSongRef(songs.slice()));
 
     expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
   });
