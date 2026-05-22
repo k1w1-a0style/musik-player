@@ -60,6 +60,8 @@ const mergeSongKeys = (song: Song): string[] => [
   song.id ? `id:${song.id}` : null,
 ].filter((key): key is string => !!key);
 
+const byTitle = (a: Song, b: Song): number => a.title.localeCompare(b.title);
+
 export const displayFolderName = (folder: ScanFolder): string =>
   deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
 
@@ -96,7 +98,7 @@ export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[]
     keys.forEach(key => byKey.set(key, mergedSong));
   });
 
-  return Array.from(new Set(byKey.values())).sort((a, b) => a.title.localeCompare(b.title));
+  return Array.from(new Set(byKey.values())).sort(byTitle);
 };
 
 export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
@@ -107,12 +109,15 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
   }
 
   return Array.from(grouped.entries())
-    .map(([title, list]) => ({
-      id: `${kind}:${title}`,
-      title,
-      subtitle: `${list.length} ${list.length === 1 ? 'Track' : 'Tracks'}`,
-      cover: getSongArtworkUri(list.find(song => !!getSongArtworkUri(song)) ?? list[0]),
-      songs: list.sort((a, b) => a.title.localeCompare(b.title)),
-    }))
+    .map(([title, list]) => {
+      const sortedSongs = [...list].sort(byTitle);
+      return {
+        id: `${kind}:${title}`,
+        title,
+        subtitle: `${sortedSongs.length} ${sortedSongs.length === 1 ? 'Track' : 'Tracks'}`,
+        cover: getSongArtworkUri(sortedSongs.find(song => !!getSongArtworkUri(song)) ?? sortedSongs[0]),
+        songs: sortedSongs,
+      };
+    })
     .sort((a, b) => a.title.localeCompare(b.title));
 };
