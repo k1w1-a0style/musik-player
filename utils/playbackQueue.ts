@@ -1,23 +1,38 @@
 import type { Song } from '../types/Song';
 
-export const moveSongToFront = (queue: Song[], songId?: string): Song[] => {
-  if (!songId) return queue.slice();
-  const idx = queue.findIndex(song => song.id === songId);
-  return idx >= 0 ? [...queue.slice(idx), ...queue.slice(0, idx)] : queue.slice();
+const normalizeSongId = (songId?: string): string | undefined => {
+  const trimmed = songId?.trim();
+  return trimmed || undefined;
 };
 
-export const rotateQueueFromIndex = (queue: Song[], index: number): Song[] =>
-  index > 0 ? [...queue.slice(index), ...queue.slice(0, index)] : queue.slice();
+const normalizeRotationIndex = (queueLength: number, index: number): number =>
+  Number.isInteger(index) && index > 0 && index < queueLength ? index : 0;
+
+export const moveSongToFront = (queue: Song[], songId?: string): Song[] => {
+  const normalizedSongId = normalizeSongId(songId);
+  if (!normalizedSongId) return queue.slice();
+  const idx = queue.findIndex(song => normalizeSongId(song.id) === normalizedSongId);
+  return idx >= 0 ? rotateQueueFromIndex(queue, idx) : queue.slice();
+};
+
+export const rotateQueueFromIndex = (queue: Song[], index: number): Song[] => {
+  const normalizedIndex = normalizeRotationIndex(queue.length, index);
+  return normalizedIndex > 0 ? [...queue.slice(normalizedIndex), ...queue.slice(0, normalizedIndex)] : queue.slice();
+};
 
 export const hasSameSongIds = (a: Song[], b: Song[]): boolean => {
   if (a.length !== b.length) return false;
   const counts = new Map<string, number>();
-  a.forEach(song => counts.set(song.id, (counts.get(song.id) ?? 0) + 1));
+  a.forEach(song => {
+    const id = normalizeSongId(song.id) ?? '';
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  });
   return b.every(song => {
-    const next = (counts.get(song.id) ?? 0) - 1;
+    const id = normalizeSongId(song.id) ?? '';
+    const next = (counts.get(id) ?? 0) - 1;
     if (next < 0) return false;
-    if (next === 0) counts.delete(song.id);
-    else counts.set(song.id, next);
+    if (next === 0) counts.delete(id);
+    else counts.set(id, next);
     return true;
   });
 };
