@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
-import { EQ_PRESETS } from '../../types/Song';
+import { EQ_BAND_COUNT, EQ_PRESETS } from '../../types/Song';
 import { updateEqBandAtIndex, useEqualizerControls } from '../useEqualizerControls';
 
 const EqualizerProbe = () => {
@@ -31,7 +31,9 @@ describe('useEqualizerControls', () => {
     const source = [0, 0, 0];
     const updated = updateEqBandAtIndex(source, 1, 5);
 
-    expect(updated).toEqual([0, 5, 0]);
+    expect(updated).toHaveLength(EQ_BAND_COUNT);
+    expect(updated.slice(0, 3)).toEqual([0, 5, 0]);
+    expect(updated.slice(3)).toEqual(Array(EQ_BAND_COUNT - 3).fill(0));
     expect(source).toEqual([0, 0, 0]);
   });
 
