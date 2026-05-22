@@ -152,7 +152,7 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
     case StorageKeys.FAVORITE_SONG_IDS:
       return normalizeFavoriteSongIds(value);
     case StorageKeys.CURRENT_SONG_ID:
-      return typeof value === 'string' ? value : null;
+      return normalizeStorageSongId(value) ?? null;
     case StorageKeys.EQ_PRESET:
       return isEqPresetName(value) ? value : null;
     case StorageKeys.EQ_BANDS:
@@ -242,8 +242,9 @@ export const storage = {
     return value == null ? null : (parseStoredValue(StorageKeys.CURRENT_SONG_ID, value) as string | null);
   },
   async setCurrentSongId(songId?: string | null) {
-    if (!songId) await removeItem(StorageKeys.CURRENT_SONG_ID);
-    else await setItem(StorageKeys.CURRENT_SONG_ID, songId);
+    const normalizedSongId = normalizeStorageSongId(songId);
+    if (!normalizedSongId) await removeItem(StorageKeys.CURRENT_SONG_ID);
+    else await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
   },
   async getEqPreset(): Promise<EqPresetName> {
     const value = await getItem(StorageKeys.EQ_PRESET);
