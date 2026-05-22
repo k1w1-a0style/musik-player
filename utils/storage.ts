@@ -85,16 +85,21 @@ const scanFolderSchema = z.object({
 
 const isScanFolder = (value: unknown): value is ScanFolder => scanFolderSchema.safeParse(value).success;
 
+export const normalizeStorageSongId = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
 export const normalizeFavoriteSongIds = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
-  return value.filter((item): item is string => {
-    if (typeof item !== 'string') return false;
-    const id = item.trim();
-    if (!id || seen.has(id)) return false;
+  return value.flatMap(item => {
+    const id = normalizeStorageSongId(item);
+    if (!id || seen.has(id)) return [];
     seen.add(id);
-    return true;
-  }).map(item => item.trim());
+    return [id];
+  });
 };
 
 export const normalizeVolumeForStorage = (value: unknown): number | null => {
@@ -306,12 +311,14 @@ export const storage = {
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
 
 export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
+  const normalizedSongId = normalizeStorageSongId(songId);
+  if (!normalizedSongId) return false;
   const ids = await getFavoriteSongIds();
-  return ids.includes(songId);
+  return ids.includes(normalizedSongId);
 };
 
 export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
-  const normalizedSongId = songId.trim();
+  const normalizedSongId = normalizeStorageSongId(songId);
   if (!normalizedSongId) return getFavoriteSongIds();
   const ids = await getFavoriteSongIds();
   const next = favorite
