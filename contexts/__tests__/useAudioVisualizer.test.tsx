@@ -46,7 +46,6 @@ describe('useAudioVisualizer', () => {
     expect(SystemAudio.visualizerStop).toHaveBeenCalled();
   });
 
-
   test('does not register listeners or stop visualizer when disabled', () => {
     render(<VisualizerProbe isPlaying={false} enabled={false} />);
 
