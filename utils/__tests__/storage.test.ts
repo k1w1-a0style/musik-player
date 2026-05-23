@@ -173,6 +173,12 @@ describe('storage', () => {
     await expect(storage.getEqPreset()).resolves.toBe('flat');
   });
 
+  test('setEqPreset runtime-guards invalid bypassed values to flat', async () => {
+    await expect(storage.setEqPreset('megaBass123' as any)).resolves.toBeUndefined();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
+  });
+
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');

@@ -255,7 +255,7 @@ export const storage = {
     return isStoredEqPresetName(parsed) ? parsed : 'flat';
   },
   async setEqPreset(preset: StoredEqPresetName) {
-    await setItem(StorageKeys.EQ_PRESET, preset);
+    await setItem(StorageKeys.EQ_PRESET, isStoredEqPresetName(preset) ? preset : 'flat');
   },
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);
