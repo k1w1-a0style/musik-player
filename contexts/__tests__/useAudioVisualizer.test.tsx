@@ -11,8 +11,14 @@ type SystemAudioMock = typeof SystemAudio & {
 
 const mockSystemAudio = SystemAudio as SystemAudioMock;
 
-const VisualizerProbe = ({ isPlaying }: { isPlaying: boolean }) => {
-  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
+const VisualizerProbe = ({
+  isPlaying,
+  enabled = true,
+}: {
+  isPlaying: boolean;
+  enabled?: boolean;
+}) => {
+  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying, enabled);
   return (
     <>
       <Text testID="bins">{fftBins.join(',')}</Text>
@@ -38,6 +44,39 @@ describe('useAudioVisualizer', () => {
     expect(SystemAudio.onFft).toHaveBeenCalled();
     expect(SystemAudio.onVisualizerState).toHaveBeenCalled();
     expect(SystemAudio.visualizerStop).toHaveBeenCalled();
+  });
+
+
+  test('does not register listeners or stop visualizer when disabled', () => {
+    render(<VisualizerProbe isPlaying={false} enabled={false} />);
+
+    expect(SystemAudio.onFft).not.toHaveBeenCalled();
+    expect(SystemAudio.onVisualizerState).not.toHaveBeenCalled();
+    expect(SystemAudio.visualizerStop).not.toHaveBeenCalled();
+  });
+
+  test('removes subscriptions when enabled changes from true to false', () => {
+    const view = render(<VisualizerProbe isPlaying enabled />);
+
+    expect(SystemAudio.onFft).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.onVisualizerState).toHaveBeenCalledTimes(1);
+
+    view.rerender(<VisualizerProbe isPlaying enabled={false} />);
+
+    expect(SystemAudio.visualizerStop).toHaveBeenCalledTimes(2);
+  });
+
+  test('registers listeners when enabled changes from false to true', () => {
+    const view = render(<VisualizerProbe isPlaying enabled={false} />);
+
+    expect(SystemAudio.onFft).not.toHaveBeenCalled();
+    expect(SystemAudio.onVisualizerState).not.toHaveBeenCalled();
+
+    view.rerender(<VisualizerProbe isPlaying enabled />);
+
+    expect(SystemAudio.onFft).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.onVisualizerState).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.visualizerStop).toHaveBeenCalledTimes(1);
   });
 
   test('throttles fft updates', () => {

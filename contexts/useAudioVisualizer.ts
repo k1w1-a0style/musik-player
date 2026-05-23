@@ -41,7 +41,7 @@ export const useAudioVisualizer = (isPlaying: boolean, enabled: boolean = true):
     return () => {
       subscriptions.remove();
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
