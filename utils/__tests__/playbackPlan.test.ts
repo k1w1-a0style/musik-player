@@ -40,12 +40,12 @@ describe('playbackPlan helpers', () => {
     );
   });
 
-  test('logs warning for missing/blank uri when warn=true', () => {
+  test('logs warning for missing/falsy uri when warn=true', () => {
     const logger = { warn: jest.fn() };
 
     const normalized = normalizePlayableQueue([
       { id: 's1', title: 'No Uri', artist: 'A' },
-      { id: 's2', title: 'Blank Uri', artist: 'A', uri: '   ' },
+      { id: 's2', title: 'Empty Uri', artist: 'A', uri: '' },
       songs[2],
     ], { warn: true, logger });
 
@@ -56,8 +56,22 @@ describe('playbackPlan helpers', () => {
     );
     expect(logger.warn).toHaveBeenCalledWith(
       '[normalizePlayableQueue] dropped song',
-      expect.objectContaining({ reason: 'missing-uri', songId: 's2', title: 'Blank Uri' }),
+      expect.objectContaining({ reason: 'missing-uri', songId: 's2', title: 'Empty Uri' }),
     );
+  });
+
+
+
+  test('keeps whitespace-only uri as playable (legacy semantics)', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: 's1', title: 'Whitespace Uri', artist: 'A', uri: '   ' },
+      songs[2],
+    ], { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1', 's3']);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   test('logs warning for duplicate ids when warn=true', () => {

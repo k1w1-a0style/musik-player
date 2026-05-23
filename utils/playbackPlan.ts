@@ -56,8 +56,7 @@ export const normalizePlayableQueue = (
       continue;
     }
 
-    const uri = song.uri?.trim();
-    if (!uri) {
+    if (!song.uri) {
       warnDroppedSong(logger, 'missing-uri', song, id);
       continue;
     }
