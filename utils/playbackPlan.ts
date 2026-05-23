@@ -10,15 +10,67 @@ export interface PlaySongQueuePlan {
   rebuildOrderedQueue: Song[];
 }
 
-export const normalizePlayableQueue = (queue: Song[]): Song[] => {
+export interface NormalizePlayableQueueOptions {
+  warn?: boolean;
+  logger?: Pick<Console, 'warn'>;
+}
+
+declare const __DEV__: boolean;
+
+const isDevRuntime = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__;
+
+const getNormalizeLogger = (
+  options?: NormalizePlayableQueueOptions,
+): Pick<Console, 'warn'> | undefined => {
+  if (options?.warn === false) return undefined;
+  if (options?.warn === true) return options.logger ?? console;
+  return isDevRuntime() ? options?.logger ?? console : undefined;
+};
+
+const warnDroppedSong = (
+  logger: Pick<Console, 'warn'> | undefined,
+  reason: 'blank-id' | 'missing-uri' | 'duplicate-id',
+  song: Song,
+  normalizedId?: string,
+): void => {
+  if (!logger) return;
+  logger.warn('[normalizePlayableQueue] dropped song', {
+    reason,
+    songId: normalizedId ?? (song.id?.trim() || undefined),
+    title: song.title || undefined,
+  });
+};
+
+export const normalizePlayableQueue = (
+  queue: Song[],
+  options?: NormalizePlayableQueueOptions,
+): Song[] => {
   const seenIds = new Set<string>();
   const playable: Song[] = [];
+  const logger = getNormalizeLogger(options);
+
   for (const song of queue) {
     const id = song.id.trim();
-    if (!id || !song.uri || seenIds.has(id)) continue;
+    if (!id) {
+      warnDroppedSong(logger, 'blank-id', song);
+      continue;
+    }
+
+    const uri = song.uri?.trim();
+    if (!uri) {
+      warnDroppedSong(logger, 'missing-uri', song, id);
+      continue;
+    }
+
+    if (seenIds.has(id)) {
+      warnDroppedSong(logger, 'duplicate-id', song, id);
+      continue;
+    }
+
     seenIds.add(id);
     playable.push(song.id === id ? song : { ...song, id });
   }
+
   return playable;
 };
 
