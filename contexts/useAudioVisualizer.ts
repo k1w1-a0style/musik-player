@@ -21,7 +21,13 @@ export const useAudioVisualizer = (isPlaying: boolean, enabled: boolean = true):
   const lastVisualizerUpdateRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      lastVisualizerUpdateRef.current = 0;
+      setFftBins(createDefaultFftBins());
+      setVisualizerRunning(false);
+      setVisualizerError(null);
+      return;
+    }
 
     const subscriptions = createVisualizerSubscriptions({
       onFft: data => {

@@ -65,6 +65,30 @@ describe('useAudioVisualizer', () => {
     expect(SystemAudio.visualizerStop).toHaveBeenCalledTimes(2);
   });
 
+
+  test('resets visualizer state when enabled changes from true to false', () => {
+    const { getByTestId, rerender } = render(<VisualizerProbe isPlaying enabled />);
+
+    jest.spyOn(Date, 'now').mockReturnValue(120);
+    act(() => {
+      mockSystemAudio.__triggerFft([1, 2, 3]);
+      mockSystemAudio.__triggerState({ running: false, reason: 'permission denied' });
+    });
+
+    expect(getByTestId('bins').props.children).toBe('1,2,3');
+    expect(getByTestId('running').props.children).toBe('false');
+    expect(getByTestId('error').props.children).toBe('permission denied');
+
+    rerender(<VisualizerProbe isPlaying enabled={false} />);
+
+    expect(getByTestId('bins').props.children).toBe(new Array(16).fill(0).join(','));
+    expect(getByTestId('running').props.children).toBe('false');
+    expect(getByTestId('error').props.children).toBe('');
+    expect(SystemAudio.onFft).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.onVisualizerState).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.visualizerStop).toHaveBeenCalledTimes(2);
+  });
+
   test('registers listeners when enabled changes from false to true', () => {
     const view = render(<VisualizerProbe isPlaying enabled={false} />);
 
