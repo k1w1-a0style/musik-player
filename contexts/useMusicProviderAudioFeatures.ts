@@ -4,6 +4,8 @@ import { useAlbumPalette } from './useAlbumPalette';
 import { useAudioVisualizer } from './useAudioVisualizer';
 import { useNativeEqualizer } from './useNativeEqualizer';
 
+export const ENABLE_VISUALIZER = false;
+
 export interface MusicProviderAudioFeatures {
   eqNative: EqInitResult | null;
   palette: PaletteResult | null;
@@ -27,7 +29,7 @@ export const useMusicProviderAudioFeatures = ({
 }: MusicProviderAudioFeaturesArgs): MusicProviderAudioFeatures => {
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
   const palette = useAlbumPalette(currentSong);
-  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying);
+  const { fftBins, visualizerRunning, visualizerError } = useAudioVisualizer(isPlaying, ENABLE_VISUALIZER);
 
   return { eqNative, palette, fftBins, visualizerRunning, visualizerError };
 };
