@@ -249,13 +249,13 @@ export const storage = {
     if (!normalizedSongId) await removeItem(StorageKeys.CURRENT_SONG_ID);
     else await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
   },
-  async getEqPreset(): Promise<EqPresetName> {
+  async getEqPreset(): Promise<StoredEqPresetName> {
     const value = await getItem(StorageKeys.EQ_PRESET);
     const parsed = value == null ? null : parseStoredValue(StorageKeys.EQ_PRESET, value);
-    return isEqPresetName(parsed) ? parsed : 'flat';
+    return isStoredEqPresetName(parsed) ? parsed : 'flat';
   },
-  async setEqPreset(preset: EqPresetName) {
-    await setItem(StorageKeys.EQ_PRESET, preset);
+  async setEqPreset(preset: StoredEqPresetName) {
+    await setItem(StorageKeys.EQ_PRESET, isStoredEqPresetName(preset) ? preset : 'flat');
   },
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);

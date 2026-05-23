@@ -133,11 +133,15 @@ describe('storage', () => {
   });
 
   test('persists and restores custom eq preset', async () => {
+    await expect(storage.setEqPreset('custom')).resolves.toBeUndefined();
+    await expect(storage.getEqPreset()).resolves.toBe('custom');
     await expect(storage.set(StorageKeys.EQ_PRESET, 'custom')).resolves.toBe(true);
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('continues to accept standard eq preset names', async () => {
+    await expect(storage.setEqPreset('flat')).resolves.toBeUndefined();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
     await expect(storage.set(StorageKeys.EQ_PRESET, 'flat')).resolves.toBe(true);
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
   });
@@ -149,7 +153,30 @@ describe('storage', () => {
 
   test('reads raw custom eq preset string via fallback parser', async () => {
     await AsyncStorage.setItem('@musikplayer:eqPreset', 'custom');
+    await expect(storage.getEqPreset()).resolves.toBe('custom');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+  });
+
+  test('reads JSON custom eq preset string via parser', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', '"custom"');
+    await expect(storage.getEqPreset()).resolves.toBe('custom');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+  });
+
+  test('falls back to flat for invalid raw eq preset values', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', 'megaBass123');
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+  });
+
+  test('falls back to flat for invalid JSON eq preset values', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', '"megaBass123"');
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+  });
+
+  test('setEqPreset runtime-guards invalid bypassed values to flat', async () => {
+    await expect(storage.setEqPreset('megaBass123' as any)).resolves.toBeUndefined();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
   });
 
   test('rejects invalid persisted settings', async () => {
