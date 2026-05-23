@@ -24,7 +24,6 @@ describe('playbackPlan helpers', () => {
     expect(normalizePlayableQueue(dirtyQueue).map(song => song.id)).toEqual(['s1', 's3']);
   });
 
-
   test('logs warning for blank ids when warn=true', () => {
     const logger = { warn: jest.fn() };
 
@@ -59,8 +58,6 @@ describe('playbackPlan helpers', () => {
       expect.objectContaining({ reason: 'missing-uri', songId: 's2', title: 'Empty Uri' }),
     );
   });
-
-
 
   test('keeps whitespace-only uri as playable (legacy semantics)', () => {
     const logger = { warn: jest.fn() };

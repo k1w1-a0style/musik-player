@@ -188,7 +188,7 @@ test('respects concurrency limit and continues processing after failures/skips',
   expect(result.songs[3]).toBe(songs[3]);
 });
 
-test('concurrency 1 behaves sequentially and clamps invalid options', async () => {
+test('concurrency 1 behaves sequentially and invalid options clamp to sequential execution', async () => {
   const songs: Song[] = [
     { ...baseSong, id: 's1', uri: 'file:///1.mp3' },
     { ...baseSong, id: 's2', uri: 'file:///2.mp3' },
@@ -200,6 +200,10 @@ test('concurrency 1 behaves sequentially and clamps invalid options', async () =
     return { title: `${uri}-ok` };
   });
 
+  await refreshSongsFromId3(songs, { concurrency: 1 });
+  expect(seen).toEqual(['file:///1.mp3', 'file:///2.mp3', 'file:///3.mp3']);
+
+  seen.length = 0;
   await refreshSongsFromId3(songs, { concurrency: 0 });
   expect(seen).toEqual(['file:///1.mp3', 'file:///2.mp3', 'file:///3.mp3']);
 
