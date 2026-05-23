@@ -14,13 +14,15 @@ export interface AudioVisualizerState {
   visualizerError: string | null;
 }
 
-export const useAudioVisualizer = (isPlaying: boolean): AudioVisualizerState => {
+export const useAudioVisualizer = (isPlaying: boolean, enabled: boolean = true): AudioVisualizerState => {
   const [fftBins, setFftBins] = useState<number[]>(createDefaultFftBins);
   const [visualizerRunning, setVisualizerRunning] = useState(false);
   const [visualizerError, setVisualizerError] = useState<string | null>(null);
   const lastVisualizerUpdateRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const subscriptions = createVisualizerSubscriptions({
       onFft: data => {
         const now = Date.now();
@@ -39,11 +41,13 @@ export const useAudioVisualizer = (isPlaying: boolean): AudioVisualizerState => 
     return () => {
       subscriptions.remove();
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     stopVisualizerWhenPlaybackRequires(isPlaying);
-  }, [isPlaying]);
+  }, [enabled, isPlaying]);
 
   return { fftBins, visualizerRunning, visualizerError };
 };
