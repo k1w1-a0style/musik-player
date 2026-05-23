@@ -24,6 +24,95 @@ describe('playbackPlan helpers', () => {
     expect(normalizePlayableQueue(dirtyQueue).map(song => song.id)).toEqual(['s1', 's3']);
   });
 
+
+  test('logs warning for blank ids when warn=true', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: '   ', title: 'Blank', artist: 'A', uri: 'file:///blank.mp3' },
+      songs[0],
+    ], { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1']);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[normalizePlayableQueue] dropped song',
+      expect.objectContaining({ reason: 'blank-id', title: 'Blank' }),
+    );
+  });
+
+  test('logs warning for missing/falsy uri when warn=true', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: 's1', title: 'No Uri', artist: 'A' },
+      { id: 's2', title: 'Empty Uri', artist: 'A', uri: '' },
+      songs[2],
+    ], { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s3']);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[normalizePlayableQueue] dropped song',
+      expect.objectContaining({ reason: 'missing-uri', songId: 's1', title: 'No Uri' }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[normalizePlayableQueue] dropped song',
+      expect.objectContaining({ reason: 'missing-uri', songId: 's2', title: 'Empty Uri' }),
+    );
+  });
+
+
+
+  test('keeps whitespace-only uri as playable (legacy semantics)', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: 's1', title: 'Whitespace Uri', artist: 'A', uri: '   ' },
+      songs[2],
+    ], { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1', 's3']);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('logs warning for duplicate ids when warn=true', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      songs[0],
+      { ...songs[0], title: 'Duplicate', uri: 'file:///dup.mp3' },
+      songs[1],
+    ], { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[normalizePlayableQueue] dropped song',
+      expect.objectContaining({ reason: 'duplicate-id', songId: 's1', title: 'Duplicate' }),
+    );
+  });
+
+  test('does not log warnings when warn=false', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: '   ', title: 'Blank', artist: 'A', uri: 'file:///blank.mp3' },
+      { id: 's2', title: 'No Uri', artist: 'A' },
+      songs[0],
+      { ...songs[0], title: 'Duplicate', uri: 'file:///dup.mp3' },
+    ], { warn: false, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1']);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('does not log warnings for fully valid queues', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue(songs, { warn: true, logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1', 's2', 's3']);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   test('builds a rebuild plan with requested song first', () => {
     const plan = buildPlaySongQueuePlan(songs[1], songs, []);
 
