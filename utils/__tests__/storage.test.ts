@@ -199,6 +199,36 @@ describe('storage', () => {
     expect(await storage.getRepeatMode()).toBe('all');
   });
 
+
+  test('accepts raw numeric-looking current song ids from direct storage writes', async () => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', '123');
+
+    await expect(storage.getCurrentSongId()).resolves.toBe('123');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
+  });
+
+  test('accepts JSON-encoded current song id strings', async () => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', '"123"');
+
+    await expect(storage.getCurrentSongId()).resolves.toBe('123');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
+  });
+
+  test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', '0');
+    await AsyncStorage.setItem('@musikplayer:repeatMode', '1');
+
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+  });
+
+  test('keeps unsupported keys null when stored JSON parses into invalid values', async () => {
+    await AsyncStorage.setItem('@musikplayer:volume', '"loud"');
+
+    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+  });
   test('persists and restores custom eq preset', async () => {
     await expect(storage.setEqPreset('custom')).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('custom');
