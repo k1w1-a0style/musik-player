@@ -7,7 +7,6 @@ const song = (patch: Partial<Song>): Song => ({
   artist: patch.artist ?? 'Artist',
   album: patch.album,
   genre: patch.genre,
-  favorite: patch.favorite,
 });
 
 test('filterLibrarySongs returns all songs for empty query', () => {
@@ -28,12 +27,12 @@ test('filterLibrarySongs searches title artist album and genre', () => {
   expect(filterLibrarySongs(songs, 'pop').map(item => item.id)).toEqual(['soft']);
 });
 
-test('filterFavoriteSongs uses stored favorite ids and song favorite flag', () => {
+test('filterFavoriteSongs uses only stored favorite ids', () => {
   const songs = [
     song({ id: 'a' }),
-    song({ id: 'b', favorite: true }),
+    song({ id: 'b' }),
     song({ id: 'c' }),
   ];
 
-  expect(filterFavoriteSongs(songs, ['c']).map(item => item.id)).toEqual(['b', 'c']);
+  expect(filterFavoriteSongs(songs, ['c']).map(item => item.id)).toEqual(['c']);
 });

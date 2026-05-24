@@ -66,6 +66,13 @@ const songSchema = z.object({
   coverInfo: songCoverInfoSchema.optional(),
 }).passthrough();
 
+const normalizeStoredSong = (value: unknown): Record<string, unknown> | null => {
+  const parsed = songSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const { favorite: _favorite, isFavorite: _isFavorite, ...song } = parsed.data;
+  return song;
+};
+
 const playlistSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -147,7 +154,10 @@ const isStoredEqPresetName = (value: unknown): value is StoredEqPresetName =>
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
   switch (key) {
     case StorageKeys.SONGS:
-      return filterArray(value, songSchema);
+      return Array.isArray(value) ? value.flatMap(item => {
+        const song = normalizeStoredSong(item);
+        return song ? [song] : [];
+      }) : [];
     case StorageKeys.PLAYLISTS:
       return filterArray(value, playlistSchema);
     case StorageKeys.SCAN_FOLDERS:
@@ -229,7 +239,18 @@ export const storage = {
     }
   },
   async getSongs() {
-    return parseJsonArray(await getItem(StorageKeys.SONGS), songSchema);
+    const raw = await getItem(StorageKeys.SONGS);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.flatMap(item => {
+        const song = normalizeStoredSong(item);
+        return song ? [song] : [];
+      });
+    } catch {
+      return [];
+    }
   },
   async setSongs(songs: unknown[]) {
     await setItem(StorageKeys.SONGS, JSON.stringify(songs));

@@ -258,4 +258,32 @@ describe('storage', () => {
     expect(await storage.get(StorageKeys.SONGS)).toEqual([song]);
     expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([playlist]);
   });
+
+  test('keeps legacy favorite fields parseable but strips them from normalized songs', async () => {
+    const storedSong = {
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      favorite: true,
+      isFavorite: true,
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    };
+    await storage.set(StorageKeys.SONGS, [storedSong]);
+
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([{
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    }]);
+    await expect(storage.getSongs()).resolves.toEqual([{
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    }]);
+  });
 });

@@ -34,7 +34,6 @@ export interface Song {
   trackNumber?: string;
   discNumber?: string;
   comment?: string;
-  favorite?: boolean;
   fileInfo?: SongFileInfo;
   audioInfo?: SongAudioInfo;
   coverInfo?: SongCoverInfo;
