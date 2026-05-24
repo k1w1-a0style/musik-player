@@ -73,6 +73,17 @@ const normalizeStoredSong = (value: unknown): Record<string, unknown> | null => 
   return song;
 };
 
+export const collectLegacyFavoriteSongIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return normalizeFavoriteSongIds(value.flatMap(item => {
+    const parsed = songSchema.safeParse(item);
+    if (!parsed.success) return [];
+    const id = normalizeStorageSongId(parsed.data.id);
+    if (!id) return [];
+    return parsed.data.favorite === true || parsed.data.isFavorite === true ? [id] : [];
+  }));
+};
+
 const playlistSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -334,6 +345,23 @@ export const storage = {
 };
 
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
+
+export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> => {
+  const existingIds = await storage.getFavoriteSongIds().catch(() => []);
+  try {
+    const rawSongs = await getItem(StorageKeys.SONGS);
+    if (!rawSongs) return existingIds;
+    const parsedSongs = JSON.parse(rawSongs);
+    const legacyIds = collectLegacyFavoriteSongIds(parsedSongs);
+    if (legacyIds.length === 0) return existingIds;
+    const mergedIds = normalizeFavoriteSongIds([...existingIds, ...legacyIds]);
+    if (mergedIds.length === existingIds.length) return existingIds;
+    await storage.setFavoriteSongIds(mergedIds);
+    return mergedIds;
+  } catch {
+    return existingIds;
+  }
+};
 
 export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
   const normalizedSongId = normalizeStorageSongId(songId);

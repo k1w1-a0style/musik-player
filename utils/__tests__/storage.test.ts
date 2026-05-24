@@ -8,6 +8,7 @@ import {
   normalizeFavoriteSongIds,
   normalizeStorageSongId,
   normalizeVolumeForStorage,
+  migrateLegacySongFavoritesFromStoredSongs,
   removeScanFolder,
   setFavoriteSongId,
   storage,
@@ -285,5 +286,21 @@ describe('storage', () => {
       fileInfo: { filename: 'track.mp3' },
       customTag: 'x',
     }]);
+  });
+
+  test('collects and migrates legacy favorite song ids into favoriteSongIds', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing', ' s1 ']);
+    await AsyncStorage.setItem('@musikplayer:songs', JSON.stringify([
+      { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
+      { id: 's2', title: 'Song 2', artist: 'A', isFavorite: true },
+      { id: 's3', title: 'Song 3', artist: 'A', favorite: false, isFavorite: false },
+      { id: '   ', title: 'Blank', artist: 'A', favorite: true },
+      { id: 's2', title: 'Song 2 duplicate', artist: 'A', favorite: true },
+      { id: 2, title: 'Broken', artist: 'A', favorite: true },
+    ]));
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing', 's1', 's2']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['existing', 's1', 's2']);
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing', 's1', 's2']);
   });
 });
