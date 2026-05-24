@@ -88,7 +88,6 @@ describe('useAudioVisualizer', () => {
     expect(SystemAudio.visualizerStop).toHaveBeenCalledTimes(2);
   });
 
-
   test('clears visualizer error when enabled changes from true to false', () => {
     const { getByTestId, rerender } = render(<VisualizerProbe isPlaying enabled />);
 
