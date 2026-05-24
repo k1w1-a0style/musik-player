@@ -18,6 +18,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 describe('storage', () => {
+  const assertCurrentSongIdRaw = async (raw: string, expected: string | null) => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', raw);
+
+    await expect(storage.getCurrentSongId()).resolves.toBe(expected);
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
+  };
+
   beforeEach(() => {
     (AsyncStorage as unknown as { __reset: () => void }).__reset();
     jest.restoreAllMocks();
@@ -199,48 +206,28 @@ describe('storage', () => {
     expect(await storage.getRepeatMode()).toBe('all');
   });
 
-
   test('accepts raw numeric-looking current song ids from direct storage writes', async () => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', '123');
-
-    await expect(storage.getCurrentSongId()).resolves.toBe('123');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
-  });
-
-
-  test('rejects raw "null" current song id from direct storage writes', async () => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', 'null');
-
-    await expect(storage.getCurrentSongId()).resolves.toBeNull();
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await assertCurrentSongIdRaw('123', '123');
   });
 
   test('accepts raw boolean-looking current song ids from direct storage writes', async () => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', 'true');
-    await expect(storage.getCurrentSongId()).resolves.toBe('true');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('true');
-
-    await AsyncStorage.setItem('@musikplayer:currentSongId', 'false');
-    await expect(storage.getCurrentSongId()).resolves.toBe('false');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('false');
+    await assertCurrentSongIdRaw('true', 'true');
+    await assertCurrentSongIdRaw('false', 'false');
   });
+
+  test('rejects raw "null" current song id from direct storage writes', async () => {
+    await assertCurrentSongIdRaw('null', null);
+  });
+
   test('accepts JSON-encoded current song id strings', async () => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', '"123"');
-
-    await expect(storage.getCurrentSongId()).resolves.toBe('123');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
+    await assertCurrentSongIdRaw('"123"', '123');
   });
-
 
   test('rejects JSON-encoded blank current song id strings', async () => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', '""');
-    await expect(storage.getCurrentSongId()).resolves.toBeNull();
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
-
-    await AsyncStorage.setItem('@musikplayer:currentSongId', '"   "');
-    await expect(storage.getCurrentSongId()).resolves.toBeNull();
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await assertCurrentSongIdRaw('""', null);
+    await assertCurrentSongIdRaw('"   "', null);
   });
+
   test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
     await AsyncStorage.setItem('@musikplayer:eqPreset', '0');
     await AsyncStorage.setItem('@musikplayer:repeatMode', '1');
@@ -256,6 +243,7 @@ describe('storage', () => {
 
     await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
   });
+
   test('persists and restores custom eq preset', async () => {
     await expect(storage.setEqPreset('custom')).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('custom');
