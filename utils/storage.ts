@@ -67,7 +67,10 @@ const songSchema = z.object({
   coverInfo: songCoverInfoSchema.optional(),
 }).passthrough();
 
-type NormalizedStoredSong = Song & Record<string, unknown>;
+type NormalizedStoredSong = Song & Record<string, unknown> & {
+  favorite?: never;
+  isFavorite?: never;
+};
 
 const normalizeStoredSong = (value: unknown): NormalizedStoredSong | null => {
   const parsed = songSchema.safeParse(value);
