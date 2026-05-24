@@ -16,6 +16,7 @@ import {
   updateScanFolder,
 } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ScanFolder } from '../../types/ScanFolder';
 
 describe('storage', () => {
   beforeEach(() => {
@@ -48,6 +49,32 @@ describe('storage', () => {
   test('scan folders ignore malformed data', async () => {
     await storage.set(StorageKeys.SCAN_FOLDERS, [{ bad: true }, { id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: false }]);
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: false }]);
+  });
+
+  test('getScanFolders normalizes legacy folder entries without enabled', async () => {
+    await storage.set(StorageKeys.SCAN_FOLDERS, [{ id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10 }]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      { id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10, enabled: true },
+    ]);
+  });
+
+  test('setScanFolders persists normalized entries and keeps passthrough fields', async () => {
+    await storage.setScanFolders([
+      { id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10 } as ScanFolder,
+      { id: '2', name: 'WithMeta', uri: 'content://meta', addedAt: 11, enabled: false, source: 'import' } as ScanFolder,
+      { id: 3, name: 'Bad', uri: 'content://bad', addedAt: 12, enabled: true } as unknown as ScanFolder,
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      { id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10, enabled: true },
+      { id: '2', name: 'WithMeta', uri: 'content://meta', addedAt: 11, enabled: false, source: 'import' },
+    ]);
+  });
+
+  test('getScanFolders returns empty list for broken JSON', async () => {
+    await AsyncStorage.setItem('@musikplayer:scanFolders', '{broken-json');
+    await expect(getScanFolders()).resolves.toEqual([]);
   });
 
   test('remove and toggle scan folder', async () => {

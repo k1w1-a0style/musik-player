@@ -121,7 +121,13 @@ const scanFolderSchema = z.object({
   lastError: z.string().optional(),
 }).passthrough();
 
-const isScanFolder = (value: unknown): value is ScanFolder => scanFolderSchema.safeParse(value).success;
+type NormalizedStoredScanFolder = ScanFolder & Record<string, unknown>;
+
+const normalizeStoredScanFolder = (value: unknown): NormalizedStoredScanFolder | null => {
+  const parsed = scanFolderSchema.safeParse(value);
+  if (!parsed.success) return null;
+  return parsed.data;
+};
 
 export const normalizeStorageSongId = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -211,7 +217,12 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
         })
         : [];
     case StorageKeys.SCAN_FOLDERS:
-      return filterArray(value, scanFolderSchema);
+      return Array.isArray(value)
+        ? value.flatMap(item => {
+          const folder = normalizeStoredScanFolder(item);
+          return folder ? [folder] : [];
+        })
+        : [];
     case StorageKeys.FAVORITE_SONG_IDS:
       return normalizeFavoriteSongIds(value);
     case StorageKeys.CURRENT_SONG_ID:
@@ -359,10 +370,10 @@ export const storage = {
     await setItem(StorageKeys.SHUFFLE, String(enabled));
   },
   async getScanFolders(): Promise<ScanFolder[]> {
-    return parseJsonArray(await getItem(StorageKeys.SCAN_FOLDERS), scanFolderSchema);
+    return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);
   },
   async setScanFolders(folders: ScanFolder[]) {
-    await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(folders));
+    await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders)));
   },
   async getFavoriteSongIds(): Promise<string[]> {
     return normalizeFavoriteSongIds(parseJsonArray(await getItem(StorageKeys.FAVORITE_SONG_IDS), z.string()));
@@ -416,7 +427,7 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
 export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScanFolders();
 
 export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
-  await storage.setScanFolders(folders.filter(isScanFolder));
+  await storage.setScanFolders(folders);
 };
 
 export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> => {
