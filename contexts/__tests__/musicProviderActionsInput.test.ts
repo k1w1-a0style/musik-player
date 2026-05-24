@@ -26,7 +26,7 @@ const providerState: MusicProviderState = {
   setCurrentSong: noop,
   playbackQueue: songs,
   setPlaybackQueue: noop,
-  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
+  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
   setPlaylists: noop,
   shuffle: false,
   setShuffle: noop,

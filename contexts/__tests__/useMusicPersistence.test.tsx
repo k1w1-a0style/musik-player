@@ -36,7 +36,7 @@ const PersistenceProbe = ({ ready }: { ready: boolean }) => {
     eqEnabled: true,
     eqBands: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     eqPreset: 'rock',
-    playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
+    playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
     songs: currentSongs,
     setSongsState: setCurrentSongs,
   });

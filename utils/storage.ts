@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
+import type { Playlist } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
@@ -95,7 +96,9 @@ const playlistSchema = z.object({
 const toFiniteTimestamp = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
-const normalizeStoredPlaylist = (value: unknown): Record<string, unknown> | null => {
+type NormalizedStoredPlaylist = Playlist & Record<string, unknown>;
+
+const normalizeStoredPlaylist = (value: unknown): NormalizedStoredPlaylist | null => {
   const parsed = playlistSchema.safeParse(value);
   if (!parsed.success) return null;
   const now = Date.now();
@@ -284,7 +287,18 @@ export const storage = {
     await setItem(StorageKeys.SONGS, JSON.stringify(songs));
   },
   async getPlaylists() {
-    return parseJsonArray(await getItem(StorageKeys.PLAYLISTS), playlistSchema);
+    const raw = await getItem(StorageKeys.PLAYLISTS);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.flatMap(item => {
+        const playlist = normalizeStoredPlaylist(item);
+        return playlist ? [playlist] : [];
+      });
+    } catch {
+      return [];
+    }
   },
   async setPlaylists(playlists: unknown[]) {
     await setItem(StorageKeys.PLAYLISTS, JSON.stringify(playlists));

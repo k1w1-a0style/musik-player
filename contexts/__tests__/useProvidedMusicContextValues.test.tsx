@@ -6,7 +6,7 @@ import type { MusicContextValue } from '../musicContextTypes';
 
 const noopAsync = async () => undefined;
 const noop = () => undefined;
-const saveQueueAsPlaylist = () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3 });
+const saveQueueAsPlaylist = () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3, updatedAt: 3 });
 
 const baseValue: MusicContextValue = {
   songs: [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }],
@@ -43,8 +43,8 @@ const baseValue: MusicContextValue = {
   visualizerRunning: false,
   visualizerError: null,
   palette: null,
-  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
-  createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2 }),
+  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
+  createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2, updatedAt: 2 }),
   saveQueueAsPlaylist,
   deletePlaylist: noop,
   renamePlaylist: noop,

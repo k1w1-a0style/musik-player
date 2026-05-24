@@ -44,7 +44,7 @@ export interface Playlist {
   name: string;
   songIds: string[];
   createdAt: number;
-  updatedAt?: number;
+  updatedAt: number;
 }
 
 export type RepeatMode = 'off' | 'one' | 'all';

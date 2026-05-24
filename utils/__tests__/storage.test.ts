@@ -274,6 +274,28 @@ describe('storage', () => {
     ]);
   });
 
+  test('getPlaylists normalizes legacy playlists without updatedAt', async () => {
+    await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10 }]);
+    await expect(storage.getPlaylists()).resolves.toEqual([
+      { id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10, updatedAt: 10 },
+    ]);
+  });
+
+  test('getPlaylists preserves valid updatedAt and filters invalid entries', async () => {
+    await storage.set(StorageKeys.PLAYLISTS, [
+      { id: 'pl-1', name: 'Current', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+      { id: 'pl-2', name: 'Broken', songIds: [1], createdAt: 1, updatedAt: 1 },
+    ]);
+    await expect(storage.getPlaylists()).resolves.toEqual([
+      { id: 'pl-1', name: 'Current', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+    ]);
+  });
+
+  test('getPlaylists returns [] on broken json payloads', async () => {
+    await AsyncStorage.setItem('@musikplayer:playlists', '{"broken":');
+    await expect(storage.getPlaylists()).resolves.toEqual([]);
+  });
+
   test('keeps legacy favorite fields parseable but strips them from normalized songs', async () => {
     const storedSong = {
       id: 's1',
