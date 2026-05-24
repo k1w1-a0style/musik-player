@@ -17,6 +17,7 @@ const playlist: Playlist = {
   name: 'List',
   songIds: ['s2', 'missing', 's1'],
   createdAt: 1,
+  updatedAt: 1,
 };
 
 describe('playlistActionHelpers', () => {
@@ -30,6 +31,7 @@ describe('playlistActionHelpers', () => {
     expect(created.name).toBe('Created');
     expect(created.songIds).toEqual([]);
     expect(created.createdAt).toBe(123);
+    expect(created.updatedAt).toBe(123);
     expect(created.id).toEqual(expect.any(String));
   });
 
@@ -40,6 +42,7 @@ describe('playlistActionHelpers', () => {
       name: 'Queue Mix',
       songIds: ['s1', 's2'],
       createdAt: 123,
+      updatedAt: 123,
     });
     expect(created?.id).toEqual(expect.any(String));
   });
@@ -83,7 +86,7 @@ describe('playlistActionHelpers', () => {
     await runPlayPlaylistAction({ playlistId: 'missing', playlists: [playlist], songs, playSong });
     await runPlayPlaylistAction({
       playlistId: 'empty',
-      playlists: [{ id: 'empty', name: 'Empty', songIds: [], createdAt: 1 }],
+      playlists: [{ id: 'empty', name: 'Empty', songIds: [], createdAt: 1, updatedAt: 1 }],
       songs,
       playSong,
     });

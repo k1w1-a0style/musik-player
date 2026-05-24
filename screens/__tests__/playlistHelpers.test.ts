@@ -14,7 +14,7 @@ const playlist: Playlist = {
   id: 'p1',
   name: 'Playlist',
   songIds: ['s1', 'missing', 's2'],
-  createdAt: 1,
+  createdAt: 1, updatedAt: 1,
 };
 
 describe('playlistHelpers', () => {

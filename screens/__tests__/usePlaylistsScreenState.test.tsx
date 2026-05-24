@@ -12,13 +12,13 @@ const mockPlaylists = [
     id: 'p1',
     name: 'Main',
     songIds: ['s1', 'missing'],
-    createdAt: 1,
+    createdAt: 1, updatedAt: 1,
   },
   {
     id: 'p2',
     name: 'Empty',
     songIds: [],
-    createdAt: 2,
+    createdAt: 2, updatedAt: 2,
   },
 ];
 

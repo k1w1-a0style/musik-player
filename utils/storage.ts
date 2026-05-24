@@ -92,6 +92,18 @@ const playlistSchema = z.object({
   updatedAt: z.number().optional(),
 }).passthrough();
 
+const toFiniteTimestamp = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const normalizeStoredPlaylist = (value: unknown): Record<string, unknown> | null => {
+  const parsed = playlistSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const now = Date.now();
+  const createdAt = toFiniteTimestamp(parsed.data.createdAt) ?? now;
+  const updatedAt = toFiniteTimestamp(parsed.data.updatedAt) ?? createdAt;
+  return { ...parsed.data, createdAt, updatedAt };
+};
+
 const scanFolderSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -170,7 +182,12 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
         return song ? [song] : [];
       }) : [];
     case StorageKeys.PLAYLISTS:
-      return filterArray(value, playlistSchema);
+      return Array.isArray(value)
+        ? value.flatMap(item => {
+          const playlist = normalizeStoredPlaylist(item);
+          return playlist ? [playlist] : [];
+        })
+        : [];
     case StorageKeys.SCAN_FOLDERS:
       return filterArray(value, scanFolderSchema);
     case StorageKeys.FAVORITE_SONG_IDS:
