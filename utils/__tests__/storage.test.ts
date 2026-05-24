@@ -28,6 +28,26 @@ describe('storage', () => {
     expect(await storage.get<number>(StorageKeys.VOLUME)).toBe(0.42);
   });
 
+  test('normalizes writes for valid storage keys', async () => {
+    const song = { id: 's1', title: 'Song', artist: 'Artist', uri: 'file://song.mp3', artwork: '' };
+
+    await storage.set(StorageKeys.SONGS, [song, { title: 'Broken' }]);
+
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([song]);
+  });
+
+  test('keeps unknown keys as-is on write', async () => {
+    const value = { nested: { keep: true }, list: [1, '2', null] };
+
+    await expect(storage.set('customKey', value)).resolves.toBe(true);
+    await expect(storage.get('customKey')).resolves.toEqual(value);
+  });
+
+  test('does not treat storage key constant names as storage keys', async () => {
+    await expect(storage.set('SONGS', [{ title: 'Broken' }])).resolves.toBe(true);
+    await expect(storage.get('SONGS')).resolves.toEqual([{ title: 'Broken' }]);
+  });
+
   test('returns null on JSON parse failure (resilient)', async () => {
     await AsyncStorage.setItem('@musikplayer:bad', '{not-json');
     expect(await storage.get('bad')).toBeNull();

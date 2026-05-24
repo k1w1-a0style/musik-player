@@ -257,8 +257,11 @@ const parseStoredValue = (key: string, raw: string): unknown | null => {
   }
 };
 
+const isStorageKey = (value: string): value is StorageKey =>
+  Object.values(StorageKeys).includes(value as StorageKey);
+
 const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
-  if (key in StorageKeys || Object.values(StorageKeys).includes(key as StorageKey)) {
+  if (isStorageKey(key)) {
     return validateStoredValue(key, value);
   }
   return value;
