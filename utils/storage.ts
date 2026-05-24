@@ -372,7 +372,7 @@ export const storage = {
   async getScanFolders(): Promise<ScanFolder[]> {
     return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);
   },
-  async setScanFolders(folders: ScanFolder[]) {
+  async setScanFolders(folders: unknown[]) {
     await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders)));
   },
   async getFavoriteSongIds(): Promise<string[]> {

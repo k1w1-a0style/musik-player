@@ -16,7 +16,6 @@ import {
   updateScanFolder,
 } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ScanFolder } from '../../types/ScanFolder';
 
 describe('storage', () => {
   beforeEach(() => {
@@ -61,9 +60,9 @@ describe('storage', () => {
 
   test('setScanFolders persists normalized entries and keeps passthrough fields', async () => {
     await storage.setScanFolders([
-      { id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10 } as ScanFolder,
-      { id: '2', name: 'WithMeta', uri: 'content://meta', addedAt: 11, enabled: false, source: 'import' } as ScanFolder,
-      { id: 3, name: 'Bad', uri: 'content://bad', addedAt: 12, enabled: true } as unknown as ScanFolder,
+      { id: '1', name: 'Legacy', uri: 'content://legacy', addedAt: 10 },
+      { id: '2', name: 'WithMeta', uri: 'content://meta', addedAt: 11, enabled: false, source: 'import' },
+      { id: 3, name: 'Bad', uri: 'content://bad', addedAt: 12, enabled: true },
     ]);
 
     await expect(getScanFolders()).resolves.toEqual([
