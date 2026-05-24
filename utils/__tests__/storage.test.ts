@@ -249,6 +249,47 @@ describe('storage', () => {
     expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
   });
 
+
+  test('setSongs persists normalized songs without legacy favorite fields', async () => {
+    await storage.setSongs([
+      { id: 's1', title: 'Song', artist: 'Artist', favorite: true, isFavorite: true, customTag: 'keep' },
+    ]);
+
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
+      { id: 's1', title: 'Song', artist: 'Artist', customTag: 'keep' },
+    ]);
+  });
+
+  test('setSongs filters invalid songs and preserves valid metadata', async () => {
+    await storage.setSongs([
+      { id: 's1', title: 'Song', artist: 'Artist', fileInfo: { filename: 'a.mp3' }, rating: 5 },
+      { id: 'broken', title: 'Missing artist' },
+    ] as unknown[]);
+
+    await expect(storage.getSongs()).resolves.toEqual([
+      { id: 's1', title: 'Song', artist: 'Artist', fileInfo: { filename: 'a.mp3' }, rating: 5 },
+    ]);
+  });
+
+  test('setPlaylists persists playlists with required updatedAt', async () => {
+    await storage.setPlaylists([{ id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 10, updatedAt: 20 }]);
+
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      { id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+    ]);
+  });
+
+  test('setPlaylists normalizes legacy playlists without updatedAt and filters invalid entries', async () => {
+    await storage.setPlaylists([
+      { id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10, note: 'keep' },
+      { id: 'pl-2', name: 'Broken', songIds: [1], createdAt: 1, updatedAt: 1 },
+    ]);
+
+    await expect(storage.getPlaylists()).resolves.toEqual([
+      { id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10, updatedAt: 10, note: 'keep' },
+    ]);
+  });
+
   test('filters invalid songs and playlists', async () => {
     const song = { id: 's1', title: 'Song', artist: 'Artist' };
     const playlist = { id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 1, updatedAt: 1 };

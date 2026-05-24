@@ -168,6 +168,20 @@ const parseJsonArray = <T>(value: string | null, schema: z.ZodType<T>): T[] => {
   }
 };
 
+const parseNormalizedArray = <T>(raw: string | null, normalizeItem: (value: unknown) => T | null): T[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap(item => {
+      const normalized = normalizeItem(item);
+      return normalized ? [normalized] : [];
+    });
+  } catch {
+    return [];
+  }
+};
+
 const isRepeatMode = (value: unknown): value is 'off' | 'one' | 'all' =>
   value === 'off' || value === 'one' || value === 'all';
 
@@ -270,38 +284,16 @@ export const storage = {
     }
   },
   async getSongs() {
-    const raw = await getItem(StorageKeys.SONGS);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.flatMap(item => {
-        const song = normalizeStoredSong(item);
-        return song ? [song] : [];
-      });
-    } catch {
-      return [];
-    }
+    return parseNormalizedArray(await getItem(StorageKeys.SONGS), normalizeStoredSong);
   },
   async setSongs(songs: unknown[]) {
-    await setItem(StorageKeys.SONGS, JSON.stringify(songs));
+    await setItem(StorageKeys.SONGS, JSON.stringify(normalizeValueForWrite(StorageKeys.SONGS, songs)));
   },
   async getPlaylists() {
-    const raw = await getItem(StorageKeys.PLAYLISTS);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.flatMap(item => {
-        const playlist = normalizeStoredPlaylist(item);
-        return playlist ? [playlist] : [];
-      });
-    } catch {
-      return [];
-    }
+    return parseNormalizedArray(await getItem(StorageKeys.PLAYLISTS), normalizeStoredPlaylist);
   },
   async setPlaylists(playlists: unknown[]) {
-    await setItem(StorageKeys.PLAYLISTS, JSON.stringify(playlists));
+    await setItem(StorageKeys.PLAYLISTS, JSON.stringify(normalizeValueForWrite(StorageKeys.PLAYLISTS, playlists)));
   },
   async getCurrentSongId() {
     const value = await getItem(StorageKeys.CURRENT_SONG_ID);
