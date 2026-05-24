@@ -236,7 +236,9 @@ const parseStoredValue = (key: string, raw: string): unknown | null => {
     const jsonParsed = JSON.parse(raw);
     const parsed = validateStoredValue(key, jsonParsed);
     if (parsed != null) return parsed;
-    if (supportsRawStringValue(key)) return validateStoredValue(key, raw);
+    if (supportsRawStringValue(key) && (typeof jsonParsed === 'number' || typeof jsonParsed === 'boolean')) {
+      return validateStoredValue(key, raw);
+    }
     return null;
   } catch {
     if (supportsRawStringValue(key)) return validateStoredValue(key, raw);

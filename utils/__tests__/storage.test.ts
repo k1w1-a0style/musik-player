@@ -208,11 +208,11 @@ describe('storage', () => {
   });
 
 
-  test('accepts raw "null" current song id from direct storage writes', async () => {
+  test('rejects raw "null" current song id from direct storage writes', async () => {
     await AsyncStorage.setItem('@musikplayer:currentSongId', 'null');
 
-    await expect(storage.getCurrentSongId()).resolves.toBe('null');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('null');
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
   });
 
   test('accepts raw boolean-looking current song ids from direct storage writes', async () => {
@@ -231,6 +231,16 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
   });
 
+
+  test('rejects JSON-encoded blank current song id strings', async () => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', '""');
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+
+    await AsyncStorage.setItem('@musikplayer:currentSongId', '"   "');
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+  });
   test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
     await AsyncStorage.setItem('@musikplayer:eqPreset', '0');
     await AsyncStorage.setItem('@musikplayer:repeatMode', '1');
@@ -302,7 +312,7 @@ describe('storage', () => {
     expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
     expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
-    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('null');
+    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
   test('normalizes volume values for storage', () => {
