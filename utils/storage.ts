@@ -233,7 +233,13 @@ const supportsRawStringValue = (key: string): boolean =>
 
 const parseStoredValue = (key: string, raw: string): unknown | null => {
   try {
-    return validateStoredValue(key, JSON.parse(raw));
+    const jsonParsed = JSON.parse(raw);
+    const parsed = validateStoredValue(key, jsonParsed);
+    if (parsed != null) return parsed;
+    if (supportsRawStringValue(key) && (typeof jsonParsed === 'number' || typeof jsonParsed === 'boolean')) {
+      return validateStoredValue(key, raw);
+    }
+    return null;
   } catch {
     if (supportsRawStringValue(key)) return validateStoredValue(key, raw);
     return null;
