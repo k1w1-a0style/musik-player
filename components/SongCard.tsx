@@ -90,7 +90,6 @@ const SongCard = memo(
     && prev.song.title === next.song.title
     && prev.song.artist === next.song.artist
     && prev.song.album === next.song.album
-    && prev.song.favorite === next.song.favorite
     && getSongArtworkUri(prev.song) === getSongArtworkUri(next.song)
     && prev.isCurrent === next.isCurrent
     && prev.isPlaying === next.isPlaying

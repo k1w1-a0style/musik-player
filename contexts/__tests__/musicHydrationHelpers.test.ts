@@ -11,6 +11,16 @@ import {
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Playlist, Song } from '../../types/Song';
 
+const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
+
+jest.mock('../../utils/storage', () => {
+  const actual = jest.requireActual('../../utils/storage');
+  return {
+    ...actual,
+    migrateLegacySongFavoritesFromStoredSongs: () => mockMigrateLegacySongFavoritesFromStoredSongs(),
+  };
+});
+
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
 const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }];
 const eqBands = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -20,6 +30,7 @@ describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     jest.clearAllMocks();
+    mockMigrateLegacySongFavoritesFromStoredSongs.mockResolvedValue([]);
   });
 
   test('loads stored music hydration state', async () => {
@@ -44,6 +55,7 @@ describe('musicHydrationHelpers', () => {
       shuffle: true,
       currentSongId: 's1',
     });
+    expect(mockMigrateLegacySongFavoritesFromStoredSongs).toHaveBeenCalledTimes(1);
   });
 
   test('sanitizes hydrated playlists against the stored library', () => {

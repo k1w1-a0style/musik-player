@@ -15,5 +15,5 @@ export const filterLibrarySongs = (songs: Song[], query: string): Song[] => {
 
 export const filterFavoriteSongs = (songs: Song[], favoriteIds: string[]): Song[] => {
   const favoriteSet = new Set(favoriteIds);
-  return songs.filter(song => favoriteSet.has(song.id) || song.favorite);
+  return songs.filter(song => favoriteSet.has(song.id));
 };

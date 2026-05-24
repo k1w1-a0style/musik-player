@@ -8,6 +8,7 @@ import {
   normalizeFavoriteSongIds,
   normalizeStorageSongId,
   normalizeVolumeForStorage,
+  migrateLegacySongFavoritesFromStoredSongs,
   removeScanFolder,
   setFavoriteSongId,
   storage,
@@ -257,5 +258,49 @@ describe('storage', () => {
 
     expect(await storage.get(StorageKeys.SONGS)).toEqual([song]);
     expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([playlist]);
+  });
+
+  test('keeps legacy favorite fields parseable but strips them from normalized songs', async () => {
+    const storedSong = {
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      favorite: true,
+      isFavorite: true,
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    };
+    await storage.set(StorageKeys.SONGS, [storedSong]);
+
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([{
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    }]);
+    await expect(storage.getSongs()).resolves.toEqual([{
+      id: 's1',
+      title: 'Song',
+      artist: 'Artist',
+      fileInfo: { filename: 'track.mp3' },
+      customTag: 'x',
+    }]);
+  });
+
+  test('collects and migrates legacy favorite song ids into favoriteSongIds', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing', ' s1 ']);
+    await AsyncStorage.setItem('@musikplayer:songs', JSON.stringify([
+      { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
+      { id: 's2', title: 'Song 2', artist: 'A', isFavorite: true },
+      { id: 's3', title: 'Song 3', artist: 'A', favorite: false, isFavorite: false },
+      { id: '   ', title: 'Blank', artist: 'A', favorite: true },
+      { id: 's2', title: 'Song 2 duplicate', artist: 'A', favorite: true },
+      { id: 2, title: 'Broken', artist: 'A', favorite: true },
+    ]));
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing', 's1', 's2']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['existing', 's1', 's2']);
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing', 's1', 's2']);
   });
 });

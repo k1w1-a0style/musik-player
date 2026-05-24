@@ -8,7 +8,7 @@ import {
   didSongCoversChange,
 } from '../utils/musicHydration';
 import { prunePlaylists, sanitizePlaylists } from '../utils/playlistState';
-import { StorageKeys, storage } from '../utils/storage';
+import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from '../utils/storage';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
@@ -58,6 +58,7 @@ export const sanitizeStoredPlaylistsForHydration = (stored: StoredMusicHydration
 };
 
 export const loadStoredMusicHydrationState = async (): Promise<StoredMusicHydrationState> => {
+  await migrateLegacySongFavoritesFromStoredSongs();
   const [
     songs,
     playlists,
