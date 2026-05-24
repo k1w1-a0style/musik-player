@@ -207,6 +207,23 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('123');
   });
 
+
+  test('accepts raw "null" current song id from direct storage writes', async () => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', 'null');
+
+    await expect(storage.getCurrentSongId()).resolves.toBe('null');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('null');
+  });
+
+  test('accepts raw boolean-looking current song ids from direct storage writes', async () => {
+    await AsyncStorage.setItem('@musikplayer:currentSongId', 'true');
+    await expect(storage.getCurrentSongId()).resolves.toBe('true');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('true');
+
+    await AsyncStorage.setItem('@musikplayer:currentSongId', 'false');
+    await expect(storage.getCurrentSongId()).resolves.toBe('false');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('false');
+  });
   test('accepts JSON-encoded current song id strings', async () => {
     await AsyncStorage.setItem('@musikplayer:currentSongId', '"123"');
 
@@ -285,7 +302,7 @@ describe('storage', () => {
     expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
     expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
     expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
-    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('null');
   });
 
   test('normalizes volume values for storage', () => {
