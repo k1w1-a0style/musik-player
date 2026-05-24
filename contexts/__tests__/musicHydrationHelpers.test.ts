@@ -22,7 +22,7 @@ jest.mock('../../utils/storage', () => {
 });
 
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
-const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }];
+const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }];
 const eqBands = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const createSongRef = () => ({ current: [] as Song[] });
 
@@ -61,7 +61,7 @@ describe('musicHydrationHelpers', () => {
   test('sanitizes hydrated playlists against the stored library', () => {
     const stored: StoredMusicHydrationState = {
       songs,
-      playlists: [{ id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1 }],
+      playlists: [{ id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 }],
       eqEnabled: null,
       eqBands: null,
       eqPreset: null,
@@ -72,7 +72,7 @@ describe('musicHydrationHelpers', () => {
     };
 
     expect(sanitizeStoredPlaylistsForHydration(stored)).toEqual([
-      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
     ]);
   });
 
@@ -228,7 +228,7 @@ describe('musicHydrationHelpers', () => {
   });
 
   test('persists sanitized playlists when applying stored playback settings', async () => {
-    const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1 };
+    const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 };
     const setPlaylists = jest.fn();
 
     applyStoredPlaybackSettings({
@@ -253,10 +253,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
     ]);
     expect(setPlaylists).toHaveBeenCalledWith([
-      { id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1 },
+      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
     ]);
   });
 

@@ -16,7 +16,7 @@ const playlist = (patch: Partial<Playlist>): Playlist => ({
   id: 'playlist-1',
   name: 'Playlist',
   songIds: [],
-  createdAt: 1,
+  createdAt: 1, updatedAt: 1,
   ...patch,
 });
 

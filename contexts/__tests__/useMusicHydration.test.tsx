@@ -30,7 +30,7 @@ const storedSongs: Song[] = [
 ];
 
 const storedPlaylists: Playlist[] = [
-  { id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 },
+  { id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
 ];
 
 const HydrationProbe = () => {

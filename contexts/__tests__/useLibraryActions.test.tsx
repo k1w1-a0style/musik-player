@@ -15,7 +15,7 @@ const LibraryProbe = () => {
   const [currentSong, setCurrentSong] = useState<Song | null>(songs[0]);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>(songs);
   const [playlists, setPlaylists] = useState<Playlist[]>([
-    { id: 'pl-1', name: 'List', songIds: ['s1', 'missing'], createdAt: 1 },
+    { id: 'pl-1', name: 'List', songIds: ['s1', 'missing'], createdAt: 1, updatedAt: 1 },
   ]);
   const queueContextRef = useRef<Song[]>(songs.slice());
   const baseQueueContextRef = useRef<Song[]>(songs.slice());

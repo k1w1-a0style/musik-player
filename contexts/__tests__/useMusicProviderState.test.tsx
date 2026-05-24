@@ -32,7 +32,7 @@ const StateProbe = () => {
         setSongsState([{ id: 's1', title: 'One', artist: 'A' }]);
         setCurrentSong({ id: 's1', title: 'One', artist: 'A' });
         setPlaybackQueue([{ id: 's1', title: 'One', artist: 'A' }]);
-        setPlaylists([{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }]);
+        setPlaylists([{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }]);
         setShuffle(true);
       }} />
     </>

@@ -13,7 +13,7 @@ const initialPlaylist: Playlist = {
   id: 'pl-1',
   name: 'Initial',
   songIds: ['s1'],
-  createdAt: 1,
+  createdAt: 1, updatedAt: 1,
 };
 
 const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {

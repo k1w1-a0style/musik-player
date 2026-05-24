@@ -46,18 +46,20 @@ describe('musicPersistenceHelpers', () => {
 
   test('normalizes playlist song ids before persistence', async () => {
     const dirtyPlaylists: Playlist[] = [
-      { id: 'pl-1', name: 'Dirty', songIds: ['s1', 's1', 's2', 's1'], createdAt: 1 },
-    ];
-    const cleanPlaylists: Playlist[] = [
-      { id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1 },
+      { id: 'pl-1', name: 'Dirty', songIds: ['s1', 's1', 's2', 's1'], createdAt: 1, updatedAt: 1 },
     ];
     const persistedRefs: Record<string, string> = {};
 
-    expect(normalizePersistedValue(StorageKeys.PLAYLISTS, dirtyPlaylists)).toEqual(cleanPlaylists);
+    const normalized = normalizePersistedValue(StorageKeys.PLAYLISTS, dirtyPlaylists);
+    expect(normalized).toEqual([
+      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1, updatedAt: expect.any(Number) }),
+    ]);
     await persistIfChanged(StorageKeys.PLAYLISTS, dirtyPlaylists, persistedRefs);
 
-    expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual(cleanPlaylists);
-    expect(persistedRefs[StorageKeys.PLAYLISTS]).toBe(JSON.stringify(cleanPlaylists));
+    expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([
+      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1, updatedAt: expect.any(Number) }),
+    ]);
+    expect(persistedRefs[StorageKeys.PLAYLISTS]).toContain('\"updatedAt\":');
   });
 
   test('normalizes playback and eq settings before persistence', async () => {

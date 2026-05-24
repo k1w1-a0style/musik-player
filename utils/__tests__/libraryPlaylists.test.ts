@@ -14,6 +14,7 @@ const playlist = (patch: Partial<Playlist>): Playlist => ({
   name: patch.name ?? 'Playlist',
   songIds: patch.songIds ?? [],
   createdAt: patch.createdAt ?? 1,
+  updatedAt: patch.updatedAt ?? patch.createdAt ?? 1,
 });
 
 test('builds playlist items with valid and missing song counts', () => {

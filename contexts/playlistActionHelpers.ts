@@ -6,6 +6,7 @@ export const createPlaylistRecord = (name: string, now: number = Date.now()): Pl
   name,
   songIds: [],
   createdAt: now,
+  updatedAt: now,
 });
 
 export const createPlaylistRecordFromQueue = (

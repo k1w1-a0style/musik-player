@@ -19,8 +19,8 @@ describe('musicProviderActionInput', () => {
 
   test('builds context playlist action input', () => {
     const actions = {
-      createPlaylist: () => ({ id: 'pl-1', name: 'List', songIds: [], createdAt: 1 }),
-      saveQueueAsPlaylist: () => ({ id: 'pl-2', name: 'Queue', songIds: ['s1'], createdAt: 2 }),
+      createPlaylist: () => ({ id: 'pl-1', name: 'List', songIds: [], createdAt: 1, updatedAt: 1 }),
+      saveQueueAsPlaylist: () => ({ id: 'pl-2', name: 'Queue', songIds: ['s1'], createdAt: 2, updatedAt: 2 }),
       deletePlaylist: noop,
       renamePlaylist: noop,
       addSongToPlaylist: noop,

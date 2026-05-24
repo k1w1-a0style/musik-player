@@ -20,7 +20,7 @@ const baseInput: MusicProviderEffectsArgs = {
   setSongsState: noop,
   currentSongSetter: noop,
   playbackQueueSetter: noop,
-  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1 }],
+  playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
   setPlaylists: noop,
   shuffle: false,
   setShuffle: noop,
