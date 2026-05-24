@@ -128,6 +128,26 @@ describe('storage', () => {
     expect(await getFavoriteSongIds()).toEqual(['s1', 's2']);
   });
 
+  test('getFavoriteSongIds returns [] for missing value', async () => {
+    await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
+  });
+
+  test('getFavoriteSongIds returns [] for broken json value', async () => {
+    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', '{broken-json');
+    await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
+  });
+
+  test('getFavoriteSongIds returns [] for non-array json value', async () => {
+    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', JSON.stringify({ ids: ['s1'] }));
+    await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
+  });
+
+  test('storage.get and getFavoriteSongIds stay consistent for valid arrays', async () => {
+    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', JSON.stringify([' s1 ', '', 's2', 's1', '   ']));
+    await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual(['s1', 's2']);
+    await expect(storage.getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
+  });
+
   test('isFavoriteSongId normalizes lookup ids', async () => {
     await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1']);
 

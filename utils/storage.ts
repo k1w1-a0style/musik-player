@@ -162,23 +162,6 @@ export const normalizeEqBandsForStorage = (value: unknown): number[] | null => {
   return value.map(clampEqGain);
 };
 
-const filterArray = <T>(value: unknown, schema: z.ZodType<T>): T[] => {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap(item => {
-    const result = schema.safeParse(item);
-    return result.success ? [result.data] : [];
-  });
-};
-
-const parseJsonArray = <T>(value: string | null, schema: z.ZodType<T>): T[] => {
-  if (!value) return [];
-  try {
-    return filterArray(JSON.parse(value), schema);
-  } catch {
-    return [];
-  }
-};
-
 const parseNormalizedArray = <T>(raw: string | null, normalizeItem: (value: unknown) => T | null): T[] => {
   if (!raw) return [];
   try {
@@ -379,7 +362,10 @@ export const storage = {
     await setItem(StorageKeys.SCAN_FOLDERS, JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders)));
   },
   async getFavoriteSongIds(): Promise<string[]> {
-    return normalizeFavoriteSongIds(parseJsonArray(await getItem(StorageKeys.FAVORITE_SONG_IDS), z.string()));
+    const raw = await getItem(StorageKeys.FAVORITE_SONG_IDS);
+    if (raw == null) return [];
+    const parsed = parseStoredValue(StorageKeys.FAVORITE_SONG_IDS, raw);
+    return Array.isArray(parsed) ? parsed as string[] : [];
   },
   async setFavoriteSongIds(songIds: string[]) {
     await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(normalizeFavoriteSongIds(songIds)));
