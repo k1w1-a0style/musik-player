@@ -56,53 +56,54 @@ export const sanitizePlaylists = (items: Playlist[]): Playlist[] => {
   return changed ? next : items;
 };
 
-export const renamePlaylistById = (items: Playlist[], id: string, name: string, now: number = Date.now()): Playlist[] => {
+export const renamePlaylistById = (items: Playlist[], id: string, name: string, now?: number): Playlist[] => {
   const playlistId = normalizeId(id);
-  if (!playlistId) return items.slice();
-  return items.map(playlist => {
-    if (normalizeId(playlist.id) !== playlistId || playlist.name === name) return playlist;
-    return { ...playlist, name, updatedAt: now };
-  });
+  if (!playlistId) return items;
+  const targetIndex = items.findIndex(playlist => normalizeId(playlist.id) === playlistId);
+  if (targetIndex === -1 || items[targetIndex].name === name) return items;
+  const timestamp = now ?? Date.now();
+  return items.map((playlist, index) => (index === targetIndex ? { ...playlist, name, updatedAt: timestamp } : playlist));
 };
 
 export const addSongToPlaylistById = (
   items: Playlist[],
   playlistId: string,
   songId: string,
-  now: number = Date.now(),
+  now?: number,
 ): Playlist[] => {
   const targetPlaylistId = normalizeId(playlistId);
   const targetSongId = normalizeId(songId);
-  if (!targetPlaylistId || !targetSongId) return items.slice();
-  return items.map(playlist => {
-    if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
-    const songIds = uniqueValidSongIds([...playlist.songIds, targetSongId]);
-    return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])
-      ? playlist
-      : { ...playlist, songIds, updatedAt: now };
-  });
+  if (!targetPlaylistId || !targetSongId) return items;
+  const targetIndex = items.findIndex(playlist => normalizeId(playlist.id) === targetPlaylistId);
+  if (targetIndex === -1) return items;
+  const targetPlaylist = items[targetIndex];
+  const songIds = uniqueValidSongIds([...targetPlaylist.songIds, targetSongId]);
+  if (songIds.length === targetPlaylist.songIds.length && songIds.every((id, index) => id === targetPlaylist.songIds[index])) return items;
+  const timestamp = now ?? Date.now();
+  return items.map((playlist, index) => (index === targetIndex ? { ...playlist, songIds, updatedAt: timestamp } : playlist));
 };
 
 export const removeSongFromPlaylistById = (
   items: Playlist[],
   playlistId: string,
   songId: string,
-  now: number = Date.now(),
+  now?: number,
 ): Playlist[] => {
   const targetPlaylistId = normalizeId(playlistId);
   const targetSongId = normalizeId(songId);
-  if (!targetPlaylistId || !targetSongId) return items.slice();
-  return items.map(playlist => {
-    if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
-    const songIds = uniqueValidSongIds(playlist.songIds).filter(currentSongId => currentSongId !== targetSongId);
-    return songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])
-      ? playlist
-      : { ...playlist, songIds, updatedAt: now };
-  });
+  if (!targetPlaylistId || !targetSongId) return items;
+  const targetIndex = items.findIndex(playlist => normalizeId(playlist.id) === targetPlaylistId);
+  if (targetIndex === -1) return items;
+  const targetPlaylist = items[targetIndex];
+  const songIds = uniqueValidSongIds(targetPlaylist.songIds).filter(currentSongId => currentSongId !== targetSongId);
+  if (songIds.length === targetPlaylist.songIds.length && songIds.every((id, index) => id === targetPlaylist.songIds[index])) return items;
+  const timestamp = now ?? Date.now();
+  return items.map((playlist, index) => (index === targetIndex ? { ...playlist, songIds, updatedAt: timestamp } : playlist));
 };
 
 export const deletePlaylistById = (items: Playlist[], id: string): Playlist[] => {
   const playlistId = normalizeId(id);
-  if (!playlistId) return items.slice();
-  return items.filter(playlist => normalizeId(playlist.id) !== playlistId);
+  if (!playlistId) return items;
+  const next = items.filter(playlist => normalizeId(playlist.id) !== playlistId);
+  return next.length === items.length ? items : next;
 };
