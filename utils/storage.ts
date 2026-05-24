@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
-import type { Playlist } from '../types/Song';
+import type { Playlist, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
@@ -67,11 +67,16 @@ const songSchema = z.object({
   coverInfo: songCoverInfoSchema.optional(),
 }).passthrough();
 
-const normalizeStoredSong = (value: unknown): Record<string, unknown> | null => {
+type NormalizedStoredSong = Song & Record<string, unknown> & {
+  favorite?: never;
+  isFavorite?: never;
+};
+
+const normalizeStoredSong = (value: unknown): NormalizedStoredSong | null => {
   const parsed = songSchema.safeParse(value);
   if (!parsed.success) return null;
   const { favorite: _favorite, isFavorite: _isFavorite, ...song } = parsed.data;
-  return song;
+  return song as NormalizedStoredSong;
 };
 
 export const collectLegacyFavoriteSongIds = (value: unknown): string[] => {
