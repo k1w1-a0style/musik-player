@@ -85,7 +85,7 @@ describe('storage', () => {
   });
 
   test('returns null on JSON parse failure (resilient)', async () => {
-    await AsyncStorage.setItem('@musikplayer:bad', '{not-json');
+    await AsyncStorage.setItem(storageTestKey('bad'), '{not-json');
     expect(await storage.get('bad')).toBeNull();
   });
 
@@ -152,7 +152,7 @@ describe('storage', () => {
 
   test('setScanFolders still overwrites invalid raw values', async () => {
     const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
-    await AsyncStorage.setItem('@musikplayer:scanFolders', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SCAN_FOLDERS), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setScanFolders([folder]);
@@ -168,12 +168,12 @@ describe('storage', () => {
 
     await storage.setScanFolders([folder]);
 
-    expect(getItemSpy).not.toHaveBeenCalledWith('@musikplayer:scanFolders');
+    expect(getItemSpy).not.toHaveBeenCalledWith(storageTestKey(StorageKeys.SCAN_FOLDERS));
     expect(setItemSpy).toHaveBeenCalled();
   });
 
   test('getScanFolders returns empty list for broken JSON', async () => {
-    await AsyncStorage.setItem('@musikplayer:scanFolders', '{broken-json');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SCAN_FOLDERS), '{broken-json');
     await expect(getScanFolders()).resolves.toEqual([]);
   });
 
@@ -242,17 +242,17 @@ describe('storage', () => {
   });
 
   test('getFavoriteSongIds returns [] for broken json value', async () => {
-    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', '{broken-json');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), '{broken-json');
     await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
   });
 
   test('getFavoriteSongIds returns [] for non-array json value', async () => {
-    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', JSON.stringify({ ids: ['s1'] }));
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), JSON.stringify({ ids: ['s1'] }));
     await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
   });
 
   test('storage.get and getFavoriteSongIds stay consistent for valid arrays', async () => {
-    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', JSON.stringify([' s1 ', '', 's2', 's1', '   ']));
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), JSON.stringify([' s1 ', '', 's2', 's1', '   ']));
     await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual(['s1', 's2']);
     await expect(storage.getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
   });
@@ -474,8 +474,8 @@ describe('storage', () => {
   });
 
   test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', '0');
-    await AsyncStorage.setItem('@musikplayer:repeatMode', '1');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '0');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), '1');
 
     await expect(storage.getEqPreset()).resolves.toBe('flat');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
@@ -484,7 +484,7 @@ describe('storage', () => {
   });
 
   test('keeps unsupported keys null when stored JSON parses into invalid values', async () => {
-    await AsyncStorage.setItem('@musikplayer:volume', '"loud"');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '"loud"');
 
     await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
   });
@@ -509,12 +509,12 @@ describe('storage', () => {
 
     await storage.setEqPreset('custom');
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqPreset', 'custom');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.EQ_PRESET), 'custom');
     expect(await storage.getEqPreset()).toBe('custom');
   });
 
   test('setEqPreset still overwrites invalid stored raw values', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqPreset('flat');
@@ -522,30 +522,31 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqPreset()).toBe('flat');
   });
+
   test('rejects invalid eq preset strings when reading', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
   });
 
   test('reads raw custom eq preset string via fallback parser', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', 'custom');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'custom');
     await expect(storage.getEqPreset()).resolves.toBe('custom');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('reads JSON custom eq preset string via parser', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', '"custom"');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '"custom"');
     await expect(storage.getEqPreset()).resolves.toBe('custom');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('falls back to flat for invalid raw eq preset values', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', 'megaBass123');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'megaBass123');
     await expect(storage.getEqPreset()).resolves.toBe('flat');
   });
 
   test('falls back to flat for invalid JSON eq preset values', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqPreset', '"megaBass123"');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '"megaBass123"');
     await expect(storage.getEqPreset()).resolves.toBe('flat');
   });
 
@@ -561,12 +562,12 @@ describe('storage', () => {
 
     await storage.setRepeatMode('one');
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:repeatMode', 'one');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.REPEAT_MODE), 'one');
     expect(await storage.getRepeatMode()).toBe('one');
   });
 
   test('setRepeatMode still overwrites invalid stored raw values', async () => {
-    await AsyncStorage.setItem('@musikplayer:repeatMode', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setRepeatMode('off');
@@ -574,6 +575,7 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getRepeatMode()).toBe('off');
   });
+
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setEqEnabled(true);
     expect(await storage.getEqEnabled()).toBe(true);
@@ -581,7 +583,7 @@ describe('storage', () => {
     await storage.setEqEnabled(false);
     expect(await storage.getEqEnabled()).toBe(false);
 
-    await AsyncStorage.setItem('@musikplayer:eqEnabled', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), 'invalid');
     expect(await storage.getEqEnabled()).toBe(false);
   });
 
@@ -591,7 +593,7 @@ describe('storage', () => {
 
     await storage.setEqEnabled(true);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'true');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.EQ_ENABLED), 'true');
     expect(await storage.getEqEnabled()).toBe(true);
   });
 
@@ -601,7 +603,7 @@ describe('storage', () => {
 
     await storage.setEqEnabled(false);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'false');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.EQ_ENABLED), 'false');
     expect(await storage.getEqEnabled()).toBe(false);
   });
 
@@ -612,7 +614,7 @@ describe('storage', () => {
     await storage.setShuffle(false);
     expect(await storage.getShuffle()).toBe(false);
 
-    await AsyncStorage.setItem('@musikplayer:shuffle', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), 'invalid');
     expect(await storage.getShuffle()).toBe(false);
   });
 
@@ -622,7 +624,7 @@ describe('storage', () => {
 
     await storage.setShuffle(true);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'true');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.SHUFFLE), 'true');
     expect(await storage.getShuffle()).toBe(true);
   });
 
@@ -632,9 +634,10 @@ describe('storage', () => {
 
     await storage.setShuffle(false);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'false');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.SHUFFLE), 'false');
     expect(await storage.getShuffle()).toBe(false);
   });
+
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
@@ -660,16 +663,16 @@ describe('storage', () => {
   });
 
   test('getVolume clamps persisted numeric strings and ignores invalid values', async () => {
-    await AsyncStorage.setItem('@musikplayer:volume', '2');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '2');
     expect(await storage.getVolume()).toBe(1);
 
-    await AsyncStorage.setItem('@musikplayer:volume', '-1');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '-1');
     expect(await storage.getVolume()).toBe(0);
 
-    await AsyncStorage.setItem('@musikplayer:volume', '0.5');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '0.5');
     expect(await storage.getVolume()).toBe(0.5);
 
-    await AsyncStorage.setItem('@musikplayer:volume', 'not-a-number');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), 'not-a-number');
     expect(await storage.getVolume()).toBe(1);
   });
 
@@ -687,17 +690,17 @@ describe('storage', () => {
 
     await storage.setVolume(0.5);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '0.5');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.VOLUME), '0.5');
     expect(await storage.getVolume()).toBe(0.5);
   });
 
   test('setVolume overwrites invalid raw values', async () => {
-    await AsyncStorage.setItem('@musikplayer:volume', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setVolume(1);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '1');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.VOLUME), '1');
     expect(await storage.getVolume()).toBe(1);
   });
 
@@ -722,7 +725,7 @@ describe('storage', () => {
   });
 
   test('getEqBands falls back to flat preset for malformed JSON', async () => {
-    await AsyncStorage.setItem('@musikplayer:eqBands', '{invalid-json');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_BANDS), '{invalid-json');
     expect(await storage.getEqBands()).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
@@ -745,7 +748,7 @@ describe('storage', () => {
 
   test('setEqBands overwrites invalid raw values', async () => {
     const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    await AsyncStorage.setItem('@musikplayer:eqBands', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_BANDS), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqBands(bands);
@@ -870,7 +873,7 @@ describe('storage', () => {
   });
 
   test('getPlaylists returns [] on broken json payloads', async () => {
-    await AsyncStorage.setItem('@musikplayer:playlists', '{"broken":');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), '{"broken":');
     await expect(storage.getPlaylists()).resolves.toEqual([]);
   });
 
@@ -904,7 +907,7 @@ describe('storage', () => {
 
   test('collects and migrates legacy favorite song ids into favoriteSongIds', async () => {
     await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing', ' s1 ']);
-    await AsyncStorage.setItem('@musikplayer:songs', JSON.stringify([
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
       { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
       { id: 's2', title: 'Song 2', artist: 'A', isFavorite: true },
       { id: 's3', title: 'Song 3', artist: 'A', favorite: false, isFavorite: false },
