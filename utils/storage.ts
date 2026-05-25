@@ -347,7 +347,10 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setEqEnabled(enabled: boolean) {
-    await setItem(StorageKeys.EQ_ENABLED, String(enabled));
+    const next = String(enabled);
+    const current = await getItem(StorageKeys.EQ_ENABLED);
+    if (current === next) return;
+    await setItem(StorageKeys.EQ_ENABLED, next);
   },
   async getVolume() {
     const value = await getItem(StorageKeys.VOLUME);
@@ -373,7 +376,10 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setShuffle(enabled: boolean) {
-    await setItem(StorageKeys.SHUFFLE, String(enabled));
+    const next = String(enabled);
+    const current = await getItem(StorageKeys.SHUFFLE);
+    if (current === next) return;
+    await setItem(StorageKeys.SHUFFLE, next);
   },
   async getScanFolders(): Promise<ScanFolder[]> {
     return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);
