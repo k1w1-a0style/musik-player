@@ -314,8 +314,14 @@ export const storage = {
   },
   async setCurrentSongId(songId?: string | null) {
     const normalizedSongId = normalizeStorageSongId(songId);
-    if (!normalizedSongId) await removeItem(StorageKeys.CURRENT_SONG_ID);
-    else await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
+    const currentSongId = await getItem(StorageKeys.CURRENT_SONG_ID);
+    if (!normalizedSongId) {
+      if (currentSongId == null) return;
+      await removeItem(StorageKeys.CURRENT_SONG_ID);
+      return;
+    }
+    if (currentSongId === normalizedSongId) return;
+    await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
   },
   async getEqPreset(): Promise<StoredEqPresetName> {
     const value = await getItem(StorageKeys.EQ_PRESET);
