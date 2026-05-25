@@ -25,6 +25,26 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
   };
 
+
+  const expectNoPreReadForSetter = async (
+    action: () => Promise<unknown>,
+    expectedWrite?: { method: 'setItem' | 'removeItem'; key: string },
+  ) => {
+    const getItemSpy = jest.spyOn(AsyncStorage, 'getItem').mockClear();
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+    const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
+
+    await action();
+
+    expect(getItemSpy).not.toHaveBeenCalled();
+    if (expectedWrite?.method === 'setItem') {
+      expect(setItemSpy).toHaveBeenCalledWith(expectedWrite.key, expect.any(String));
+    }
+    if (expectedWrite?.method === 'removeItem') {
+      expect(removeItemSpy).toHaveBeenCalledWith(expectedWrite.key);
+    }
+  };
+
   beforeEach(() => {
     (AsyncStorage as unknown as { __reset: () => void }).__reset();
     jest.restoreAllMocks();
@@ -281,6 +301,71 @@ describe('storage', () => {
 
     expect(getItemSpy).not.toHaveBeenCalledWith('@musikplayer:favoriteSongIds');
     expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
+  });
+
+  test.each([
+    {
+      name: 'setSongs',
+      action: () => storage.setSongs([{ id: 's1', title: 'Song', artist: 'Artist' }]),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:songs' },
+    },
+    {
+      name: 'setPlaylists',
+      action: () => storage.setPlaylists([{ id: 'pl-1', name: 'Playlist', songIds: ['s1'], createdAt: 1, updatedAt: 1 }]),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:playlists' },
+    },
+    {
+      name: 'setCurrentSongId write path',
+      action: () => storage.setCurrentSongId('s1'),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:currentSongId' },
+    },
+    {
+      name: 'setCurrentSongId remove path',
+      action: () => storage.setCurrentSongId('   '),
+      expectedWrite: { method: 'removeItem' as const, key: '@musikplayer:currentSongId' },
+    },
+    {
+      name: 'setEqPreset',
+      action: () => storage.setEqPreset('custom'),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqPreset' },
+    },
+    {
+      name: 'setEqBands',
+      action: () => storage.setEqBands([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqBands' },
+    },
+    {
+      name: 'setEqEnabled',
+      action: () => storage.setEqEnabled(true),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqEnabled' },
+    },
+    {
+      name: 'setVolume',
+      action: () => storage.setVolume(0.5),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:volume' },
+    },
+    {
+      name: 'setRepeatMode',
+      action: () => storage.setRepeatMode('one'),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:repeatMode' },
+    },
+    {
+      name: 'setShuffle',
+      action: () => storage.setShuffle(true),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:shuffle' },
+    },
+    {
+      name: 'setScanFolders',
+      action: () => storage.setScanFolders([{ id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true }]),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:scanFolders' },
+    },
+    {
+      name: 'setFavoriteSongIds',
+      action: () => storage.setFavoriteSongIds(['s1']),
+      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:favoriteSongIds' },
+    },
+  ])('$name has no AsyncStorage.getItem pre-read', async ({ action, expectedWrite }) => {
+    await expectNoPreReadForSetter(action, expectedWrite);
   });
 
   test('setFavoriteSongId trims ids, dedupes additions and ignores empty ids', async () => {
