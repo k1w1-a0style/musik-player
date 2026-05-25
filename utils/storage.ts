@@ -329,7 +329,10 @@ export const storage = {
     return isStoredEqPresetName(parsed) ? parsed : 'flat';
   },
   async setEqPreset(preset: StoredEqPresetName) {
-    await setItem(StorageKeys.EQ_PRESET, isStoredEqPresetName(preset) ? preset : 'flat');
+    const next = isStoredEqPresetName(preset) ? preset : 'flat';
+    const current = await getItem(StorageKeys.EQ_PRESET);
+    if (current === next) return;
+    await setItem(StorageKeys.EQ_PRESET, next);
   },
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);
@@ -367,6 +370,8 @@ export const storage = {
     return parsed === 'one' || parsed === 'all' ? parsed : 'off';
   },
   async setRepeatMode(mode: 'off' | 'one' | 'all') {
+    const current = await getItem(StorageKeys.REPEAT_MODE);
+    if (current === mode) return;
     await setItem(StorageKeys.REPEAT_MODE, mode);
   },
   async getShuffle() {

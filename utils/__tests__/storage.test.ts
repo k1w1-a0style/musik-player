@@ -334,6 +334,26 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
   });
 
+  test('setEqPreset avoids identical raw writes', async () => {
+    await storage.setEqPreset('custom');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqPreset('custom');
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getEqPreset()).toBe('custom');
+  });
+
+  test('setEqPreset still overwrites invalid stored raw values', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqPreset', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqPreset('flat');
+
+    expect(setItemSpy).toHaveBeenCalled();
+    expect(await storage.getEqPreset()).toBe('flat');
+  });
+
   test('rejects invalid eq preset strings when reading', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
@@ -365,6 +385,26 @@ describe('storage', () => {
     await expect(storage.setEqPreset('megaBass123' as any)).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('flat');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
+  });
+
+  test('setRepeatMode avoids identical raw writes', async () => {
+    await storage.setRepeatMode('one');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setRepeatMode('one');
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getRepeatMode()).toBe('one');
+  });
+
+  test('setRepeatMode still overwrites invalid stored raw values', async () => {
+    await AsyncStorage.setItem('@musikplayer:repeatMode', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setRepeatMode('off');
+
+    expect(setItemSpy).toHaveBeenCalled();
+    expect(await storage.getRepeatMode()).toBe('off');
   });
 
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
