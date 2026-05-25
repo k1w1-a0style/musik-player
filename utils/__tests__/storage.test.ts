@@ -18,13 +18,14 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 describe('storage', () => {
+  const storageTestKey = (key: string): string => `@musikplayer:${key}`;
+
   const assertCurrentSongIdRaw = async (raw: string, expected: string | null) => {
-    await AsyncStorage.setItem('@musikplayer:currentSongId', raw);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), raw);
 
     await expect(storage.getCurrentSongId()).resolves.toBe(expected);
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
   };
-
 
   const expectNoPreReadForSetter = async (
     action: () => Promise<unknown>,
@@ -284,12 +285,12 @@ describe('storage', () => {
   });
 
   test('setFavoriteSongIds still overwrites invalid raw values', async () => {
-    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', 'invalid');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), 'invalid');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setFavoriteSongIds(['s1']);
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), '["s1"]');
     expect(await storage.getFavoriteSongIds()).toEqual(['s1']);
   });
 
@@ -299,70 +300,70 @@ describe('storage', () => {
 
     await storage.setFavoriteSongIds(['s1']);
 
-    expect(getItemSpy).not.toHaveBeenCalledWith('@musikplayer:favoriteSongIds');
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
+    expect(getItemSpy).not.toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS));
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), '["s1"]');
   });
 
   test.each([
     {
       name: 'setSongs',
       action: () => storage.setSongs([{ id: 's1', title: 'Song', artist: 'Artist' }]),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:songs' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SONGS) },
     },
     {
       name: 'setPlaylists',
       action: () => storage.setPlaylists([{ id: 'pl-1', name: 'Playlist', songIds: ['s1'], createdAt: 1, updatedAt: 1 }]),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:playlists' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.PLAYLISTS) },
     },
     {
       name: 'setCurrentSongId write path',
       action: () => storage.setCurrentSongId('s1'),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:currentSongId' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
     },
     {
       name: 'setCurrentSongId remove path',
       action: () => storage.setCurrentSongId('   '),
-      expectedWrite: { method: 'removeItem' as const, key: '@musikplayer:currentSongId' },
+      expectedWrite: { method: 'removeItem' as const, key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
     },
     {
       name: 'setEqPreset',
       action: () => storage.setEqPreset('custom'),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqPreset' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_PRESET) },
     },
     {
       name: 'setEqBands',
       action: () => storage.setEqBands([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqBands' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_BANDS) },
     },
     {
       name: 'setEqEnabled',
       action: () => storage.setEqEnabled(true),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:eqEnabled' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_ENABLED) },
     },
     {
       name: 'setVolume',
       action: () => storage.setVolume(0.5),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:volume' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.VOLUME) },
     },
     {
       name: 'setRepeatMode',
       action: () => storage.setRepeatMode('one'),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:repeatMode' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.REPEAT_MODE) },
     },
     {
       name: 'setShuffle',
       action: () => storage.setShuffle(true),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:shuffle' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SHUFFLE) },
     },
     {
       name: 'setScanFolders',
       action: () => storage.setScanFolders([{ id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true }]),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:scanFolders' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SCAN_FOLDERS) },
     },
     {
       name: 'setFavoriteSongIds',
       action: () => storage.setFavoriteSongIds(['s1']),
-      expectedWrite: { method: 'setItem' as const, key: '@musikplayer:favoriteSongIds' },
+      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.FAVORITE_SONG_IDS) },
     },
   ])('$name has no AsyncStorage.getItem pre-read', async ({ action, expectedWrite }) => {
     await expectNoPreReadForSetter(action, expectedWrite);
@@ -419,17 +420,17 @@ describe('storage', () => {
 
     await storage.setCurrentSongId(' s1 ');
 
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId', 's1');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.CURRENT_SONG_ID), 's1');
     expect(await storage.getCurrentSongId()).toBe('s1');
   });
 
   test('setCurrentSongId removes also when no value is stored', async () => {
-    await AsyncStorage.removeItem('@musikplayer:currentSongId');
+    await AsyncStorage.removeItem(storageTestKey(StorageKeys.CURRENT_SONG_ID));
     const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
 
     await storage.setCurrentSongId('   ');
 
-    expect(removeItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId');
+    expect(removeItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.CURRENT_SONG_ID));
     expect(await storage.getCurrentSongId()).toBeNull();
   });
 
