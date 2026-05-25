@@ -264,6 +264,13 @@ const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
 const storageKey = (key: string): string => PREFIX + key;
 
 const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
+const readStoredRawForNoOpGuard = async (key: StorageKey): Promise<string | null | undefined> => {
+  try {
+    return await getItem(key);
+  } catch {
+    return undefined;
+  }
+};
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
   await AsyncStorage.setItem(storageKey(key), value);
 };
@@ -314,9 +321,9 @@ export const storage = {
   },
   async setCurrentSongId(songId?: string | null) {
     const normalizedSongId = normalizeStorageSongId(songId);
-    const currentSongId = await getItem(StorageKeys.CURRENT_SONG_ID);
+    const currentSongId = await readStoredRawForNoOpGuard(StorageKeys.CURRENT_SONG_ID);
     if (!normalizedSongId) {
-      if (currentSongId == null) return;
+      if (currentSongId === null) return;
       await removeItem(StorageKeys.CURRENT_SONG_ID);
       return;
     }
@@ -330,7 +337,7 @@ export const storage = {
   },
   async setEqPreset(preset: StoredEqPresetName) {
     const next = isStoredEqPresetName(preset) ? preset : 'flat';
-    const current = await getItem(StorageKeys.EQ_PRESET);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_PRESET);
     if (current === next) return;
     await setItem(StorageKeys.EQ_PRESET, next);
   },
@@ -351,7 +358,7 @@ export const storage = {
   },
   async setEqEnabled(enabled: boolean) {
     const next = String(enabled);
-    const current = await getItem(StorageKeys.EQ_ENABLED);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_ENABLED);
     if (current === next) return;
     await setItem(StorageKeys.EQ_ENABLED, next);
   },
@@ -370,7 +377,7 @@ export const storage = {
     return parsed === 'one' || parsed === 'all' ? parsed : 'off';
   },
   async setRepeatMode(mode: 'off' | 'one' | 'all') {
-    const current = await getItem(StorageKeys.REPEAT_MODE);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.REPEAT_MODE);
     if (current === mode) return;
     await setItem(StorageKeys.REPEAT_MODE, mode);
   },
@@ -382,7 +389,7 @@ export const storage = {
   },
   async setShuffle(enabled: boolean) {
     const next = String(enabled);
-    const current = await getItem(StorageKeys.SHUFFLE);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.SHUFFLE);
     if (current === next) return;
     await setItem(StorageKeys.SHUFFLE, next);
   },

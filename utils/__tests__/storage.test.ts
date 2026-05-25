@@ -264,6 +264,23 @@ describe('storage', () => {
     expect(removeItemSpy).not.toHaveBeenCalled();
     expect(await storage.getCurrentSongId()).toBeNull();
   });
+  test('setCurrentSongId writes valid id even when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(storage.setCurrentSongId('s1')).resolves.toBeUndefined();
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId', 's1');
+  });
+
+  test('setCurrentSongId removes value even when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
+
+    await expect(storage.setCurrentSongId('   ')).resolves.toBeUndefined();
+
+    expect(removeItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId');
+  });
 
   test('keeps raw and JSON string settings compatible', async () => {
     await storage.setCurrentSongId('s1');
@@ -353,6 +370,14 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqPreset()).toBe('flat');
   });
+  test('setEqPreset writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(storage.setEqPreset('flat')).resolves.toBeUndefined();
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqPreset', 'flat');
+  });
 
   test('rejects invalid eq preset strings when reading', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
@@ -406,6 +431,14 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getRepeatMode()).toBe('off');
   });
+  test('setRepeatMode writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(storage.setRepeatMode('off')).resolves.toBeUndefined();
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:repeatMode', 'off');
+  });
 
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setEqEnabled(true);
@@ -437,6 +470,14 @@ describe('storage', () => {
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(await storage.getEqEnabled()).toBe(false);
   });
+  test('setEqEnabled writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(storage.setEqEnabled(true)).resolves.toBeUndefined();
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'true');
+  });
 
   test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setShuffle(true);
@@ -467,6 +508,14 @@ describe('storage', () => {
 
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(await storage.getShuffle()).toBe(false);
+  });
+  test('setShuffle writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(storage.setShuffle(true)).resolves.toBeUndefined();
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'true');
   });
 
   test('rejects invalid persisted settings', async () => {
