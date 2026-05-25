@@ -346,8 +346,8 @@ export const storage = {
   async getVolume() {
     const value = await getItem(StorageKeys.VOLUME);
     if (value == null) return 1;
-    const parsed = Number(value);
-    return normalizeVolumeForStorage(parsed) ?? 1;
+    const parsed = parseStoredValue(StorageKeys.VOLUME, value);
+    return typeof parsed === 'number' ? parsed : 1;
   },
   async setVolume(volume: number) {
     await setItem(StorageKeys.VOLUME, String(normalizeVolumeForStorage(volume) ?? 1));
