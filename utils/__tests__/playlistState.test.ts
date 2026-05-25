@@ -39,6 +39,23 @@ describe('playlistState helpers', () => {
     expect(result[0].updatedAt).toBe(88);
   });
 
+
+  test('prunes across multiple playlists using whitespace-normalized valid song ids', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(910);
+    const dirty: Playlist[] = [
+      { id: 'pl-a', name: 'A', songIds: ['s1', 'missing'], createdAt: 1, updatedAt: 1 },
+      { id: 'pl-b', name: 'B', songIds: [' s2 ', 'missing'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const result = prunePlaylists(dirty, new Set([' s1 ', 's2']));
+
+    expect(result[0].songIds).toEqual(['s1']);
+    expect(result[1].songIds).toEqual(['s2']);
+    expect(result[0].updatedAt).toBe(910);
+    expect(result[1].updatedAt).toBe(910);
+    expect(nowSpy).toHaveBeenCalledTimes(1);
+  });
+
   test('returns the same playlist array when pruning does not change anything', () => {
     expect(prunePlaylists(playlists, new Set(['s1', 's2', 's3']))).toBe(playlists);
   });

@@ -15,8 +15,7 @@ const normalizeValidSongIds = (validSongIds?: Set<string>): Set<string> | undefi
   return normalized;
 };
 
-const uniqueValidSongIds = (songIds: string[], validSongIds?: Set<string>): string[] => {
-  const normalizedValidSongIds = normalizeValidSongIds(validSongIds);
+const uniqueValidSongIds = (songIds: string[], normalizedValidSongIds?: Set<string>): string[] => {
   const seen = new Set<string>();
   const result: string[] = [];
   songIds.forEach(songId => {
@@ -33,10 +32,11 @@ const uniqueValidSongIds = (songIds: string[], validSongIds?: Set<string>): stri
 const sameSongIds = (a: string[], b: string[]): boolean => a.length === b.length && a.every((songId, index) => songId === b[index]);
 
 export const prunePlaylists = (items: Playlist[], validSongIds: Set<string>): Playlist[] => {
+  const normalizedValidSongIds = normalizeValidSongIds(validSongIds);
   let changed = false;
   let timestamp: number | undefined;
   const next = items.map(playlist => {
-    const songIds = uniqueValidSongIds(playlist.songIds, validSongIds);
+    const songIds = uniqueValidSongIds(playlist.songIds, normalizedValidSongIds);
     if (sameSongIds(songIds, playlist.songIds)) return playlist;
     changed = true;
     timestamp ??= Date.now();
