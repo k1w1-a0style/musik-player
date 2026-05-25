@@ -62,19 +62,19 @@ describe('playlistState helpers', () => {
     expect(renamePlaylistById(playlists, 'missing', 'Nope')).toBe(playlists);
   });
 
-
   test('renames all playlists with the same normalized id', () => {
     const duplicated: Playlist[] = [
       { id: 'dup', name: 'One', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
-      { id: ' dup ', name: 'Two', songIds: ['s2'], createdAt: 2, updatedAt: 2 },
+      { id: ' dup ', name: 'New Name', songIds: ['s2'], createdAt: 2, updatedAt: 2 },
       { id: 'other', name: 'Other', songIds: ['s3'], createdAt: 3, updatedAt: 3 },
     ];
 
     const result = renamePlaylistById(duplicated, ' dup ', 'New Name', 123);
+    expect(result).not.toBe(duplicated);
     expect(result[0].name).toBe('New Name');
-    expect(result[1].name).toBe('New Name');
     expect(result[0].updatedAt).toBe(123);
-    expect(result[1].updatedAt).toBe(123);
+    expect(result[1]).toBe(duplicated[1]);
+    expect(result[1].updatedAt).toBe(2);
     expect(result[2]).toBe(duplicated[2]);
   });
 
@@ -87,7 +87,6 @@ describe('playlistState helpers', () => {
     expect(duplicate).toBe(result);
     expect(addSongToPlaylistById(result, 'pl-1', '   ')).toBe(result);
   });
-
 
   test('adds a song to all playlists with the same normalized id', () => {
     const duplicated: Playlist[] = [
@@ -109,7 +108,6 @@ describe('playlistState helpers', () => {
     expect(removeSongFromPlaylistById(playlists, 'pl-1', 's9', 34)).toBe(playlists);
     expect(removeSongFromPlaylistById(playlists, 'pl-1', '   ')).toBe(playlists);
   });
-
 
   test('removes a song from all playlists with the same normalized id', () => {
     const duplicated: Playlist[] = [

@@ -60,14 +60,14 @@ export const renamePlaylistById = (items: Playlist[], id: string, name: string, 
   const playlistId = normalizeId(id);
   if (!playlistId) return items;
   let changed = false;
+  let timestamp: number | undefined;
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== playlistId || playlist.name === name) return playlist;
     changed = true;
-    return { ...playlist, name };
+    timestamp ??= now ?? Date.now();
+    return { ...playlist, name, updatedAt: timestamp };
   });
-  if (!changed) return items;
-  const timestamp = now ?? Date.now();
-  return next.map(playlist => (normalizeId(playlist.id) === playlistId && playlist.name === name ? { ...playlist, updatedAt: timestamp } : playlist));
+  return changed ? next : items;
 };
 
 export const addSongToPlaylistById = (
