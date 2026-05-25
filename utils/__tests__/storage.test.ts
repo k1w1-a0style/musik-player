@@ -127,6 +127,34 @@ describe('storage', () => {
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'Renamed', uri: 'u', addedAt: 0, enabled: true }]);
   });
 
+  test('removeScanFolder does not persist when id is missing', async () => {
+    const existing = [{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: true }];
+    await storage.set(StorageKeys.SCAN_FOLDERS, existing);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(removeScanFolder('missing')).resolves.toEqual(existing);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  test('updateScanFolder does not persist when id is missing', async () => {
+    const existing = [{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: true }];
+    await storage.set(StorageKeys.SCAN_FOLDERS, existing);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(updateScanFolder('missing', { name: 'Nope' })).resolves.toEqual(existing);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  test('updateScanFolder does not persist effective no-op patch', async () => {
+    const existing = [{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: true }];
+    await storage.set(StorageKeys.SCAN_FOLDERS, existing);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(updateScanFolder('1', { id: 'changed' })).resolves.toEqual(existing);
+    expect(await getScanFolders()).toEqual(existing);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
   test('normalizes storage song ids', () => {
     expect(normalizeStorageSongId(' s1 ')).toBe('s1');
     expect(normalizeStorageSongId('')).toBeUndefined();

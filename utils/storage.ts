@@ -441,13 +441,28 @@ export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> =
 export const removeScanFolder = async (id: string): Promise<ScanFolder[]> => {
   const folders = await getScanFolders();
   const next = folders.filter(folder => folder.id !== id);
+  if (next.length === folders.length) return folders;
   await saveScanFolders(next);
   return next;
 };
 
+const isSameScanFolderShallow = (left: ScanFolder, right: ScanFolder): boolean =>
+  Object.keys(left).length === Object.keys(right).length
+  && Object.entries(left).every(([key, value]) =>
+    Object.is(value, right[key as keyof ScanFolder]),
+  );
+
 export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): Promise<ScanFolder[]> => {
   const folders = await getScanFolders();
-  const next = folders.map(folder => (folder.id === id ? { ...folder, ...patch, id: folder.id } : folder));
+  let changed = false;
+  const next = folders.map(folder => {
+    if (folder.id !== id) return folder;
+    const candidate = { ...folder, ...patch, id: folder.id };
+    if (isSameScanFolderShallow(folder, candidate)) return folder;
+    changed = true;
+    return candidate;
+  });
+  if (!changed) return folders;
   await saveScanFolders(next);
   return next;
 };
