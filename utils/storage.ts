@@ -108,8 +108,9 @@ type NormalizedStoredPlaylist = Playlist & Record<string, unknown>;
 const normalizeStoredPlaylist = (value: unknown): NormalizedStoredPlaylist | null => {
   const parsed = playlistSchema.safeParse(value);
   if (!parsed.success) return null;
-  const now = Date.now();
-  const createdAt = toFiniteTimestamp(parsed.data.createdAt) ?? now;
+  let fallbackTimestamp: number | undefined;
+  const getFallbackTimestamp = () => fallbackTimestamp ??= Date.now();
+  const createdAt = toFiniteTimestamp(parsed.data.createdAt) ?? getFallbackTimestamp();
   const updatedAt = toFiniteTimestamp(parsed.data.updatedAt) ?? createdAt;
   return { ...parsed.data, createdAt, updatedAt };
 };
