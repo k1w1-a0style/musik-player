@@ -80,16 +80,16 @@ export const addSongToPlaylistById = (
   const targetSongId = normalizeId(songId);
   if (!targetPlaylistId || !targetSongId) return items;
   let changed = false;
+  let timestamp: number | undefined;
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
     const songIds = uniqueValidSongIds([...playlist.songIds, targetSongId]);
     if (songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])) return playlist;
     changed = true;
-    return { ...playlist, songIds };
+    timestamp ??= now ?? Date.now();
+    return { ...playlist, songIds, updatedAt: timestamp };
   });
-  if (!changed) return items;
-  const timestamp = now ?? Date.now();
-  return next.map(playlist => (normalizeId(playlist.id) === targetPlaylistId && !items.includes(playlist) ? { ...playlist, updatedAt: timestamp } : playlist));
+  return changed ? next : items;
 };
 
 export const removeSongFromPlaylistById = (
@@ -102,16 +102,16 @@ export const removeSongFromPlaylistById = (
   const targetSongId = normalizeId(songId);
   if (!targetPlaylistId || !targetSongId) return items;
   let changed = false;
+  let timestamp: number | undefined;
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
     const songIds = uniqueValidSongIds(playlist.songIds).filter(currentSongId => currentSongId !== targetSongId);
     if (songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])) return playlist;
     changed = true;
-    return { ...playlist, songIds };
+    timestamp ??= now ?? Date.now();
+    return { ...playlist, songIds, updatedAt: timestamp };
   });
-  if (!changed) return items;
-  const timestamp = now ?? Date.now();
-  return next.map(playlist => (normalizeId(playlist.id) === targetPlaylistId && !items.includes(playlist) ? { ...playlist, updatedAt: timestamp } : playlist));
+  return changed ? next : items;
 };
 
 export const deletePlaylistById = (items: Playlist[], id: string): Playlist[] => {

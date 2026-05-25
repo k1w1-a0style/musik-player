@@ -101,6 +101,22 @@ describe('playlistState helpers', () => {
     expect(result[1].updatedAt).toBe(321);
   });
 
+
+  test('adds a song across duplicate ids with mixed state and preserves unchanged references', () => {
+    const duplicated: Playlist[] = [
+      { id: 'dup', name: 'One', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
+      { id: ' dup ', name: 'Two', songIds: ['s1', 's3'], createdAt: 2, updatedAt: 2 },
+      { id: 'other', name: 'Other', songIds: ['s9'], createdAt: 3, updatedAt: 3 },
+    ];
+
+    const result = addSongToPlaylistById(duplicated, 'dup', 's3', 456);
+    expect(result).not.toBe(duplicated);
+    expect(result[0].songIds).toEqual(['s1', 's3']);
+    expect(result[0].updatedAt).toBe(456);
+    expect(result[1]).toBe(duplicated[1]);
+    expect(result[2]).toBe(duplicated[2]);
+  });
+
   test('removes a normalized song from a playlist', () => {
     const removed = removeSongFromPlaylistById(playlists, ' pl-1 ', ' s2 ', 33);
     expect(removed[0].songIds).toEqual(['s1']);
@@ -120,6 +136,42 @@ describe('playlistState helpers', () => {
     expect(result[1].songIds).toEqual(['s2']);
     expect(result[0].updatedAt).toBe(222);
     expect(result[1].updatedAt).toBe(222);
+  });
+
+
+  test('removes a song across duplicate ids with mixed state and preserves unchanged references', () => {
+    const duplicated: Playlist[] = [
+      { id: 'dup', name: 'One', songIds: ['s1', 's3'], createdAt: 1, updatedAt: 1 },
+      { id: ' dup ', name: 'Two', songIds: ['s2'], createdAt: 2, updatedAt: 2 },
+      { id: 'other', name: 'Other', songIds: ['s9'], createdAt: 3, updatedAt: 3 },
+    ];
+
+    const result = removeSongFromPlaylistById(duplicated, 'dup', 's3', 654);
+    expect(result).not.toBe(duplicated);
+    expect(result[0].songIds).toEqual(['s1']);
+    expect(result[0].updatedAt).toBe(654);
+    expect(result[1]).toBe(duplicated[1]);
+    expect(result[2]).toBe(duplicated[2]);
+  });
+
+  test('does not call Date.now for add/remove no-op and calls it once for multiple changes', () => {
+    const noOpNowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
+    const dupNoOp: Playlist[] = [
+      { id: 'dup', name: 'One', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
+      { id: ' dup ', name: 'Two', songIds: ['s1'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    expect(addSongToPlaylistById(dupNoOp, 'dup', 's1')).toBe(dupNoOp);
+    expect(removeSongFromPlaylistById(dupNoOp, 'dup', 's9')).toBe(dupNoOp);
+    expect(noOpNowSpy).not.toHaveBeenCalled();
+
+    noOpNowSpy.mockClear();
+    const dupChange: Playlist[] = [
+      { id: 'dup', name: 'One', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
+      { id: ' dup ', name: 'Two', songIds: ['s2'], createdAt: 2, updatedAt: 2 },
+    ];
+    addSongToPlaylistById(dupChange, 'dup', 's3');
+    expect(noOpNowSpy).toHaveBeenCalledTimes(1);
   });
 
   test('deletes a playlist by normalized id', () => {
