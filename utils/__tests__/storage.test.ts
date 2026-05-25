@@ -398,6 +398,9 @@ describe('storage', () => {
     await AsyncStorage.setItem('@musikplayer:volume', '-1');
     expect(await storage.getVolume()).toBe(0);
 
+    await AsyncStorage.setItem('@musikplayer:volume', '0.5');
+    expect(await storage.getVolume()).toBe(0.5);
+
     await AsyncStorage.setItem('@musikplayer:volume', 'not-a-number');
     expect(await storage.getVolume()).toBe(1);
   });
