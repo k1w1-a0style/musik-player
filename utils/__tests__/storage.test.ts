@@ -94,6 +94,42 @@ describe('storage', () => {
     expect(await storage.get('bad')).toBeNull();
   });
 
+  describe('read failure semantics', () => {
+    test('storage.get returns null when AsyncStorage.getItem rejects', async () => {
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+
+      await expect(storage.get(StorageKeys.SONGS)).resolves.toBeNull();
+    });
+
+    test('typed list getters propagate AsyncStorage read failures', async () => {
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+      await expect(storage.getSongs()).rejects.toThrow('read failed');
+
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+      await expect(storage.getPlaylists()).rejects.toThrow('read failed');
+
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+      await expect(storage.getScanFolders()).rejects.toThrow('read failed');
+
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+      await expect(storage.getFavoriteSongIds()).rejects.toThrow('read failed');
+    });
+
+    test.each([
+      ['getCurrentSongId', () => storage.getCurrentSongId()],
+      ['getEqPreset', () => storage.getEqPreset()],
+      ['getEqBands', () => storage.getEqBands()],
+      ['getEqEnabled', () => storage.getEqEnabled()],
+      ['getVolume', () => storage.getVolume()],
+      ['getRepeatMode', () => storage.getRepeatMode()],
+      ['getShuffle', () => storage.getShuffle()],
+    ])('%s propagates AsyncStorage read failures', async (_name, getter) => {
+      jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+
+      await expect(getter()).rejects.toThrow('read failed');
+    });
+  });
+
   test('scan folders persist and reload', async () => {
     await addScanFolder({ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true });
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
