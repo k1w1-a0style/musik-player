@@ -53,6 +53,56 @@ describe('playlistState helpers', () => {
     expect(result[0].updatedAt).toBe(77);
   });
 
+  test('does not call Date.now when prune is a no-op', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(500);
+
+    const result = prunePlaylists(playlists, new Set(['s1', 's2', 's3']));
+
+    expect(result).toBe(playlists);
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('does not call Date.now when sanitize is a no-op', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(600);
+    const sanitized: Playlist[] = [
+      { id: 'pl-1', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 },
+      { id: 'pl-2', name: 'Two', songIds: ['s3'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const result = sanitizePlaylists(sanitized);
+
+    expect(result).toBe(sanitized);
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('prune calls Date.now once for multiple changed playlists and shares timestamp', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(700);
+    const dirty: Playlist[] = [
+      { id: 'pl-1', name: 'One', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 },
+      { id: 'pl-2', name: 'Two', songIds: [' s3 ', '', 's3'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const result = prunePlaylists(dirty, new Set(['s1', 's3']));
+
+    expect(nowSpy).toHaveBeenCalledTimes(1);
+    expect(result[0].updatedAt).toBe(700);
+    expect(result[1].updatedAt).toBe(700);
+  });
+
+  test('sanitize calls Date.now once for multiple changed playlists and shares timestamp', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(800);
+    const dirty: Playlist[] = [
+      { id: 'pl-1', name: 'One', songIds: [' s1 ', 's1', ''], createdAt: 1, updatedAt: 1 },
+      { id: 'pl-2', name: 'Two', songIds: ['s3', '  ', 's3'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const result = sanitizePlaylists(dirty);
+
+    expect(nowSpy).toHaveBeenCalledTimes(1);
+    expect(result[0].updatedAt).toBe(800);
+    expect(result[1].updatedAt).toBe(800);
+  });
+
   test('renames a playlist by normalized id', () => {
     const renamed = renamePlaylistById(playlists, ' pl-1 ', 'New', 55);
     expect(renamed[0].name).toBe('New');
@@ -101,7 +151,6 @@ describe('playlistState helpers', () => {
     expect(result[1].updatedAt).toBe(321);
   });
 
-
   test('adds a song across duplicate ids with mixed state and preserves unchanged references', () => {
     const duplicated: Playlist[] = [
       { id: 'dup', name: 'One', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
@@ -137,7 +186,6 @@ describe('playlistState helpers', () => {
     expect(result[0].updatedAt).toBe(222);
     expect(result[1].updatedAt).toBe(222);
   });
-
 
   test('removes a song across duplicate ids with mixed state and preserves unchanged references', () => {
     const duplicated: Playlist[] = [
