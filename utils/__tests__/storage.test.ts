@@ -408,6 +408,11 @@ describe('storage', () => {
     expect(await storage.getEqBands()).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
+  test('getEqBands falls back to flat preset for malformed JSON', async () => {
+    await AsyncStorage.setItem('@musikplayer:eqBands', '{invalid-json');
+    expect(await storage.getEqBands()).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
   test('setEqBands persists normalized values', async () => {
     await storage.setEqBands([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN]);
 
