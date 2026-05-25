@@ -87,7 +87,7 @@ export const addSongToPlaylistById = (
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
     const songIds = uniqueValidSongIds([...playlist.songIds, targetSongId]);
-    if (songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])) return playlist;
+    if (sameSongIds(songIds, playlist.songIds)) return playlist;
     changed = true;
     timestamp ??= now ?? Date.now();
     return { ...playlist, songIds, updatedAt: timestamp };
@@ -109,7 +109,7 @@ export const removeSongFromPlaylistById = (
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
     const songIds = uniqueValidSongIds(playlist.songIds).filter(currentSongId => currentSongId !== targetSongId);
-    if (songIds.length === playlist.songIds.length && songIds.every((id, index) => id === playlist.songIds[index])) return playlist;
+    if (sameSongIds(songIds, playlist.songIds)) return playlist;
     changed = true;
     timestamp ??= now ?? Date.now();
     return { ...playlist, songIds, updatedAt: timestamp };
