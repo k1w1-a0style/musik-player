@@ -198,6 +198,45 @@ describe('storage', () => {
     await expect(isFavoriteSongId('   ')).resolves.toBe(false);
   });
 
+  test('setFavoriteSongIds avoids identical normalized raw writes', async () => {
+    await storage.setFavoriteSongIds(['s1', 's2']);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setFavoriteSongIds(['s1', 's2']);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getFavoriteSongIds()).toEqual(['s1', 's2']);
+  });
+
+  test('setFavoriteSongIds avoids writes when normalization produces the same raw value', async () => {
+    await storage.setFavoriteSongIds(['s1', 's2']);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setFavoriteSongIds([' s1 ', 's1', 's2']);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getFavoriteSongIds()).toEqual(['s1', 's2']);
+  });
+
+  test('setFavoriteSongIds still overwrites invalid raw values', async () => {
+    await AsyncStorage.setItem('@musikplayer:favoriteSongIds', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setFavoriteSongIds(['s1']);
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
+    expect(await storage.getFavoriteSongIds()).toEqual(['s1']);
+  });
+
+  test('setFavoriteSongIds writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setFavoriteSongIds(['s1']);
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
+  });
+
   test('setFavoriteSongId trims ids, dedupes additions and ignores empty ids', async () => {
     await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1']);
 

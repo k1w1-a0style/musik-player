@@ -412,7 +412,10 @@ export const storage = {
     return Array.isArray(parsed) ? parsed as string[] : [];
   },
   async setFavoriteSongIds(songIds: string[]) {
-    await setItem(StorageKeys.FAVORITE_SONG_IDS, JSON.stringify(normalizeFavoriteSongIds(songIds)));
+    const next = JSON.stringify(normalizeFavoriteSongIds(songIds));
+    const current = await readStoredRawForNoOpGuard(StorageKeys.FAVORITE_SONG_IDS);
+    if (current === next) return;
+    await setItem(StorageKeys.FAVORITE_SONG_IDS, next);
   },
 };
 
