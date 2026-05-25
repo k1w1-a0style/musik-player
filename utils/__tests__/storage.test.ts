@@ -50,7 +50,6 @@ describe('storage', () => {
     await expect(storage.get('customKey')).resolves.toEqual(value);
   });
 
-
   test('normalizes StorageKeys.FAVORITE_SONG_IDS but keeps FAVORITE_SONG_IDS as unknown key', async () => {
     await expect(storage.set(StorageKeys.FAVORITE_SONG_IDS, [' s1 ', '', 's1'])).resolves.toBe(true);
     await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual(['s1']);
@@ -369,7 +368,6 @@ describe('storage', () => {
     expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
   });
 
-
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
     await storage.setSongs([
       { id: 's1', title: 'Song', artist: 'Artist', favorite: true, isFavorite: true, customTag: 'keep' },
@@ -433,6 +431,39 @@ describe('storage', () => {
     await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
       { id: 'pl-1', name: 'Current', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
     ]);
+  });
+
+  test('does not call Date.now for playlists with valid createdAt and updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'Current', songIds: ['s1'], createdAt: 10, updatedAt: 20 }]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      { id: 'pl-1', name: 'Current', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+    ]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('does not call Date.now for legacy playlists with valid createdAt but missing updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10 }]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      { id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10, updatedAt: 10 },
+    ]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('calls Date.now once when createdAt and updatedAt are both missing', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1234567890);
+
+    await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'Legacy', songIds: ['s1'] }]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      { id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 1234567890, updatedAt: 1234567890 },
+    ]);
+
+    expect(nowSpy).toHaveBeenCalledTimes(1);
   });
 
   test('getPlaylists normalizes legacy playlists without updatedAt', async () => {
