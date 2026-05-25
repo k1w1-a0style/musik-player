@@ -403,10 +403,10 @@ export const storage = {
     return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);
   },
   async setScanFolders(folders: unknown[]) {
-    const next = JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders));
-    const current = await readStoredRawForNoOpGuard(StorageKeys.SCAN_FOLDERS);
-    if (current === next) return;
-    await setItem(StorageKeys.SCAN_FOLDERS, next);
+    await setItem(
+      StorageKeys.SCAN_FOLDERS,
+      JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders)),
+    );
   },
   async getFavoriteSongIds(): Promise<string[]> {
     const raw = await getItem(StorageKeys.FAVORITE_SONG_IDS);

@@ -106,18 +106,18 @@ describe('storage', () => {
     ]);
   });
 
-  test('setScanFolders avoids identical normalized raw writes', async () => {
+  test('setScanFolders writes also for identical normalized raw writes', async () => {
     const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
     await storage.setScanFolders([folder]);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setScanFolders([folder]);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalled();
     await expect(storage.getScanFolders()).resolves.toEqual([folder]);
   });
 
-  test('setScanFolders avoids writes when legacy input normalizes to the same raw value', async () => {
+  test('setScanFolders writes also when legacy input normalizes to the same raw value', async () => {
     const normalized = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
     const legacy = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1 };
     await storage.setScanFolders([normalized]);
@@ -125,7 +125,7 @@ describe('storage', () => {
 
     await storage.setScanFolders([legacy]);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalled();
     await expect(storage.getScanFolders()).resolves.toEqual([normalized]);
   });
 
@@ -140,13 +140,14 @@ describe('storage', () => {
     await expect(storage.getScanFolders()).resolves.toEqual([folder]);
   });
 
-  test('setScanFolders writes when no-op guard read fails', async () => {
+  test('setScanFolders does not read before writing', async () => {
     const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const getItemSpy = jest.spyOn(AsyncStorage, 'getItem').mockClear();
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setScanFolders([folder]);
 
+    expect(getItemSpy).not.toHaveBeenCalledWith('@musikplayer:scanFolders');
     expect(setItemSpy).toHaveBeenCalled();
   });
 
