@@ -106,6 +106,50 @@ describe('storage', () => {
     ]);
   });
 
+  test('setScanFolders avoids identical normalized raw writes', async () => {
+    const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+    await storage.setScanFolders([folder]);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setScanFolders([folder]);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    await expect(storage.getScanFolders()).resolves.toEqual([folder]);
+  });
+
+  test('setScanFolders avoids writes when legacy input normalizes to the same raw value', async () => {
+    const normalized = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+    const legacy = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1 };
+    await storage.setScanFolders([normalized]);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setScanFolders([legacy]);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    await expect(storage.getScanFolders()).resolves.toEqual([normalized]);
+  });
+
+  test('setScanFolders still overwrites invalid raw values', async () => {
+    const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+    await AsyncStorage.setItem('@musikplayer:scanFolders', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setScanFolders([folder]);
+
+    expect(setItemSpy).toHaveBeenCalled();
+    await expect(storage.getScanFolders()).resolves.toEqual([folder]);
+  });
+
+  test('setScanFolders writes when no-op guard read fails', async () => {
+    const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setScanFolders([folder]);
+
+    expect(setItemSpy).toHaveBeenCalled();
+  });
+
   test('getScanFolders returns empty list for broken JSON', async () => {
     await AsyncStorage.setItem('@musikplayer:scanFolders', '{broken-json');
     await expect(getScanFolders()).resolves.toEqual([]);
