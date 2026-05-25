@@ -378,6 +378,26 @@ describe('storage', () => {
     expect(await storage.getEqEnabled()).toBe(false);
   });
 
+  test('setEqEnabled avoids identical true raw writes', async () => {
+    await storage.setEqEnabled(true);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqEnabled(true);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getEqEnabled()).toBe(true);
+  });
+
+  test('setEqEnabled avoids identical false raw writes', async () => {
+    await storage.setEqEnabled(false);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqEnabled(false);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getEqEnabled()).toBe(false);
+  });
+
   test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setShuffle(true);
     expect(await storage.getShuffle()).toBe(true);
@@ -386,6 +406,26 @@ describe('storage', () => {
     expect(await storage.getShuffle()).toBe(false);
 
     await AsyncStorage.setItem('@musikplayer:shuffle', 'invalid');
+    expect(await storage.getShuffle()).toBe(false);
+  });
+
+  test('setShuffle avoids identical true raw writes', async () => {
+    await storage.setShuffle(true);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setShuffle(true);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getShuffle()).toBe(true);
+  });
+
+  test('setShuffle avoids identical false raw writes', async () => {
+    await storage.setShuffle(false);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setShuffle(false);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
     expect(await storage.getShuffle()).toBe(false);
   });
 
