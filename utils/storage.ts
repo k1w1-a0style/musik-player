@@ -335,7 +335,10 @@ export const storage = {
     await setItem(StorageKeys.EQ_BANDS, JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat));
   },
   async getEqEnabled() {
-    return (await getItem(StorageKeys.EQ_ENABLED)) === 'true';
+    const value = await getItem(StorageKeys.EQ_ENABLED);
+    if (value == null) return false;
+    const parsed = parseStoredValue(StorageKeys.EQ_ENABLED, value);
+    return typeof parsed === 'boolean' ? parsed : false;
   },
   async setEqEnabled(enabled: boolean) {
     await setItem(StorageKeys.EQ_ENABLED, String(enabled));
@@ -358,7 +361,10 @@ export const storage = {
     await setItem(StorageKeys.REPEAT_MODE, mode);
   },
   async getShuffle() {
-    return (await getItem(StorageKeys.SHUFFLE)) === 'true';
+    const value = await getItem(StorageKeys.SHUFFLE);
+    if (value == null) return false;
+    const parsed = parseStoredValue(StorageKeys.SHUFFLE, value);
+    return typeof parsed === 'boolean' ? parsed : false;
   },
   async setShuffle(enabled: boolean) {
     await setItem(StorageKeys.SHUFFLE, String(enabled));

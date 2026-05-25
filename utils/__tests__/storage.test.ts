@@ -345,6 +345,28 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
   });
 
+  test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
+    await storage.setEqEnabled(true);
+    expect(await storage.getEqEnabled()).toBe(true);
+
+    await storage.setEqEnabled(false);
+    expect(await storage.getEqEnabled()).toBe(false);
+
+    await AsyncStorage.setItem('@musikplayer:eqEnabled', 'invalid');
+    expect(await storage.getEqEnabled()).toBe(false);
+  });
+
+  test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
+    await storage.setShuffle(true);
+    expect(await storage.getShuffle()).toBe(true);
+
+    await storage.setShuffle(false);
+    expect(await storage.getShuffle()).toBe(false);
+
+    await AsyncStorage.setItem('@musikplayer:shuffle', 'invalid');
+    expect(await storage.getShuffle()).toBe(false);
+  });
+
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
