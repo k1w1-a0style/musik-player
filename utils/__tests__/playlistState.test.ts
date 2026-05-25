@@ -56,6 +56,20 @@ describe('playlistState helpers', () => {
     expect(nowSpy).toHaveBeenCalledTimes(1);
   });
 
+
+  test('returns the same empty array without iterating validSongIds or calling Date.now', () => {
+    const empty: Playlist[] = [];
+    const validSongIds = new Set(['s1', 's2']);
+    const forEachSpy = jest.spyOn(validSongIds, 'forEach');
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1234);
+
+    const result = prunePlaylists(empty, validSongIds);
+
+    expect(result).toBe(empty);
+    expect(forEachSpy).not.toHaveBeenCalled();
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
   test('returns the same playlist array when pruning does not change anything', () => {
     expect(prunePlaylists(playlists, new Set(['s1', 's2', 's3']))).toBe(playlists);
   });

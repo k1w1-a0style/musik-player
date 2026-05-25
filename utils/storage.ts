@@ -24,6 +24,8 @@ export const StorageKeys = {
 
 type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
 
+const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
+
 const songFileInfoSchema = z.object({
   filename: z.string().optional(),
   uri: z.string().optional(),
@@ -246,8 +248,7 @@ const parseStoredValue = (key: string, raw: string): unknown | null => {
   }
 };
 
-const isStorageKey = (value: string): value is StorageKey =>
-  Object.values(StorageKeys).includes(value as StorageKey);
+const isStorageKey = (value: string): value is StorageKey => STORAGE_KEY_VALUES.has(value);
 
 const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
   if (isStorageKey(key)) {
