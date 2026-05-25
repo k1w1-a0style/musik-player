@@ -207,6 +207,24 @@ describe('storage', () => {
     await expect(setFavoriteSongId(' s1 ', false)).resolves.toEqual(['s2']);
   });
 
+  test('setFavoriteSongId does not persist no-op additions', async () => {
+    const existing = ['s1'];
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, existing);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(setFavoriteSongId('s1', true)).resolves.toEqual(existing);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
+  test('setFavoriteSongId does not persist no-op removals', async () => {
+    const existing = ['s1'];
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, existing);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await expect(setFavoriteSongId('missing', false)).resolves.toEqual(existing);
+    expect(setItemSpy).not.toHaveBeenCalled();
+  });
+
   test('setFavoriteSongId surfaces persistence failures', async () => {
     jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
 

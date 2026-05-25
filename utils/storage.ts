@@ -413,6 +413,8 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
   const normalizedSongId = normalizeStorageSongId(songId);
   if (!normalizedSongId) return getFavoriteSongIds();
   const ids = await getFavoriteSongIds();
+  if (favorite && ids.includes(normalizedSongId)) return ids;
+  if (!favorite && !ids.includes(normalizedSongId)) return ids;
   const next = favorite
     ? normalizeFavoriteSongIds([...ids, normalizedSongId])
     : ids.filter(id => id !== normalizedSongId);
