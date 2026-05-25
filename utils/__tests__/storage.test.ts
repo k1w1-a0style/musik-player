@@ -243,23 +243,23 @@ describe('storage', () => {
     await expect(isFavoriteSongId('   ')).resolves.toBe(false);
   });
 
-  test('setFavoriteSongIds avoids identical normalized raw writes', async () => {
+  test('setFavoriteSongIds writes also for identical normalized raw writes', async () => {
     await storage.setFavoriteSongIds(['s1', 's2']);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setFavoriteSongIds(['s1', 's2']);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getFavoriteSongIds()).toEqual(['s1', 's2']);
   });
 
-  test('setFavoriteSongIds avoids writes when normalization produces the same raw value', async () => {
+  test('setFavoriteSongIds writes when normalization produces the same raw value', async () => {
     await storage.setFavoriteSongIds(['s1', 's2']);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setFavoriteSongIds([' s1 ', 's1', 's2']);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getFavoriteSongIds()).toEqual(['s1', 's2']);
   });
 
@@ -273,12 +273,13 @@ describe('storage', () => {
     expect(await storage.getFavoriteSongIds()).toEqual(['s1']);
   });
 
-  test('setFavoriteSongIds writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+  test('setFavoriteSongIds does not read favoriteSongIds before writing', async () => {
+    const getItemSpy = jest.spyOn(AsyncStorage, 'getItem').mockClear();
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setFavoriteSongIds(['s1']);
 
+    expect(getItemSpy).not.toHaveBeenCalledWith('@musikplayer:favoriteSongIds');
     expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:favoriteSongIds', '["s1"]');
   });
 
