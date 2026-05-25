@@ -27,9 +27,14 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
   };
 
+  type ExpectedStorageWrite = {
+    method: 'setItem' | 'removeItem';
+    key: string;
+  };
+
   const expectNoPreReadForSetter = async (
     action: () => Promise<unknown>,
-    expectedWrite?: { method: 'setItem' | 'removeItem'; key: string },
+    expectedWrite?: ExpectedStorageWrite,
   ) => {
     const getItemSpy = jest.spyOn(AsyncStorage, 'getItem').mockClear();
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
@@ -304,68 +309,74 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), '["s1"]');
   });
 
-  test.each([
+  const noPreReadSetterCases: Array<{
+    name: string;
+    action: () => Promise<unknown>;
+    expectedWrite: ExpectedStorageWrite;
+  }> = [
     {
       name: 'setSongs',
       action: () => storage.setSongs([{ id: 's1', title: 'Song', artist: 'Artist' }]),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SONGS) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.SONGS) },
     },
     {
       name: 'setPlaylists',
       action: () => storage.setPlaylists([{ id: 'pl-1', name: 'Playlist', songIds: ['s1'], createdAt: 1, updatedAt: 1 }]),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.PLAYLISTS) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.PLAYLISTS) },
     },
     {
       name: 'setCurrentSongId write path',
       action: () => storage.setCurrentSongId('s1'),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
     },
     {
       name: 'setCurrentSongId remove path',
       action: () => storage.setCurrentSongId('   '),
-      expectedWrite: { method: 'removeItem' as const, key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
+      expectedWrite: { method: 'removeItem', key: storageTestKey(StorageKeys.CURRENT_SONG_ID) },
     },
     {
       name: 'setEqPreset',
       action: () => storage.setEqPreset('custom'),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_PRESET) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.EQ_PRESET) },
     },
     {
       name: 'setEqBands',
       action: () => storage.setEqBands([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_BANDS) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.EQ_BANDS) },
     },
     {
       name: 'setEqEnabled',
       action: () => storage.setEqEnabled(true),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.EQ_ENABLED) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.EQ_ENABLED) },
     },
     {
       name: 'setVolume',
       action: () => storage.setVolume(0.5),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.VOLUME) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.VOLUME) },
     },
     {
       name: 'setRepeatMode',
       action: () => storage.setRepeatMode('one'),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.REPEAT_MODE) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.REPEAT_MODE) },
     },
     {
       name: 'setShuffle',
       action: () => storage.setShuffle(true),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SHUFFLE) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.SHUFFLE) },
     },
     {
       name: 'setScanFolders',
       action: () => storage.setScanFolders([{ id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true }]),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.SCAN_FOLDERS) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.SCAN_FOLDERS) },
     },
     {
       name: 'setFavoriteSongIds',
       action: () => storage.setFavoriteSongIds(['s1']),
-      expectedWrite: { method: 'setItem' as const, key: storageTestKey(StorageKeys.FAVORITE_SONG_IDS) },
+      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.FAVORITE_SONG_IDS) },
     },
-  ])('$name has no AsyncStorage.getItem pre-read', async ({ action, expectedWrite }) => {
+  ];
+
+  test.each(noPreReadSetterCases)('$name has no AsyncStorage.getItem pre-read', async ({ action, expectedWrite }) => {
     await expectNoPreReadForSetter(action, expectedWrite);
   });
 
