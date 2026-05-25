@@ -50,6 +50,15 @@ describe('storage', () => {
     await expect(storage.get('customKey')).resolves.toEqual(value);
   });
 
+
+  test('normalizes StorageKeys.FAVORITE_SONG_IDS but keeps FAVORITE_SONG_IDS as unknown key', async () => {
+    await expect(storage.set(StorageKeys.FAVORITE_SONG_IDS, [' s1 ', '', 's1'])).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual(['s1']);
+
+    await expect(storage.set('FAVORITE_SONG_IDS', [' s1 ', '', 's1'])).resolves.toBe(true);
+    await expect(storage.get('FAVORITE_SONG_IDS')).resolves.toEqual([' s1 ', '', 's1']);
+  });
+
   test('does not treat storage key constant names as storage keys', async () => {
     await expect(storage.set('SONGS', [{ title: 'Broken' }])).resolves.toBe(true);
     await expect(storage.get('SONGS')).resolves.toEqual([{ title: 'Broken' }]);

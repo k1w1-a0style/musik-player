@@ -32,6 +32,7 @@ const uniqueValidSongIds = (songIds: string[], normalizedValidSongIds?: Set<stri
 const sameSongIds = (a: string[], b: string[]): boolean => a.length === b.length && a.every((songId, index) => songId === b[index]);
 
 export const prunePlaylists = (items: Playlist[], validSongIds: Set<string>): Playlist[] => {
+  if (items.length === 0) return items;
   const normalizedValidSongIds = normalizeValidSongIds(validSongIds);
   let changed = false;
   let timestamp: number | undefined;
