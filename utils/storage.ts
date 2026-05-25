@@ -348,7 +348,10 @@ export const storage = {
     return Array.isArray(parsed) ? (parsed as number[]) : [...EQ_PRESETS.flat];
   },
   async setEqBands(bands: number[]) {
-    await setItem(StorageKeys.EQ_BANDS, JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat));
+    const next = JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_BANDS);
+    if (current === next) return;
+    await setItem(StorageKeys.EQ_BANDS, next);
   },
   async getEqEnabled() {
     const value = await getItem(StorageKeys.EQ_ENABLED);
@@ -369,7 +372,10 @@ export const storage = {
     return typeof parsed === 'number' ? parsed : 1;
   },
   async setVolume(volume: number) {
-    await setItem(StorageKeys.VOLUME, String(normalizeVolumeForStorage(volume) ?? 1));
+    const next = String(normalizeVolumeForStorage(volume) ?? 1);
+    const current = await readStoredRawForNoOpGuard(StorageKeys.VOLUME);
+    if (current === next) return;
+    await setItem(StorageKeys.VOLUME, next);
   },
   async getRepeatMode() {
     const value = await getItem(StorageKeys.REPEAT_MODE);

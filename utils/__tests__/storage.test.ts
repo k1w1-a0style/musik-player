@@ -564,6 +564,35 @@ describe('storage', () => {
     expect(await storage.getVolume()).toBe(1);
   });
 
+  test('setVolume avoids identical normalized raw writes', async () => {
+    await storage.setVolume(0.5);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setVolume(0.5);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getVolume()).toBe(0.5);
+  });
+
+  test('setVolume overwrites invalid raw values', async () => {
+    await AsyncStorage.setItem('@musikplayer:volume', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setVolume(1);
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '1');
+    expect(await storage.getVolume()).toBe(1);
+  });
+
+  test('setVolume writes when no-op guard read fails', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setVolume(0.5);
+
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '0.5');
+  });
+
   test('normalizes eq band arrays to the safe persisted range', () => {
     expect(normalizeEqBandsForStorage([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN])).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
     expect(normalizeEqBandsForStorage([1, 2, 3])).toBeNull();
@@ -593,6 +622,38 @@ describe('storage', () => {
     await storage.setEqBands([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN]);
 
     expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
+  });
+
+  test('setEqBands avoids identical normalized raw writes', async () => {
+    const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    await storage.setEqBands(bands);
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqBands(bands);
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getEqBands()).toEqual(bands);
+  });
+
+  test('setEqBands overwrites invalid raw values', async () => {
+    const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    await AsyncStorage.setItem('@musikplayer:eqBands', 'invalid');
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqBands(bands);
+
+    expect(setItemSpy).toHaveBeenCalled();
+    expect(await storage.getEqBands()).toEqual(bands);
+  });
+
+  test('setEqBands writes when no-op guard read fails', async () => {
+    const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setEqBands(bands);
+
+    expect(setItemSpy).toHaveBeenCalled();
   });
 
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
