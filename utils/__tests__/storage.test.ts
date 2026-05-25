@@ -931,4 +931,78 @@ describe('storage', () => {
     await expect(getFavoriteSongIds()).resolves.toEqual(['existing', 's1', 's2']);
     await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing', 's1', 's2']);
   });
+
+  test('does not write when there are no legacy favorite ids in stored songs', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing']);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song 1', artist: 'A', favorite: false },
+      { id: 's2', title: 'Song 2', artist: 'A', isFavorite: false },
+      { id: 's3', title: 'Song 3', artist: 'A' },
+    ]));
+
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem');
+    setItemSpy.mockClear();
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing']);
+    expect(setItemSpy).not.toHaveBeenCalled();
+    await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
+  });
+
+  test('does not write when legacy favorite ids are already present', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['s1', 's2']);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
+      { id: 's2', title: 'Song 2', artist: 'A', isFavorite: true },
+      { id: 's3', title: 'Song 3', artist: 'A', favorite: false },
+    ]));
+
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem');
+    setItemSpy.mockClear();
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['s1', 's2']);
+    expect(setItemSpy).not.toHaveBeenCalled();
+    await expect(getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
+  });
+
+  test('falls back to existing favoriteSongIds on broken songs json', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing']);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), '{"broken":');
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
+  });
+
+  test('falls back to [] when favoriteSongIds read fails', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song', artist: 'A', favorite: true },
+    ]));
+
+    const getItemMock = AsyncStorage.getItem as jest.MockedFunction<typeof AsyncStorage.getItem>;
+    getItemMock.mockImplementationOnce(async (key) => {
+      if (key === storageTestKey(StorageKeys.FAVORITE_SONG_IDS)) {
+        throw new Error('favoriteSongIds read failed');
+      }
+      return null;
+    });
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['s1']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['s1']);
+  });
+
+  test('falls back to existing ids when persisting merged favoriteSongIds fails', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['existing']);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
+    ]));
+
+    const setItemMock = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+    setItemMock.mockImplementationOnce(async (key) => {
+      if (key === storageTestKey(StorageKeys.FAVORITE_SONG_IDS)) {
+        throw new Error('persist failed');
+      }
+    });
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
+  });
 });
