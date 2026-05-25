@@ -39,7 +39,6 @@ describe('playlistState helpers', () => {
     expect(result[0].updatedAt).toBe(88);
   });
 
-
   test('prunes across multiple playlists using whitespace-normalized valid song ids', () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(910);
     const dirty: Playlist[] = [
@@ -55,7 +54,6 @@ describe('playlistState helpers', () => {
     expect(result[1].updatedAt).toBe(910);
     expect(nowSpy).toHaveBeenCalledTimes(1);
   });
-
 
   test('returns the same empty array without iterating validSongIds or calling Date.now', () => {
     const empty: Playlist[] = [];
