@@ -229,10 +229,13 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
   }
 };
 
-const supportsRawStringValue = (key: string): boolean =>
-  key === StorageKeys.CURRENT_SONG_ID ||
-  key === StorageKeys.EQ_PRESET ||
-  key === StorageKeys.REPEAT_MODE;
+const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
+  StorageKeys.CURRENT_SONG_ID,
+  StorageKeys.EQ_PRESET,
+  StorageKeys.REPEAT_MODE,
+]);
+
+const supportsRawStringValue = (key: string): boolean => RAW_STRING_STORAGE_KEYS.has(key);
 
 const parseStoredValue = (key: string, raw: string): unknown | null => {
   try {
