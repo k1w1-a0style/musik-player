@@ -264,13 +264,6 @@ const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
 const storageKey = (key: string): string => PREFIX + key;
 
 const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
-const readStoredRawForNoOpGuard = async (key: StorageKey): Promise<string | null | undefined> => {
-  try {
-    return await getItem(key);
-  } catch {
-    return undefined;
-  }
-};
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
   await AsyncStorage.setItem(storageKey(key), value);
 };
@@ -321,13 +314,10 @@ export const storage = {
   },
   async setCurrentSongId(songId?: string | null) {
     const normalizedSongId = normalizeStorageSongId(songId);
-    const currentSongId = await readStoredRawForNoOpGuard(StorageKeys.CURRENT_SONG_ID);
     if (!normalizedSongId) {
-      if (currentSongId === null) return;
       await removeItem(StorageKeys.CURRENT_SONG_ID);
       return;
     }
-    if (currentSongId === normalizedSongId) return;
     await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
   },
   async getEqPreset(): Promise<StoredEqPresetName> {
@@ -337,8 +327,6 @@ export const storage = {
   },
   async setEqPreset(preset: StoredEqPresetName) {
     const next = isStoredEqPresetName(preset) ? preset : 'flat';
-    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_PRESET);
-    if (current === next) return;
     await setItem(StorageKeys.EQ_PRESET, next);
   },
   async getEqBands() {
@@ -348,10 +336,10 @@ export const storage = {
     return Array.isArray(parsed) ? (parsed as number[]) : [...EQ_PRESETS.flat];
   },
   async setEqBands(bands: number[]) {
-    const next = JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat);
-    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_BANDS);
-    if (current === next) return;
-    await setItem(StorageKeys.EQ_BANDS, next);
+    await setItem(
+      StorageKeys.EQ_BANDS,
+      JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat),
+    );
   },
   async getEqEnabled() {
     const value = await getItem(StorageKeys.EQ_ENABLED);
@@ -360,10 +348,7 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setEqEnabled(enabled: boolean) {
-    const next = String(enabled);
-    const current = await readStoredRawForNoOpGuard(StorageKeys.EQ_ENABLED);
-    if (current === next) return;
-    await setItem(StorageKeys.EQ_ENABLED, next);
+    await setItem(StorageKeys.EQ_ENABLED, String(enabled));
   },
   async getVolume() {
     const value = await getItem(StorageKeys.VOLUME);
@@ -372,10 +357,7 @@ export const storage = {
     return typeof parsed === 'number' ? parsed : 1;
   },
   async setVolume(volume: number) {
-    const next = String(normalizeVolumeForStorage(volume) ?? 1);
-    const current = await readStoredRawForNoOpGuard(StorageKeys.VOLUME);
-    if (current === next) return;
-    await setItem(StorageKeys.VOLUME, next);
+    await setItem(StorageKeys.VOLUME, String(normalizeVolumeForStorage(volume) ?? 1));
   },
   async getRepeatMode() {
     const value = await getItem(StorageKeys.REPEAT_MODE);
@@ -383,8 +365,6 @@ export const storage = {
     return parsed === 'one' || parsed === 'all' ? parsed : 'off';
   },
   async setRepeatMode(mode: 'off' | 'one' | 'all') {
-    const current = await readStoredRawForNoOpGuard(StorageKeys.REPEAT_MODE);
-    if (current === mode) return;
     await setItem(StorageKeys.REPEAT_MODE, mode);
   },
   async getShuffle() {
@@ -394,10 +374,7 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setShuffle(enabled: boolean) {
-    const next = String(enabled);
-    const current = await readStoredRawForNoOpGuard(StorageKeys.SHUFFLE);
-    if (current === next) return;
-    await setItem(StorageKeys.SHUFFLE, next);
+    await setItem(StorageKeys.SHUFFLE, String(enabled));
   },
   async getScanFolders(): Promise<ScanFolder[]> {
     return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);

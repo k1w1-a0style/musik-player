@@ -328,43 +328,24 @@ describe('storage', () => {
     expect(await storage.getCurrentSongId()).toBeNull();
   });
 
-  test('setCurrentSongId avoids no-op set operations', async () => {
+  test('setCurrentSongId writes also for identical normalized id', async () => {
     await storage.setCurrentSongId('s1');
-
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setCurrentSongId(' s1 ');
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId', 's1');
     expect(await storage.getCurrentSongId()).toBe('s1');
   });
 
-  test('setCurrentSongId avoids no-op remove operations', async () => {
+  test('setCurrentSongId removes also when no value is stored', async () => {
     await AsyncStorage.removeItem('@musikplayer:currentSongId');
-
     const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
 
     await storage.setCurrentSongId('   ');
 
-    expect(removeItemSpy).not.toHaveBeenCalled();
-    expect(await storage.getCurrentSongId()).toBeNull();
-  });
-  test('setCurrentSongId writes valid id even when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await expect(storage.setCurrentSongId('s1')).resolves.toBeUndefined();
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId', 's1');
-  });
-
-  test('setCurrentSongId removes value even when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
-
-    await expect(storage.setCurrentSongId('   ')).resolves.toBeUndefined();
-
     expect(removeItemSpy).toHaveBeenCalledWith('@musikplayer:currentSongId');
+    expect(await storage.getCurrentSongId()).toBeNull();
   });
 
   test('keeps raw and JSON string settings compatible', async () => {
@@ -436,13 +417,13 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
   });
 
-  test('setEqPreset avoids identical raw writes', async () => {
+  test('setEqPreset writes also for identical raw values', async () => {
     await storage.setEqPreset('custom');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqPreset('custom');
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqPreset', 'custom');
     expect(await storage.getEqPreset()).toBe('custom');
   });
 
@@ -455,15 +436,6 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqPreset()).toBe('flat');
   });
-  test('setEqPreset writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await expect(storage.setEqPreset('flat')).resolves.toBeUndefined();
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqPreset', 'flat');
-  });
-
   test('rejects invalid eq preset strings when reading', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
@@ -497,13 +469,13 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
   });
 
-  test('setRepeatMode avoids identical raw writes', async () => {
+  test('setRepeatMode writes also for identical raw values', async () => {
     await storage.setRepeatMode('one');
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setRepeatMode('one');
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:repeatMode', 'one');
     expect(await storage.getRepeatMode()).toBe('one');
   });
 
@@ -516,15 +488,6 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getRepeatMode()).toBe('off');
   });
-  test('setRepeatMode writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await expect(storage.setRepeatMode('off')).resolves.toBeUndefined();
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:repeatMode', 'off');
-  });
-
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setEqEnabled(true);
     expect(await storage.getEqEnabled()).toBe(true);
@@ -536,32 +499,24 @@ describe('storage', () => {
     expect(await storage.getEqEnabled()).toBe(false);
   });
 
-  test('setEqEnabled avoids identical true raw writes', async () => {
+  test('setEqEnabled writes also for identical true raw values', async () => {
     await storage.setEqEnabled(true);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqEnabled(true);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'true');
     expect(await storage.getEqEnabled()).toBe(true);
   });
 
-  test('setEqEnabled avoids identical false raw writes', async () => {
+  test('setEqEnabled writes also for identical false raw values', async () => {
     await storage.setEqEnabled(false);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqEnabled(false);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'false');
     expect(await storage.getEqEnabled()).toBe(false);
-  });
-  test('setEqEnabled writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await expect(storage.setEqEnabled(true)).resolves.toBeUndefined();
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:eqEnabled', 'true');
   });
 
   test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
@@ -575,34 +530,25 @@ describe('storage', () => {
     expect(await storage.getShuffle()).toBe(false);
   });
 
-  test('setShuffle avoids identical true raw writes', async () => {
+  test('setShuffle writes also for identical true raw values', async () => {
     await storage.setShuffle(true);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setShuffle(true);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'true');
     expect(await storage.getShuffle()).toBe(true);
   });
 
-  test('setShuffle avoids identical false raw writes', async () => {
+  test('setShuffle writes also for identical false raw values', async () => {
     await storage.setShuffle(false);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setShuffle(false);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'false');
     expect(await storage.getShuffle()).toBe(false);
   });
-  test('setShuffle writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await expect(storage.setShuffle(true)).resolves.toBeUndefined();
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:shuffle', 'true');
-  });
-
   test('rejects invalid persisted settings', async () => {
     await storage.set(StorageKeys.VOLUME, 'loud');
     await storage.set(StorageKeys.REPEAT_MODE, 'sometimes');
@@ -649,13 +595,13 @@ describe('storage', () => {
     expect(await storage.getVolume()).toBe(1);
   });
 
-  test('setVolume avoids identical normalized raw writes', async () => {
+  test('setVolume writes also for identical normalized raw values', async () => {
     await storage.setVolume(0.5);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setVolume(0.5);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '0.5');
     expect(await storage.getVolume()).toBe(0.5);
   });
 
@@ -667,15 +613,6 @@ describe('storage', () => {
 
     expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '1');
     expect(await storage.getVolume()).toBe(1);
-  });
-
-  test('setVolume writes when no-op guard read fails', async () => {
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await storage.setVolume(0.5);
-
-    expect(setItemSpy).toHaveBeenCalledWith('@musikplayer:volume', '0.5');
   });
 
   test('normalizes eq band arrays to the safe persisted range', () => {
@@ -709,14 +646,14 @@ describe('storage', () => {
     expect(await storage.getEqBands()).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
   });
 
-  test('setEqBands avoids identical normalized raw writes', async () => {
+  test('setEqBands writes also for identical normalized raw values', async () => {
     const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     await storage.setEqBands(bands);
     const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
 
     await storage.setEqBands(bands);
 
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqBands()).toEqual(bands);
   });
 
@@ -729,16 +666,6 @@ describe('storage', () => {
 
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqBands()).toEqual(bands);
-  });
-
-  test('setEqBands writes when no-op guard read fails', async () => {
-    const bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
-    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
-
-    await storage.setEqBands(bands);
-
-    expect(setItemSpy).toHaveBeenCalled();
   });
 
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
