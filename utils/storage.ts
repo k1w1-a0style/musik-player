@@ -328,11 +328,8 @@ export const storage = {
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);
     if (!value) return [...EQ_PRESETS.flat];
-    try {
-      return normalizeEqBandsForStorage(JSON.parse(value)) ?? [...EQ_PRESETS.flat];
-    } catch {
-      return [...EQ_PRESETS.flat];
-    }
+    const parsed = parseStoredValue(StorageKeys.EQ_BANDS, value);
+    return Array.isArray(parsed) ? (parsed as number[]) : [...EQ_PRESETS.flat];
   },
   async setEqBands(bands: number[]) {
     await setItem(StorageKeys.EQ_BANDS, JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat));
