@@ -243,6 +243,28 @@ describe('storage', () => {
     expect(await storage.getCurrentSongId()).toBeNull();
   });
 
+  test('setCurrentSongId avoids no-op set operations', async () => {
+    await storage.setCurrentSongId('s1');
+
+    const setItemSpy = jest.spyOn(AsyncStorage, 'setItem').mockClear();
+
+    await storage.setCurrentSongId(' s1 ');
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getCurrentSongId()).toBe('s1');
+  });
+
+  test('setCurrentSongId avoids no-op remove operations', async () => {
+    await AsyncStorage.removeItem('@musikplayer:currentSongId');
+
+    const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem').mockClear();
+
+    await storage.setCurrentSongId('   ');
+
+    expect(removeItemSpy).not.toHaveBeenCalled();
+    expect(await storage.getCurrentSongId()).toBeNull();
+  });
+
   test('keeps raw and JSON string settings compatible', async () => {
     await storage.setCurrentSongId('s1');
     expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
