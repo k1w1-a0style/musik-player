@@ -192,6 +192,33 @@ describe('storage', () => {
       await expect(storage.remove(StorageKeys.SONGS)).resolves.toBeUndefined();
     });
 
+    test('storage.remove removes known JSON-backed keys', async () => {
+      await storage.set(StorageKeys.VOLUME, 0.42);
+      await expect(storage.get(StorageKeys.VOLUME)).resolves.toBe(0.42);
+      await expect(storage.remove(StorageKeys.VOLUME)).resolves.toBeUndefined();
+      await expect(storage.get(StorageKeys.VOLUME)).resolves.toBeNull();
+      await expect(storage.getVolume()).resolves.toBe(1);
+      expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.VOLUME))).toBeNull();
+    });
+
+    test('storage.remove removes raw-string typed keys', async () => {
+      await storage.setCurrentSongId('s1');
+      await expect(storage.getCurrentSongId()).resolves.toBe('s1');
+      await expect(storage.remove(StorageKeys.CURRENT_SONG_ID)).resolves.toBeUndefined();
+      await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+      await expect(storage.getCurrentSongId()).resolves.toBeNull();
+      expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.CURRENT_SONG_ID))).toBeNull();
+    });
+
+    test('storage.remove removes unknown custom keys', async () => {
+      const customValue = { nested: { keep: true }, list: [1, '2', null] };
+      await storage.set('customKey', customValue);
+      await expect(storage.get('customKey')).resolves.toEqual(customValue);
+      await expect(storage.remove('customKey')).resolves.toBeUndefined();
+      await expect(storage.get('customKey')).resolves.toBeNull();
+      expect(await AsyncStorage.getItem(storageTestKey('customKey'))).toBeNull();
+    });
+
     test.each([
       ['setSongs', () => storage.setSongs([])],
       ['setPlaylists', () => storage.setPlaylists([])],
