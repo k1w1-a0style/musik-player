@@ -130,6 +130,51 @@ describe('storage', () => {
     });
   });
 
+
+  describe('write/remove failure semantics', () => {
+    test('storage.set returns false when AsyncStorage.setItem rejects', async () => {
+      jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(storage.set(StorageKeys.SONGS, [])).resolves.toBe(false);
+    });
+
+    test('storage.remove does not throw when AsyncStorage.removeItem rejects', async () => {
+      jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('remove failed'));
+
+      await expect(storage.remove(StorageKeys.SONGS)).resolves.toBeUndefined();
+    });
+
+    test.each([
+      ['setSongs', () => storage.setSongs([])],
+      ['setPlaylists', () => storage.setPlaylists([])],
+      ['setEqPreset', () => storage.setEqPreset('flat')],
+      ['setEqBands', () => storage.setEqBands([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])],
+      ['setEqEnabled', () => storage.setEqEnabled(true)],
+      ['setVolume', () => storage.setVolume(0.5)],
+      ['setRepeatMode', () => storage.setRepeatMode('one')],
+      ['setShuffle', () => storage.setShuffle(true)],
+      ['setScanFolders', () => storage.setScanFolders([])],
+      ['setFavoriteSongIds', () => storage.setFavoriteSongIds(['s1'])],
+    ])('%s propagates AsyncStorage setItem failures', async (_name, action) => {
+      jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(action()).rejects.toThrow('write failed');
+    });
+
+    test('setCurrentSongId write path propagates AsyncStorage.setItem failures', async () => {
+      jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(storage.setCurrentSongId('s1')).rejects.toThrow('write failed');
+    });
+
+    test('setCurrentSongId remove path propagates AsyncStorage.removeItem failures', async () => {
+      jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('remove failed'));
+
+      await expect(storage.setCurrentSongId('   ')).rejects.toThrow('remove failed');
+    });
+  });
+
+
   test('scan folders persist and reload', async () => {
     await addScanFolder({ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true });
     expect(await getScanFolders()).toEqual([{ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
