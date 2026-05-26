@@ -994,6 +994,67 @@ describe('storage', () => {
     expect(nowSpy).toHaveBeenCalledTimes(1);
   });
 
+  test('filters persisted playlists with non-finite createdAt and updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+    jest.spyOn(AsyncStorage, 'getItem').mockResolvedValueOnce('serialized');
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce(() => [{
+      id: 'pl-1',
+      name: 'Non-finite timestamps',
+      songIds: ['s1'],
+      createdAt: Number.NaN,
+      updatedAt: Number.POSITIVE_INFINITY,
+    }]);
+
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+    expect(nowSpy).not.toHaveBeenCalled();
+    expect(parseSpy).toHaveBeenCalledWith('serialized');
+  });
+
+  test('filters persisted playlists with null createdAt and updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
+      id: 'pl-1',
+      name: 'Null timestamps',
+      songIds: ['s1'],
+      createdAt: null,
+      updatedAt: null,
+    }]));
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('filters persisted playlists with null updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
+      id: 'pl-1',
+      name: 'Null updatedAt',
+      songIds: ['s1'],
+      createdAt: 10,
+      updatedAt: null,
+    }]));
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('filters persisted playlists with null createdAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
+      id: 'pl-1',
+      name: 'Null createdAt',
+      songIds: ['s1'],
+      createdAt: null,
+      updatedAt: 20,
+    }]));
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
   test('getPlaylists normalizes legacy playlists without updatedAt', async () => {
     await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'Legacy', songIds: ['s1'], createdAt: 10 }]);
     await expect(storage.getPlaylists()).resolves.toEqual([
