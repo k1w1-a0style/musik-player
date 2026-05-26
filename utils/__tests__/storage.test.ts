@@ -257,6 +257,11 @@ describe('storage', () => {
     expect(setItemSpy).toHaveBeenCalled();
   });
 
+  test('getScanFolders returns [] for non-array JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SCAN_FOLDERS), JSON.stringify({ folders: [] }));
+    await expect(getScanFolders()).resolves.toEqual([]);
+  });
+
   test('getScanFolders returns empty list for broken JSON', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SCAN_FOLDERS), '{broken-json');
     await expect(getScanFolders()).resolves.toEqual([]);
@@ -917,6 +922,11 @@ describe('storage', () => {
     ]);
   });
 
+  test('getSongs returns [] for non-array JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify({ songs: [] }));
+    await expect(storage.getSongs()).resolves.toEqual([]);
+  });
+
   test('setPlaylists persists playlists with required updatedAt', async () => {
     await storage.setPlaylists([{ id: 'pl-1', name: 'Roadtrip', songIds: ['s1'], createdAt: 10, updatedAt: 20 }]);
 
@@ -1102,6 +1112,11 @@ describe('storage', () => {
     ]);
     expect(nowSpy).not.toHaveBeenCalled();
     expect(parseSpy).toHaveBeenCalledWith('serialized');
+  });
+
+  test('getPlaylists returns [] for non-array JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify({ playlists: [] }));
+    await expect(storage.getPlaylists()).resolves.toEqual([]);
   });
 
   test('getPlaylists returns [] on broken json payloads', async () => {
