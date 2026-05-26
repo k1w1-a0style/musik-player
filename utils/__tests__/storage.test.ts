@@ -1072,6 +1072,38 @@ describe('storage', () => {
     ]);
   });
 
+  test('getPlaylists filters persisted null timestamp entries and keeps valid entries', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([
+      { id: 'pl-valid', name: 'Valid', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+      { id: 'pl-null-both', name: 'Null both', songIds: ['s2'], createdAt: null, updatedAt: null },
+      { id: 'pl-null-updatedAt', name: 'Null updatedAt', songIds: ['s3'], createdAt: 10, updatedAt: null },
+      { id: 'pl-null-createdAt', name: 'Null createdAt', songIds: ['s4'], createdAt: null, updatedAt: 20 },
+    ]));
+
+    await expect(storage.getPlaylists()).resolves.toEqual([
+      { id: 'pl-valid', name: 'Valid', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+    ]);
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('getPlaylists filters parse-time non-finite timestamp entries', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+    jest.spyOn(AsyncStorage, 'getItem').mockResolvedValueOnce('serialized');
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce(() => [
+      { id: 'pl-valid', name: 'Valid', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+      { id: 'pl-nan-createdAt', name: 'NaN createdAt', songIds: ['s2'], createdAt: Number.NaN, updatedAt: 20 },
+      { id: 'pl-nan-updatedAt', name: 'NaN updatedAt', songIds: ['s3'], createdAt: 10, updatedAt: Number.NaN },
+    ]);
+
+    await expect(storage.getPlaylists()).resolves.toEqual([
+      { id: 'pl-valid', name: 'Valid', songIds: ['s1'], createdAt: 10, updatedAt: 20 },
+    ]);
+    expect(nowSpy).not.toHaveBeenCalled();
+    expect(parseSpy).toHaveBeenCalledWith('serialized');
+  });
+
   test('getPlaylists returns [] on broken json payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), '{"broken":');
     await expect(storage.getPlaylists()).resolves.toEqual([]);
