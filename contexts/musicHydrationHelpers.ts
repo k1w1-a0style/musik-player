@@ -6,6 +6,8 @@ import { sanitizeSongsForStorage } from '../utils/coverCache';
 import {
   buildHydratedPlaybackQueue,
   didSongCoversChange,
+  normalizeHydrationSongs,
+  normalizePlaylistsForHydratedSongs,
 } from '../utils/musicHydration';
 import { prunePlaylists, sanitizePlaylists } from '../utils/playlistState';
 import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from '../utils/storage';
@@ -111,11 +113,13 @@ export const hydrateStoredSongs = async ({
   const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
   if (isCancelled()) return;
 
-  songsRef.current = sanitizedSongs;
-  setSongsState(sanitizedSongs);
+  const hydratedSongs = normalizeHydrationSongs(sanitizedSongs);
 
-  if (didSongCoversChange(sanitizedSongs, stored.songs)) {
-    await storage.set(StorageKeys.SONGS, sanitizedSongs);
+  songsRef.current = hydratedSongs;
+  setSongsState(hydratedSongs);
+
+  if (didSongCoversChange(hydratedSongs, stored.songs) || hydratedSongs !== stored.songs) {
+    await storage.set(StorageKeys.SONGS, hydratedSongs);
     if (isCancelled()) return;
   }
 
@@ -125,7 +129,7 @@ export const hydrateStoredSongs = async ({
     restoredSong,
     shouldClearPersistedCurrentSongId,
   } = buildHydratedPlaybackQueue(
-    sanitizedSongs,
+    hydratedSongs,
     stored.currentSongId,
     stored.shuffle ?? false,
   );
@@ -134,6 +138,14 @@ export const hydrateStoredSongs = async ({
   baseQueueContextRef.current = hydratedQueue.slice();
   queueContextRef.current = playableQueue.slice();
   setPlaybackQueue(playableQueue.slice());
+
+  if (stored.playlists) {
+    const normalizedPlaylists = normalizePlaylistsForHydratedSongs(stored.playlists, hydratedSongs);
+    if (normalizedPlaylists !== stored.playlists) {
+      await storage.set(StorageKeys.PLAYLISTS, normalizedPlaylists);
+      if (isCancelled()) return;
+    }
+  }
 
   if (shouldClearPersistedCurrentSongId) {
     await storage.remove(StorageKeys.CURRENT_SONG_ID);

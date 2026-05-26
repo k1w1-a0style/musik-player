@@ -1,6 +1,50 @@
-import type { Song } from '../types/Song';
+import type { Playlist, Song } from '../types/Song';
 import { moveSongToFront, shuffleQueueKeepingCurrent } from './playbackQueue';
 import { asPlayableSong, toPlayableSongs, type PlayableSong } from './playableSong';
+
+
+const normalizeHydrationId = (value?: string | null): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+};
+
+const normalizeSongForHydration = (song: Song): Song | null => {
+  const id = normalizeHydrationId(song.id);
+  if (!id) return null;
+  if (song.id === id) return song;
+  return { ...song, id };
+};
+
+export const normalizeHydrationSongs = (songs: Song[]): Song[] => songs.flatMap(song => {
+  const normalizedSong = normalizeSongForHydration(song);
+  return normalizedSong ? [normalizedSong] : [];
+});
+
+export const normalizePlaylistsForHydratedSongs = (playlists: Playlist[], songs: Song[]): Playlist[] => {
+  if (playlists.length === 0) return playlists;
+  const validSongIds = new Set(songs.map(song => song.id));
+  let changed = false;
+  let timestamp: number | undefined;
+  const next = playlists.map(playlist => {
+    const seen = new Set<string>();
+    const songIds: string[] = [];
+    playlist.songIds.forEach(songId => {
+      const normalizedId = normalizeHydrationId(songId);
+      if (!normalizedId) return;
+      if (!validSongIds.has(normalizedId)) return;
+      if (seen.has(normalizedId)) return;
+      seen.add(normalizedId);
+      songIds.push(normalizedId);
+    });
+
+    const unchanged = songIds.length === playlist.songIds.length && songIds.every((songId, index) => songId === playlist.songIds[index]);
+    if (unchanged) return playlist;
+    changed = true;
+    timestamp ??= Date.now();
+    return { ...playlist, songIds, updatedAt: timestamp };
+  });
+  return changed ? next : playlists;
+};
 
 export interface HydratedPlaybackQueue {
   hydratedQueue: PlayableSong[];
@@ -15,24 +59,26 @@ export const buildHydratedPlaybackQueue = (
   shuffle = false,
 ): HydratedPlaybackQueue => {
   const hydratedQueue = songs.flatMap(song => {
-    if (!song.id?.trim()) return [];
-    const playableSong = asPlayableSong(song);
+    const normalizedSong = normalizeSongForHydration(song);
+    if (!normalizedSong) return [];
+    const playableSong = asPlayableSong(normalizedSong);
     return playableSong ? [playableSong] : [];
   });
 
-  const restoredSong = currentSongId
-    ? hydratedQueue.find(song => song.id === currentSongId)
+  const normalizedCurrentSongId = normalizeHydrationId(currentSongId);
+  const restoredSong = normalizedCurrentSongId
+    ? hydratedQueue.find(song => song.id === normalizedCurrentSongId)
     : undefined;
   const orderedQueueUnnormalized = shuffle
-    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id ?? currentSongId)
-    : moveSongToFront(hydratedQueue, restoredSong?.id ?? currentSongId);
+    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId)
+    : moveSongToFront(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId);
   const orderedQueue = toPlayableSongs(orderedQueueUnnormalized);
 
   return {
     hydratedQueue,
     orderedQueue,
     restoredSong,
-    shouldClearPersistedCurrentSongId: !!currentSongId && !restoredSong,
+    shouldClearPersistedCurrentSongId: !!normalizedCurrentSongId && !restoredSong,
   };
 };
 

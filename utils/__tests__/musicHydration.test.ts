@@ -28,8 +28,8 @@ describe('musicHydration helpers', () => {
       { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
     ], ' s1 ', false);
 
-    expect(result.hydratedQueue.map(song => song.id)).toEqual([' s1 ', 's2']);
-    expect(result.restoredSong?.id).toBe(' s1 ');
+    expect(result.hydratedQueue.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(result.restoredSong?.id).toBe('s1');
     expect(result.shouldClearPersistedCurrentSongId).toBe(false);
   });
 
@@ -61,8 +61,19 @@ describe('musicHydration helpers', () => {
     expect(result.orderedQueue.map(song => song.id).sort()).toEqual(['s1', 's3', 's4']);
   });
 
+
+  test('restores song when currentSongId has extra whitespace', () => {
+    const result = buildHydratedPlaybackQueue([
+      { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+    ], ' s1 ', false);
+
+    expect(result.restoredSong?.id).toBe('s1');
+    expect(result.shouldClearPersistedCurrentSongId).toBe(false);
+  });
+
   test('detects changed cover fields', () => {
     expect(didSongCoversChange([{ ...songs[0], cover: 'b' }], [{ ...songs[0], cover: 'a' }])).toBe(true);
     expect(didSongCoversChange([{ ...songs[0], cover: 'a' }], [{ ...songs[0], cover: 'a' }])).toBe(false);
   });
 });
+
