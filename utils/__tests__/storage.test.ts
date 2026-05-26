@@ -617,6 +617,16 @@ describe('storage', () => {
     await assertCurrentSongIdRaw('"   "', null);
   });
 
+  test('getCurrentSongId rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), JSON.stringify({ id: 's1' }));
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), JSON.stringify(['s1']));
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+  });
+
   test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '0');
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), '1');
@@ -684,6 +694,16 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
+  test('getEqPreset rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), JSON.stringify({ preset: 'rock' }));
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), JSON.stringify(['rock']));
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+  });
+
   test('falls back to flat for invalid raw eq preset values', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'megaBass123');
     await expect(storage.getEqPreset()).resolves.toBe('flat');
@@ -718,6 +738,16 @@ describe('storage', () => {
 
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getRepeatMode()).toBe('off');
+  });
+
+  test('getRepeatMode rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), JSON.stringify({ mode: 'all' }));
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), JSON.stringify(['all']));
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
   });
 
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
