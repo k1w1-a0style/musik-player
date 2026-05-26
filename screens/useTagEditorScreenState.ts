@@ -54,7 +54,7 @@ export const useTagEditorScreenState = () => {
     setRemoveCover(false);
     setReplacementCover(null);
     setStatus(null);
-  }, [song?.id]);
+  }, [song]);
 
   const draft = song
     ? buildDraftFromDirtyFields(song.id, form, dirty, removeCover, replacementCover)

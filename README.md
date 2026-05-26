@@ -39,6 +39,13 @@ npm run lint:ci
 npx expo config --json
 ```
 
+## Quality Gates (verpflichtend)
+
+- `npm run lint:ci` — ESLint ohne Warnungen (`react-hooks/rules-of-hooks` + `react-hooks/exhaustive-deps` sind auf `error`).
+- `npm run typecheck` — TypeScript-Check ohne Emit.
+- `npm test -- --runInBand` — Test-Suite.
+- `npm run test:coverage` — Coverage für `utils`, `hooks` und `contexts` inkl. Mindestschwellen.
+
 ## Aktuelle Testlage
 
 Die Testanzahl wird bewusst nicht hart im README gepflegt. Aktuell maßgeblich ist:

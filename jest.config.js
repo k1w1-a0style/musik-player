@@ -18,7 +18,37 @@ module.exports = {
   },
   testMatch: ['**/__tests__/**/*.test.ts?(x)', '**/?(*.)+(test).ts?(x)'],
   collectCoverageFrom: [
-    'utils/**/*.ts',
-    'contexts/**/*.tsx',
+    'utils/**/*.{ts,tsx}',
+    'contexts/**/*.{ts,tsx}',
+    'hooks/**/*.{ts,tsx}',
+    '!**/__tests__/**',
+    '!**/*.test.{ts,tsx}',
+    '!**/*.d.ts',
   ],
+  coverageThreshold: {
+    global: {
+      statements: 70,
+      branches: 60,
+      functions: 70,
+      lines: 70,
+    },
+    './utils/': {
+      statements: 80,
+      branches: 70,
+      functions: 80,
+      lines: 80,
+    },
+    './hooks/': {
+      statements: 75,
+      branches: 65,
+      functions: 75,
+      lines: 75,
+    },
+    './contexts/': {
+      statements: 75,
+      branches: 65,
+      functions: 75,
+      lines: 75,
+    },
+  },
 };
