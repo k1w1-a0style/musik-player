@@ -141,7 +141,7 @@ export const hydrateStoredSongs = async ({
   }
 
   const playableRestoredSong = restoredSong
-    ? playableQueue.find(song => song.id === restoredSong.id.trim())
+    ? playableQueue.find(song => song.id === restoredSong.id)
     : undefined;
   if (restoredSong && !playableRestoredSong) {
     console.warn('[MusicHydration] Restored current song is not playable; clearing persisted current song id.', {
@@ -157,9 +157,13 @@ export const hydrateStoredSongs = async ({
     return;
   }
 
-  if (!playableRestoredSong) return;
-
-  setCurrentSong(playableRestoredSong);
+  if (playableRestoredSong) {
+    setCurrentSong(playableRestoredSong);
+    if (stored.currentSongId?.trim() !== playableRestoredSong.id) {
+      await storage.set(StorageKeys.CURRENT_SONG_ID, playableRestoredSong.id);
+      if (isCancelled()) return;
+    }
+  }
   try {
     await TrackPlayer.reset();
     if (isCancelled()) return;

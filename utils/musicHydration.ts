@@ -1,31 +1,45 @@
 import type { Song } from '../types/Song';
 import { moveSongToFront, shuffleQueueKeepingCurrent } from './playbackQueue';
+import { asPlayableSong, toPlayableSongs, type PlayableSong } from './playableSong';
 
 export interface HydratedPlaybackQueue {
-  hydratedQueue: Song[];
-  orderedQueue: Song[];
-  restoredSong?: Song;
+  hydratedQueue: PlayableSong[];
+  orderedQueue: PlayableSong[];
+  restoredSong?: PlayableSong;
   shouldClearPersistedCurrentSongId: boolean;
 }
+
+const normalizeSongId = (songId?: string | null): string | undefined => {
+  const trimmed = songId?.trim();
+  return trimmed || undefined;
+};
 
 export const buildHydratedPlaybackQueue = (
   songs: Song[],
   currentSongId?: string | null,
   shuffle = false,
 ): HydratedPlaybackQueue => {
-  const hydratedQueue = songs.filter(song => !!song.uri);
-  const restoredSong = currentSongId
-    ? hydratedQueue.find(song => song.id === currentSongId)
+  const hydratedQueue = songs.flatMap(song => {
+    const normalizedId = normalizeSongId(song.id);
+    if (!normalizedId) return [];
+    const normalizedSong = song.id === normalizedId ? song : { ...song, id: normalizedId };
+    const playableSong = asPlayableSong(normalizedSong);
+    return playableSong ? [playableSong] : [];
+  });
+  const normalizedCurrentSongId = normalizeSongId(currentSongId);
+  const restoredSong = normalizedCurrentSongId
+    ? hydratedQueue.find(song => song.id === normalizedCurrentSongId)
     : undefined;
-  const orderedQueue = shuffle
-    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id)
-    : moveSongToFront(hydratedQueue, restoredSong?.id);
+  const orderedQueueUnnormalized = shuffle
+    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId)
+    : moveSongToFront(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId);
+  const orderedQueue = toPlayableSongs(orderedQueueUnnormalized);
 
   return {
     hydratedQueue,
     orderedQueue,
     restoredSong,
-    shouldClearPersistedCurrentSongId: !!currentSongId && !restoredSong,
+    shouldClearPersistedCurrentSongId: !!normalizedCurrentSongId && !restoredSong,
   };
 };
 

@@ -22,6 +22,28 @@ describe('musicHydration helpers', () => {
     expect(result.shouldClearPersistedCurrentSongId).toBe(false);
   });
 
+  test('normalizes ids and currentSongId when restoring hydrated queue', () => {
+    const result = buildHydratedPlaybackQueue([
+      { id: ' s1 ', title: 'One', artist: 'A', uri: ' file:///s1.mp3 ' },
+      { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+    ], ' s1 ', false);
+
+    expect(result.hydratedQueue.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(result.restoredSong?.id).toBe('s1');
+    expect(result.shouldClearPersistedCurrentSongId).toBe(false);
+  });
+
+  test('drops whitespace-only uri and blank ids from hydrated queue', () => {
+    const result = buildHydratedPlaybackQueue([
+      { id: '   ', title: 'Blank Id', artist: 'A', uri: 'file:///x.mp3' },
+      { id: 's1', title: 'Bad Uri', artist: 'A', uri: '   ' },
+      { id: 's2', title: 'Good', artist: 'A', uri: 'file:///s2.mp3' },
+    ], 's1', false);
+
+    expect(result.hydratedQueue.map(song => song.id)).toEqual(['s2']);
+    expect(result.shouldClearPersistedCurrentSongId).toBe(true);
+  });
+
   test('marks missing persisted current song for cleanup', () => {
     const result = buildHydratedPlaybackQueue(songs, 'missing', false);
 
