@@ -726,6 +726,72 @@ describe('musicHydrationHelpers', () => {
     expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
   });
 
+
+  test('runMusicHydration logs storage load errors, applies fallback and sets ready', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const getSpy = jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
+    const setIsReady = jest.fn();
+    const setSongsState = jest.fn();
+    const setCurrentSong = jest.fn();
+    const setPlaybackQueue = jest.fn();
+
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady,
+      setSongsState,
+      setCurrentSong,
+      setPlaybackQueue,
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setSongsState).toHaveBeenCalledWith([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(setCurrentSong).toHaveBeenCalledWith(null);
+    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(warn).toHaveBeenCalledWith('[MusicHydration:StorageError] Failed to load stored hydration state.', expect.any(Error));
+    getSpy.mockRestore();
+  });
+
+  test('runMusicHydration logs TrackPlayer reset fallback errors', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
+    (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset boom'));
+
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady: jest.fn(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.',
+      expect.any(Error),
+    );
+  });
+
   test('runMusicHydration normalizes whitespace CURRENT_SONG_ID in storage', async () => {
     await storage.set(StorageKeys.SONGS, [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
     await storage.set(StorageKeys.CURRENT_SONG_ID, ' s1 ');
@@ -751,7 +817,8 @@ describe('musicHydrationHelpers', () => {
 
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
   });
-test('does not mark provider ready when hydration is cancelled', async () => {
+
+  test('does not mark provider ready when hydration is cancelled', async () => {
     const setIsReady = jest.fn();
 
     await runMusicHydration({

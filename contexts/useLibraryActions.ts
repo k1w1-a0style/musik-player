@@ -11,8 +11,8 @@ import {
   patchSongById,
   patchSongRefs,
   pruneNullableSongByValidIds,
+  hasSameSongIds,
   pruneSongsByValidIds,
-  syncSongRefsToLibrary,
   updateNativeMetadataForSong,
 } from './libraryActionHelpers';
 
@@ -66,10 +66,19 @@ export const useLibraryActions = ({
       const validSongIds = new Set(songs.map(song => song.id));
       setPlaylists(prev => prunePlaylists(prev, validSongIds));
       setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
+      const nextQueueRef = pruneSongsByValidIds(queueContextRef.current, validSongIds);
+      const nextBaseQueueRef = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
+      const nextNativeQueueRef = pruneSongsByValidIds(nativeQueueRef.current, validSongIds);
+      const queueRefChanged = !hasSameSongIds(queueContextRef.current, nextQueueRef);
+      const baseQueueRefChanged = !hasSameSongIds(baseQueueContextRef.current, nextBaseQueueRef);
+      const nativeQueueRefChanged = !hasSameSongIds(nativeQueueRef.current, nextNativeQueueRef);
+
       setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
-      syncSongRefsToLibrary(validSongIds, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
+      if (queueRefChanged) queueContextRef.current = nextQueueRef;
+      if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;
+      if (nativeQueueRefChanged) nativeQueueRef.current = nextNativeQueueRef;
       const syncedQueue = queueContextRef.current.slice();
-      setPlaybackQueue(syncedQueue);
+      if (queueRefChanged) setPlaybackQueue(syncedQueue);
       setSongsState(songs);
       void storage.get<string>(StorageKeys.CURRENT_SONG_ID).then(currentSongId => {
         const normalizedCurrentSongId = currentSongId?.trim();
@@ -80,7 +89,9 @@ export const useLibraryActions = ({
       }).catch(error => {
         console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
       });
-      void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue);
+      if (queueRefChanged || baseQueueRefChanged || nativeQueueRefChanged) {
+        void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue);
+      }
     },
     [
       baseQueueContextRef,

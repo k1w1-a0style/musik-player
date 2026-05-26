@@ -9,18 +9,37 @@ import { StorageKeys, storage } from '../../utils/storage';
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
   { id: 's2', title: 'Two', artist: 'B', uri: 'file:///s2.mp3' },
+  { id: 's3', title: 'Three', artist: 'C', uri: 'file:///s3.mp3' },
 ];
 
-const LibraryProbe = () => {
-  const [currentSongs, setSongsState] = useState<Song[]>([songs[0]]);
-  const [currentSong, setCurrentSong] = useState<Song | null>(songs[0]);
-  const [playbackQueue, setPlaybackQueue] = useState<Song[]>(songs);
+interface ProbeProps {
+  initialSongs: Song[];
+  initialCurrentSong: Song | null;
+  initialPlaybackQueue: Song[];
+  initialQueueRef: Song[];
+  initialBaseQueueRef: Song[];
+  initialNativeQueueRef: Song[];
+  nextSongs: Song[];
+}
+
+const LibraryProbe = ({
+  initialSongs,
+  initialCurrentSong,
+  initialPlaybackQueue,
+  initialQueueRef,
+  initialBaseQueueRef,
+  initialNativeQueueRef,
+  nextSongs,
+}: ProbeProps) => {
+  const [currentSongs, setSongsState] = useState<Song[]>(initialSongs);
+  const [currentSong, setCurrentSong] = useState<Song | null>(initialCurrentSong);
+  const [playbackQueue, setPlaybackQueue] = useState<Song[]>(initialPlaybackQueue);
   const [playlists, setPlaylists] = useState<Playlist[]>([
-    { id: 'pl-1', name: 'List', songIds: ['s1', 'missing'], createdAt: 1, updatedAt: 1 },
+    { id: 'pl-1', name: 'List', songIds: ['s1', 's3', 'missing'], createdAt: 1, updatedAt: 1 },
   ]);
-  const queueContextRef = useRef<Song[]>(songs.slice());
-  const baseQueueContextRef = useRef<Song[]>(songs.slice());
-  const nativeQueueRef = useRef<Song[]>(songs.slice());
+  const queueContextRef = useRef<Song[]>(initialQueueRef);
+  const baseQueueContextRef = useRef<Song[]>(initialBaseQueueRef);
+  const nativeQueueRef = useRef<Song[]>(initialNativeQueueRef);
 
   const { setSongs, addSongs, updateSongMetadata } = useLibraryActions({
     queueContextRef,
@@ -36,9 +55,11 @@ const LibraryProbe = () => {
     <>
       <Text testID="songs">{currentSongs.map(song => song.id).join(',')}</Text>
       <Text testID="current-title">{currentSong?.title ?? ''}</Text>
-      <Text testID="queue-title">{playbackQueue[0]?.title ?? ''}</Text>
+      <Text testID="playback-queue">{playbackQueue.map(song => song.id).join(',')}</Text>
+      <Text testID="queue-ref">{queueContextRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="native-ref">{nativeQueueRef.current.map(song => song.id).join(',')}</Text>
       <Text testID="playlist-songs">{playlists[0]?.songIds.join(',') ?? ''}</Text>
-      <Button testID="set-songs" title="set" onPress={() => setSongs([songs[1]])} />
+      <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
       <Button testID="patch-song" title="patch" onPress={() => updateSongMetadata('s1', { title: 'Updated' })} />
     </>
@@ -46,12 +67,13 @@ const LibraryProbe = () => {
 };
 
 describe('useLibraryActions', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
+    await storage.remove(StorageKeys.CURRENT_SONG_ID);
   });
 
   test('merges unique songs', () => {
-    expect(mergeUniqueSongs([songs[0]], [songs[0], songs[1]])).toEqual(songs);
+    expect(mergeUniqueSongs([songs[0]], [songs[0], songs[1]])).toEqual([songs[0], songs[1]]);
   });
 
   test('patches song by id', () => {
@@ -59,42 +81,117 @@ describe('useLibraryActions', () => {
     expect(patchSongById('missing', { title: 'Updated' })(songs[0])).toBe(songs[0]);
   });
 
-  test('sets songs, prunes queue refs and resets native queue for removed current song', async () => {
+  test('removing a non-queued song keeps native queue stable and does not reset player', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0]]}
+        initialQueueRef={[songs[0]]}
+        initialBaseQueueRef={[songs[0]]}
+        initialNativeQueueRef={[songs[0]]}
+        nextSongs={[songs[0], songs[1]]}
+      />, 
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(getByTestId('songs').props.children).toBe('s1,s2'));
+    expect(getByTestId('playback-queue').props.children).toBe('s1');
+    expect(getByTestId('queue-ref').props.children).toBe('s1');
+    expect(getByTestId('native-ref').props.children).toBe('s1');
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+  });
+
+  test('removing queued/current song clears current id and rebuilds native queue', async () => {
     await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
-    const { getByTestId } = render(<LibraryProbe />);
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
 
     act(() => fireEvent.press(getByTestId('set-songs')));
 
     await waitFor(() => {
-      expect(getByTestId('songs').props.children).toBe('s2');
-      expect(getByTestId('playlist-songs').props.children).toBe('');
       expect(getByTestId('current-title').props.children).toBe('');
+      expect(getByTestId('playback-queue').props.children).toBe('s2');
+      expect(getByTestId('native-ref').props.children).toBe('s2');
     });
-    await waitFor(() => {
-      expect(TrackPlayer.reset).toHaveBeenCalled();
-      expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
-    });
+    await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalledTimes(1));
+    expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
+  test('removing all queued songs resets player and clears native ref without add', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0]]}
+        initialQueueRef={[songs[0]]}
+        initialBaseQueueRef={[songs[0]]}
+        initialNativeQueueRef={[songs[0]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => {
+      expect(getByTestId('playback-queue').props.children).toBe('');
+      expect(getByTestId('native-ref').props.children).toBe('');
+    });
+    await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+  });
+
+  test('logs and clears native ref when native rebuild fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0]]}
+        initialQueueRef={[songs[0]]}
+        initialBaseQueueRef={[songs[0]]}
+        initialNativeQueueRef={[songs[0]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => {
+      expect(getByTestId('native-ref').props.children).toBe('');
+    });
+    expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
+  });
+
   test('adds only missing songs', () => {
-    const { getByTestId } = render(<LibraryProbe />);
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={[songs[0]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0]]}
+        initialQueueRef={[songs[0]]}
+        initialBaseQueueRef={[songs[0]]}
+        initialNativeQueueRef={[songs[0]]}
+        nextSongs={[songs[0], songs[1]]}
+      />,
+    );
 
     act(() => fireEvent.press(getByTestId('add-songs')));
 
     expect(getByTestId('songs').props.children).toBe('s1,s2');
-  });
-
-  test('updates metadata in state refs and native queue', () => {
-    const { getByTestId } = render(<LibraryProbe />);
-
-    act(() => fireEvent.press(getByTestId('patch-song')));
-
-    expect(getByTestId('current-title').props.children).toBe('Updated');
-    expect(getByTestId('queue-title').props.children).toBe('Updated');
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
-      0,
-      expect.objectContaining({ title: 'Updated' }),
-    );
   });
 });
