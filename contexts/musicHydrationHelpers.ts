@@ -107,20 +107,20 @@ export const hydrateStoredSongs = async ({
   setCurrentSong,
   setPlaybackQueue,
   isCancelled,
-}: HydrateStoredSongsArgs): Promise<void> => {
-  if (!stored.songs) return;
+}: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
+  if (!stored.songs) return stored;
 
   const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
-  if (isCancelled()) return;
+  if (isCancelled()) return stored;
 
-  const hydratedSongs = normalizeHydrationSongs(sanitizedSongs);
+  const { songs: hydratedSongs, changed: songsWereNormalized } = normalizeHydrationSongs(sanitizedSongs);
 
   songsRef.current = hydratedSongs;
   setSongsState(hydratedSongs);
 
-  if (didSongCoversChange(hydratedSongs, stored.songs) || hydratedSongs !== stored.songs) {
+  if (didSongCoversChange(hydratedSongs, stored.songs) || songsWereNormalized) {
     await storage.set(StorageKeys.SONGS, hydratedSongs);
-    if (isCancelled()) return;
+    if (isCancelled()) return stored;
   }
 
   const {
@@ -139,17 +139,17 @@ export const hydrateStoredSongs = async ({
   queueContextRef.current = playableQueue.slice();
   setPlaybackQueue(playableQueue.slice());
 
-  if (stored.playlists) {
-    const normalizedPlaylists = normalizePlaylistsForHydratedSongs(stored.playlists, hydratedSongs);
-    if (normalizedPlaylists !== stored.playlists) {
-      await storage.set(StorageKeys.PLAYLISTS, normalizedPlaylists);
-      if (isCancelled()) return;
-    }
+  const normalizedPlaylists = stored.playlists
+    ? normalizePlaylistsForHydratedSongs(stored.playlists, hydratedSongs)
+    : null;
+  if (normalizedPlaylists && normalizedPlaylists !== stored.playlists) {
+    await storage.set(StorageKeys.PLAYLISTS, normalizedPlaylists);
+    if (isCancelled()) return stored;
   }
 
   if (shouldClearPersistedCurrentSongId) {
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    if (isCancelled()) return;
+    if (isCancelled()) return stored;
   }
 
   const playableRestoredSong = restoredSong
@@ -166,33 +166,39 @@ export const hydrateStoredSongs = async ({
       console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
     }
     nativeQueueRef.current = [];
-    return;
+    return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
   }
 
   if (playableRestoredSong) {
     setCurrentSong(playableRestoredSong);
     if (stored.currentSongId?.trim() !== playableRestoredSong.id) {
       await storage.set(StorageKeys.CURRENT_SONG_ID, playableRestoredSong.id);
-      if (isCancelled()) return;
+      if (isCancelled()) return stored;
     }
   }
   try {
     await TrackPlayer.reset();
-    if (isCancelled()) return;
+    if (isCancelled()) return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
 
     if (playableQueue.length === 0) {
       console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
       nativeQueueRef.current = [];
-      return;
+      return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
     }
     await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-    if (isCancelled()) return;
+    if (isCancelled()) return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
 
     nativeQueueRef.current = playableQueue.slice();
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
     nativeQueueRef.current = [];
   }
+
+  return {
+    ...stored,
+    songs: hydratedSongs,
+    playlists: normalizedPlaylists,
+  };
 };
 
 export const applyStoredPlaybackSettings = ({
@@ -244,10 +250,10 @@ export const runMusicHydration = async ({
 
   if (isCancelled()) return;
 
-  await hydrateStoredSongs({ stored, isCancelled, ...args });
+  const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args });
 
   if (isCancelled()) return;
 
-  applyStoredPlaybackSettings({ stored, ...args });
+  applyStoredPlaybackSettings({ stored: hydratedStored, ...args });
   setIsReady(true);
 };

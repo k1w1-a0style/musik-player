@@ -15,10 +15,24 @@ const normalizeSongForHydration = (song: Song): Song | null => {
   return { ...song, id };
 };
 
-export const normalizeHydrationSongs = (songs: Song[]): Song[] => songs.flatMap(song => {
-  const normalizedSong = normalizeSongForHydration(song);
-  return normalizedSong ? [normalizedSong] : [];
-});
+export interface NormalizeHydrationSongsResult {
+  songs: Song[];
+  changed: boolean;
+}
+
+export const normalizeHydrationSongs = (songs: Song[]): NormalizeHydrationSongsResult => {
+  let changed = false;
+  const normalizedSongs = songs.flatMap(song => {
+    const normalizedSong = normalizeSongForHydration(song);
+    if (!normalizedSong) {
+      changed = true;
+      return [];
+    }
+    if (normalizedSong !== song) changed = true;
+    return [normalizedSong];
+  });
+  return { songs: normalizedSongs, changed };
+};
 
 export const normalizePlaylistsForHydratedSongs = (playlists: Playlist[], songs: Song[]): Playlist[] => {
   if (playlists.length === 0) return playlists;
