@@ -148,13 +148,16 @@ export const hydrateStoredSongs = async ({
       songId: restoredSong.id,
     });
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    if (isCancelled()) return;
-  }
-
-  if (!playableRestoredSong) {
+    try {
+      await TrackPlayer.reset();
+    } catch (error) {
+      console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
+    }
     nativeQueueRef.current = [];
     return;
   }
+
+  if (!playableRestoredSong) return;
 
   setCurrentSong(playableRestoredSong);
   try {
