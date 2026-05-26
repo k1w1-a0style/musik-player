@@ -9,37 +9,30 @@ export interface HydratedPlaybackQueue {
   shouldClearPersistedCurrentSongId: boolean;
 }
 
-const normalizeSongId = (songId?: string | null): string | undefined => {
-  const trimmed = songId?.trim();
-  return trimmed || undefined;
-};
-
 export const buildHydratedPlaybackQueue = (
   songs: Song[],
   currentSongId?: string | null,
   shuffle = false,
 ): HydratedPlaybackQueue => {
   const hydratedQueue = songs.flatMap(song => {
-    const normalizedId = normalizeSongId(song.id);
-    if (!normalizedId) return [];
-    const normalizedSong = song.id === normalizedId ? song : { ...song, id: normalizedId };
-    const playableSong = asPlayableSong(normalizedSong);
+    if (!song.id?.trim()) return [];
+    const playableSong = asPlayableSong(song);
     return playableSong ? [playableSong] : [];
   });
-  const normalizedCurrentSongId = normalizeSongId(currentSongId);
-  const restoredSong = normalizedCurrentSongId
-    ? hydratedQueue.find(song => song.id === normalizedCurrentSongId)
+
+  const restoredSong = currentSongId
+    ? hydratedQueue.find(song => song.id === currentSongId)
     : undefined;
   const orderedQueueUnnormalized = shuffle
-    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId)
-    : moveSongToFront(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId);
+    ? shuffleQueueKeepingCurrent(hydratedQueue, restoredSong?.id ?? currentSongId)
+    : moveSongToFront(hydratedQueue, restoredSong?.id ?? currentSongId);
   const orderedQueue = toPlayableSongs(orderedQueueUnnormalized);
 
   return {
     hydratedQueue,
     orderedQueue,
     restoredSong,
-    shouldClearPersistedCurrentSongId: !!normalizedCurrentSongId && !restoredSong,
+    shouldClearPersistedCurrentSongId: !!currentSongId && !restoredSong,
   };
 };
 

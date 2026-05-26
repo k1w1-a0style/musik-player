@@ -22,14 +22,14 @@ describe('musicHydration helpers', () => {
     expect(result.shouldClearPersistedCurrentSongId).toBe(false);
   });
 
-  test('normalizes ids and currentSongId when restoring hydrated queue', () => {
+  test('keeps hydrated song ids unchanged when restoring queue', () => {
     const result = buildHydratedPlaybackQueue([
       { id: ' s1 ', title: 'One', artist: 'A', uri: ' file:///s1.mp3 ' },
       { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
     ], ' s1 ', false);
 
-    expect(result.hydratedQueue.map(song => song.id)).toEqual(['s1', 's2']);
-    expect(result.restoredSong?.id).toBe('s1');
+    expect(result.hydratedQueue.map(song => song.id)).toEqual([' s1 ', 's2']);
+    expect(result.restoredSong?.id).toBe(' s1 ');
     expect(result.shouldClearPersistedCurrentSongId).toBe(false);
   });
 
