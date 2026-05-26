@@ -994,6 +994,22 @@ describe('storage', () => {
     expect(nowSpy).toHaveBeenCalledTimes(1);
   });
 
+  test('filters persisted playlists with non-finite createdAt and updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+    jest.spyOn(AsyncStorage, 'getItem').mockResolvedValueOnce('serialized');
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce(() => [{
+      id: 'pl-1',
+      name: 'Non-finite timestamps',
+      songIds: ['s1'],
+      createdAt: Number.NaN,
+      updatedAt: Number.POSITIVE_INFINITY,
+    }]);
+
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+    expect(nowSpy).not.toHaveBeenCalled();
+    expect(parseSpy).toHaveBeenCalledWith('serialized');
+  });
+
   test('filters persisted playlists with null createdAt and updatedAt', async () => {
     const nowSpy = jest.spyOn(Date, 'now');
 
