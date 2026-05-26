@@ -243,22 +243,68 @@ export const applyStoredPlaybackSettings = ({
   if (stored.shuffle != null) setShuffle(stored.shuffle);
 };
 
+
+const applyHydrationFailureFallback = ({
+  songsRef,
+  queueContextRef,
+  baseQueueContextRef,
+  nativeQueueRef,
+  setSongsState,
+  setCurrentSong,
+  setPlaybackQueue,
+}: Omit<RunMusicHydrationArgs, 'setIsReady' | 'isCancelled' | 'setPlaylists' | 'setEqEnabledState' | 'setEqBandsState' | 'setEqPreset' | 'setVolumeState' | 'setRepeatMode' | 'setShuffle'>): void => {
+  songsRef.current = [];
+  queueContextRef.current = [];
+  baseQueueContextRef.current = [];
+  nativeQueueRef.current = [];
+  setSongsState([]);
+  setPlaybackQueue([]);
+  setCurrentSong(null);
+};
+
 export const runMusicHydration = async ({
   setIsReady,
   isCancelled,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
-  await setupTrackPlayer();
-  if (isCancelled()) return;
+  try {
+    await setupTrackPlayer();
+    if (isCancelled()) return;
 
-  const stored = await loadStoredMusicHydrationState();
+    const stored = await loadStoredMusicHydrationState().catch(error => {
+      console.warn('[MusicHydration:StorageError] Failed to load stored hydration state.', error);
+      throw error;
+    });
 
-  if (isCancelled()) return;
+    if (isCancelled()) return;
 
-  const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args });
+    const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args }).catch(error => {
+      console.warn('[MusicHydration:SanitizeError] Failed while hydrating stored songs.', error);
+      throw error;
+    });
 
-  if (isCancelled()) return;
+    if (isCancelled()) return;
 
-  applyStoredPlaybackSettings({ stored: hydratedStored, ...args });
-  setIsReady(true);
+    try {
+      applyStoredPlaybackSettings({ stored: hydratedStored, ...args });
+    } catch (error) {
+      console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);
+      throw error;
+    }
+  } catch (error) {
+    if (isCancelled()) return;
+
+    applyHydrationFailureFallback(args);
+    try {
+      await TrackPlayer.reset();
+    } catch (resetError) {
+      console.warn('[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.', resetError);
+    }
+    void storage.remove(StorageKeys.CURRENT_SONG_ID).catch(removeError => {
+      console.warn('[MusicHydration:StorageError] Failed to clear current song id after hydration failure.', removeError);
+    });
+    console.warn('[MusicHydration:Fatal] Falling back to safe empty state after hydration failure.', error);
+  } finally {
+    if (!isCancelled()) setIsReady(true);
+  }
 };

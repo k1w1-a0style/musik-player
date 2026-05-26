@@ -1,6 +1,10 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import TrackPlayer from 'react-native-track-player';
 import type { Playlist, Song } from '../types/Song';
 import { prunePlaylists } from '../utils/playlistState';
+import { toPlayableSongs } from '../utils/playableSong';
+import { StorageKeys, storage } from '../utils/storage';
+import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
   mergeUniqueSongs,
   patchNullableSongById,
@@ -30,6 +34,24 @@ interface LibraryActions {
 
 export { mergeUniqueSongs, patchSongById } from './libraryActionHelpers';
 
+
+
+const syncNativeQueueToLibrary = async (
+  nativeQueueRef: MutableRefObject<Song[]>,
+  nextQueue: Song[],
+): Promise<void> => {
+  const playableQueue = toPlayableSongs(nextQueue);
+  try {
+    await TrackPlayer.reset();
+    if (playableQueue.length > 0) {
+      await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+    }
+    nativeQueueRef.current = playableQueue.slice();
+  } catch (error) {
+    nativeQueueRef.current = [];
+    console.warn('[LibraryRemove] Failed to sync native queue after library update.', error);
+  }
+};
 export const useLibraryActions = ({
   queueContextRef,
   baseQueueContextRef,
@@ -46,7 +68,19 @@ export const useLibraryActions = ({
       setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
       setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
       syncSongRefsToLibrary(validSongIds, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
+      const syncedQueue = queueContextRef.current.slice();
+      setPlaybackQueue(syncedQueue);
       setSongsState(songs);
+      void storage.get<string>(StorageKeys.CURRENT_SONG_ID).then(currentSongId => {
+        const normalizedCurrentSongId = currentSongId?.trim();
+        if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
+          return storage.remove(StorageKeys.CURRENT_SONG_ID);
+        }
+        return undefined;
+      }).catch(error => {
+        console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
+      });
+      void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue);
     },
     [
       baseQueueContextRef,

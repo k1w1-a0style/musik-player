@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { Button, Text } from 'react-native';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
 import { mergeUniqueSongs, patchSongById, useLibraryActions } from '../useLibraryActions';
 import type { Playlist, Song } from '../../types/Song';
+import { StorageKeys, storage } from '../../utils/storage';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -58,13 +59,22 @@ describe('useLibraryActions', () => {
     expect(patchSongById('missing', { title: 'Updated' })(songs[0])).toBe(songs[0]);
   });
 
-  test('sets songs and prunes playlist song ids', () => {
+  test('sets songs, prunes queue refs and resets native queue for removed current song', async () => {
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
     const { getByTestId } = render(<LibraryProbe />);
 
     act(() => fireEvent.press(getByTestId('set-songs')));
 
-    expect(getByTestId('songs').props.children).toBe('s2');
-    expect(getByTestId('playlist-songs').props.children).toBe('');
+    await waitFor(() => {
+      expect(getByTestId('songs').props.children).toBe('s2');
+      expect(getByTestId('playlist-songs').props.children).toBe('');
+      expect(getByTestId('current-title').props.children).toBe('');
+    });
+    await waitFor(() => {
+      expect(TrackPlayer.reset).toHaveBeenCalled();
+      expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
+    });
+    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
   test('adds only missing songs', () => {
