@@ -64,6 +64,8 @@ export interface HydratedPlaybackQueue {
   hydratedQueue: PlayableSong[];
   orderedQueue: PlayableSong[];
   restoredSong?: PlayableSong;
+  normalizedCurrentSongId?: string;
+  hasPersistedCurrentSongId: boolean;
   shouldClearPersistedCurrentSongId: boolean;
 }
 
@@ -88,11 +90,15 @@ export const buildHydratedPlaybackQueue = (
     : moveSongToFront(hydratedQueue, restoredSong?.id ?? normalizedCurrentSongId);
   const orderedQueue = toPlayableSongs(orderedQueueUnnormalized);
 
+  const hasPersistedCurrentSongId = currentSongId != null;
+
   return {
     hydratedQueue,
     orderedQueue,
     restoredSong,
-    shouldClearPersistedCurrentSongId: !!normalizedCurrentSongId && !restoredSong,
+    normalizedCurrentSongId,
+    hasPersistedCurrentSongId,
+    shouldClearPersistedCurrentSongId: hasPersistedCurrentSongId && (!normalizedCurrentSongId || !restoredSong),
   };
 };
 

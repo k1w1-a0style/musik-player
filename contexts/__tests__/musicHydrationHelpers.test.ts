@@ -611,7 +611,92 @@ describe('musicHydrationHelpers', () => {
     ]);
   });
 
-  test('does not mark provider ready when hydration is cancelled', async () => {
+  
+  test('hydrateStoredSongs keeps CURRENT_SONG_ID unchanged when already normalized and restored', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    const removeSpy = jest.spyOn(storage, 'remove');
+
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: 's1' },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    const currentSongIdWrites = setSpy.mock.calls.filter(([key]) => key === StorageKeys.CURRENT_SONG_ID);
+    expect(currentSongIdWrites).toHaveLength(1);
+    expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+  });
+
+  test('hydrateStoredSongs removes whitespace-only CURRENT_SONG_ID', async () => {
+    await storage.set(StorageKeys.CURRENT_SONG_ID, '   ');
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: '   ' },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
+  test('hydrateStoredSongs does not touch CURRENT_SONG_ID when null', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    const removeSpy = jest.spyOn(storage, 'remove');
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: null },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    const currentSongIdWrites = setSpy.mock.calls.filter(([key]) => key === StorageKeys.CURRENT_SONG_ID);
+    expect(currentSongIdWrites).toHaveLength(0);
+    expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+  });
+
+  test('runMusicHydration normalizes whitespace CURRENT_SONG_ID in storage', async () => {
+    await storage.set(StorageKeys.SONGS, [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, ' s1 ');
+
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady: jest.fn(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+  });
+test('does not mark provider ready when hydration is cancelled', async () => {
     const setIsReady = jest.fn();
 
     await runMusicHydration({
