@@ -994,55 +994,52 @@ describe('storage', () => {
     expect(nowSpy).toHaveBeenCalledTimes(1);
   });
 
-  test('replaces non-finite createdAt and updatedAt with a single Date.now value', async () => {
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1234567890);
-
-    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
-      id: 'pl-1',
-      name: 'Broken timestamps',
-      songIds: ['s1'],
-      createdAt: Number.NaN,
-      updatedAt: Number.POSITIVE_INFINITY,
-    }]));
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      { id: 'pl-1', name: 'Broken timestamps', songIds: ['s1'], createdAt: 1234567890, updatedAt: 1234567890 },
-    ]);
-
-    expect(nowSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test('uses finite createdAt as updatedAt fallback when updatedAt is non-finite', async () => {
+  test('filters persisted playlists with null createdAt and updatedAt', async () => {
     const nowSpy = jest.spyOn(Date, 'now');
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
       id: 'pl-1',
-      name: 'Invalid updatedAt',
+      name: 'Null timestamps',
       songIds: ['s1'],
-      createdAt: 10,
-      updatedAt: Number.NEGATIVE_INFINITY,
+      createdAt: null,
+      updatedAt: null,
     }]));
     await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      { id: 'pl-1', name: 'Invalid updatedAt', songIds: ['s1'], createdAt: 10, updatedAt: 10 },
     ]);
 
     expect(nowSpy).not.toHaveBeenCalled();
   });
 
-  test('uses Date.now for non-finite createdAt while preserving finite updatedAt', async () => {
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(987654321);
+  test('filters persisted playlists with null updatedAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
       id: 'pl-1',
-      name: 'Invalid createdAt',
+      name: 'Null updatedAt',
       songIds: ['s1'],
-      createdAt: Number.POSITIVE_INFINITY,
+      createdAt: 10,
+      updatedAt: null,
+    }]));
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
+    ]);
+
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('filters persisted playlists with null createdAt', async () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify([{
+      id: 'pl-1',
+      name: 'Null createdAt',
+      songIds: ['s1'],
+      createdAt: null,
       updatedAt: 20,
     }]));
     await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      { id: 'pl-1', name: 'Invalid createdAt', songIds: ['s1'], createdAt: 987654321, updatedAt: 20 },
     ]);
 
-    expect(nowSpy).toHaveBeenCalledTimes(1);
+    expect(nowSpy).not.toHaveBeenCalled();
   });
 
   test('getPlaylists normalizes legacy playlists without updatedAt', async () => {
