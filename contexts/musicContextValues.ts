@@ -5,6 +5,40 @@ import type {
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
 
+type LibraryMusicContextInput = Pick<
+  MusicContextValue,
+  | 'songs'
+  | 'setSongs'
+  | 'currentSong'
+  | 'playSong'
+  | 'isReady'
+  | 'isPlaying'
+  | 'updateSongMetadata'
+  | 'playlists'
+  | 'playPlaylist'
+>;
+
+type MiniPlayerMusicContextInput = Pick<
+  MusicContextValue,
+  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue'
+>;
+
+type NowPlayingMusicContextInput = Pick<
+  MusicContextValue,
+  | 'playbackQueue'
+  | 'currentSong'
+  | 'seekTo'
+  | 'isPlaying'
+  | 'volume'
+  | 'setVolume'
+  | 'palette'
+  | 'fftBins'
+  | 'visualizerRunning'
+  | 'visualizerError'
+  | 'playSong'
+  | 'saveQueueAsPlaylist'
+>;
+
 export const buildLibraryMusicContextValue = ({
   songs,
   setSongs,
@@ -15,7 +49,7 @@ export const buildLibraryMusicContextValue = ({
   updateSongMetadata,
   playlists,
   playPlaylist,
-}: MusicContextValue): LibraryMusicContextValue => ({
+}: LibraryMusicContextInput): LibraryMusicContextValue => ({
   songs,
   setSongs,
   currentSong,
@@ -34,7 +68,7 @@ export const buildMiniPlayerMusicContextValue = ({
   next,
   previous,
   playbackQueue,
-}: MusicContextValue): MiniPlayerMusicContextValue => ({
+}: MiniPlayerMusicContextInput): MiniPlayerMusicContextValue => ({
   currentSong,
   isPlaying,
   togglePlayPause,
@@ -57,7 +91,7 @@ export const buildNowPlayingMusicContextValue = ({
   visualizerError,
   playSong,
   saveQueueAsPlaylist,
-}: MusicContextValue): NowPlayingMusicContextValue => ({
+}: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
   playbackQueue,
   currentSong,
   seekTo,

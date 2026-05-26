@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useNavigation,
   useRoute,
@@ -40,21 +40,26 @@ export const useTagEditorScreenState = () => {
     () => songs.find(item => item.id === route.params.songId),
     [songs, route.params.songId],
   );
+  const activeSongId = song?.id ?? null;
   const [saving, setSaving] = useState(false);
   const [removeCover, setRemoveCover] = useState(false);
   const [replacementCover, setReplacementCover] = useState<PickedTagCover | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => toInitialForm(song ?? EMPTY_SONG));
   const [dirty, setDirty] = useState<Partial<Record<keyof EditableTrackTags, boolean>>>({});
+  const activeSongRef = useRef(song);
+
+  activeSongRef.current = song;
 
   useEffect(() => {
-    if (!song) return;
-    setForm(toInitialForm(song));
+    const activeSong = activeSongRef.current;
+    if (!activeSong) return;
+    setForm(toInitialForm(activeSong));
     setDirty({});
     setRemoveCover(false);
     setReplacementCover(null);
     setStatus(null);
-  }, [song?.id]);
+  }, [activeSongId]);
 
   const draft = song
     ? buildDraftFromDirtyFields(song.id, form, dirty, removeCover, replacementCover)
