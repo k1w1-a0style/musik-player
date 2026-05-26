@@ -612,6 +612,61 @@ describe('musicHydrationHelpers', () => {
   });
 
   
+
+  test('hydrateStoredSongs deduplicates normalized ids across songs, queues, and native queue', async () => {
+    const dupSongs: Song[] = [
+      { id: 's1', title: 'First', artist: 'A', uri: 'file:///s1-a.mp3' },
+      { id: ' s1 ', title: 'Second', artist: 'A', uri: 'file:///s1-b.mp3' },
+      { id: 's2', title: 'Third', artist: 'A', uri: 'file:///s2.mp3' },
+    ];
+    const songsRef = createSongRef();
+    const queueContextRef = createSongRef();
+    const baseQueueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
+    const setSongsState = jest.fn();
+    const setPlaybackQueue = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: dupSongs,
+        playlists: [{ id: 'pl-1', name: 'List', songIds: [' s1 ', 's1', 's2'], createdAt: 1, updatedAt: 1 }],
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: ' s1 ',
+      },
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setSongsState,
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue,
+      isCancelled: () => false,
+    });
+
+    expect(songsRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(new Set(songsRef.current.map(song => song.id)).size).toBe(songsRef.current.length);
+    expect(setSongsState).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's1', uri: 'file:///s1-a.mp3' }),
+      expect.objectContaining({ id: 's2' }),
+    ]);
+    expect(queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's1' }),
+      expect.objectContaining({ id: 's2' }),
+    ]);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      expect.objectContaining({ id: 'pl-1', songIds: ['s1', 's2'] }),
+    ]);
+  });
+
   test('hydrateStoredSongs keeps CURRENT_SONG_ID unchanged when already normalized and restored', async () => {
     const setSpy = jest.spyOn(storage, 'set');
     await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');

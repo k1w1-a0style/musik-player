@@ -22,15 +22,30 @@ export interface NormalizeHydrationSongsResult {
 
 export const normalizeHydrationSongs = (songs: Song[]): NormalizeHydrationSongsResult => {
   let changed = false;
-  const normalizedSongs = songs.flatMap(song => {
+  const seen = new Set<string>();
+  const normalizedSongs: Song[] = [];
+
+  songs.forEach(song => {
     const normalizedSong = normalizeSongForHydration(song);
     if (!normalizedSong) {
       changed = true;
-      return [];
+      return;
     }
     if (normalizedSong !== song) changed = true;
-    return [normalizedSong];
+
+    if (seen.has(normalizedSong.id)) {
+      changed = true;
+      console.warn('[MusicHydration] Dropping duplicated normalized song id during hydration.', {
+        songId: normalizedSong.id,
+        title: normalizedSong.title || undefined,
+      });
+      return;
+    }
+
+    seen.add(normalizedSong.id);
+    normalizedSongs.push(normalizedSong);
   });
+
   return { songs: normalizedSongs, changed };
 };
 
