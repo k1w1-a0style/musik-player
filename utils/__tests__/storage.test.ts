@@ -114,6 +114,30 @@ describe('storage', () => {
     await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual([]);
   });
 
+  test('storage.set normalizes non-array songs input to []', async () => {
+    await expect(storage.set(StorageKeys.SONGS, { songs: [] } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe('[]');
+  });
+
+  test('storage.set normalizes non-array playlists input to []', async () => {
+    await expect(storage.set(StorageKeys.PLAYLISTS, { playlists: [] } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.PLAYLISTS))).toBe('[]');
+  });
+
+  test('storage.set normalizes non-array scan folders input to []', async () => {
+    await expect(storage.set(StorageKeys.SCAN_FOLDERS, { folders: [] } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.SCAN_FOLDERS)).resolves.toEqual([]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SCAN_FOLDERS))).toBe('[]');
+  });
+
+  test('storage.set normalizes non-array favorite song ids input to []', async () => {
+    await expect(storage.set(StorageKeys.FAVORITE_SONG_IDS, { ids: ['s1'] } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual([]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS))).toBe('[]');
+  });
+
   test('returns null on JSON parse failure (resilient)', async () => {
     await AsyncStorage.setItem(storageTestKey('bad'), '{not-json');
     expect(await storage.get('bad')).toBeNull();
