@@ -143,6 +143,18 @@ describe('storage', () => {
     expect(await storage.get('bad')).toBeNull();
   });
 
+  test('typed list getters return [] when no value is stored', async () => {
+    await expect(storage.getSongs()).resolves.toEqual([]);
+    await expect(storage.getPlaylists()).resolves.toEqual([]);
+    await expect(storage.getScanFolders()).resolves.toEqual([]);
+    await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
+  });
+
+  test('exported list helpers return [] when no value is stored', async () => {
+    await expect(getScanFolders()).resolves.toEqual([]);
+    await expect(getFavoriteSongIds()).resolves.toEqual([]);
+  });
+
   describe('read failure semantics', () => {
     test('storage.get returns null when AsyncStorage.getItem rejects', async () => {
       jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
