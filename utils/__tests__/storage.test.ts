@@ -1004,8 +1004,7 @@ describe('storage', () => {
       createdAt: null,
       updatedAt: null,
     }]));
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-    ]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
 
     expect(nowSpy).not.toHaveBeenCalled();
   });
@@ -1020,8 +1019,7 @@ describe('storage', () => {
       createdAt: 10,
       updatedAt: null,
     }]));
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-    ]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
 
     expect(nowSpy).not.toHaveBeenCalled();
   });
@@ -1036,8 +1034,7 @@ describe('storage', () => {
       createdAt: null,
       updatedAt: 20,
     }]));
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-    ]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
 
     expect(nowSpy).not.toHaveBeenCalled();
   });
