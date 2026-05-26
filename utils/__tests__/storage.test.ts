@@ -90,6 +90,30 @@ describe('storage', () => {
     await expect(storage.get('SONGS')).resolves.toEqual([{ title: 'Broken' }]);
   });
 
+  test('storage.get returns [] for non-array songs JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify({ songs: [] }));
+
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([]);
+  });
+
+  test('storage.get returns [] for non-array playlists JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.PLAYLISTS), JSON.stringify({ playlists: [] }));
+
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([]);
+  });
+
+  test('storage.get returns [] for non-array scan folders JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SCAN_FOLDERS), JSON.stringify({ folders: [] }));
+
+    await expect(storage.get(StorageKeys.SCAN_FOLDERS)).resolves.toEqual([]);
+  });
+
+  test('storage.get returns [] for non-array favorite song ids JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), JSON.stringify({ ids: ['s1'] }));
+
+    await expect(storage.get(StorageKeys.FAVORITE_SONG_IDS)).resolves.toEqual([]);
+  });
+
   test('returns null on JSON parse failure (resilient)', async () => {
     await AsyncStorage.setItem(storageTestKey('bad'), '{not-json');
     expect(await storage.get('bad')).toBeNull();
