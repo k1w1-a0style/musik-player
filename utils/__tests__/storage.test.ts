@@ -675,6 +675,20 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
   });
 
+  test('storage.set normalizes structured currentSongId input to null', async () => {
+    await expect(storage.set(StorageKeys.CURRENT_SONG_ID, { id: 's1' } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.CURRENT_SONG_ID))).toBe('null');
+  });
+
+  test('storage.set normalizes array currentSongId input to null', async () => {
+    await expect(storage.set(StorageKeys.CURRENT_SONG_ID, ['s1'] as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.CURRENT_SONG_ID))).toBe('null');
+  });
+
   test('accepts raw eq preset and repeat mode values that JSON.parse into invalid primitives', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '0');
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), '1');
@@ -752,6 +766,20 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
   });
 
+  test('storage.set normalizes structured eqPreset input to null', async () => {
+    await expect(storage.set(StorageKeys.EQ_PRESET, { preset: 'rock' } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_PRESET))).toBe('null');
+  });
+
+  test('storage.set normalizes array eqPreset input to null', async () => {
+    await expect(storage.set(StorageKeys.EQ_PRESET, ['rock'] as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_PRESET))).toBe('null');
+  });
+
   test('falls back to flat for invalid raw eq preset values', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'megaBass123');
     await expect(storage.getEqPreset()).resolves.toBe('flat');
@@ -796,6 +824,20 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), JSON.stringify(['all']));
     await expect(storage.getRepeatMode()).resolves.toBe('off');
     await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+  });
+
+  test('storage.set normalizes structured repeatMode input to null', async () => {
+    await expect(storage.set(StorageKeys.REPEAT_MODE, { mode: 'all' } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.REPEAT_MODE))).toBe('null');
+  });
+
+  test('storage.set normalizes array repeatMode input to null', async () => {
+    await expect(storage.set(StorageKeys.REPEAT_MODE, ['all'] as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.REPEAT_MODE))).toBe('null');
   });
 
   test('getEqEnabled returns persisted boolean values and falls back for invalid raw values', async () => {
