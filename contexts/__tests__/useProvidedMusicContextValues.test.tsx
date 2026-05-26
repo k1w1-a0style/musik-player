@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { render, renderHook } from '@testing-library/react-native';
 import { useProvidedMusicContextValues } from '../useProvidedMusicContextValues';
 import type { MusicContextValue } from '../musicContextTypes';
 
@@ -80,5 +80,24 @@ describe('useProvidedMusicContextValues', () => {
     expect(getByTestId('now-can-skip').props.children).toBe('true');
     expect(getByTestId('now-volume').props.children).toBe('0.8');
     expect(getByTestId('now-queue-save-name').props.children).toBe('Queue');
+  });
+
+  test('keeps slice references stable when unrelated fields change', () => {
+    const firstValue: MusicContextValue = { ...baseValue, isBuffering: false };
+    const secondValue: MusicContextValue = { ...baseValue, isBuffering: true };
+
+    const { result, rerender } = renderHook(
+      ({ value }: { value: MusicContextValue }) => useProvidedMusicContextValues(value),
+      { initialProps: { value: firstValue } },
+    );
+    const firstLibrary = result.current.libraryValue;
+    const firstMini = result.current.miniPlayerValue;
+    const firstNowPlaying = result.current.nowPlayingValue;
+
+    rerender({ value: secondValue });
+
+    expect(result.current.libraryValue).toBe(firstLibrary);
+    expect(result.current.miniPlayerValue).toBe(firstMini);
+    expect(result.current.nowPlayingValue).toBe(firstNowPlaying);
   });
 });

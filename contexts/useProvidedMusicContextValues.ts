@@ -21,20 +21,106 @@ interface ProvidedMusicContextValues {
 
 export const useProvidedMusicContextValues = (input: MusicContextValue): ProvidedMusicContextValues => {
   const value = useMusicContextValue(input);
+  const {
+    songs,
+    setSongs,
+    currentSong,
+    playSong,
+    isReady,
+    isPlaying,
+    updateSongMetadata,
+    playlists,
+    playPlaylist,
+    togglePlayPause,
+    next,
+    previous,
+    playbackQueue,
+    seekTo,
+    volume,
+    setVolume,
+    palette,
+    fftBins,
+    visualizerRunning,
+    visualizerError,
+    saveQueueAsPlaylist,
+  } = value;
 
   const libraryValue = useMemo(
-    () => buildLibraryMusicContextValue(value),
-    [value],
+    () =>
+      buildLibraryMusicContextValue({
+        songs,
+        setSongs,
+        currentSong,
+        playSong,
+        isReady,
+        isPlaying,
+        updateSongMetadata,
+        playlists,
+        playPlaylist,
+      }),
+    [
+      songs,
+      setSongs,
+      currentSong,
+      playSong,
+      isReady,
+      isPlaying,
+      updateSongMetadata,
+      playlists,
+      playPlaylist,
+    ],
   );
 
   const miniPlayerValue = useMemo(
-    () => buildMiniPlayerMusicContextValue(value),
-    [value],
+    () =>
+      buildMiniPlayerMusicContextValue({
+        currentSong,
+        isPlaying,
+        togglePlayPause,
+        next,
+        previous,
+        playbackQueue,
+      }),
+    [
+      currentSong,
+      isPlaying,
+      togglePlayPause,
+      next,
+      previous,
+      playbackQueue,
+    ],
   );
 
   const nowPlayingValue = useMemo(
-    () => buildNowPlayingMusicContextValue(value),
-    [value],
+    () =>
+      buildNowPlayingMusicContextValue({
+        playbackQueue,
+        currentSong,
+        seekTo,
+        isPlaying,
+        volume,
+        setVolume,
+        palette,
+        fftBins,
+        visualizerRunning,
+        visualizerError,
+        playSong,
+        saveQueueAsPlaylist,
+      }),
+    [
+      playbackQueue,
+      currentSong,
+      seekTo,
+      isPlaying,
+      volume,
+      setVolume,
+      palette,
+      fftBins,
+      visualizerRunning,
+      visualizerError,
+      playSong,
+      saveQueueAsPlaylist,
+    ],
   );
 
   return { value, libraryValue, miniPlayerValue, nowPlayingValue };
