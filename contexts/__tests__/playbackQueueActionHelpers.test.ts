@@ -10,6 +10,7 @@ import {
 } from '../playbackQueueActionHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
+import { toPlayableSongs } from '../../utils/playableSong';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -91,7 +92,7 @@ describe('playbackQueueActionHelpers', () => {
   test('rebuilds native playback queue and resumes position', async () => {
     const nativeQueueRef = createSongRef([songs[2]]);
 
-    await rebuildNativePlaybackQueue(songs, nativeQueueRef, 12);
+    await rebuildNativePlaybackQueue(toPlayableSongs(songs), nativeQueueRef, 12);
 
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.add).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })]));
@@ -104,7 +105,7 @@ describe('playbackQueueActionHelpers', () => {
     const nativeQueueRef = createSongRef([songs[2]]);
     (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
 
-    await expect(rebuildNativePlaybackQueue(songs, nativeQueueRef)).rejects.toThrow('native add failed');
+    await expect(rebuildNativePlaybackQueue(toPlayableSongs(songs), nativeQueueRef)).rejects.toThrow('native add failed');
 
     expect(nativeQueueRef.current).toEqual([]);
     expect(TrackPlayer.play).not.toHaveBeenCalled();
@@ -121,6 +122,20 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s2');
+  });
+
+  test('runPlaySongQueueAction skips playback for songs without playable uri', async () => {
+    const args = createQueueArgs();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const invalidSong: Song = { id: 'invalid', title: 'Invalid', artist: 'A', uri: '   ' };
+
+    await runPlaySongQueueAction({ ...args, song: invalidSong, queue: [invalidSong] });
+
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('[PlaybackQueue] Unable to build play-song queue plan.', { songId: 'invalid' });
   });
 
   test('runPlaySongQueueAction does not update UI state when native rebuild fails', async () => {

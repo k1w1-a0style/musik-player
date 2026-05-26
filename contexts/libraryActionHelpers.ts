@@ -1,6 +1,7 @@
 import type { MutableRefObject } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
+import { asPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
 const safeDecode = (value: string): string => {
@@ -132,7 +133,21 @@ export const updateNativeMetadataForSong = (
     baseQueueContextRef.current.find(song => normalizeSongIdForLibrary(song.id) === targetSongId);
   if (!queuedPatchedSong || queueIndex < 0) return;
 
-  void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(queuedPatchedSong)).catch(
-    () => undefined,
+  const playableQueuedSong = asPlayableSong(queuedPatchedSong);
+  if (!playableQueuedSong) {
+    console.warn('[TrackPlayer] Skipping metadata update for non-playable queued song.', {
+      songId: targetSongId,
+      queueIndex,
+    });
+    return;
+  }
+  void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong)).catch(
+    error => {
+      console.warn('[TrackPlayer] Failed to update native track metadata.', {
+        songId: targetSongId,
+        queueIndex,
+        error,
+      });
+    },
   );
 };

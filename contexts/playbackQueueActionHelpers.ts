@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
+import { isPlayableSong, type PlayableSong } from '../utils/playableSong';
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
@@ -47,8 +48,6 @@ const normalizeSongId = (songId?: string): string | undefined => {
   return trimmed || undefined;
 };
 
-const isPlayableSong = (song: Song): boolean => Boolean(song.uri?.trim());
-
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
   (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
 
@@ -86,7 +85,7 @@ export const applyPlaybackQueueState = ({
 };
 
 export const rebuildNativePlaybackQueue = async (
-  queue: Song[],
+  queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
 ): Promise<void> => {
@@ -110,7 +109,10 @@ export const runPlaySongQueueAction = async ({
 }: RunPlaySongQueueActionArgs): Promise<void> => {
   const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
   const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
-  if (!plan) return;
+  if (!plan) {
+    console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
+    return;
+  }
 
   const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
 
@@ -134,7 +136,8 @@ export const runPlaySongQueueAction = async ({
       });
       await persistRequestedSongId(requestedSong, songsRef.current);
       return;
-    } catch {
+    } catch (error) {
+      console.warn('[PlaybackQueue] Native skip failed, rebuilding queue.', error);
       // Fall through to a full queue rebuild if native skip is unavailable/fails.
     }
   }
@@ -173,14 +176,18 @@ export const runShuffleQueueAction = async ({
     currentSongId: activeSongId,
     shuffleEnabled: shuffle,
   });
-  if (!plan) return;
+  if (!plan) {
+    console.warn('[PlaybackQueue] Shuffle queue plan is empty; skipping toggle.');
+    return;
+  }
 
   const { nextQueue, nextBaseQueue, selectedSong } = plan;
 
   try {
     const pos = await TrackPlayer.getProgress();
     await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
-  } catch {
+  } catch (error) {
+    console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
     nativeQueueRef.current = [];
     return;
   }

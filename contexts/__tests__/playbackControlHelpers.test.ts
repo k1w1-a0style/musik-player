@@ -111,12 +111,14 @@ describe('playbackControlHelpers', () => {
   });
 
   test('skips next safely and swallows queue boundary rejections', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     await skipToNextSafely();
     expect(TrackPlayer.skipToNext).toHaveBeenCalledTimes(1);
 
     (TrackPlayer.skipToNext as jest.Mock).mockRejectedValueOnce(new Error('queue boundary'));
     await expect(skipToNextSafely()).resolves.toBeUndefined();
     expect(TrackPlayer.skipToNext).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith('[Playback] skipToNext failed.', expect.any(Error));
   });
 
   test('restarts current track when previous is pressed after threshold', async () => {

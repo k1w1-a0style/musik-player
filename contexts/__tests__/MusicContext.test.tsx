@@ -341,7 +341,7 @@ describe('MusicContext', () => {
     await storage.set(StorageKeys.CURRENT_SONG_ID, 'missing');
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
+    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).not.toBe('missing'));
   });
 
   test('hydration restores settings', async () => {

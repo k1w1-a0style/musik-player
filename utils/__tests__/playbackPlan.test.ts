@@ -59,7 +59,7 @@ describe('playbackPlan helpers', () => {
     );
   });
 
-  test('keeps whitespace-only uri as playable (legacy semantics)', () => {
+  test('drops whitespace-only uri as non-playable', () => {
     const logger = { warn: jest.fn() };
 
     const normalized = normalizePlayableQueue([
@@ -67,8 +67,11 @@ describe('playbackPlan helpers', () => {
       songs[2],
     ], { warn: true, logger });
 
-    expect(normalized.map(song => song.id)).toEqual(['s1', 's3']);
-    expect(logger.warn).not.toHaveBeenCalled();
+    expect(normalized.map(song => song.id)).toEqual(['s3']);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[normalizePlayableQueue] dropped song',
+      expect.objectContaining({ reason: 'missing-uri', songId: 's1', title: 'Whitespace Uri' }),
+    );
   });
 
   test('logs warning for duplicate ids when warn=true', () => {

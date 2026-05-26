@@ -118,6 +118,164 @@ describe('musicHydrationHelpers', () => {
     expect(TrackPlayer.add).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })]));
   });
 
+  test('does not set non-playable restored song as current and clears persisted current song id', async () => {
+    const malformedSongs: Song[] = [
+      { id: 's1', title: 'One', artist: 'A', uri: '   ' },
+      { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+    ];
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    const setCurrentSong = jest.fn();
+    const nativeQueueRef = createSongRef();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: malformedSongs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong,
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setCurrentSong).not.toHaveBeenCalled();
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s2']);
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+  });
+
+  test('clears native queue ref when reset fails during hydration queue init', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const malformedSongs: Song[] = [
+      { id: 's1', title: 'One', artist: 'A', uri: '   ' },
+      { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+    ];
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+    const nativeQueueRef = createSongRef();
+    nativeQueueRef.current = [{ id: 'stale', title: 'Stale', artist: 'A', uri: 'file:///stale.mp3' }];
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: malformedSongs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      '[PlaybackQueue] Failed to initialize hydrated native queue.',
+      expect.any(Error),
+    );
+  });
+
+  test('hydrates mixed queue with only playable songs and keeps currentSong aligned with playable queue', async () => {
+    const mixedSongs: Song[] = [
+      { id: 's1', title: 'Bad', artist: 'A', uri: '   ' },
+      { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+      { id: 's3', title: 'Three', artist: 'A', uri: 'file:///s3.mp3' },
+    ];
+    const queueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
+    const setPlaybackQueue = jest.fn();
+    const setCurrentSong = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: mixedSongs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's2',
+      },
+      songsRef: createSongRef(),
+      queueContextRef,
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong,
+      setPlaybackQueue,
+      isCancelled: () => false,
+    });
+
+    expect(queueContextRef.current.map(song => song.id)).toEqual(['s2', 's3']);
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s2', 's3']);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's2' }),
+      expect.objectContaining({ id: 's3' }),
+    ]);
+    expect(setCurrentSong).toHaveBeenCalledWith(expect.objectContaining({ id: 's2' }));
+  });
+
+  test('restores playable song with whitespace id and normalizes hydrated playback ids', async () => {
+    const songsWithWhitespaceId: Song[] = [
+      { id: ' s1 ', title: 'One', artist: 'A', uri: ' file:///s1.mp3 ' },
+      { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
+    ];
+    await storage.set(StorageKeys.CURRENT_SONG_ID, ' s1 ');
+    const queueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
+    const setCurrentSong = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: songsWithWhitespaceId,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef,
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong,
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setCurrentSong).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }));
+    expect(queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+  });
+
   test('skips stored song hydration when cancelled', async () => {
     const songsRef = createSongRef();
     const queueContextRef = createSongRef();
@@ -183,6 +341,41 @@ describe('musicHydrationHelpers', () => {
 
     expect(TrackPlayer.add).not.toHaveBeenCalled();
     expect(nativeQueueRef.current).toEqual([]);
+  });
+
+  test('clears native queue ref when hydrated native queue initialization fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const nativeQueueRef = createSongRef();
+    nativeQueueRef.current = songs.slice();
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      '[PlaybackQueue] Failed to initialize hydrated native queue.',
+      expect.any(Error),
+    );
   });
 
   test('applies stored playback settings to state and TrackPlayer', () => {
@@ -326,7 +519,239 @@ describe('musicHydrationHelpers', () => {
     expect(setIsReady).toHaveBeenCalledWith(true);
   });
 
-  test('does not mark provider ready when hydration is cancelled', async () => {
+
+  test('runMusicHydration keeps playlists normalized with normalized songs', async () => {
+    await storage.set(StorageKeys.SONGS, [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
+    await storage.set(StorageKeys.PLAYLISTS, [{ id: 'pl-1', name: 'List', songIds: [' s1 ', 's1', 'missing', '   '], createdAt: 1, updatedAt: 1 }]);
+
+    const setPlaylists = jest.fn();
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady: jest.fn(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      setPlaylists,
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setPlaylists).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'pl-1', songIds: ['s1'] }),
+    ]);
+    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      expect.objectContaining({ id: 'pl-1', songIds: ['s1'] }),
+    ]);
+  });
+
+  test('hydrateStoredSongs does not persist songs when unchanged', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setSpy).not.toHaveBeenCalledWith(StorageKeys.SONGS, expect.anything());
+  });
+
+  test('hydrateStoredSongs persists songs when ids are normalized or blank ids removed', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    await hydrateStoredSongs({
+      stored: {
+        songs: [
+          { id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
+          { id: '   ', title: 'Blank', artist: 'A', uri: 'file:///blank.mp3' },
+        ],
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(setSpy).toHaveBeenCalledWith(StorageKeys.SONGS, [
+      expect.objectContaining({ id: 's1' }),
+    ]);
+  });
+
+  
+
+  test('hydrateStoredSongs deduplicates normalized ids across songs, queues, and native queue', async () => {
+    const dupSongs: Song[] = [
+      { id: 's1', title: 'First', artist: 'A', uri: 'file:///s1-a.mp3' },
+      { id: ' s1 ', title: 'Second', artist: 'A', uri: 'file:///s1-b.mp3' },
+      { id: 's2', title: 'Third', artist: 'A', uri: 'file:///s2.mp3' },
+    ];
+    const songsRef = createSongRef();
+    const queueContextRef = createSongRef();
+    const baseQueueContextRef = createSongRef();
+    const nativeQueueRef = createSongRef();
+    const setSongsState = jest.fn();
+    const setPlaybackQueue = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: dupSongs,
+        playlists: [{ id: 'pl-1', name: 'List', songIds: [' s1 ', 's1', 's2'], createdAt: 1, updatedAt: 1 }],
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: ' s1 ',
+      },
+      songsRef,
+      queueContextRef,
+      baseQueueContextRef,
+      nativeQueueRef,
+      setSongsState,
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue,
+      isCancelled: () => false,
+    });
+
+    expect(songsRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(new Set(songsRef.current.map(song => song.id)).size).toBe(songsRef.current.length);
+    expect(setSongsState).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's1', uri: 'file:///s1-a.mp3' }),
+      expect.objectContaining({ id: 's2' }),
+    ]);
+    expect(queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's1' }),
+      expect.objectContaining({ id: 's2' }),
+    ]);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+      expect.objectContaining({ id: 'pl-1', songIds: ['s1', 's2'] }),
+    ]);
+  });
+
+  test('hydrateStoredSongs keeps CURRENT_SONG_ID unchanged when already normalized and restored', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    const removeSpy = jest.spyOn(storage, 'remove');
+
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: 's1' },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    const currentSongIdWrites = setSpy.mock.calls.filter(([key]) => key === StorageKeys.CURRENT_SONG_ID);
+    expect(currentSongIdWrites).toHaveLength(1);
+    expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+  });
+
+  test('hydrateStoredSongs removes whitespace-only CURRENT_SONG_ID', async () => {
+    await storage.set(StorageKeys.CURRENT_SONG_ID, '   ');
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: '   ' },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
+  test('hydrateStoredSongs does not touch CURRENT_SONG_ID when null', async () => {
+    const setSpy = jest.spyOn(storage, 'set');
+    const removeSpy = jest.spyOn(storage, 'remove');
+    await hydrateStoredSongs({
+      stored: { songs, playlists: null, eqEnabled: null, eqBands: null, eqPreset: null, volume: null, repeatMode: null, shuffle: false, currentSongId: null },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    const currentSongIdWrites = setSpy.mock.calls.filter(([key]) => key === StorageKeys.CURRENT_SONG_ID);
+    expect(currentSongIdWrites).toHaveLength(0);
+    expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+  });
+
+  test('runMusicHydration normalizes whitespace CURRENT_SONG_ID in storage', async () => {
+    await storage.set(StorageKeys.SONGS, [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, ' s1 ');
+
+    await runMusicHydration({
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setIsReady: jest.fn(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+  });
+test('does not mark provider ready when hydration is cancelled', async () => {
     const setIsReady = jest.fn();
 
     await runMusicHydration({
