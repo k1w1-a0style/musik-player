@@ -1,4 +1,5 @@
-import { resolvePlayableTrackUrl, toTrackPlayerTrack } from '../trackPlayerTrack';
+import { asPlayableSong } from '../playableSong';
+import { resolvePlayableTrackUrl, toTrackPlayerTrack, tryToTrackPlayerTrack } from '../trackPlayerTrack';
 import type { Song } from '../../types/Song';
 
 describe('trackPlayerTrack adapter', () => {
@@ -7,9 +8,9 @@ describe('trackPlayerTrack adapter', () => {
   });
 
   test('resolves playable track url from trimmed song uri', () => {
-    expect(resolvePlayableTrackUrl({ uri: ' file:///song.mp3 ' })).toBe('file:///song.mp3');
-    expect(resolvePlayableTrackUrl({ uri: '   ' })).toBe('');
-    expect(resolvePlayableTrackUrl({ uri: undefined })).toBe('');
+    const playable = asPlayableSong({ id: 'x', title: 't', artist: 'a', uri: ' file:///song.mp3 ' });
+    expect(playable).not.toBeNull();
+    expect(resolvePlayableTrackUrl(playable!)).toBe('file:///song.mp3');
   });
 
   test('maps app song metadata to normalized TrackPlayer track metadata', () => {
@@ -23,7 +24,7 @@ describe('trackPlayerTrack adapter', () => {
       duration: 123000,
     };
 
-    expect(toTrackPlayerTrack(song)).toEqual({
+    expect(toTrackPlayerTrack(asPlayableSong(song)!)).toEqual({
       id: 's1',
       url: 'file:///song.mp3',
       title: 'Song',
@@ -34,52 +35,41 @@ describe('trackPlayerTrack adapter', () => {
     });
   });
 
-  test('uses empty url, warns, and undefined duration when optional fields are missing', () => {
+  test('rejects non-playable song conversion and logs warning', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    expect(toTrackPlayerTrack({ id: 's2', title: 'No URI', artist: 'Artist' })).toEqual({
-      id: 's2',
-      url: '',
-      title: 'No URI',
-      artist: 'Artist',
-      album: undefined,
-      artwork: undefined,
-      duration: undefined,
-    });
-    expect(warn).toHaveBeenCalledWith('[TrackPlayerTrack] Song s2 has no playable URI.');
+    expect(tryToTrackPlayerTrack({ id: 's2', title: 'No URI', artist: 'Artist' })).toBeNull();
+    expect(warn).toHaveBeenCalledWith('[TrackPlayer] Skipping non-playable song s2.');
   });
 
-  test('uses fallback labels and warning for blank required fields', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    expect(toTrackPlayerTrack({
+  test('uses fallback labels for blank required fields on playable songs', () => {
+    expect(toTrackPlayerTrack(asPlayableSong({
       id: '   ',
-      uri: '   ',
+      uri: 'file:///x.mp3',
       title: '   ',
       artist: '   ',
       album: '   ',
       cover: '   ',
       duration: 0,
-    })).toEqual({
+    })!)).toEqual({
       id: 'unknown',
-      url: '',
+      url: 'file:///x.mp3',
       title: 'Unbekannter Titel',
       artist: 'Unbekannt',
       album: undefined,
       artwork: undefined,
       duration: undefined,
     });
-    expect(warn).toHaveBeenCalledWith('[TrackPlayerTrack] Song     has no playable URI.');
   });
 
   test('prefers normalized coverInfo uri over cover for artwork', () => {
-    expect(toTrackPlayerTrack({
+    expect(toTrackPlayerTrack(asPlayableSong({
       id: 's1',
       title: 'Song',
       artist: 'Artist',
       uri: 'file:///song.mp3',
       cover: 'file:///cover.jpg',
       coverInfo: { uri: ' file:///cover-info.jpg ' },
-    }).artwork).toBe('file:///cover-info.jpg');
+    })!).artwork).toBe('file:///cover-info.jpg');
   });
 });

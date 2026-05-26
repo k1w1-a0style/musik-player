@@ -11,6 +11,7 @@ import { prunePlaylists, sanitizePlaylists } from '../utils/playlistState';
 import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from '../utils/storage';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { toPlayableSongs } from '../utils/playableSong';
 
 export interface StoredMusicHydrationState {
   songs: Song[] | null;
@@ -145,12 +146,18 @@ export const hydrateStoredSongs = async ({
     await TrackPlayer.reset();
     if (isCancelled()) return;
 
-    await TrackPlayer.add(orderedQueue.map(toTrackPlayerTrack));
+    const playableQueue = toPlayableSongs(orderedQueue);
+    if (playableQueue.length === 0) {
+      console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+      nativeQueueRef.current = [];
+      return;
+    }
+    await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
     if (isCancelled()) return;
 
-    nativeQueueRef.current = orderedQueue.slice();
-  } catch {
-    // ignore hydration queue init failures
+    nativeQueueRef.current = playableQueue.slice();
+  } catch (error) {
+    console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
   }
 };
 
@@ -168,7 +175,9 @@ export const applyStoredPlaybackSettings = ({
   if (sanitizedPlaylists) {
     setPlaylists(sanitizedPlaylists);
     if (sanitizedPlaylists !== stored.playlists) {
-      void storage.set(StorageKeys.PLAYLISTS, sanitizedPlaylists).catch(() => undefined);
+      void storage.set(StorageKeys.PLAYLISTS, sanitizedPlaylists).catch(error => {
+        console.warn('[MusicHydration] Failed to persist sanitized playlists.', error);
+      });
     }
   }
   if (stored.eqEnabled != null) setEqEnabledState(stored.eqEnabled);
@@ -176,11 +185,15 @@ export const applyStoredPlaybackSettings = ({
   if (stored.eqPreset != null) setEqPreset(stored.eqPreset);
   if (stored.volume != null) {
     setVolumeState(stored.volume);
-    TrackPlayer.setVolume(stored.volume).catch(() => undefined);
+    TrackPlayer.setVolume(stored.volume).catch(error => {
+      console.warn('[Playback] Failed to apply stored volume.', error);
+    });
   }
   if (stored.repeatMode != null) {
     setRepeatMode(stored.repeatMode);
-    TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(stored.repeatMode)).catch(() => undefined);
+    TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(stored.repeatMode)).catch(error => {
+      console.warn('[Playback] Failed to apply stored repeat mode.', error);
+    });
   }
   if (stored.shuffle != null) setShuffle(stored.shuffle);
 };

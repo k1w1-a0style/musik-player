@@ -39,8 +39,8 @@ export const seekToMillis = async (millis: number): Promise<void> => {
 export const skipToNextSafely = async (): Promise<void> => {
   try {
     await TrackPlayer.skipToNext();
-  } catch {
-    // end of queue
+  } catch (error) {
+    console.warn('[Playback] skipToNext failed.', error);
   }
 };
 
@@ -52,11 +52,12 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
       return;
     }
     await TrackPlayer.skipToPrevious();
-  } catch {
+  } catch (error) {
+    console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
     try {
       await TrackPlayer.seekTo(0);
-    } catch {
-      // at start
+    } catch (seekError) {
+      console.warn('[Playback] fallback restart failed.', seekError);
     }
   }
 };

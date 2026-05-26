@@ -1,13 +1,14 @@
 import type { Song } from '../types/Song';
+import { asPlayableSong, isPlayableSong, toPlayableSongs, type PlayableSong } from './playableSong';
 import { hasSameSongIds, rotateQueueFromIndex } from './playbackQueue';
 
 export interface PlaySongQueuePlan {
-  requestedSong: Song;
-  queueWithRequested: Song[];
+  requestedSong: PlayableSong;
+  queueWithRequested: PlayableSong[];
   nativeIndex: number;
   canReuseNativeQueue: boolean;
-  reusableOrderedQueue: Song[];
-  rebuildOrderedQueue: Song[];
+  reusableOrderedQueue: PlayableSong[];
+  rebuildOrderedQueue: PlayableSong[];
 }
 
 export interface NormalizePlayableQueueOptions {
@@ -44,9 +45,9 @@ const warnDroppedSong = (
 export const normalizePlayableQueue = (
   queue: Song[],
   options?: NormalizePlayableQueueOptions,
-): Song[] => {
+): PlayableSong[] => {
   const seenIds = new Set<string>();
-  const playable: Song[] = [];
+  const playable: PlayableSong[] = [];
   const logger = getNormalizeLogger(options);
 
   for (const song of queue) {
@@ -56,7 +57,7 @@ export const normalizePlayableQueue = (
       continue;
     }
 
-    if (!song.uri) {
+    if (!isPlayableSong(song)) {
       warnDroppedSong(logger, 'missing-uri', song, id);
       continue;
     }
@@ -67,7 +68,13 @@ export const normalizePlayableQueue = (
     }
 
     seenIds.add(id);
-    playable.push(song.id === id ? song : { ...song, id });
+    const normalizedSong = song.id === id ? song : { ...song, id };
+    const playableSong = asPlayableSong(normalizedSong);
+    if (!playableSong) {
+      warnDroppedSong(logger, 'missing-uri', song, id);
+      continue;
+    }
+    playable.push(playableSong);
   }
 
   return playable;
@@ -83,7 +90,10 @@ export const buildPlaySongQueuePlan = (
   if (!normalizedRequestedId) return null;
   const requestedSong =
     contextQueue.find(item => item.id === normalizedRequestedId) ??
-    (song.uri ? { ...song, id: normalizedRequestedId } : undefined);
+    (() => {
+      const normalizedSong = { ...song, id: normalizedRequestedId };
+      return asPlayableSong(normalizedSong) ?? undefined;
+    })();
   if (!requestedSong) return null;
 
   const requestedIndex = contextQueue.findIndex(item => item.id === requestedSong.id);
@@ -100,19 +110,19 @@ export const buildPlaySongQueuePlan = (
     nativeIndex,
     canReuseNativeQueue,
     reusableOrderedQueue: canReuseNativeQueue
-      ? rotateQueueFromIndex(playableNativeQueue, nativeIndex)
+      ? toPlayableSongs(rotateQueueFromIndex(playableNativeQueue, nativeIndex))
       : [],
-    rebuildOrderedQueue: rotateQueueFromIndex(
+    rebuildOrderedQueue: toPlayableSongs(rotateQueueFromIndex(
       queueWithRequested,
       requestedIndex >= 0 ? requestedIndex : 0,
-    ),
+    )),
   };
 };
 
 export interface ShuffleTogglePlan {
-  nextQueue: Song[];
-  nextBaseQueue: Song[];
-  selectedSong?: Song;
+  nextQueue: PlayableSong[];
+  nextBaseQueue: PlayableSong[];
+  selectedSong?: PlayableSong;
 }
 
 export const buildShuffleTogglePlan = ({
@@ -157,15 +167,14 @@ export const buildShuffleTogglePlan = ({
   const currentIndex = normalizedCurrentSongId
     ? restoreQueue.findIndex(song => song.id === normalizedCurrentSongId)
     : -1;
-  const nextQueue = currentIndex >= 0
+  const nextQueueRaw = currentIndex >= 0
     ? rotateQueueFromIndex(restoreQueue, currentIndex)
     : restoreQueue.slice();
+  const nextQueue = toPlayableSongs(nextQueueRaw);
 
   return {
     nextQueue,
-    nextBaseQueue: playableBaseQueue.slice(),
-    selectedSong:
-      (normalizedCurrentSongId ? nextQueue.find(song => song.id === normalizedCurrentSongId) : undefined) ??
-      nextQueue[0],
+    nextBaseQueue: toPlayableSongs(playableBaseQueue.slice()),
+    selectedSong: (normalizedCurrentSongId ? nextQueue.find(song => song.id === normalizedCurrentSongId) : undefined) ?? nextQueue[0],
   };
 };
