@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useTagEditorScreenState } from '../useTagEditorScreenState';
+import type { Song } from '../../types/Song';
 
 let mockSongId = 's1';
 const mockGoBack = jest.fn();
@@ -9,7 +10,7 @@ const mockUpdateSongMetadata = jest.fn();
 const mockWriteTagsToFile = jest.fn();
 const mockPickTagEditorCover = jest.fn();
 
-const mockSongs = [
+const baseSongs: Song[] = [
   {
     id: 's1',
     title: 'Old Title',
@@ -20,6 +21,7 @@ const mockSongs = [
     coverInfo: { status: 'external', uri: 'file:///cover.jpg' },
   },
 ];
+let mockSongs: Song[] = [...baseSongs];
 
 const mockCapability = {
   canRead: true,
@@ -97,6 +99,7 @@ describe('useTagEditorScreenState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSongId = 's1';
+    mockSongs = [...baseSongs];
     mockWriteTagsToFile.mockResolvedValue({ status: 'written', sourceUri: 'file:///song.mp3', warnings: [] });
     mockPickTagEditorCover.mockResolvedValue({
       status: 'selected',
@@ -161,5 +164,57 @@ describe('useTagEditorScreenState', () => {
     fireEvent.press(getByTestId('back'));
 
     expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+
+  test('resets form and status when switching to a different song', async () => {
+    mockSongs = [
+      ...baseSongs,
+      {
+        id: 's2',
+        title: 'Second Song',
+        artist: 'Artist',
+        uri: 'file:///song-2.mp3',
+        fileInfo: { extension: 'mp3', uri: 'file:///song-2.mp3' },
+      },
+    ];
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Metadaten erfolgreich geschrieben.'),
+    );
+
+    mockSongId = 's2';
+    rerender(<TagEditorStateProbe />);
+
+    await waitFor(() => {
+      expect(getByTestId('song-id').props.children).toBe('s2');
+      expect(getByTestId('title').props.children).toBe('Second Song');
+      expect(getByTestId('status').props.children).toBe('none');
+    });
+  });
+
+  test('keeps success status when same song reference updates after metadata save', async () => {
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Metadaten erfolgreich geschrieben.'),
+    );
+
+    mockSongs = [
+      {
+        ...mockSongs[0],
+        title: 'New Title',
+      },
+    ];
+    rerender(<TagEditorStateProbe />);
+
+    await waitFor(() => {
+      expect(getByTestId('song-id').props.children).toBe('s1');
+      expect(getByTestId('status').props.children).toBe('Metadaten erfolgreich geschrieben.');
+    });
   });
 });
