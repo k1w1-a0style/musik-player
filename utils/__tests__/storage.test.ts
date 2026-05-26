@@ -4,6 +4,7 @@ import {
   getFavoriteSongIds,
   getScanFolders,
   isFavoriteSongId,
+  collectLegacyFavoriteSongIds,
   normalizeEqBandsForStorage,
   normalizeFavoriteSongIds,
   normalizeStorageSongId,
@@ -314,6 +315,54 @@ describe('storage', () => {
 
   test('normalizes favorite ids', () => {
     expect(normalizeFavoriteSongIds(['s1', ' s2 ', '', 's1', 2, null, 's2'])).toEqual(['s1', 's2']);
+  });
+
+  test.each([undefined, null, {}, 'songs'])(
+    'collectLegacyFavoriteSongIds returns [] for non-array value: %p',
+    value => {
+      expect(collectLegacyFavoriteSongIds(value)).toEqual([]);
+    },
+  );
+
+  test('collectLegacyFavoriteSongIds collects favorite and isFavorite ids', () => {
+    expect(
+      collectLegacyFavoriteSongIds([
+        { id: 's1', title: 'Song 1', artist: 'A', favorite: true },
+        { id: 's2', title: 'Song 2', artist: 'A', isFavorite: true },
+      ]),
+    ).toEqual(['s1', 's2']);
+  });
+
+  test('collectLegacyFavoriteSongIds ignores false or missing favorite flags', () => {
+    expect(
+      collectLegacyFavoriteSongIds([
+        { id: 's1', title: 'Song 1', artist: 'A', favorite: false },
+        { id: 's2', title: 'Song 2', artist: 'A', isFavorite: false },
+        { id: 's3', title: 'Song 3', artist: 'A' },
+      ]),
+    ).toEqual([]);
+  });
+
+  test('collectLegacyFavoriteSongIds trims ids, de-duplicates, and ignores blank ids', () => {
+    expect(
+      collectLegacyFavoriteSongIds([
+        { id: ' s1 ', title: 'Song 1', artist: 'A', favorite: true },
+        { id: 's1', title: 'Duplicate', artist: 'A', isFavorite: true },
+        { id: '   ', title: 'Blank', artist: 'A', favorite: true },
+      ]),
+    ).toEqual(['s1']);
+  });
+
+  test('collectLegacyFavoriteSongIds ignores invalid stored song shapes', () => {
+    expect(
+      collectLegacyFavoriteSongIds([
+        { id: 2, title: 'Broken', artist: 'A', favorite: true },
+        { id: 's1', title: 'Missing artist', favorite: true },
+        { id: 's2', artist: 'Missing title', favorite: true },
+        null,
+        'not-a-song',
+      ]),
+    ).toEqual([]);
   });
 
   test('filters invalid favorite ids and removes duplicates', async () => {
