@@ -675,7 +675,6 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
   });
 
-
   test('storage.set normalizes structured currentSongId input to null', async () => {
     await expect(storage.set(StorageKeys.CURRENT_SONG_ID, { id: 's1' } as unknown)).resolves.toBe(true);
     await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
@@ -767,7 +766,6 @@ describe('storage', () => {
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
   });
 
-
   test('storage.set normalizes structured eqPreset input to null', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, { preset: 'rock' } as unknown)).resolves.toBe(true);
     await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
@@ -827,7 +825,6 @@ describe('storage', () => {
     await expect(storage.getRepeatMode()).resolves.toBe('off');
     await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
   });
-
 
   test('storage.set normalizes structured repeatMode input to null', async () => {
     await expect(storage.set(StorageKeys.REPEAT_MODE, { mode: 'all' } as unknown)).resolves.toBe(true);
