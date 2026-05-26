@@ -781,6 +781,16 @@ describe('storage', () => {
     expect(await storage.getEqEnabled()).toBe(false);
   });
 
+  test('getEqEnabled rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), JSON.stringify({ enabled: true }));
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+    await expect(storage.get<boolean>(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), JSON.stringify([true]));
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+    await expect(storage.get<boolean>(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
+  });
+
   test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setShuffle(true);
     expect(await storage.getShuffle()).toBe(true);
@@ -810,6 +820,16 @@ describe('storage', () => {
 
     expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.SHUFFLE), 'false');
     expect(await storage.getShuffle()).toBe(false);
+  });
+
+  test('getShuffle rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), JSON.stringify({ enabled: true }));
+    await expect(storage.getShuffle()).resolves.toBe(false);
+    await expect(storage.get<boolean>(StorageKeys.SHUFFLE)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), JSON.stringify([true]));
+    await expect(storage.getShuffle()).resolves.toBe(false);
+    await expect(storage.get<boolean>(StorageKeys.SHUFFLE)).resolves.toBeNull();
   });
 
   test('rejects invalid persisted settings', async () => {
@@ -878,6 +898,16 @@ describe('storage', () => {
     expect(await storage.getVolume()).toBe(1);
   });
 
+  test('getVolume rejects structured JSON payloads', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), JSON.stringify({ value: 0.5 }));
+    await expect(storage.getVolume()).resolves.toBe(1);
+    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), JSON.stringify([0.5]));
+    await expect(storage.getVolume()).resolves.toBe(1);
+    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+  });
+
   test('normalizes eq band arrays to the safe persisted range', () => {
     expect(normalizeEqBandsForStorage([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN])).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
     expect(normalizeEqBandsForStorage([1, 2, 3])).toBeNull();
@@ -929,6 +959,19 @@ describe('storage', () => {
 
     expect(setItemSpy).toHaveBeenCalled();
     expect(await storage.getEqBands()).toEqual(bands);
+  });
+
+  test('getEqBands rejects object and wrong-length array JSON payloads', async () => {
+    await AsyncStorage.setItem(
+      storageTestKey(StorageKeys.EQ_BANDS),
+      JSON.stringify({ bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }),
+    );
+    await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    await expect(storage.get<number[]>(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_BANDS), JSON.stringify([0, 0, 0]));
+    await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    await expect(storage.get<number[]>(StorageKeys.EQ_BANDS)).resolves.toBeNull();
   });
 
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
