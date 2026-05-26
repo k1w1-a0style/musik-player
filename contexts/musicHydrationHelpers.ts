@@ -129,24 +129,38 @@ export const hydrateStoredSongs = async ({
     stored.currentSongId,
     stored.shuffle ?? false,
   );
+  const playableQueue = toPlayableSongs(orderedQueue);
 
   baseQueueContextRef.current = hydratedQueue.slice();
-  queueContextRef.current = orderedQueue;
-  setPlaybackQueue(orderedQueue);
+  queueContextRef.current = playableQueue.slice();
+  setPlaybackQueue(playableQueue.slice());
 
   if (shouldClearPersistedCurrentSongId) {
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
     if (isCancelled()) return;
   }
 
-  if (!restoredSong) return;
+  const playableRestoredSong = restoredSong
+    ? playableQueue.find(song => song.id === restoredSong.id.trim())
+    : undefined;
+  if (restoredSong && !playableRestoredSong) {
+    console.warn('[MusicHydration] Restored current song is not playable; clearing persisted current song id.', {
+      songId: restoredSong.id,
+    });
+    await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    if (isCancelled()) return;
+  }
 
-  setCurrentSong(restoredSong);
+  if (!playableRestoredSong) {
+    nativeQueueRef.current = [];
+    return;
+  }
+
+  setCurrentSong(playableRestoredSong);
   try {
     await TrackPlayer.reset();
     if (isCancelled()) return;
 
-    const playableQueue = toPlayableSongs(orderedQueue);
     if (playableQueue.length === 0) {
       console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
       nativeQueueRef.current = [];
