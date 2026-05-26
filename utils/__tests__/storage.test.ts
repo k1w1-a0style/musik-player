@@ -150,6 +150,15 @@ describe('storage', () => {
     await expect(storage.getFavoriteSongIds()).resolves.toEqual([]);
   });
 
+  test('typed scalar getters return defaults when no value is stored', async () => {
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    await expect(storage.getShuffle()).resolves.toBe(false);
+  });
+
   test('exported list helpers return [] when no value is stored', async () => {
     await expect(getScanFolders()).resolves.toEqual([]);
     await expect(getFavoriteSongIds()).resolves.toEqual([]);
