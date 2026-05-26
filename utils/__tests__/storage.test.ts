@@ -130,7 +130,6 @@ describe('storage', () => {
     });
   });
 
-
   describe('write/remove failure semantics', () => {
     test('storage.set returns false when AsyncStorage.setItem rejects', async () => {
       jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('write failed'));
@@ -173,7 +172,6 @@ describe('storage', () => {
       await expect(storage.setCurrentSongId('   ')).rejects.toThrow('remove failed');
     });
   });
-
 
   test('scan folders persist and reload', async () => {
     await addScanFolder({ id: '1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true });
