@@ -839,6 +839,13 @@ describe('storage', () => {
     await expect(storage.get<boolean>(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
   });
 
+  test('storage.set normalizes structured eqEnabled input to null', async () => {
+    await expect(storage.set(StorageKeys.EQ_ENABLED, { enabled: true } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_ENABLED))).toBe('null');
+  });
+
   test('getShuffle returns persisted boolean values and falls back for invalid raw values', async () => {
     await storage.setShuffle(true);
     expect(await storage.getShuffle()).toBe(true);
@@ -878,6 +885,13 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), JSON.stringify([true]));
     await expect(storage.getShuffle()).resolves.toBe(false);
     await expect(storage.get<boolean>(StorageKeys.SHUFFLE)).resolves.toBeNull();
+  });
+
+  test('storage.set normalizes structured shuffle input to null', async () => {
+    await expect(storage.set(StorageKeys.SHUFFLE, { enabled: true } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.SHUFFLE)).resolves.toBeNull();
+    await expect(storage.getShuffle()).resolves.toBe(false);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SHUFFLE))).toBe('null');
   });
 
   test('rejects invalid persisted settings', async () => {
@@ -956,6 +970,13 @@ describe('storage', () => {
     await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
   });
 
+  test('storage.set normalizes structured volume input to null', async () => {
+    await expect(storage.set(StorageKeys.VOLUME, { value: 0.5 } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.VOLUME)).resolves.toBeNull();
+    await expect(storage.getVolume()).resolves.toBe(1);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.VOLUME))).toBe('null');
+  });
+
   test('normalizes eq band arrays to the safe persisted range', () => {
     expect(normalizeEqBandsForStorage([99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN])).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
     expect(normalizeEqBandsForStorage([1, 2, 3])).toBeNull();
@@ -1020,6 +1041,20 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_BANDS), JSON.stringify([0, 0, 0]));
     await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     await expect(storage.get<number[]>(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+  });
+
+  test('storage.set normalizes object eqBands input to null', async () => {
+    await expect(storage.set(StorageKeys.EQ_BANDS, { bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] } as unknown)).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+    await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_BANDS))).toBe('null');
+  });
+
+  test('storage.set normalizes wrong-length eqBands array input to null', async () => {
+    await expect(storage.set(StorageKeys.EQ_BANDS, [0, 0, 0])).resolves.toBe(true);
+    await expect(storage.get(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+    await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_BANDS))).toBe('null');
   });
 
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
