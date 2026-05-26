@@ -185,6 +185,41 @@ describe('musicHydrationHelpers', () => {
     expect(nativeQueueRef.current).toEqual([]);
   });
 
+  test('clears native queue ref when hydrated native queue initialization fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const nativeQueueRef = createSongRef();
+    nativeQueueRef.current = songs.slice();
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      '[PlaybackQueue] Failed to initialize hydrated native queue.',
+      expect.any(Error),
+    );
+  });
+
   test('applies stored playback settings to state and TrackPlayer', () => {
     const stored: StoredMusicHydrationState = {
       songs: null,

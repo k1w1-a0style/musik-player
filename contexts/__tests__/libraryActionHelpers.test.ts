@@ -135,4 +135,33 @@ describe('libraryActionHelpers', () => {
 
     expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
   });
+
+  test('logs and skips native metadata update when queued song is not playable', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const nativeQueueRef = createSongRef([{ ...songs[0], uri: '   ' }]);
+    const baseQueueContextRef = createSongRef(songs.slice());
+
+    updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+
+    expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[TrackPlayer] Skipping metadata update for non-playable queued song.',
+      expect.objectContaining({ songId: 's1', queueIndex: 0 }),
+    );
+  });
+
+  test('logs native metadata update errors when TrackPlayer update rejects', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(new Error('native update failed'));
+    const nativeQueueRef = createSongRef([{ ...songs[0], title: 'Updated' }]);
+    const baseQueueContextRef = createSongRef(songs.slice());
+
+    updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+    await Promise.resolve();
+
+    expect(warn).toHaveBeenCalledWith(
+      '[TrackPlayer] Failed to update native track metadata.',
+      expect.objectContaining({ songId: 's1', queueIndex: 0, error: expect.any(Error) }),
+    );
+  });
 });

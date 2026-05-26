@@ -134,8 +134,20 @@ export const updateNativeMetadataForSong = (
   if (!queuedPatchedSong || queueIndex < 0) return;
 
   const playableQueuedSong = asPlayableSong(queuedPatchedSong);
-  if (!playableQueuedSong) return;
+  if (!playableQueuedSong) {
+    console.warn('[TrackPlayer] Skipping metadata update for non-playable queued song.', {
+      songId: targetSongId,
+      queueIndex,
+    });
+    return;
+  }
   void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong)).catch(
-    () => undefined,
+    error => {
+      console.warn('[TrackPlayer] Failed to update native track metadata.', {
+        songId: targetSongId,
+        queueIndex,
+        error,
+      });
+    },
   );
 };

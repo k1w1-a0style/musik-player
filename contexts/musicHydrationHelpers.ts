@@ -158,6 +158,7 @@ export const hydrateStoredSongs = async ({
     nativeQueueRef.current = playableQueue.slice();
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
+    nativeQueueRef.current = [];
   }
 };
 
