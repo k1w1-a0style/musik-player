@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Playlist, Song } from '../types/Song';
 import { prunePlaylists } from '../utils/playlistState';
@@ -39,6 +39,8 @@ export { mergeUniqueSongs, patchSongById } from './libraryActionHelpers';
 const syncNativeQueueToLibrary = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   nextQueue: Song[],
+  syncVersion: number,
+  latestSyncVersionRef: MutableRefObject<number>,
 ): Promise<void> => {
   const playableQueue = toPlayableSongs(nextQueue);
   try {
@@ -46,8 +48,10 @@ const syncNativeQueueToLibrary = async (
     if (playableQueue.length > 0) {
       await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
     }
+    if (latestSyncVersionRef.current !== syncVersion) return;
     nativeQueueRef.current = playableQueue.slice();
   } catch (error) {
+    if (latestSyncVersionRef.current !== syncVersion) return;
     nativeQueueRef.current = [];
     console.warn('[LibraryRemove] Failed to sync native queue after library update.', error);
   }
@@ -61,6 +65,8 @@ export const useLibraryActions = ({
   setPlaybackQueue,
   setPlaylists,
 }: LibraryActionsArgs): LibraryActions => {
+  const latestNativeSyncVersionRef = useRef(0);
+
   const setSongs = useCallback(
     (songs: Song[]) => {
       const validSongIds = new Set(songs.map(song => song.id));
@@ -89,8 +95,10 @@ export const useLibraryActions = ({
       }).catch(error => {
         console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
       });
-      if (queueRefChanged || baseQueueRefChanged || nativeQueueRefChanged) {
-        void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue);
+      if (queueRefChanged || nativeQueueRefChanged) {
+        latestNativeSyncVersionRef.current += 1;
+        const syncVersion = latestNativeSyncVersionRef.current;
+        void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue, syncVersion, latestNativeSyncVersionRef);
       }
     },
     [

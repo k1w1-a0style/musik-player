@@ -177,6 +177,74 @@ describe('useLibraryActions', () => {
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
 
+
+
+  test('baseQueue-only change does not trigger native rebuild', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0]]}
+        initialQueueRef={[songs[0]]}
+        initialBaseQueueRef={[songs[0], songs[2]]}
+        initialNativeQueueRef={[songs[0]]}
+        nextSongs={[songs[0], songs[1]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(getByTestId('songs').props.children).toBe('s1,s2'));
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+  });
+
+  test('latest native sync wins across overlapping setSongs calls', async () => {
+    const deferred: { resolve: () => void }[] = [];
+    (TrackPlayer.reset as jest.Mock).mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          deferred.push({ resolve });
+        }),
+    );
+
+    const { getByTestId, rerender } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1], songs[2]]}
+        initialQueueRef={[songs[0], songs[1], songs[2]]}
+        initialBaseQueueRef={[songs[0], songs[1], songs[2]]}
+        initialNativeQueueRef={[songs[0], songs[1], songs[2]]}
+        nextSongs={[songs[0], songs[1]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    rerender(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1], songs[2]]}
+        initialQueueRef={[songs[0], songs[1], songs[2]]}
+        initialBaseQueueRef={[songs[0], songs[1], songs[2]]}
+        initialNativeQueueRef={[songs[0], songs[1], songs[2]]}
+        nextSongs={[songs[0]]}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    expect(deferred.length).toBeGreaterThanOrEqual(2);
+    deferred[1].resolve();
+    await Promise.resolve();
+    deferred[0].resolve();
+
+    await waitFor(() => {
+      expect(getByTestId('native-ref').props.children).toBe('s1');
+    });
+  });
+
   test('adds only missing songs', () => {
     const { getByTestId } = render(
       <LibraryProbe

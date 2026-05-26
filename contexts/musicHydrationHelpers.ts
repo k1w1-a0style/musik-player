@@ -267,6 +267,7 @@ export const runMusicHydration = async ({
   isCancelled,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
+  let hydrationCompleted = false;
   try {
     await setupTrackPlayer();
     if (isCancelled()) return;
@@ -287,6 +288,7 @@ export const runMusicHydration = async ({
 
     try {
       applyStoredPlaybackSettings({ stored: hydratedStored, ...args });
+      hydrationCompleted = true;
     } catch (error) {
       console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);
       throw error;
@@ -305,6 +307,6 @@ export const runMusicHydration = async ({
     });
     console.warn('[MusicHydration:Fatal] Falling back to safe empty state after hydration failure.', error);
   } finally {
-    if (!isCancelled()) setIsReady(true);
+    if (!isCancelled() && hydrationCompleted) setIsReady(true);
   }
 };

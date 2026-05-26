@@ -727,7 +727,7 @@ describe('musicHydrationHelpers', () => {
   });
 
 
-  test('runMusicHydration logs storage load errors, applies fallback and sets ready', async () => {
+  test('runMusicHydration logs storage load errors, applies fallback and does not set ready', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getSpy = jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
     const setIsReady = jest.fn();
@@ -757,7 +757,7 @@ describe('musicHydrationHelpers', () => {
     expect(setSongsState).toHaveBeenCalledWith([]);
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setCurrentSong).toHaveBeenCalledWith(null);
-    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(setIsReady).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('[MusicHydration:StorageError] Failed to load stored hydration state.', expect.any(Error));
     getSpy.mockRestore();
   });
@@ -817,6 +817,8 @@ describe('musicHydrationHelpers', () => {
 
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
   });
+
+
 
   test('does not mark provider ready when hydration is cancelled', async () => {
     const setIsReady = jest.fn();
