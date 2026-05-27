@@ -43,15 +43,19 @@ const syncNativeQueueToLibrary = async (
   latestSyncVersionRef: MutableRefObject<number>,
 ): Promise<void> => {
   const playableQueue = toPlayableSongs(nextQueue);
+  const isStaleSync = () => latestSyncVersionRef.current !== syncVersion;
+
   try {
+    if (isStaleSync()) return;
     await TrackPlayer.reset();
+    if (isStaleSync()) return;
     if (playableQueue.length > 0) {
       await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+      if (isStaleSync()) return;
     }
-    if (latestSyncVersionRef.current !== syncVersion) return;
     nativeQueueRef.current = playableQueue.slice();
   } catch (error) {
-    if (latestSyncVersionRef.current !== syncVersion) return;
+    if (isStaleSync()) return;
     nativeQueueRef.current = [];
     console.warn('[LibraryRemove] Failed to sync native queue after library update.', error);
   }
