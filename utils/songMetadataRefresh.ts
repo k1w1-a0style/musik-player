@@ -1,5 +1,6 @@
 import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags } from './id3Parser';
+import { throwIfAborted } from './withTimeout';
 
 export interface SongMetadataRefreshResult {
   songs: Song[];
@@ -10,6 +11,7 @@ export interface SongMetadataRefreshResult {
 }
 interface SongMetadataRefreshOptions {
   concurrency?: number;
+  signal?: AbortSignal;
 }
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
@@ -65,14 +67,18 @@ export const refreshSongsFromId3 = async (
   const errors: string[] = [];
   const outcomes: SongRefreshOutcome[] = new Array(songs.length);
   const concurrency = clampConcurrency(options?.concurrency);
+  const signal = options?.signal;
+  throwIfAborted(signal);
   let nextIndex = 0;
 
   const refreshOne = async (song: Song): Promise<SongRefreshOutcome> => {
+    throwIfAborted(signal);
     const uri = resolveMetadataRefreshUri(song);
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
       const tags = await parseId3FromUri(uri);
+      throwIfAborted(signal);
       const next = applyId3TagsToSong(song, tags);
       return {
         song: next,
@@ -81,20 +87,24 @@ export const refreshSongsFromId3 = async (
         failedDelta: 0,
       };
     } catch {
+      throwIfAborted(signal);
       return { song, updatedDelta: 0, skippedDelta: 0, failedDelta: 1, errorUri: uri };
     }
   };
 
   const worker = async (): Promise<void> => {
     while (true) {
+      throwIfAborted(signal);
       const index = nextIndex;
       nextIndex += 1;
       if (index >= songs.length) return;
       outcomes[index] = await refreshOne(songs[index]);
+      throwIfAborted(signal);
     }
   };
 
   await Promise.all(Array.from({ length: Math.min(concurrency, songs.length || 1) }, () => worker()));
+  throwIfAborted(signal);
 
   let updated = 0;
   let skipped = 0;
