@@ -48,11 +48,16 @@ export const useTagEditorScreenState = () => {
   const [form, setForm] = useState<FormState>(() => toInitialForm(song ?? EMPTY_SONG));
   const [dirty, setDirty] = useState<Partial<Record<keyof EditableTrackTags, boolean>>>({});
   const activeSongRef = useRef(song);
+  const coverPickGenerationRef = useRef(0);
+  const saveGenerationRef = useRef(0);
 
   activeSongRef.current = song;
 
   useEffect(() => {
     const activeSong = activeSongRef.current;
+    coverPickGenerationRef.current += 1;
+    saveGenerationRef.current += 1;
+    setSaving(false);
     if (!activeSong) return;
     setForm(toInitialForm(activeSong));
     setDirty({});
@@ -81,7 +86,17 @@ export const useTagEditorScreenState = () => {
   const handlePickCover = async (): Promise<void> => {
     if (!song || !capability.canWrite || saving) return;
 
+    const flowSongId = song.id;
+    coverPickGenerationRef.current += 1;
+    const generation = coverPickGenerationRef.current;
     const result = await pickTagEditorCover();
+    const isStale =
+      generation !== coverPickGenerationRef.current || activeSongRef.current?.id !== flowSongId;
+    if (isStale) {
+      console.warn('[CoverPicker] Ignoring stale cover picker result.', { songId: flowSongId });
+      return;
+    }
+
     setStatus(result.message);
 
     if (result.status !== 'selected') return;
@@ -103,9 +118,20 @@ export const useTagEditorScreenState = () => {
   const onSaveConfirmed = async (): Promise<void> => {
     if (!song) return;
 
+    const flowSongId = song.id;
+    saveGenerationRef.current += 1;
+    const generation = saveGenerationRef.current;
     setSaving(true);
+    const isStaleSaveFlow = (): boolean =>
+      generation !== saveGenerationRef.current || activeSongRef.current?.id !== flowSongId;
+
     try {
       const result = await writeTagsToFile(song, draft);
+      if (isStaleSaveFlow()) {
+        console.warn('[TrackInfo] Ignoring stale tag write result.', { songId: flowSongId });
+        return;
+      }
+
       if (result.status === 'written') {
         const metadataPatch = buildMetadataPatchFromDraft(draft, replacementCover);
         updateSongMetadata(song.id, metadataPatch);
@@ -119,16 +145,26 @@ export const useTagEditorScreenState = () => {
         setDirty({});
         setRemoveCover(false);
         setReplacementCover(null);
+      } else if (result.errorCode) {
+        setStatus(tagWriterErrorMessage(result.errorCode, result.errorMessage));
+        return;
       }
       setStatus(statusMessage(result));
     } catch (error) {
+      if (isStaleSaveFlow()) {
+        console.warn('[TrackInfo] Ignoring stale tag write error.', { songId: flowSongId, error });
+        return;
+      }
+      console.warn('[TrackInfo] Tag save failed unexpectedly.', error);
       if (error instanceof TagWriterError) {
         setStatus(tagWriterErrorMessage(error.code, error.message));
       } else {
         setStatus('Speichern fehlgeschlagen.');
       }
     } finally {
-      setSaving(false);
+      if (generation === saveGenerationRef.current && activeSongRef.current?.id === flowSongId) {
+        setSaving(false);
+      }
     }
   };
 

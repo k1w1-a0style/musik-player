@@ -13,9 +13,16 @@ declare module 'expo-image-picker' {
     height?: number;
   };
 
+  export type ImagePickerPermissionResponse = {
+    granted?: boolean;
+    status?: string;
+  };
+
   export type ImagePickerResult =
     | { canceled: true; cancelled?: true; assets?: ImagePickerAsset[] }
     | { canceled: false; cancelled?: false; assets: ImagePickerAsset[] };
 
+  export function getMediaLibraryPermissionsAsync(): Promise<ImagePickerPermissionResponse>;
+  export function requestMediaLibraryPermissionsAsync(): Promise<ImagePickerPermissionResponse>;
   export function launchImageLibraryAsync(options?: unknown): Promise<ImagePickerResult>;
 }

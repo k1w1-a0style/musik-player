@@ -89,7 +89,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile with content uri remains blocked', async () => {
-    await expect(writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).rejects.toThrow(/SAF/i);
+  test('writeTagsToFile with content uri returns controlled permissionDenied result', async () => {
+    const result = await writeTagsToFile(
+      song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: {} },
+    );
+
+    expect(result).toMatchObject({
+      status: 'permissionDenied',
+      errorCode: 'MissingWritePermission',
+    });
   });
 });
