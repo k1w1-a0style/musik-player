@@ -98,6 +98,15 @@ export const syncSongRefsToLibrary = (
   });
 };
 
+
+export const hasSameSongIds = (left: Song[], right: Song[]): boolean => {
+  if (left.length != right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (normalizeSongIdForLibrary(left[i]?.id) !== normalizeSongIdForLibrary(right[i]?.id)) return false;
+  }
+  return true;
+};
+
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song => {
   const targetSongId = normalizeSongIdForLibrary(songId);
   const currentSongId = normalizeSongIdForLibrary(song.id);
