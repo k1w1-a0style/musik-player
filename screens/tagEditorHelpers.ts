@@ -59,6 +59,7 @@ export const tagWriterErrorMessage = (code: TagWriterErrorCode, message?: string
 };
 
 export const COVER_PICK_ERROR_MESSAGES = {
+  missingUri: 'Cover-URI fehlt oder ist ungültig. Bitte anderes Bild wählen.',
   missingBase64: 'Cover konnte nicht gelesen werden. Bitte anderes Bild wählen.',
   unsupportedMime: 'Nur JPG/JPEG und PNG werden als Cover unterstützt.',
   tooLarge: 'Cover ist zu groß. Bitte ein Bild bis maximal 5 MB wählen.',

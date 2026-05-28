@@ -3,11 +3,22 @@ import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import TagEditor from '../TagEditor';
 
+const mockGetMediaLibraryPermissionsAsync = jest.fn();
+const mockRequestMediaLibraryPermissionsAsync = jest.fn();
 const mockLaunchImageLibraryAsync = jest.fn();
 const mockWriteTagsToFile = jest.fn();
 const mockUpdateSongMetadata = jest.fn();
 const mockSongId = 's1';
-let mockSongs: any[] = [];
+let mockSongs: Array<{
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  uri: string;
+  cover: string;
+  coverInfo: { status: 'external'; uri: string };
+  fileInfo: { extension: string; uri: string };
+}> = [];
 let mockCapability = {
   canRead: true,
   canWrite: true,
@@ -19,7 +30,9 @@ let mockPlan = { blockingReasons: [] as string[] };
 
 jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
-  launchImageLibraryAsync: (...args: any[]) => mockLaunchImageLibraryAsync(...args),
+  getMediaLibraryPermissionsAsync: () => mockGetMediaLibraryPermissionsAsync(),
+  requestMediaLibraryPermissionsAsync: () => mockRequestMediaLibraryPermissionsAsync(),
+  launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibraryAsync(...args),
 }));
 
 jest.mock('@react-navigation/native', () => ({
@@ -37,14 +50,14 @@ jest.mock('../../contexts/MusicContext', () => ({
 jest.mock(
   '../../components/AppBackground',
   () =>
-    ({ children }: any) =>
+    ({ children }: { children: React.ReactNode }) =>
       children,
 );
 
 jest.mock(
   '../../components/Screen',
   () =>
-    ({ children }: any) =>
+    ({ children }: { children: React.ReactNode }) =>
       children,
 );
 
@@ -60,11 +73,11 @@ jest.mock('../../utils/tagWriter', () => {
   class TagWriterError extends Error {
     constructor(code: string, message: string) {
       super(message);
-      (this as any).code = code;
+      Object.defineProperty(this, 'code', { value: code });
     }
   }
   return {
-    writeTagsToFile: (...args: any[]) => mockWriteTagsToFile(...args),
+    writeTagsToFile: (...args: unknown[]) => mockWriteTagsToFile(...args),
     TagWriterError,
   };
 });
@@ -74,7 +87,7 @@ const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString(
 beforeEach(() => {
   jest
     .spyOn(Alert, 'alert')
-    .mockImplementation((_t, _m, buttons: any) => buttons?.[1]?.onPress?.());
+    .mockImplementation((_title, _message, buttons?: Array<{ onPress?: () => void }>) => buttons?.[1]?.onPress?.());
   mockCapability = {
     canRead: true,
     canWrite: true,
@@ -95,6 +108,9 @@ beforeEach(() => {
       fileInfo: { extension: 'mp3', uri: 'file:///x.mp3' },
     },
   ];
+  mockGetMediaLibraryPermissionsAsync.mockReset();
+  mockRequestMediaLibraryPermissionsAsync.mockReset();
+  mockGetMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true, status: 'granted' });
   mockLaunchImageLibraryAsync.mockReset();
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();

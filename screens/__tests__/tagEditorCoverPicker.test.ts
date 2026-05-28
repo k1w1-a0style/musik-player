@@ -3,14 +3,40 @@ import { pickTagEditorCover } from '../tagEditorCoverPicker';
 
 jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
+  getMediaLibraryPermissionsAsync: jest.fn(),
+  requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
 
+const mockGetMediaLibraryPermissionsAsync = ImagePicker.getMediaLibraryPermissionsAsync as jest.Mock;
+const mockRequestMediaLibraryPermissionsAsync = ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock;
 const mockLaunchImageLibraryAsync = ImagePicker.launchImageLibraryAsync as jest.Mock;
 
 describe('pickTagEditorCover', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true, status: 'granted' });
+  });
+
+
+  test('returns permissionDenied and does not launch picker when permission is denied', async () => {
+    mockGetMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false, status: 'undetermined' });
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied' });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'permissionDenied',
+      message: 'Zugriff auf Fotos wurde verweigert. Bitte Berechtigung in den Systemeinstellungen erlauben.',
+    });
+    expect(mockLaunchImageLibraryAsync).not.toHaveBeenCalled();
+    expect(mockRequestMediaLibraryPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not request permission twice when already granted', async () => {
+    mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true });
+
+    await pickTagEditorCover();
+
+    expect(mockRequestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   });
 
   test('returns cancelled result when picker is cancelled', async () => {

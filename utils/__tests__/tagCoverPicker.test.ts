@@ -29,21 +29,36 @@ test('accepts png cover', () => {
   const result = buildEditableCoverFromPickerAsset({
     base64: toBase64('png'),
     mimeType: 'image/png',
+    uri: 'file:///cover.png',
   });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.cover.mimeType).toBe('image/png');
 });
 
+test('rejects missing URI', () => {
+  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('png'), mimeType: 'image/png' })).toEqual({
+    ok: false,
+    reason: 'missingUri',
+  });
+});
+
+test('rejects whitespace URI', () => {
+  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('png'), mimeType: 'image/png', uri: '   ' })).toEqual({
+    ok: false,
+    reason: 'missingUri',
+  });
+});
+
 test('rejects missing base64', () => {
-  expect(buildEditableCoverFromPickerAsset({ mimeType: 'image/png' })).toEqual({
+  expect(buildEditableCoverFromPickerAsset({ mimeType: 'image/png', uri: 'file:///cover.png' })).toEqual({
     ok: false,
     reason: 'missingBase64',
   });
 });
 
 test('rejects unsupported mime type', () => {
-  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('gif'), mimeType: 'image/gif' })).toEqual({
+  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('gif'), mimeType: 'image/gif', uri: 'file:///cover.gif' })).toEqual({
     ok: false,
     reason: 'unsupportedMime',
   });
@@ -51,7 +66,7 @@ test('rejects unsupported mime type', () => {
 
 test('rejects oversized cover', () => {
   const huge = Buffer.alloc(MAX_TAG_COVER_BYTES + 1).toString('base64');
-  expect(buildEditableCoverFromPickerAsset({ base64: huge, mimeType: 'image/png' })).toEqual({
+  expect(buildEditableCoverFromPickerAsset({ base64: huge, mimeType: 'image/png', uri: 'file:///cover.png' })).toEqual({
     ok: false,
     reason: 'tooLarge',
   });

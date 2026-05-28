@@ -7,7 +7,7 @@ export type PickedTagCover = EditableCover & {
   sizeBytes: number;
 };
 
-export type CoverPickFailureReason = 'missingBase64' | 'unsupportedMime' | 'tooLarge';
+export type CoverPickFailureReason = 'missingUri' | 'missingBase64' | 'unsupportedMime' | 'tooLarge';
 
 export type CoverPickResult =
   | { ok: true; cover: PickedTagCover }
@@ -40,10 +40,12 @@ export const buildEditableCoverFromPickerAsset = (asset: {
   mimeType?: string | null;
   uri?: string;
 }): CoverPickResult => {
+  const uri = asset.uri?.trim();
+  if (!uri || uri !== asset.uri) return { ok: false, reason: 'missingUri' };
   if (!asset.base64) return { ok: false, reason: 'missingBase64' };
-  const mimeType = normalizeMimeType(asset.mimeType, asset.uri);
+  const mimeType = normalizeMimeType(asset.mimeType, uri);
   if (!mimeType) return { ok: false, reason: 'unsupportedMime' };
   const data = base64ToBytes(asset.base64);
   if (data.byteLength > MAX_TAG_COVER_BYTES) return { ok: false, reason: 'tooLarge' };
-  return { ok: true, cover: { data, mimeType, uri: asset.uri, sizeBytes: data.byteLength } };
+  return { ok: true, cover: { data, mimeType, uri, sizeBytes: data.byteLength } };
 };

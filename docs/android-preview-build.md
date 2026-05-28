@@ -48,7 +48,7 @@ false
 ]
 ```
 
-`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert.
+`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert. Android 13+ nutzt `READ_MEDIA_AUDIO`; ältere Android-Versionen werden über `expo-media-library`/Systemdialoge gelesen. `WRITE_EXTERNAL_STORAGE` wird nicht blind deklariert, weil Tag-Schreiben nur für app-writable `file://`-URIs freigegeben ist und `content://`/SAF bewusst read-only bleibt.
 
 ## Generiertes Android Manifest prüfen
 

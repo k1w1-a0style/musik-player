@@ -158,6 +158,97 @@ describe('useTagEditorScreenState', () => {
     expect(getByTestId('status').props.children).toBe('Neues Cover ausgewählt. Speichern schreibt es in die Datei.');
   });
 
+
+  test('does not update metadata when tag write returns a controlled failure', async () => {
+    mockWriteTagsToFile.mockResolvedValue({
+      status: 'writeFailed',
+      sourceUri: 'file:///song.mp3',
+      warnings: [],
+      errorCode: 'TempWriteFailed',
+      errorMessage: 'Temp file write failed.',
+    });
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Temporäre Datei konnte nicht geschrieben werden.'),
+    );
+    expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+  });
+
+  test('does not change cover on picker permission denial or cancel', async () => {
+    mockPickTagEditorCover.mockResolvedValueOnce({
+      status: 'permissionDenied',
+      message: 'Zugriff auf Fotos wurde verweigert. Bitte Berechtigung in den Systemeinstellungen erlauben.',
+    });
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('pick-cover'));
+
+    await waitFor(() => expect(getByTestId('replacement-cover').props.children).toBe('none'));
+    expect(getByTestId('status').props.children).toBe(
+      'Zugriff auf Fotos wurde verweigert. Bitte Berechtigung in den Systemeinstellungen erlauben.',
+    );
+
+    mockPickTagEditorCover.mockResolvedValueOnce({
+      status: 'cancelled',
+      message: 'Cover-Auswahl abgebrochen.',
+    });
+    fireEvent.press(getByTestId('pick-cover'));
+
+    await waitFor(() => expect(getByTestId('status').props.children).toBe('Cover-Auswahl abgebrochen.'));
+    expect(getByTestId('replacement-cover').props.children).toBe('none');
+  });
+
+  test('ignores stale cover picker result after switching songs', async () => {
+    let resolvePick: (value: {
+      status: 'selected';
+      message: string;
+      cover: {
+        uri: string;
+        mimeType: 'image/jpeg';
+        data: Uint8Array;
+        sizeBytes: number;
+      };
+    }) => void = () => {};
+    mockPickTagEditorCover.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolvePick = resolve;
+        }),
+    );
+    mockSongs = [
+      ...baseSongs,
+      {
+        id: 's2',
+        title: 'Second Song',
+        artist: 'Artist',
+        uri: 'file:///song-2.mp3',
+        fileInfo: { extension: 'mp3', uri: 'file:///song-2.mp3' },
+      },
+    ];
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('pick-cover'));
+    mockSongId = 's2';
+    rerender(<TagEditorStateProbe />);
+    resolvePick({
+      status: 'selected',
+      message: 'Neues Cover ausgewählt. Speichern schreibt es in die Datei.',
+      cover: {
+        uri: 'file:///stale-cover.jpg',
+        mimeType: 'image/jpeg',
+        data: new Uint8Array([4, 5, 6]),
+        sizeBytes: 3,
+      },
+    });
+
+    await waitFor(() => expect(getByTestId('song-id').props.children).toBe('s2'));
+    expect(getByTestId('replacement-cover').props.children).toBe('none');
+  });
+
   test('navigates back', () => {
     const { getByTestId } = render(<TagEditorStateProbe />);
 

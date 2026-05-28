@@ -5,6 +5,8 @@ import {
   hasCompleteId3Header,
   readId3Header,
   TagWriterError,
+  buildTagWritePayload,
+  resolveWritableTagUri,
   validateId3PayloadSize,
 } from '../tagWriter';
 import {
@@ -13,6 +15,8 @@ import {
   writeTagsToFile,
 } from '../tagWriter';
 import type { Song } from '../../types/Song';
+import type { TagFileWriteAdapter } from '../tagFileWriteAdapter';
+import type { TagWriterErrorCode, WriteTagsResult } from '../../types/TagEdit';
 
 const song = (overrides: Partial<Song>): Song => ({
   id: '1',
@@ -594,80 +598,149 @@ describe('tagWriter mp3 id3v2.3', () => {
       { songId: '1', tags: { comment: '   ' }, removeCover: true },
     );
     expect(plan.warnings.length).toBeGreaterThanOrEqual(0);
-    await expect(
-      writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), {
+    const result = await writeTagsToFile(
+      song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }),
+      {
         songId: '1',
         tags: {},
-      }),
-    ).rejects.toThrow(/SAF/i);
+      },
+    );
+    expect(result).toMatchObject({
+      status: 'permissionDenied',
+      errorCode: 'MissingWritePermission',
+    });
+  });
+});
+
+describe('tag writable URI resolution', () => {
+  test('resolveWritableTagUri prefers fileInfo.uri over song.uri when fileInfo is writable', () => {
+    expect(
+      resolveWritableTagUri(
+        song({ uri: 'file:///fallback.mp3', fileInfo: { uri: 'file:///primary.mp3', extension: 'mp3' } }),
+      ),
+    ).toMatchObject({ ok: true, uri: 'file:///primary.mp3', source: 'fileInfo' });
+  });
+
+  test('resolveWritableTagUri rejects whitespace and missing URI without fallback', () => {
+    expect(resolveWritableTagUri(song({ uri: '   ', fileInfo: { extension: 'mp3' } }))).toMatchObject({
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+      uriType: 'empty',
+    });
+    expect(
+      resolveWritableTagUri(song({ uri: 'file:///fallback.mp3', fileInfo: { uri: '   ', extension: 'mp3' } })),
+    ).toMatchObject({ ok: false, source: 'fileInfo', uriType: 'empty' });
+    expect(resolveWritableTagUri(song({ fileInfo: { extension: 'mp3' } }))).toMatchObject({
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+    });
+  });
+
+  test('resolveWritableTagUri handles content and remote URIs explicitly', () => {
+    expect(resolveWritableTagUri(song({ uri: 'content://a.mp3', fileInfo: { extension: 'mp3' } }))).toMatchObject({
+      ok: false,
+      status: 'permissionDenied',
+      reason: 'MissingWritePermission',
+      uriType: 'content',
+    });
+    expect(resolveWritableTagUri(song({ uri: 'https://example.com/a.mp3', fileInfo: { extension: 'mp3' } }))).toMatchObject({
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+      uriType: 'remote',
+    });
+  });
+
+  test('buildTagWritePayload returns the normalized write target', () => {
+    expect(
+      buildTagWritePayload(
+        song({ uri: 'file:///a.mp3', fileInfo: { uri: 'file:///b.mp3', extension: 'mp3' } }),
+        { songId: '1', tags: { title: 'X' } },
+      ),
+    ).toMatchObject({ uri: 'file:///b.mp3', uriSource: 'fileInfo', container: 'mp3' });
   });
 });
 
 describe('writeTagsToFile safe file writes', () => {
+  type TestTagFileWriteAdapter = TagFileWriteAdapter & {
+    canReplaceExistingFile: () => Promise<boolean>;
+  };
+
   const mkAdapter = (initial: Record<string, Uint8Array>) => {
     const files = new Map(Object.entries(initial).map(([k, v]) => [k, v.slice()]));
     const ops: string[] = [];
-    return {
-      ops,
-      adapter: {
-        canReplaceExistingFile: true,
-        async getInfo(uri: string) {
-          return { exists: files.has(uri), size: files.get(uri)?.length };
-        },
-        async readBytes(uri: string) {
-          const v = files.get(uri);
-          if (!v) throw new Error('missing');
-          return v.slice();
-        },
-        async writeBytes(uri: string, bytes: Uint8Array) {
-          ops.push(`temp:${uri}`);
-          files.set(uri, bytes.slice());
-        },
-        async copyFile(from: string, to: string) {
-          ops.push(`copy:${from}->${to}`);
-          const v = files.get(from);
-          if (!v) throw new Error('missing');
-          files.set(to, v.slice());
-        },
-        async moveOrReplaceFile(from: string, to: string) {
-          ops.push(`replace:${from}->${to}`);
-          const v = files.get(from);
-          if (!v) throw new Error('missing');
-          files.set(to, v.slice());
-          files.delete(from);
-        },
-        async deleteFile(uri: string) {
-          files.delete(uri);
-        },
+    const adapter: TestTagFileWriteAdapter = {
+      canReplaceExistingFile: async () => true,
+      async getInfo(uri: string) {
+        return { exists: files.has(uri), size: files.get(uri)?.length };
       },
-      files,
+      async readBytes(uri: string) {
+        const v = files.get(uri);
+        if (!v) throw new Error('missing');
+        return v.slice();
+      },
+      async writeBytes(uri: string, bytes: Uint8Array) {
+        ops.push(`temp:${uri}`);
+        files.set(uri, bytes.slice());
+      },
+      async copyFile(from: string, to: string) {
+        ops.push(`copy:${from}->${to}`);
+        const v = files.get(from);
+        if (!v) throw new Error('missing');
+        files.set(to, v.slice());
+      },
+      async moveOrReplaceFile(from: string, to: string) {
+        ops.push(`replace:${from}->${to}`);
+        const v = files.get(from);
+        if (!v) throw new Error('missing');
+        files.set(to, v.slice());
+        files.delete(from);
+      },
+      async deleteFile(uri: string) {
+        files.delete(uri);
+      },
     };
+    return { ops, adapter, files };
+  };
+
+  const expectWriteFailure = async (
+    resultPromise: Promise<WriteTagsResult>,
+    errorCode: TagWriterErrorCode,
+  ): Promise<WriteTagsResult> => {
+    const result = await resultPromise;
+    expect(result).toMatchObject({ errorCode });
+    expect(result.status === 'unsupportedUri' || result.status === 'permissionDenied' || result.status === 'writeFailed').toBe(true);
+    return result;
   };
 
   test('content uri remains blocked', async () => {
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(song({ uri: 'content://a', fileInfo: { extension: 'mp3' } }), {
         songId: '1',
         tags: { title: 'X' },
       }),
-    ).rejects.toMatchObject({ code: 'MissingWritePermission' });
+      'MissingWritePermission',
+    );
   });
 
   test('unsupported replace support fails early without touching filesystem', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    adapter.canReplaceExistingFile = false;
+    jest.spyOn(adapter, 'canReplaceExistingFile').mockResolvedValue(false);
     const copySpy = jest.spyOn(adapter, 'copyFile');
     const writeSpy = jest.spyOn(adapter, 'writeBytes');
     const replaceSpy = jest.spyOn(adapter, 'moveOrReplaceFile');
     const deleteSpy = jest.spyOn(adapter, 'deleteFile');
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'WriteNotImplemented' });
+      'WriteNotImplemented',
+    );
     expect(copySpy).not.toHaveBeenCalled();
     expect(writeSpy).not.toHaveBeenCalled();
     expect(replaceSpy).not.toHaveBeenCalled();
@@ -681,7 +754,7 @@ describe('writeTagsToFile safe file writes', () => {
     const res = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: {} },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(res.status).toBe('noop');
     expect(ops).toEqual([]);
@@ -693,7 +766,7 @@ describe('writeTagsToFile safe file writes', () => {
     const res = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(res.status).toBe('written');
     expect(ops[0]).toContain('.bak');
@@ -711,12 +784,12 @@ describe('writeTagsToFile safe file writes', () => {
     await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'Y' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     const copyTargets = ops
       .filter(op => op.startsWith(`copy:${uri}->`))
@@ -734,7 +807,7 @@ describe('writeTagsToFile safe file writes', () => {
     let activeWrites = 0;
     let maxActiveWrites = 0;
     const realCopy = adapter.copyFile.bind(adapter);
-    (adapter.copyFile as any) = jest.fn(async (from: string, to: string) => {
+    jest.spyOn(adapter, 'copyFile').mockImplementation(async (from: string, to: string) => {
       if (from === uri && to.endsWith('.bak')) {
         activeWrites += 1;
         maxActiveWrites = Math.max(maxActiveWrites, activeWrites);
@@ -750,12 +823,12 @@ describe('writeTagsToFile safe file writes', () => {
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'Y' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
     ]);
 
@@ -767,16 +840,17 @@ describe('writeTagsToFile safe file writes', () => {
   test('backup failure stops before temp/replace', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.copyFile as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'copyFile').mockImplementation(async () => {
       throw new Error('copy failed');
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'BackupFailed' });
+      'BackupFailed',
+    );
     expect(ops.find(x => x.startsWith('temp:'))).toBeUndefined();
     expect(ops.find(x => x.startsWith('replace:'))).toBeUndefined();
   });
@@ -789,16 +863,17 @@ describe('writeTagsToFile safe file writes', () => {
     const writeSpy = jest.spyOn(adapter, 'writeBytes');
     const replaceSpy = jest.spyOn(adapter, 'moveOrReplaceFile');
     const deleteSpy = jest.spyOn(adapter, 'deleteFile');
-    (adapter.getInfo as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'getInfo').mockImplementation(async () => {
       throw new Error('info unreadable');
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'UnsupportedUri' });
+      'UnsupportedUri',
+    );
     expect(readSpy).not.toHaveBeenCalled();
     expect(copySpy).not.toHaveBeenCalled();
     expect(writeSpy).not.toHaveBeenCalled();
@@ -809,17 +884,18 @@ describe('writeTagsToFile safe file writes', () => {
   test('source read failure throws UnsupportedUri and does not attempt write steps', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
+    jest.spyOn(adapter, 'readBytes').mockImplementation(async (readUri: string) => {
       if (readUri === uri) throw new Error('source unreadable');
       return u8(1, 2, 3);
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'UnsupportedUri' });
+      'UnsupportedUri',
+    );
     expect(ops.find(x => x.startsWith('copy:'))).toBeUndefined();
     expect(ops.find(x => x.startsWith('temp:'))).toBeUndefined();
     expect(ops.find(x => x.startsWith('replace:'))).toBeUndefined();
@@ -828,7 +904,7 @@ describe('writeTagsToFile safe file writes', () => {
   test('oversized files are blocked before reading full bytes when size is known', async () => {
     const uri = 'file:///huge.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.getInfo as any) = jest.fn(async () => ({
+    jest.spyOn(adapter, 'getInfo').mockImplementation(async () => ({
       exists: true,
       size: 11,
       isDirectory: false,
@@ -836,13 +912,14 @@ describe('writeTagsToFile safe file writes', () => {
     const readSpy = jest.spyOn(adapter, 'readBytes');
     const copySpy = jest.spyOn(adapter, 'copyFile');
 
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any, maxFileSizeBytes: 10 },
+        { adapter, maxFileSizeBytes: 10 },
       ),
-    ).rejects.toMatchObject({ code: 'FileTooLarge' });
+      'FileTooLarge',
+    );
     expect(readSpy).not.toHaveBeenCalled();
     expect(copySpy).not.toHaveBeenCalled();
   });
@@ -850,33 +927,35 @@ describe('writeTagsToFile safe file writes', () => {
   test('oversized files are blocked after read when provider does not report size', async () => {
     const uri = 'file:///huge.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3, 4) });
-    (adapter.getInfo as any) = jest.fn(async () => ({ exists: true }));
+    jest.spyOn(adapter, 'getInfo').mockImplementation(async () => ({ exists: true }));
     const copySpy = jest.spyOn(adapter, 'copyFile');
 
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any, maxFileSizeBytes: 3 },
+        { adapter, maxFileSizeBytes: 3 },
       ),
-    ).rejects.toMatchObject({ code: 'FileTooLarge' });
+      'FileTooLarge',
+    );
     expect(copySpy).not.toHaveBeenCalled();
   });
 
   test('verification failure blocks replace when temp bytes differ from rewritten payload', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
+    jest.spyOn(adapter, 'readBytes').mockImplementation(async (readUri: string) => {
       if (readUri.endsWith('.tmp')) return u8(0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00);
       return u8(1, 2, 3);
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'VerificationFailed' });
+      'VerificationFailed',
+    );
     expect(ops.find(x => x.startsWith('replace:'))).toBeUndefined();
     expect(
       Array.from(files.keys()).some(k => k.startsWith(`${uri}.`) && k.endsWith('.tmp')),
@@ -889,18 +968,19 @@ describe('writeTagsToFile safe file writes', () => {
   test('temp read failure throws VerificationFailed and tries best-effort temp cleanup', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.readBytes as any) = jest.fn(async (readUri: string) => {
+    jest.spyOn(adapter, 'readBytes').mockImplementation(async (readUri: string) => {
       if (readUri.includes('.tmp')) throw new Error('temp unreadable');
       return u8(1, 2, 3);
     });
     const delSpy = jest.spyOn(adapter, 'deleteFile');
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'VerificationFailed' });
+      'VerificationFailed',
+    );
     expect(ops.find(x => x.startsWith('replace:'))).toBeUndefined();
     expect(delSpy).toHaveBeenCalledTimes(2);
   });
@@ -908,16 +988,17 @@ describe('writeTagsToFile safe file writes', () => {
   test('temp write failure removes attempt-scoped backup sidecar', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.writeBytes as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'writeBytes').mockImplementation(async () => {
       throw new Error('temp write failed');
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'TempWriteFailed' });
+      'TempWriteFailed',
+    );
     expect(
       Array.from(files.keys()).some(k => k.startsWith(`${uri}.`) && k.endsWith('.bak')),
     ).toBe(false);
@@ -926,14 +1007,14 @@ describe('writeTagsToFile safe file writes', () => {
   test('replace failure returns rolledBack and cleans temp/backup when rollback succeeds', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.moveOrReplaceFile as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
       throw new Error('replace failed');
     });
     const deleteSpy = jest.spyOn(adapter, 'deleteFile');
     const result = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(result.status).toBe('rolledBack');
     expect(result.warnings.join(' ')).toMatch(/rollback restored backup/i);
@@ -945,16 +1026,16 @@ describe('writeTagsToFile safe file writes', () => {
   test('rollback backup cleanup failure is non-fatal and returns rolledBack with warning', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.moveOrReplaceFile as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
       throw new Error('replace failed');
     });
-    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+    jest.spyOn(adapter, 'deleteFile').mockImplementation(async (targetUri: string) => {
       if (targetUri.endsWith('.bak')) throw new Error('backup cleanup failed');
     });
     const result = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(result.status).toBe('rolledBack');
     expect(result.warnings.join(' ')).toMatch(/backup cleanup failed after rollback/i);
@@ -963,16 +1044,16 @@ describe('writeTagsToFile safe file writes', () => {
   test('rollback temp cleanup failure is non-fatal and returns rolledBack with warning', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.moveOrReplaceFile as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
       throw new Error('replace failed');
     });
-    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+    jest.spyOn(adapter, 'deleteFile').mockImplementation(async (targetUri: string) => {
       if (targetUri.endsWith('.tmp')) throw new Error('temp cleanup failed');
     });
     const result = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(result.status).toBe('rolledBack');
     expect(result.warnings.join(' ')).toMatch(/temp cleanup failed after rollback/i);
@@ -981,31 +1062,32 @@ describe('writeTagsToFile safe file writes', () => {
   test('replace failure with rollback failure throws RollbackFailed', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.moveOrReplaceFile as any) = jest.fn(async () => {
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
       throw new Error('replace failed');
     });
-    (adapter.copyFile as any) = jest.fn(async (from: string, to: string) => {
+    jest.spyOn(adapter, 'copyFile').mockImplementation(async (from: string, to: string) => {
       if (from.endsWith('.bak') && to === uri) throw new Error('rollback failed');
     });
-    await expect(
+    await expectWriteFailure(
       writeTagsToFile(
         song({ uri, fileInfo: { extension: 'mp3' } }),
         { songId: '1', tags: { title: 'X' } },
-        { adapter: adapter as any },
+        { adapter },
       ),
-    ).rejects.toMatchObject({ code: 'RollbackFailed' });
+      'RollbackFailed',
+    );
   });
 
   test('backup cleanup failure keeps success with warning', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+    jest.spyOn(adapter, 'deleteFile').mockImplementation(async (targetUri: string) => {
       if (targetUri.endsWith('.bak')) throw new Error('cleanup failed');
     });
     const result = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(result.status).toBe('written');
     expect(result.warnings.join(' ')).toMatch(/backup cleanup failed/i);
@@ -1014,13 +1096,13 @@ describe('writeTagsToFile safe file writes', () => {
   test('temp cleanup failure after successful replace is non-fatal warning', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
-    (adapter.deleteFile as any) = jest.fn(async (targetUri: string) => {
+    jest.spyOn(adapter, 'deleteFile').mockImplementation(async (targetUri: string) => {
       if (targetUri.includes('.tmp')) throw new Error('temp cleanup failed');
     });
     const result = await writeTagsToFile(
       song({ uri, fileInfo: { extension: 'mp3' } }),
       { songId: '1', tags: { title: 'X' } },
-      { adapter: adapter as any },
+      { adapter },
     );
     expect(result.status).toBe('written');
     expect(result.warnings.join(' ')).toMatch(/temp cleanup failed/i);
