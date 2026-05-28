@@ -10,28 +10,35 @@ export type TagEditorCoverPickResult =
 
 const COVER_PERMISSION_DENIED_MESSAGE =
   'Zugriff auf Fotos wurde verweigert. Bitte Berechtigung in den Systemeinstellungen erlauben.';
+const COVER_PICK_FAILED_MESSAGE = 'Cover-Auswahl fehlgeschlagen. Bitte erneut versuchen.';
 
-const hasImageLibraryPermission = (permission: { granted?: boolean; status?: string }): boolean =>
-  permission.granted === true || permission.status === 'granted';
+const permissionErrorPattern = /permission|denied|access|unauthori[sz]ed|not authorized/i;
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
+
+const isPickerPermissionError = (error: unknown): boolean =>
+  permissionErrorPattern.test(getErrorMessage(error));
 
 export const pickTagEditorCover = async (): Promise<TagEditorCoverPickResult> => {
-  const existingPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
-  const permission = hasImageLibraryPermission(existingPermission)
-    ? existingPermission
-    : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-  if (!hasImageLibraryPermission(permission)) {
-    console.warn('[CoverPicker] Media-library permission denied.');
-    return { status: 'permissionDenied', message: COVER_PERMISSION_DENIED_MESSAGE };
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+      base64: true,
+    });
+  } catch (error) {
+    console.warn('[CoverPicker] Image picker failed.', error);
+    if (isPickerPermissionError(error)) {
+      return { status: 'permissionDenied', message: COVER_PERMISSION_DENIED_MESSAGE };
+    }
+    return { status: 'failed', message: COVER_PICK_FAILED_MESSAGE };
   }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.9,
-    base64: true,
-  });
 
   if (result.canceled) {
     return { status: 'cancelled', message: 'Cover-Auswahl abgebrochen.' };
