@@ -7,6 +7,7 @@ import { parseFilename } from './musicParser';
 import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilter';
+import { throwIfAborted } from './withTimeout';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -51,6 +52,7 @@ export interface ImportSongsOptions {
   platformOs?: string;
   loadNativeCovers?: boolean;
   readId3Tags?: boolean;
+  signal?: AbortSignal;
 }
 
 interface BuildSongSource {
@@ -69,6 +71,7 @@ interface BuildSongOptions {
 
 interface ImportEnrichmentOptions extends BuildSongOptions {
   readId3Tags?: boolean;
+  signal?: AbortSignal;
 }
 
 const safeDecode = (value: string): string => {
@@ -271,9 +274,10 @@ export const readAudioUrisFromSafDirectory = async (
 
 export const scanAudioAssetsFromMediaLibrary = async (
   getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync,
-  options: { filterLikelyMusic?: boolean } = {},
+  options: { filterLikelyMusic?: boolean; signal?: AbortSignal } = {},
 ): Promise<AudioImportScanResult> => {
-  const { filterLikelyMusic = true } = options;
+  const { filterLikelyMusic = true, signal } = options;
+  throwIfAborted(signal);
   const seenIds = new Set<string>();
   const seenUris = new Set<string>();
   const assets: MediaAsset[] = [];
@@ -283,7 +287,9 @@ export const scanAudioAssetsFromMediaLibrary = async (
   let previousCursor: string | undefined;
 
   while (pageCount < MAX_IMPORT_PAGES) {
+    throwIfAborted(signal);
     const page = await getAssetsPage({ mediaType: 'audio', first: PAGE_SIZE, ...(after ? { after } : {}) });
+    throwIfAborted(signal);
     for (const asset of page.assets) {
       if (seenIds.has(asset.id)) continue;
       seenIds.add(asset.id);
@@ -307,14 +313,15 @@ export const scanAudioAssetsFromMediaLibrary = async (
   return { assets, skipped };
 };
 
-export const scanMediaLibraryCandidates = async (): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary();
+export const scanMediaLibraryCandidates = async (options: { signal?: AbortSignal } = {}): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary(MediaLibrary.getAssetsAsync, options);
 
 export const enrichMediaLibraryAssets = async (
   assets: MediaAsset[],
   skippedCount = 0,
   options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true } = options;
+  const { loadNativeCover = true, readId3Tags = true, signal } = options;
+  throwIfAborted(signal);
   const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -322,10 +329,12 @@ export const enrichMediaLibraryAssets = async (
 
   const workers = Array.from({ length: ID3_WORKER_COUNT }, async () => {
     while (queue.length > 0) {
+      throwIfAborted(signal);
       const asset = queue.shift();
       if (!asset) break;
       try {
         const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags);
+        throwIfAborted(signal);
         songs.push(await buildSongFromImportSource({
           id: asset.id,
           uri: asset.uri,
@@ -335,6 +344,7 @@ export const enrichMediaLibraryAssets = async (
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
         }, tags, { loadNativeCover }));
+        throwIfAborted(signal);
       } catch {
         errors.push(asset.uri);
       }
@@ -342,13 +352,16 @@ export const enrichMediaLibraryAssets = async (
   });
 
   await Promise.all(workers);
+  throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
 export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
-  const candidates = await scanMediaLibraryCandidates();
+  throwIfAborted(options.signal);
+  const candidates = await scanMediaLibraryCandidates({ signal: options.signal });
+  throwIfAborted(options.signal);
   const result = await enrichMediaLibraryAssets(candidates.assets, candidates.skipped.length, options);
   result.skipped = candidates.skipped.map(item => `${item.asset.id}:${item.reason}`);
   return result;
@@ -358,13 +371,15 @@ export const scanFromSafFolders = async (
   folders: ScanFolder[],
   options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true } = options;
+  const { loadNativeCover = true, readId3Tags = true, signal } = options;
+  throwIfAborted(signal);
   const songs: Song[] = [];
   const errors: string[] = [];
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
 
   for (const folder of folders) {
+    throwIfAborted(signal);
     if (!folder.enabled) {
       skipped.push(`${folder.name}:disabled`);
       folderUpdates.push(folder);
@@ -372,6 +387,7 @@ export const scanFromSafFolders = async (
     }
 
     const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri);
+    throwIfAborted(signal);
     if (folderErrors.length > 0) errors.push(...folderErrors);
 
     if (folderErrors.length > 0 && files.length === 0) folderUpdates.push({ ...folder, lastError: 'Nicht lesbar' });
@@ -379,25 +395,32 @@ export const scanFromSafFolders = async (
     else folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
 
     for (const uri of files) {
+      throwIfAborted(signal);
       try {
         const tags = await readId3TagsIfEnabled(uri, readId3Tags);
+        throwIfAborted(signal);
         songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
+        throwIfAborted(signal);
       } catch {
+        throwIfAborted(signal);
         errors.push(uri);
         songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
+        throwIfAborted(signal);
       }
     }
   }
 
+  throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs, loadNativeCovers = true, readId3Tags = true } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers = true, readId3Tags = true, signal } = options;
+  throwIfAborted(signal);
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
-  const importOptions = { loadNativeCover: loadNativeCovers, readId3Tags };
+  const importOptions = { loadNativeCover: loadNativeCovers, readId3Tags, signal };
   if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, importOptions);
   return scanFromMediaLibrary(importOptions);
 };

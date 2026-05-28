@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
@@ -9,8 +9,7 @@ import type { LibraryAlertCopy } from './useLibraryAlerts';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getEnabledScanFolders } from '../utils/libraryScanFolders';
-import { withTimeout } from '../utils/withTimeout';
-import { useAsyncInFlightGuard } from './useAsyncInFlightGuard';
+import { OperationAbortError, isAbortError, isTimeoutError, throwIfAborted, withTimeout, type CancellableOperation, type TimeoutOptions } from '../utils/withTimeout';
 import {
   buildMediaLibraryCandidatesResult,
   buildMediaLibraryImportResult,
@@ -28,9 +27,14 @@ interface ImportedSongsStateUpdate {
   activeTab: LibraryTab;
 }
 
+interface ImportGeneration {
+  controller: AbortController;
+  id: number;
+}
+
 type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 type RequestMediaLibraryPermissions = () => Promise<{ status: string }>;
-type TimeoutRunner = <T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => Promise<T>;
+type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>, timeoutMs: number, timeoutMessage: string, options?: TimeoutOptions) => Promise<T>;
 
 export interface UseLibraryImportActionsOptions {
   scanFolders: ScanFolder[];
@@ -77,44 +81,76 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
-  const runImportOnce = useAsyncInFlightGuard();
+  const generationRef = useRef(0);
+  const activeImportRef = useRef<ImportGeneration | null>(null);
 
-  const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate) => {
+  const isCurrentImport = useCallback((generation: ImportGeneration): boolean =>
+    activeImportRef.current?.id === generation.id && !generation.controller.signal.aborted,
+  []);
+
+  const ensureCurrentImport = useCallback((generation: ImportGeneration): void => {
+    if (!isCurrentImport(generation)) throwIfAborted(generation.controller.signal);
+  }, [isCurrentImport]);
+
+  const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate, generation: ImportGeneration) => {
+    ensureCurrentImport(generation);
     setSongs(update.songs);
+    ensureCurrentImport(generation);
     setActiveTab(update.activeTab);
-  }, [setActiveTab, setSongs]);
+  }, [ensureCurrentImport, setActiveTab, setSongs]);
 
-  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[]): Promise<void> => {
+  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
+    ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
     const result = await withTimeoutImpl(
-      importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs }),
+      signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal }),
       importTimeoutMs,
       scanProgress.timeoutMessage,
+      { signal: generation.controller.signal },
     );
+    ensureCurrentImport(generation);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const persistFolderUpdates = persistChangedFolderUpdates(result.folderUpdates).catch(() => undefined);
     const scanResult = buildScanImportResult(songs, result.songs, result.errors);
     if (scanResult.kind === 'empty') {
-      await persistFolderUpdates;
+      ensureCurrentImport(generation);
+      try {
+        await persistChangedFolderUpdates(result.folderUpdates);
+      } catch (error) {
+        console.warn('[Import] Failed to persist scan folder updates after empty import.', error);
+      }
+      ensureCurrentImport(generation);
       showAlert(scanResult.alert);
       return;
     }
     if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-    applyImportedSongsUpdate(scanResult.update);
-    await persistFolderUpdates;
-  }, [applyImportedSongsUpdate, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
+    applyImportedSongsUpdate(scanResult.update, generation);
+    ensureCurrentImport(generation);
+    try {
+      await persistChangedFolderUpdates(result.folderUpdates);
+    } catch (error) {
+      console.warn('[Import] Failed to persist scan folder updates after import.', error);
+    }
+  }, [applyImportedSongsUpdate, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
-  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy): Promise<void> => {
+  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration): Promise<void> => {
+    ensureCurrentImport(generation);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await requestMediaLibraryPermissionsAsync();
+    ensureCurrentImport(generation);
     const permissionResult = buildMediaLibraryPermissionResult(status);
     if (permissionResult.kind === 'denied') {
       showAlert(permissionResult.alert);
       return;
     }
-    const candidates = await withTimeoutImpl(scanMediaLibraryCandidatesImpl(), importTimeoutMs, importCopy.mediaLibraryScanTimeoutMessage);
+    const candidates = await withTimeoutImpl(
+      signal => scanMediaLibraryCandidatesImpl({ signal }),
+      importTimeoutMs,
+      importCopy.mediaLibraryScanTimeoutMessage,
+      { signal: generation.controller.signal },
+    );
+    ensureCurrentImport(generation);
     const candidateProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, 0);
     setImportStatus(candidateProgress.candidatesFoundStatus);
     const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
@@ -123,40 +159,57 @@ export const useLibraryImportActions = ({
       return;
     }
     const shouldImport = await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
+    ensureCurrentImport(generation);
     if (!shouldImport) return;
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
     const mediaResult = await withTimeoutImpl(
-      enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length),
+      signal => enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length, { signal }),
       importTimeoutMs,
       importCopy.metadataImportTimeoutMessage,
+      { signal: generation.controller.signal },
     );
-    const savingProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
-    setImportStatus(savingProgress.savingStatus);
-    const importResult = buildMediaLibraryImportResult(songs, mediaResult.songs);
-    applyImportedSongsUpdate(importResult.update);
-  }, [applyImportedSongsUpdate, confirmLibraryImportImpl, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
+    ensureCurrentImport(generation);
+    const mediaProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
+    setImportStatus(mediaProgress.savingStatus);
+    const result = buildMediaLibraryImportResult(songs, mediaResult.songs);
+    applyImportedSongsUpdate(result.update, generation);
+  }, [applyImportedSongsUpdate, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
-  const importFromDevice = useCallback(async (): Promise<void> => runImportOnce(async () => {
+  const importFromDevice = useCallback(async (): Promise<void> => {
+    const previousImport = activeImportRef.current;
+    previousImport?.controller.abort(new OperationAbortError('Import superseded by a newer import'));
+    const generation = { controller: new AbortController(), id: generationRef.current + 1 };
+    generationRef.current = generation.id;
+    activeImportRef.current = generation;
     setMenuOpen(false);
+    setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
-    setImportStatus(importCopy.preparingStatus);
     try {
-      setLoading(true);
+      setImportStatus(importCopy.preparingStatus);
       const activeFolders = getEnabledScanFolders(scanFolders);
       if (shouldImportFromScanFolders(activeFolders, platformOs)) {
-        await importFromScanFolders(activeFolders);
-        return;
+        await importFromScanFolders(activeFolders, generation);
+      } else {
+        await importFromMediaLibrary(importCopy, generation);
       }
-
-      await importFromMediaLibrary(importCopy);
     } catch (error) {
-      const stoppedAlert = getImportStoppedAlert(error);
-      showAlert(stoppedAlert);
+      if (isTimeoutError(error)) {
+        console.warn('[Import] Import timed out.', error);
+      } else if (!isCurrentImport(generation) || isAbortError(error)) {
+        console.warn('[Import] Import cancelled.', error);
+        return;
+      } else {
+        console.warn('[Import] Import failed.', error);
+      }
+      showAlert(getImportStoppedAlert(error));
     } finally {
-      setLoading(false);
-      setImportStatus(null);
+      if (activeImportRef.current?.id === generation.id) {
+        activeImportRef.current = null;
+        setLoading(false);
+        setImportStatus(null);
+      }
     }
-  }), [importFromMediaLibrary, importFromScanFolders, platformOs, runImportOnce, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert]);
+  }, [importFromMediaLibrary, importFromScanFolders, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert]);
 
   return { importFromDevice };
 };
