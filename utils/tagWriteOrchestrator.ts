@@ -70,7 +70,7 @@ export const validateWritePreconditions = (
   const tagValidation = validateEditableTags(normalized.tags);
   if (!tagValidation.valid || !validateCoverPayload(normalized.cover))
     errors.push('InvalidTagData');
-  if (!uri || uriType === 'unknown' || uriType === 'remote')
+  if (!uri || uriType === 'empty' || uriType === 'unknown' || uriType === 'remote')
     errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
