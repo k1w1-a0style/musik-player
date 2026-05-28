@@ -55,6 +55,9 @@ export const useTagEditorScreenState = () => {
 
   useEffect(() => {
     const activeSong = activeSongRef.current;
+    coverPickGenerationRef.current += 1;
+    saveGenerationRef.current += 1;
+    setSaving(false);
     if (!activeSong) return;
     setForm(toInitialForm(activeSong));
     setDirty({});
@@ -119,11 +122,12 @@ export const useTagEditorScreenState = () => {
     saveGenerationRef.current += 1;
     const generation = saveGenerationRef.current;
     setSaving(true);
+    const isStaleSaveFlow = (): boolean =>
+      generation !== saveGenerationRef.current || activeSongRef.current?.id !== flowSongId;
+
     try {
       const result = await writeTagsToFile(song, draft);
-      const isStale =
-        generation !== saveGenerationRef.current || activeSongRef.current?.id !== flowSongId;
-      if (isStale) {
+      if (isStaleSaveFlow()) {
         console.warn('[TrackInfo] Ignoring stale tag write result.', { songId: flowSongId });
         return;
       }
@@ -147,6 +151,10 @@ export const useTagEditorScreenState = () => {
       }
       setStatus(statusMessage(result));
     } catch (error) {
+      if (isStaleSaveFlow()) {
+        console.warn('[TrackInfo] Ignoring stale tag write error.', { songId: flowSongId, error });
+        return;
+      }
       console.warn('[TrackInfo] Tag save failed unexpectedly.', error);
       if (error instanceof TagWriterError) {
         setStatus(tagWriterErrorMessage(error.code, error.message));
@@ -154,7 +162,9 @@ export const useTagEditorScreenState = () => {
         setStatus('Speichern fehlgeschlagen.');
       }
     } finally {
-      if (generation === saveGenerationRef.current) setSaving(false);
+      if (generation === saveGenerationRef.current && activeSongRef.current?.id === flowSongId) {
+        setSaving(false);
+      }
     }
   };
 

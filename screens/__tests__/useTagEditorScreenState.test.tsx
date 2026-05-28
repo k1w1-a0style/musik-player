@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useTagEditorScreenState } from '../useTagEditorScreenState';
+import { TagWriterError } from '../../utils/tagWriter';
 import type { Song } from '../../types/Song';
 
 let mockSongId = 's1';
@@ -176,6 +177,89 @@ describe('useTagEditorScreenState', () => {
       expect(getByTestId('status').props.children).toBe('Temporäre Datei konnte nicht geschrieben werden.'),
     );
     expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+  });
+
+
+  test('ignores stale save error after switching songs', async () => {
+    let rejectSave: (reason: Error) => void = () => {};
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockWriteTagsToFile.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    mockSongs = [
+      ...baseSongs,
+      {
+        id: 's2',
+        title: 'Second Song',
+        artist: 'Artist',
+        uri: 'file:///song-2.mp3',
+        fileInfo: { extension: 'mp3', uri: 'file:///song-2.mp3' },
+      },
+    ];
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+    mockSongId = 's2';
+    rerender(<TagEditorStateProbe />);
+
+    rejectSave(new Error('old save failed'));
+
+    await waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[TrackInfo] Ignoring stale tag write error.',
+        expect.objectContaining({ songId: 's1' }),
+      ),
+    );
+    expect(getByTestId('song-id').props.children).toBe('s2');
+    expect(getByTestId('status').props.children).toBe('none');
+    expect(getByTestId('can-save').props.children).toBe('false');
+    expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  test('shows mapped message for current non-stale TagWriterError', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockWriteTagsToFile.mockRejectedValueOnce(
+      new TagWriterError('InvalidTagData', 'Draft validation failed.'),
+    );
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Ungültige Metadaten. Bitte Eingaben prüfen.'),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TrackInfo] Tag save failed unexpectedly.',
+      expect.any(TagWriterError),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  test('shows fallback message for current unexpected save error', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockWriteTagsToFile.mockRejectedValueOnce(new Error('unexpected save failure'));
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Speichern fehlgeschlagen.'),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TrackInfo] Tag save failed unexpectedly.',
+      expect.any(Error),
+    );
+
+    warnSpy.mockRestore();
   });
 
   test('does not change cover on picker permission denial or cancel', async () => {
