@@ -35,6 +35,27 @@ interface LibraryActions {
 export { mergeUniqueSongs, patchSongById } from './libraryActionHelpers';
 
 
+const cleanupCurrentSongIdAfterLibraryUpdate = async (
+  validSongIds: ReadonlySet<string>,
+  cleanupVersion: number,
+  latestCleanupVersionRef: MutableRefObject<number>,
+): Promise<void> => {
+  const isStaleCleanup = () => latestCleanupVersionRef.current !== cleanupVersion;
+
+  try {
+    if (isStaleCleanup()) return;
+    const currentSongId = await storage.get<string>(StorageKeys.CURRENT_SONG_ID);
+    if (isStaleCleanup()) return;
+    const normalizedCurrentSongId = currentSongId?.trim();
+    if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
+      if (isStaleCleanup()) return;
+      await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    }
+  } catch (error) {
+    if (isStaleCleanup()) return;
+    console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
+  }
+};
 
 const syncNativeQueueToLibrary = async (
   nativeQueueRef: MutableRefObject<Song[]>,
@@ -70,6 +91,7 @@ export const useLibraryActions = ({
   setPlaylists,
 }: LibraryActionsArgs): LibraryActions => {
   const latestNativeSyncVersionRef = useRef(0);
+  const latestCleanupVersionRef = useRef(0);
 
   const setSongs = useCallback(
     (songs: Song[]) => {
@@ -90,15 +112,9 @@ export const useLibraryActions = ({
       const syncedQueue = queueContextRef.current.slice();
       if (queueRefChanged) setPlaybackQueue(syncedQueue);
       setSongsState(songs);
-      void storage.get<string>(StorageKeys.CURRENT_SONG_ID).then(currentSongId => {
-        const normalizedCurrentSongId = currentSongId?.trim();
-        if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
-          return storage.remove(StorageKeys.CURRENT_SONG_ID);
-        }
-        return undefined;
-      }).catch(error => {
-        console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
-      });
+      latestCleanupVersionRef.current += 1;
+      const cleanupVersion = latestCleanupVersionRef.current;
+      void cleanupCurrentSongIdAfterLibraryUpdate(validSongIds, cleanupVersion, latestCleanupVersionRef);
       if (queueRefChanged || nativeQueueRefChanged) {
         latestNativeSyncVersionRef.current += 1;
         const syncVersion = latestNativeSyncVersionRef.current;

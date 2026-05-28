@@ -245,6 +245,82 @@ describe('useLibraryActions', () => {
     });
   });
 
+  test('stale current-song cleanup does not remove restored current song id', async () => {
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    const removeSpy = jest.spyOn(storage, 'remove');
+    const firstGetDeferred: { resolve: (value: string | null) => void } = {
+      resolve: () => undefined,
+    };
+    let firstGetPending = true;
+    const originalGet = storage.get.bind(storage);
+    const getMock = jest.spyOn(storage, 'get').mockImplementation(async key => {
+      if (key !== StorageKeys.CURRENT_SONG_ID) return originalGet(key);
+      if (firstGetPending) {
+        firstGetPending = false;
+        return new Promise(resolve => {
+          firstGetDeferred.resolve = resolve;
+        });
+      }
+      return 's1';
+    });
+
+    const { getByTestId, rerender } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    rerender(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={songs}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
+    firstGetDeferred.resolve('s1');
+    await Promise.resolve();
+
+    await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1'));
+    expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+  });
+
+  test('logs current cleanup failures for latest cleanup only', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const getError = new Error('get failed');
+    jest.spyOn(storage, 'get').mockRejectedValueOnce(getError);
+
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to clear current song id after removal.', getError),
+    );
+  });
+
   test('adds only missing songs', () => {
     const { getByTestId } = render(
       <LibraryProbe
