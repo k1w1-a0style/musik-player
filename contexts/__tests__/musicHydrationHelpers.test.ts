@@ -845,6 +845,7 @@ describe('musicHydrationHelpers', () => {
     expect(setSongsState).toHaveBeenCalledWith([]);
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setCurrentSong).toHaveBeenCalledWith(null);
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
     expect(setIsReady).toHaveBeenCalledWith(true);
     expect(warn).toHaveBeenCalledWith('[MusicHydration:StorageError] Failed to load stored hydration state.', expect.any(Error));
     getSpy.mockRestore();
