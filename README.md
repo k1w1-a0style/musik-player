@@ -46,6 +46,12 @@ npx expo config --json
 - `npm test -- --runInBand` — Test-Suite.
 - `npm run test:coverage` — Coverage für `utils`, `hooks` und `contexts` inkl. Mindestschwellen.
 
+## CI / GitHub Actions
+
+- Pull Requests gegen `codex` und `main` laufen über den normalen CI-Workflow; failing CI blockiert die Merge-Freigabe.
+- `main` bleibt der Haupt-/Release-Branch.
+- EAS-/Release-Builds und der Supabase-Legacy-Workflow bleiben separate manuelle bzw. gezielte Workflows und werden nicht automatisch auf jeden PR ausgeführt.
+
 ## Aktuelle Testlage
 
 Die Testanzahl wird bewusst nicht hart im README gepflegt. Aktuell maßgeblich ist:

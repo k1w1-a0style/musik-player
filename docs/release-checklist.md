@@ -25,6 +25,13 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 - [ ] Lint grün; `lint:ci` darf Warnungen nicht verstecken
 - [ ] Expo Config Werte stimmen
 
+## CI-/Workflow-Sichtbarkeit
+
+- [ ] Pull Requests gegen `codex` laufen durch den normalen CI-Workflow (`lint:ci`, `typecheck`, Tests, Coverage und Release-/Permission-Gates); bei failing CI keine Merge-Freigabe.
+- [ ] `main` bleibt Haupt-/Release-Branch und bleibt ebenfalls durch CI für Pull Requests und Pushes abgedeckt.
+- [ ] EAS- und Release-Builds bleiben separate, gezielt gestartete Workflows; sie werden nicht automatisch für jeden PR erzwungen.
+- [ ] Der Supabase-Legacy-Workflow bleibt ein manueller Legacy-Bridge-Workflow und wird nicht automatisch ausgelöst.
+
 ## Round 8.6 Final Release-/Regression-Gates
 
 Diese kompakte Abschlussliste ist das Release-Readiness-Minimum vor späteren Releases. Sie ergänzt die Detail-Checks unten; sie ersetzt keine manuelle Android-Prüfung nach SDK-/FileSystem-Änderungen.
