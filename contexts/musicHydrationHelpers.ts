@@ -302,6 +302,7 @@ export const runMusicHydration = async ({
     if (isCancelled()) return;
 
     applyHydrationFailureFallback(args);
+    hydrationCompleted = true;
     try {
       await TrackPlayer.reset();
     } catch (resetError) {
