@@ -176,7 +176,7 @@ export const hydrateStoredSongs = async ({
     }
     nativeQueueRef.current = [];
     return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists, currentSongId: null };
-  } else {
+  } else if (playableQueue.length > 0) {
     return {
       ...stored,
       songs: hydratedSongs,
