@@ -7,6 +7,8 @@ import { APP_STACK_ROUTES } from '../../types/routes';
 const MockPressable = Pressable;
 const MockText = Text;
 const mockPlaySong = jest.fn(async () => undefined);
+const mockPlayPlaylist = jest.fn(async () => undefined);
+let mockPlaylists: Array<{ id: string; name: string; songIds: string[] }> = [];
 const mockNavigate = jest.fn();
 const mockSetSongs = jest.fn();
 const mockGetScanFolders = jest.fn<Promise<any[]>, []>(async () => []);
@@ -19,20 +21,28 @@ const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
 const mockImportSongs = jest.fn<Promise<any>, [any?]>(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
 const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [], skipped: [] }));
 const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
+const mockRefreshSongsFromId3 = jest.fn<Promise<any>, [any[]]>(async songs => ({ songs, updated: 0, skipped: 0, failed: 0, errors: [] }));
+let mockLibraryControllerCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: () => ({
-    songs: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
-    setSongs: mockSetSongs,
-    currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
-    playSong: mockPlaySong,
-    isReady: true,
-    isPlaying: false,
-  }),
+  useLibraryMusicContext: () => {
+    if (mockLibraryControllerCrash) throw new Error('library controller crash');
+
+    return {
+      songs: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
+      setSongs: mockSetSongs,
+      currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
+      playSong: mockPlaySong,
+      isReady: true,
+      isPlaying: false,
+      playlists: mockPlaylists,
+      playPlaylist: mockPlayPlaylist,
+    };
+  },
 }));
 
 jest.mock('../../utils/storage', () => ({
@@ -48,6 +58,10 @@ jest.mock('../../utils/mediaLibraryImport', () => ({
   importSongsFromSources: (options: any) => mockImportSongs(options),
   scanMediaLibraryCandidates: () => mockMediaCandidates(),
   enrichMediaLibraryAssets: (...args: any[]) => mockMediaEnrich(...args),
+}));
+
+jest.mock('../../utils/songMetadataRefresh', () => ({
+  refreshSongsFromId3: (songs: any[]) => mockRefreshSongsFromId3(songs),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -79,6 +93,26 @@ const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) 
 describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPlaylists = [];
+    mockLibraryControllerCrash = false;
+  });
+
+  test('renders the screen fallback when the inner controller component throws', () => {
+    mockLibraryControllerCrash = true;
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const view = render(<Library />);
+
+    expect(view.getByTestId('library-error-boundary-fallback')).toBeTruthy();
+    expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[LibraryScreen] ErrorBoundary caught an error',
+      expect.any(Error),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
+
+    consoleErrorSpy.mockRestore();
+    view.unmount();
   });
 
   test('renders compact Samsung-style library chrome without the old scan block', async () => {
@@ -113,6 +147,24 @@ describe('Library', () => {
     view.unmount();
   });
 
+  test('renders playlists inside the library tab and plays selected playlist', async () => {
+    mockPlaylists = [{ id: 'pl1', name: 'Meine Liste', songIds: ['s1'] }];
+
+    const view = render(<Library />);
+    const { getByLabelText, getByText } = view;
+
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+
+    fireEvent.press(getByLabelText('Playlisten anzeigen'));
+    expect(getByText('Meine Liste')).toBeTruthy();
+    expect(getByText('1 Track')).toBeTruthy();
+
+    fireEvent.press(getByLabelText('Playlist Meine Liste abspielen'));
+    expect(mockPlayPlaylist).toHaveBeenCalledWith('pl1');
+
+    view.unmount();
+  });
+
   test('shows active scan folder count in the overflow menu', async () => {
     mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
 
@@ -123,6 +175,24 @@ describe('Library', () => {
 
     openOverflowMenu(getByLabelText);
     expect(getByText('Aktive Scan-Ordner: 1')).toBeTruthy();
+    view.unmount();
+  });
+
+  test('metadata refresh action updates songs and reports result', async () => {
+    const refreshedSongs = [{ id: 's1', title: 'Fresh Song', artist: 'Artist', cover: 'file:///broken.jpg' }];
+    mockRefreshSongsFromId3.mockResolvedValueOnce({ songs: refreshedSongs, updated: 1, skipped: 0, failed: 0, errors: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<Library />);
+    const { getByLabelText, getByText } = view;
+
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+    openOverflowMenu(getByLabelText);
+    fireEvent.press(getByText('Metadaten aktualisieren'));
+
+    await waitFor(() => expect(mockRefreshSongsFromId3).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })])));
+    expect(mockSetSongs).toHaveBeenCalledWith(refreshedSongs);
+    expect(Alert.alert).toHaveBeenCalledWith('Metadaten aktualisiert', '1 Tracks aktualisiert. 0 übersprungen. 0 fehlgeschlagen.');
     view.unmount();
   });
 

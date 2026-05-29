@@ -1,4 +1,5 @@
 import type { EditableCover, EditableTrackTags } from '../types/TagEdit';
+import { detectImageMimeFromBytes } from './imageMime';
 
 const MIN_YEAR = 1900;
 const MAX_GENRE_LENGTH = 100;
@@ -35,17 +36,10 @@ export const validateDiscNumber = (value?: string): boolean => validatePosition(
 
 export const validateGenre = (value?: string): boolean => !value || value.length <= MAX_GENRE_LENGTH;
 
-const isJpeg = (data: Uint8Array): boolean => data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
-const isPng = (data: Uint8Array): boolean => data.length >= 8
-  && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47
-  && data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a;
-
 export const validateCoverPayload = (cover?: EditableCover | null): boolean => {
   if (!cover) return true;
   if (cover.data.length === 0) return false;
-  if (cover.mimeType === 'image/jpeg') return isJpeg(cover.data);
-  if (cover.mimeType === 'image/png') return isPng(cover.data);
-  return false;
+  return detectImageMimeFromBytes(cover.data) === cover.mimeType;
 };
 
 export const validateEditableTags = (tags: EditableTrackTags): { valid: boolean; errors: string[] } => {

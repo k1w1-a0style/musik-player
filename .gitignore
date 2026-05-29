@@ -5,6 +5,10 @@ node_modules/
 .expo/
 .expo-shared/
 
+# Expo prebuild native output
+android/
+ios/
+
 # Environment files
 .env
 .env.local

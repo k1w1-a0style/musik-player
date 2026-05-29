@@ -1,0 +1,127 @@
+import { useMemo } from 'react';
+import {
+  buildLibraryMusicContextValue,
+  buildMiniPlayerMusicContextValue,
+  buildNowPlayingMusicContextValue,
+} from './musicContextValues';
+import type {
+  LibraryMusicContextValue,
+  MiniPlayerMusicContextValue,
+  MusicContextValue,
+  NowPlayingMusicContextValue,
+} from './musicContextTypes';
+import { useMusicContextValue } from './useMusicContextValue';
+
+interface ProvidedMusicContextValues {
+  value: MusicContextValue;
+  libraryValue: LibraryMusicContextValue;
+  miniPlayerValue: MiniPlayerMusicContextValue;
+  nowPlayingValue: NowPlayingMusicContextValue;
+}
+
+export const useProvidedMusicContextValues = (input: MusicContextValue): ProvidedMusicContextValues => {
+  const value = useMusicContextValue(input);
+  const {
+    songs,
+    setSongs,
+    currentSong,
+    playSong,
+    isReady,
+    isPlaying,
+    updateSongMetadata,
+    playlists,
+    playPlaylist,
+    togglePlayPause,
+    next,
+    previous,
+    playbackQueue,
+    seekTo,
+    volume,
+    setVolume,
+    palette,
+    fftBins,
+    visualizerRunning,
+    visualizerError,
+    saveQueueAsPlaylist,
+  } = value;
+
+  const libraryValue = useMemo(
+    () =>
+      buildLibraryMusicContextValue({
+        songs,
+        setSongs,
+        currentSong,
+        playSong,
+        isReady,
+        isPlaying,
+        updateSongMetadata,
+        playlists,
+        playPlaylist,
+      }),
+    [
+      songs,
+      setSongs,
+      currentSong,
+      playSong,
+      isReady,
+      isPlaying,
+      updateSongMetadata,
+      playlists,
+      playPlaylist,
+    ],
+  );
+
+  const miniPlayerValue = useMemo(
+    () =>
+      buildMiniPlayerMusicContextValue({
+        currentSong,
+        isPlaying,
+        togglePlayPause,
+        next,
+        previous,
+        playbackQueue,
+      }),
+    [
+      currentSong,
+      isPlaying,
+      togglePlayPause,
+      next,
+      previous,
+      playbackQueue,
+    ],
+  );
+
+  const nowPlayingValue = useMemo(
+    () =>
+      buildNowPlayingMusicContextValue({
+        playbackQueue,
+        currentSong,
+        seekTo,
+        isPlaying,
+        volume,
+        setVolume,
+        palette,
+        fftBins,
+        visualizerRunning,
+        visualizerError,
+        playSong,
+        saveQueueAsPlaylist,
+      }),
+    [
+      playbackQueue,
+      currentSong,
+      seekTo,
+      isPlaying,
+      volume,
+      setVolume,
+      palette,
+      fftBins,
+      visualizerRunning,
+      visualizerError,
+      playSong,
+      saveQueueAsPlaylist,
+    ],
+  );
+
+  return { value, libraryValue, miniPlayerValue, nowPlayingValue };
+};

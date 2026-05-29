@@ -14,10 +14,46 @@ module.exports = {
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.js',
     '^expo-system-audio$': '<rootDir>/__mocks__/expo-system-audio.js',
+    '^expo-image-picker$': '<rootDir>/__mocks__/expo-image-picker.js',
   },
   testMatch: ['**/__tests__/**/*.test.ts?(x)', '**/?(*.)+(test).ts?(x)'],
   collectCoverageFrom: [
-    'utils/**/*.ts',
-    'contexts/**/*.tsx',
+    'utils/**/*.{ts,tsx}',
+    'contexts/**/*.{ts,tsx}',
+    'hooks/**/*.{ts,tsx}',
+    'components/**/*.{ts,tsx}',
+    'screens/**/*.{ts,tsx}',
+    'services/**/*.{ts,tsx}',
+    '!**/__tests__/**',
+    '!**/*.test.{ts,tsx}',
+    '!**/*.d.ts',
+    '!**/node_modules/**',
+    '!**/coverage/**',
   ],
+  coverageThreshold: {
+    global: {
+      statements: 70,
+      branches: 60,
+      functions: 70,
+      lines: 70,
+    },
+    './utils/': {
+      statements: 80,
+      branches: 70,
+      functions: 80,
+      lines: 80,
+    },
+    './hooks/': {
+      statements: 75,
+      branches: 65,
+      functions: 75,
+      lines: 75,
+    },
+    './contexts/': {
+      statements: 75,
+      branches: 65,
+      functions: 75,
+      lines: 75,
+    },
+  },
 };

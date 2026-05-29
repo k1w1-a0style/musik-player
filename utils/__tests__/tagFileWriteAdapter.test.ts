@@ -21,14 +21,13 @@ describe('expoTagFileWriteAdapter moveOrReplaceFile', () => {
     jest.clearAllMocks();
   });
 
-  test('writes replacement bytes without deleting destination first, then removes source temp file', async () => {
-    mockReadAsStringAsync.mockResolvedValue('AQID'); // [1,2,3]
-
+  test('copies replacement file without reading bytes through JS, then removes source temp file', async () => {
     await expoTagFileWriteAdapter.moveOrReplaceFile('file:///tmp/song.tmp', 'file:///music/song.mp3');
 
-    expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///tmp/song.tmp', { encoding: 'base64' });
-    expect(mockWriteAsStringAsync).toHaveBeenCalledTimes(1);
-    expect(mockWriteAsStringAsync).toHaveBeenCalledWith('file:///music/song.mp3', 'AQID', { encoding: 'base64' });
+    expect(mockCopyAsync).toHaveBeenCalledTimes(1);
+    expect(mockCopyAsync).toHaveBeenCalledWith({ from: 'file:///tmp/song.tmp', to: 'file:///music/song.mp3' });
+    expect(mockReadAsStringAsync).not.toHaveBeenCalled();
+    expect(mockWriteAsStringAsync).not.toHaveBeenCalled();
     expect(mockDeleteAsync).toHaveBeenCalledTimes(1);
     expect(mockDeleteAsync).toHaveBeenCalledWith('file:///tmp/song.tmp', { idempotent: true });
   });

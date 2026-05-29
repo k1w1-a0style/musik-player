@@ -1,42 +1,32 @@
 package expo.modules.systemaudio
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.media.audiofx.Equalizer
-import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
-import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 /**
- * Bridges Android's AudioEffect APIs (Equalizer + Visualizer) and the
- * androidx.palette color extraction to JavaScript.
+ * Bridges Android's Equalizer API and the androidx.palette color extraction
+ * to JavaScript.
  *
  * The Equalizer is attached to audioSession=0 (output mix) which affects
  * all audio coming out of the device while the app holds the effect.
  * Requires MODIFY_AUDIO_SETTINGS (auto-granted at install on most devices).
  *
- * The Visualizer also attaches to audioSession=0 and requires RECORD_AUDIO
- * at runtime on Android 9+ — the JS side asks the user, this module
- * simply reports back whether it could start.
+ * Native FFT/Visualizer capture is intentionally disabled for release builds.
+ * Android's Visualizer API can require microphone-style runtime permission on
+ * modern devices, so this module keeps visualizer calls as safe no-ops.
  */
 class SystemAudioModule : Module() {
   private var equalizer: Equalizer? = null
-  private var visualizer: Visualizer? = null
-  private var fftBins: Int = 16
-
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
 
@@ -88,79 +78,13 @@ class SystemAudioModule : Module() {
 
     // ---------- Visualizer ----------
 
-    AsyncFunction("visualizerStart") { bins: Int ->
-      val ctx = appContext.reactContext ?: return@AsyncFunction false
-      val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
-        PackageManager.PERMISSION_GRANTED
-      if (!granted) {
-        sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "no_permission"))
-        return@AsyncFunction false
-      }
-      try {
-        releaseVisualizer()
-        fftBins = bins.coerceIn(8, 128)
-        val v = Visualizer(0)
-        val sizeRange = Visualizer.getCaptureSizeRange()
-        v.captureSize = sizeRange[1].coerceAtMost(1024)
-        v.scalingMode = Visualizer.SCALING_MODE_NORMALIZED
-        v.setDataCaptureListener(
-          object : Visualizer.OnDataCaptureListener {
-            override fun onWaveFormDataCapture(
-              v: Visualizer?,
-              waveform: ByteArray?,
-              samplingRate: Int,
-            ) {}
-
-            override fun onFftDataCapture(
-              v: Visualizer?,
-              fft: ByteArray?,
-              samplingRate: Int,
-            ) {
-              val data = fft ?: return
-              val halfSize = data.size / 2
-              val mags = DoubleArray(halfSize)
-              for (i in 0 until halfSize) {
-                val real = data[2 * i].toInt()
-                val imag = data[2 * i + 1].toInt()
-                mags[i] = sqrt((real * real + imag * imag).toDouble())
-              }
-              val out = DoubleArray(fftBins)
-              if (halfSize > 0) {
-                val logMin = 0.0
-                val logMax = kotlin.math.ln(halfSize.toDouble())
-                for (b in 0 until fftBins) {
-                  val lo = kotlin.math.exp(logMin + (logMax - logMin) * b / fftBins)
-                    .toInt().coerceIn(0, halfSize - 1)
-                  val hi = kotlin.math.exp(logMin + (logMax - logMin) * (b + 1) / fftBins)
-                    .toInt().coerceAtLeast(lo + 1).coerceAtMost(halfSize)
-                  var sum = 0.0
-                  var n = 0
-                  for (i in lo until hi) {
-                    sum += mags[i]; n += 1
-                  }
-                  out[b] = if (n > 0) sum / n else 0.0
-                }
-              }
-              val normalized = out.map { (it / 140.0).coerceIn(0.0, 1.0) }
-              sendEvent("onFftData", mapOf("data" to normalized))
-            }
-          },
-          Visualizer.getMaxCaptureRate() / 2,
-          false,
-          true,
-        )
-        v.enabled = true
-        visualizer = v
-        sendEvent("onVisualizerStateChanged", mapOf("running" to true, "reason" to "ok"))
-        true
-      } catch (e: Throwable) {
-        sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to (e.message ?: "error")))
-        false
-      }
+    AsyncFunction("visualizerStart") { _: Int ->
+      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "disabled"))
+      false
     }
 
     Function("visualizerStop") {
-      releaseVisualizer()
+      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "stopped"))
     }
 
     // ---------- Palette / artwork extraction ----------
@@ -182,6 +106,10 @@ class SystemAudioModule : Module() {
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
+      if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
+        Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogUri()}")
+        return@AsyncFunction null
+      }
       val mimeType = detectImageMime(bytes) ?: run {
         Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogUri()}")
         return@AsyncFunction null
@@ -196,7 +124,6 @@ class SystemAudioModule : Module() {
     }
 
     OnDestroy {
-      releaseVisualizer()
       releaseEqualizer()
     }
   }
@@ -219,15 +146,6 @@ class SystemAudioModule : Module() {
     equalizer = null
   }
 
-  private fun releaseVisualizer() {
-    try {
-      visualizer?.enabled = false
-      visualizer?.release()
-    } catch (_: Throwable) {}
-    visualizer = null
-    sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "stopped"))
-  }
-
   private fun hex(rgb: Int): String {
     val r = (rgb shr 16) and 0xff
     val g = (rgb shr 8) and 0xff
@@ -242,27 +160,16 @@ class SystemAudioModule : Module() {
           val comma = uri.indexOf(',')
           if (comma < 0) null
           else {
-            val bytes = Base64.decode(uri.substring(comma + 1), Base64.DEFAULT)
+            val base64Payload = uri.substring(comma + 1)
+            if (decodedBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
+            val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
           }
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
-          val connection = (URL(uri).openConnection() as? HttpURLConnection) ?: return null
-          try {
-            connection.connectTimeout = 4000
-            connection.readTimeout = 4000
-            connection.useCaches = false
-            connection.instanceFollowRedirects = true
-            connection.connect()
-            if (connection.responseCode !in 200..299) return null
-            connection.inputStream.use {
-              val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-              BitmapFactory.decodeStream(it, null, opts)
-            }
-          } finally {
-            connection.disconnect()
-          }
+          Log.d(TAG, "remote palette extraction blocked uri=${uri.safeLogUri()}")
+          null
         }
         else -> {
           val ctx = appContext.reactContext ?: return null
@@ -299,8 +206,10 @@ class SystemAudioModule : Module() {
           }
           retriever.setDataSource(path)
         }
-        uri.startsWith("http://") || uri.startsWith("https://") ->
-          retriever.setDataSource(uri, emptyMap<String, String>())
+        uri.startsWith("http://") || uri.startsWith("https://") -> {
+          Log.d(TAG, "remote embedded artwork extraction blocked uri=${uri.safeLogUri()}")
+          return null
+        }
         else -> retriever.setDataSource(uri)
       }
       val artwork = retriever.embeddedPicture
@@ -318,17 +227,44 @@ class SystemAudioModule : Module() {
   }
 
   private fun cacheArtworkBytes(sourceUri: String, bytes: ByteArray, extension: String): String? {
+    if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) return null
     val ctx = appContext.reactContext ?: return null
     return try {
-      val dir = File(ctx.cacheDir, "embedded-artwork")
+      val dir = File(ctx.cacheDir, EMBEDDED_ARTWORK_CACHE_DIR)
       if (!dir.exists()) dir.mkdirs()
       val safeName = "${Integer.toHexString(sourceUri.hashCode())}-${Integer.toHexString(bytes.contentHashCode())}.$extension"
       val out = File(dir, safeName)
       if (!out.exists()) out.writeBytes(bytes)
+      out.setLastModified(System.currentTimeMillis())
+      trimEmbeddedArtworkCache(dir)
       "file://${out.absolutePath}"
     } catch (e: Throwable) {
       Log.d(TAG, "embedded artwork cache failed ${e.javaClass.simpleName}: ${e.message}")
       null
+    }
+  }
+
+  private fun trimEmbeddedArtworkCache(dir: File) {
+    try {
+      val files = dir.listFiles()
+        ?.filter { it.isFile }
+        ?.sortedByDescending { it.lastModified() }
+        ?: return
+      var totalBytes = 0L
+      var keptFiles = 0
+      files.forEach { file ->
+        val fileSize = file.length()
+        val keepFile = keptFiles < MAX_EMBEDDED_ARTWORK_CACHE_FILES &&
+          totalBytes + fileSize <= MAX_EMBEDDED_ARTWORK_CACHE_BYTES
+        if (keepFile) {
+          totalBytes += fileSize
+          keptFiles += 1
+        } else if (!file.delete()) {
+          Log.d(TAG, "embedded artwork cache trim skipped file=${file.absolutePath.safeLogUri()}")
+        }
+      }
+    } catch (e: Throwable) {
+      Log.d(TAG, "embedded artwork cache trim failed ${e.javaClass.simpleName}: ${e.message}")
     }
   }
 
@@ -354,6 +290,25 @@ class SystemAudioModule : Module() {
     else -> "jpg"
   }
 
+  private fun decodedBase64ByteLength(value: String): Long {
+    var cleanLength = 0L
+    var last = '\u0000'
+    var secondLast = '\u0000'
+    value.forEach { char ->
+      if (!char.isWhitespace()) {
+        secondLast = last
+        last = char
+        cleanLength += 1
+      }
+    }
+    val padding = when {
+      cleanLength >= 2 && secondLast == '=' && last == '=' -> 2L
+      cleanLength >= 1 && last == '=' -> 1L
+      else -> 0L
+    }
+    return (cleanLength * 3L / 4L) - padding
+  }
+
   private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
 
   @Suppress("unused")
@@ -364,5 +319,10 @@ class SystemAudioModule : Module() {
 
   private companion object {
     private const val TAG = "SystemAudio"
+    private const val EMBEDDED_ARTWORK_CACHE_DIR = "embedded-artwork"
+    private const val MAX_EMBEDDED_ARTWORK_CACHE_FILES = 200
+    private const val MAX_EMBEDDED_ARTWORK_CACHE_BYTES = 25L * 1024L * 1024L
+    private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
+    private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
   }
 }

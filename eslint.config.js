@@ -1,6 +1,7 @@
 // Flat ESLint config (ESLint v9+)
 const tseslint = require('typescript-eslint');
 const globals = require('globals');
+const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = [
   {
@@ -25,6 +26,9 @@ module.exports = [
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
+    plugins: {
+      'react-hooks': reactHooks,
+    },
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
       parserOptions: {
@@ -37,7 +41,16 @@ module.exports = [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 ];

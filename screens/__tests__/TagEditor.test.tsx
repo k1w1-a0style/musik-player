@@ -15,6 +15,7 @@ let mockCapability = {
   supportedContainer: 'mp3',
 };
 let mockPlan = { blockingReasons: [] as string[] };
+let mockTagEditorStateCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: { songId: mockSongId } }),
@@ -22,10 +23,14 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: () => ({
-    songs: mockSongs,
-    updateSongMetadata: mockUpdateSongMetadata,
-  }),
+  useLibraryMusicContext: () => {
+    if (mockTagEditorStateCrash) throw new Error('tag editor screen state crash');
+
+    return {
+      songs: mockSongs,
+      updateSongMetadata: mockUpdateSongMetadata,
+    };
+  },
 }));
 jest.mock(
   '../../components/AppBackground',
@@ -70,6 +75,7 @@ beforeEach(() => {
     supportedContainer: 'mp3',
   };
   mockPlan = { blockingReasons: [] };
+  mockTagEditorStateCrash = false;
   mockSongs = [
     {
       id: 's1',
@@ -89,6 +95,24 @@ beforeEach(() => {
   ];
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();
+});
+
+test('renders the screen fallback when the inner screen-state component throws', () => {
+  mockTagEditorStateCrash = true;
+  const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  const view = render(<TagEditor />);
+
+  expect(view.getByTestId('tag-editor-error-boundary-fallback')).toBeTruthy();
+  expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+  expect(consoleErrorSpy).toHaveBeenCalledWith(
+    '[TagEditor] ErrorBoundary caught an error',
+    expect.any(Error),
+    expect.objectContaining({ componentStack: expect.any(String) }),
+  );
+
+  consoleErrorSpy.mockRestore();
+  view.unmount();
 });
 
 test('renders fields with current song', () => {
@@ -189,7 +213,8 @@ test('shows content URI read-only safety notice', () => {
     },
   ];
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/Dateien sind aktuell read-only/)).toBeTruthy();
+  expect(getByText(/geschützten Android-Ordner/)).toBeTruthy();
+  expect(getByText(/lokalen Musikordner/)).toBeTruthy();
 });
 
 test('unchanged form does not write', () => {
@@ -447,7 +472,7 @@ test('draft builder utility respects dirty fields/removeCover', () => {
   expect(draft.removeCover).toBe(true);
 });
 
-test('content:// song disables remove and replace cover actions', () => {
+test('content:// song disables remove and pick cover actions', () => {
   mockCapability = {
     canRead: true,
     canWrite: false,
@@ -458,11 +483,12 @@ test('content:// song disables remove and replace cover actions', () => {
   };
   const { getByTestId, getByText } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('replace-cover-unavailable')).toBeTruthy();
-  expect(getByText('Cover ersetzen: Noch nicht verfügbar')).toBeTruthy();
+  expect(getByTestId('pick-cover').props.accessibilityState.disabled).toBe(true);
+  expect(getByText('Cover auswählen: JPG/PNG')).toBeTruthy();
 });
 
-test('android file:// writable song keeps remove-cover enabled when cover exists', () => {
+test('android file:// writable song keeps remove-cover enabled for legacy cover without coverInfo', () => {
+  mockSongs = [{ ...mockSongs[0], coverInfo: undefined }];
   mockCapability = {
     canRead: true,
     canWrite: true,
@@ -492,47 +518,102 @@ test('remove-cover disabled when song has no cover', () => {
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
 });
 
-test('hasRemovableCover treats embedded/cached/external statuses as removable but none/unknown as not removable', () => {
+test('remove-cover disabled for external cover info with song.cover because it is not a file cover remove', () => {
+  mockSongs = [
+    {
+      ...mockSongs[0],
+      cover: 'file:///app-cover.jpg',
+      coverInfo: { status: 'external', uri: 'file:///app-cover.jpg' },
+    },
+  ];
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
+});
+
+test('hasRemovableCover treats embedded/cached file cover statuses and legacy cover-only songs as removable but external/none/unknown as not removable', () => {
   expect(
     hasRemovableCover({
       id: '1',
+      title: 't',
+      artist: 'a',
+      coverInfo: { status: 'embedded', uri: 'file:///embedded.jpg' },
+    }),
+  ).toBe(true);
+  expect(
+    hasRemovableCover({
+      id: '2',
+      title: 't',
+      artist: 'a',
+      coverInfo: { status: 'cached', uri: 'file:///cached.jpg' },
+    }),
+  ).toBe(true);
+  expect(
+    hasRemovableCover({
+      id: '3',
       title: 't',
       artist: 'a',
       coverInfo: { status: 'embedded' },
-    } as any),
+    }),
   ).toBe(true);
   expect(
     hasRemovableCover({
-      id: '1',
+      id: '4',
       title: 't',
       artist: 'a',
-      coverInfo: { status: 'cached' },
-    } as any),
-  ).toBe(true);
+      coverInfo: { status: 'external', uri: 'file:///external.jpg' },
+    }),
+  ).toBe(false);
   expect(
     hasRemovableCover({
-      id: '1',
-      title: 't',
-      artist: 'a',
-      coverInfo: { status: 'external' },
-    } as any),
-  ).toBe(true);
-  expect(
-    hasRemovableCover({
-      id: '1',
+      id: '5',
       title: 't',
       artist: 'a',
       coverInfo: { status: 'none' },
-    } as any),
+    }),
   ).toBe(false);
   expect(
     hasRemovableCover({
-      id: '1',
+      id: '6',
       title: 't',
       artist: 'a',
       coverInfo: { status: 'unknown' },
-    } as any),
+    }),
   ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '7',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///external-cover.jpg',
+      coverInfo: { status: 'external' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '8',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///none-cover.jpg',
+      coverInfo: { status: 'none' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '9',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///unknown-cover.jpg',
+      coverInfo: { status: 'unknown' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '10',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///legacy-cover.jpg',
+    }),
+  ).toBe(true);
 });
 
 test('embedded cover is removable for writable file:// and sends removeCover=true', async () => {
@@ -586,12 +667,12 @@ test('embedded cover remains blocked for content:// songs', () => {
   expect(mockWriteTagsToFile).not.toHaveBeenCalled();
 });
 
-test('coverInfo uri without song.cover remains removable', () => {
+test('cached coverInfo uri without song.cover remains removable', () => {
   mockSongs = [
     {
       ...mockSongs[0],
       cover: undefined,
-      coverInfo: { status: 'external', uri: 'file:///cached-cover.jpg' },
+      coverInfo: { status: 'cached', uri: 'file:///cached-cover.jpg' },
     },
   ];
   const { getByTestId } = render(<TagEditor />);

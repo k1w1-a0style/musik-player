@@ -1,6 +1,6 @@
 export type TagEditableContainer = 'mp3' | 'm4a' | 'mp4' | 'unsupported';
 
-export type TagEditUriType = 'file' | 'content' | 'remote' | 'unknown';
+export type TagEditUriType = 'file' | 'content' | 'remote' | 'empty' | 'unknown';
 
 export interface TagEditCapability {
   canRead: boolean;
@@ -40,6 +40,8 @@ export type TagWriterErrorCode =
   | 'InvalidTagData'
   | 'FileTooLarge'
   | 'WriteNotImplemented'
+  | 'WriteNotImplementedV22'
+  | 'WriteNotImplementedV24'
   | 'BackupFailed'
   | 'TempWriteFailed'
   | 'ReplaceFailed'
@@ -105,11 +107,25 @@ export interface WriteOrchestrationResult {
 export type TagEditPlan = WriteOperationPlan;
 
 export interface WriteTagsResult {
-  status: 'written' | 'noop' | 'blocked' | 'rolledBack';
-  sourceUri: string;
+  status: 'written' | 'noop' | 'blocked' | 'rolledBack' | 'unsupportedUri' | 'permissionDenied' | 'writeFailed' | 'cancelled';
+  sourceUri?: string;
   backupUri?: string;
   tempUri?: string;
   bytesBefore?: number;
   bytesAfter?: number;
   warnings: string[];
+  errorCode?: TagWriterErrorCode;
+  errorMessage?: string;
+}
+
+export type WritableTagUriResolution =
+  | { ok: true; uri: string; source: 'fileInfo' | 'song'; uriType: Extract<TagEditUriType, 'file'> }
+  | { ok: false; status: 'unsupportedUri' | 'permissionDenied'; reason: TagWriterErrorCode; message: string; source?: 'fileInfo' | 'song'; uriType: TagEditUriType };
+
+export interface TagWritePayload {
+  songId: string;
+  uri: string;
+  uriSource: 'fileInfo' | 'song';
+  container: TagEditableContainer;
+  draft: TagEditDraft;
 }

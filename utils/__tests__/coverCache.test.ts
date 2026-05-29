@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { cacheBase64Cover, isBase64ImageDataUri, sanitizeSongsForStorage } from '../coverCache';
+import { cleanupCoverCache } from '../coverCacheCleanup';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-file-system', () => ({
@@ -10,6 +11,8 @@ jest.mock('expo-file-system', () => ({
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
   getInfoAsync: jest.fn(async () => ({ exists: false })),
+  readDirectoryAsync: jest.fn(async () => []),
+  deleteAsync: jest.fn(async () => undefined),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -19,6 +22,8 @@ jest.mock('expo-file-system/legacy', () => ({
   makeDirectoryAsync: jest.fn(async () => undefined),
   writeAsStringAsync: jest.fn(async () => undefined),
   getInfoAsync: jest.fn(async () => ({ exists: false })),
+  readDirectoryAsync: jest.fn(async () => []),
+  deleteAsync: jest.fn(async () => undefined),
 }));
 
 describe('coverCache', () => {
@@ -26,6 +31,8 @@ describe('coverCache', () => {
     jest.clearAllMocks();
     (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
+    (FileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
   });
 
   test('detects image base64 data uri', () => {
@@ -62,18 +69,43 @@ describe('coverCache', () => {
     expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
-  test('preserves original base64 cover when file write fails', async () => {
-    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+  test('strips embedded base64 cover when file write fails', async () => {
+    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('write rejected'));
     const originalCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
-    const songs: Song[] = [{ id: 'fail-1', title: 'A', artist: 'B', cover: originalCover }];
+    const songs: Song[] = [
+      {
+        id: 'fail-1',
+        title: 'A',
+        artist: 'B',
+        cover: originalCover,
+        coverInfo: { status: 'embedded', uri: originalCover },
+      },
+    ];
 
     const result = await sanitizeSongsForStorage(songs);
 
-    expect(result[0].cover).toBe(originalCover);
-    expect(result[0].cover).not.toBeUndefined();
+    expect(result[0].cover).toBeUndefined();
+    expect(result[0].coverInfo).toEqual({ status: 'none' });
   });
 
-  test('ignores invalid base64 payload', async () => {
+  test('strips invalid embedded base64 cover during storage sanitizing', async () => {
+    const songs: Song[] = [
+      {
+        id: 'bad-cover',
+        title: 'A',
+        artist: 'B',
+        cover: 'data:image/jpeg;base64,??',
+        coverInfo: { status: 'embedded', uri: 'data:image/jpeg;base64,??' },
+      },
+    ];
+
+    const result = await sanitizeSongsForStorage(songs);
+
+    expect(result[0].cover).toBeUndefined();
+    expect(result[0].coverInfo).toEqual({ status: 'none' });
+  });
+
+  test('ignores invalid base64 payload for direct cache attempt', async () => {
     await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
   });
 
@@ -105,4 +137,26 @@ describe('coverCache', () => {
     expect(result[0].comment).toBe('Keep me');
   });
 
+  test('cleans orphaned cached cover files', async () => {
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({
+      exists: uri === 'file:///docs/covers' || uri.includes('aaa-bbb.jpg'),
+    }));
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    await cleanupCoverCache([
+      { id: 'keep', title: 'A', artist: 'B', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    });
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', expect.anything());
+  });
+
+  test('ignores cleanup failures', async () => {
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('no access'));
+
+    await expect(cleanupCoverCache([])).resolves.toBeUndefined();
+  });
 });

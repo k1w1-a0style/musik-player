@@ -4,28 +4,41 @@ import type {
   TagEditPlan,
   TagEditableContainer,
   TagWriterErrorCode,
+  TagWritePayload,
+  WritableTagUriResolution,
   WriteOrchestrationResult,
   WriteTagsResult,
 } from '../types/TagEdit';
-import { getTagEditCapability, getSupportedContainer } from './tagEditCapability';
+import { getTagEditCapability, getSupportedContainer, getUriType } from './tagEditCapability';
 import {
   normalizeEditableTags,
   validateCoverPayload,
   validateEditableTags,
 } from './tagValidation';
 import {
+  DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
   createTagWriteOperationPlan,
   simulateTagWriteOperation,
 } from './tagWriteOrchestrator';
 import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 
+export const normalizeTagWriterErrorCode = (
+  code: TagWriterErrorCode,
+  message: string,
+): TagWriterErrorCode => {
+  if (code !== 'WriteNotImplemented') return code;
+  if (message.includes('ID3v2.2')) return 'WriteNotImplementedV22';
+  if (message.includes('ID3v2.4')) return 'WriteNotImplementedV24';
+  return code;
+};
+
 export class TagWriterError extends Error {
-  constructor(
-    public code: TagWriterErrorCode,
-    message: string,
-  ) {
+  public code: TagWriterErrorCode;
+
+  constructor(code: TagWriterErrorCode, message: string) {
     super(message);
     this.name = 'TagWriterError';
+    this.code = normalizeTagWriterErrorCode(code, message);
   }
 }
 
@@ -52,7 +65,7 @@ const textEncoder = new TextEncoder();
 const ID3_HEADER = 10;
 const ID3_SYNCSAFE_MAX_SIZE = 0x0fffffff;
 const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
-export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
+export { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 
 const isValidId3v23FrameId = (id: string): boolean => /^[A-Z0-9]{4}$/.test(id);
 
@@ -298,14 +311,15 @@ const textFrame = (id: string, value: string): Uint8Array => {
 };
 const commFrame = (value: string): Uint8Array => {
   const textBytes = encodeUtf16Bom(value);
-  const body = new Uint8Array(1 + 3 + 2 + textBytes.length);
+  const descriptorBytes = encodeUtf16Bom('');
+  const body = new Uint8Array(1 + 3 + descriptorBytes.length + textBytes.length);
   let offset = 0;
   body[offset++] = 0x01;
   body[offset++] = 0x65;
   body[offset++] = 0x6e;
   body[offset++] = 0x67;
-  body[offset++] = 0x00;
-  body[offset++] = 0x00;
+  body.set(descriptorBytes, offset);
+  offset += descriptorBytes.length;
   body.set(textBytes, offset);
   return frame('COMM', body);
 };
@@ -405,8 +419,10 @@ export const buildId3v23TagFromDraft = (
     replacement.push(textFrame('TPE1', tags.artist));
   if (hasDraftTagIntent(draft, 'album') && tags.album)
     replacement.push(textFrame('TALB', tags.album));
-  if (hasDraftTagIntent(draft, 'year') && tags.year)
+  if (hasDraftTagIntent(draft, 'year') && tags.year) {
     replacement.push(textFrame('TYER', tags.year));
+    replacement.push(textFrame('TDRC', tags.year));
+  }
   if (hasDraftTagIntent(draft, 'genre') && tags.genre)
     replacement.push(textFrame('TCON', tags.genre));
   if (hasDraftTagIntent(draft, 'trackNumber') && tags.trackNumber)
@@ -563,6 +579,117 @@ const applyMp4TagEditToBuffer = (
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
   createTagWriteOperationPlan(song, draft);
+
+const tagWriterWarn = (message: string, error?: unknown): void => {
+  if (error === undefined) {
+    console.warn(`[TagWriter] ${message}`);
+    return;
+  }
+  console.warn(`[TagWriter] ${message}`, error);
+};
+
+const firstDeclaredUri = (song: Song): { uri?: string; source?: 'fileInfo' | 'song' } => {
+  if (song.fileInfo?.uri !== undefined) return { uri: song.fileInfo.uri, source: 'fileInfo' };
+  if (song.uri !== undefined) return { uri: song.uri, source: 'song' };
+  return {};
+};
+
+export const resolveWritableTagUri = (song: Song): WritableTagUriResolution => {
+  const { uri, source } = firstDeclaredUri(song);
+  if (uri === undefined) {
+    return {
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+      message: 'Song has no editable URI.',
+      uriType: 'unknown',
+    };
+  }
+
+  const uriType = getUriType(uri);
+  if (uriType === 'empty') {
+    return {
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+      message: 'Song URI is empty.',
+      source,
+      uriType,
+    };
+  }
+  if (uriType === 'content') {
+    return {
+      ok: false,
+      status: 'permissionDenied',
+      reason: 'MissingWritePermission',
+      message: 'SAF/content:// write flow is not supported for tag editing yet.',
+      source,
+      uriType,
+    };
+  }
+  if (uriType !== 'file') {
+    return {
+      ok: false,
+      status: 'unsupportedUri',
+      reason: 'UnsupportedUri',
+      message: 'URI is not writable for tag editing.',
+      source,
+      uriType,
+    };
+  }
+
+  return { ok: true, uri, source: source ?? 'song', uriType };
+};
+
+export const buildTagWritePayload = (song: Song, draft: TagEditDraft): TagWritePayload => {
+  const writableUri = resolveWritableTagUri(song);
+  if (!writableUri.ok) {
+    throw new TagWriterError(writableUri.reason, writableUri.message);
+  }
+  const container = getSupportedContainer(song);
+  if (container === 'unsupported') {
+    throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.');
+  }
+  return {
+    songId: song.id,
+    uri: writableUri.uri,
+    uriSource: writableUri.source,
+    container,
+    draft,
+  };
+};
+
+const tagWriterFailureStatus = (code: TagWriterErrorCode): WriteTagsResult['status'] => {
+  if (code === 'UnsupportedUri' || code === 'UnsupportedFormat') return 'unsupportedUri';
+  if (code === 'MissingWritePermission') return 'permissionDenied';
+  return 'writeFailed';
+};
+
+const toWriteTagsFailureResult = (
+  error: unknown,
+  sourceUri?: string,
+): WriteTagsResult => {
+  if (error instanceof TagWriterError) {
+    tagWriterWarn(`Tag write failed with ${error.code}: ${error.message}`, error);
+    return {
+      status: tagWriterFailureStatus(error.code),
+      sourceUri,
+      warnings: [],
+      errorCode: error.code,
+      errorMessage: error.message,
+    };
+  }
+  const errorMessage = String(error);
+  tagWriterWarn(`Tag write failed: ${errorMessage}`, error);
+  return {
+    status: 'writeFailed',
+    sourceUri,
+    warnings: [],
+    errorCode: 'WriteNotImplemented',
+    errorMessage,
+  };
+};
+
 export const applyTagEditToBuffer = (
   buffer: Uint8Array,
   container: TagEditableContainer,
@@ -585,22 +712,12 @@ export const applyTagEditToBuffer = (
 };
 
 export const ensureTagEditWriteAllowed = (song: Song, platform?: string): void => {
+  const writableUri = resolveWritableTagUri(song);
+  if (!writableUri.ok) throw new TagWriterError(writableUri.reason, writableUri.message);
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   if (container === 'unsupported')
     throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.');
-  if (!song.fileInfo?.uri && !song.uri)
-    throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
-  if (capability.uriType === 'remote' || capability.uriType === 'unknown')
-    throw new TagWriterError(
-      'UnsupportedUri',
-      capability.reason ?? 'URI is not writable.',
-    );
-  if (capability.uriType === 'content')
-    throw new TagWriterError(
-      'MissingWritePermission',
-      'SAF write permission and safe write flow are required.',
-    );
   if (!capability.canWrite)
     throw new TagWriterError(
       'WriteNotImplemented',
@@ -646,15 +763,15 @@ const buildAttemptScopedUri = (uri: string, suffix: 'bak' | 'tmp'): string => {
   const attemptId = `${Date.now()}-${entropy}`;
   return `${uri}.${attemptId}.${suffix}`;
 };
-export const writeTagsToFile = async (
+const writeTagsToFileOrThrow = async (
   song: Song,
   draft: TagEditDraft,
   options?: { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: number },
 ): Promise<WriteTagsResult> => {
-  const uri = song.fileInfo?.uri ?? song.uri;
-  if (!uri) throw new TagWriterError('UnsupportedUri', 'Song has no editable URI.');
+  const payload = buildTagWritePayload(song, draft);
+  const uri = payload.uri;
   return withUriWriteLock(uri, async () => {
-    const container = getSupportedContainer(song);
+    const container = payload.container;
     const adapter = options?.adapter ?? expoTagFileWriteAdapter;
     const canReplace =
       typeof adapter.canReplaceExistingFile === 'function'
@@ -723,13 +840,13 @@ export const writeTagsToFile = async (
     const cleanupBackupAndTemp = async (): Promise<void> => {
       try {
         await adapter.deleteFile(tempUri);
-      } catch {
-        /* noop */
+      } catch (error) {
+        tagWriterWarn('Temp cleanup failed after aborted write; temp file retained.', error);
       }
       try {
         await adapter.deleteFile(backupUri);
-      } catch {
-        /* noop */
+      } catch (error) {
+        tagWriterWarn('Backup cleanup failed after aborted write; backup file retained.', error);
       }
     };
     try {
@@ -820,3 +937,22 @@ export const writeTagsToFile = async (
     };
   });
 };
+
+export const writeTagsToFile = async (
+  song: Song,
+  draft: TagEditDraft,
+  options?: { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: number },
+): Promise<WriteTagsResult> => {
+  const writableUri = resolveWritableTagUri(song);
+  if (!writableUri.ok) {
+    const error = new TagWriterError(writableUri.reason, writableUri.message);
+    return toWriteTagsFailureResult(error);
+  }
+
+  try {
+    return await writeTagsToFileOrThrow(song, draft, options);
+  } catch (error) {
+    return toWriteTagsFailureResult(error, writableUri.uri);
+  }
+};
+

@@ -1,6 +1,7 @@
 const { createRunOncePlugin, withAndroidManifest } = require('expo/config-plugins');
 
 const FORBIDDEN_MEDIA_PERMISSIONS = new Set([
+  'android.permission.RECORD_AUDIO',
   'android.permission.READ_MEDIA_IMAGES',
   'android.permission.READ_MEDIA_VIDEO',
   'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
@@ -34,8 +35,12 @@ function withExpoSystemAudio(config) {
   });
 }
 
-module.exports = createRunOncePlugin(
+const plugin = createRunOncePlugin(
   withExpoSystemAudio,
   'expo-system-audio',
   '1.0.0',
 );
+
+module.exports = plugin;
+module.exports.FORBIDDEN_MEDIA_PERMISSIONS = FORBIDDEN_MEDIA_PERMISSIONS;
+module.exports.removeForbiddenPermissions = removeForbiddenPermissions;

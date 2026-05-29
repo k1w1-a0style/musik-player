@@ -3,7 +3,7 @@ import {
   formatCoverStatus,
   formatDuration,
   formatSampleRate,
-} from '../TrackInfo';
+} from '../trackInfoHelpers';
 
 describe('TrackInfo formatters', () => {
   test('formatDuration handles unavailable and mm:ss/hh:mm:ss', () => {

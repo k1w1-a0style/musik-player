@@ -17,6 +17,33 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).toContain('UnsupportedUri');
   });
 
+  test('whitespace-only fileInfo URI is blocked as UnsupportedUri', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'file:///fallback.mp3', fileInfo: { uri: '   ', extension: 'mp3' } }),
+      draft,
+      'android',
+    );
+
+    expect(plan.uriType).toBe('empty');
+    expect(plan.blockingReasons).toContain('UnsupportedUri');
+  });
+
+  test('whitespace-only song URI is blocked as UnsupportedUri', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: '   ', fileInfo: { extension: 'mp3' } }), draft, 'android');
+
+    expect(plan.uriType).toBe('empty');
+    expect(plan.blockingReasons).toContain('UnsupportedUri');
+  });
+
+  test('simulation is not ok for empty URI type', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: '   ', fileInfo: { extension: 'mp3' } }), draft, 'android');
+    const result = simulateTagWriteOperation(plan);
+
+    expect(result.ok).toBe(false);
+    expect(result.primaryBlockingReason).toBe('UnsupportedUri');
+    expect(result.blockingReasons).toContain('UnsupportedUri');
+  });
+
   test('unsupported container is blocked as UnsupportedFormat', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.flac', fileInfo: { extension: 'flac' } }), draft);
     expect(plan.blockingReasons).toContain('UnsupportedFormat');
@@ -89,7 +116,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile with content uri remains blocked', async () => {
-    await expect(writeTagsToFile(song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: {} })).rejects.toThrow(/SAF/i);
+  test('writeTagsToFile with content uri returns controlled permissionDenied result', async () => {
+    const result = await writeTagsToFile(
+      song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: {} },
+    );
+
+    expect(result).toMatchObject({
+      status: 'permissionDenied',
+      errorCode: 'MissingWritePermission',
+    });
   });
 });

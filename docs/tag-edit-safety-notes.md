@@ -113,12 +113,13 @@ Separate PRs are still required for:
 - After successful save, UI state patch uses normalized tag values (trimmed/empty->undefined) to match file output.
 - Editor keeps non-Song model form values (e.g., track/disc/comment) visible after successful/noop saves; errors keep user input for correction.
 
-- Cover replace is intentionally blocked for now; TagEditor only supports remove-cover on writable file:// tracks and shows a non-interactive unavailable hint for replace.
-- Cover remove is allowed for writable tracks when the app knows cover exists (including `coverInfo.status=embedded` without a cover URI).
-- `content://` remains read-only for both remove and replace actions.
+- Cover replacement is active for supported writable `file://` tracks: TagEditor can add `replacementCover` to the draft and TagWriter writes APIC/Cover frames/atoms through the guarded writer path.
+- Cover remove and cover replace remain distinct actions. `removeCover` clears embedded/cached file-cover state; `coverInfo.status=external` alone is not offered as a file-cover remove because it can represent app/external cover state rather than embedded audio metadata.
+- After successful cover replacement, the UI patch may temporarily show the selected picker URI as `cover`/`coverInfo.uri` with `status=embedded`; a later rescan/cache extraction can replace it with a stable embedded-cover URI.
+- `content://` remains read-only for both remove and replace actions. Unsupported containers remain blocked. MP4/M4A cover writes remain limited to known safe atom layouts.
 
 - Exactly one editable TagEditor UI is active; legacy ID3 editor paths were removed.
 - Tag writes run exclusively through `writeTagsToFile`; no alternative save path is supported.
 - `content://` remains blocked/read-only for writes.
-- Cover replacement is not active yet.
+- Cover replacement is active only through the guarded writable `file://` path; no save-time reparse or new cover-cache pipeline is part of this policy.
 - RNTP native metadata sync is best-effort and queue-index-based (`updateMetadataForTrack(index, metadata)`).

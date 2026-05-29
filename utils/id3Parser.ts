@@ -2,13 +2,14 @@
  * Native-safe ID3v2 Parser.
  *
  * Reads binary data from a local file URI via expo-file-system's File API
- * and decodes ID3v2.3/v2.4 frames (TIT2, TPE1, TALB, TYER, TCON, APIC).
+ * and decodes common ID3v2.2/v2.3/v2.4 text and cover frames.
  *
  * No native module required — works in managed Expo workflow.
  */
 
 import * as FileSystem from 'expo-file-system';
 import { readAsStringAsync, EncodingType, getInfoAsync } from 'expo-file-system/legacy';
+import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 
 export interface Id3Tags {
   title?: string;
@@ -24,8 +25,6 @@ export interface Id3Tags {
 }
 const HEAD_READ_LIMIT = 1024 * 1024;
 const TAIL_READ_LIMIT = 1024 * 1024;
-
-type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number => {
   return (
@@ -212,52 +211,13 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   return out;
 };
 
-const detectMimeFromMagicBytes = (bytes: Uint8Array): ImageMime | undefined => {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
-    return 'image/jpeg';
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47 &&
-    bytes[4] === 0x0d &&
-    bytes[5] === 0x0a &&
-    bytes[6] === 0x1a &&
-    bytes[7] === 0x0a
-  )
-    return 'image/png';
-  if (
-    bytes.length >= 12 &&
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  )
-    return 'image/webp';
-  return undefined;
-};
-
-const normalizeMime = (value?: string): ImageMime | undefined => {
-  if (!value) return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'image/jpeg';
-  if (normalized.includes('png')) return 'image/png';
-  if (normalized.includes('webp')) return 'image/webp';
-  return undefined;
-};
-
 const buildCoverDataUri = (
   imageBytes: Uint8Array,
   mimeHint?: string,
 ): string | undefined => {
   if (imageBytes.length === 0) return undefined;
-  const hintMime = normalizeMime(mimeHint);
-  const magicMime = detectMimeFromMagicBytes(imageBytes);
+  const hintMime = normalizeImageMime(mimeHint);
+  const magicMime = detectImageMimeFromBytes(imageBytes);
   const mime = magicMime ?? hintMime;
   if (hintMime && !magicMime) return undefined;
   if (!mime) return undefined;
@@ -313,9 +273,32 @@ const decodePIC = (bytes: Uint8Array, start: number, end: number): string | unde
   );
 };
 
+const skipExtendedId3Header = (
+  bytes: Uint8Array,
+  majorVersion: number,
+  flags: number,
+  start: number,
+  end: number,
+): number => {
+  if ((flags & 0x40) === 0) return start;
+  if (majorVersion === 3) {
+    if (start + 4 > end) return end;
+    const extendedSize = decodeSize(bytes, start);
+    if (extendedSize < 6 || start + 4 + extendedSize > end) return end;
+    return start + 4 + extendedSize;
+  }
+  if (majorVersion === 4) {
+    if (start + 4 > end) return end;
+    const extendedSize = decodeSyncsafe(bytes, start);
+    if (extendedSize < 6 || start + extendedSize > end) return end;
+    return start + extendedSize;
+  }
+  return start;
+};
+
 /**
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
- * Supports ID3v2.3 and ID3v2.4 headers (ID3v2.2 omitted for simplicity).
+ * Supports common ID3v2.2/v2.3/v2.4 text and cover frames.
  */
 export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   const tags: Id3Tags = {};
@@ -328,25 +311,68 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     return tags;
   }
   const majorVersion = bytes[3];
+  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
+  const flags = bytes[5];
   const totalSize = decodeSyncsafe(bytes, 6);
   const end = Math.min(bytes.length, 10 + totalSize);
 
-  let p = 10;
+  let p = majorVersion === 2 ? 10 : skipExtendedId3Header(bytes, majorVersion, flags, 10, end);
+  let commentFallback: string | undefined;
   if (majorVersion === 2) {
     while (p + 6 <= end) {
       const id = readLatin1(bytes, p, p + 3);
       if (!id || id.charCodeAt(0) === 0) break;
+      if (!/^[A-Z0-9]{3}$/.test(id)) break;
       const frameSize = (bytes[p + 3] << 16) | (bytes[p + 4] << 8) | bytes[p + 5];
       if (frameSize <= 0 || p + 6 + frameSize > end) break;
-      if (id === 'PIC' && !tags.cover) {
-        const cover = decodePIC(bytes, p + 6, p + 6 + frameSize);
-        if (cover) tags.cover = cover;
+      const bodyStart = p + 6;
+      const bodyEnd = bodyStart + frameSize;
+      switch (id) {
+        case 'TT2':
+          tags.title = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TP1':
+        case 'TP2':
+          if (!tags.artist) tags.artist = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TAL':
+          tags.album = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TYE':
+          tags.year = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TCO':
+          tags.genre = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TRK':
+          tags.trackNumber = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'TPA':
+          tags.discNumber = decodeText(bytes, bodyStart, bodyEnd);
+          break;
+        case 'COM': {
+          const comm = decodeComm(bytes, bodyStart, bodyEnd);
+          if (comm?.text) {
+            if (!comm.description) tags.comment = comm.text;
+            else if (!commentFallback) commentFallback = comm.text;
+          }
+          break;
+        }
+        case 'PIC': {
+          if (!tags.cover) {
+            const cover = decodePIC(bytes, bodyStart, bodyEnd);
+            if (cover) tags.cover = cover;
+          }
+          break;
+        }
+        default:
+          break;
       }
       p += 6 + frameSize;
     }
+    if (!tags.comment && commentFallback) tags.comment = commentFallback;
     return tags;
   }
-  let commentFallback: string | undefined;
   while (p + 10 <= end) {
     const id = readLatin1(bytes, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;

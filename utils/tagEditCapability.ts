@@ -6,10 +6,13 @@ import { getDefaultReplaceSupportForPlatform } from './tagFileWriteAdapter';
 const REMOTE_RE = /^https?:\/\//i;
 
 export const getUriType = (uri?: string): TagEditUriType => {
-  if (!uri) return 'unknown';
-  if (uri.startsWith('file://')) return 'file';
-  if (uri.startsWith('content://')) return 'content';
-  if (REMOTE_RE.test(uri)) return 'remote';
+  if (uri === undefined) return 'unknown';
+  const trimmed = uri.trim();
+  if (!trimmed) return 'empty';
+  if (trimmed !== uri) return 'unknown';
+  if (trimmed.startsWith('file://')) return 'file';
+  if (trimmed.startsWith('content://')) return 'content';
+  if (REMOTE_RE.test(trimmed)) return 'remote';
   return 'unknown';
 };
 
@@ -31,8 +34,12 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   const uriType = getUriType(uri);
   const container = getSupportedContainer(song);
 
-  if (!uri) {
+  if (uri === undefined) {
     return { canRead: false, canWrite: false, uriType: 'unknown', supportedContainer: container, reason: 'Song has no readable URI.' };
+  }
+
+  if (uriType === 'empty') {
+    return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'Song URI is empty.' };
   }
 
   if (uriType === 'remote') {

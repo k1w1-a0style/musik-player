@@ -8,7 +8,9 @@ type MiniCtx = {
   isPlaying: boolean;
   togglePlayPause: jest.Mock<Promise<void>, []>;
   next: jest.Mock<Promise<void>, []>;
+  previous: jest.Mock<Promise<void>, []>;
   canSkipNext: boolean;
+  canSkipPrevious: boolean;
 };
 
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
@@ -26,7 +28,9 @@ const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
   isPlaying: false,
   togglePlayPause: jest.fn(async () => undefined),
   next: jest.fn(async () => undefined),
+  previous: jest.fn(async () => undefined),
   canSkipNext: true,
+  canSkipPrevious: true,
   ...overrides,
 });
 
@@ -67,6 +71,30 @@ describe('MiniPlayer', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  test('disabled previous tap does not open mini player and does not skip', () => {
+    const previous = jest.fn(async () => undefined);
+    const onOpen = jest.fn();
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipPrevious: false, previous }));
+
+    const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
+    fireEvent(getByTestId('mini-player-previous'), 'press', { stopPropagation: jest.fn() });
+
+    expect(previous).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  test('enabled previous tap skips and does not open mini player', () => {
+    const previous = jest.fn(async () => undefined);
+    const onOpen = jest.fn();
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipPrevious: true, previous }));
+
+    const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
+    fireEvent(getByTestId('mini-player-previous'), 'press', { stopPropagation: jest.fn() });
+
+    expect(previous).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   test('tapping parent opens mini player', () => {
     const onOpen = jest.fn();
     const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
@@ -93,6 +121,13 @@ describe('MiniPlayer', () => {
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
 
     expect(getByTestId('mini-player-next').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  test('exposes disabled accessibility state for previous', () => {
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipPrevious: false }));
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+
+    expect(getByTestId('mini-player-previous').props.accessibilityState?.disabled).toBe(true);
   });
 
   test('renders null without current song', () => {

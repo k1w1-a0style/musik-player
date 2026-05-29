@@ -160,6 +160,26 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root/AC.DC']);
   });
 
+  test('dedupes normalized SAF read errors from provider URI variants', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') {
+        return [
+          'content://root/No%20Access?token=1',
+          'content://root/No%20Access?token=2',
+          'content://root/Other%20Blocked',
+        ];
+      }
+      throw new Error('permission denied');
+    });
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+
+    expect(result.errors).toEqual([
+      'content://root/No Access',
+      'content://root/Other Blocked',
+    ]);
+  });
+
   test('child dotted folder security failure is reported', async () => {
     const read = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/Vol.1'];
@@ -196,14 +216,14 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root/no-read']);
   });
 
-  test('root unknown read failure is always reported', async () => {
+  test('root unknown read failure is always reported with normalized URI', async () => {
     const result = await mediaImport.readAudioUrisFromSafDirectory(
-      'content://root',
+      'content://root/Music%20Folder?token=1',
       async () => {
         throw new Error('generic root failure');
       },
     );
-    expect(result.errors).toEqual(['content://root']);
+    expect(result.errors).toEqual(['content://root/Music Folder']);
   });
 
   test('saf recursion respects depth limit and file cap', async () => {
@@ -308,18 +328,15 @@ describe('mediaLibraryImport', () => {
     expect(result.folderUpdates?.[0].lastError).toBeUndefined();
   });
 
-  test('saf import keeps scan lightweight and uses filename fallback', async () => {
+  test('saf fast import uses filename fallback when ID3 is disabled', async () => {
+    (parseId3FromUri as jest.Mock).mockClear();
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
       'content://dir/The%20Artist%20-%20Title.mp3',
     ]);
-    (parseId3FromUri as jest.Mock).mockResolvedValueOnce({
-      title: 'Tag Title',
-      artist: 'Tag Artist',
-      cover: 'data:image/jpeg;base64,AAA',
-    });
-    const result = await mediaImport.scanFromSafFolders([
-      { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
-    ] as any);
+    const result = await mediaImport.scanFromSafFolders(
+      [{ id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true }] as any,
+      { readId3Tags: false },
+    );
     expect(result.songs[0].title).toBe('Title');
     expect(result.songs[0].artist).toBe('The Artist');
     expect(result.songs[0].coverInfo?.status).toBe('none');

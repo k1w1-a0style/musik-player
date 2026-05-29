@@ -4,13 +4,16 @@ import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
+import { displayArtist, normalizeLibraryText } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next, canSkipNext } = useMiniPlayerMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
+  const displayTitle = normalizeLibraryText(currentSong?.title) || 'Unbekannter Titel';
+  const displayArtistName = currentSong ? displayArtist(currentSong) : '';
 
   useEffect(() => {
     setCoverFailed(false);
@@ -20,6 +23,12 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
     event.stopPropagation();
     void togglePlayPause();
   }, [togglePlayPause]);
+
+  const handlePrevious = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
+    if (!canSkipPrevious) return;
+    void previous();
+  }, [canSkipPrevious, previous]);
 
   const handleNext = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -43,15 +52,24 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
         <View style={styles.textWrap}>
           <Text numberOfLines={1} style={styles.title}>
-            {currentSong.title}
+            {displayTitle}
           </Text>
           <Text numberOfLines={1} style={styles.artist}>
-            {currentSong.artist}
+            {displayArtistName}
           </Text>
         </View>
 
         <View style={styles.right}>
-          <SkipBack color={theme.palette.text.primary} size={18} opacity={0.55} />
+          <Pressable
+            testID="mini-player-previous"
+            accessibilityRole="button"
+            accessibilityLabel="Vorheriger Titel"
+            accessibilityState={{ disabled: !canSkipPrevious }}
+            onPress={handlePrevious}
+            style={!canSkipPrevious && styles.disabled}
+          >
+            <SkipBack color={theme.palette.text.primary} size={18} />
+          </Pressable>
           <Pressable testID="mini-player-play-pause" accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
               <Pause color={theme.palette.text.primary} size={19} />
@@ -68,7 +86,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           >
             <SkipForward color={theme.palette.text.primary} size={18} />
           </Pressable>
-          <ListMusic color={theme.palette.text.primary} size={19} opacity={0.85} />
+          <Pressable testID="mini-player-queue" accessibilityRole="button" accessibilityLabel="Warteschlange öffnen" onPress={(event) => { event.stopPropagation(); onOpen(); }}>
+            <ListMusic color={theme.palette.text.primary} size={19} opacity={0.85} />
+          </Pressable>
         </View>
       </Pressable>
     </View>
