@@ -15,6 +15,7 @@ let mockCapability = {
   supportedContainer: 'mp3',
 };
 let mockPlan = { blockingReasons: [] as string[] };
+let mockTagEditorStateCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: { songId: mockSongId } }),
@@ -22,10 +23,14 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: () => ({
-    songs: mockSongs,
-    updateSongMetadata: mockUpdateSongMetadata,
-  }),
+  useLibraryMusicContext: () => {
+    if (mockTagEditorStateCrash) throw new Error('tag editor screen state crash');
+
+    return {
+      songs: mockSongs,
+      updateSongMetadata: mockUpdateSongMetadata,
+    };
+  },
 }));
 jest.mock(
   '../../components/AppBackground',
@@ -70,6 +75,7 @@ beforeEach(() => {
     supportedContainer: 'mp3',
   };
   mockPlan = { blockingReasons: [] };
+  mockTagEditorStateCrash = false;
   mockSongs = [
     {
       id: 's1',
@@ -89,6 +95,24 @@ beforeEach(() => {
   ];
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();
+});
+
+test('renders the screen fallback when the inner screen-state component throws', () => {
+  mockTagEditorStateCrash = true;
+  const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  const view = render(<TagEditor />);
+
+  expect(view.getByTestId('tag-editor-error-boundary-fallback')).toBeTruthy();
+  expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+  expect(consoleErrorSpy).toHaveBeenCalledWith(
+    '[TagEditor] ErrorBoundary caught an error',
+    expect.any(Error),
+    expect.objectContaining({ componentStack: expect.any(String) }),
+  );
+
+  consoleErrorSpy.mockRestore();
+  view.unmount();
 });
 
 test('renders fields with current song', () => {

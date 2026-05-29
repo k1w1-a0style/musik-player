@@ -4,20 +4,22 @@ import LibraryScreenContent from '../components/LibraryScreenContent';
 import LibraryScreenFrame from '../components/LibraryScreenFrame';
 import { useLibraryController } from '../hooks/useLibraryController';
 
-const Library: React.FC = () => {
+const LibraryScreenInner: React.FC = () => {
   const controller = useLibraryController();
 
-  return (
-    <LibraryScreenFrame>
-      <AppErrorBoundary
-        fallbackMessage="Bereich konnte nicht geladen werden."
-        logPrefix="[LibraryScreen] ErrorBoundary caught an error"
-        testID="library-error-boundary-fallback"
-      >
-        <LibraryScreenContent {...controller} />
-      </AppErrorBoundary>
-    </LibraryScreenFrame>
-  );
+  return <LibraryScreenContent {...controller} />;
 };
+
+const Library: React.FC = () => (
+  <LibraryScreenFrame>
+    <AppErrorBoundary
+      fallbackMessage="Bereich konnte nicht geladen werden."
+      logPrefix="[LibraryScreen] ErrorBoundary caught an error"
+      testID="library-error-boundary-fallback"
+    >
+      <LibraryScreenInner />
+    </AppErrorBoundary>
+  </LibraryScreenFrame>
+);
 
 export default Library;
