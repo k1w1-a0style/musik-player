@@ -911,6 +911,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(setSongsState).not.toHaveBeenCalled();
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(setIsReady).not.toHaveBeenCalled();
   });
 
