@@ -1,4 +1,6 @@
-name: Supabase-Triggered EAS Build
+# Legacy manual bridge for Supabase build_jobs. Prefer .github/workflows/eas-build.yml
+# for new EAS builds; keep this workflow only for existing Supabase-triggered jobs.
+name: Supabase-Triggered EAS Build (Legacy Manual)
 
 on:
   workflow_dispatch:
@@ -8,9 +10,17 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-triggered-eas-build-${{ github.event.inputs.job_id }}
+  cancel-in-progress: false
+
 jobs:
   run-eas-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -18,10 +28,13 @@ jobs:
       JOB_ID: ${{ github.event.inputs.job_id }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate Job ID
+        shell: bash
         run: |
+          set -euo pipefail
           if [ -z "$JOB_ID" ]; then
             echo "::error::Job ID fehlt!"
             exit 1
@@ -29,23 +42,27 @@ jobs:
           echo "✓ Job ID: $JOB_ID"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Setup EAS
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
         with:
-          expo-version: latest
-          eas-version: latest
+          eas-version: 16.32.0
+          packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Update Build Status - Building
+        shell: bash
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -53,16 +70,23 @@ jobs:
 
       - name: Run EAS Build
         id: eas
+        shell: bash
         run: |
+          set -euo pipefail
           BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
           echo "$BUILD_OUTPUT"
-          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
-          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | sed -nE 's/.*Build ID: ([a-f0-9-]+).*/\1/p' | head -n 1)
+          if [ -z "$BUILD_ID" ]; then
+            BUILD_ID="unknown"
+          fi
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
 
       - name: Update Build Status - Success
         if: success()
+        shell: bash
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -70,8 +94,10 @@ jobs:
 
       - name: Update Build Status - Failed
         if: failure()
+        shell: bash
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \

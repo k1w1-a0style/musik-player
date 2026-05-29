@@ -21,9 +21,14 @@ module.exports = {
     'utils/**/*.{ts,tsx}',
     'contexts/**/*.{ts,tsx}',
     'hooks/**/*.{ts,tsx}',
+    'components/**/*.{ts,tsx}',
+    'screens/**/*.{ts,tsx}',
+    'services/**/*.{ts,tsx}',
     '!**/__tests__/**',
     '!**/*.test.{ts,tsx}',
     '!**/*.d.ts',
+    '!**/node_modules/**',
+    '!**/coverage/**',
   ],
   coverageThreshold: {
     global: {
