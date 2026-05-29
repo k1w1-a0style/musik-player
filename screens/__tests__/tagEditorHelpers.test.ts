@@ -89,8 +89,8 @@ describe('tagEditorHelpers', () => {
     });
   });
 
-  test('detects file-removable covers from cover presence and embedded/cached statuses only', () => {
-    expect(hasRemovableCover(song)).toBe(true);
+  test('detects file-removable covers from legacy cover presence and embedded/cached statuses only', () => {
+    expect(hasRemovableCover({ ...song, coverInfo: undefined })).toBe(true);
     expect(
       hasRemovableCover({
         id: 's2',
@@ -125,6 +125,15 @@ describe('tagEditorHelpers', () => {
     ).toBe(false);
     expect(
       hasRemovableCover({
+        id: 's5-cover',
+        title: 'External app cover',
+        artist: 'Artist',
+        cover: 'file:///app-cover.jpg',
+        coverInfo: { status: 'external', uri: 'file:///app-cover.jpg' },
+      }),
+    ).toBe(false);
+    expect(
+      hasRemovableCover({
         id: 's6',
         title: 'No cover',
         artist: 'Artist',
@@ -136,6 +145,15 @@ describe('tagEditorHelpers', () => {
         id: 's7',
         title: 'Unknown cover',
         artist: 'Artist',
+        coverInfo: { status: 'unknown' },
+      }),
+    ).toBe(false);
+    expect(
+      hasRemovableCover({
+        id: 's8',
+        title: 'Unknown app cover',
+        artist: 'Artist',
+        cover: 'file:///unknown-cover.jpg',
         coverInfo: { status: 'unknown' },
       }),
     ).toBe(false);

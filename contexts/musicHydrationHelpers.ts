@@ -152,19 +152,6 @@ export const hydrateStoredSongs = async ({
   const playableRestoredSong = restoredSong
     ? playableQueue.find(song => song.id === restoredSong.id)
     : undefined;
-  if (restoredSong && !playableRestoredSong) {
-    console.warn('[MusicHydration] Restored current song is not playable; clearing persisted current song id.', {
-      songId: restoredSong.id,
-    });
-    if (hasPersistedCurrentSongId) await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    try {
-      await TrackPlayer.reset();
-    } catch (error) {
-      console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
-    }
-    nativeQueueRef.current = [];
-    return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists, currentSongId: null };
-  }
 
   if (playableRestoredSong) {
     setCurrentSong(playableRestoredSong);
@@ -177,9 +164,27 @@ export const hydrateStoredSongs = async ({
       if (isCancelled()) return stored;
     }
   } else if (shouldClearPersistedCurrentSongId) {
+    console.warn('[MusicHydration] Restored current song is not playable; clearing persisted current song id.', {
+      songId: normalizedCurrentSongId ?? stored.currentSongId ?? undefined,
+    });
     if (hasPersistedCurrentSongId) await storage.remove(StorageKeys.CURRENT_SONG_ID);
     if (isCancelled()) return stored;
+    try {
+      await TrackPlayer.reset();
+    } catch (error) {
+      console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
+    }
+    nativeQueueRef.current = [];
+    return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists, currentSongId: null };
+  } else if (playableQueue.length > 0) {
+    return {
+      ...stored,
+      songs: hydratedSongs,
+      playlists: normalizedPlaylists,
+      currentSongId: normalizedCurrentSongId ?? stored.currentSongId,
+    };
   }
+
   try {
     await TrackPlayer.reset();
     if (isCancelled()) return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
@@ -202,7 +207,7 @@ export const hydrateStoredSongs = async ({
     ...stored,
     songs: hydratedSongs,
     playlists: normalizedPlaylists,
-    currentSongId: resolvedCurrentSongId ?? (shouldClearPersistedCurrentSongId ? null : normalizedCurrentSongId ?? stored.currentSongId),
+    currentSongId: resolvedCurrentSongId ?? null,
   };
 };
 

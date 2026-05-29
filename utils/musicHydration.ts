@@ -22,7 +22,7 @@ export interface NormalizeHydrationSongsResult {
 
 export const normalizeHydrationSongs = (songs: Song[]): NormalizeHydrationSongsResult => {
   let changed = false;
-  const seen = new Set<string>();
+  const normalizedSongIndexes = new Map<string, { index: number; playable: boolean }>();
   const normalizedSongs: Song[] = [];
 
   songs.forEach(song => {
@@ -33,8 +33,20 @@ export const normalizeHydrationSongs = (songs: Song[]): NormalizeHydrationSongsR
     }
     if (normalizedSong !== song) changed = true;
 
-    if (seen.has(normalizedSong.id)) {
+    const playable = asPlayableSong(normalizedSong) != null;
+    const existing = normalizedSongIndexes.get(normalizedSong.id);
+    if (existing) {
       changed = true;
+      if (!existing.playable && playable) {
+        normalizedSongs[existing.index] = normalizedSong;
+        normalizedSongIndexes.set(normalizedSong.id, { index: existing.index, playable });
+        console.warn('[MusicHydration] Replacing duplicated normalized song id with playable song during hydration.', {
+          songId: normalizedSong.id,
+          title: normalizedSong.title || undefined,
+        });
+        return;
+      }
+
       console.warn('[MusicHydration] Dropping duplicated normalized song id during hydration.', {
         songId: normalizedSong.id,
         title: normalizedSong.title || undefined,
@@ -42,7 +54,7 @@ export const normalizeHydrationSongs = (songs: Song[]): NormalizeHydrationSongsR
       return;
     }
 
-    seen.add(normalizedSong.id);
+    normalizedSongIndexes.set(normalizedSong.id, { index: normalizedSongs.length, playable });
     normalizedSongs.push(normalizedSong);
   });
 

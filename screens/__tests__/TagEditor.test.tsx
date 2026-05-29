@@ -487,7 +487,8 @@ test('content:// song disables remove and pick cover actions', () => {
   expect(getByText('Cover auswählen: JPG/PNG')).toBeTruthy();
 });
 
-test('android file:// writable song keeps remove-cover enabled when cover exists', () => {
+test('android file:// writable song keeps remove-cover enabled for legacy cover without coverInfo', () => {
+  mockSongs = [{ ...mockSongs[0], coverInfo: undefined }];
   mockCapability = {
     canRead: true,
     canWrite: true,
@@ -517,11 +518,11 @@ test('remove-cover disabled when song has no cover', () => {
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
 });
 
-test('remove-cover disabled for external-only cover info because it is not a file cover remove', () => {
+test('remove-cover disabled for external cover info with song.cover because it is not a file cover remove', () => {
   mockSongs = [
     {
       ...mockSongs[0],
-      cover: undefined,
+      cover: 'file:///app-cover.jpg',
       coverInfo: { status: 'external', uri: 'file:///app-cover.jpg' },
     },
   ];
@@ -529,7 +530,7 @@ test('remove-cover disabled for external-only cover info because it is not a fil
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
 });
 
-test('hasRemovableCover treats embedded/cached file cover statuses as removable but external/none/unknown as not removable', () => {
+test('hasRemovableCover treats embedded/cached file cover statuses and legacy cover-only songs as removable but external/none/unknown as not removable', () => {
   expect(
     hasRemovableCover({
       id: '1',
@@ -583,8 +584,34 @@ test('hasRemovableCover treats embedded/cached file cover statuses as removable 
       id: '7',
       title: 't',
       artist: 'a',
-      cover: 'file:///legacy-cover.jpg',
+      cover: 'file:///external-cover.jpg',
       coverInfo: { status: 'external' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '8',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///none-cover.jpg',
+      coverInfo: { status: 'none' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '9',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///unknown-cover.jpg',
+      coverInfo: { status: 'unknown' },
+    }),
+  ).toBe(false);
+  expect(
+    hasRemovableCover({
+      id: '10',
+      title: 't',
+      artist: 'a',
+      cover: 'file:///legacy-cover.jpg',
     }),
   ).toBe(true);
 });
