@@ -74,7 +74,7 @@ describe('tagEditorHelpers', () => {
     });
   });
 
-  test('adds replacement cover patch', () => {
+  test('adds replacement cover patch using the picked URI until a later scan/cache refresh provides a stable extracted URI', () => {
     const cover: PickedTagCover = {
       uri: 'file:///new-cover.jpg',
       mimeType: 'image/jpeg',
@@ -89,9 +89,56 @@ describe('tagEditorHelpers', () => {
     });
   });
 
-  test('detects removable covers', () => {
+  test('detects file-removable covers from cover presence and embedded/cached statuses only', () => {
     expect(hasRemovableCover(song)).toBe(true);
-    expect(hasRemovableCover({ id: 's2', title: 'No Cover', artist: 'Artist' })).toBe(false);
+    expect(
+      hasRemovableCover({
+        id: 's2',
+        title: 'Embedded with URI',
+        artist: 'Artist',
+        coverInfo: { status: 'embedded', uri: 'file:///embedded.jpg' },
+      }),
+    ).toBe(true);
+    expect(
+      hasRemovableCover({
+        id: 's3',
+        title: 'Cached with URI',
+        artist: 'Artist',
+        coverInfo: { status: 'cached', uri: 'file:///cached.jpg' },
+      }),
+    ).toBe(true);
+    expect(
+      hasRemovableCover({
+        id: 's4',
+        title: 'Embedded without URI',
+        artist: 'Artist',
+        coverInfo: { status: 'embedded' },
+      }),
+    ).toBe(true);
+    expect(
+      hasRemovableCover({
+        id: 's5',
+        title: 'External only',
+        artist: 'Artist',
+        coverInfo: { status: 'external', uri: 'file:///external.jpg' },
+      }),
+    ).toBe(false);
+    expect(
+      hasRemovableCover({
+        id: 's6',
+        title: 'No cover',
+        artist: 'Artist',
+        coverInfo: { status: 'none' },
+      }),
+    ).toBe(false);
+    expect(
+      hasRemovableCover({
+        id: 's7',
+        title: 'Unknown cover',
+        artist: 'Artist',
+        coverInfo: { status: 'unknown' },
+      }),
+    ).toBe(false);
   });
 
   test('maps status messages', () => {

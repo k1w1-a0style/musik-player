@@ -68,7 +68,8 @@ npx eas build --platform android --profile preview
 - [ ] Cover Smoke Test (embedded Cover wird angezeigt; zu große/ungültige Cover bleiben stabil)
 - [ ] Tag Edit Smoke Test (Save/No-op/Error Zustände sichtbar)
 - [ ] Tag Edit Size-Limit Smoke Test (zu große Dateien werden blockiert, bevor geschrieben wird)
-- [ ] Cover Remove Smoke Test (`removeCover` funktioniert nur wenn verfügbar)
+- [ ] Cover Remove Smoke Test (`removeCover` funktioniert nur für erkannte embedded/cached File-Cover, nicht für reine external CoverInfo)
+- [ ] Cover Replace Smoke Test (unterstützter writable `file://` Track schreibt neues Cover; UI darf bis zum späteren Re-Scan zunächst die gewählte Cover-URI anzeigen)
 - [ ] content:// Block Smoke Test (Schreiben klar blockiert/read-only)
 - [ ] MiniPlayer/NowPlaying Smoke Test (disabled states + Navigation)
 - [ ] TrackInfo/TagEditor Smoke Test (fehlende Felder = „Nicht verfügbar“)
@@ -78,7 +79,8 @@ npx eas build --platform android --profile preview
 ## Known limitations
 
 - SAF/content:// Writes sind bewusst read-only; direkte SAF-Tag-Writes sind nicht implementiert
-- Cover ersetzen nicht implementiert
+- Cover ersetzen ist nur für unterstützte writable `file://` Tracks aktiv; unsupported Container bleiben blockiert
+- MP4/M4A Cover-/Tag-Writes funktionieren nur für bekannte sichere Atom-Layouts
+- Nach Cover Replace kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
 - Visualizer/FFT release-safe deaktiviert; native Android-Visualizer-API wird nicht verdrahtet
-- MP4/M4A Writes funktionieren nur für bekannte sichere Atom-Layouts
 - Sehr große Dateien werden beim In-App-Tag-Schreiben blockiert
