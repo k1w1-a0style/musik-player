@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 import { runMusicHydration } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
-import type { Playlist, Song } from '../../types/Song';
+import type { Song } from '../../types/Song';
 
 const createSongRef = () => ({ current: [] as Song[] });
 
@@ -33,6 +33,7 @@ describe('music hydration failure fallback readiness', () => {
 
   test('marks provider ready after storage failure fallback applies safe empty state', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const removeSpy = jest.spyOn(storage, 'remove');
     jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
     const args = createRunMusicHydrationArgs(() => false);
 
@@ -46,9 +47,10 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(args.setCurrentSong).toHaveBeenCalledWith(null);
     expect(TrackPlayer.reset).toHaveBeenCalled();
-    expect(storage.remove).toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
+    expect(removeSpy).toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
     expect(args.setIsReady).toHaveBeenCalledWith(true);
     warn.mockRestore();
+    removeSpy.mockRestore();
   });
 
   test('keeps provider not-ready when hydration failure flow is cancelled', async () => {
