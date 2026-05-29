@@ -199,6 +199,8 @@ export const buildMetadataPatchFromDraft = (
   }
 
   if (draft.cover) {
+    // Keep the freshly picked URI visible after save; a later scan/cache extraction can
+    // replace it with a stable embedded-cover URI without adding a save-time reparse here.
     metadataPatch.cover = replacementCover?.uri;
     metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
   }
@@ -207,11 +209,10 @@ export const buildMetadataPatchFromDraft = (
 };
 
 const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> =
-  new Set(['embedded', 'cached', 'external']);
+  new Set(['embedded', 'cached']);
 
 export const hasRemovableCover = (song: Song): boolean => {
   if (song.cover) return true;
-  if (song.coverInfo?.uri) return true;
   const status = song.coverInfo?.status;
   return Boolean(status && REMOVABLE_COVER_STATUSES.has(status));
 };
