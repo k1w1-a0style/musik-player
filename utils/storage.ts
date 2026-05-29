@@ -54,6 +54,7 @@ const songSchema = z.object({
   title: z.string(),
   artist: z.string(),
   album: z.string().optional(),
+  albumArtist: z.string().optional(),
   duration: z.number().optional(),
   cover: z.string().optional(),
   uri: z.string().optional(),
@@ -154,6 +155,22 @@ export const normalizeVolumeForStorage = (value: unknown): number | null => {
   return Math.max(0, Math.min(1, value));
 };
 
+const normalizeLegacyBooleanForStorage = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+};
+
+const normalizeLegacyVolumeForStorage = (value: unknown): number | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return normalizeVolumeForStorage(Number(trimmed));
+  }
+  return normalizeVolumeForStorage(value);
+};
+
 const clampEqGain = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(MIN_EQ_GAIN, Math.min(MAX_EQ_GAIN, value));
@@ -219,9 +236,9 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
       return normalizeEqBandsForStorage(value);
     case StorageKeys.EQ_ENABLED:
     case StorageKeys.SHUFFLE:
-      return typeof value === 'boolean' ? value : null;
+      return normalizeLegacyBooleanForStorage(value);
     case StorageKeys.VOLUME:
-      return normalizeVolumeForStorage(value);
+      return normalizeLegacyVolumeForStorage(value);
     case StorageKeys.REPEAT_MODE:
       return isRepeatMode(value) ? value : null;
     default:
@@ -267,6 +284,9 @@ const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
   await AsyncStorage.setItem(storageKey(key), value);
 };
+const setJsonItem = async <T,>(key: StorageKey, value: T): Promise<void> => {
+  await setItem(key, JSON.stringify(normalizeValueForWrite(key, value)));
+};
 const removeItem = async (key: StorageKey): Promise<void> => {
   await AsyncStorage.removeItem(storageKey(key));
 };
@@ -300,13 +320,13 @@ export const storage = {
     return parseNormalizedArray(await getItem(StorageKeys.SONGS), normalizeStoredSong);
   },
   async setSongs(songs: unknown[]) {
-    await setItem(StorageKeys.SONGS, JSON.stringify(normalizeValueForWrite(StorageKeys.SONGS, songs)));
+    await setJsonItem(StorageKeys.SONGS, songs);
   },
   async getPlaylists() {
     return parseNormalizedArray(await getItem(StorageKeys.PLAYLISTS), normalizeStoredPlaylist);
   },
   async setPlaylists(playlists: unknown[]) {
-    await setItem(StorageKeys.PLAYLISTS, JSON.stringify(normalizeValueForWrite(StorageKeys.PLAYLISTS, playlists)));
+    await setJsonItem(StorageKeys.PLAYLISTS, playlists);
   },
   async getCurrentSongId() {
     const value = await getItem(StorageKeys.CURRENT_SONG_ID);
@@ -318,7 +338,7 @@ export const storage = {
       await removeItem(StorageKeys.CURRENT_SONG_ID);
       return;
     }
-    await setItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
+    await setJsonItem(StorageKeys.CURRENT_SONG_ID, normalizedSongId);
   },
   async getEqPreset(): Promise<StoredEqPresetName> {
     const value = await getItem(StorageKeys.EQ_PRESET);
@@ -327,7 +347,7 @@ export const storage = {
   },
   async setEqPreset(preset: StoredEqPresetName) {
     const next = isStoredEqPresetName(preset) ? preset : 'flat';
-    await setItem(StorageKeys.EQ_PRESET, next);
+    await setJsonItem(StorageKeys.EQ_PRESET, next);
   },
   async getEqBands() {
     const value = await getItem(StorageKeys.EQ_BANDS);
@@ -336,10 +356,7 @@ export const storage = {
     return Array.isArray(parsed) ? (parsed as number[]) : [...EQ_PRESETS.flat];
   },
   async setEqBands(bands: number[]) {
-    await setItem(
-      StorageKeys.EQ_BANDS,
-      JSON.stringify(normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat),
-    );
+    await setJsonItem(StorageKeys.EQ_BANDS, normalizeEqBandsForStorage(bands) ?? EQ_PRESETS.flat);
   },
   async getEqEnabled() {
     const value = await getItem(StorageKeys.EQ_ENABLED);
@@ -348,7 +365,7 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setEqEnabled(enabled: boolean) {
-    await setItem(StorageKeys.EQ_ENABLED, String(enabled));
+    await setJsonItem(StorageKeys.EQ_ENABLED, enabled);
   },
   async getVolume() {
     const value = await getItem(StorageKeys.VOLUME);
@@ -357,7 +374,7 @@ export const storage = {
     return typeof parsed === 'number' ? parsed : 1;
   },
   async setVolume(volume: number) {
-    await setItem(StorageKeys.VOLUME, String(normalizeVolumeForStorage(volume) ?? 1));
+    await setJsonItem(StorageKeys.VOLUME, normalizeVolumeForStorage(volume) ?? 1);
   },
   async getRepeatMode() {
     const value = await getItem(StorageKeys.REPEAT_MODE);
@@ -365,7 +382,7 @@ export const storage = {
     return parsed === 'one' || parsed === 'all' ? parsed : 'off';
   },
   async setRepeatMode(mode: 'off' | 'one' | 'all') {
-    await setItem(StorageKeys.REPEAT_MODE, mode);
+    await setJsonItem(StorageKeys.REPEAT_MODE, mode);
   },
   async getShuffle() {
     const value = await getItem(StorageKeys.SHUFFLE);
@@ -374,16 +391,13 @@ export const storage = {
     return typeof parsed === 'boolean' ? parsed : false;
   },
   async setShuffle(enabled: boolean) {
-    await setItem(StorageKeys.SHUFFLE, String(enabled));
+    await setJsonItem(StorageKeys.SHUFFLE, enabled);
   },
   async getScanFolders(): Promise<ScanFolder[]> {
     return parseNormalizedArray(await getItem(StorageKeys.SCAN_FOLDERS), normalizeStoredScanFolder);
   },
   async setScanFolders(folders: unknown[]) {
-    await setItem(
-      StorageKeys.SCAN_FOLDERS,
-      JSON.stringify(normalizeValueForWrite(StorageKeys.SCAN_FOLDERS, folders)),
-    );
+    await setJsonItem(StorageKeys.SCAN_FOLDERS, folders);
   },
   async getFavoriteSongIds(): Promise<string[]> {
     const raw = await getItem(StorageKeys.FAVORITE_SONG_IDS);
@@ -392,10 +406,7 @@ export const storage = {
     return Array.isArray(parsed) ? parsed as string[] : [];
   },
   async setFavoriteSongIds(songIds: string[]) {
-    await setItem(
-      StorageKeys.FAVORITE_SONG_IDS,
-      JSON.stringify(normalizeFavoriteSongIds(songIds)),
-    );
+    await setJsonItem(StorageKeys.FAVORITE_SONG_IDS, normalizeFavoriteSongIds(songIds));
   },
 };
 

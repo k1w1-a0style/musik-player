@@ -660,7 +660,7 @@ describe('storage', () => {
 
     await storage.setCurrentSongId(' s1 ');
 
-    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.CURRENT_SONG_ID), 's1');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.CURRENT_SONG_ID), '"s1"');
     expect(await storage.getCurrentSongId()).toBe('s1');
   });
 
@@ -689,6 +689,72 @@ describe('storage', () => {
     expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBe('one');
     await storage.set(StorageKeys.REPEAT_MODE, 'all');
     expect(await storage.getRepeatMode()).toBe('all');
+  });
+
+  test('typed scalar setters persist JSON-serialized values and read them back', async () => {
+    await storage.setCurrentSongId(' s-json ');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.CURRENT_SONG_ID))).toBe('"s-json"');
+    await expect(storage.getCurrentSongId()).resolves.toBe('s-json');
+    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s-json');
+
+    await storage.setEqPreset('rock');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_PRESET))).toBe('"rock"');
+    await expect(storage.getEqPreset()).resolves.toBe('rock');
+
+    await storage.setRepeatMode('all');
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.REPEAT_MODE))).toBe('"all"');
+    await expect(storage.getRepeatMode()).resolves.toBe('all');
+
+    await storage.setEqEnabled(true);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_ENABLED))).toBe('true');
+    await expect(storage.getEqEnabled()).resolves.toBe(true);
+
+    await storage.setVolume(0.8);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.VOLUME))).toBe('0.8');
+    await expect(storage.getVolume()).resolves.toBe(0.8);
+
+    await storage.setShuffle(true);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SHUFFLE))).toBe('true');
+    await expect(storage.getShuffle()).resolves.toBe(true);
+  });
+
+  test('legacy raw scalar storage formats remain readable with safe defaults', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), 'legacy-song');
+    await expect(storage.getCurrentSongId()).resolves.toBe('legacy-song');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'rock');
+    await expect(storage.getEqPreset()).resolves.toBe('rock');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), 'all');
+    await expect(storage.getRepeatMode()).resolves.toBe('all');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), 'true');
+    await expect(storage.getEqEnabled()).resolves.toBe(true);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), '"false"');
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), 'false');
+    await expect(storage.getShuffle()).resolves.toBe(false);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), '"true"');
+    await expect(storage.getShuffle()).resolves.toBe(true);
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '0.8');
+    await expect(storage.getVolume()).resolves.toBe(0.8);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '"0.25"');
+    await expect(storage.getVolume()).resolves.toBe(0.25);
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), '   ');
+    await expect(storage.getCurrentSongId()).resolves.toBeNull();
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'broken');
+    await expect(storage.getEqPreset()).resolves.toBe('flat');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), 'loop');
+    await expect(storage.getRepeatMode()).resolves.toBe('off');
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), 'maybe');
+    await expect(storage.getEqEnabled()).resolves.toBe(false);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), 'maybe');
+    await expect(storage.getShuffle()).resolves.toBe(false);
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), 'loud');
+    await expect(storage.getVolume()).resolves.toBe(1);
   });
 
   test('accepts raw numeric-looking current song ids from direct storage writes', async () => {
@@ -773,7 +839,7 @@ describe('storage', () => {
 
     await storage.setEqPreset('custom');
 
-    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.EQ_PRESET), 'custom');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.EQ_PRESET), '"custom"');
     expect(await storage.getEqPreset()).toBe('custom');
   });
 
@@ -839,7 +905,7 @@ describe('storage', () => {
   });
 
   test('setEqPreset runtime-guards invalid bypassed values to flat', async () => {
-    await expect(storage.setEqPreset('megaBass123' as any)).resolves.toBeUndefined();
+    await expect(storage.setEqPreset('megaBass123' as never)).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('flat');
     await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
   });
@@ -850,7 +916,7 @@ describe('storage', () => {
 
     await storage.setRepeatMode('one');
 
-    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.REPEAT_MODE), 'one');
+    expect(setItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.REPEAT_MODE), '"one"');
     expect(await storage.getRepeatMode()).toBe('one');
   });
 
@@ -1149,11 +1215,11 @@ describe('storage', () => {
 
   test('setSongs persists normalized songs without legacy favorite fields', async () => {
     await storage.setSongs([
-      { id: 's1', title: 'Song', artist: 'Artist', favorite: true, isFavorite: true, customTag: 'keep' },
+      { id: 's1', title: 'Song', artist: 'Artist', albumArtist: 'Album Artist', favorite: true, isFavorite: true, customTag: 'keep' },
     ]);
 
     await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
-      { id: 's1', title: 'Song', artist: 'Artist', customTag: 'keep' },
+      { id: 's1', title: 'Song', artist: 'Artist', albumArtist: 'Album Artist', customTag: 'keep' },
     ]);
   });
 
@@ -1165,6 +1231,22 @@ describe('storage', () => {
 
     await expect(storage.getSongs()).resolves.toEqual([
       { id: 's1', title: 'Song', artist: 'Artist', fileInfo: { filename: 'a.mp3' }, rating: 5 },
+    ]);
+  });
+
+  test('setSongs round-trips albumArtist and keeps legacy songs without it valid', async () => {
+    await storage.setSongs([
+      { id: 's1', title: 'Song', artist: 'Artist', album: 'Album', albumArtist: 'Album Artist' },
+      { id: 's2', title: 'Legacy Song', artist: 'Legacy Artist' },
+    ]);
+
+    await expect(storage.getSongs()).resolves.toEqual([
+      { id: 's1', title: 'Song', artist: 'Artist', album: 'Album', albumArtist: 'Album Artist' },
+      { id: 's2', title: 'Legacy Song', artist: 'Legacy Artist' },
+    ]);
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
+      { id: 's1', title: 'Song', artist: 'Artist', album: 'Album', albumArtist: 'Album Artist' },
+      { id: 's2', title: 'Legacy Song', artist: 'Legacy Artist' },
     ]);
   });
 
@@ -1375,6 +1457,7 @@ describe('storage', () => {
       id: 's1',
       title: 'Song',
       artist: 'Artist',
+      albumArtist: 'Album Artist',
       favorite: true,
       isFavorite: true,
       fileInfo: { filename: 'track.mp3' },
@@ -1386,6 +1469,7 @@ describe('storage', () => {
       id: 's1',
       title: 'Song',
       artist: 'Artist',
+      albumArtist: 'Album Artist',
       fileInfo: { filename: 'track.mp3' },
       customTag: 'x',
     }]);
@@ -1393,6 +1477,7 @@ describe('storage', () => {
       id: 's1',
       title: 'Song',
       artist: 'Artist',
+      albumArtist: 'Album Artist',
       fileInfo: { filename: 'track.mp3' },
       customTag: 'x',
     }]);
