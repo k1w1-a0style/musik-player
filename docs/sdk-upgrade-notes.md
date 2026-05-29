@@ -24,7 +24,7 @@ The non-legacy `expo-file-system` import is present only as a compatibility/fall
 | TagWriter backup/temp/verify | `utils/tagFileWriteAdapter.ts` | `readAsStringAsync`, `writeAsStringAsync`, `copyAsync`, `deleteAsync`, `getInfoAsync`, `EncodingType.Base64` from `expo-file-system/legacy` | Bridges guarded `file://` tag writes to byte reads/writes, backup copy, temp replace, cleanup, and file-info verification. |
 | Cover extraction / parsing | `utils/id3Parser.ts` | `readAsStringAsync`, `getInfoAsync`, `EncodingType.Base64` from `expo-file-system/legacy`; `File` fallback from `expo-file-system` | Reads bounded head/tail byte windows for ID3/MP4 metadata and cover extraction without loading large files unless the guarded fallback allows it. |
 | Cover cache | `utils/coverCache.ts` | `makeDirectoryAsync`, `writeAsStringAsync`, `documentDirectory`, `cacheDirectory`, `getInfoAsync` from `expo-file-system/legacy`; directory/write fallbacks from `expo-file-system` | Writes base64 image covers into app storage and chooses a stable document/cache base directory. |
-| Cover cache cleanup | `utils/coverCacheCleanup.ts` | namespace import from `expo-file-system/legacy`; fallback namespace import from `expo-file-system`; uses `documentDirectory`, `cacheDirectory`, `getInfoAsync`, `deleteAsync` | Deletes stale cached cover files while tolerating SDK/runtime differences in directory constants and cleanup helpers. |
+| Cover cache cleanup | `utils/coverCacheCleanup.ts` | namespace import from `expo-file-system/legacy`; fallback namespace import from `expo-file-system`; uses `documentDirectory`, `cacheDirectory`, `getInfoAsync`, `readDirectoryAsync`, `deleteAsync` | Enumerates cached cover files in the cache directory and deletes orphaned files while tolerating SDK/runtime differences in directory constants and cleanup helpers. |
 
 Tests mock both `expo-file-system/legacy` and selected `expo-file-system` fallback fields in the existing Jest suites for import, cover cache, tag writes, and MusicContext persistence/hydration. Those tests are guard coverage for current import paths; they are not a replacement for device smoke testing after an SDK upgrade.
 
@@ -34,6 +34,7 @@ Tests mock both `expo-file-system/legacy` and selected `expo-file-system` fallba
 - SAF permission and `content://` directory traversal behavior may change independently from local `file://` helpers.
 - Base64 partial reads (`length` / `position`) are critical for bounded ID3/MP4 parsing; behavioral drift could cause missed covers, excessive memory use, or parse failures.
 - Directory constants (`documentDirectory`, `cacheDirectory`) may move or differ between legacy and non-legacy entrypoints; cover cache writes and cleanup depend on stable values.
+- `readDirectoryAsync` must remain available through the legacy and/or fallback import used by cover cache cleanup; otherwise orphan enumeration could be silently skipped or broken.
 - Copy/delete semantics are part of the guarded tag-write rollback story; unsafe replace or cleanup behavior could risk original audio files.
 - File info shape (`exists`, `size`, `isDirectory`) is used for verification, large-file blocking, and directory rejection.
 
@@ -42,7 +43,7 @@ Tests mock both `expo-file-system/legacy` and selected `expo-file-system` fallba
 Run the normal quality gates and ensure the existing focused tests covering these flows remain green:
 
 - MediaLibrary and SAF import tests for directory traversal, skipped assets, dedupe, and timeout/cancellation behavior.
-- Cover cache and cover cleanup tests for base directory selection, write fallback, size cap, and stale cleanup behavior.
+- Cover cache and cover cleanup tests for base directory selection, write fallback, size cap, stale cleanup behavior, and `readDirectoryAsync` availability for orphan enumeration.
 - ID3 parser tests for bounded reads, MP3/MP4 cover extraction, and failure fallbacks.
 - TagWriter and tag-file-write-adapter tests for `file://` write planning, backup/temp/verify behavior, unsupported URI handling, and cleanup.
 - Storage and MusicContext hydration/persistence tests for persisted queue and cover metadata compatibility.
