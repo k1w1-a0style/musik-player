@@ -1,4 +1,5 @@
 import React from 'react';
+import AppErrorBoundary from '../components/AppErrorBoundary';
 import TagEditorContent from './TagEditorContent';
 import TagEditorNotFound from './TagEditorNotFound';
 import { useTagEditorScreenState } from './useTagEditorScreenState';
@@ -29,28 +30,34 @@ const TagEditor: React.FC = () => {
   if (!song) return <TagEditorNotFound />;
 
   return (
-    <TagEditorContent
-      form={form}
-      saving={saving}
-      removeCover={removeCover}
-      replacementCover={replacementCover}
-      status={status}
-      capability={capability}
-      hasCover={hasCover}
-      canSave={canSave}
-      capabilityMessage={capabilityMessage}
-      blockedReasonMessage={blockedReasonMessage}
-      safetyMessage={safetyMessage}
-      onPickCover={() => {
-        void handlePickCover();
-      }}
-      onChangeField={handleChangeField}
-      onToggleRemoveCover={toggleRemoveCover}
-      onConfirmSave={() => {
-        void onSaveConfirmed();
-      }}
-      onBack={goBack}
-    />
+    <AppErrorBoundary
+      fallbackMessage="Bereich konnte nicht geladen werden."
+      logPrefix="[TagEditor] ErrorBoundary caught an error"
+      testID="tag-editor-error-boundary-fallback"
+    >
+      <TagEditorContent
+        form={form}
+        saving={saving}
+        removeCover={removeCover}
+        replacementCover={replacementCover}
+        status={status}
+        capability={capability}
+        hasCover={hasCover}
+        canSave={canSave}
+        capabilityMessage={capabilityMessage}
+        blockedReasonMessage={blockedReasonMessage}
+        safetyMessage={safetyMessage}
+        onPickCover={() => {
+          void handlePickCover();
+        }}
+        onChangeField={handleChangeField}
+        onToggleRemoveCover={toggleRemoveCover}
+        onConfirmSave={() => {
+          void onSaveConfirmed();
+        }}
+        onBack={goBack}
+      />
+    </AppErrorBoundary>
   );
 };
 

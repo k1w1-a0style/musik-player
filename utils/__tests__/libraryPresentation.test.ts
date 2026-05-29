@@ -1,4 +1,4 @@
-import { buildLibraryGroups, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, groupSongs, mergeSongs } from '../libraryPresentation';
+import { buildAlbumKey, buildArtistKey, buildLibraryGroups, buildSongKey, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, groupSongs, mergeSongs, normalizeAlbumName, normalizeArtistName, normalizeLibraryText } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 
 jest.mock('../mediaLibraryImport', () => ({
@@ -15,6 +15,7 @@ const song = (patch: Partial<Song>): Song => ({
   artist: patch.artist ?? 'Artist',
   uri: patch.uri,
   album: patch.album,
+  albumArtist: patch.albumArtist,
   genre: patch.genre,
   cover: patch.cover,
   duration: patch.duration,
@@ -114,18 +115,18 @@ test('groupSongs groups and sorts with cover fallback', () => {
   const groups = groupSongs([
     song({ id: '2', title: 'Beta', artist: 'B', album: 'Z Album' }),
     song({ id: '1', title: 'Alpha', artist: 'A', album: 'A Album', cover: 'cover-a' }),
-    song({ id: '3', title: 'Gamma', artist: 'C', album: 'A Album' }),
+    song({ id: '3', title: 'Gamma', artist: 'A', album: 'A Album' }),
   ], 'album');
 
   expect(groups.map(group => group.title)).toEqual(['A Album', 'Z Album']);
-  expect(groups[0].subtitle).toBe('2 Tracks');
+  expect(groups[0].subtitle).toBe('A • 2 Tracks');
   expect(groups[0].cover).toBe('cover-a');
   expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Gamma']);
 });
 
 test('groupSongs does not mutate original song array order', () => {
   const songs = [
-    song({ id: '2', title: 'Beta', artist: 'B', album: 'A Album' }),
+    song({ id: '2', title: 'Beta', artist: 'A', album: 'A Album' }),
     song({ id: '1', title: 'Alpha', artist: 'A', album: 'A Album', cover: 'cover-a' }),
   ];
   const originalOrder = songs.map(item => item.id);
@@ -166,4 +167,70 @@ test('groupSongs keeps cover selection and title sorting behavior', () => {
   expect(groups).toHaveLength(1);
   expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Beta', 'Zulu']);
   expect(groups[0].cover).toBe('picked-cover');
+});
+
+
+test('normalizeLibraryText applies unicode and whitespace normalization', () => {
+  expect(normalizeLibraryText('  Cafe\u0301\tAlbum  ')).toBe('Café Album');
+});
+
+test('album keys separate equal album names from different artists', () => {
+  const artistAKey = buildAlbumKey(song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }));
+  const artistBKey = buildAlbumKey(song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }));
+
+  expect(artistAKey).not.toBe(artistBKey);
+  expect(groupSongs([
+    song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }),
+    song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }),
+  ], 'album').map(group => group.id)).toEqual([artistAKey, artistBKey]);
+});
+
+test('album keys are stable for matching album and artist despite case and whitespace', () => {
+  expect(buildAlbumKey(song({ artist: '  Artist A ', album: ' Greatest   Hits ' }))).toBe(
+    buildAlbumKey(song({ artist: 'artist a', album: 'greatest hits' })),
+  );
+});
+
+test('missing album and artist use stable unknown key parts', () => {
+  const key = buildAlbumKey(song({ artist: '', album: '' }));
+
+  expect(key).toBe('album:unknown-artist:unknown-album');
+  expect(buildArtistKey('')).toBe('artist:unknown-artist');
+  expect(normalizeAlbumName(undefined)).toBe('unknown-album');
+  expect(normalizeArtistName(undefined)).toBe('unknown-artist');
+});
+
+test('album key prefers albumArtist when present', () => {
+  expect(buildAlbumKey(song({ artist: 'Track Artist', albumArtist: 'Album Artist', album: 'Record' }))).toBe(
+    buildAlbumKey(song({ artist: 'Album Artist', album: 'Record' })),
+  );
+});
+
+test('songs without album or artist group without crashing', () => {
+  const groups = groupSongs([
+    song({ id: '1', title: 'One', artist: '', album: undefined }),
+    song({ id: '2', title: 'Two', artist: '', album: '' }),
+  ], 'album');
+
+  expect(groups).toHaveLength(1);
+  expect(groups[0].id).toBe('album:unknown-artist:unknown-album');
+  expect(groups[0].title).toBe('Unbekanntes Album');
+  expect(groups[0].subtitle).toBe('Unbekannt • 2 Tracks');
+});
+
+test('duplicate album titles from different artists stay separated in library groups', () => {
+  const grouped = buildLibraryGroups([
+    song({ id: '1', artist: 'Artist A', album: 'Live', title: 'A Song' }),
+    song({ id: '2', artist: 'Artist B', album: 'Live', title: 'B Song' }),
+  ]);
+
+  expect(grouped.albumGroups).toHaveLength(2);
+  expect(grouped.albumGroups.map(group => group.subtitle)).toEqual(['Artist A • 1 Track', 'Artist B • 1 Track']);
+});
+
+test('song keys do not fall back to array indexes when ids are missing', () => {
+  const key = buildSongKey(song({ id: '', title: 'No Id', artist: 'Artist', uri: 'file:///music/no-id.mp3' }));
+
+  expect(key).toBe('song-uri:file:///music/no-id.mp3');
+  expect(key).not.toBe('0');
 });

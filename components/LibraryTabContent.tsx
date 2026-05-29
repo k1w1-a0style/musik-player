@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, StyleSheet, Text, type ListRenderItem } from 'react-native';
+import { FlatList, Platform, StyleSheet, Text, type ListRenderItem } from 'react-native';
 import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from './LibraryAlbumViewToggle';
 import LibraryListShell from './LibraryListShell';
 import LibraryPlaybackActions from './LibraryPlaybackActions';
@@ -12,6 +12,11 @@ import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 
 const GROUP_ROW_HEIGHT = 66;
+const GROUP_INITIAL_RENDER_COUNT = 12;
+const GROUP_WINDOW_SIZE = 7;
+const SONG_INITIAL_RENDER_COUNT = 10;
+const SONG_WINDOW_SIZE = 7;
+const shouldRemoveClippedSubviews = Platform.OS !== 'web';
 
 interface SongItemLayout {
   length: number;
@@ -41,6 +46,9 @@ export interface LibraryTabContentProps {
   songKeyExtractor: (item: Song) => string;
   songsForActiveList: Song[];
 }
+
+const groupKeyExtractor = (item: LibraryGroupItem | LibraryPlaylistItem): string => item.id;
+const folderKeyExtractor = (item: ScanFolder): string => item.id;
 
 const getGroupItemLayout = (_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined, index: number) => ({
   length: GROUP_ROW_HEIGHT,
@@ -76,9 +84,12 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
         <FlatList
           data={scanFolders}
-          keyExtractor={item => item.id}
+          keyExtractor={folderKeyExtractor}
           contentContainerStyle={styles.listContent}
           renderItem={renderFolderItem}
+          initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
+          windowSize={GROUP_WINDOW_SIZE}
+          removeClippedSubviews={shouldRemoveClippedSubviews}
           ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
@@ -95,20 +106,26 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         {albumViewMode === 'grid' ? (
           <FlatList
             data={albumGroups}
-            keyExtractor={item => item.id}
+            keyExtractor={groupKeyExtractor}
             contentContainerStyle={styles.albumGridContent}
             renderItem={renderAlbumTile}
             numColumns={2}
             columnWrapperStyle={styles.albumColumn}
+            initialNumToRender={8}
+            windowSize={GROUP_WINDOW_SIZE}
+            removeClippedSubviews={shouldRemoveClippedSubviews}
             ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
           />
         ) : (
           <FlatList
             data={albumGroups}
-            keyExtractor={item => item.id}
+            keyExtractor={groupKeyExtractor}
             contentContainerStyle={styles.listContent}
             renderItem={renderGroupItem}
             getItemLayout={getGroupItemLayout}
+            initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
+            windowSize={GROUP_WINDOW_SIZE}
+            removeClippedSubviews={shouldRemoveClippedSubviews}
             ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
           />
         )}
@@ -124,10 +141,13 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         <LibrarySectionHeader title={activeTab === 'artists' ? 'Interpreten' : 'Genres'} count={groups.length} />
         <FlatList
           data={groups}
-          keyExtractor={item => item.id}
+          keyExtractor={groupKeyExtractor}
           contentContainerStyle={styles.listContent}
           renderItem={renderGroupItem}
           getItemLayout={getGroupItemLayout}
+          initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
+          windowSize={GROUP_WINDOW_SIZE}
+          removeClippedSubviews={shouldRemoveClippedSubviews}
           ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
@@ -140,10 +160,13 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         <LibrarySectionHeader title="Playlisten" count={playlistItems.length} />
         <FlatList
           data={playlistItems}
-          keyExtractor={item => item.id}
+          keyExtractor={groupKeyExtractor}
           contentContainerStyle={styles.listContent}
           renderItem={renderPlaylistItem}
           getItemLayout={getGroupItemLayout}
+          initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
+          windowSize={GROUP_WINDOW_SIZE}
+          removeClippedSubviews={shouldRemoveClippedSubviews}
           ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
@@ -165,9 +188,9 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         keyExtractor={songKeyExtractor}
         contentContainerStyle={styles.listContent}
         renderItem={renderSongItem}
-        removeClippedSubviews
-        windowSize={7}
-        initialNumToRender={10}
+        removeClippedSubviews={shouldRemoveClippedSubviews}
+        windowSize={SONG_WINDOW_SIZE}
+        initialNumToRender={SONG_INITIAL_RENDER_COUNT}
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={80}
         getItemLayout={getSongItemLayout}

@@ -3,6 +3,7 @@ import type { ColorValue } from 'react-native';
 import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { displayAlbum } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { formatVisualizerHint } from './nowPlayingHelpers';
 
@@ -37,7 +38,7 @@ export const useNowPlayingPresentation = ({
     () => theme.gradients.nowPlayingBackdrop(accent, accentDark),
     [accent, accentDark],
   );
-  const albumTitle = currentSong?.album ?? 'Aus deiner Bibliothek';
+  const albumTitle = currentSong ? displayAlbum(currentSong) : 'Aus deiner Bibliothek';
   const visualizerHint = useMemo(() => formatVisualizerHint(visualizerError), [visualizerError]);
   const artworkUri = getSongArtworkUri(currentSong);
   const progressAccent = palette?.vibrant ?? theme.palette.primary;

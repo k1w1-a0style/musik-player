@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { theme } from '../theme';
+import AppErrorBoundary from '../components/AppErrorBoundary';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
 import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
@@ -52,60 +53,66 @@ const NowPlaying: React.FC = () => {
 
   return (
     <Screen style={styles.root} testID="now-playing-screen" contentStyle={styles.content}>
-      <NowPlayingBackdrop gradientColors={gradientColors} accent={accent} glowLeft={layoutMetrics.glowLeft} />
+      <AppErrorBoundary
+        fallbackMessage="Bereich konnte nicht geladen werden."
+        logPrefix="[NowPlaying] ErrorBoundary caught an error"
+        testID="now-playing-error-boundary-fallback"
+      >
+        <NowPlayingBackdrop gradientColors={gradientColors} accent={accent} glowLeft={layoutMetrics.glowLeft} />
 
-      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
+        <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
 
-      <View style={[styles.coverArea, { height: layoutMetrics.coverAreaHeight }]}>
-        <NowPlayingCoverArtwork
-          song={currentSong}
-          artworkUri={artworkUri}
-          isPlaying={isPlaying}
-          accent={accent}
-          coverSize={layoutMetrics.coverSize}
+        <View style={[styles.coverArea, { height: layoutMetrics.coverAreaHeight }]}>
+          <NowPlayingCoverArtwork
+            song={currentSong}
+            artworkUri={artworkUri}
+            isPlaying={isPlaying}
+            accent={accent}
+            coverSize={layoutMetrics.coverSize}
+          />
+        </View>
+
+        <NowPlayingTitleRow
+          currentSong={currentSong}
+          favorite={favorite}
+          favoritePending={favoritePending}
+          onToggleFavorite={toggleFavorite}
         />
-      </View>
 
-      <NowPlayingTitleRow
-        currentSong={currentSong}
-        favorite={favorite}
-        favoritePending={favoritePending}
-        onToggleFavorite={toggleFavorite}
-      />
+        <NowPlayingVisualizerSection
+          visible={showVisualizer}
+          fftBins={fftBins}
+          isPlaying={isPlaying}
+          color={visualizerColor}
+          hint={visualizerHint}
+        />
 
-      <NowPlayingVisualizerSection
-        visible={showVisualizer}
-        fftBins={fftBins}
-        isPlaying={isPlaying}
-        color={visualizerColor}
-        hint={visualizerHint}
-      />
+        <NowPlayingPlaybackSection
+          position={position}
+          duration={duration}
+          onSeek={seekTo}
+          progressAccent={progressAccent}
+          progressAccentDark={progressAccentDark}
+        />
 
-      <NowPlayingPlaybackSection
-        position={position}
-        duration={duration}
-        onSeek={seekTo}
-        progressAccent={progressAccent}
-        progressAccentDark={progressAccentDark}
-      />
+        <NowPlayingQueueCard
+          queue={queue}
+          currentSongId={currentSong?.id}
+          maxHeight={layoutMetrics.queueCardMaxHeight}
+          onPlayQueueItem={playQueueItemById}
+        />
 
-      <NowPlayingQueueCard
-        queue={queue}
-        currentSongId={currentSong?.id}
-        maxHeight={layoutMetrics.queueCardMaxHeight}
-        onPlayQueueItem={playQueueItemById}
-      />
+        <NowPlayingBottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={bottomInset} onOpenTrackInfo={openTrackInfo} />
 
-      <NowPlayingBottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={bottomInset} onOpenTrackInfo={openTrackInfo} />
-
-      <NowPlayingMenuModal
-        visible={menuOpen}
-        favorite={favorite}
-        onClose={closeMenu}
-        onOpenTrackInfo={openTrackInfo}
-        onToggleFavorite={toggleFavorite}
-        onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
-      />
+        <NowPlayingMenuModal
+          visible={menuOpen}
+          favorite={favorite}
+          onClose={closeMenu}
+          onOpenTrackInfo={openTrackInfo}
+          onToggleFavorite={toggleFavorite}
+          onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
+        />
+      </AppErrorBoundary>
     </Screen>
   );
 };

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { displayArtist, normalizeLibraryText } from '../utils/libraryPresentation';
 
 interface NowPlayingTitleRowProps {
   currentSong: Song | null;
@@ -16,13 +17,17 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
   favorite,
   favoritePending,
   onToggleFavorite,
-}) => (
-  <View style={styles.titleRow}>
-    <View style={styles.titleBlock}>
-      <Text style={styles.title} numberOfLines={2}>{currentSong?.title ?? 'Kein Titel ausgewählt'}</Text>
-      <Text style={styles.artist} numberOfLines={1}>{currentSong?.artist ?? 'Wähle einen Song aus der Bibliothek'}</Text>
-    </View>
-    <Pressable
+}) => {
+  const title = normalizeLibraryText(currentSong?.title) || 'Kein Titel ausgewählt';
+  const artist = currentSong ? displayArtist(currentSong) : 'Wähle einen Song aus der Bibliothek';
+
+  return (
+    <View style={styles.titleRow}>
+      <View style={styles.titleBlock}>
+        <Text style={styles.title} numberOfLines={2}>{title}</Text>
+        <Text style={styles.artist} numberOfLines={1}>{artist}</Text>
+      </View>
+      <Pressable
       disabled={favoritePending}
       onPress={onToggleFavorite}
       style={styles.heartBtn}
@@ -36,9 +41,10 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
         fill={favorite ? theme.palette.primary : 'transparent'}
         size={22}
       />
-    </Pressable>
-  </View>
-);
+      </Pressable>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 2, marginBottom: 6 },
