@@ -1,9 +1,16 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { PlaybackService } from '../PlaybackService';
 
+type TrackPlayerTestApi = typeof TrackPlayer & {
+  __reset: () => void;
+  __trigger: (event: string, payload?: unknown) => void;
+};
+
+const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
+
 describe('PlaybackService', () => {
   beforeEach(() => {
-    (TrackPlayer as unknown as { __reset: () => void }).__reset();
+    trackPlayerTestApi.__reset();
     jest.clearAllMocks();
     jest.restoreAllMocks();
   });
@@ -24,10 +31,33 @@ describe('PlaybackService', () => {
   test('runs remote play action', async () => {
     await PlaybackService();
 
-    (TrackPlayer as unknown as { __trigger: (event: string, payload?: unknown) => void }).__trigger(Event.RemotePlay);
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
     await Promise.resolve();
 
     expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([12.5, 0])('seeks when remote seek position %p is valid', async position => {
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(Event.RemoteSeek, { position });
+    await Promise.resolve();
+
+    expect(TrackPlayer.seekTo).toHaveBeenCalledWith(position);
+  });
+
+  test.each([
+    ['negative', -1],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['non-number', '10'],
+  ])('ignores invalid remote seek position: %s', async (_label, position) => {
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(Event.RemoteSeek, { position });
+    await Promise.resolve();
+
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 
   test('logs remote action failures', async () => {
@@ -36,7 +66,7 @@ describe('PlaybackService', () => {
     (TrackPlayer.skipToNext as jest.Mock).mockRejectedValueOnce(error);
     await PlaybackService();
 
-    (TrackPlayer as unknown as { __trigger: (event: string, payload?: unknown) => void }).__trigger(Event.RemoteNext);
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
     await Promise.resolve();
 
     expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote next failed', error);

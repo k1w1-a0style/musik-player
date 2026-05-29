@@ -105,12 +105,13 @@ export const useLibraryActions = ({
       const baseQueueRefChanged = !hasSameSongIds(baseQueueContextRef.current, nextBaseQueueRef);
       const nativeQueueRefChanged = !hasSameSongIds(nativeQueueRef.current, nextNativeQueueRef);
 
-      setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
       if (queueRefChanged) queueContextRef.current = nextQueueRef;
       if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;
       if (nativeQueueRefChanged) nativeQueueRef.current = nextNativeQueueRef;
       const syncedQueue = queueContextRef.current.slice();
-      if (queueRefChanged) setPlaybackQueue(syncedQueue);
+      setPlaybackQueue(prev =>
+        queueRefChanged ? syncedQueue : pruneSongsByValidIds(prev, validSongIds),
+      );
       setSongsState(songs);
       latestCleanupVersionRef.current += 1;
       const cleanupVersion = latestCleanupVersionRef.current;

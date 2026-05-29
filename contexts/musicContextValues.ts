@@ -74,7 +74,7 @@ export const buildMiniPlayerMusicContextValue = ({
   togglePlayPause,
   next,
   previous,
-  canSkipNext: playbackQueue.length > 1,
+  canSkipNext: currentSong !== null && playbackQueue.length > 1,
   canSkipPrevious: currentSong !== null,
 });
 

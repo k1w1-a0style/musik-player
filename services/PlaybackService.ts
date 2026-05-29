@@ -29,6 +29,10 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious());
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
+    if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
+      return;
+    }
+
     handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {

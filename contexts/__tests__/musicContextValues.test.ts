@@ -78,6 +78,41 @@ describe('music context value builders', () => {
     });
   });
 
+  test('requires a current song before allowing mini player next skips', () => {
+    expect(
+      buildMiniPlayerMusicContextValue({
+        ...baseValue,
+        currentSong: null,
+        playbackQueue: [baseValue.playbackQueue[0], baseValue.playbackQueue[1]],
+      }),
+    ).toMatchObject({
+      canSkipNext: false,
+      canSkipPrevious: false,
+    });
+
+    expect(
+      buildMiniPlayerMusicContextValue({
+        ...baseValue,
+        currentSong: baseValue.currentSong,
+        playbackQueue: [baseValue.playbackQueue[0], baseValue.playbackQueue[1]],
+      }),
+    ).toMatchObject({
+      canSkipNext: true,
+      canSkipPrevious: true,
+    });
+
+    expect(
+      buildMiniPlayerMusicContextValue({
+        ...baseValue,
+        currentSong: baseValue.currentSong,
+        playbackQueue: [baseValue.playbackQueue[0]],
+      }),
+    ).toMatchObject({
+      canSkipNext: false,
+      canSkipPrevious: true,
+    });
+  });
+
   test('builds the now playing slice with canSkip flag', () => {
     expect(buildNowPlayingMusicContextValue(baseValue)).toMatchObject({
       playbackQueue: baseValue.playbackQueue,
