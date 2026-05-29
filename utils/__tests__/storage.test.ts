@@ -1250,6 +1250,44 @@ describe('storage', () => {
     ]);
   });
 
+  test('normalizes null albumArtist without dropping otherwise valid songs', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song', artist: 'Artist', albumArtist: null },
+      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
+      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
+      { id: 'broken', title: 'Missing artist', albumArtist: null },
+    ]));
+
+    const expectedSongs = [
+      { id: 's1', title: 'Song', artist: 'Artist' },
+      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
+      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
+    ];
+
+    await expect(storage.getSongs()).resolves.toEqual(expectedSongs);
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual(expectedSongs);
+  });
+
+  test('setSongs strips null albumArtist while preserving valid songs', async () => {
+    await storage.setSongs([
+      { id: 's1', title: 'Song', artist: 'Artist', albumArtist: null },
+      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
+      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
+      { id: 'broken', title: 'Missing artist', albumArtist: null },
+    ]);
+
+    await expect(storage.getSongs()).resolves.toEqual([
+      { id: 's1', title: 'Song', artist: 'Artist' },
+      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
+      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
+    ]);
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe(JSON.stringify([
+      { id: 's1', title: 'Song', artist: 'Artist' },
+      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
+      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
+    ]));
+  });
+
   test('getSongs returns [] for non-array JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify({ songs: [] }));
     await expect(storage.getSongs()).resolves.toEqual([]);

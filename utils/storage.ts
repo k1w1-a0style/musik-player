@@ -54,7 +54,7 @@ const songSchema = z.object({
   title: z.string(),
   artist: z.string(),
   album: z.string().optional(),
-  albumArtist: z.string().optional(),
+  albumArtist: z.preprocess(value => value === null ? undefined : value, z.string().optional()),
   duration: z.number().optional(),
   cover: z.string().optional(),
   uri: z.string().optional(),
@@ -78,8 +78,8 @@ type NormalizedStoredSong = Song & Record<string, unknown> & {
 const normalizeStoredSong = (value: unknown): NormalizedStoredSong | null => {
   const parsed = songSchema.safeParse(value);
   if (!parsed.success) return null;
-  const { favorite: _favorite, isFavorite: _isFavorite, ...song } = parsed.data;
-  return song as NormalizedStoredSong;
+  const { favorite: _favorite, isFavorite: _isFavorite, albumArtist, ...song } = parsed.data;
+  return (albumArtist === undefined ? song : { ...song, albumArtist }) as NormalizedStoredSong;
 };
 
 export const collectLegacyFavoriteSongIds = (value: unknown): string[] => {
