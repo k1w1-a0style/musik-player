@@ -9,6 +9,7 @@ const pendingFavoriteLookup = () => new Promise<boolean>(() => undefined);
 const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(pendingFavoriteLookup);
 const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
 const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Queue', songIds: ['s1'], createdAt: 1 }));
+let mockNowPlayingStateCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -46,7 +47,11 @@ const setCurrentSongId = (id: string) => {
 };
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useNowPlayingMusicContext: () => mockNowPlayingContext,
+  useNowPlayingMusicContext: () => {
+    if (mockNowPlayingStateCrash) throw new Error('now playing screen state crash');
+
+    return mockNowPlayingContext;
+  },
 }));
 
 jest.mock('../../contexts/PlaybackProgressContext', () => ({
@@ -72,6 +77,7 @@ jest.mock('../../components/Screen', () => ({ children }: { children?: React.Rea
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingContext.visualizerError = null;
+    mockNowPlayingStateCrash = false;
     setCurrentSongId('s1');
     mockGoBack.mockClear();
     mockNavigate.mockClear();
@@ -79,6 +85,24 @@ describe('NowPlaying cover fallback', () => {
     mockIsFavoriteSongId.mockClear();
     mockSetFavoriteSongId.mockClear();
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
+  });
+
+  test('renders the screen fallback when the inner screen-state component throws', () => {
+    mockNowPlayingStateCrash = true;
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const view = render(<NowPlaying />);
+
+    expect(view.getByTestId('now-playing-error-boundary-fallback')).toBeTruthy();
+    expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[NowPlaying] ErrorBoundary caught an error',
+      expect.any(Error),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
+
+    consoleErrorSpy.mockRestore();
+    view.unmount();
   });
 
   test('hides broken cover image after error', () => {

@@ -6,7 +6,7 @@ import { useTagEditorScreenState } from './useTagEditorScreenState';
 
 export { buildDraftFromDirtyFields, hasRemovableCover } from './tagEditorHelpers';
 
-const TagEditor: React.FC = () => {
+const TagEditorScreenInner: React.FC = () => {
   const {
     song,
     form,
@@ -30,35 +30,39 @@ const TagEditor: React.FC = () => {
   if (!song) return <TagEditorNotFound />;
 
   return (
-    <AppErrorBoundary
-      fallbackMessage="Bereich konnte nicht geladen werden."
-      logPrefix="[TagEditor] ErrorBoundary caught an error"
-      testID="tag-editor-error-boundary-fallback"
-    >
-      <TagEditorContent
-        form={form}
-        saving={saving}
-        removeCover={removeCover}
-        replacementCover={replacementCover}
-        status={status}
-        capability={capability}
-        hasCover={hasCover}
-        canSave={canSave}
-        capabilityMessage={capabilityMessage}
-        blockedReasonMessage={blockedReasonMessage}
-        safetyMessage={safetyMessage}
-        onPickCover={() => {
-          void handlePickCover();
-        }}
-        onChangeField={handleChangeField}
-        onToggleRemoveCover={toggleRemoveCover}
-        onConfirmSave={() => {
-          void onSaveConfirmed();
-        }}
-        onBack={goBack}
-      />
-    </AppErrorBoundary>
+    <TagEditorContent
+      form={form}
+      saving={saving}
+      removeCover={removeCover}
+      replacementCover={replacementCover}
+      status={status}
+      capability={capability}
+      hasCover={hasCover}
+      canSave={canSave}
+      capabilityMessage={capabilityMessage}
+      blockedReasonMessage={blockedReasonMessage}
+      safetyMessage={safetyMessage}
+      onPickCover={() => {
+        void handlePickCover();
+      }}
+      onChangeField={handleChangeField}
+      onToggleRemoveCover={toggleRemoveCover}
+      onConfirmSave={() => {
+        void onSaveConfirmed();
+      }}
+      onBack={goBack}
+    />
   );
 };
+
+const TagEditor: React.FC = () => (
+  <AppErrorBoundary
+    fallbackMessage="Bereich konnte nicht geladen werden."
+    logPrefix="[TagEditor] ErrorBoundary caught an error"
+    testID="tag-editor-error-boundary-fallback"
+  >
+    <TagEditorScreenInner />
+  </AppErrorBoundary>
+);
 
 export default TagEditor;

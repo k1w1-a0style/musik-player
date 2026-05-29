@@ -22,22 +22,27 @@ const mockImportSongs = jest.fn<Promise<any>, [any?]>(async (_options?: any) => 
 const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [], skipped: [] }));
 const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
 const mockRefreshSongsFromId3 = jest.fn<Promise<any>, [any[]]>(async songs => ({ songs, updated: 0, skipped: 0, failed: 0, errors: [] }));
+let mockLibraryControllerCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: () => ({
-    songs: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
-    setSongs: mockSetSongs,
-    currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
-    playSong: mockPlaySong,
-    isReady: true,
-    isPlaying: false,
-    playlists: mockPlaylists,
-    playPlaylist: mockPlayPlaylist,
-  }),
+  useLibraryMusicContext: () => {
+    if (mockLibraryControllerCrash) throw new Error('library controller crash');
+
+    return {
+      songs: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
+      setSongs: mockSetSongs,
+      currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
+      playSong: mockPlaySong,
+      isReady: true,
+      isPlaying: false,
+      playlists: mockPlaylists,
+      playPlaylist: mockPlayPlaylist,
+    };
+  },
 }));
 
 jest.mock('../../utils/storage', () => ({
@@ -89,6 +94,25 @@ describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPlaylists = [];
+    mockLibraryControllerCrash = false;
+  });
+
+  test('renders the screen fallback when the inner controller component throws', () => {
+    mockLibraryControllerCrash = true;
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const view = render(<Library />);
+
+    expect(view.getByTestId('library-error-boundary-fallback')).toBeTruthy();
+    expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[LibraryScreen] ErrorBoundary caught an error',
+      expect.any(Error),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
+
+    consoleErrorSpy.mockRestore();
+    view.unmount();
   });
 
   test('renders compact Samsung-style library chrome without the old scan block', async () => {
