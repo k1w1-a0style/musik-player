@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, codex]
   push:
-    branches: [main]
+    branches: [main, codex]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   quality-gates:
-    name: Typecheck, tests, lint, config gates
+    name: Typecheck, tests, coverage, lint, config gates
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -39,6 +39,9 @@ jobs:
 
       - name: Tests
         run: npm test -- --runInBand
+
+      - name: Coverage
+        run: npm run test:coverage -- --runInBand
 
       - name: Lint
         run: npm run lint:ci
