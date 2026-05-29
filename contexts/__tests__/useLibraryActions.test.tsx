@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Button, Text } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
@@ -40,6 +40,11 @@ const LibraryProbe = ({
   const queueContextRef = useRef<Song[]>(initialQueueRef);
   const baseQueueContextRef = useRef<Song[]>(initialBaseQueueRef);
   const nativeQueueRef = useRef<Song[]>(initialNativeQueueRef);
+  const playbackQueueCommitsRef = useRef(0);
+  const commitPlaybackQueue: Dispatch<SetStateAction<Song[]>> = action => {
+    playbackQueueCommitsRef.current += 1;
+    setPlaybackQueue(action);
+  };
 
   const { setSongs, addSongs, updateSongMetadata } = useLibraryActions({
     queueContextRef,
@@ -47,7 +52,7 @@ const LibraryProbe = ({
     nativeQueueRef,
     setSongsState,
     setCurrentSong,
-    setPlaybackQueue,
+    setPlaybackQueue: commitPlaybackQueue,
     setPlaylists,
   });
 
@@ -57,7 +62,9 @@ const LibraryProbe = ({
       <Text testID="current-title">{currentSong?.title ?? ''}</Text>
       <Text testID="playback-queue">{playbackQueue.map(song => song.id).join(',')}</Text>
       <Text testID="queue-ref">{queueContextRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="base-queue-ref">{baseQueueContextRef.current.map(song => song.id).join(',')}</Text>
       <Text testID="native-ref">{nativeQueueRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="playback-queue-commits">{playbackQueueCommitsRef.current}</Text>
       <Text testID="playlist-songs">{playlists[0]?.songIds.join(',') ?? ''}</Text>
       <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
@@ -91,7 +98,7 @@ describe('useLibraryActions', () => {
         initialBaseQueueRef={[songs[0]]}
         initialNativeQueueRef={[songs[0]]}
         nextSongs={[songs[0], songs[1]]}
-      />, 
+      />,
     );
 
     act(() => fireEvent.press(getByTestId('set-songs')));
@@ -99,6 +106,7 @@ describe('useLibraryActions', () => {
     await waitFor(() => expect(getByTestId('songs').props.children).toBe('s1,s2'));
     expect(getByTestId('playback-queue').props.children).toBe('s1');
     expect(getByTestId('queue-ref').props.children).toBe('s1');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1');
     expect(getByTestId('native-ref').props.children).toBe('s1');
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(TrackPlayer.add).not.toHaveBeenCalled();
@@ -123,11 +131,39 @@ describe('useLibraryActions', () => {
     await waitFor(() => {
       expect(getByTestId('current-title').props.children).toBe('');
       expect(getByTestId('playback-queue').props.children).toBe('s2');
+      expect(getByTestId('queue-ref').props.children).toBe('s2');
+      expect(getByTestId('base-queue-ref').props.children).toBe('s2');
       expect(getByTestId('native-ref').props.children).toBe('s2');
     });
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
+    expect(TrackPlayer.add).not.toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
+    expect(getByTestId('playback-queue-commits').props.children).toBe(1);
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
+  });
+
+  test('prunes stale playback state with one queue state commit when queue refs are already clean', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[1]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[1]]}
+        initialBaseQueueRef={[songs[1]]}
+        initialNativeQueueRef={[songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(getByTestId('playback-queue').props.children).toBe('s2'));
+    expect(getByTestId('queue-ref').props.children).toBe('s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s2');
+    expect(getByTestId('native-ref').props.children).toBe('s2');
+    expect(getByTestId('playback-queue-commits').props.children).toBe(1);
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
   test('removing all queued songs resets player and clears native ref without add', async () => {

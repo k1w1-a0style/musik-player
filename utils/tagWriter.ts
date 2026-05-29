@@ -16,6 +16,7 @@ import {
   validateEditableTags,
 } from './tagValidation';
 import {
+  DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
   createTagWriteOperationPlan,
   simulateTagWriteOperation,
 } from './tagWriteOrchestrator';
@@ -64,7 +65,7 @@ const textEncoder = new TextEncoder();
 const ID3_HEADER = 10;
 const ID3_SYNCSAFE_MAX_SIZE = 0x0fffffff;
 const ID3_V23_FRAME_SIZE_MAX = 0xffffffff;
-export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
+export { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 
 const isValidId3v23FrameId = (id: string): boolean => /^[A-Z0-9]{4}$/.test(id);
 
