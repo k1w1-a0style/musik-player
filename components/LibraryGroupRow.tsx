@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Play } from 'lucide-react-native';
 import { theme } from '../theme';
@@ -9,28 +9,48 @@ interface LibraryGroupRowProps {
   onPress: (group: LibraryGroupItem) => void;
 }
 
-const LibraryGroupRow: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={`${group.title} abspielen`}
-    style={({ pressed }) => [styles.groupRow, pressed && styles.pressed]}
-    onPress={() => onPress(group)}
-    testID={`library-group-row-${group.id}`}
-  >
-    <View style={styles.groupIcon}>
-      {group.cover ? (
-        <Image source={{ uri: group.cover }} style={styles.groupCover} testID={`library-group-cover-${group.id}`} />
-      ) : (
-        <Text style={styles.groupIconText}>{group.title.slice(0, 1).toUpperCase()}</Text>
-      )}
-    </View>
-    <View style={styles.groupTextWrap}>
-      <Text style={styles.groupTitle} numberOfLines={1}>{group.title}</Text>
-      <Text style={styles.groupSubtitle}>{group.subtitle}</Text>
-    </View>
-    <Play color={theme.palette.text.secondary} size={16} />
-  </Pressable>
-);
+const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => {
+  const [coverFailed, setCoverFailed] = useState(false);
+
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [group.cover, group.id]);
+
+  const handlePress = useCallback(() => {
+    onPress(group);
+  }, [group, onPress]);
+
+  const handleCoverError = useCallback(() => {
+    setCoverFailed(true);
+  }, []);
+
+  const showCover = !!group.cover && !coverFailed;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${group.title} abspielen`}
+      style={({ pressed }) => [styles.groupRow, pressed && styles.pressed]}
+      onPress={handlePress}
+      testID={`library-group-row-${group.id}`}
+    >
+      <View style={styles.groupIcon}>
+        {showCover ? (
+          <Image source={{ uri: group.cover }} style={styles.groupCover} testID={`library-group-cover-${group.id}`} onError={handleCoverError} />
+        ) : (
+          <Text style={styles.groupIconText}>{group.title.slice(0, 1).toUpperCase() || '?'}</Text>
+        )}
+      </View>
+      <View style={styles.groupTextWrap}>
+        <Text style={styles.groupTitle} numberOfLines={1}>{group.title}</Text>
+        <Text style={styles.groupSubtitle}>{group.subtitle}</Text>
+      </View>
+      <Play color={theme.palette.text.secondary} size={16} />
+    </Pressable>
+  );
+};
+
+const LibraryGroupRow = memo(LibraryGroupRowComponent);
 
 const styles = StyleSheet.create({
   groupRow: { height: 66, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.palette.border },

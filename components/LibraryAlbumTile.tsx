@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
@@ -11,25 +11,45 @@ interface LibraryAlbumTileProps {
 export const getAlbumTileFallbackLetter = (title: string): string =>
   title.trim().slice(0, 1).toUpperCase() || '?';
 
-const LibraryAlbumTile: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={`${album.title} abspielen`}
-    style={({ pressed }) => [styles.albumTile, pressed && styles.pressed]}
-    onPress={() => onPress(album)}
-    testID={`library-album-tile-${album.id}`}
-  >
-    <View style={styles.albumArt}>
-      {album.cover ? (
-        <Image source={{ uri: album.cover }} style={styles.albumImage} testID={`library-album-cover-${album.id}`} />
-      ) : (
-        <Text style={styles.albumLetter}>{getAlbumTileFallbackLetter(album.title)}</Text>
-      )}
-    </View>
-    <Text style={styles.albumTitle} numberOfLines={2}>{album.title}</Text>
-    <Text style={styles.albumSubtitle}>{album.subtitle}</Text>
-  </Pressable>
-);
+const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => {
+  const [coverFailed, setCoverFailed] = useState(false);
+
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [album.cover, album.id]);
+
+  const handlePress = useCallback(() => {
+    onPress(album);
+  }, [album, onPress]);
+
+  const handleCoverError = useCallback(() => {
+    setCoverFailed(true);
+  }, []);
+
+  const showCover = !!album.cover && !coverFailed;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${album.title} abspielen`}
+      style={({ pressed }) => [styles.albumTile, pressed && styles.pressed]}
+      onPress={handlePress}
+      testID={`library-album-tile-${album.id}`}
+    >
+      <View style={styles.albumArt}>
+        {showCover ? (
+          <Image source={{ uri: album.cover }} style={styles.albumImage} testID={`library-album-cover-${album.id}`} onError={handleCoverError} />
+        ) : (
+          <Text style={styles.albumLetter}>{getAlbumTileFallbackLetter(album.title)}</Text>
+        )}
+      </View>
+      <Text style={styles.albumTitle} numberOfLines={2}>{album.title}</Text>
+      <Text style={styles.albumSubtitle}>{album.subtitle}</Text>
+    </Pressable>
+  );
+};
+
+const LibraryAlbumTile = memo(LibraryAlbumTileComponent);
 
 const styles = StyleSheet.create({
   albumTile: { width: '48%', height: 184, marginBottom: 14 },

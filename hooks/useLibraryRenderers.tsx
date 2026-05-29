@@ -11,6 +11,7 @@ import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import {
   buildSongCardSong,
   getLibrarySongItemLayout,
+  getLibrarySongKey,
   shouldShowTrackInfoAction,
 } from '../utils/libraryRendererHelpers';
 
@@ -53,7 +54,7 @@ export const useLibraryRenderers = ({
     void playSong(song, queue);
   }, [filteredSongs, playSong]);
 
-  const songKeyExtractor = useCallback((item: Song) => item.id, []);
+  const songKeyExtractor = useCallback(getLibrarySongKey, []);
 
   const getSongItemLayout = useCallback(getLibrarySongItemLayout, []);
 

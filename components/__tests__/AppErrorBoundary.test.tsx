@@ -28,14 +28,19 @@ describe('AppErrorBoundary', () => {
   test('shows fallback and logs console.error when a child throws', () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    const { getByTestId } = render(
-      <AppErrorBoundary>
+    const { getByTestId, getByText } = render(
+      <AppErrorBoundary fallbackMessage="Bereich konnte nicht geladen werden." logPrefix="[LibraryScreen] ErrorBoundary caught an error">
         <AlwaysCrash />
       </AppErrorBoundary>,
     );
 
     expect(getByTestId('app-error-boundary-fallback')).toBeTruthy();
-    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[LibraryScreen] ErrorBoundary caught an error',
+      expect.any(Error),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
 
     consoleErrorSpy.mockRestore();
   });

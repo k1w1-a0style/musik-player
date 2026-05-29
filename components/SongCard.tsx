@@ -4,6 +4,7 @@ import { CircleEllipsis, Music2 } from 'lucide-react-native';
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { buildSongKey } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 interface SongCardProps {
@@ -18,6 +19,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   const [coverFailed, setCoverFailed] = useState(false);
   const [nativeArtworkUri, setNativeArtworkUri] = useState<string | undefined>();
   const artworkUri = getSongArtworkUri(song) ?? nativeArtworkUri;
+  const songTestId = song.id.trim() || buildSongKey(song);
 
   useEffect(() => {
     setCoverFailed(false);
@@ -31,7 +33,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       .then(result => {
         if (!cancelled && result?.uri) setNativeArtworkUri(result.uri);
       })
-      .catch(() => undefined);
+      .catch(error => {
+        console.error('[SongCard] Failed to extract embedded artwork', error);
+      });
     return () => {
       cancelled = true;
     };
@@ -50,7 +54,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
 
   return (
     <Pressable
-      testID={`song-card-${song.id}`}
+      testID={`song-card-${songTestId}`}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} von ${song.artist}`}
       onPress={handlePress}
@@ -75,7 +79,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       </View>
 
       {onInfoSong ? (
-        <Pressable testID={`song-card-info-${song.id}`} accessibilityRole="button" accessibilityLabel={`Infos zu ${song.title}`} onPress={handleInfoPress} hitSlop={8} style={styles.infoButton}>
+        <Pressable testID={`song-card-info-${songTestId}`} accessibilityRole="button" accessibilityLabel={`Infos zu ${song.title}`} onPress={handleInfoPress} hitSlop={8} style={styles.infoButton}>
           <CircleEllipsis color={theme.palette.text.muted} size={17} />
         </Pressable>
       ) : null}

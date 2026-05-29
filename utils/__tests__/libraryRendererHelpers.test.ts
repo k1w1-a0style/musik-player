@@ -1,6 +1,7 @@
 import {
   buildSongCardSong,
   getLibrarySongItemLayout,
+  getLibrarySongKey,
   shouldShowTrackInfoAction,
   SONG_ROW_HEIGHT,
 } from '../libraryRendererHelpers';
@@ -27,6 +28,20 @@ describe('libraryRendererHelpers', () => {
       id: 's1',
       title: 'Title',
       artist: 'Artist',
+      album: 'Unbekanntes Album',
+    });
+  });
+
+  test('builds stable keys for songs with missing ids', () => {
+    expect(getLibrarySongKey({ ...song, id: '', uri: 'file:///Music/Track.mp3' })).toBe('song-uri:file:///music/track.mp3');
+    expect(getLibrarySongKey({ ...song, id: '', uri: undefined, title: '  Title ', artist: ' artist ', duration: 10 })).toBe('song-meta:artist:title:10');
+  });
+
+  test('sanitizes broken card title and id without crashing', () => {
+    expect(buildSongCardSong({ ...song, id: '  ', title: '   ', artist: '', album: undefined })).toMatchObject({
+      id: '',
+      title: 'Unbekannter Titel',
+      artist: 'Unbekannt',
       album: 'Unbekanntes Album',
     });
   });

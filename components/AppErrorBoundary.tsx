@@ -2,12 +2,22 @@ import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 
+interface AppErrorBoundaryProps {
+  children: ReactNode;
+  fallbackMessage?: string;
+  logPrefix?: string;
+  testID?: string;
+}
+
 interface AppErrorBoundaryState {
   hasError: boolean;
   resetKey: number;
 }
 
-export default class AppErrorBoundary extends React.Component<{ children: ReactNode }, AppErrorBoundaryState> {
+const DEFAULT_FALLBACK_MESSAGE = 'Etwas ist schiefgelaufen.';
+const DEFAULT_LOG_PREFIX = 'AppErrorBoundary caught an error';
+
+export default class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
   state: AppErrorBoundaryState = {
     hasError: false,
     resetKey: 0,
@@ -18,7 +28,7 @@ export default class AppErrorBoundary extends React.Component<{ children: ReactN
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('AppErrorBoundary caught an error', error, info);
+    console.error(this.props.logPrefix ?? DEFAULT_LOG_PREFIX, error, info);
   }
 
   private handleReset = (): void => {
@@ -28,8 +38,8 @@ export default class AppErrorBoundary extends React.Component<{ children: ReactN
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <View style={styles.container} testID="app-error-boundary-fallback">
-          <Text style={styles.text}>Etwas ist schiefgelaufen.</Text>
+        <View style={styles.container} testID={this.props.testID ?? 'app-error-boundary-fallback'}>
+          <Text style={styles.text}>{this.props.fallbackMessage ?? DEFAULT_FALLBACK_MESSAGE}</Text>
           <Pressable onPress={this.handleReset} style={styles.button} testID="app-error-boundary-reset">
             <Text style={styles.buttonText}>Neu versuchen</Text>
           </Pressable>

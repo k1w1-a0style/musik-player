@@ -2,9 +2,15 @@ import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
+import { buildSongKey, displayArtist, normalizeLibraryText } from '../utils/libraryPresentation';
 import NowPlayingQueuePreviewRow from './NowPlayingQueuePreviewRow';
 
 const QUEUE_ROW_HEIGHT = 44;
+const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number) => ({
+  length: QUEUE_ROW_HEIGHT,
+  offset: QUEUE_ROW_HEIGHT * index,
+  index,
+});
 
 interface NowPlayingQueueCardProps {
   queue: Song[];
@@ -23,9 +29,9 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
     ({ item }: { item: Song }) => (
       <NowPlayingQueuePreviewRow
         id={item.id}
-        title={item.title}
-        artist={item.artist}
-        isCurrent={item.id === currentSongId}
+        title={normalizeLibraryText(item.title) || 'Unbekannter Titel'}
+        artist={displayArtist(item)}
+        isCurrent={!!item.id && item.id === currentSongId}
         onPress={onPlayQueueItem}
       />
     ),
@@ -42,11 +48,11 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
       </View>
       <FlatList
         data={queue}
-        keyExtractor={item => item.id}
+        keyExtractor={buildSongKey}
         renderItem={renderQueueItem}
         nestedScrollEnabled
         showsVerticalScrollIndicator={queue.length > 3}
-        getItemLayout={(_, index) => ({ length: QUEUE_ROW_HEIGHT, offset: QUEUE_ROW_HEIGHT * index, index })}
+        getItemLayout={getQueueItemLayout}
         style={styles.queueList}
       />
     </View>

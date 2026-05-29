@@ -26,6 +26,7 @@ export interface Song {
   title: string;
   artist: string;
   album?: string;
+  albumArtist?: string;
   uri?: string;
   cover?: string;
   duration?: number;

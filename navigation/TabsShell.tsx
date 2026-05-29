@@ -9,6 +9,7 @@ import Library from '../screens/Library';
 import Playlists from '../screens/Playlists';
 import Equalizer from '../screens/Equalizer';
 import Covers from '../screens/Covers';
+import AppErrorBoundary from '../components/AppErrorBoundary';
 import MiniPlayer from '../components/MiniPlayer';
 import { theme } from '../theme';
 
@@ -47,7 +48,9 @@ const TabsShell: React.FC<TabsShellProps> = ({ openNowPlaying }) => {
         <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
         <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
       </Tab.Navigator>
-      <MiniPlayer onOpen={openNowPlaying} />
+      <AppErrorBoundary fallbackMessage="Player konnte nicht geladen werden." logPrefix="[MiniPlayer] ErrorBoundary caught an error" testID="mini-player-error-boundary-fallback">
+        <MiniPlayer onOpen={openNowPlaying} />
+      </AppErrorBoundary>
     </View>
   );
 };
