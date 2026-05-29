@@ -212,9 +212,9 @@ const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>
   new Set(['embedded', 'cached']);
 
 export const hasRemovableCover = (song: Song): boolean => {
-  if (song.cover) return true;
   const status = song.coverInfo?.status;
-  return Boolean(status && REMOVABLE_COVER_STATUSES.has(status));
+  if (status) return REMOVABLE_COVER_STATUSES.has(status);
+  return Boolean(song.cover);
 };
 
 export const statusMessage = (result: WriteTagsResult): string => {

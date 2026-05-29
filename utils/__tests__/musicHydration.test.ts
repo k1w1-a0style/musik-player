@@ -94,6 +94,40 @@ describe('musicHydration helpers', () => {
     );
   });
 
+  test('normalizeHydrationSongs replaces a non-playable duplicate with a later playable song', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = normalizeHydrationSongs([
+      { id: ' s1 ', title: 'Missing URI', artist: 'A', uri: '   ' },
+      { id: 's1', title: 'Playable', artist: 'A', uri: 'file:///s1.mp3' },
+      { id: 's2', title: 'Other', artist: 'A', uri: 'file:///s2.mp3' },
+    ]);
+
+    expect(result.songs.map(song => song.id)).toEqual(['s1', 's2']);
+    expect(result.songs[0]).toEqual(expect.objectContaining({ title: 'Playable', uri: 'file:///s1.mp3' }));
+    expect(result.changed).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration] Replacing duplicated normalized song id with playable song during hydration.',
+      expect.objectContaining({ songId: 's1', title: 'Playable' }),
+    );
+  });
+
+  test('normalizeHydrationSongs keeps the first duplicate when both normalized songs are non-playable', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = normalizeHydrationSongs([
+      { id: 's1', title: 'First missing URI', artist: 'A' },
+      { id: ' s1 ', title: 'Second missing URI', artist: 'A', uri: '   ' },
+    ]);
+
+    expect(result.songs).toEqual([expect.objectContaining({ id: 's1', title: 'First missing URI' })]);
+    expect(result.changed).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration] Dropping duplicated normalized song id during hydration.',
+      expect.objectContaining({ songId: 's1', title: 'Second missing URI' }),
+    );
+  });
+
   test('detects changed cover fields', () => {
     expect(didSongCoversChange([{ ...songs[0], cover: 'b' }], [{ ...songs[0], cover: 'a' }])).toBe(true);
     expect(didSongCoversChange([{ ...songs[0], cover: 'a' }], [{ ...songs[0], cover: 'a' }])).toBe(false);
