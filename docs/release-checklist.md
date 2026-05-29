@@ -32,6 +32,12 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 - [ ] EAS- und Release-Builds bleiben separate, gezielt gestartete Workflows; sie werden nicht automatisch für jeden PR erzwungen.
 - [ ] Der Supabase-Legacy-Workflow bleibt ein manueller Legacy-Bridge-Workflow und wird nicht automatisch ausgelöst.
 
+## Final codex → main Release-Handoff
+
+Details: [`docs/release-handoff.md`](./release-handoff.md)
+
+Diese Handoff-Checkliste ist vor dem finalen Merge von `codex` nach `main` verbindlich und verweist auf die lokalen Gates, GitHub-Checks, Android-Smokes und bewusst manuellen EAS-Schritte.
+
 ## Round 8.6 Final Release-/Regression-Gates
 
 Diese kompakte Abschlussliste ist das Release-Readiness-Minimum vor späteren Releases. Sie ergänzt die Detail-Checks unten; sie ersetzt keine manuelle Android-Prüfung nach SDK-/FileSystem-Änderungen.
