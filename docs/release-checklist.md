@@ -25,6 +25,70 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 - [ ] Lint grün; `lint:ci` darf Warnungen nicht verstecken
 - [ ] Expo Config Werte stimmen
 
+## Round 8.6 Final Release-/Regression-Gates
+
+Diese kompakte Abschlussliste ist das Release-Readiness-Minimum vor späteren Releases. Sie ergänzt die Detail-Checks unten; sie ersetzt keine manuelle Android-Prüfung nach SDK-/FileSystem-Änderungen.
+
+### Quality Gates
+
+```bash
+npm ci --no-audit --no-fund
+npm run lint:ci
+npm run typecheck
+npm test -- --runInBand
+npm run test:coverage -- --runInBand
+```
+
+- [ ] Alle Quality Gates sind grün; Coverage wird nicht ohne Begründung abgesenkt.
+
+### Runtime-Smoke-Flows
+
+- [ ] App startet ohne Crash.
+- [ ] Library lädt gespeicherte Songs.
+- [ ] Import aus MediaLibrary funktioniert.
+- [ ] Import aus SAF-Ordner funktioniert.
+- [ ] Playback Start/Pause/Next/Previous funktioniert.
+- [ ] Queue bleibt nach Library-Änderungen stabil.
+- [ ] Hydration nach App-Neustart bleibt stabil.
+- [ ] Favoriten persistieren.
+- [ ] Playlists persistieren.
+
+### Tag-/Cover-Flows
+
+- [ ] Tag Edit für unterstützten `file://` Track funktioniert.
+- [ ] `content://` bleibt read-only.
+- [ ] Empty URI wird blockiert.
+- [ ] Große Datei wird vor Write blockiert.
+- [ ] Cover Replace funktioniert für unterstützte writable `file://` Tracks.
+- [ ] Cover Remove funktioniert für embedded/cached File-Cover.
+- [ ] External Cover ist nicht removable.
+- [ ] Backup/Temp/Verify-Verhalten wurde manuell geprüft.
+
+### Storage-/Legacy-Flows
+
+- [ ] Raw `currentSongId` bleibt lesbar.
+- [ ] Raw `eqPreset`/`repeatMode` bleiben lesbar.
+- [ ] Raw boolean/number Settings bleiben lesbar.
+- [ ] `albumArtist:null` bleibt nicht-destruktiv.
+- [ ] Legacy `favorite`/`isFavorite` Migration bleibt ok.
+
+### SDK-/FileSystem-Flows
+
+- [ ] MediaLibrary Import funktioniert.
+- [ ] SAF scan folder funktioniert.
+- [ ] Cover cache write funktioniert.
+- [ ] Cover cache cleanup inklusive `readDirectoryAsync` funktioniert.
+- [ ] ID3/MP4 bounded reads funktionieren.
+- [ ] TagWriter backup/temp/delete/getInfo funktioniert.
+
+### Release-Blocker
+
+- [ ] Keine aktiven P1/P2 Review-Threads offen.
+- [ ] Kein failing Typecheck/Lint/Test/Coverage-Gate.
+- [ ] Keine fehlende manuelle Android-Smoke-Prüfung nach SDK-/FileSystem-Änderung.
+- [ ] Keine unklare destructive migration.
+- [ ] Keine abgesenkte Coverage ohne Begründung.
+
 ## Permissions
 
 - [ ] `RECORD_AUDIO` ist nicht in Android Permissions
