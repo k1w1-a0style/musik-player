@@ -58,8 +58,12 @@ Vor dem Main-Merge muss mindestens ein Android-Smoke auf einem echten Gerät ode
 - [ ] Favoriten und Playlists persistieren.
 - [ ] Tag Edit für unterstützte lokale `file://` Tracks funktioniert.
 - [ ] `content://` Tracks bleiben für Tag-/Cover-Writes read-only.
+- [ ] Empty URI wird vor Tag-/Cover-Writes blockiert.
 - [ ] Große Dateien werden vor Write-Versuchen blockiert.
 - [ ] Cover Replace/Remove funktioniert nur für unterstützte writable Tracks.
+- [ ] External Cover ist nicht removable.
+- [ ] Cover cache cleanup inklusive `readDirectoryAsync` funktioniert.
+- [ ] Das generierte Android-Manifest enthält keine Mikrofon-/Foto-/Video-Permissions.
 
 ## EAS Preview/Release vorbereiten
 
@@ -75,7 +79,8 @@ Vor einem Preview- oder Release-Build prüfen:
 
 - [ ] EAS Login ist korrekt.
 - [ ] Expo App-Identität, Android Package und `newArchEnabled=false` stimmen.
-- [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen.
+- [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen; neue oder unerwartete Mikrofon-/Foto-/Video-Permissions blockieren den Main-Handoff.
+- [ ] Der Cover-cache-cleanup Smoke-Check bleibt inklusive `readDirectoryAsync` dokumentiert.
 - [ ] Preview-/Release-Profil und Build-Ziel wurden bewusst ausgewählt.
 - [ ] Build-Link, Commit-SHA und Smoke-Test-Ergebnis werden im Release-Thread oder PR dokumentiert.
 
@@ -101,7 +106,8 @@ Ein Merge nach `main` ist blockiert, solange einer dieser Punkte zutrifft:
 - Fehlender oder roter CI-Run auf dem letzten `codex`-Commit.
 - Fehlende oder fehlgeschlagene lokale Gates: Install, Lint, Typecheck, Tests oder Coverage.
 - Coverage wurde abgesenkt und nicht nachvollziehbar begründet.
-- Android-Smoke-Test fehlt oder zeigt Regressionen.
+- Android-Smoke-Test fehlt oder zeigt Regressionen, insbesondere bei Empty-URI-Blocking, External-Cover-Remove-Blocking oder Cover-cache-cleanup inklusive `readDirectoryAsync`.
 - EAS-/Expo-Konfiguration ist unklar, widersprüchlich oder nicht reproduzierbar.
+- Neue oder unerwartete Mikrofon-/Foto-/Video-Permissions erscheinen in Expo Config oder generiertem Android-Manifest.
 - Eine destructive migration ist offen, ungeklärt oder nicht rollback-fähig dokumentiert.
 - Es gibt Abweichungen zwischen lokalem Stand und GitHub/codex, die nicht aufgelöst wurden.
