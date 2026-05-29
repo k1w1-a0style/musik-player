@@ -24,6 +24,7 @@ Die Befehle sind absichtlich prüfend und enthalten keinen automatischen Push od
 ```bash
 git switch codex
 git pull --ff-only origin codex
+HEAD_SHA="$(git rev-parse HEAD)"
 git status --short
 
 npm ci --no-audit --no-fund
@@ -33,14 +34,18 @@ npm test -- --runInBand
 npm run test:coverage -- --runInBand
 
 gh pr list --base codex --state open
-gh run list --branch codex --limit 5
+gh run list --workflow CI --commit "$HEAD_SHA" --limit 5
 ```
 
 Erwartung:
 
 - `git status --short` ist leer.
+- `HEAD_SHA` entspricht dem aktuell gepullten `codex`-Commit.
 - `gh pr list --base codex --state open` zeigt keine offenen PRs.
-- Der neueste relevante `codex`-Run in `gh run list --branch codex --limit 5` ist erfolgreich.
+- `gh run list --workflow CI --commit "$HEAD_SHA" --limit 5` zeigt mindestens einen erfolgreichen CI-Run für genau diesen Commit.
+- Nicht ausreichend sind ein grüner Run für irgendeinen anderen `codex`-Commit oder ein erfolgreicher Run eines anderen Workflows.
+- Wenn kein erfolgreicher CI-Run für genau `$HEAD_SHA` im Workflow `CI` existiert, ist der Main-Handoff blockiert.
+- Falls die installierte `gh`-Version `--commit` nicht unterstützt, muss eine gleichwertige GitHub-Abfrage verwendet werden, die zugleich commit-spezifisch (`$HEAD_SHA`) und workflow-spezifisch (`CI`) filtert, bevor der Handoff freigegeben wird.
 - Falls GitHub und lokale Ausgabe abweichen, gilt GitHub/codex; die Abweichung muss vor dem Handoff geklärt werden.
 
 ## Pflicht-Smoke-Tests auf Android
