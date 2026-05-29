@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import AppErrorBoundary from '../AppErrorBoundary';
 
@@ -34,10 +34,43 @@ describe('AppErrorBoundary', () => {
       </AppErrorBoundary>,
     );
 
-    expect(getByTestId('app-error-boundary-fallback')).toBeTruthy();
+    const fallback = getByTestId('app-error-boundary-fallback');
+
+    expect(fallback).toBeTruthy();
+    expect(StyleSheet.flatten(fallback.props.style).flex).toBe(1);
     expect(getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '[LibraryScreen] ErrorBoundary caught an error',
+      expect.any(Error),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  test('compact variant renders an absolute non-flex fallback', () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const { getByTestId, getByText } = render(
+      <AppErrorBoundary
+        fallbackMessage="Player konnte nicht geladen werden."
+        logPrefix="[MiniPlayer] ErrorBoundary caught an error"
+        testID="mini-player-error-boundary-fallback"
+        variant="compact"
+        fallbackContainerStyle={{ bottom: 82 }}
+      >
+        <AlwaysCrash />
+      </AppErrorBoundary>,
+    );
+
+    const fallbackStyle = StyleSheet.flatten(getByTestId('mini-player-error-boundary-fallback').props.style);
+
+    expect(getByText('Player konnte nicht geladen werden.')).toBeTruthy();
+    expect(fallbackStyle.position).toBe('absolute');
+    expect(fallbackStyle.bottom).toBe(82);
+    expect(fallbackStyle.flex).toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[MiniPlayer] ErrorBoundary caught an error',
       expect.any(Error),
       expect.objectContaining({ componentStack: expect.any(String) }),
     );

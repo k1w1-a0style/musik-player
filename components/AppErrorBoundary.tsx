@@ -1,12 +1,16 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { theme } from '../theme';
+
+type AppErrorBoundaryVariant = 'full' | 'compact';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
+  fallbackContainerStyle?: StyleProp<ViewStyle>;
   fallbackMessage?: string;
   logPrefix?: string;
   testID?: string;
+  variant?: AppErrorBoundaryVariant;
 }
 
 interface AppErrorBoundaryState {
@@ -38,7 +42,13 @@ export default class AppErrorBoundary extends React.Component<AppErrorBoundaryPr
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <View style={styles.container} testID={this.props.testID ?? 'app-error-boundary-fallback'}>
+        <View
+          style={[
+            this.props.variant === 'compact' ? styles.compactContainer : styles.container,
+            this.props.fallbackContainerStyle,
+          ]}
+          testID={this.props.testID ?? 'app-error-boundary-fallback'}
+        >
           <Text style={styles.text}>{this.props.fallbackMessage ?? DEFAULT_FALLBACK_MESSAGE}</Text>
           <Pressable onPress={this.handleReset} style={styles.button} testID="app-error-boundary-reset">
             <Text style={styles.buttonText}>Neu versuchen</Text>
@@ -59,6 +69,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     gap: 12,
+  },
+  compactContainer: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 72,
+    zIndex: 50,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: 'rgba(20, 22, 24, 0.96)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(115, 230, 210, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
   },
   text: {
     color: theme.palette.text.primary,

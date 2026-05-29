@@ -48,7 +48,13 @@ const TabsShell: React.FC<TabsShellProps> = ({ openNowPlaying }) => {
         <Tab.Screen name={APP_TAB_ROUTES.EQUALIZER} component={Equalizer} options={{ tabBarIcon: ({ color, size }) => <Sliders color={color} size={size} /> }} />
         <Tab.Screen name={APP_TAB_ROUTES.COVER} component={Covers} options={{ tabBarIcon: ({ color, size }) => <ImageIcon color={color} size={size} /> }} />
       </Tab.Navigator>
-      <AppErrorBoundary fallbackMessage="Player konnte nicht geladen werden." logPrefix="[MiniPlayer] ErrorBoundary caught an error" testID="mini-player-error-boundary-fallback">
+      <AppErrorBoundary
+        fallbackMessage="Player konnte nicht geladen werden."
+        logPrefix="[MiniPlayer] ErrorBoundary caught an error"
+        testID="mini-player-error-boundary-fallback"
+        variant="compact"
+        fallbackContainerStyle={{ bottom: 72 + insets.bottom }}
+      >
         <MiniPlayer onOpen={openNowPlaying} />
       </AppErrorBoundary>
     </View>
