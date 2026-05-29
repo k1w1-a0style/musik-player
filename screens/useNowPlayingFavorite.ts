@@ -25,9 +25,16 @@ export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState 
       cancelled = true;
     };
 
-    isFavoriteSongId(normalizedSongId).then(value => {
-      if (!cancelled && requestVersionRef.current === requestVersion) setFavorite(value);
-    });
+    void isFavoriteSongId(normalizedSongId)
+      .then(value => {
+        if (!cancelled && requestVersionRef.current === requestVersion) setFavorite(value);
+      })
+      .catch(error => {
+        if (!cancelled && requestVersionRef.current === requestVersion) {
+          console.warn('[NowPlayingFavorite] Failed to load favorite state.', { songId: normalizedSongId, error });
+          setFavorite(false);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -45,8 +52,11 @@ export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState 
     setFavoritePending(true);
 
     void setFavoriteSongId(normalizedSongId, next)
-      .catch(() => {
-        if (requestVersionRef.current === requestVersion) setFavorite(previous);
+      .catch(error => {
+        if (requestVersionRef.current === requestVersion) {
+          console.warn('[NowPlayingFavorite] Failed to persist favorite state.', { songId: normalizedSongId, favorite: next, error });
+          setFavorite(previous);
+        }
       })
       .finally(() => {
         if (requestVersionRef.current === requestVersion) setFavoritePending(false);

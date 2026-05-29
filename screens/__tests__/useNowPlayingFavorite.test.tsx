@@ -79,8 +79,27 @@ describe('useNowPlayingFavorite', () => {
     await waitFor(() => expect(getByTestId('pending').props.children).toBe('false'));
   });
 
-  test('rolls favorite state back when persistence fails', async () => {
-    mockSetFavoriteSongId.mockRejectedValueOnce(new Error('storage full'));
+  test('logs and keeps a safe false favorite state when lookup fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = new Error('read failed');
+    mockIsFavoriteSongId.mockRejectedValueOnce(error);
+
+    const { getByTestId } = render(<FavoriteProbe songId="s1" />);
+
+    await waitFor(() => expect(warn).toHaveBeenCalledWith(
+      '[NowPlayingFavorite] Failed to load favorite state.',
+      { songId: 's1', error },
+    ));
+    expect(getByTestId('favorite').props.children).toBe('false');
+    expect(getByTestId('pending').props.children).toBe('false');
+
+    warn.mockRestore();
+  });
+
+  test('rolls favorite state back and logs when persistence fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = new Error('storage full');
+    mockSetFavoriteSongId.mockRejectedValueOnce(error);
     const { getByTestId } = render(<FavoriteProbe songId="s1" />);
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
 
@@ -88,5 +107,11 @@ describe('useNowPlayingFavorite', () => {
 
     await waitFor(() => expect(getByTestId('favorite').props.children).toBe('false'));
     expect(getByTestId('pending').props.children).toBe('false');
+    expect(warn).toHaveBeenCalledWith(
+      '[NowPlayingFavorite] Failed to persist favorite state.',
+      { songId: 's1', favorite: true, error },
+    );
+
+    warn.mockRestore();
   });
 });
