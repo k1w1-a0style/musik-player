@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { waitFor } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
 import {
   applyStoredPlaybackSettings,
@@ -11,6 +12,7 @@ import {
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Playlist, Song } from '../../types/Song';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import { seekToMillis } from '../playbackControlHelpers';
 
 const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
 
@@ -426,6 +428,38 @@ describe('musicHydrationHelpers', () => {
   });
 
 
+  test('hydrated native queue add is not invalidated by queued playback control after reset', async () => {
+    const nativeQueueRef = createSongRef();
+    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
+      void seekToMillis(5000);
+    });
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
+    await waitFor(() => expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5));
+  });
 
   test('sets native queue ref immediately after hydrated native add even when cancelled afterwards', async () => {
     const nativeQueueRef = createSongRef();

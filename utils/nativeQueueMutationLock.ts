@@ -1,34 +1,42 @@
-export interface NativeQueueMutationContext {
-  mutationVersion: number;
+export interface NativeQueueReplacementContext {
+  replacementVersion: number;
   isCurrent: () => boolean;
 }
 
-let nativeQueueMutationChain: Promise<unknown> = Promise.resolve();
-let nativeQueueMutationVersion = 0;
+let nativeMutationChain: Promise<unknown> = Promise.resolve();
+let nativeQueueReplacementVersion = 0;
 
-export const getNativeQueueMutationVersion = (): number => nativeQueueMutationVersion;
+export const getNativeQueueReplacementVersion = (): number => nativeQueueReplacementVersion;
 
-export const markNativeQueueMutationIntent = (): number => {
-  nativeQueueMutationVersion += 1;
-  return nativeQueueMutationVersion;
+export const markNativeQueueReplacementIntent = (): number => {
+  nativeQueueReplacementVersion += 1;
+  return nativeQueueReplacementVersion;
 };
 
-export const runExclusiveNativeQueueMutation = async <T>(
-  action: (context: NativeQueueMutationContext) => Promise<T>,
+export const runExclusiveNativeQueueReplacement = async <T>(
+  action: (context: NativeQueueReplacementContext) => Promise<T>,
 ): Promise<T> => {
-  const mutationVersion = markNativeQueueMutationIntent();
-  const run = nativeQueueMutationChain
+  const replacementVersion = markNativeQueueReplacementIntent();
+  const run = nativeMutationChain
     .catch(() => undefined)
     .then(() => action({
-      mutationVersion,
-      isCurrent: () => nativeQueueMutationVersion === mutationVersion,
+      replacementVersion,
+      isCurrent: () => nativeQueueReplacementVersion === replacementVersion,
     }));
 
-  nativeQueueMutationChain = run.catch(() => undefined);
+  nativeMutationChain = run.catch(() => undefined);
+  return run;
+};
+
+export const runExclusiveNativePlaybackControl = async <T>(
+  action: () => Promise<T>,
+): Promise<T> => {
+  const run = nativeMutationChain.catch(() => undefined).then(action);
+  nativeMutationChain = run.catch(() => undefined);
   return run;
 };
 
 export const resetNativeQueueMutationLockForTests = (): void => {
-  nativeQueueMutationChain = Promise.resolve();
-  nativeQueueMutationVersion = 0;
+  nativeMutationChain = Promise.resolve();
+  nativeQueueReplacementVersion = 0;
 };

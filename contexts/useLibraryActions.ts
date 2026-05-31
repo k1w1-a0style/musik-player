@@ -5,7 +5,7 @@ import { prunePlaylists } from '../utils/playlistState';
 import { toPlayableSongs } from '../utils/playableSong';
 import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
-import { runExclusiveNativeQueueMutation } from '../utils/nativeQueueMutationLock';
+import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import {
   mergeUniqueSongs,
   patchNullableSongById,
@@ -68,16 +68,16 @@ const syncNativeQueueToLibrary = async (
   const isStaleSync = () => latestSyncVersionRef.current !== syncVersion;
 
   try {
-    await runExclusiveNativeQueueMutation(async ({ isCurrent }) => {
+    await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       if (isStaleSync() || !isCurrent()) return;
 
       let didResetNativeQueue = false;
       try {
         await TrackPlayer.reset();
         didResetNativeQueue = true;
+        nativeQueueRef.current = [];
 
         if (isStaleSync() || !isCurrent()) {
-          nativeQueueRef.current = [];
           return;
         }
 
@@ -85,10 +85,7 @@ const syncNativeQueueToLibrary = async (
           await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
         }
 
-        if (isStaleSync() || !isCurrent()) {
-          nativeQueueRef.current = playableQueue.slice();
-          return;
-        }
+        if (isStaleSync() || !isCurrent()) return;
 
         nativeQueueRef.current = playableQueue.slice();
       } catch (error) {

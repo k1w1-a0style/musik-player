@@ -8,7 +8,10 @@ import {
 } from '../utils/playbackPlan';
 import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
-import { runExclusiveNativeQueueMutation } from '../utils/nativeQueueMutationLock';
+import {
+  runExclusiveNativePlaybackControl,
+  runExclusiveNativeQueueReplacement,
+} from '../utils/nativeQueueMutationLock';
 
 const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
   skip?: (index: number, initialPosition?: number) => Promise<void>;
@@ -90,7 +93,7 @@ export const rebuildNativePlaybackQueue = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
-): Promise<void> => runExclusiveNativeQueueMutation(async () => {
+): Promise<void> => runExclusiveNativeQueueReplacement(async () => {
   let didResetNativeQueue = false;
   try {
     await TrackPlayer.reset();
@@ -134,7 +137,7 @@ export const runPlaySongQueueAction = async ({
     const orderedQueue = plan.reusableOrderedQueue;
 
     try {
-      await runExclusiveNativeQueueMutation(async () => {
+      await runExclusiveNativePlaybackControl(async () => {
         const activeTrack = await TrackPlayer.getActiveTrack();
         if (activeTrack?.id !== requestedSong.id) {
           await trackPlayerWithSkip.skip(nativeIndex);

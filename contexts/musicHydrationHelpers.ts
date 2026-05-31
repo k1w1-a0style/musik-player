@@ -14,7 +14,7 @@ import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from 
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { toPlayableSongs } from '../utils/playableSong';
-import { runExclusiveNativeQueueMutation } from '../utils/nativeQueueMutationLock';
+import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 
 export interface StoredMusicHydrationState {
   songs: Song[] | null;
@@ -171,7 +171,7 @@ export const hydrateStoredSongs = async ({
     if (hasPersistedCurrentSongId) await storage.remove(StorageKeys.CURRENT_SONG_ID);
     if (isCancelled()) return stored;
     try {
-      await runExclusiveNativeQueueMutation(async () => {
+      await runExclusiveNativeQueueReplacement(async () => {
         await TrackPlayer.reset();
         nativeQueueRef.current = [];
       });
@@ -189,12 +189,12 @@ export const hydrateStoredSongs = async ({
   }
 
   try {
-    await runExclusiveNativeQueueMutation(async ({ isCurrent }) => {
+    await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       if (isCancelled() || !isCurrent()) return;
       await TrackPlayer.reset();
+      nativeQueueRef.current = [];
 
       if (isCancelled() || !isCurrent()) {
-        nativeQueueRef.current = [];
         return;
       }
 
@@ -206,6 +206,7 @@ export const hydrateStoredSongs = async ({
 
       try {
         await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+        if (!isCurrent()) return;
         nativeQueueRef.current = playableQueue.slice();
       } catch (error) {
         nativeQueueRef.current = [];
