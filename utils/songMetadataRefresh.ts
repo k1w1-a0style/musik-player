@@ -39,6 +39,19 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
   assignChanged(patch, song, 'trackNumber', tags.trackNumber);
   assignChanged(patch, song, 'discNumber', tags.discNumber);
   assignChanged(patch, song, 'comment', tags.comment);
+
+  if (hasText(tags.cover)) {
+    const normalizedCover = tags.cover.trim();
+    if (song.cover !== normalizedCover || song.coverInfo?.uri !== normalizedCover || song.coverInfo?.status !== 'embedded') {
+      patch.cover = normalizedCover;
+      patch.coverInfo = {
+        ...song.coverInfo,
+        status: 'embedded',
+        uri: normalizedCover,
+      };
+    }
+  }
+
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 

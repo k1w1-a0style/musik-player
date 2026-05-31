@@ -78,6 +78,38 @@ describe('coverCacheCleanup', () => {
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.png', expect.anything());
   });
 
+  test('two quickly scheduled cleanups only delete from latest snapshot', async () => {
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    const first = cleanupCoverCache([
+      { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    const second = cleanupCoverCache([
+      { id: 'new', title: 'New', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ]);
+
+    await Promise.all([first, second]);
+
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', {
+      idempotent: true,
+    });
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('cleanup delete errors resolve without unhandled rejection', async () => {
+    const unhandled = jest.fn();
+    process.once('unhandledRejection', unhandled);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg']);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockRejectedValueOnce(new Error('delete failed'));
+
+    await expect(cleanupCoverCache([])).resolves.toBeUndefined();
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(unhandled).not.toHaveBeenCalled();
+    process.removeListener('unhandledRejection', unhandled);
+  });
+
   test('does nothing when cache directory is missing', async () => {
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
 
