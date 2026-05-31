@@ -1,4 +1,5 @@
 import TrackPlayer, { State } from 'react-native-track-player';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 import {
   applyRepeatModeToTrackPlayer,
   applyVolumeToTrackPlayer,
@@ -17,6 +18,7 @@ const trackPlayer = TrackPlayer as typeof TrackPlayer & { __reset: () => void };
 
 describe('playbackControlHelpers', () => {
   beforeEach(() => {
+    resetNativeQueueMutationLockForTests();
     trackPlayer.__reset();
     jest.clearAllMocks();
   });

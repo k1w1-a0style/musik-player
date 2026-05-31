@@ -1,5 +1,7 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
+import { waitFor } from '@testing-library/react-native';
 import { PlaybackService } from '../PlaybackService';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -10,6 +12,7 @@ const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
 
 describe('PlaybackService', () => {
   beforeEach(() => {
+    resetNativeQueueMutationLockForTests();
     trackPlayerTestApi.__reset();
     jest.clearAllMocks();
     jest.restoreAllMocks();
@@ -32,18 +35,16 @@ describe('PlaybackService', () => {
     await PlaybackService();
 
     trackPlayerTestApi.__trigger(Event.RemotePlay);
-    await Promise.resolve();
 
-    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalledTimes(1));
   });
 
   test.each([12.5, 0])('seeks when remote seek position %p is valid', async position => {
     await PlaybackService();
 
     trackPlayerTestApi.__trigger(Event.RemoteSeek, { position });
-    await Promise.resolve();
 
-    expect(TrackPlayer.seekTo).toHaveBeenCalledWith(position);
+    await waitFor(() => expect(TrackPlayer.seekTo).toHaveBeenCalledWith(position));
   });
 
   test.each([
@@ -67,8 +68,7 @@ describe('PlaybackService', () => {
     await PlaybackService();
 
     trackPlayerTestApi.__trigger(Event.RemoteNext);
-    await Promise.resolve();
 
-    expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote next failed', error);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote next failed', error));
   });
 });

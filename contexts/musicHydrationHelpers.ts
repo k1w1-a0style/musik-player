@@ -14,6 +14,7 @@ import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from 
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { toPlayableSongs } from '../utils/playableSong';
+import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 
 export interface StoredMusicHydrationState {
   songs: Song[] | null;
@@ -170,11 +171,13 @@ export const hydrateStoredSongs = async ({
     if (hasPersistedCurrentSongId) await storage.remove(StorageKeys.CURRENT_SONG_ID);
     if (isCancelled()) return stored;
     try {
-      await TrackPlayer.reset();
+      await runExclusiveNativeQueueReplacement(async () => {
+        await TrackPlayer.reset();
+        nativeQueueRef.current = [];
+      });
     } catch (error) {
       console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
     }
-    nativeQueueRef.current = [];
     return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists, currentSongId: null };
   } else if (playableQueue.length > 0) {
     return {
@@ -186,21 +189,32 @@ export const hydrateStoredSongs = async ({
   }
 
   try {
-    await TrackPlayer.reset();
-    if (isCancelled()) return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
-
-    if (playableQueue.length === 0) {
-      console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+    await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      if (isCancelled() || !isCurrent()) return;
+      await TrackPlayer.reset();
       nativeQueueRef.current = [];
-      return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists, currentSongId: null };
-    }
-    await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-    if (isCancelled()) return { ...stored, songs: hydratedSongs, playlists: normalizedPlaylists };
 
-    nativeQueueRef.current = playableQueue.slice();
+      if (isCancelled() || !isCurrent()) {
+        return;
+      }
+
+      if (playableQueue.length === 0) {
+        console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+        nativeQueueRef.current = [];
+        return;
+      }
+
+      try {
+        await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+        nativeQueueRef.current = playableQueue.slice();
+        if (!isCurrent()) return;
+      } catch (error) {
+        nativeQueueRef.current = [];
+        throw error;
+      }
+    });
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
-    nativeQueueRef.current = [];
   }
 
   return {

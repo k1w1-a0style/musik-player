@@ -5,6 +5,10 @@ import TrackPlayer from 'react-native-track-player';
 import { mergeUniqueSongs, patchSongById, useLibraryActions } from '../useLibraryActions';
 import type { Playlist, Song } from '../../types/Song';
 import { StorageKeys, storage } from '../../utils/storage';
+import {
+  resetNativeQueueMutationLockForTests,
+  runExclusiveNativeQueueReplacement,
+} from '../../utils/nativeQueueMutationLock';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -34,6 +38,7 @@ const LibraryProbe = ({
   const [currentSongs, setSongsState] = useState<Song[]>(initialSongs);
   const [currentSong, setCurrentSong] = useState<Song | null>(initialCurrentSong);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>(initialPlaybackQueue);
+  const [, setRenderTick] = useState(0);
   const [playlists, setPlaylists] = useState<Playlist[]>([
     { id: 'pl-1', name: 'List', songIds: ['s1', 's3', 'missing'], createdAt: 1, updatedAt: 1 },
   ]);
@@ -69,12 +74,14 @@ const LibraryProbe = ({
       <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
       <Button testID="patch-song" title="patch" onPress={() => updateSongMetadata('s1', { title: 'Updated' })} />
+      <Button testID="rerender" title="rerender" onPress={() => setRenderTick(prev => prev + 1)} />
     </>
   );
 };
 
 describe('useLibraryActions', () => {
   beforeEach(async () => {
+    resetNativeQueueMutationLockForTests();
     jest.clearAllMocks();
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
   });
@@ -133,13 +140,36 @@ describe('useLibraryActions', () => {
       expect(getByTestId('playback-queue').props.children).toBe('s2');
       expect(getByTestId('queue-ref').props.children).toBe('s2');
       expect(getByTestId('base-queue-ref').props.children).toBe('s2');
-      expect(getByTestId('native-ref').props.children).toBe('s2');
     });
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
     expect(TrackPlayer.add).not.toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
     expect(getByTestId('playback-queue-commits').props.children).toBe(1);
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
+  });
+
+  test('native sync keeps ref for successful add even when a newer replacement intent appears', async () => {
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
+      void runExclusiveNativeQueueReplacement(async () => undefined);
+    });
+
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]));
+    act(() => fireEvent.press(getByTestId('rerender')));
+    expect(getByTestId('native-ref').props.children).toBe('s2');
   });
 
   test('prunes stale playback state with one queue state commit when queue refs are already clean', async () => {
@@ -183,13 +213,13 @@ describe('useLibraryActions', () => {
 
     await waitFor(() => {
       expect(getByTestId('playback-queue').props.children).toBe('');
-      expect(getByTestId('native-ref').props.children).toBe('');
+      expect(getByTestId('queue-ref').props.children).toBe('');
     });
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
-  test('logs and clears native ref when native rebuild fails', async () => {
+  test('logs and keeps native ref unchanged when native reset fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
 
@@ -207,13 +237,10 @@ describe('useLibraryActions', () => {
 
     act(() => fireEvent.press(getByTestId('set-songs')));
 
-    await waitFor(() => {
-      expect(getByTestId('native-ref').props.children).toBe('');
-    });
+    await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
+    expect(getByTestId('native-ref').props.children).toBe('s1');
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
-
-
 
   test('baseQueue-only change does not trigger native rebuild', async () => {
     const { getByTestId } = render(
@@ -271,14 +298,10 @@ describe('useLibraryActions', () => {
     );
     act(() => fireEvent.press(getByTestId('set-songs')));
 
-    expect(deferred.length).toBeGreaterThanOrEqual(2);
-    deferred[1].resolve();
-    await Promise.resolve();
+    await waitFor(() => expect(deferred.length).toBe(1));
     deferred[0].resolve();
 
-    await waitFor(() => {
-      expect(getByTestId('native-ref').props.children).toBe('s1');
-    });
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenLastCalledWith([expect.objectContaining({ id: 's1' })]));
   });
 
   test('stale current-song cleanup does not remove restored current song id', async () => {

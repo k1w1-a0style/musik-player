@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import { asPlayableSong, isPlayableSong, toPlayableSongs, type PlayableSong } from './playableSong';
-import { hasSameSongIds, rotateQueueFromIndex } from './playbackQueue';
+import { hasSameCircularOrderedSongIds, rotateQueueFromIndex } from './playbackQueue';
 
 export interface PlaySongQueuePlan {
   requestedSong: PlayableSong;
@@ -102,7 +102,7 @@ export const buildPlaySongQueuePlan = (
   const playableNativeQueue = normalizePlayableQueue(nativeQueue);
   const nativeIndex = playableNativeQueue.findIndex(item => item.id === requestedSong.id);
   const canReuseNativeQueue =
-    nativeIndex >= 0 && hasSameSongIds(playableNativeQueue, queueWithRequested);
+    nativeIndex >= 0 && hasSameCircularOrderedSongIds(playableNativeQueue, queueWithRequested);
 
   return {
     requestedSong,
@@ -110,7 +110,10 @@ export const buildPlaySongQueuePlan = (
     nativeIndex,
     canReuseNativeQueue,
     reusableOrderedQueue: canReuseNativeQueue
-      ? toPlayableSongs(rotateQueueFromIndex(playableNativeQueue, nativeIndex))
+      ? toPlayableSongs(rotateQueueFromIndex(
+        queueWithRequested,
+        requestedIndex >= 0 ? requestedIndex : 0,
+      ))
       : [],
     rebuildOrderedQueue: toPlayableSongs(rotateQueueFromIndex(
       queueWithRequested,
