@@ -338,26 +338,29 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   const totalSize = decodeSyncsafe(bytes, 6);
   if (totalSize === undefined) return tags;
   const rawEnd = Math.min(bytes.length, 10 + totalSize);
-  const tagBytes = bytes.subarray(10, rawEnd);
+  const rawTagBytes = bytes.subarray(10, rawEnd);
   const hasTagUnsynchronization = (flags & 0x80) !== 0;
-  const end = tagBytes.length;
+  const rawTagEnd = rawTagBytes.length;
+  const rawFrameStart = majorVersion === 2
+    ? 0
+    : skipExtendedId3Header(rawTagBytes, majorVersion, flags, 0, rawTagEnd);
+  const frameBytesForWalk = hasTagUnsynchronization
+    ? removeUnsynchronization(rawTagBytes.subarray(rawFrameStart, rawTagEnd))
+    : rawTagBytes.subarray(rawFrameStart, rawTagEnd);
+  const end = frameBytesForWalk.length;
 
-  let p = majorVersion === 2 ? 0 : skipExtendedId3Header(tagBytes, majorVersion, flags, 0, end);
+  let p = 0;
   let commentFallback: string | undefined;
   if (majorVersion === 2) {
     while (p + 6 <= end) {
-      const id = readLatin1(tagBytes, p, p + 3);
+      const id = readLatin1(frameBytesForWalk, p, p + 3);
       if (!id || id.charCodeAt(0) === 0) break;
       if (!/^[A-Z0-9]{3}$/.test(id)) break;
-      const frameSize = (tagBytes[p + 3] << 16) | (tagBytes[p + 4] << 8) | tagBytes[p + 5];
+      const frameSize = (frameBytesForWalk[p + 3] << 16) | (frameBytesForWalk[p + 4] << 8) | frameBytesForWalk[p + 5];
       if (frameSize <= 0 || p + 6 + frameSize > end) break;
-      const rawBodyStart = p + 6;
-      const rawBodyEnd = rawBodyStart + frameSize;
-      const frameBytes = hasTagUnsynchronization
-        ? removeUnsynchronization(tagBytes.subarray(rawBodyStart, rawBodyEnd))
-        : tagBytes;
-      const bodyStart = hasTagUnsynchronization ? 0 : rawBodyStart;
-      const bodyEnd = hasTagUnsynchronization ? frameBytes.length : rawBodyEnd;
+      const bodyStart = p + 6;
+      const bodyEnd = bodyStart + frameSize;
+      const frameBytes = frameBytesForWalk;
       switch (id) {
         case 'TT2':
           tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
@@ -405,16 +408,16 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     return tags;
   }
   while (p + 10 <= end) {
-    const id = readLatin1(tagBytes, p, p + 4);
+    const id = readLatin1(frameBytesForWalk, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;
     if (!/^[A-Z0-9]{4}$/.test(id)) break;
 
     const frameSize =
-      majorVersion === 4 ? decodeSyncsafe(tagBytes, p + 4) : decodeSize(tagBytes, p + 4);
+      majorVersion === 4 ? decodeSyncsafe(frameBytesForWalk, p + 4) : decodeSize(frameBytesForWalk, p + 4);
     if (frameSize === undefined || frameSize <= 0 || p + 10 + frameSize > end) break;
 
-    const frameFlag1 = tagBytes[p + 8];
-    const frameFlag2 = tagBytes[p + 9];
+    const frameFlag1 = frameBytesForWalk[p + 8];
+    const frameFlag2 = frameBytesForWalk[p + 9];
     if (hasUnsupportedFrameFlags(majorVersion, frameFlag1, frameFlag2)) {
       p += 10 + frameSize;
       continue;
@@ -422,10 +425,10 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
 
     const rawBodyStart = p + 10;
     const rawBodyEnd = rawBodyStart + frameSize;
-    const shouldRemoveFrameUnsync = hasTagUnsynchronization || hasFrameUnsynchronization(majorVersion, frameFlag2);
+    const shouldRemoveFrameUnsync = !hasTagUnsynchronization && hasFrameUnsynchronization(majorVersion, frameFlag2);
     const frameBytes = shouldRemoveFrameUnsync
-      ? removeUnsynchronization(tagBytes.subarray(rawBodyStart, rawBodyEnd))
-      : tagBytes;
+      ? removeUnsynchronization(frameBytesForWalk.subarray(rawBodyStart, rawBodyEnd))
+      : frameBytesForWalk;
     const bodyStart = shouldRemoveFrameUnsync ? 0 : rawBodyStart;
     const bodyEnd = shouldRemoveFrameUnsync ? frameBytes.length : rawBodyEnd;
 

@@ -27,6 +27,19 @@ const synchsafe = (n: number): number[] => [
   n & 0x7f,
 ];
 
+const unsynchronizeBytes = (bytes: number[]): number[] => {
+  const out: number[] = [];
+  for (let i = 0; i < bytes.length; i += 1) {
+    const byte = bytes[i];
+    out.push(byte);
+    const next = bytes[i + 1];
+    if (byte === 0xff && (next === 0x00 || (typeof next === 'number' && next >= 0xe0))) {
+      out.push(0x00);
+    }
+  }
+  return out;
+};
+
 const buildTextFrame = (id: string, text: string, flag1 = 0, flag2 = 0): number[] => {
   // encoding 0x00 = ISO-8859-1
   const body = [0x00, ...enc(text)];
@@ -82,6 +95,28 @@ const buildCommFrameV22 = (text: string, description = ''): number[] => {
 const buildApicFrame = (mime: string, imageBytes: number[]): number[] => {
   const body = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...imageBytes];
   return [...enc('APIC'), ...u32be(body.length), 0, 0, ...body];
+};
+
+const buildUnsynchronizedTextFrame = (id: string, cleanBody: number[]): number[] => [
+  ...enc(id),
+  ...u32be(cleanBody.length),
+  0,
+  0,
+  ...unsynchronizeBytes(cleanBody),
+];
+
+const buildUnsynchronizedApicFrame = (mime: string, cleanImageBytes: number[]): number[] => {
+  const cleanBody = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...cleanImageBytes];
+  return [...enc('APIC'), ...u32be(cleanBody.length), 0, 0, ...unsynchronizeBytes(cleanBody)];
+};
+
+const buildUnsynchronizedApicFrameV24 = (
+  mime: string,
+  cleanImageBytes: number[],
+  flag2 = 0,
+): number[] => {
+  const cleanBody = [0x00, ...enc(mime), 0x00, 0x03, 0x00, ...cleanImageBytes];
+  return [...enc('APIC'), ...synchsafe(cleanBody.length), 0, flag2, ...unsynchronizeBytes(cleanBody)];
 };
 
 const buildPicFrameV22 = (format: string, imageBytes: number[]): number[] => {
@@ -243,11 +278,28 @@ describe('parseId3Buffer (v2.3)', () => {
     expect(parseId3Buffer(new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0]))).toEqual({});
   });
 
-  test('tag-level unsynchronisation is removed before reading frames', () => {
-    const unsyncedTitle = [0x00, 0xff, 0x00, 0xe1, ...enc('Title')];
-    const frame = [...enc('TIT2'), ...u32be(unsyncedTitle.length), 0, 0, ...unsyncedTitle];
-    const tags = parseId3Buffer(buildId3v23([frame], 0x80));
-    expect(tags.title).toBe(String.fromCharCode(0xff, 0xe1) + 'Title');
+  test('tag-level unsynchronisation is removed before walking later v2.3 frames', () => {
+    const cleanTitleBody = [0x00, 0xff, 0xe0, ...enc('Title')];
+    const tags = parseId3Buffer(buildId3v23([
+      buildUnsynchronizedTextFrame('TIT2', cleanTitleBody),
+      buildTextFrame('TALB', 'Album After Unsync'),
+    ], 0x80));
+
+    expect(tags.title).toBe(String.fromCharCode(0xff, 0xe0) + 'Title');
+    expect(tags.album).toBe('Album After Unsync');
+  });
+
+  test('parses v2.3 APIC cover with tag-level unsynchronisation', () => {
+    const cleanJpeg = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+    const tags = parseId3Buffer(buildId3v23([
+      buildUnsynchronizedApicFrame('image/jpeg', cleanJpeg),
+      buildTextFrame('TPE1', 'Artist After Cover'),
+    ], 0x80));
+
+    expect(tags.cover).toBe(
+      `data:image/jpeg;base64,${Buffer.from(cleanJpeg).toString('base64')}`,
+    );
+    expect(tags.artist).toBe('Artist After Cover');
   });
 
   test('frames with unsupported v2.3 format flags are skipped', () => {
@@ -318,6 +370,29 @@ describe('parseId3Buffer (v2.4)', () => {
     ]));
     expect(tags.title).toBeUndefined();
     expect(tags.album).toBe('Safe Album');
+  });
+
+  test('does not double-remove frame-level unsynchronisation after tag-level cleanup', () => {
+    const cleanJpegWithLiteralZero = [0xff, 0xd8, 0xff, 0x00, 0xe0, 0x00, 0x10];
+    const tags = parseId3Buffer(buildId3v24([
+      buildUnsynchronizedApicFrameV24('image/jpeg', cleanJpegWithLiteralZero, 0x02),
+      buildTextFrameV24('TALB', 'Tag Unsync Album'),
+    ], 0x80));
+
+    expect(tags.cover).toBe(
+      `data:image/jpeg;base64,${Buffer.from(cleanJpegWithLiteralZero).toString('base64')}`,
+    );
+    expect(tags.album).toBe('Tag Unsync Album');
+  });
+
+  test('skips unsupported v2.4 flags after tag-level unsynchronisation', () => {
+    const tags = parseId3Buffer(buildId3v24([
+      buildTextFrameV24('TIT2', 'Unsafe', 0, 0x01),
+      buildTextFrameV24('TALB', 'Safe After Unsupported'),
+    ], 0x80));
+
+    expect(tags.title).toBeUndefined();
+    expect(tags.album).toBe('Safe After Unsupported');
   });
 });
 
