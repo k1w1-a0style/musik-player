@@ -1,4 +1,5 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
+import { runExclusiveNativeQueueMutation } from '../utils/nativeQueueMutationLock';
 
 const logRemotePlaybackError = (action: string, error: unknown): void => {
   console.warn(`[PlaybackService] Remote ${action} failed`, error);
@@ -14,7 +15,7 @@ const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>)
  */
 export const PlaybackService = async (): Promise<void> => {
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
-    handleRemotePlaybackAction('play', () => TrackPlayer.play());
+    handleRemotePlaybackAction('play', () => runExclusiveNativeQueueMutation(() => TrackPlayer.play()));
   });
   TrackPlayer.addEventListener(Event.RemotePause, () => {
     handleRemotePlaybackAction('pause', () => TrackPlayer.pause());
@@ -23,17 +24,17 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemotePlaybackAction('stop', () => TrackPlayer.stop());
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    handleRemotePlaybackAction('next', () => TrackPlayer.skipToNext());
+    handleRemotePlaybackAction('next', () => runExclusiveNativeQueueMutation(() => TrackPlayer.skipToNext()));
   });
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious());
+    handleRemotePlaybackAction('previous', () => runExclusiveNativeQueueMutation(() => TrackPlayer.skipToPrevious()));
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
       return;
     }
 
-    handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position));
+    handleRemotePlaybackAction('seek', () => runExclusiveNativeQueueMutation(() => TrackPlayer.seekTo(position)));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {
     handleRemotePlaybackAction('jump forward', () => TrackPlayer.seekBy(interval ?? 10));

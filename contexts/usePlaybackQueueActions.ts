@@ -36,6 +36,8 @@ export const usePlaybackQueueActions = ({
   setShuffle,
 }: PlaybackQueueActionsArgs): PlaybackQueueActions => {
   const queueActionLockRef = useRef<Promise<void>>(Promise.resolve());
+  const shuffleRef = useRef(shuffle);
+  shuffleRef.current = shuffle;
 
   const enqueueQueueAction = useCallback((action: () => Promise<void>): Promise<void> => {
     const run = queueActionLockRef.current.catch(() => undefined).then(action);
@@ -66,6 +68,7 @@ export const usePlaybackQueueActions = ({
     setCurrentSong,
     currentSongId,
     shuffle,
+    shuffleRef,
     setShuffle,
   })), [
     baseQueueContextRef,

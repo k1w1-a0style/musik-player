@@ -1,6 +1,7 @@
 import TrackPlayer, { State } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
+import { runExclusiveNativeQueueMutation } from '../utils/nativeQueueMutationLock';
 
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
@@ -29,16 +30,16 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
     await TrackPlayer.pause();
     return;
   }
-  await TrackPlayer.play();
+  await runExclusiveNativeQueueMutation(() => TrackPlayer.play());
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
-  await TrackPlayer.seekTo(normalizeSeekSeconds(millis));
+  await runExclusiveNativeQueueMutation(() => TrackPlayer.seekTo(normalizeSeekSeconds(millis)));
 };
 
 export const skipToNextSafely = async (): Promise<void> => {
   try {
-    await TrackPlayer.skipToNext();
+    await runExclusiveNativeQueueMutation(() => TrackPlayer.skipToNext());
   } catch (error) {
     console.warn('[Playback] skipToNext failed.', error);
   }
@@ -48,14 +49,14 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
     const { position } = await TrackPlayer.getProgress();
     if (position > 3) {
-      await TrackPlayer.seekTo(0);
+      await runExclusiveNativeQueueMutation(() => TrackPlayer.seekTo(0));
       return;
     }
-    await TrackPlayer.skipToPrevious();
+    await runExclusiveNativeQueueMutation(() => TrackPlayer.skipToPrevious());
   } catch (error) {
     console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
     try {
-      await TrackPlayer.seekTo(0);
+      await runExclusiveNativeQueueMutation(() => TrackPlayer.seekTo(0));
     } catch (seekError) {
       console.warn('[Playback] fallback restart failed.', seekError);
     }

@@ -130,6 +130,17 @@ describe('playbackPlan helpers', () => {
     expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s3', 's1', 's2']);
   });
 
+
+
+  test('does not reuse native queue when same song ids are in a different order', () => {
+    const nativeQueue = [songs[0], songs[1], songs[2]];
+    const contextQueue = [songs[0], songs[2], songs[1]];
+    const plan = buildPlaySongQueuePlan(songs[2], contextQueue, nativeQueue);
+
+    expect(plan?.canReuseNativeQueue).toBe(false);
+    expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['s3', 's2', 's1']);
+  });
+
   test('normalizes queues before deciding native queue reuse', () => {
     const dirtySourceQueue = [songs[0], { ...songs[1], uri: undefined }, songs[1], songs[2], songs[2]];
     const dirtyNativeQueue = [{ ...songs[0], id: ' s1 ' }, songs[1], songs[2], songs[2]];

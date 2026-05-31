@@ -5,6 +5,7 @@ import TrackPlayer from 'react-native-track-player';
 import { mergeUniqueSongs, patchSongById, useLibraryActions } from '../useLibraryActions';
 import type { Playlist, Song } from '../../types/Song';
 import { StorageKeys, storage } from '../../utils/storage';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -75,6 +76,7 @@ const LibraryProbe = ({
 
 describe('useLibraryActions', () => {
   beforeEach(async () => {
+    resetNativeQueueMutationLockForTests();
     jest.clearAllMocks();
     await storage.remove(StorageKeys.CURRENT_SONG_ID);
   });
@@ -133,7 +135,6 @@ describe('useLibraryActions', () => {
       expect(getByTestId('playback-queue').props.children).toBe('s2');
       expect(getByTestId('queue-ref').props.children).toBe('s2');
       expect(getByTestId('base-queue-ref').props.children).toBe('s2');
-      expect(getByTestId('native-ref').props.children).toBe('s2');
     });
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]);
@@ -183,13 +184,13 @@ describe('useLibraryActions', () => {
 
     await waitFor(() => {
       expect(getByTestId('playback-queue').props.children).toBe('');
-      expect(getByTestId('native-ref').props.children).toBe('');
+      expect(getByTestId('queue-ref').props.children).toBe('');
     });
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
-  test('logs and clears native ref when native rebuild fails', async () => {
+  test('logs and keeps native ref unchanged when native reset fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
 
@@ -207,9 +208,8 @@ describe('useLibraryActions', () => {
 
     act(() => fireEvent.press(getByTestId('set-songs')));
 
-    await waitFor(() => {
-      expect(getByTestId('native-ref').props.children).toBe('');
-    });
+    await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
+    expect(getByTestId('native-ref').props.children).toBe('s1');
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
 
@@ -271,14 +271,10 @@ describe('useLibraryActions', () => {
     );
     act(() => fireEvent.press(getByTestId('set-songs')));
 
-    expect(deferred.length).toBeGreaterThanOrEqual(2);
-    deferred[1].resolve();
-    await Promise.resolve();
+    await waitFor(() => expect(deferred.length).toBe(1));
     deferred[0].resolve();
 
-    await waitFor(() => {
-      expect(getByTestId('native-ref').props.children).toBe('s1');
-    });
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenLastCalledWith([expect.objectContaining({ id: 's1' })]));
   });
 
   test('stale current-song cleanup does not remove restored current song id', async () => {

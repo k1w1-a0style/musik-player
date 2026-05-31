@@ -10,6 +10,7 @@ import {
 } from '../playbackQueueActionHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 import { toPlayableSongs } from '../../utils/playableSong';
 
 const songs: Song[] = [
@@ -30,6 +31,7 @@ const createQueueArgs = () => ({
 
 describe('playbackQueueActionHelpers', () => {
   beforeEach(async () => {
+    resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();
     (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(undefined);
@@ -111,6 +113,19 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.play).not.toHaveBeenCalled();
   });
 
+
+
+  test('rebuildNativePlaybackQueue keeps previous native ref when reset fails', async () => {
+    const nativeQueueRef = createSongRef([songs[2]]);
+    (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+
+    await expect(rebuildNativePlaybackQueue(toPlayableSongs(songs), nativeQueueRef)).rejects.toThrow('reset failed');
+
+    expect(nativeQueueRef.current).toEqual([songs[2]]);
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
   test('runs play-song queue action with full rebuild', async () => {
     const args = createQueueArgs();
 
@@ -151,6 +166,20 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.setPlaybackQueue).not.toHaveBeenCalled();
     expect(args.setCurrentSong).not.toHaveBeenCalled();
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
+
+
+  test('runPlaySongQueueAction keeps logical base queue when reusing native queue', async () => {
+    const args = createQueueArgs();
+    args.nativeQueueRef.current = songs.slice();
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's1' });
+
+    await runPlaySongQueueAction({ ...args, song: songs[2], queue: songs });
+
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect(args.baseQueueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's3']);
+    expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s3', 's1', 's2']);
   });
 
   test('runs shuffle queue action and rebuilds native queue', async () => {

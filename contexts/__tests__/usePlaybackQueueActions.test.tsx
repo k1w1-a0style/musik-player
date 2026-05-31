@@ -6,6 +6,7 @@ import TrackPlayer from 'react-native-track-player';
 import { usePlaybackQueueActions, persistRequestedSongId } from '../usePlaybackQueueActions';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -54,6 +55,7 @@ const QueueActionsProbe = () => {
 
 describe('usePlaybackQueueActions', () => {
   beforeEach(async () => {
+    resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     trackPlayerMock.__reset();
     jest.clearAllMocks();
@@ -96,5 +98,23 @@ describe('usePlaybackQueueActions', () => {
     expect(getByTestId('shuffle').props.children).toBe('true');
     expect(getByTestId('queue').props.children.split(',').sort()).toEqual(['s1', 's2', 's3']);
     expect(TrackPlayer.add).toHaveBeenCalled();
+  });
+
+  test('handles rapid shuffle double tap with latest shuffle state', async () => {
+    const { getByTestId } = render(<QueueActionsProbe />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('play-s2'));
+    });
+    await waitFor(() => expect(getByTestId('current').props.children).toBe('s2'));
+
+    await act(async () => {
+      fireEvent.press(getByTestId('shuffle-button'));
+      fireEvent.press(getByTestId('shuffle-button'));
+    });
+
+    await waitFor(() => expect(getByTestId('shuffle').props.children).toBe('false'));
+    expect(getByTestId('current').props.children).toBe('s2');
+    expect(getByTestId('queue').props.children).toBe('s2,s3,s1');
   });
 });

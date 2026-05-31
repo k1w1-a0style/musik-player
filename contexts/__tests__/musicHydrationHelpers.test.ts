@@ -10,6 +10,7 @@ import {
 } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Playlist, Song } from '../../types/Song';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
 
@@ -28,6 +29,7 @@ const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
+    resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();
     mockMigrateLegacySongFavoritesFromStoredSongs.mockResolvedValue([]);
@@ -235,7 +237,7 @@ describe('musicHydrationHelpers', () => {
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
-  test('clears native queue ref when reset fails while clearing a malformed restored song', async () => {
+  test('keeps native queue ref when reset fails while clearing a malformed restored song', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const malformedSongs: Song[] = [
       { id: 's1', title: 'One', artist: 'A', uri: '   ' },
@@ -269,7 +271,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
-    expect(nativeQueueRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual([{ id: 'stale', title: 'Stale', artist: 'A', uri: 'file:///stale.mp3' }]);
     expect(warn).toHaveBeenCalledWith(
       '[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.',
       expect.any(Error),
@@ -421,6 +423,41 @@ describe('musicHydrationHelpers', () => {
 
     expect(TrackPlayer.add).not.toHaveBeenCalled();
     expect(nativeQueueRef.current).toEqual([]);
+  });
+
+
+
+  test('sets native queue ref immediately after hydrated native add even when cancelled afterwards', async () => {
+    const nativeQueueRef = createSongRef();
+    let cancelled = false;
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
+      cancelled = true;
+    });
+
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: 's1',
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef,
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => cancelled,
+    });
+
+    expect(TrackPlayer.add).toHaveBeenCalled();
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
   });
 
   test('clears native queue ref when hydrated native queue initialization fails', async () => {
