@@ -206,8 +206,8 @@ export const hydrateStoredSongs = async ({
 
       try {
         await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-        if (!isCurrent()) return;
         nativeQueueRef.current = playableQueue.slice();
+        if (!isCurrent()) return;
       } catch (error) {
         nativeQueueRef.current = [];
         throw error;
