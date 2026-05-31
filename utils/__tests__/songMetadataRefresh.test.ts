@@ -82,6 +82,57 @@ test('updates changed text metadata from ID3 tags', async () => {
   });
 });
 
+test('updates embedded cover and coverInfo together when ID3 cover changes', async () => {
+  const oldCover = 'data:image/jpeg;base64,old-cover';
+  const newCover = 'data:image/jpeg;base64,new-cover';
+  const songWithCover: Song = {
+    ...baseSong,
+    cover: oldCover,
+    coverInfo: { status: 'embedded', uri: oldCover },
+  };
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'New Title', cover: ` ${newCover} ` });
+
+  const result = await refreshSongsFromId3([songWithCover]);
+
+  expect(result.updated).toBe(1);
+  expect(result.songs[0]).toEqual({
+    ...songWithCover,
+    title: 'New Title',
+    cover: newCover,
+    coverInfo: { status: 'embedded', uri: newCover },
+  });
+});
+
+test('repairs stale coverInfo when parsed embedded cover matches existing cover', () => {
+  const cover = 'data:image/png;base64,cover';
+  const songWithStaleCoverInfo: Song = {
+    ...baseSong,
+    cover,
+    coverInfo: { status: 'cached', uri: 'file:///old-cache.png' },
+  };
+
+  expect(applyId3TagsToSong(songWithStaleCoverInfo, { cover })).toEqual({
+    ...songWithStaleCoverInfo,
+    coverInfo: { status: 'embedded', uri: cover },
+  });
+});
+
+test('keeps existing cover when ID3 refresh returns no cover', async () => {
+  const songWithCover: Song = {
+    ...baseSong,
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  };
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'New Title' });
+
+  const result = await refreshSongsFromId3([songWithCover]);
+
+  expect(result.songs[0]).toEqual({
+    ...songWithCover,
+    title: 'New Title',
+  });
+});
+
 test('does not count unchanged normalized tags as updates', async () => {
   (parseId3FromUri as jest.Mock).mockResolvedValue({
     title: ' Old Title ',

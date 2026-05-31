@@ -26,16 +26,21 @@ export interface Id3Tags {
 const HEAD_READ_LIMIT = 1024 * 1024;
 const TAIL_READ_LIMIT = 1024 * 1024;
 
-const decodeSyncsafe = (bytes: Uint8Array, off: number): number => {
-  return (
-    (bytes[off] << 21) | (bytes[off + 1] << 14) | (bytes[off + 2] << 7) | bytes[off + 3]
-  );
+const decodeSyncsafe = (bytes: Uint8Array, off: number): number | undefined => {
+  if (off < 0 || off + 4 > bytes.length) return undefined;
+  const b0 = bytes[off];
+  const b1 = bytes[off + 1];
+  const b2 = bytes[off + 2];
+  const b3 = bytes[off + 3];
+  if (b0 > 0x7f || b1 > 0x7f || b2 > 0x7f || b3 > 0x7f) return undefined;
+  return (b0 << 21) | (b1 << 14) | (b2 << 7) | b3;
 };
 
-const decodeSize = (bytes: Uint8Array, off: number): number => {
+const decodeSize = (bytes: Uint8Array, off: number): number | undefined => {
+  if (off < 0 || off + 4 > bytes.length) return undefined;
   return (
     (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]
-  );
+  ) >>> 0;
 };
 
 const readU32 = (bytes: Uint8Array, off: number): number =>
@@ -273,6 +278,16 @@ const decodePIC = (bytes: Uint8Array, start: number, end: number): string | unde
   );
 };
 
+const removeUnsynchronization = (bytes: Uint8Array): Uint8Array => {
+  const out: number[] = [];
+  for (let i = 0; i < bytes.length; i += 1) {
+    const byte = bytes[i];
+    out.push(byte);
+    if (byte === 0xff && bytes[i + 1] === 0x00) i += 1;
+  }
+  return new Uint8Array(out);
+};
+
 const skipExtendedId3Header = (
   bytes: Uint8Array,
   majorVersion: number,
@@ -282,19 +297,26 @@ const skipExtendedId3Header = (
 ): number => {
   if ((flags & 0x40) === 0) return start;
   if (majorVersion === 3) {
-    if (start + 4 > end) return end;
     const extendedSize = decodeSize(bytes, start);
-    if (extendedSize < 6 || start + 4 + extendedSize > end) return end;
+    if (extendedSize === undefined || extendedSize < 6 || start + 4 + extendedSize > end) return end;
     return start + 4 + extendedSize;
   }
   if (majorVersion === 4) {
-    if (start + 4 > end) return end;
     const extendedSize = decodeSyncsafe(bytes, start);
-    if (extendedSize < 6 || start + extendedSize > end) return end;
+    if (extendedSize === undefined || extendedSize < 6 || start + extendedSize > end) return end;
     return start + extendedSize;
   }
   return start;
 };
+
+const hasUnsupportedFrameFlags = (majorVersion: number, flag1: number, flag2: number): boolean => {
+  if (majorVersion === 3) return (flag2 & 0xe0) !== 0;
+  if (majorVersion === 4) return (flag2 & 0x4d) !== 0;
+  return false;
+};
+
+const hasFrameUnsynchronization = (majorVersion: number, flag2: number): boolean =>
+  majorVersion === 4 && (flag2 & 0x02) !== 0;
 
 /**
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
@@ -314,44 +336,53 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
   if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
   const flags = bytes[5];
   const totalSize = decodeSyncsafe(bytes, 6);
-  const end = Math.min(bytes.length, 10 + totalSize);
+  if (totalSize === undefined) return tags;
+  const rawEnd = Math.min(bytes.length, 10 + totalSize);
+  const tagBytes = bytes.subarray(10, rawEnd);
+  const hasTagUnsynchronization = (flags & 0x80) !== 0;
+  const end = tagBytes.length;
 
-  let p = majorVersion === 2 ? 10 : skipExtendedId3Header(bytes, majorVersion, flags, 10, end);
+  let p = majorVersion === 2 ? 0 : skipExtendedId3Header(tagBytes, majorVersion, flags, 0, end);
   let commentFallback: string | undefined;
   if (majorVersion === 2) {
     while (p + 6 <= end) {
-      const id = readLatin1(bytes, p, p + 3);
+      const id = readLatin1(tagBytes, p, p + 3);
       if (!id || id.charCodeAt(0) === 0) break;
       if (!/^[A-Z0-9]{3}$/.test(id)) break;
-      const frameSize = (bytes[p + 3] << 16) | (bytes[p + 4] << 8) | bytes[p + 5];
+      const frameSize = (tagBytes[p + 3] << 16) | (tagBytes[p + 4] << 8) | tagBytes[p + 5];
       if (frameSize <= 0 || p + 6 + frameSize > end) break;
-      const bodyStart = p + 6;
-      const bodyEnd = bodyStart + frameSize;
+      const rawBodyStart = p + 6;
+      const rawBodyEnd = rawBodyStart + frameSize;
+      const frameBytes = hasTagUnsynchronization
+        ? removeUnsynchronization(tagBytes.subarray(rawBodyStart, rawBodyEnd))
+        : tagBytes;
+      const bodyStart = hasTagUnsynchronization ? 0 : rawBodyStart;
+      const bodyEnd = hasTagUnsynchronization ? frameBytes.length : rawBodyEnd;
       switch (id) {
         case 'TT2':
-          tags.title = decodeText(bytes, bodyStart, bodyEnd);
+          tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TP1':
         case 'TP2':
-          if (!tags.artist) tags.artist = decodeText(bytes, bodyStart, bodyEnd);
+          if (!tags.artist) tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TAL':
-          tags.album = decodeText(bytes, bodyStart, bodyEnd);
+          tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TYE':
-          tags.year = decodeText(bytes, bodyStart, bodyEnd);
+          tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TCO':
-          tags.genre = decodeText(bytes, bodyStart, bodyEnd);
+          tags.genre = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TRK':
-          tags.trackNumber = decodeText(bytes, bodyStart, bodyEnd);
+          tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TPA':
-          tags.discNumber = decodeText(bytes, bodyStart, bodyEnd);
+          tags.discNumber = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'COM': {
-          const comm = decodeComm(bytes, bodyStart, bodyEnd);
+          const comm = decodeComm(frameBytes, bodyStart, bodyEnd);
           if (comm?.text) {
             if (!comm.description) tags.comment = comm.text;
             else if (!commentFallback) commentFallback = comm.text;
@@ -360,7 +391,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
         }
         case 'PIC': {
           if (!tags.cover) {
-            const cover = decodePIC(bytes, bodyStart, bodyEnd);
+            const cover = decodePIC(frameBytes, bodyStart, bodyEnd);
             if (cover) tags.cover = cover;
           }
           break;
@@ -374,43 +405,56 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
     return tags;
   }
   while (p + 10 <= end) {
-    const id = readLatin1(bytes, p, p + 4);
+    const id = readLatin1(tagBytes, p, p + 4);
     if (!id || id.charCodeAt(0) === 0) break;
     if (!/^[A-Z0-9]{4}$/.test(id)) break;
 
     const frameSize =
-      majorVersion === 4 ? decodeSyncsafe(bytes, p + 4) : decodeSize(bytes, p + 4);
-    if (frameSize <= 0 || p + 10 + frameSize > end) break;
+      majorVersion === 4 ? decodeSyncsafe(tagBytes, p + 4) : decodeSize(tagBytes, p + 4);
+    if (frameSize === undefined || frameSize <= 0 || p + 10 + frameSize > end) break;
 
-    const bodyStart = p + 10;
-    const bodyEnd = bodyStart + frameSize;
+    const frameFlag1 = tagBytes[p + 8];
+    const frameFlag2 = tagBytes[p + 9];
+    if (hasUnsupportedFrameFlags(majorVersion, frameFlag1, frameFlag2)) {
+      p += 10 + frameSize;
+      continue;
+    }
+
+    const rawBodyStart = p + 10;
+    const rawBodyEnd = rawBodyStart + frameSize;
+    const shouldRemoveFrameUnsync = hasTagUnsynchronization || hasFrameUnsynchronization(majorVersion, frameFlag2);
+    const frameBytes = shouldRemoveFrameUnsync
+      ? removeUnsynchronization(tagBytes.subarray(rawBodyStart, rawBodyEnd))
+      : tagBytes;
+    const bodyStart = shouldRemoveFrameUnsync ? 0 : rawBodyStart;
+    const bodyEnd = shouldRemoveFrameUnsync ? frameBytes.length : rawBodyEnd;
 
     switch (id) {
       case 'TIT2':
-        tags.title = decodeText(bytes, bodyStart, bodyEnd);
+        tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TPE1':
       case 'TPE2':
-        if (!tags.artist) tags.artist = decodeText(bytes, bodyStart, bodyEnd);
+        if (!tags.artist) tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TALB':
-        tags.album = decodeText(bytes, bodyStart, bodyEnd);
+        tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TYER':
       case 'TDRC':
-        tags.year = decodeText(bytes, bodyStart, bodyEnd);
+        tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TCON':
-        tags.genre = decodeText(bytes, bodyStart, bodyEnd);
+        tags.genre = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TRCK':
-        tags.trackNumber = decodeText(bytes, bodyStart, bodyEnd);
+        tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TPOS':
-        tags.discNumber = decodeText(bytes, bodyStart, bodyEnd);
+        tags.discNumber = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'COMM': {
-        const comm = decodeComm(bytes, bodyStart, bodyEnd);
+        const comm = decodeComm(frameBytes, bodyStart, bodyEnd);
         if (comm?.text) {
           if (!comm.description) tags.comment = comm.text;
           else if (!commentFallback) commentFallback = comm.text;
@@ -419,7 +463,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
       }
       case 'APIC':
         if (!tags.cover) {
-          const cover = decodeAPIC(bytes, bodyStart, bodyEnd);
+          const cover = decodeAPIC(frameBytes, bodyStart, bodyEnd);
           if (cover) tags.cover = cover;
         }
         break;

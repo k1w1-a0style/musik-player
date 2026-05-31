@@ -13,6 +13,12 @@ type CacheFileSystem = {
 const CLEANUP_DELETE_BATCH_SIZE = 20;
 const CACHE_FILE_NAME_RE = /^[a-f0-9]+-[a-f0-9]+\.(?:jpg|jpeg|png|webp)$/i;
 
+let latestCleanupRequestId = 0;
+let latestCleanupSongs: Song[] = [];
+let cleanupDrainPromise: Promise<void> | undefined;
+
+const isLatestCleanupRequest = (requestId: number): boolean => requestId === latestCleanupRequestId;
+
 const getFileSystem = (): CacheFileSystem => LegacyFileSystem as CacheFileSystem;
 
 const getFallbackFileSystem = (): CacheFileSystem => FileSystem as CacheFileSystem;
@@ -54,15 +60,19 @@ const deleteFilesInBatches = async (
   fileNames: string[],
   directory: string,
   eraseFile: (uri: string, options?: { idempotent?: boolean }) => Promise<void>,
+  shouldContinue: () => boolean,
 ): Promise<void> => {
   const safeFileNames = fileNames.filter(isSafeCoverCacheFileName);
   for (let i = 0; i < safeFileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
+    if (!shouldContinue()) return;
     const batch = safeFileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
     await Promise.all(batch.map(fileName => eraseFile(`${directory}/${fileName}`, { idempotent: true })));
   }
 };
 
-export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
+const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<void> => {
+  await Promise.resolve();
+  if (!isLatestCleanupRequest(requestId)) return;
   const directory = getCoverCacheDirectory();
   if (!directory) return;
 
@@ -75,15 +85,36 @@ export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
     if (!getInfo || !readDirectory || !eraseFile) return;
 
     const info = await getInfo(directory);
-    if (!info.exists) return;
+    if (!info.exists || !isLatestCleanupRequest(requestId)) return;
 
     const referencedFileNames = getReferencedFileNames(songs, directory);
     const cachedFileNames = await readDirectory(directory);
+    if (!isLatestCleanupRequest(requestId)) return;
     const orphanedFileNames = cachedFileNames.filter(
       fileName => isSafeCoverCacheFileName(fileName) && !referencedFileNames.has(fileName),
     );
-    await deleteFilesInBatches(orphanedFileNames, directory, eraseFile);
+    await deleteFilesInBatches(orphanedFileNames, directory, eraseFile, () => isLatestCleanupRequest(requestId));
   } catch {
     // Best-effort cache maintenance must not break library hydration or persistence.
   }
+};
+
+const drainLatestCleanup = async (): Promise<void> => {
+  while (true) {
+    const requestId = latestCleanupRequestId;
+    const songs = latestCleanupSongs;
+    await runCleanupCoverCache(songs, requestId);
+    if (requestId === latestCleanupRequestId) return;
+  }
+};
+
+export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
+  latestCleanupRequestId += 1;
+  latestCleanupSongs = songs;
+  if (!cleanupDrainPromise) {
+    cleanupDrainPromise = drainLatestCleanup().finally(() => {
+      cleanupDrainPromise = undefined;
+    });
+  }
+  await cleanupDrainPromise;
 };
