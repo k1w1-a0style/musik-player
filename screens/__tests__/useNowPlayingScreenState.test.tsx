@@ -22,8 +22,6 @@ jest.mock('../../contexts/MusicContext', () => ({
     volume: 0.8,
     setVolume: mockSetVolume,
     palette: { vibrant: '#123456' },
-    fftBins: [1, 2, 3],
-    visualizerError: null,
     playSong: mockPlaySong,
     saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
   }),
@@ -63,11 +61,9 @@ jest.mock('../useNowPlayingPresentation', () => ({
     accent: '#123456',
     gradientColors: ['#111111', '#222222'],
     albumTitle: 'Album',
-    visualizerHint: null,
     artworkUri: 'file:///cover.jpg',
     progressAccent: '#123456',
     progressAccentDark: '#654321',
-    visualizerColor: '#123456',
   }),
 }));
 
@@ -83,7 +79,6 @@ const ScreenStateProbe = () => {
       <Text testID="album-title">{state.albumTitle}</Text>
       <Text testID="position">{state.position}</Text>
       <Text testID="duration">{state.duration}</Text>
-      <Text testID="show-visualizer">{String(state.showVisualizer)}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
     </>
   );
@@ -100,7 +95,6 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('album-title').props.children).toBe('Album');
     expect(getByTestId('position').props.children).toBe(3);
     expect(getByTestId('duration').props.children).toBe(9);
-    expect(getByTestId('show-visualizer').props.children).toBe('false');
     expect(getByTestId('can-save-queue').props.children).toBe('true');
   });
 });

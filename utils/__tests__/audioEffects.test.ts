@@ -2,8 +2,6 @@ import {
   buildNativeEqBandUpdates,
   canUseNativeEq,
   shouldApplyNativeEqBands,
-  shouldApplyVisualizerFrame,
-  shouldStopVisualizerForPlaybackState,
 } from '../audioEffects';
 import type { EqInitResult } from 'expo-system-audio';
 
@@ -42,14 +40,4 @@ describe('audioEffects helpers', () => {
     ]);
   });
 
-  test('throttles visualizer frames by interval', () => {
-    expect(shouldApplyVisualizerFrame(100, 0, 120)).toBe(false);
-    expect(shouldApplyVisualizerFrame(120, 0, 120)).toBe(true);
-    expect(shouldApplyVisualizerFrame(250, 120, 120)).toBe(true);
-  });
-
-  test('stops visualizer while playback is not running', () => {
-    expect(shouldStopVisualizerForPlaybackState(false)).toBe(true);
-    expect(shouldStopVisualizerForPlaybackState(true)).toBe(false);
-  });
 });

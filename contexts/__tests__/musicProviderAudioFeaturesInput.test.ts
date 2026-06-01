@@ -1,11 +1,9 @@
 import { buildMusicProviderAudioFeaturesInput } from '../musicProviderAudioFeaturesInput';
 import type { EqualizerControls } from '../useEqualizerControls';
-import type { PlaybackControls } from '../usePlaybackControls';
 import type { MusicProviderState } from '../useMusicProviderState';
 import type { Song } from '../../types/Song';
 
 const noop = () => undefined;
-const noopAsync = async () => undefined;
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A' }];
 
 const providerState: MusicProviderState = {
@@ -23,22 +21,6 @@ const providerState: MusicProviderState = {
   setShuffle: noop,
 };
 
-const playback: PlaybackControls = {
-  isPlaying: true,
-  isBuffering: false,
-  repeatMode: 'off',
-  setRepeatMode: noop,
-  cycleRepeatMode: noopAsync,
-  volume: 1,
-  setVolumeState: noop,
-  setVolume: noopAsync,
-  togglePlayPause: noopAsync,
-  stop: noopAsync,
-  seekTo: noopAsync,
-  next: noopAsync,
-  previous: noopAsync,
-};
-
 const equalizer: EqualizerControls = {
   eqEnabled: true,
   setEqEnabled: noop,
@@ -53,11 +35,10 @@ const equalizer: EqualizerControls = {
 
 describe('buildMusicProviderAudioFeaturesInput', () => {
   test('builds audio feature args from provider state and controls', () => {
-    expect(buildMusicProviderAudioFeaturesInput({ providerState, playback, equalizer })).toEqual({
+    expect(buildMusicProviderAudioFeaturesInput({ providerState, equalizer })).toEqual({
       currentSong: songs[0],
       eqEnabled: true,
       eqBands: [1, 2, 3],
-      isPlaying: true,
     });
   });
 });

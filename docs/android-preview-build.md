@@ -83,7 +83,7 @@ Der `preview`-Build ist in `eas.json` als APK ohne Credentials konfiguriert und 
 - Tag Editor mit `content://`/SAF-Datei prüfen: muss read-only bleiben
 - Tag Editor mit sehr großer Datei prüfen: muss vor dem Schreiben blockieren
 - Equalizer öffnen: Status darf geräteabhängig/experimentell anzeigen
-- Visualizer prüfen: kein Permission-Prompt; native FFT bleibt deaktivierter No-op
+- NowPlaying prüfen: kein Visualizer-Prompt und keine FFT-Anzeige
 
 ## Nach dem Build
 

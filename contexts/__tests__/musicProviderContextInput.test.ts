@@ -32,9 +32,6 @@ const baseValue: MusicContextValue = {
   eqPreset: 'flat',
   applyEqPreset: noop,
   eqNative: null,
-  fftBins: [1, 2, 3],
-  visualizerRunning: false,
-  visualizerError: null,
   palette: null,
   playlists: [],
   createPlaylist: () => ({ id: 'pl-1', name: 'New', songIds: [], createdAt: 1, updatedAt: 1 }),
@@ -89,9 +86,6 @@ describe('buildMusicProviderContextInput', () => {
         },
         audioFeatures: {
           eqNative: baseValue.eqNative,
-          fftBins: baseValue.fftBins,
-          visualizerRunning: baseValue.visualizerRunning,
-          visualizerError: baseValue.visualizerError,
           palette: baseValue.palette,
         },
         playlists: {

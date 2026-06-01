@@ -20,17 +20,11 @@ import kotlin.math.roundToInt
  * The Equalizer is attached to audioSession=0 (output mix) which affects
  * all audio coming out of the device while the app holds the effect.
  * Requires MODIFY_AUDIO_SETTINGS (auto-granted at install on most devices).
- *
- * Native FFT/Visualizer capture is intentionally disabled for release builds.
- * Android's Visualizer API can require microphone-style runtime permission on
- * modern devices, so this module keeps visualizer calls as safe no-ops.
  */
 class SystemAudioModule : Module() {
   private var equalizer: Equalizer? = null
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
-
-    Events("onFftData", "onVisualizerStateChanged")
 
     // ---------- Equalizer ----------
 
@@ -74,17 +68,6 @@ class SystemAudioModule : Module() {
 
     Function("eqRelease") {
       releaseEqualizer()
-    }
-
-    // ---------- Visualizer ----------
-
-    AsyncFunction("visualizerStart") { _: Int ->
-      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "disabled"))
-      false
-    }
-
-    Function("visualizerStop") {
-      sendEvent("onVisualizerStateChanged", mapOf("running" to false, "reason" to "stopped"))
     }
 
     // ---------- Palette / artwork extraction ----------

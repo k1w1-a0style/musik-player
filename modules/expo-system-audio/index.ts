@@ -1,7 +1,5 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-type EventSubscription = { remove: () => void };
-
 export interface EqBandInfo {
   index: number;
   centerFreqHz: number;
@@ -30,25 +28,11 @@ export interface EmbeddedArtworkResult {
   mimeType: string;
 }
 
-export interface FftEvent {
-  data: number[];
-}
-
-export interface VisualizerStateEvent {
-  running: boolean;
-  reason: string;
-}
-
-declare class ExpoSystemAudioModule extends NativeModule<{
-  onFftData: (e: FftEvent) => void;
-  onVisualizerStateChanged: (e: VisualizerStateEvent) => void;
-}> {
+declare class ExpoSystemAudioModule extends NativeModule {
   eqInit(): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
   eqSetBandLevel(band: number, millibel: number): boolean;
   eqRelease(): void;
-  visualizerStart(bins: number): Promise<boolean>;
-  visualizerStop(): void;
   extractPalette(uri: string): Promise<PaletteResult | null>;
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
 }
@@ -60,8 +44,6 @@ const native: ExpoSystemAudioModule | null = (() => {
     return null;
   }
 })();
-
-const noopSub: EventSubscription = { remove: () => undefined };
 
 /**
  * Public API. Gracefully degrades to a no-op implementation when the
@@ -84,24 +66,6 @@ export const SystemAudio = {
 
   eqRelease(): void {
     native?.eqRelease();
-  },
-
-  async visualizerStart(bins = 16): Promise<boolean> {
-    return native ? native.visualizerStart(bins) : false;
-  },
-
-  visualizerStop(): void {
-    native?.visualizerStop();
-  },
-
-  onFft(cb: (data: number[]) => void): EventSubscription {
-    if (!native) return noopSub;
-    return native.addListener('onFftData', e => cb(e.data));
-  },
-
-  onVisualizerState(cb: (e: VisualizerStateEvent) => void): EventSubscription {
-    if (!native) return noopSub;
-    return native.addListener('onVisualizerStateChanged', cb);
   },
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {

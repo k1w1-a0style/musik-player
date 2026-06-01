@@ -48,7 +48,6 @@ export const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string
   return current ? [current, ...rest] : rest;
 };
 
-export const hasSameSongIds = hasSameSongIdMultiset;
 
 export const hasSameOrderedSongIds = (a: Song[], b: Song[]): boolean => {
   if (a.length !== b.length) return false;

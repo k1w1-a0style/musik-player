@@ -13,7 +13,7 @@ const song: Song = {
   cover: 'file:///cover.jpg',
 };
 
-const PresentationProbe = ({ visualizerError }: { visualizerError: string | null }) => {
+const PresentationProbe = () => {
   const presentation = useNowPlayingPresentation({
     currentSong: song,
     palette: {
@@ -22,7 +22,6 @@ const PresentationProbe = ({ visualizerError }: { visualizerError: string | null
       darkVibrant: '#333333',
       lightVibrant: '#444444',
     },
-    visualizerError,
   });
 
   return (
@@ -31,35 +30,25 @@ const PresentationProbe = ({ visualizerError }: { visualizerError: string | null
       <Text testID="accent-dark">{presentation.accentDark}</Text>
       <Text testID="album-title">{presentation.albumTitle}</Text>
       <Text testID="artwork-uri">{presentation.artworkUri}</Text>
-      <Text testID="hint">{presentation.visualizerHint ?? 'none'}</Text>
       <Text testID="gradient-count">{presentation.gradientColors.length}</Text>
       <Text testID="progress-accent">{presentation.progressAccent}</Text>
       <Text testID="progress-accent-dark">{presentation.progressAccentDark}</Text>
-      <Text testID="visualizer-color">{presentation.visualizerColor}</Text>
     </>
   );
 };
 
 describe('useNowPlayingPresentation', () => {
   test('builds presentation values from current song and palette', () => {
-    const { getByTestId } = render(<PresentationProbe visualizerError="no_permission" />);
+    const { getByTestId } = render(<PresentationProbe />);
 
     expect(getByTestId('accent').props.children).toBe('#222222');
     expect(getByTestId('accent-dark').props.children).toBe('#333333');
     expect(getByTestId('album-title').props.children).toBe('Album');
     expect(getByTestId('artwork-uri').props.children).toBe('file:///cover.jpg');
-    expect(getByTestId('hint').props.children).toBe('Visualizer deaktiviert (keine Mikrofonberechtigung).');
     expect(getByTestId('gradient-count').props.children).toBe(
       theme.gradients.nowPlayingBackdrop('#222222', '#333333').length,
     );
     expect(getByTestId('progress-accent').props.children).toBe('#222222');
     expect(getByTestId('progress-accent-dark').props.children).toBe('#444444');
-    expect(getByTestId('visualizer-color').props.children).toBe('#222222');
-  });
-
-  test('hides neutral visualizer hints', () => {
-    const { getByTestId } = render(<PresentationProbe visualizerError="stopped" />);
-
-    expect(getByTestId('hint').props.children).toBe('none');
   });
 });

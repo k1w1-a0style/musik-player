@@ -17,8 +17,6 @@ export const useNowPlayingScreenState = () => {
     volume,
     setVolume,
     palette,
-    fftBins,
-    visualizerError,
     playSong,
     saveQueueAsPlaylist,
   } = useNowPlayingMusicContext();
@@ -29,7 +27,6 @@ export const useNowPlayingScreenState = () => {
   const presentation = useNowPlayingPresentation({
     currentSong,
     palette,
-    visualizerError,
   });
 
   const saveCurrentQueueAsPlaylist = () => {
@@ -47,11 +44,9 @@ export const useNowPlayingScreenState = () => {
     isPlaying,
     volume,
     setVolume,
-    fftBins,
     position,
     duration,
     bottomInset: insets.bottom,
-    showVisualizer: false,
     saveCurrentQueueAsPlaylist,
     ...favoriteState,
     ...menuState,

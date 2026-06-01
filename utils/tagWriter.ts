@@ -6,7 +6,6 @@ import type {
   TagWriterErrorCode,
   TagWritePayload,
   WritableTagUriResolution,
-  WriteOrchestrationResult,
   WriteTagsResult,
 } from '../types/TagEdit';
 import { getTagEditCapability, getSupportedContainer, getUriType } from './tagEditCapability';
@@ -18,7 +17,6 @@ import {
 import {
   DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
   createTagWriteOperationPlan,
-  simulateTagWriteOperation,
 } from './tagWriteOrchestrator';
 import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 
@@ -73,7 +71,6 @@ export const startsWithId3Preamble = (buffer: Uint8Array): boolean =>
   buffer.length >= 3 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33;
 export const hasCompleteId3Header = (buffer: Uint8Array): boolean =>
   buffer.length >= 10 && startsWithId3Preamble(buffer);
-export const hasId3Header = hasCompleteId3Header;
 export const decodeSynchsafe = (sizeBytes: Uint8Array): number => {
   if (sizeBytes.length !== 4)
     throw new TagWriterError('InvalidTagData', 'Invalid synchsafe input size.');
@@ -724,16 +721,6 @@ export const ensureTagEditWriteAllowed = (song: Song, platform?: string): void =
       capability.reason ?? 'Writing is not supported for this target.',
     );
 };
-export const prepareWriteOnly = (song: Song, draft: TagEditDraft): TagEditPlan =>
-  createTagWriteOperationPlan(song, draft);
-export const dryRunWriteTags = (
-  song: Song,
-  draft: TagEditDraft,
-): WriteOrchestrationResult => {
-  const plan = createTagWriteOperationPlan(song, draft);
-  return simulateTagWriteOperation(plan);
-};
-
 const areBytesEqual = (a: Uint8Array, b: Uint8Array): boolean =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 

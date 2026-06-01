@@ -368,15 +368,6 @@ describe('MusicContext', () => {
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
-  test('visualizer stays disabled during normal playback', async () => {
-    const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
-    await waitReady(getByTestId);
-    fireEvent.press(getByTestId('set-songs'));
-    fireEvent.press(getByTestId('play-s2'));
-    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
-    expect(SystemAudio.visualizerStop).not.toHaveBeenCalled();
-  });
-
   test('hydrates songs by migrating base64 covers before persisting', async () => {
     await storage.set(StorageKeys.SONGS, [{
       id: 'base64-cover',

@@ -11,7 +11,6 @@ import NowPlayingMenuModal from './NowPlayingMenuModal';
 import NowPlayingPlaybackSection from './NowPlayingPlaybackSection';
 import NowPlayingQueueCard from './NowPlayingQueueCard';
 import NowPlayingTitleRow from './NowPlayingTitleRow';
-import NowPlayingVisualizerSection from './NowPlayingVisualizerSection';
 import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
@@ -25,11 +24,9 @@ const NowPlayingScreenInner: React.FC = () => {
     isPlaying,
     volume,
     setVolume,
-    fftBins,
     position,
     duration,
     bottomInset,
-    showVisualizer,
     favorite,
     favoritePending,
     toggleFavorite,
@@ -44,11 +41,9 @@ const NowPlayingScreenInner: React.FC = () => {
     accent,
     gradientColors,
     albumTitle,
-    visualizerHint,
     artworkUri,
     progressAccent,
     progressAccentDark,
-    visualizerColor,
   } = useNowPlayingScreenState();
 
   return (
@@ -72,14 +67,6 @@ const NowPlayingScreenInner: React.FC = () => {
         favorite={favorite}
         favoritePending={favoritePending}
         onToggleFavorite={toggleFavorite}
-      />
-
-      <NowPlayingVisualizerSection
-        visible={showVisualizer}
-        fftBins={fftBins}
-        isPlaying={isPlaying}
-        color={visualizerColor}
-        hint={visualizerHint}
       />
 
       <NowPlayingPlaybackSection

@@ -29,9 +29,10 @@ describe('native visualizer release policy', () => {
     expect(moduleSource).not.toContain('Visualizer(0)');
   });
 
-  it('keeps visualizerStart as an explicit disabled no-op', () => {
-    expect(moduleSource).toContain('AsyncFunction("visualizerStart")');
-    expect(moduleSource).toContain('"reason" to "disabled"');
-    expect(moduleSource).toContain('false');
+  it('does not expose disabled visualizer bridge methods or events', () => {
+    expect(moduleSource).not.toContain('AsyncFunction("visualizerStart")');
+    expect(moduleSource).not.toContain('Function("visualizerStop")');
+    expect(moduleSource).not.toContain('onFftData');
+    expect(moduleSource).not.toContain('onVisualizerStateChanged');
   });
 });

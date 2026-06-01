@@ -2,6 +2,7 @@ import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStat
 import TrackPlayer from 'react-native-track-player';
 import type { Playlist, Song } from '../types/Song';
 import { prunePlaylists } from '../utils/playlistState';
+import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toPlayableSongs } from '../utils/playableSong';
 import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
@@ -12,7 +13,6 @@ import {
   patchSongById,
   patchSongRefs,
   pruneNullableSongByValidIds,
-  hasSameSongIds,
   pruneSongsByValidIds,
   updateNativeMetadataForSong,
 } from './libraryActionHelpers';
@@ -119,9 +119,9 @@ export const useLibraryActions = ({
       const nextQueueRef = pruneSongsByValidIds(queueContextRef.current, validSongIds);
       const nextBaseQueueRef = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
       const nextNativeQueueRef = pruneSongsByValidIds(nativeQueueRef.current, validSongIds);
-      const queueRefChanged = !hasSameSongIds(queueContextRef.current, nextQueueRef);
-      const baseQueueRefChanged = !hasSameSongIds(baseQueueContextRef.current, nextBaseQueueRef);
-      const nativeQueueRefChanged = !hasSameSongIds(nativeQueueRef.current, nextNativeQueueRef);
+      const queueRefChanged = !hasSameOrderedSongIds(queueContextRef.current, nextQueueRef);
+      const baseQueueRefChanged = !hasSameOrderedSongIds(baseQueueContextRef.current, nextBaseQueueRef);
+      const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextNativeQueueRef);
 
       if (queueRefChanged) queueContextRef.current = nextQueueRef;
       if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;

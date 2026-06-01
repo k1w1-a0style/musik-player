@@ -32,9 +32,6 @@ const mockNowPlayingContext = {
   volume: 1,
   setVolume: jest.fn(async () => undefined),
   palette: null,
-  fftBins: [],
-  visualizerRunning: false,
-  visualizerError: null as string | null,
   playSong: jest.fn(async () => undefined),
   saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
 };
@@ -70,13 +67,11 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('../../components/Controls', () => () => null);
 jest.mock('../../components/ProgressBar', () => () => null);
 jest.mock('../../components/ModernControls', () => () => null);
-jest.mock('../../components/Visualizer', () => () => null);
 jest.mock('../../components/GlassCard', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
 jest.mock('../../components/Screen', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
 
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
-    mockNowPlayingContext.visualizerError = null;
     mockNowPlayingStateCrash = false;
     setCurrentSongId('s1');
     mockGoBack.mockClear();
@@ -110,18 +105,6 @@ describe('NowPlaying cover fallback', () => {
     const img = UNSAFE_getByType(Image);
     fireEvent(img, 'error');
     expect(UNSAFE_queryByType(Image)).toBeNull();
-  });
-
-  test('does not show visualizer hint for neutral stopped reason', () => {
-    mockNowPlayingContext.visualizerError = 'stopped';
-    const { queryByText } = render(<NowPlaying />);
-    expect(queryByText(/Visualizer deaktiviert/i)).toBeNull();
-  });
-
-  test('hides visualizer hint while visualizer is disabled for performance stabilization', () => {
-    mockNowPlayingContext.visualizerError = 'no_permission';
-    const { queryByText } = render(<NowPlaying />);
-    expect(queryByText('Visualizer deaktiviert (keine Mikrofonberechtigung).')).toBeNull();
   });
 
   test('favorite icon persists an actionable favorite state', async () => {

@@ -32,9 +32,6 @@ type NowPlayingMusicContextInput = Pick<
   | 'volume'
   | 'setVolume'
   | 'palette'
-  | 'fftBins'
-  | 'visualizerRunning'
-  | 'visualizerError'
   | 'playSong'
   | 'saveQueueAsPlaylist'
 >;
@@ -86,9 +83,6 @@ export const buildNowPlayingMusicContextValue = ({
   volume,
   setVolume,
   palette,
-  fftBins,
-  visualizerRunning,
-  visualizerError,
   playSong,
   saveQueueAsPlaylist,
 }: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
@@ -99,9 +93,6 @@ export const buildNowPlayingMusicContextValue = ({
   volume,
   setVolume,
   palette,
-  fftBins,
-  visualizerRunning,
-  visualizerError,
   playSong,
   saveQueueAsPlaylist,
   canSkip: playbackQueue.length > 1,

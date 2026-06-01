@@ -4,29 +4,14 @@
  * without a native runtime.
  */
 
-let visualizerCb = null;
-let stateCb = null;
-
 const SystemAudio = {
   isAvailable: false,
   eqInit: jest.fn().mockResolvedValue(null),
   eqSetEnabled: jest.fn().mockReturnValue(false),
   eqSetBandLevel: jest.fn().mockReturnValue(false),
   eqRelease: jest.fn(),
-  visualizerStart: jest.fn().mockResolvedValue(false),
-  visualizerStop: jest.fn(),
-  onFft: jest.fn(cb => {
-    visualizerCb = cb;
-    return { remove: () => { visualizerCb = null; } };
-  }),
-  onVisualizerState: jest.fn(cb => {
-    stateCb = cb;
-    return { remove: () => { stateCb = null; } };
-  }),
   extractPalette: jest.fn(() => new Promise(() => {})),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
-  __triggerFft: data => visualizerCb?.(data),
-  __triggerState: e => stateCb?.(e),
 };
 
 module.exports = {
