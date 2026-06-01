@@ -1,8 +1,9 @@
 import { buildMusicProviderActionsInput } from './musicProviderActionsInput';
 import { useMusicProviderActions } from './useMusicProviderActions';
+import type { MusicProviderActions } from './useMusicProviderActions';
 import type { MusicProviderRuntime } from './useMusicProviderRuntime';
 
-export type MusicProviderDomainActions = ReturnType<typeof useMusicProviderActions>;
+export type MusicProviderDomainActions = MusicProviderActions;
 
 const getCurrentSongId = ({ state }: MusicProviderRuntime): string | undefined =>
   state.currentSong?.id;
