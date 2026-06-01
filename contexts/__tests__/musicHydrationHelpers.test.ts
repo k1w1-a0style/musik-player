@@ -65,6 +65,51 @@ describe('musicHydrationHelpers', () => {
     expect(mockMigrateLegacySongFavoritesFromStoredSongs).toHaveBeenCalledTimes(1);
   });
 
+  test('validates and normalizes stored playback settings during hydration load', async () => {
+    await storage.set(StorageKeys.SONGS, songs);
+    await AsyncStorage.setItem('@musikplayer:volume', '2');
+    await AsyncStorage.setItem('@musikplayer:repeatMode', JSON.stringify('invalid-repeat'));
+    await AsyncStorage.setItem('@musikplayer:eqBands', JSON.stringify([99, -99, 0, 1, 2, 3, 4, 5, 6, 10]));
+    await AsyncStorage.setItem('@musikplayer:eqPreset', JSON.stringify('missing-preset'));
+    await AsyncStorage.setItem('@musikplayer:eqEnabled', JSON.stringify('true'));
+    await AsyncStorage.setItem('@musikplayer:shuffle', JSON.stringify({ enabled: true }));
+    await AsyncStorage.setItem('@musikplayer:currentSongId', JSON.stringify(' s1 '));
+
+    await expect(loadStoredMusicHydrationState()).resolves.toEqual({
+      songs,
+      playlists: null,
+      eqEnabled: true,
+      eqBands: [12, -12, 0, 1, 2, 3, 4, 5, 6, 10],
+      eqPreset: null,
+      volume: 1,
+      repeatMode: null,
+      shuffle: null,
+      currentSongId: 's1',
+    });
+  });
+
+  test('returns null hydration settings for corrupt or invalid persisted scalar values', async () => {
+    await AsyncStorage.setItem('@musikplayer:volume', JSON.stringify({ value: 0.5 }));
+    await AsyncStorage.setItem('@musikplayer:repeatMode', '{broken-json');
+    await AsyncStorage.setItem('@musikplayer:eqBands', JSON.stringify([0, 0, 0]));
+    await AsyncStorage.setItem('@musikplayer:eqPreset', JSON.stringify(false));
+    await AsyncStorage.setItem('@musikplayer:eqEnabled', JSON.stringify('not-bool'));
+    await AsyncStorage.setItem('@musikplayer:shuffle', JSON.stringify('not-bool'));
+    await AsyncStorage.setItem('@musikplayer:currentSongId', JSON.stringify('   '));
+
+    await expect(loadStoredMusicHydrationState()).resolves.toEqual({
+      songs: null,
+      playlists: null,
+      eqEnabled: null,
+      eqBands: null,
+      eqPreset: null,
+      volume: null,
+      repeatMode: null,
+      shuffle: null,
+      currentSongId: null,
+    });
+  });
+
   test('sanitizes hydrated playlists against the stored library', () => {
     const stored: StoredMusicHydrationState = {
       songs,

@@ -47,6 +47,65 @@ export const normalizePersistedValue = <T,>(key: string, value: T): T => {
   return value;
 };
 
+interface PersistQueueState {
+  inFlight: boolean;
+  pendingSerialized?: string;
+  pendingValue?: unknown;
+  drainPromise?: Promise<void>;
+}
+
+const persistQueues = new WeakMap<Record<string, string>, Map<string, PersistQueueState>>();
+
+const getPersistQueueState = (
+  persistedRefs: Record<string, string>,
+  key: string,
+): PersistQueueState => {
+  let queuesByKey = persistQueues.get(persistedRefs);
+  if (!queuesByKey) {
+    queuesByKey = new Map<string, PersistQueueState>();
+    persistQueues.set(persistedRefs, queuesByKey);
+  }
+
+  let queueState = queuesByKey.get(key);
+  if (!queueState) {
+    queueState = { inFlight: false };
+    queuesByKey.set(key, queueState);
+  }
+  return queueState;
+};
+
+const drainPersistQueue = async (
+  key: string,
+  persistedRefs: Record<string, string>,
+  queueState: PersistQueueState,
+): Promise<void> => {
+  if (queueState.inFlight) return queueState.drainPromise;
+
+  queueState.inFlight = true;
+  try {
+    while (queueState.pendingSerialized !== undefined) {
+      const serialized = queueState.pendingSerialized;
+      const normalizedValue = queueState.pendingValue;
+      queueState.pendingSerialized = undefined;
+      queueState.pendingValue = undefined;
+
+      if (persistedRefs[key] === serialized) continue;
+
+      try {
+        const stored = await storage.set(key, normalizedValue);
+        if (stored && queueState.pendingSerialized === undefined) {
+          persistedRefs[key] = serialized;
+        }
+      } catch (error) {
+        console.warn('[MusicPersistence] Failed to persist setting.', { key, error });
+      }
+    }
+  } finally {
+    queueState.inFlight = false;
+    queueState.drainPromise = undefined;
+  }
+};
+
 export const persistIfChanged = async <T,>(
   key: string,
   value: T,
@@ -54,9 +113,14 @@ export const persistIfChanged = async <T,>(
 ): Promise<void> => {
   const normalizedValue = normalizePersistedValue(key, value);
   const serialized = JSON.stringify(normalizedValue);
-  if (persistedRefs[key] === serialized) return;
-  const stored = await storage.set(key, normalizedValue);
-  if (stored) persistedRefs[key] = serialized;
+  const queueState = getPersistQueueState(persistedRefs, key);
+
+  if (persistedRefs[key] === serialized && queueState.pendingSerialized === undefined) return;
+
+  queueState.pendingSerialized = serialized;
+  queueState.pendingValue = normalizedValue;
+  queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
+  await queueState.drainPromise;
 };
 
 export const prepareSongsForPersistence = async (
