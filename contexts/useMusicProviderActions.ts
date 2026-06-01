@@ -1,87 +1,35 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { Playlist, Song } from '../types/Song';
-import { useLibraryActions } from './useLibraryActions';
-import { usePlaybackQueueActions } from './usePlaybackQueueActions';
-import { usePlaylistActions } from './usePlaylistActions';
+import {
+  composeMusicProviderActions,
+  type MusicProviderActions,
+} from './useMusicProviderActionComposition';
+import { useLibraryDomainActions } from './useLibraryDomainActions';
+import type { LibraryDomainActionsInput } from './useLibraryDomainActions';
+import { usePlaybackDomainActions } from './usePlaybackDomainActions';
+import type { PlaybackDomainActionsInput } from './usePlaybackDomainActions';
+import { usePlaylistDomainActions } from './usePlaylistDomainActions';
+import type { PlaylistDomainActionsInput } from './usePlaylistDomainActions';
+
+type PlaylistDomainActionsInputWithoutPlaySong = Omit<PlaylistDomainActionsInput, 'playSong'>;
 
 export interface MusicProviderActionsArgs {
-  songsRef: MutableRefObject<Song[]>;
-  queueContextRef: MutableRefObject<Song[]>;
-  baseQueueContextRef: MutableRefObject<Song[]>;
-  nativeQueueRef: MutableRefObject<Song[]>;
-  setSongsState: Dispatch<SetStateAction<Song[]>>;
-  setCurrentSong: Dispatch<SetStateAction<Song | null>>;
-  setPlaybackQueue: Dispatch<SetStateAction<Song[]>>;
-  playlists: Playlist[];
-  setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
-  currentSongId?: string;
-  shuffle: boolean;
-  setShuffle: Dispatch<SetStateAction<boolean>>;
+  playback: PlaybackDomainActionsInput;
+  library: LibraryDomainActionsInput;
+  playlists: PlaylistDomainActionsInputWithoutPlaySong;
 }
 
+export type { MusicProviderActions };
+
 export const useMusicProviderActions = ({
-  songsRef,
-  queueContextRef,
-  baseQueueContextRef,
-  nativeQueueRef,
-  setSongsState,
-  setCurrentSong,
-  setPlaybackQueue,
-  playlists,
-  setPlaylists,
-  currentSongId,
-  shuffle,
-  setShuffle,
-}: MusicProviderActionsArgs) => {
-  const { playSong, toggleShuffle } = usePlaybackQueueActions({
-    songsRef,
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setPlaybackQueue,
-    setCurrentSong,
-    currentSongId,
-    shuffle,
-    setShuffle,
+  playback: playbackInput,
+  library: libraryInput,
+  playlists: playlistInput,
+}: MusicProviderActionsArgs): MusicProviderActions => {
+  const playback = usePlaybackDomainActions(playbackInput);
+  const library = useLibraryDomainActions(libraryInput);
+  const playlists = usePlaylistDomainActions({
+    ...playlistInput,
+    playSong: playback.playSong,
   });
 
-  const { setSongs, addSongs, updateSongMetadata } = useLibraryActions({
-    queueContextRef,
-    baseQueueContextRef,
-    nativeQueueRef,
-    setSongsState,
-    setCurrentSong,
-    setPlaybackQueue,
-    setPlaylists,
-  });
-
-  const {
-    createPlaylist,
-    saveQueueAsPlaylist,
-    deletePlaylist,
-    renamePlaylist,
-    addSongToPlaylist,
-    removeSongFromPlaylist,
-    playPlaylist,
-  } = usePlaylistActions({
-    playlists,
-    setPlaylists,
-    songsRef,
-    playSong,
-  });
-
-  return {
-    playSong,
-    toggleShuffle,
-    setSongs,
-    addSongs,
-    updateSongMetadata,
-    createPlaylist,
-    saveQueueAsPlaylist,
-    deletePlaylist,
-    renamePlaylist,
-    addSongToPlaylist,
-    removeSongFromPlaylist,
-    playPlaylist,
-  };
+  return composeMusicProviderActions({ playback, library, playlists });
 };

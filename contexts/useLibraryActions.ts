@@ -17,7 +17,7 @@ import {
   updateNativeMetadataForSong,
 } from './libraryActionHelpers';
 
-interface LibraryActionsArgs {
+export interface LibraryActionsArgs {
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
   nativeQueueRef: MutableRefObject<Song[]>;
@@ -27,7 +27,7 @@ interface LibraryActionsArgs {
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
 }
 
-interface LibraryActions {
+export interface LibraryActions {
   setSongs: (songs: Song[]) => void;
   addSongs: (songs: Song[]) => void;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;

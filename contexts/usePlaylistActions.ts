@@ -14,14 +14,14 @@ import {
 } from './playlistActionHelpers';
 export { buildPlaylistQueue } from './playlistActionHelpers';
 
-interface PlaylistActionsArgs {
+export interface PlaylistActionsArgs {
   playlists: Playlist[];
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
   songsRef: MutableRefObject<Song[]>;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
 }
 
-interface PlaylistActions {
+export interface PlaylistActions {
   createPlaylist: (name: string) => Playlist;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   deletePlaylist: (id: string) => void;

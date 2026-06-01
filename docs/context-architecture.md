@@ -36,7 +36,7 @@ The split keeps high-churn consumers from depending on the entire `MusicContextV
 - `useMusicProviderControls` owns playback/equalizer controls such as `usePlaybackControls`.
 - `useMusicProviderAudioFeatures` owns visualizer/palette/native audio feature state.
 - `useMusicPlaybackRefs` creates the queue and library refs used by actions and hydration.
-- `useMusicProviderActions` composes library, queue, and playlist actions. `useLibraryActions` is the library mutation slice that prunes queues/playlists, syncs native queue state, and updates metadata references.
+- `useMusicProviderActions` is a thin composer over playback, library, and playlist domain action hooks. `useLibraryActions` remains the library mutation slice that prunes queues/playlists, syncs native queue state, and updates metadata references.
 - `useMusicProviderEffects` performs hydration, persistence, current-song sync, album palette updates, and audio feature effects.
 
 ## Playback controls

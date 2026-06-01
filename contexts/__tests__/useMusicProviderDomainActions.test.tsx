@@ -91,18 +91,31 @@ describe('useMusicProviderDomainActions', () => {
 
     expect(result.current).toBe(actions);
     expect(mockedUseMusicProviderActions).toHaveBeenCalledWith({
-      songsRef: runtime.refs.songsRef,
-      queueContextRef: runtime.refs.queueContextRef,
-      baseQueueContextRef: runtime.refs.baseQueueContextRef,
-      nativeQueueRef: runtime.refs.nativeQueueRef,
-      setSongsState: runtime.state.setSongsState,
-      setCurrentSong: runtime.state.setCurrentSong,
-      setPlaybackQueue: runtime.state.setPlaybackQueue,
-      playlists: runtime.state.playlists,
-      setPlaylists: runtime.state.setPlaylists,
-      currentSongId: 's1',
-      shuffle: true,
-      setShuffle: runtime.state.setShuffle,
+      playback: {
+        songsRef: runtime.refs.songsRef,
+        queueContextRef: runtime.refs.queueContextRef,
+        baseQueueContextRef: runtime.refs.baseQueueContextRef,
+        nativeQueueRef: runtime.refs.nativeQueueRef,
+        setPlaybackQueue: runtime.state.setPlaybackQueue,
+        setCurrentSong: runtime.state.setCurrentSong,
+        currentSongId: 's1',
+        shuffle: true,
+        setShuffle: runtime.state.setShuffle,
+      },
+      library: {
+        queueContextRef: runtime.refs.queueContextRef,
+        baseQueueContextRef: runtime.refs.baseQueueContextRef,
+        nativeQueueRef: runtime.refs.nativeQueueRef,
+        setSongsState: runtime.state.setSongsState,
+        setCurrentSong: runtime.state.setCurrentSong,
+        setPlaybackQueue: runtime.state.setPlaybackQueue,
+        setPlaylists: runtime.state.setPlaylists,
+      },
+      playlists: {
+        playlists: runtime.state.playlists,
+        setPlaylists: runtime.state.setPlaylists,
+        songsRef: runtime.refs.songsRef,
+      },
     });
   });
 });

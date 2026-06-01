@@ -11,16 +11,29 @@ export const buildMusicProviderActionsInput = ({
   providerState: MusicProviderState;
   currentSongId?: string;
 }): MusicProviderActionsArgs => ({
-  songsRef: playbackRefs.songsRef,
-  queueContextRef: playbackRefs.queueContextRef,
-  baseQueueContextRef: playbackRefs.baseQueueContextRef,
-  nativeQueueRef: playbackRefs.nativeQueueRef,
-  setSongsState: providerState.setSongsState,
-  setCurrentSong: providerState.setCurrentSong,
-  setPlaybackQueue: providerState.setPlaybackQueue,
-  playlists: providerState.playlists,
-  setPlaylists: providerState.setPlaylists,
-  currentSongId,
-  shuffle: providerState.shuffle,
-  setShuffle: providerState.setShuffle,
+  playback: {
+    songsRef: playbackRefs.songsRef,
+    queueContextRef: playbackRefs.queueContextRef,
+    baseQueueContextRef: playbackRefs.baseQueueContextRef,
+    nativeQueueRef: playbackRefs.nativeQueueRef,
+    setPlaybackQueue: providerState.setPlaybackQueue,
+    setCurrentSong: providerState.setCurrentSong,
+    currentSongId,
+    shuffle: providerState.shuffle,
+    setShuffle: providerState.setShuffle,
+  },
+  library: {
+    queueContextRef: playbackRefs.queueContextRef,
+    baseQueueContextRef: playbackRefs.baseQueueContextRef,
+    nativeQueueRef: playbackRefs.nativeQueueRef,
+    setSongsState: providerState.setSongsState,
+    setCurrentSong: providerState.setCurrentSong,
+    setPlaybackQueue: providerState.setPlaybackQueue,
+    setPlaylists: providerState.setPlaylists,
+  },
+  playlists: {
+    playlists: providerState.playlists,
+    setPlaylists: providerState.setPlaylists,
+    songsRef: playbackRefs.songsRef,
+  },
 });

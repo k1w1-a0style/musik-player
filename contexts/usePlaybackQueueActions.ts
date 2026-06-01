@@ -5,7 +5,7 @@ import {
   runShuffleQueueAction,
 } from './playbackQueueActionHelpers';
 
-interface PlaybackQueueActionsArgs {
+export interface PlaybackQueueActionsArgs {
   songsRef: MutableRefObject<Song[]>;
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
@@ -17,7 +17,7 @@ interface PlaybackQueueActionsArgs {
   setShuffle: Dispatch<SetStateAction<boolean>>;
 }
 
-interface PlaybackQueueActions {
+export interface PlaybackQueueActions {
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   toggleShuffle: () => Promise<void>;
 }
