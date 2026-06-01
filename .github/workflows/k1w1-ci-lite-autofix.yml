@@ -39,11 +39,42 @@ jobs:
     steps:
       - name: Determine target branch
         id: target_ref
-        uses: ./.github/actions/determine-ref
-        with:
-          input_ref: ${{ inputs.ref }}
-          github_ref_name: ""
-          default_ref: ""
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          trim() {
+            local s="$1"
+            s="${s#"${s%%[![:space:]]*}"}"
+            s="${s%"${s##*[![:space:]]}"}"
+            printf '%s' "$s"
+          }
+
+          checkout_ref="$(trim "$INPUT_REF")"
+
+          if [ -z "$checkout_ref" ]; then
+            echo "::error::Could not resolve checkout branch."
+            exit 1
+          fi
+
+          if [[ "$checkout_ref" == -* ]]; then
+            echo "::error::Invalid checkout branch."
+            exit 1
+          fi
+
+          if printf '%s' "$checkout_ref" | grep -qE '[[:space:]:;`|]|\$\('; then
+            echo "::error::Invalid checkout branch."
+            exit 1
+          fi
+
+          if ! [[ "$checkout_ref" =~ ^[A-Za-z0-9._/-]{1,200}$ ]]; then
+            echo "::error::Invalid checkout branch format."
+            exit 1
+          fi
+
+          printf 'checkout_ref=%s\n' "$checkout_ref" >> "$GITHUB_OUTPUT"
 
       - name: Sanitize run metadata
         env:

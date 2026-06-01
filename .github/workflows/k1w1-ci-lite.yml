@@ -40,13 +40,52 @@ jobs:
     steps:
       - name: Determine target ref
         id: target_ref
-        uses: ./.github/actions/determine-ref
-        with:
-          payload_branch: ${{ github.event.client_payload.branch || '' }}
-          payload_ref: ${{ github.event.client_payload.ref || '' }}
-          input_ref: ${{ inputs.ref || '' }}
-          github_ref_name: ${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
-          default_ref: ""
+        env:
+          PAYLOAD_BRANCH: ${{ github.event.client_payload.branch || '' }}
+          PAYLOAD_REF: ${{ github.event.client_payload.ref || '' }}
+          INPUT_REF: ${{ inputs.ref || '' }}
+          GITHUB_REF_NAME_INPUT: ${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          trim() {
+            local s="$1"
+            s="${s#"${s%%[![:space:]]*}"}"
+            s="${s%"${s##*[![:space:]]}"}"
+            printf '%s' "$s"
+          }
+
+          checkout_ref=""
+          for candidate in "$PAYLOAD_BRANCH" "$PAYLOAD_REF" "$INPUT_REF" "$GITHUB_REF_NAME_INPUT"; do
+            candidate="$(trim "$candidate")"
+            if [ -n "$candidate" ]; then
+              checkout_ref="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$checkout_ref" ]; then
+            echo "::error::Could not resolve checkout ref (all candidates empty)."
+            exit 1
+          fi
+
+          if [[ "$checkout_ref" == -* ]]; then
+            echo "::error::Invalid checkout ref."
+            exit 1
+          fi
+
+          if printf '%s' "$checkout_ref" | grep -qE '[[:space:]:;`|]|\$\('; then
+            echo "::error::Invalid checkout ref."
+            exit 1
+          fi
+
+          if ! [[ "$checkout_ref" =~ ^[A-Za-z0-9._/-]{1,200}$ ]]; then
+            echo "::error::Invalid checkout ref format."
+            exit 1
+          fi
+
+          printf 'checkout_ref=%s\n' "$checkout_ref" >> "$GITHUB_OUTPUT"
 
       - name: Sanitize run metadata
         env:

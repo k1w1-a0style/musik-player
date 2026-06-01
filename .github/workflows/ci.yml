@@ -37,10 +37,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
-        run: npm test -- --runInBand
-
-      - name: Coverage
+      - name: Tests with coverage
         run: npm run test:coverage -- --runInBand
 
       - name: Lint
@@ -54,8 +51,4 @@ jobs:
           node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
 
       - name: Generated Android manifest permission gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx --no-install expo prebuild --platform android --no-install --clean
-          node scripts/ci/checkAndroidManifestPermissions.cjs android/app/src/main/AndroidManifest.xml
+        run: npm run check:android-permissions

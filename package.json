@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings=0",
-    "check:android-permissions": "node scripts/ci/checkAndroidManifestPermissions.cjs android/app/src/main/AndroidManifest.xml",
+    "check:android-permissions": "node scripts/ci/checkGeneratedAndroidManifestPermissions.cjs",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:silent": "jest --runInBand",
