@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useTagEditorScreenState } from '../useTagEditorScreenState';
 import { TagWriterError } from '../../utils/tagWriter';
 import type { Song } from '../../types/Song';
+import type { TagWriterErrorCode } from '../../types/TagEdit';
 
 let mockSongId = 's1';
 const mockGoBack = jest.fn();
@@ -32,7 +33,7 @@ const mockCapability = {
   reason: 'ok',
 };
 
-const mockPlan = {
+const mockPlan: { blockingReasons: TagWriterErrorCode[] } = {
   blockingReasons: [],
 };
 
@@ -87,6 +88,8 @@ const TagEditorStateProbe = () => {
       <Text testID="remove-cover">{String(state.removeCover)}</Text>
       <Text testID="replacement-cover">{state.replacementCover?.uri ?? 'none'}</Text>
       <Text testID="status">{state.status ?? 'none'}</Text>
+      <Text testID="capability-message">{state.capabilityMessage ?? 'none'}</Text>
+      <Text testID="blocked-message">{state.blockedReasonMessage ?? 'none'}</Text>
       <Pressable testID="change-title" onPress={() => state.handleChangeField('title', '  New Title  ')} />
       <Pressable testID="toggle-remove-cover" onPress={state.toggleRemoveCover} />
       <Pressable testID="pick-cover" onPress={() => { void state.handlePickCover(); }} />
@@ -101,6 +104,9 @@ describe('useTagEditorScreenState', () => {
     jest.clearAllMocks();
     mockSongId = 's1';
     mockSongs = [...baseSongs];
+    mockCapability.canWrite = true;
+    mockCapability.reason = 'ok';
+    mockPlan.blockingReasons = [];
     mockWriteTagsToFile.mockResolvedValue({ status: 'written', sourceUri: 'file:///song.mp3', warnings: [] });
     mockPickTagEditorCover.mockResolvedValue({
       status: 'selected',
@@ -157,6 +163,107 @@ describe('useTagEditorScreenState', () => {
     await waitFor(() => expect(getByTestId('replacement-cover').props.children).toBe('file:///new-cover.jpg'));
     expect(getByTestId('remove-cover').props.children).toBe('false');
     expect(getByTestId('status').props.children).toBe('Neues Cover ausgewählt. Speichern schreibt es in die Datei.');
+  });
+
+  test('remove cover clears a selected replacement cover', async () => {
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('pick-cover'));
+    await waitFor(() => expect(getByTestId('replacement-cover').props.children).toBe('file:///new-cover.jpg'));
+
+    fireEvent.press(getByTestId('toggle-remove-cover'));
+
+    expect(getByTestId('replacement-cover').props.children).toBe('none');
+    expect(getByTestId('remove-cover').props.children).toBe('true');
+  });
+
+  test('keeps canSave false without write capability, blocking reasons, or while saving', async () => {
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    mockCapability.canWrite = false;
+    mockCapability.reason = 'blocked by capability';
+    rerender(<TagEditorStateProbe />);
+    fireEvent.press(getByTestId('change-title'));
+    expect(getByTestId('can-save').props.children).toBe('false');
+    expect(getByTestId('capability-message').props.children).toBe('blocked by capability');
+
+    mockCapability.canWrite = true;
+    mockPlan.blockingReasons = ['UnsupportedUri'];
+    fireEvent.press(getByTestId('change-title'));
+    rerender(<TagEditorStateProbe />);
+    expect(getByTestId('can-save').props.children).toBe('false');
+    expect(getByTestId('blocked-message').props.children).toBe('URI ist nicht schreibbar (remote/unknown).');
+
+    let resolveSave: (value: { status: 'written'; sourceUri: string; warnings: string[] }) => void = () => {};
+    mockPlan.blockingReasons = [];
+    mockWriteTagsToFile.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveSave = resolve;
+        }),
+    );
+    rerender(<TagEditorStateProbe />);
+    fireEvent.press(getByTestId('save'));
+
+    await waitFor(() => expect(getByTestId('can-save').props.children).toBe('false'));
+    resolveSave({ status: 'written', sourceUri: 'file:///song.mp3', warnings: [] });
+    await waitFor(() =>
+      expect(getByTestId('status').props.children).toBe('Metadaten erfolgreich geschrieben.'),
+    );
+  });
+
+  test('noop save resets form state without updating metadata', async () => {
+    mockWriteTagsToFile.mockResolvedValueOnce({ status: 'noop', sourceUri: 'file:///song.mp3', warnings: [] });
+    const { getByTestId } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    expect(getByTestId('can-save').props.children).toBe('true');
+    fireEvent.press(getByTestId('save'));
+
+    await waitFor(() => expect(getByTestId('status').props.children).toBe('Keine Änderung.'));
+    expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+    expect(getByTestId('can-save').props.children).toBe('false');
+  });
+
+  test('ignores stale save result after switching songs', async () => {
+    let resolveSave: (value: { status: 'written'; sourceUri: string; warnings: string[] }) => void = () => {};
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockWriteTagsToFile.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveSave = resolve;
+        }),
+    );
+    mockSongs = [
+      ...baseSongs,
+      {
+        id: 's2',
+        title: 'Second Song',
+        artist: 'Artist',
+        uri: 'file:///song-2.mp3',
+        fileInfo: { extension: 'mp3', uri: 'file:///song-2.mp3' },
+      },
+    ];
+    const { getByTestId, rerender } = render(<TagEditorStateProbe />);
+
+    fireEvent.press(getByTestId('change-title'));
+    fireEvent.press(getByTestId('save'));
+    mockSongId = 's2';
+    rerender(<TagEditorStateProbe />);
+
+    resolveSave({ status: 'written', sourceUri: 'file:///song.mp3', warnings: [] });
+
+    await waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[TrackInfo] Ignoring stale tag write result.',
+        expect.objectContaining({ songId: 's1' }),
+      ),
+    );
+    expect(getByTestId('song-id').props.children).toBe('s2');
+    expect(getByTestId('status').props.children).toBe('none');
+    expect(mockUpdateSongMetadata).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
   });
 
 
