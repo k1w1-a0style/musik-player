@@ -3,23 +3,26 @@ import { Alert, Pressable, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useTrackInfoScreenState } from '../useTrackInfoScreenState';
 import { APP_STACK_ROUTES } from '../../types/routes';
+import type { Song } from '../../types/Song';
 
 let mockRouteSongId = 's1';
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 const mockSetSongs = jest.fn();
 
-const mockSongs = [
+const initialSongs: Song[] = [
   {
     id: 's1',
     title: 'One',
     artist: 'A',
     cover: 'file:///fallback.jpg',
     coverInfo: { status: 'cached', uri: 'file:///cached.jpg' },
-    fileInfo: { importedAt: '2024-01-02T03:04:05.000Z' },
+    fileInfo: { importedAt: 1704164645000 },
   },
-  { id: 's2', title: 'Two', artist: 'B' },
+  { id: 's2', title: 'Two', artist: 'B', cover: 'file:///two.jpg' },
 ];
+
+let mockSongs: Song[] = initialSongs;
 
 jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: { songId: mockRouteSongId } }),
@@ -36,6 +39,7 @@ const TrackInfoStateProbe = () => {
   return (
     <>
       <Text testID="song-id">{state.song?.id ?? 'missing'}</Text>
+      <Text testID="state-keys">{Object.keys(state).sort().join(',')}</Text>
       <Text testID="cover-uri">{state.coverUri ?? 'none'}</Text>
       <Text testID="cover-status">{state.coverStatus}</Text>
       <Text testID="imported-at">{state.importedAt}</Text>
@@ -51,6 +55,7 @@ describe('useTrackInfoScreenState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRouteSongId = 's1';
+    mockSongs = initialSongs;
   });
 
   afterEach(() => {
@@ -66,6 +71,17 @@ describe('useTrackInfoScreenState', () => {
     expect(getByTestId('imported-at').props.children).toContain('2024');
   });
 
+  test('finds the selected song from route params when the route changes', () => {
+    const { getByTestId, rerender } = render(<TrackInfoStateProbe />);
+
+    mockRouteSongId = 's2';
+    rerender(<TrackInfoStateProbe />);
+
+    expect(getByTestId('song-id').props.children).toBe('s2');
+    expect(getByTestId('cover-uri').props.children).toBe('file:///two.jpg');
+    expect(getByTestId('cover-status').props.children).toBe('unknown');
+  });
+
   test('resets missing song state', () => {
     mockRouteSongId = '404';
     const { getByTestId } = render(<TrackInfoStateProbe />);
@@ -76,6 +92,33 @@ describe('useTrackInfoScreenState', () => {
     expect(getByTestId('imported-at').props.children).toBe('Nicht verfügbar');
   });
 
+  test('resets cover failure when the selected song changes', () => {
+    const { getByTestId, rerender } = render(<TrackInfoStateProbe />);
+
+    fireEvent.press(getByTestId('fail-cover'));
+    expect(getByTestId('cover-failed').props.children).toBe('true');
+
+    mockRouteSongId = 's2';
+    rerender(<TrackInfoStateProbe />);
+
+    expect(getByTestId('cover-failed').props.children).toBe('false');
+  });
+
+  test('resets cover failure when the selected song cover changes', () => {
+    const { getByTestId, rerender } = render(<TrackInfoStateProbe />);
+
+    fireEvent.press(getByTestId('fail-cover'));
+    expect(getByTestId('cover-failed').props.children).toBe('true');
+
+    mockSongs = [
+      { ...initialSongs[0], cover: 'file:///new-fallback.jpg' },
+      initialSongs[1],
+    ];
+    rerender(<TrackInfoStateProbe />);
+
+    expect(getByTestId('cover-failed').props.children).toBe('false');
+  });
+
   test('navigates to tag editor', () => {
     const { getByTestId } = render(<TrackInfoStateProbe />);
 
@@ -84,15 +127,46 @@ describe('useTrackInfoScreenState', () => {
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TAG_EDITOR, { songId: 's1' });
   });
 
-  test('opens remove confirmation and removes song on confirm', () => {
+  test('opens remove confirmation with unchanged texts', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { getByTestId } = render(<TrackInfoStateProbe />);
+
+    fireEvent.press(getByTestId('remove'));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Aus Bibliothek entfernen?',
+      'Der Track wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'Abbrechen', style: 'cancel' }),
+        expect.objectContaining({ text: 'Entfernen', style: 'destructive' }),
+      ]),
+    );
+  });
+
+  test('keeps library unchanged when removal is cancelled', () => {
     jest.spyOn(Alert, 'alert').mockImplementation((_, __, buttons) => {
-      buttons?.[1]?.onPress?.();
+      buttons?.[0]?.onPress?.();
     });
     const { getByTestId } = render(<TrackInfoStateProbe />);
 
     fireEvent.press(getByTestId('remove'));
 
-    expect(mockSetSongs).toHaveBeenCalledWith([mockSongs[1]]);
+    expect(mockSetSongs).not.toHaveBeenCalled();
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  test('removes song from the current songs ref on confirm and goes back', () => {
+    jest.spyOn(Alert, 'alert').mockImplementation((_, __, buttons) => {
+      mockSongs = [initialSongs[0], initialSongs[1], { id: 's3', title: 'Three', artist: 'C' }];
+      buttons?.[1]?.onPress?.();
+    });
+    const { getByTestId, rerender } = render(<TrackInfoStateProbe />);
+
+    mockSongs = [initialSongs[0], initialSongs[1], { id: 's3', title: 'Three', artist: 'C' }];
+    rerender(<TrackInfoStateProbe />);
+    fireEvent.press(getByTestId('remove'));
+
+    expect(mockSetSongs).toHaveBeenCalledWith([initialSongs[1], { id: 's3', title: 'Three', artist: 'C' }]);
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
@@ -105,5 +179,13 @@ describe('useTrackInfoScreenState', () => {
 
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(mockSetSongs).not.toHaveBeenCalled();
+  });
+
+  test('keeps the public state API stable', () => {
+    const { getByTestId } = render(<TrackInfoStateProbe />);
+
+    expect(getByTestId('state-keys').props.children).toBe(
+      'coverFailed,coverStatus,coverUri,importedAt,openTagEditor,removeFromLibrary,setCoverFailed,song',
+    );
   });
 });
