@@ -90,6 +90,12 @@ describe('storage', () => {
     await expect(storage.get('SONGS')).resolves.toEqual([{ title: 'Broken' }]);
   });
 
+  test('StorageKeys values are unique', () => {
+    const values = Object.values(StorageKeys);
+
+    expect(new Set(values).size).toBe(values.length);
+  });
+
   test('storage.get returns [] for non-array songs JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify({ songs: [] }));
 
