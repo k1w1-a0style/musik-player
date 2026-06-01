@@ -16,20 +16,17 @@ type ContextPlaylistInput = Pick<
   | 'playPlaylist'
 >;
 
-type LibraryActionsInput = ContextLibraryInput;
-type PlaylistActionsInput = ContextPlaylistInput;
+type ContextActionsInput = ContextLibraryInput & ContextPlaylistInput;
 
-export const buildMusicProviderContextLibraryInput = ({
+interface ContextActionSections {
+  library: ContextLibraryInput;
+  playlists: ContextPlaylistInput;
+}
+
+export const buildMusicProviderContextActionsInput = ({
   setSongs,
   addSongs,
   updateSongMetadata,
-}: LibraryActionsInput): ContextLibraryInput => ({
-  setSongs,
-  addSongs,
-  updateSongMetadata,
-});
-
-export const buildMusicProviderContextPlaylistInput = ({
   createPlaylist,
   saveQueueAsPlaylist,
   deletePlaylist,
@@ -37,12 +34,19 @@ export const buildMusicProviderContextPlaylistInput = ({
   addSongToPlaylist,
   removeSongFromPlaylist,
   playPlaylist,
-}: PlaylistActionsInput): ContextPlaylistInput => ({
-  createPlaylist,
-  saveQueueAsPlaylist,
-  deletePlaylist,
-  renamePlaylist,
-  addSongToPlaylist,
-  removeSongFromPlaylist,
-  playPlaylist,
+}: ContextActionsInput): ContextActionSections => ({
+  library: {
+    setSongs,
+    addSongs,
+    updateSongMetadata,
+  },
+  playlists: {
+    createPlaylist,
+    saveQueueAsPlaylist,
+    deletePlaylist,
+    renamePlaylist,
+    addSongToPlaylist,
+    removeSongFromPlaylist,
+    playPlaylist,
+  },
 });
