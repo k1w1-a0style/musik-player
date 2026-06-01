@@ -12,7 +12,7 @@ import type {
 } from './musicContextTypes';
 import { useMusicContextValue } from './useMusicContextValue';
 
-interface ProvidedMusicContextValues {
+export interface ProvidedMusicContextValues {
   value: MusicContextValue;
   libraryValue: LibraryMusicContextValue;
   miniPlayerValue: MiniPlayerMusicContextValue;
