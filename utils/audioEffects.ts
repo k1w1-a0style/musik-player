@@ -32,11 +32,3 @@ export const buildNativeEqBandUpdates = (
     };
   });
 };
-
-export const shouldApplyVisualizerFrame = (
-  nowMs: number,
-  lastUpdateMs: number,
-  intervalMs: number,
-): boolean => nowMs - lastUpdateMs >= intervalMs;
-
-export const shouldStopVisualizerForPlaybackState = (isPlaying: boolean): boolean => !isPlaying;

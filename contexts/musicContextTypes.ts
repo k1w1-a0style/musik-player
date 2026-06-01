@@ -29,9 +29,6 @@ export interface MusicContextValue {
   eqPreset: EqPresetName | 'custom';
   applyEqPreset: (p: EqPresetName) => void;
   eqNative: EqInitResult | null;
-  fftBins: number[];
-  visualizerRunning: boolean;
-  visualizerError: string | null;
   palette: PaletteResult | null;
   playlists: Playlist[];
   createPlaylist: (name: string) => Playlist;
@@ -74,9 +71,6 @@ export interface NowPlayingMusicContextValue {
   volume: number;
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;
-  fftBins: number[];
-  visualizerRunning: boolean;
-  visualizerError: string | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   canSkip: boolean;

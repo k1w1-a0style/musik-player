@@ -151,7 +151,7 @@ npx eas build --platform android --profile preview
 - [ ] MiniPlayer/NowPlaying Smoke Test (disabled states + Navigation)
 - [ ] TrackInfo/TagEditor Smoke Test (fehlende Felder = „Nicht verfügbar“)
 - [ ] Equalizer Smoke Test (Status geräteabhängig/experimentell, kein falsches Versprechen)
-- [ ] Visualizer Smoke Test (kein Mikrofon-Prompt; native FFT bleibt deaktivierter No-op)
+- [ ] NowPlaying Smoke Test ohne Visualizer-Prompt/FFT-Anzeige
 
 ## Known limitations
 
@@ -159,5 +159,5 @@ npx eas build --platform android --profile preview
 - Cover ersetzen ist nur für unterstützte writable `file://` Tracks aktiv; unsupported Container bleiben blockiert
 - MP4/M4A Cover-/Tag-Writes funktionieren nur für bekannte sichere Atom-Layouts
 - Nach Cover Replace kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
-- Visualizer/FFT release-safe deaktiviert; native Android-Visualizer-API wird nicht verdrahtet
+- Visualizer/FFT ist im Release-Pfad entfernt; native Android-Visualizer-API wird nicht verdrahtet
 - Sehr große Dateien werden beim In-App-Tag-Schreiben blockiert

@@ -34,7 +34,7 @@ type EqualizerInput = Pick<
 
 type AudioFeatureInput = Pick<
   MusicContextValue,
-  'eqNative' | 'fftBins' | 'visualizerRunning' | 'visualizerError' | 'palette'
+  'eqNative' | 'palette'
 >;
 
 type PlaylistInput = Pick<

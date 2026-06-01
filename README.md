@@ -11,7 +11,7 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 - Lokale Musikbibliothek via `expo-media-library` inkl. ID3-Auslese.
 - Wiedergabe mit `react-native-track-player` (Lockscreen/Bluetooth/Background).
 - Playlists, Cover-Ansichten, Tag-Editor (einziger Schreibpfad), Equalizer-UI.
-- Visualizer-UI läuft ohne Mikrofonzugriff; native FFT/Audio-Analyse ist release-sicher deaktiviert.
+- Native Visualizer/FFT-Auswertung ist im Release-Pfad entfernt; Now Playing zeigt keine FFT-Daten an.
 
 > Hinweis: Push-Notifications werden nicht mehr als separates Utility geführt.
 

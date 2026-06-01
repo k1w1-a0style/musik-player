@@ -1,47 +1,36 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
-import SystemAudio from 'expo-system-audio';
 import { useMusicProviderAudioFeatures } from '../useMusicProviderAudioFeatures';
 
 jest.mock('../useNativeEqualizer', () => ({
-  useNativeEqualizer: jest.fn(() => null),
+  useNativeEqualizer: jest.fn(() => ({ available: true, enabled: true, bands: [], minMillibel: -1500, maxMillibel: 1500 })),
 }));
 
 jest.mock('../useAlbumPalette', () => ({
-  useAlbumPalette: jest.fn(() => null),
+  useAlbumPalette: jest.fn(() => ({ dominant: '#111111' })),
 }));
 
 const Probe = () => {
   const state = useMusicProviderAudioFeatures({
     currentSong: null,
-    eqEnabled: false,
+    eqEnabled: true,
     eqBands: [],
-    isPlaying: true,
   });
 
   return (
     <>
-      <Text testID="bins">{state.fftBins.join(',')}</Text>
-      <Text testID="running">{String(state.visualizerRunning)}</Text>
-      <Text testID="error">{state.visualizerError ?? ''}</Text>
+      <Text testID="eq">{String(state.eqNative?.available)}</Text>
+      <Text testID="palette">{state.palette?.dominant}</Text>
     </>
   );
 };
 
 describe('useMusicProviderAudioFeatures', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('keeps visualizer disabled and does not register native visualizer listeners', () => {
+  test('exposes supported audio features without visualizer state', () => {
     const { getByTestId } = render(<Probe />);
 
-    expect(getByTestId('bins').props.children).toBe(new Array(16).fill(0).join(','));
-    expect(getByTestId('running').props.children).toBe('false');
-    expect(getByTestId('error').props.children).toBe('');
-    expect(SystemAudio.onFft).not.toHaveBeenCalled();
-    expect(SystemAudio.onVisualizerState).not.toHaveBeenCalled();
-    expect(SystemAudio.visualizerStop).not.toHaveBeenCalled();
+    expect(getByTestId('eq').props.children).toBe('true');
+    expect(getByTestId('palette').props.children).toBe('#111111');
   });
 });

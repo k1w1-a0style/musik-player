@@ -35,7 +35,6 @@ export const useMusicProviderController = () => {
   const audioFeatures = useMusicProviderAudioFeatures(
     buildMusicProviderAudioFeaturesInput({
       providerState,
-      playback,
       equalizer,
     }),
   );
