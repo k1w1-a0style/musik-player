@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 
 const manifestPath = process.argv[2] || 'android/app/src/main/AndroidManifest.xml';

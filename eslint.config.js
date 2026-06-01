@@ -46,6 +46,13 @@ module.exports = [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+
+  {
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
   {
     files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
     rules: {
