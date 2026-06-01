@@ -14,6 +14,15 @@ import type { UseLibraryScanFolderActionsResult } from '../useLibraryScanFolderA
 import type { UseLibraryScreenStateResult } from '../useLibraryScreenState';
 import type { UseLibraryStoredStateResult } from '../useLibraryStoredState';
 import type { UseLibraryViewStateResult } from '../useLibraryViewState';
+import { useLibraryComponentProps } from '../useLibraryComponentProps';
+import { useLibraryImportActions } from '../useLibraryImportActions';
+import { useLibraryMenuActions } from '../useLibraryMenuActions';
+import { useLibraryMetadataRefreshActions } from '../useLibraryMetadataRefreshActions';
+import { useLibraryPlaybackActions } from '../useLibraryPlaybackActions';
+import { useLibraryRenderers } from '../useLibraryRenderers';
+import { useLibraryScanFolderActions } from '../useLibraryScanFolderActions';
+import { useLibraryStoredState } from '../useLibraryStoredState';
+import { useLibraryViewState } from '../useLibraryViewState';
 
 type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
@@ -244,4 +253,75 @@ test('returns library screen props from composed hooks', () => {
     onOpenMenu: expect.any(Function),
     onToggleSearch: expect.any(Function),
   });
+});
+
+test('wires controller state, actions, renderers, playback, and props without changing the public props API', () => {
+  renderHook(() => useLibraryController());
+
+  expect(useLibraryStoredState).toHaveBeenCalledWith('tracks');
+  expect(useLibraryViewState).toHaveBeenCalledWith({
+    activeTab: 'tracks',
+    favoriteIds: [],
+    isReady: true,
+    playlists: [],
+    query: '',
+    scanFolders: [],
+    songs: [],
+  });
+  expect(useLibraryMenuActions).toHaveBeenCalledWith({
+    setMenuOpen: mockScreenState.setMenuOpen,
+    setSearchOpen: mockScreenState.setSearchOpen,
+    showAlert: mockAlerts.showAlert,
+  });
+  expect(useLibraryScanFolderActions).toHaveBeenCalledWith({
+    scanFolders: [],
+    setActiveTab: mockScreenState.setActiveTab,
+    setMenuOpen: mockScreenState.setMenuOpen,
+    setScanFolders: mockStoredState.setScanFolders,
+    showAlert: mockAlerts.showAlert,
+  });
+  expect(useLibraryImportActions).toHaveBeenCalledWith({
+    persistChangedFolderUpdates: mockScanFolderActions.persistChangedFolderUpdates,
+    scanFolders: [],
+    setActiveTab: mockScreenState.setActiveTab,
+    setImportStatus: mockScreenState.setImportStatus,
+    setLoading: mockScreenState.setLoading,
+    setMenuOpen: mockScreenState.setMenuOpen,
+    setSongs: mockMusicContext.setSongs,
+    showAlert: mockAlerts.showAlert,
+    songs: [],
+  });
+  expect(useLibraryMetadataRefreshActions).toHaveBeenCalledWith({
+    setImportStatus: mockScreenState.setImportStatus,
+    setLoading: mockScreenState.setLoading,
+    setMenuOpen: mockScreenState.setMenuOpen,
+    setSongs: mockMusicContext.setSongs,
+    showAlert: mockAlerts.showAlert,
+    songs: [],
+  });
+  expect(useLibraryRenderers).toHaveBeenCalledWith({
+    currentSongId: null,
+    filteredSongs: [],
+    isPlaying: false,
+    onOpenTrackInfo: mockNavigationActions.openTrackInfo,
+    playPlaylist: mockMusicContext.playPlaylist,
+    playSong: mockMusicContext.playSong,
+    removeFolder: mockScanFolderActions.removeFolder,
+  });
+  expect(useLibraryPlaybackActions).toHaveBeenCalledWith({
+    handleSongPress: mockRenderers.handleSongPress,
+    playSong: mockMusicContext.playSong,
+    setAlbumViewMode: mockScreenState.setAlbumViewMode,
+    songsForActiveList: [],
+  });
+  expect(useLibraryComponentProps).toHaveBeenCalledWith(expect.objectContaining({
+    activeTab: 'tracks',
+    importStatus: null,
+    loading: false,
+    menuOpen: false,
+    query: '',
+    searchOpen: false,
+    songsCount: 0,
+  }));
+  expect(Object.keys(jest.mocked(useLibraryComponentProps).mock.calls[0][0]).some(key => key.toLowerCase().includes('visualizer') || key.toLowerCase().includes('fft'))).toBe(false);
 });

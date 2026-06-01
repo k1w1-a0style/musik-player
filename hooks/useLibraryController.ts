@@ -1,42 +1,48 @@
-import { useLibraryMusicContext } from '../contexts/MusicContext';
-import { useLibraryAlerts } from './useLibraryAlerts';
-import { useLibraryComponentProps, type UseLibraryComponentPropsResult } from './useLibraryComponentProps';
-import { useLibraryImportActions } from './useLibraryImportActions';
-import { useLibraryMenuActions } from './useLibraryMenuActions';
-import { useLibraryMetadataRefreshActions } from './useLibraryMetadataRefreshActions';
-import { useLibraryNavigationActions } from './useLibraryNavigationActions';
-import { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
-import { useLibraryRenderers } from './useLibraryRenderers';
-import { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
-import { useLibraryScreenState } from './useLibraryScreenState';
-import { useLibraryStoredState } from './useLibraryStoredState';
-import { useLibraryViewState } from './useLibraryViewState';
+import { useLibraryControllerActions } from './useLibraryControllerActions';
+import { useLibraryControllerProps } from './useLibraryControllerProps';
+import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
+import { useLibraryControllerState } from './useLibraryControllerState';
+import { useLibraryControllerViewModel } from './useLibraryControllerViewModel';
+import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
 
 export const useLibraryController = (): UseLibraryControllerResult => {
-  const { songs, setSongs, currentSong, playSong, isReady, isPlaying, playlists = [], playPlaylist = async () => undefined } = useLibraryMusicContext();
   const {
-    activeTab,
-    albumViewMode,
-    importStatus,
-    loading,
-    menuOpen,
-    query,
-    searchOpen,
-    setActiveTab,
-    setAlbumViewMode,
-    setImportStatus,
-    setLoading,
-    setMenuOpen,
-    setQuery,
-    setSearchOpen,
-  } = useLibraryScreenState();
-  const { scanFolders, setScanFolders, favoriteIds } = useLibraryStoredState(activeTab);
-  const { openTrackInfo } = useLibraryNavigationActions();
-  const { showAlert } = useLibraryAlerts();
+    music: {
+      currentSongId,
+      isPlaying,
+      isReady,
+      playPlaylist,
+      playSong,
+      playlists,
+      setSongs,
+      songs,
+      songsCount,
+    },
+    screen: {
+      activeTab,
+      albumViewMode,
+      importStatus,
+      loading,
+      menuOpen,
+      query,
+      searchOpen,
+      setActiveTab,
+      setAlbumViewMode,
+      setImportStatus,
+      setLoading,
+      setMenuOpen,
+      setQuery,
+      setSearchOpen,
+    },
+    stored: {
+      favoriteIds,
+      scanFolders,
+      setScanFolders,
+    },
+  } = useLibraryControllerState();
 
-  const currentSongId = currentSong?.id ?? null;
   const {
     activeFolders,
     albumGroups,
@@ -46,7 +52,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     genreGroups,
     playlistItems,
     songsForActiveList,
-  } = useLibraryViewState({
+  } = useLibraryControllerViewModel({
     activeTab,
     favoriteIds,
     isReady,
@@ -58,59 +64,39 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   const {
     closeMenu,
+    importFromDevice,
+    onAddScanFolder,
     openMenu,
     openSettings,
-    toggleSearch,
-  } = useLibraryMenuActions({
-    setMenuOpen,
-    setSearchOpen,
-    showAlert,
-  });
-
-  const {
-    showScanFolders,
-    onAddScanFolder,
-    persistChangedFolderUpdates,
+    openTrackInfo,
+    refreshMetadataFromFiles,
     removeFolder,
-  } = useLibraryScanFolderActions({
+    showScanFolders,
+    toggleSearch,
+  } = useLibraryControllerActions({
     scanFolders,
+    setActiveTab,
+    setImportStatus,
+    setLoading,
+    setMenuOpen,
     setScanFolders,
-    setActiveTab,
-    setMenuOpen,
-    showAlert,
-  });
-
-  const { importFromDevice } = useLibraryImportActions({
-    scanFolders,
-    songs,
+    setSearchOpen,
     setSongs,
-    setActiveTab,
-    setMenuOpen,
-    setLoading,
-    setImportStatus,
-    showAlert,
-    persistChangedFolderUpdates,
-  });
-
-  const { refreshMetadataFromFiles } = useLibraryMetadataRefreshActions({
     songs,
-    setSongs,
-    setMenuOpen,
-    setLoading,
-    setImportStatus,
-    showAlert,
   });
 
   const {
     getSongItemLayout,
-    handleSongPress,
+    handlePlayActiveList,
+    handleShufflePress,
     renderAlbumTile,
     renderFolderItem,
     renderGroupItem,
     renderPlaylistItem,
     renderSongItem,
     songKeyExtractor,
-  } = useLibraryRenderers({
+    toggleAlbumView,
+  } = useLibraryControllerRenderers({
     currentSongId,
     filteredSongs,
     isPlaying,
@@ -118,20 +104,11 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     playPlaylist,
     playSong,
     removeFolder,
-  });
-
-  const {
-    handlePlayActiveList,
-    handleShufflePress,
-    toggleAlbumView,
-  } = useLibraryPlaybackActions({
-    handleSongPress,
-    playSong,
     setAlbumViewMode,
     songsForActiveList,
   });
 
-  return useLibraryComponentProps({
+  return useLibraryControllerProps({
     activeFolders,
     activeTab,
     albumGroups,
@@ -166,7 +143,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     setQuery,
     showScanFolders,
     songKeyExtractor,
-    songsCount: songs.length,
+    songsCount,
     songsForActiveList,
     toggleSearch,
   });
