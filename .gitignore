@@ -55,3 +55,14 @@ k1w1-*-hotfix*.zip
 
 .npmrc/
 **/.npmrc
+# Local test/build artifacts
+coverage/
+.nyc_output/
+expo-config.json
+
+# Local temp/backup files
+*.bak
+*.backup
+*.orig
+*.tmp
+*~
