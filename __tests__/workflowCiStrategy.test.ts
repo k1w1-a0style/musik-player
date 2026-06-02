@@ -56,4 +56,14 @@ describe('GitHub workflow CI strategy', () => {
     expect(ciWorkflow).toContain('npm run check:android-permissions');
     expect(ciWorkflow).not.toContain('continue-on-error: true');
   });
+  it('fails closed when an EAS APK download does not produce an artifact', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+
+    expect(easWorkflow).toContain('EAS build succeeded, but eas build:download failed');
+    expect(easWorkflow).toContain('EAS build succeeded, but no non-empty APK was written');
+    expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
+    expect(easWorkflow).toContain('if-no-files-found: error');
+    expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
+  });
+
 });
