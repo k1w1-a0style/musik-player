@@ -774,6 +774,7 @@ jobs:
           echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
+          ARTIFACT_URL="$(echo "${BUILD_OUTPUT}" | grep -oE 'https://expo.dev/artifacts/eas/[^[:space:]]+\.apk' | head -n1 || true)"
           BUILD_ID=""
           if [ -n "${BUILD_URL}" ]; then
             BUILD_ID="$(echo "${BUILD_URL}" | grep -oE "${UUID_RE}$" || true)"
@@ -790,6 +791,7 @@ jobs:
           fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_url=${ARTIFACT_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         id: download_artifact
@@ -802,16 +804,23 @@ jobs:
           echo "Expected Android artifact path: ${OUT}"
           echo "EAS build ID: ${{ steps.eas.outputs.build_id }}"
           echo "EAS build URL: ${{ steps.eas.outputs.build_url }}"
+          echo "EAS artifact URL: ${{ steps.eas.outputs.artifact_url }}"
 
           if ! eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}"; then
-            echo "::error::EAS build succeeded, but eas build:download failed. Build ID=${{ steps.eas.outputs.build_id }} Build URL=${{ steps.eas.outputs.build_url }} Expected output=${OUT}"
-            echo "build/ contents after failed download:"
-            find build -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
-            exit 1
+            echo "eas build:download failed; attempting direct artifact URL fallback."
+            if [ -n "${{ steps.eas.outputs.artifact_url }}" ]; then
+              if curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${{ steps.eas.outputs.artifact_url }}"; then
+                echo "Direct EAS artifact URL fallback completed."
+              else
+                echo "Direct EAS artifact URL fallback failed."
+              fi
+            else
+              echo "No direct EAS artifact URL was found in the build output; cannot use URL fallback."
+            fi
           fi
 
-          if [ ! -s "${OUT}" ]; then
-            echo "::error::EAS build succeeded, but no non-empty APK was written to ${OUT}."
+          if ! test -s "${OUT}"; then
+            echo "::error::EAS build succeeded, but neither eas build:download nor the direct URL fallback produced a non-empty APK. Build ID=${{ steps.eas.outputs.build_id }} Build URL=${{ steps.eas.outputs.build_url }} Artifact URL=${{ steps.eas.outputs.artifact_url }} Expected output=${OUT}"
             echo "build/ contents:"
             find build -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
             exit 1
@@ -940,6 +949,7 @@ jobs:
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
+          - Artifact URL: ${{ steps.eas.outputs.artifact_url }}
           - Diagnostics artifact: eas-build-diagnostics-${{ github.run_number }}
           - APK artifact: ${{ steps.download_artifact.outputs.artifact_name }}
           - APK path: ${{ steps.download_artifact.outputs.artifact_path }}
