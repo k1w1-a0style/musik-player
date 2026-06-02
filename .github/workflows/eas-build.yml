@@ -826,8 +826,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build
-          OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
+          ARTIFACT_DIR="${RUNNER_TEMP:-/tmp}/k1w1-artifacts"
+          mkdir -p "${ARTIFACT_DIR}"
+          OUT="${ARTIFACT_DIR}/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
           echo "Expected Android artifact path: ${OUT}"
           echo "EAS build ID: ${{ steps.eas.outputs.build_id }}"
           echo "EAS build URL: ${{ steps.eas.outputs.build_url }}"
@@ -841,11 +842,45 @@ jobs:
           : > ci-logs/eas-download.log
           for attempt in 1 2 3 4 5; do
             rm -f "${OUT}"
-            echo "Download attempt ${attempt}/5"
-            if eas build:download "${BUILD_ID}" --output "${OUT}" 2>&1 | tee -a ci-logs/eas-download.log && test -s "${OUT}"; then
-              download_ok=true
-              break
+
+            JSON_OUT="ci-logs/eas-download-attempt-${attempt}.json"
+            LOG_OUT="ci-logs/eas-download-attempt-${attempt}.log"
+            rm -f "${JSON_OUT}" "${LOG_OUT}"
+
+            echo "Download attempt ${attempt}/5" | tee -a ci-logs/eas-download.log
+
+            if eas build:download \
+              --build-id "${BUILD_ID}" \
+              --non-interactive \
+              --json > "${JSON_OUT}" 2> "${LOG_OUT}"; then
+
+              DOWNLOADED_APK=""
+              if DOWNLOADED_APK="$(node -e "const fs=require('fs'); const raw=fs.readFileSync(process.argv[1], 'utf8').trim(); const j=JSON.parse(raw); process.stdout.write(j.path || '')" "${JSON_OUT}" 2>> "${LOG_OUT}")"; then
+                echo "Downloaded APK path from EAS JSON: ${DOWNLOADED_APK}" | tee -a ci-logs/eas-download.log
+              else
+                echo "Failed to parse EAS download JSON for attempt ${attempt}; see ${JSON_OUT} and ${LOG_OUT}." | tee -a ci-logs/eas-download.log
+              fi
+
+              if [ -n "${DOWNLOADED_APK}" ] && [ -s "${DOWNLOADED_APK}" ]; then
+                mkdir -p "$(dirname "${OUT}")"
+                mv "${DOWNLOADED_APK}" "${OUT}" || cp "${DOWNLOADED_APK}" "${OUT}"
+
+                if [ -s "${OUT}" ]; then
+                  download_ok=true
+                  break
+                fi
+              elif [ -z "${DOWNLOADED_APK}" ]; then
+                echo "EAS download JSON did not contain a non-empty path for attempt ${attempt}." | tee -a ci-logs/eas-download.log
+              else
+                echo "EAS download JSON path does not point to a non-empty APK for attempt ${attempt}: ${DOWNLOADED_APK}" | tee -a ci-logs/eas-download.log
+              fi
             fi
+
+            echo "No APK produced by eas build:download attempt ${attempt}." | tee -a ci-logs/eas-download.log
+            echo "---- attempt ${attempt} stderr ----" >> ci-logs/eas-download.log
+            cat "${LOG_OUT}" >> ci-logs/eas-download.log 2>/dev/null || true
+            echo "---- attempt ${attempt} json ----" >> ci-logs/eas-download.log
+            cat "${JSON_OUT}" >> ci-logs/eas-download.log 2>/dev/null || true
             sleep 30
           done
 
@@ -865,8 +900,8 @@ jobs:
 
           if ! test -s "${OUT}"; then
             echo "::error::EAS build succeeded, but neither eas build:download nor the direct URL fallback produced a non-empty APK. Build ID=${{ steps.eas.outputs.build_id }} Build URL=${{ steps.eas.outputs.build_url }} Artifact URL=${{ steps.eas.outputs.artifact_url }} Expected output=${OUT}"
-            echo "build/ contents:"
-            find build -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
+            echo "${ARTIFACT_DIR}/ contents:"
+            find "${ARTIFACT_DIR}" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
             exit 1
           fi
 
@@ -880,7 +915,7 @@ jobs:
 
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
           echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
-          ls -lah build
+          ls -lah "${ARTIFACT_DIR}"
 
       - name: Resolve Android SDK build tools
         if: steps.download_artifact.outputs.artifact_path != ''
@@ -947,6 +982,8 @@ jobs:
             ci-logs/eas-build.log
             ci-logs/eas-build-download-help.log
             ci-logs/eas-download.log
+            ci-logs/eas-download-attempt-*.json
+            ci-logs/eas-download-attempt-*.log
             ci-logs/android-apk-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
