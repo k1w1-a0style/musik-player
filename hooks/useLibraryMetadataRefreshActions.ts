@@ -1,38 +1,18 @@
-import { useCallback, useRef } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
-import type { Song } from '../types/Song';
+import { useCallback } from 'react';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
-import { OperationAbortError, isAbortError, isTimeoutError, throwIfAborted, withTimeout, type CancellableOperation, type TimeoutOptions } from '../utils/withTimeout';
-import type { LibraryAlertCopy } from './useLibraryAlerts';
+import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
 import {
   buildMetadataRefreshAvailabilityResult,
-  buildMetadataRefreshResult,
-  getMetadataRefreshFlowCopy,
   getMetadataUpdateStoppedAlert,
 } from '../utils/libraryImportFlow';
+import type { UseLibraryMetadataRefreshActionsOptions, UseLibraryMetadataRefreshActionsResult } from './libraryMetadataRefreshActionTypes';
+import { useLibraryMetadataRefreshLifecycle } from './useLibraryMetadataRefreshLifecycle';
+import { useLibraryMetadataRefreshRunner } from './useLibraryMetadataRefreshRunner';
+import { useLibraryMetadataRefreshStateUpdate } from './useLibraryMetadataRefreshStateUpdate';
 
-interface RefreshGeneration {
-  controller: AbortController;
-  id: number;
-}
+export type { UseLibraryMetadataRefreshActionsOptions, UseLibraryMetadataRefreshActionsResult } from './libraryMetadataRefreshActionTypes';
 
-type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>, timeoutMs: number, timeoutMessage: string, options?: TimeoutOptions) => Promise<T>;
-
-export interface UseLibraryMetadataRefreshActionsOptions {
-  songs: Song[];
-  setSongs: (songs: Song[]) => void;
-  setMenuOpen: Dispatch<SetStateAction<boolean>>;
-  setLoading: Dispatch<SetStateAction<boolean>>;
-  setImportStatus: Dispatch<SetStateAction<string | null>>;
-  showAlert: (alert: LibraryAlertCopy) => void;
-  importTimeoutMs?: number;
-  refreshSongsFromId3Impl?: typeof refreshSongsFromId3;
-  withTimeoutImpl?: TimeoutRunner;
-}
-
-export interface UseLibraryMetadataRefreshActionsResult {
-  refreshMetadataFromFiles: () => Promise<void>;
-}
+const DEFAULT_METADATA_REFRESH_TIMEOUT_MS = 90_000;
 
 export const useLibraryMetadataRefreshActions = ({
   songs,
@@ -41,20 +21,29 @@ export const useLibraryMetadataRefreshActions = ({
   setLoading,
   setImportStatus,
   showAlert,
-  importTimeoutMs = 90_000,
+  importTimeoutMs = DEFAULT_METADATA_REFRESH_TIMEOUT_MS,
   refreshSongsFromId3Impl = refreshSongsFromId3,
   withTimeoutImpl = withTimeout,
 }: UseLibraryMetadataRefreshActionsOptions): UseLibraryMetadataRefreshActionsResult => {
-  const generationRef = useRef(0);
-  const activeRefreshRef = useRef<RefreshGeneration | null>(null);
-
-  const isCurrentRefresh = useCallback((generation: RefreshGeneration): boolean =>
-    activeRefreshRef.current?.id === generation.id && !generation.controller.signal.aborted,
-  []);
-
-  const ensureCurrentRefresh = useCallback((generation: RefreshGeneration): void => {
-    if (!isCurrentRefresh(generation)) throwIfAborted(generation.controller.signal);
-  }, [isCurrentRefresh]);
+  const {
+    startRefresh,
+    isCurrentRefresh,
+    ensureCurrentRefresh,
+    finishRefresh,
+  } = useLibraryMetadataRefreshLifecycle({ setLoading, setImportStatus });
+  const { runMetadataRefresh } = useLibraryMetadataRefreshRunner({
+    songs,
+    setImportStatus,
+    importTimeoutMs,
+    refreshSongsFromId3Impl,
+    withTimeoutImpl,
+    ensureCurrentRefresh,
+  });
+  const { applyMetadataRefreshResult } = useLibraryMetadataRefreshStateUpdate({
+    setSongs,
+    showAlert,
+    ensureCurrentRefresh,
+  });
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {
     setMenuOpen(false);
@@ -64,29 +53,11 @@ export const useLibraryMetadataRefreshActions = ({
       return;
     }
 
-    const previousRefresh = activeRefreshRef.current;
-    previousRefresh?.controller.abort(new OperationAbortError('Metadata refresh superseded by a newer refresh'));
-    const generation = { controller: new AbortController(), id: generationRef.current + 1 };
-    generationRef.current = generation.id;
-    activeRefreshRef.current = generation;
-    const refreshCopy = getMetadataRefreshFlowCopy();
-
+    const generation = startRefresh();
     setLoading(true);
     try {
-      setImportStatus(refreshCopy.readingStatus);
-      const result = await withTimeoutImpl(
-        signal => refreshSongsFromId3Impl(songs, { signal }),
-        importTimeoutMs,
-        refreshCopy.timeoutMessage,
-        { signal: generation.controller.signal },
-      );
-      ensureCurrentRefresh(generation);
-      const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
-      if (refreshResult.shouldApplyUpdate) {
-        setSongs(refreshResult.songs);
-      }
-      ensureCurrentRefresh(generation);
-      showAlert(refreshResult.alert);
+      const result = await runMetadataRefresh(generation);
+      applyMetadataRefreshResult(result, generation);
     } catch (error) {
       if (isTimeoutError(error)) {
         console.warn('[LibraryRefresh] Metadata refresh timed out.', error);
@@ -98,13 +69,9 @@ export const useLibraryMetadataRefreshActions = ({
       }
       showAlert(getMetadataUpdateStoppedAlert(error));
     } finally {
-      if (activeRefreshRef.current?.id === generation.id) {
-        activeRefreshRef.current = null;
-        setLoading(false);
-        setImportStatus(null);
-      }
+      finishRefresh(generation);
     }
-  }, [ensureCurrentRefresh, importTimeoutMs, isCurrentRefresh, refreshSongsFromId3Impl, setImportStatus, setLoading, setMenuOpen, setSongs, showAlert, songs, withTimeoutImpl]);
+  }, [applyMetadataRefreshResult, finishRefresh, isCurrentRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
 
   return { refreshMetadataFromFiles };
 };

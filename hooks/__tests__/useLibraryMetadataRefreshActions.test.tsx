@@ -6,9 +6,10 @@ import type { Song } from '../../types/Song';
 import {
   getMetadataRefreshCompleteAlert,
   getMetadataUpdateStoppedAlert,
+  getMetadataRefreshFlowCopy,
   getNoSongsMetadataAlert,
 } from '../../utils/libraryImportFlow';
-import { TimeoutError } from '../../utils/withTimeout';
+import { OperationAbortError, TimeoutError } from '../../utils/withTimeout';
 
 const song = (id: string, title = id): Song => ({
   id,
@@ -58,16 +59,22 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 test('shows empty alert when there are no songs', async () => {
   const showAlert = jest.fn();
   const refreshSongsFromId3Impl = jest.fn();
   const setMenuOpen = jest.fn();
   const setLoading = jest.fn();
+  const setImportStatus = jest.fn();
   const screen = render(
     <HookHarness
       songs={[]}
       setMenuOpen={setMenuOpen}
       setLoading={setLoading}
+      setImportStatus={setImportStatus}
       showAlert={showAlert}
       refreshSongsFromId3Impl={refreshSongsFromId3Impl}
     />,
@@ -79,6 +86,7 @@ test('shows empty alert when there are no songs', async () => {
   expect(refreshSongsFromId3Impl).not.toHaveBeenCalled();
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setLoading).not.toHaveBeenCalledWith(true);
+  expect(setImportStatus).not.toHaveBeenCalled();
 });
 
 test('refreshes metadata, applies updated songs and shows completion alert', async () => {
@@ -109,12 +117,13 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
   fireEvent.press(screen.getByText('refresh'));
 
   await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], { signal: expect.any(AbortSignal) }));
-  expect(withTimeoutCalls).toHaveBeenCalledWith(expect.any(Function), 100, expect.any(String));
+  const refreshCopy = getMetadataRefreshFlowCopy();
+  expect(withTimeoutCalls).toHaveBeenCalledWith(expect.any(Function), 100, refreshCopy.timeoutMessage);
   expect(setSongs).toHaveBeenCalledWith([song('updated', 'Fresh')]);
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 2, 3));
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setLoading).toHaveBeenNthCalledWith(1, true);
-  expect(setImportStatus).toHaveBeenCalledWith(expect.any(String));
+  expect(setImportStatus).toHaveBeenCalledWith(refreshCopy.readingStatus);
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
@@ -151,6 +160,7 @@ test('cancels stale overlapping refresh and lets the latest refresh win', async 
   });
   const refreshSongsFromId3Impl = jest.fn().mockReturnValue(refreshPromise);
   const setLoading = jest.fn();
+  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const screen = render(
     <HookHarness
       songs={[song('old')]}
@@ -165,8 +175,8 @@ test('cancels stale overlapping refresh and lets the latest refresh win', async 
   expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2);
   resolveRefresh({ songs: [song('updated', 'Fresh')], updated: 1, skipped: 0, failed: 0, errors: [] });
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
 });
-
 
 test('does not apply stale metadata refresh result after timeout', async () => {
   let resolveRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
@@ -214,6 +224,7 @@ test('shows stopped alert and clears loading when refresh throws', async () => {
   const showAlert = jest.fn();
   const error = new Error('kaputt');
   const refreshSongsFromId3Impl = jest.fn().mockRejectedValue(error);
+  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const screen = render(
     <HookHarness
       songs={[song('old')]}
@@ -229,6 +240,80 @@ test('shows stopped alert and clears loading when refresh throws', async () => {
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(error)));
   expect(setSongs).not.toHaveBeenCalled();
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh failed.', error);
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test('cancels stale overlapping refresh without applying stale state or stopped alert', async () => {
+  let resolveLatestRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
+  const latestRefreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
+    resolveLatestRefresh = resolve;
+  });
+  const refreshSongsFromId3Impl = jest
+    .fn()
+    .mockReturnValueOnce(new Promise(() => undefined))
+    .mockReturnValueOnce(latestRefreshPromise);
+  const setSongs = jest.fn();
+  const setLoading = jest.fn();
+  const setImportStatus = jest.fn();
+  const showAlert = jest.fn();
+  const abortError = new OperationAbortError('Metadata refresh superseded by a newer refresh');
+  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const withTimeoutImpl = <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), _timeoutMs: number, _timeoutMessage: string, options?: { signal?: AbortSignal }): Promise<T> => {
+    const signal = options?.signal ?? new AbortController().signal;
+    const operationPromise = typeof operation === 'function' ? operation(signal) : operation;
+    const abortPromise = new Promise<never>((_, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason ?? abortError), { once: true });
+    });
+    return Promise.race([operationPromise, abortPromise]);
+  };
+  const screen = render(
+    <HookHarness
+      songs={[song('old')]}
+      setSongs={setSongs}
+      setLoading={setLoading}
+      setImportStatus={setImportStatus}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error)));
+  expect(setLoading).not.toHaveBeenCalledWith(false);
+  expect(setImportStatus).not.toHaveBeenCalledWith(null);
+
+  resolveLatestRefresh({ songs: [song('latest', 'Latest')], updated: 1, skipped: 0, failed: 0, errors: [] });
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('latest', 'Latest')]));
+  expect(showAlert).toHaveBeenCalledTimes(1);
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 0, 0));
+  expect(showAlert).not.toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(expect.any(Error)));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test('passes the active refresh signal to the injected timeout runner', async () => {
+  const observedSignals: AbortSignal[] = [];
+  const refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 0, failed: 0 });
+  const withTimeoutImpl = <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), _timeoutMs: number, _timeoutMessage: string, options?: { signal?: AbortSignal }): Promise<T> => {
+    if (options?.signal) observedSignals.push(options.signal);
+    return typeof operation === 'function' ? operation(options?.signal ?? new AbortController().signal) : operation;
+  };
+  const screen = render(
+    <HookHarness
+      songs={[song('old')]}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], { signal: observedSignals[0] }));
+  expect(observedSignals).toHaveLength(1);
 });
