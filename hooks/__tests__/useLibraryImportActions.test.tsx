@@ -6,7 +6,9 @@ import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
 import {
   getEmptyScanImportAlert,
+  getEmptyMediaLibraryImportAlert,
   getMediaLibraryPermissionDeniedAlert,
+  getPartialScanImportAlert,
 } from '../../utils/libraryImportFlow';
 import { TimeoutError } from '../../utils/withTimeout';
 
@@ -84,6 +86,10 @@ beforeEach(() => {
   persistChangedFolderUpdates.mockResolvedValue(undefined);
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 test('uses scan folder import on android when active scan folders exist', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: [], folderUpdates: [folder('music')] });
   const requestMediaLibraryPermissionsAsync = jest.fn();
@@ -107,6 +113,40 @@ test('uses scan folder import on android when active scan folders exist', async 
   expect(setLoading).toHaveBeenNthCalledWith(1, true);
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test('scan folder import publishes preparing reading and found statuses', async () => {
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: [], folderUpdates: undefined });
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('scan-song')]));
+  expect(setImportStatus).toHaveBeenCalledWith('Import wird vorbereitet…');
+  expect(setImportStatus).toHaveBeenCalledWith('Scan-Ordner werden gelesen… (1)');
+  expect(setImportStatus).toHaveBeenCalledWith('1 Tracks gefunden. Bibliothek wird aktualisiert…');
+});
+
+test('shows partial scan alert and still applies imported songs', async () => {
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: ['content://missing'], folderUpdates: undefined });
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      songs={[song('existing')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getPartialScanImportAlert()));
+  expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
+  expect(setActiveTab).toHaveBeenCalledWith('tracks');
 });
 
 test('keeps scan import results when folder update persistence rejects', async () => {
@@ -153,6 +193,37 @@ test('cancels stale overlapping import and lets the latest import finish', async
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
 });
 
+test('does not show stopped alert when a stale import is superseded', async () => {
+  let resolveFirst: (value: { songs: Song[]; errors: never[]; folderUpdates: undefined }) => void = () => undefined;
+  let resolveSecond: (value: { songs: Song[]; errors: never[]; folderUpdates: undefined }) => void = () => undefined;
+  const firstImport = new Promise<{ songs: Song[]; errors: never[]; folderUpdates: undefined }>(resolve => {
+    resolveFirst = resolve;
+  });
+  const secondImport = new Promise<{ songs: Song[]; errors: never[]; folderUpdates: undefined }>(resolve => {
+    resolveSecond = resolve;
+  });
+  const importSongsFromSourcesImpl = jest.fn()
+    .mockReturnValueOnce(firstImport)
+    .mockReturnValueOnce(secondImport);
+  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+  fireEvent.press(screen.getByText('import'));
+
+  resolveFirst({ songs: [song('stale')], errors: [], folderUpdates: undefined });
+  resolveSecond({ songs: [song('latest')], errors: [], folderUpdates: undefined });
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('latest')]));
+  expect(setSongs).not.toHaveBeenCalledWith([song('stale')]);
+  expect(showAlert).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Import gestoppt' }));
+  expect(warnSpy).toHaveBeenCalledWith('[Import] Import cancelled.', expect.any(Error));
+});
 
 test('does not apply or persist stale scan import after timeout', async () => {
   let resolveImport: (value: { songs: Song[]; errors: never[]; folderUpdates: ScanFolder[] }) => void = () => undefined;
@@ -249,6 +320,27 @@ test('does not import media assets when permission is denied', async () => {
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMediaLibraryPermissionDeniedAlert()));
   expect(scanMediaLibraryCandidatesImpl).not.toHaveBeenCalled();
+  expect(setSongs).not.toHaveBeenCalled();
+});
+
+test('shows empty media library alert without confirmation or enrichment', async () => {
+  const scanMediaLibraryCandidatesImpl = jest.fn().mockResolvedValue({ assets: [], skipped: [] });
+  const confirmLibraryImportImpl = jest.fn();
+  const enrichMediaLibraryAssetsImpl = jest.fn();
+  const screen = render(
+    <HookHarness
+      scanFolders={[]}
+      scanMediaLibraryCandidatesImpl={scanMediaLibraryCandidatesImpl}
+      confirmLibraryImportImpl={confirmLibraryImportImpl}
+      enrichMediaLibraryAssetsImpl={enrichMediaLibraryAssetsImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getEmptyMediaLibraryImportAlert()));
+  expect(confirmLibraryImportImpl).not.toHaveBeenCalled();
+  expect(enrichMediaLibraryAssetsImpl).not.toHaveBeenCalled();
   expect(setSongs).not.toHaveBeenCalled();
 });
 
