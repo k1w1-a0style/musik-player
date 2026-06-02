@@ -2,7 +2,7 @@
 
 ## Build Config
 
-- [ ] `name` = `Kiwi`
+- [ ] `name` = `k1w1-Musik`
 - [ ] `scheme` = `musik-player`
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`

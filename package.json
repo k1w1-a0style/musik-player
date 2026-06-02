@@ -12,7 +12,8 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:silent": "jest --runInBand",
-    "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs"
+    "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs",
+    "inspect:android-apk": "node scripts/ci/inspectAndroidApk.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "0.4.1",

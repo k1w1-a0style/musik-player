@@ -30,7 +30,6 @@ module.exports = ({ config }) => {
 
   return {
     ...base,
-    name: isDevelopmentBuild ? 'Kiwi Dev' : base.name,
     android,
     extra,
   };

@@ -6,7 +6,7 @@ import { spawnSync } from 'child_process';
 const gateScript = path.join(__dirname, '..', 'scripts', 'ci', 'checkExpoReleaseConfig.cjs');
 
 const baseConfig = {
-  name: 'Kiwi',
+  name: 'k1w1-Musik',
   scheme: 'musik-player',
   slug: 'musik-player',
   android: {

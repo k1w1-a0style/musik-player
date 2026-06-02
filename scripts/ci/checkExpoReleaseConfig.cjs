@@ -13,7 +13,7 @@ const expectEqual = (label, actual, expected) => {
 
 const MIC_PERMISSION = 'android.permission.' + 'RECORD_AUDIO';
 
-expectEqual('name', config.name, 'Kiwi');
+expectEqual('name', config.name, 'k1w1-Musik');
 expectEqual('scheme', config.scheme, 'musik-player');
 expectEqual('slug', config.slug, 'musik-player');
 expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');

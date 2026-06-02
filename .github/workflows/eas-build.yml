@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 405
+# workflow-version: 407
 name: EAS Build
 
 on:
@@ -96,7 +96,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
-      WORKFLOW_VERSION: "405"
+      WORKFLOW_VERSION: "407"
 
     steps:
       - name: Checkout
@@ -773,25 +773,115 @@ jobs:
           }
           echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
+          BUILD_ID=""
+          if [ -n "${BUILD_URL}" ]; then
+            BUILD_ID="$(echo "${BUILD_URL}" | grep -oE "${UUID_RE}$" || true)"
+          fi
+          if [ -z "${BUILD_ID}" ]; then
+            BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*${UUID_RE}" | grep -oE "${UUID_RE}" | head -n1 || true)"
+          fi
+          if [ -z "${BUILD_ID}" ]; then
+            BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
+          fi
+          if [ -z "${BUILD_ID}" ]; then
+            echo "::error::Could not extract EAS build ID from successful EAS output. See diagnostics artifact."
+            exit 1
+          fi
+          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
-        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
-        continue-on-error: true
+        id: download_artifact
+        if: steps.eas.outputs.build_id != ''
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
-          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
-              echo "::warning::Failed to download artifact"
-              exit 0
-            }
-          ls -lah build || true
+          echo "Expected Android artifact path: ${OUT}"
+          echo "EAS build ID: ${{ steps.eas.outputs.build_id }}"
+          echo "EAS build URL: ${{ steps.eas.outputs.build_url }}"
+
+          if ! eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}"; then
+            echo "::error::EAS build succeeded, but eas build:download failed. Build ID=${{ steps.eas.outputs.build_id }} Build URL=${{ steps.eas.outputs.build_url }} Expected output=${OUT}"
+            echo "build/ contents after failed download:"
+            find build -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
+            exit 1
+          fi
+
+          if [ ! -s "${OUT}" ]; then
+            echo "::error::EAS build succeeded, but no non-empty APK was written to ${OUT}."
+            echo "build/ contents:"
+            find build -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
+            exit 1
+          fi
+
+          case "${OUT}" in
+            *.apk) ;;
+            *)
+              echo "::error::Expected an APK artifact for Android profile '${{ inputs.profile }}', got ${OUT}."
+              exit 1
+              ;;
+          esac
+
+          echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
+          ls -lah build
+
+      - name: Resolve Android SDK build tools
+        if: steps.download_artifact.outputs.artifact_path != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          for root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"; do
+            if [ -n "${root}" ] && [ -d "${root}/build-tools" ]; then
+              latest_build_tools="$(find "${root}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+              if [ -n "${latest_build_tools}" ]; then
+                echo "Using Android build tools: ${latest_build_tools}"
+                echo "${latest_build_tools}" >> "${GITHUB_PATH}"
+                export PATH="${latest_build_tools}:${PATH}"
+                break
+              fi
+            fi
+          done
+          if ! command -v aapt >/dev/null 2>&1 && ! command -v aapt2 >/dev/null 2>&1; then
+            echo "::error::aapt/aapt2 not found; cannot validate APK package, label, SDK levels, ABI metadata, or permissions."
+            exit 1
+          fi
+          if ! command -v apksigner >/dev/null 2>&1; then
+            echo "::error::apksigner not found; cannot validate APK signature."
+            exit 1
+          fi
+          command -v aapt || true
+          command -v aapt2 || true
+          command -v apksigner
+
+      - name: Inspect downloaded Android APK
+        if: steps.download_artifact.outputs.artifact_path != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ inputs.profile }}" in
+            development)
+              EXPECTED_PACKAGE="com.k1w1a0style.musikplayer.dev"
+              ;;
+            preview|production)
+              EXPECTED_PACKAGE="com.k1w1a0style.musikplayer"
+              ;;
+            *)
+              echo "::error::Unexpected profile '${{ inputs.profile }}' while validating APK metadata."
+              exit 1
+              ;;
+          esac
+          node scripts/ci/inspectAndroidApk.cjs \
+            "${{ steps.download_artifact.outputs.artifact_path }}" \
+            --expected-package "${EXPECTED_PACKAGE}" \
+            --expected-label "k1w1-Musik" \
+            --min-size-bytes 10000001 \
+            --require-badging \
+            --require-signature \
+            | tee ci-logs/android-apk-inspection.log
 
       - name: Upload build diagnostics
         if: always()
@@ -802,6 +892,7 @@ jobs:
             ci-logs/eas-version.log
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
+            ci-logs/android-apk-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
             ci-logs/keystore-response.sanitized.txt
@@ -819,15 +910,14 @@ jobs:
           rm -f ci-logs/keystore-response.raw.json
           true
 
-      - name: Upload Artifact
-        if: always()
-        continue-on-error: true
+      - name: Upload Android APK Artifact
+        if: steps.download_artifact.outputs.artifact_path != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}
-          path: build/*
+          name: ${{ steps.download_artifact.outputs.artifact_name }}
+          path: ${{ steps.download_artifact.outputs.artifact_path }}
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Summary
         if: always()
@@ -851,6 +941,8 @@ jobs:
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
           - Diagnostics artifact: eas-build-diagnostics-${{ github.run_number }}
+          - APK artifact: ${{ steps.download_artifact.outputs.artifact_name }}
+          - APK path: ${{ steps.download_artifact.outputs.artifact_path }}
 
           Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
