@@ -15,9 +15,23 @@ const easProjectId = eas && eas.projectId ? String(eas.projectId) : undefined;
 
 module.exports = ({ config }) => {
   const base = config || readJson('app.json') || {};
+  const profile = process.env.EAS_BUILD_PROFILE || '';
+  const isDevelopmentBuild = profile === 'development';
+
   const extra = { ...(base.extra || {}) };
-  const easExtra = { ...((extra.eas) || {}) };
+  const easExtra = { ...(extra.eas || {}) };
   if (!easExtra.projectId && easProjectId) easExtra.projectId = easProjectId;
   extra.eas = easExtra;
-  return { ...base, extra };
+
+  const android = { ...(base.android || {}) };
+  if (isDevelopmentBuild) {
+    android.package = 'com.k1w1a0style.musikplayer.dev';
+  }
+
+  return {
+    ...base,
+    name: isDevelopmentBuild ? 'Kiwi Dev' : base.name,
+    android,
+    extra,
+  };
 };
