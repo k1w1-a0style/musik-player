@@ -2,6 +2,34 @@
 
 This guide is for diagnosing a downloaded GitHub Actions APK when Android only shows a generic message such as `App wurde nicht installiert.` It is not a replacement for the workflow APK validation; it helps get the real device-side install error.
 
+
+## Build the correct development APK
+
+For a real development APK, always trigger the GitHub workflow with the `development` EAS profile on the `codex` ref:
+
+```bash
+gh workflow run eas-build.yml \
+  --repo k1w1-a0style/musik-player \
+  --ref codex \
+  -f ref=codex \
+  -f profile=development \
+  -f platform=android \
+  -f autofix=false \
+  -f strict_lockfile=auto
+```
+
+After the workflow completes, install only the GitHub Actions artifact named `eas-android-development-<run_number>`. Do not manually install an arbitrary production or Play Store build from the Expo dashboard when testing the development APK.
+
+On the Expo build page, the expected metadata for this target is:
+
+- Profile: `development`
+- Environment: `development`
+- Android output: APK with Expo Dev Client
+- Android package: `com.k1w1a0style.musikplayer.dev`
+- App label: `k1w1-Musik`
+
+It should not appear as an Android Play Store build, and it should not show `Environment: production`.
+
 ## 1. Download the APK from GitHub Actions
 
 1. Open the `EAS Build` workflow run for the requested branch/profile.
