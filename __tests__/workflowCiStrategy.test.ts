@@ -62,6 +62,11 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).toContain('EAS build succeeded, but eas build:download failed');
     expect(easWorkflow).toContain('EAS build succeeded, but no non-empty APK was written');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
+    expect(easWorkflow).toContain('--expected-label "k1w1-Musik"');
+    expect(easWorkflow).toContain('--min-size-bytes 10000001');
+    expect(easWorkflow).toContain('--require-badging');
+    expect(easWorkflow).toContain('--require-signature');
+    expect(easWorkflow).toContain('EXPECTED_PACKAGE="com.k1w1a0style.musikplayer.dev"');
     expect(easWorkflow).toContain('if-no-files-found: error');
     expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
   });

@@ -35,7 +35,7 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 Erwartete Werte:
 
 ```text
-Kiwi
+k1w1-Musik
 musik-player
 musik-player
 com.k1w1a0style.musikplayer

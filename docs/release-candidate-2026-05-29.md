@@ -9,7 +9,7 @@ Diese RC-Vorbereitung enthält bewusst **keine Architekturänderungen, keine neu
 ## Geprüfter Projektstand
 
 - App/Expo-Konfiguration: `app.json` und `app.config.js` vorhanden; `app.config.js` ergänzt `expo.extra.eas.projectId` aus `eas-project.json`.
-- App-Name/Slug/Scheme: `Kiwi` / `musik-player` / `musik-player`.
+- App-Name/Slug/Scheme: `k1w1-Musik` / `musik-player` / `musik-player`.
 - Zielplattform: Android.
 - React-Native-New-Architecture: `newArchEnabled=false` bleibt unverändert.
 - Android Package Name: `com.k1w1a0style.musikplayer`.
