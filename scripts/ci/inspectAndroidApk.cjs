@@ -244,10 +244,14 @@ const inspectApk = options => {
   const apksigner = findTool('apksigner');
   if (apksigner) {
     const result = run(apksigner, ['verify', '--verbose', apkPath]);
-    info('signatureStatus', result.status === 0 ? 'verified' : 'failed');
+    const signatureVerified = result.status === 0;
+    info('signatureStatus', signatureVerified ? 'verified' : 'failed');
     const details = `${result.stdout}${result.stderr}`.trim();
     if (details) console.log(details);
-    if (result.status !== 0) process.exit(1);
+    if (!signatureVerified) {
+      if (options.requireSignature) process.exit(1);
+      warn('APK signature verification failed; continuing because --require-signature was not set');
+    }
   } else if (options.requireSignature) {
     fail('apksigner not found; required APK signature verification cannot run');
   } else {

@@ -16,23 +16,46 @@ const parseBadgingViaNode = (badging: string) => {
   return JSON.parse(result.stdout);
 };
 
+const makeApkLikeZip = () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'apk-inspector-'));
+  const apk = path.join(dir, 'smoke.apk');
+
+  const zipResult = spawnSync(
+    'bash',
+    ['-lc', 'printf manifest > AndroidManifest.xml && printf dex > classes.dex && zip -q smoke.apk AndroidManifest.xml classes.dex'],
+    { cwd: dir, encoding: 'utf8' },
+  );
+  expect(zipResult.status).toBe(0);
+
+  return { dir, apk };
+};
+
+const makeFailingApksignerPath = () => {
+  const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apk-inspector-bin-'));
+  const apksigner = path.join(binDir, 'apksigner');
+  fs.writeFileSync(apksigner, '#!/usr/bin/env bash\necho "DOES NOT VERIFY" >&2\nexit 1\n', 'utf8');
+  fs.chmodSync(apksigner, 0o755);
+  return binDir;
+};
+
 describe('Android APK inspector', () => {
-  it('prints APK-like ZIP structure and warns when Android build tools are unavailable', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'apk-inspector-'));
-    const apk = path.join(dir, 'smoke.apk');
+  it('prints APK-like ZIP structure and tolerates optional signature failures', () => {
+    const { dir, apk } = makeApkLikeZip();
+    const binDir = makeFailingApksignerPath();
 
-    spawnSync('bash', ['-lc', 'printf manifest > AndroidManifest.xml && printf dex > classes.dex && zip -q smoke.apk AndroidManifest.xml classes.dex'], {
-      cwd: dir,
+    const result = spawnSync(process.execPath, [inspectorScript, apk], {
       encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}` },
     });
-
-    const result = spawnSync(process.execPath, [inspectorScript, apk], { encoding: 'utf8' });
     fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('zipIntegrity: ok');
     expect(result.stdout).toContain('hasAndroidManifestXml: yes');
     expect(result.stdout).toContain('hasClassesDex: yes');
+    expect(result.stdout).toContain('signatureStatus: failed');
+    expect(result.stdout).toContain('warning: APK signature verification failed; continuing because --require-signature was not set');
   });
 
   it('fails clearly for a missing APK path', () => {
@@ -40,6 +63,21 @@ describe('Android APK inspector', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('APK not found');
+  });
+
+  it('fails when --require-signature is set and apksigner rejects the APK', () => {
+    const { dir, apk } = makeApkLikeZip();
+    const binDir = makeFailingApksignerPath();
+
+    const result = spawnSync(process.execPath, [inspectorScript, apk, '--require-signature'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}` },
+    });
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('signatureStatus: failed');
   });
 
   it('parses realistic aapt badging output including label, SDKs, ABIs, and permissions', () => {
