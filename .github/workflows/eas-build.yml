@@ -11,7 +11,7 @@ on:
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
-        default: "preview"
+        default: "development"
       job_id:
         description: "Supabase build job id (optional)"
         required: false
@@ -44,7 +44,7 @@ on:
         description: "EAS build profile (development|preview|production)"
         required: false
         type: string
-        default: "preview"
+        default: "development"
       job_id:
         description: "Supabase build job id (optional)"
         required: false
@@ -409,6 +409,33 @@ jobs:
           fi
 
           echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+
+          case "${{ inputs.profile }}" in
+            development)
+              EXPECTED_EAS_ENVIRONMENT="development"
+              EXPECTED_ANDROID_PACKAGE="com.k1w1a0style.musikplayer.dev"
+              ;;
+            preview)
+              EXPECTED_EAS_ENVIRONMENT="preview"
+              EXPECTED_ANDROID_PACKAGE="com.k1w1a0style.musikplayer"
+              ;;
+            production)
+              EXPECTED_EAS_ENVIRONMENT="production"
+              EXPECTED_ANDROID_PACKAGE="com.k1w1a0style.musikplayer"
+              ;;
+          esac
+          EXPECTED_LABEL="k1w1-Musik"
+
+          echo "Requested profile: ${{ inputs.profile }}"
+          echo "Expected EAS environment for profile: ${EXPECTED_EAS_ENVIRONMENT}"
+          echo "Expected Android package: ${EXPECTED_ANDROID_PACKAGE}"
+          echo "Expected label: ${EXPECTED_LABEL}"
+
+          {
+            echo "EXPECTED_EAS_ENVIRONMENT=${EXPECTED_EAS_ENVIRONMENT}"
+            echo "EXPECTED_ANDROID_PACKAGE=${EXPECTED_ANDROID_PACKAGE}"
+            echo "EXPECTED_LABEL=${EXPECTED_LABEL}"
+          } >> "$GITHUB_ENV"
 
           if [ -z "${JOB_ID:-}" ]; then
             echo "has_job_id=false" >> "$GITHUB_ENV"

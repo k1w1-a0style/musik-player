@@ -1,5 +1,5 @@
 name: K1W1 Triggered Build
-run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'preview' }} • ${{ github.event.client_payload.ref || github.event.inputs.ref }}"
+run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'development' }} • ${{ github.event.client_payload.ref || github.event.inputs.ref }}"
 
 on:
   repository_dispatch:
@@ -12,7 +12,7 @@ on:
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
-        default: "preview"
+        default: "development"
       job_id:
         description: "Optional build_jobs id to update in Supabase"
         required: false
@@ -36,7 +36,7 @@ concurrency:
   group: >-
     k1w1-triggered-build-
     ${{ github.event.client_payload.ref || github.event.inputs.ref }}-
-    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
+    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'development' }}
   cancel-in-progress: false
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
         shell: bash
         env:
           RAW_REF: ${{ github.event.client_payload.ref || github.event.inputs.ref || '' }}
-          RAW_PROFILE: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
+          RAW_PROFILE: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'development' }}
           RAW_JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
           RAW_AUTOFIX: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}
           RAW_STRICT_LOCKFILE: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}

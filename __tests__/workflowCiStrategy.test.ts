@@ -82,4 +82,22 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
   });
 
+  it('defaults manual and triggered EAS builds to the development profile', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+    const triggeredWorkflow = readWorkflow('k1w1-triggered-build.yml');
+
+    expect(easWorkflow).toContain('default: "development"');
+    expect(easWorkflow).not.toContain('default: "preview"');
+    expect(easWorkflow).toContain('Requested profile:');
+    expect(easWorkflow).toContain('Expected EAS environment for profile:');
+    expect(easWorkflow).toContain('Expected Android package:');
+    expect(easWorkflow).toContain('Expected label:');
+    expect(easWorkflow).toContain('com.k1w1a0style.musikplayer.dev');
+
+    expect(triggeredWorkflow).toContain('default: "development"');
+    expect(triggeredWorkflow).toContain("|| 'development'");
+    expect(triggeredWorkflow).not.toContain('default: "preview"');
+    expect(triggeredWorkflow).not.toContain("|| 'preview'");
+  });
+
 });
