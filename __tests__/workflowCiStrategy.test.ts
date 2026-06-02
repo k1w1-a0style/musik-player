@@ -59,15 +59,26 @@ describe('GitHub workflow CI strategy', () => {
   it('fails closed when an EAS APK download does not produce an artifact', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
 
-    expect(easWorkflow).toContain('EAS build succeeded, but eas build:download failed');
-    expect(easWorkflow).toContain('EAS build succeeded, but no non-empty APK was written');
+    expect(easWorkflow).toContain('artifact_url=');
+    expect(easWorkflow).toContain('https://expo.dev/artifacts/eas/');
+    expect(easWorkflow).toContain('curl --fail');
+    expect(easWorkflow).toContain('eas build:download failed; attempting direct artifact URL fallback.');
+    expect(easWorkflow).toContain('Direct EAS artifact URL fallback failed.');
+    expect(easWorkflow).toContain('neither eas build:download nor the direct URL fallback produced a non-empty APK');
+    expect(easWorkflow).toContain('Build ID=${{ steps.eas.outputs.build_id }}');
+    expect(easWorkflow).toContain('Build URL=${{ steps.eas.outputs.build_url }}');
+    expect(easWorkflow).toContain('Artifact URL=${{ steps.eas.outputs.artifact_url }}');
+    expect(easWorkflow).toContain('Expected output=${OUT}');
+    expect(easWorkflow).toContain('find build -maxdepth 2 -type f');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
     expect(easWorkflow).toContain('--expected-label "k1w1-Musik"');
     expect(easWorkflow).toContain('--min-size-bytes 10000001');
     expect(easWorkflow).toContain('--require-badging');
     expect(easWorkflow).toContain('--require-signature');
     expect(easWorkflow).toContain('EXPECTED_PACKAGE="com.k1w1a0style.musikplayer.dev"');
-    expect(easWorkflow).toContain('if-no-files-found: error');
+    expect(easWorkflow).toContain('EXPECTED_PACKAGE="com.k1w1a0style.musikplayer"');
+    const uploadAndroidApkBlock = easWorkflow.match(/- name: Upload Android APK Artifact[\s\S]*?if-no-files-found: error/);
+    expect(uploadAndroidApkBlock).not.toBeNull();
     expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
   });
 
