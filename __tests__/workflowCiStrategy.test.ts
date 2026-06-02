@@ -82,6 +82,23 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
   });
 
+  it('keeps the EAS build job timeout long enough for queued Android dev-client builds', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+    const autofixJobBlock = easWorkflow.match(/\n  autofix:[\s\S]*?\n  build:/)?.[0] ?? '';
+    const buildJobBlock = easWorkflow.match(/\n  build:[\s\S]*?(?=\n  [a-zA-Z0-9_-]+:|\n*$)/)?.[0] ?? '';
+
+    expect(buildJobBlock).toContain('timeout-minutes: 180');
+    expect(buildJobBlock).not.toContain('timeout-minutes: 60');
+    expect(autofixJobBlock).toContain('timeout-minutes: 30');
+    expect(easWorkflow).toContain('default: "development"');
+    expect(easWorkflow).not.toContain('default: "preview"');
+    expect(easWorkflow).toContain('eas build:download failed; attempting direct artifact URL fallback.');
+    expect(easWorkflow).toContain('Direct EAS artifact URL fallback failed.');
+    expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
+    expect(easWorkflow).toContain('--require-badging');
+    expect(easWorkflow).toContain('--require-signature');
+  });
+
   it('defaults manual and triggered EAS builds to the development profile', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
     const triggeredWorkflow = readWorkflow('k1w1-triggered-build.yml');
