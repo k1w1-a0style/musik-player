@@ -86,12 +86,21 @@ test('showScanFolders selects folders tab and closes menu', () => {
 
 test('onAddScanFolder shows unsupported alert on non-android platforms', async () => {
   const showAlert = jest.fn();
+  const setMenuOpen = jest.fn();
   const requestDirectoryPermissionsAsync = jest.fn();
-  const screen = render(<HookHarness platformOs="ios" showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
+  const screen = render(
+    <HookHarness
+      platformOs="ios"
+      showAlert={showAlert}
+      setMenuOpen={setMenuOpen}
+      requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync}
+    />,
+  );
 
   fireEvent.press(screen.getByText('add'));
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderUnsupportedAlert()));
+  expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(requestDirectoryPermissionsAsync).not.toHaveBeenCalled();
 });
 
@@ -119,6 +128,11 @@ test('onAddScanFolder persists added folder and activates folders tab', async ()
   fireEvent.press(screen.getByText('add'));
 
   await waitFor(() => expect(mockedPersistAddedScanFolder).toHaveBeenCalled());
+  expect(mockedPersistAddedScanFolder).toHaveBeenCalledWith([folder('a')], expect.objectContaining({
+    enabled: true,
+    name: 'music',
+    uri: 'content://music',
+  }));
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setScanFolders).toHaveBeenCalledWith([folder('a'), folder('b')]);
   expect(setActiveTab).toHaveBeenCalledWith('folders');
@@ -126,18 +140,32 @@ test('onAddScanFolder persists added folder and activates folders tab', async ()
 
 test('onAddScanFolder shows duplicate alert when persistence reports duplicate', async () => {
   const showAlert = jest.fn();
+  const setScanFolders = jest.fn();
+  const setActiveTab = jest.fn();
   mockedPersistAddedScanFolder.mockResolvedValue({ kind: 'duplicate' });
-  const screen = render(<HookHarness showAlert={showAlert} />);
+  const screen = render(<HookHarness showAlert={showAlert} setScanFolders={setScanFolders} setActiveTab={setActiveTab} />);
 
   fireEvent.press(screen.getByText('add'));
 
   await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getDuplicateScanFolderAlert()));
+  expect(setScanFolders).not.toHaveBeenCalled();
+  expect(setActiveTab).not.toHaveBeenCalled();
 });
 
-test('onAddScanFolder shows unavailable alert when picker or persistence fails', async () => {
+test('onAddScanFolder shows unavailable alert when picker fails', async () => {
   const showAlert = jest.fn();
   const requestDirectoryPermissionsAsync = jest.fn().mockRejectedValue(new Error('boom'));
   const screen = render(<HookHarness showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
+
+  fireEvent.press(screen.getByText('add'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderUnavailableAlert()));
+});
+
+test('onAddScanFolder shows unavailable alert when persistence fails', async () => {
+  const showAlert = jest.fn();
+  mockedPersistAddedScanFolder.mockRejectedValue(new Error('persist failed'));
+  const screen = render(<HookHarness showAlert={showAlert} />);
 
   fireEvent.press(screen.getByText('add'));
 
