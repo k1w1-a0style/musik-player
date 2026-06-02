@@ -62,6 +62,15 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).toContain('artifact_url=');
     expect(easWorkflow).toContain('https://expo.dev/artifacts/eas/');
     expect(easWorkflow).toContain('curl --fail');
+    expect(easWorkflow).not.toContain('eas build:download --id');
+    expect(easWorkflow).toContain('eas build:download "${BUILD_ID}" --output "${OUT}"');
+    expect(easWorkflow).toContain('for attempt in 1 2 3 4 5; do');
+    expect(easWorkflow).toContain('Download attempt ${attempt}/5');
+    expect(easWorkflow).toContain('download_ok=false');
+    expect(easWorkflow).toContain('eas build:download --help');
+    expect(easWorkflow).toContain('ci-logs/eas-build-download-help.log');
+    expect(easWorkflow).toContain('ci-logs/eas-download.log');
+    expect(easWorkflow).not.toContain('--latest');
     expect(easWorkflow).toContain('eas build:download failed; attempting direct artifact URL fallback.');
     expect(easWorkflow).toContain('Direct EAS artifact URL fallback failed.');
     expect(easWorkflow).toContain('neither eas build:download nor the direct URL fallback produced a non-empty APK');

@@ -95,7 +95,7 @@ jobs:
 
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.32.0"
+      EAS_CLI_VERSION: "20.0.0"
       WORKFLOW_VERSION: "407"
 
     steps:
@@ -375,7 +375,7 @@ jobs:
 
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.32.0"
+      EAS_CLI_VERSION: "20.0.0"
 
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -833,10 +833,27 @@ jobs:
           echo "EAS build URL: ${{ steps.eas.outputs.build_url }}"
           echo "EAS artifact URL: ${{ steps.eas.outputs.artifact_url }}"
 
-          if ! eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}"; then
+          eas build:download --help | tee ci-logs/eas-build-download-help.log || true
+
+          BUILD_ID="${{ steps.eas.outputs.build_id }}"
+          ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"
+          download_ok=false
+          : > ci-logs/eas-download.log
+          for attempt in 1 2 3 4 5; do
+            rm -f "${OUT}"
+            echo "Download attempt ${attempt}/5"
+            if eas build:download "${BUILD_ID}" --output "${OUT}" 2>&1 | tee -a ci-logs/eas-download.log && test -s "${OUT}"; then
+              download_ok=true
+              break
+            fi
+            sleep 30
+          done
+
+          if [ "${download_ok}" = false ]; then
             echo "eas build:download failed; attempting direct artifact URL fallback."
-            if [ -n "${{ steps.eas.outputs.artifact_url }}" ]; then
-              if curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${{ steps.eas.outputs.artifact_url }}"; then
+            if [ -n "${ARTIFACT_URL}" ]; then
+              rm -f "${OUT}"
+              if curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"; then
                 echo "Direct EAS artifact URL fallback completed."
               else
                 echo "Direct EAS artifact URL fallback failed."
@@ -928,6 +945,8 @@ jobs:
             ci-logs/eas-version.log
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
+            ci-logs/eas-build-download-help.log
+            ci-logs/eas-download.log
             ci-logs/android-apk-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
