@@ -1,6 +1,6 @@
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { parseId3FromUri } from '../id3Parser';
-import { enrichMediaLibraryAssets, scanFromSafFolders } from '../mediaLibraryImport';
+import { enrichMediaLibraryAssets, importSongsFromSources, scanFromSafFolders } from '../mediaLibraryImport';
 
 jest.mock('expo-file-system/legacy', () => ({
   StorageAccessFramework: { readDirectoryAsync: jest.fn(async () => []) },
@@ -62,4 +62,19 @@ test('SAF scan reads ID3 by default and can explicitly skip it', async () => {
   );
   expect(parseId3FromUri).not.toHaveBeenCalled();
   expect(fastResult.songs[0].title).toBe('song');
+});
+
+
+test('SAF import from default sources skips ID3 for faster initial import', async () => {
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue(['content://root/Fast%20Song.mp3']);
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Slow ID3 Title' });
+
+  const result = await importSongsFromSources({
+    scanFolders: [{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }],
+    platformOs: 'android',
+  });
+
+  expect(parseId3FromUri).not.toHaveBeenCalled();
+  expect(result.songs[0].title).toBe('Fast Song');
+  expect(result.songs[0].coverInfo?.status).toBe('none');
 });

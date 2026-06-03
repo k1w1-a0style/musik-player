@@ -104,7 +104,7 @@ test('uses scan folder import on android when active scan folders exist', async 
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')], platformOs: 'android', signal: expect.any(AbortSignal) }));
+  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')], platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function) }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
@@ -130,6 +130,33 @@ test('scan folder import publishes preparing reading and found statuses', async 
   expect(setImportStatus).toHaveBeenCalledWith('Import wird vorbereitet…');
   expect(setImportStatus).toHaveBeenCalledWith('Scan-Ordner werden gelesen… (1)');
   expect(setImportStatus).toHaveBeenCalledWith('1 Tracks gefunden. Bibliothek wird aktualisiert…');
+});
+
+test('scan folder import publishes throttled SAF scan progress statuses', async () => {
+  const dateNowSpy = jest.spyOn(Date, 'now')
+    .mockReturnValueOnce(1_000)
+    .mockReturnValueOnce(1_100)
+    .mockReturnValueOnce(1_500);
+  const importSongsFromSourcesImpl = jest.fn(async ({ onSafProgress }) => {
+    onSafProgress?.({ directoriesVisited: 1, filesFound: 0, errorsFound: 0, currentUri: 'content://music' });
+    onSafProgress?.({ directoriesVisited: 1, filesFound: 1, errorsFound: 0, currentUri: 'content://music/a.mp3' });
+    onSafProgress?.({ directoriesVisited: 2, filesFound: 2, errorsFound: 0, currentUri: 'content://music/b.mp3' });
+    return { songs: [song('scan-song')], errors: [], folderUpdates: undefined };
+  });
+  const screen = render(
+    <HookHarness
+      scanFolders={[folder('music')]}
+      importSongsFromSourcesImpl={importSongsFromSourcesImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('import'));
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('scan-song')]));
+  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 0 Tracks gefunden');
+  expect(setImportStatus).not.toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 1 Tracks gefunden');
+  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 2 Ordner gelesen, 2 Tracks gefunden');
+  dateNowSpy.mockRestore();
 });
 
 test('shows partial scan alert and still applies imported songs', async () => {
@@ -230,7 +257,10 @@ test('does not apply or persist stale scan import after timeout', async () => {
   const importPromise = new Promise<{ songs: Song[]; errors: never[]; folderUpdates: ScanFolder[] }>(resolve => {
     resolveImport = resolve;
   });
-  const importSongsFromSourcesImpl = jest.fn().mockReturnValue(importPromise);
+  const importSongsFromSourcesImpl = jest.fn(({ onSafProgress }) => {
+    onSafProgress?.({ directoriesVisited: 12, filesFound: 24, errorsFound: 1, currentUri: 'content://music' });
+    return importPromise;
+  });
   const timeoutError = new TimeoutError('scan timed out');
   const withTimeoutImpl = async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
     if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
@@ -253,6 +283,7 @@ test('does not apply or persist stale scan import after timeout', async () => {
   await Promise.resolve();
   expect(setSongs).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).not.toHaveBeenCalled();
+  expect(warnSpy).toHaveBeenCalledWith('[Import] SAF scan progress before timeout.', { directoriesVisited: 12, filesFound: 24, errorsFound: 1, currentUri: 'content://music' });
   expect(warnSpy).toHaveBeenCalledWith('[Import] Import timed out.', timeoutError);
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);

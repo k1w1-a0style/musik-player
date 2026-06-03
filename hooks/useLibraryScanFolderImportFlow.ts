@@ -4,11 +4,21 @@ import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryAlertCopy } from './useLibraryAlerts';
 import type { ImportGeneration, ImportedSongsStateUpdate, TimeoutRunner } from './libraryImportActionTypes';
-import type { importSongsFromSources } from '../utils/mediaLibraryImport';
+import type { importSongsFromSources, SafDirectoryScanProgress } from '../utils/mediaLibraryImport';
 import {
   buildScanImportResult,
   getScanImportProgressCopy,
 } from '../utils/libraryImportFlow';
+import { isTimeoutError } from '../utils/withTimeout';
+
+const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
+
+const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string => {
+  if (progress.directoriesVisited > 0) {
+    return `Scan läuft… ${progress.directoriesVisited} Ordner gelesen, ${progress.filesFound} Tracks gefunden`;
+  }
+  return `Scan läuft… ${progress.filesFound} Tracks gefunden`;
+};
 
 interface UseLibraryScanFolderImportFlowOptions {
   songs: Song[];
@@ -39,12 +49,31 @@ export const useLibraryScanFolderImportFlow = ({
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
-    const result = await withTimeoutImpl(
-      signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal }),
-      importTimeoutMs,
-      scanProgress.timeoutMessage,
-      { signal: generation.controller.signal },
-    );
+    let latestSafProgress: SafDirectoryScanProgress | undefined;
+    let lastProgressStatusAt = 0;
+    const publishSafProgress = (progress: SafDirectoryScanProgress): void => {
+      latestSafProgress = progress;
+      const now = Date.now();
+      if (lastProgressStatusAt > 0 && now - lastProgressStatusAt < SAF_PROGRESS_STATUS_THROTTLE_MS) return;
+      lastProgressStatusAt = now;
+      ensureCurrentImport(generation);
+      setImportStatus(buildSafScanProgressStatus(progress));
+    };
+
+    let result: Awaited<ReturnType<typeof importSongsFromSourcesImpl>>;
+    try {
+      result = await withTimeoutImpl(
+        signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal, onSafProgress: publishSafProgress }),
+        importTimeoutMs,
+        scanProgress.timeoutMessage,
+        { signal: generation.controller.signal },
+      );
+    } catch (error) {
+      if (latestSafProgress && isTimeoutError(error)) {
+        console.warn('[Import] SAF scan progress before timeout.', latestSafProgress);
+      }
+      throw error;
+    }
     ensureCurrentImport(generation);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
