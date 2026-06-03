@@ -263,7 +263,25 @@ describe('mediaLibraryImport', () => {
     const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
 
     expect(read).toHaveBeenCalledTimes(mediaImport.MAX_SAF_DIRECTORIES);
-    expect(result.files.length).toBeLessThan(mediaImport.MAX_SAF_DIRECTORIES);
+    expect(read).not.toHaveBeenCalledWith(`content://root/dir-${mediaImport.MAX_SAF_DIRECTORIES - 1}`);
+    expect(result.files.length).toBe(mediaImport.MAX_SAF_DIRECTORIES - 1);
+  });
+
+  test('saf scan imports audio files from the last allowed directory when directory cap is reached', async () => {
+    const lastAllowedDirectory = `content://root/dir-${mediaImport.MAX_SAF_DIRECTORIES - 2}`;
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') {
+        return Array.from({ length: mediaImport.MAX_SAF_DIRECTORIES + 20 }, (_, idx) => `content://root/dir-${idx}`);
+      }
+      if (uri === lastAllowedDirectory) return [`${uri}/last.mp3`, `${uri}/extra-subdir`];
+      return [`${uri}/song.mp3`];
+    });
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+
+    expect(result.files).toContain(`${lastAllowedDirectory}/last.mp3`);
+    expect(read).not.toHaveBeenCalledWith(`${lastAllowedDirectory}/extra-subdir`);
+    expect(read).toHaveBeenCalledTimes(mediaImport.MAX_SAF_DIRECTORIES);
   });
 
   test('saf scan progress reports directories files and errors', async () => {

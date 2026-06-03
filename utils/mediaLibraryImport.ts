@@ -353,7 +353,7 @@ export const readAudioUrisFromSafDirectory = async (
     for (const entry of entries) {
       throwIfAborted(signal);
       processedEntriesSinceYield += 1;
-      if (files.length >= MAX_SAF_FILES || visited.size >= MAX_SAF_DIRECTORIES) break;
+      if (files.length >= MAX_SAF_FILES) break;
       if (isAudioFileUri(entry)) {
         const normalizedFile = normalizeImportUriForDedupe(entry) ?? entry;
         if (!seenFiles.has(normalizedFile)) {
@@ -364,7 +364,7 @@ export const readAudioUrisFromSafDirectory = async (
         await maybeYield();
         continue;
       }
-      if (depth < MAX_SAF_DEPTH && shouldAttemptSafDirectoryRead(entry)) {
+      if (depth < MAX_SAF_DEPTH && visited.size < MAX_SAF_DIRECTORIES && shouldAttemptSafDirectoryRead(entry)) {
         throwIfAborted(signal);
         await walk(entry, depth + 1, false);
         emitProgress(entry);
