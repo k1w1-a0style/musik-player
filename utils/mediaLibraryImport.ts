@@ -14,7 +14,9 @@ const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 2;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
-export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 10_000;
+export const MAX_SAF_DIRECTORIES = 300;
+export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 2_000;
+const SAF_SCAN_YIELD_ENTRY_INTERVAL = 25;
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 const KNOWN_NON_AUDIO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'txt', 'nfo', 'cue', 'lrc', 'm3u', 'm3u8', 'pls', 'pdf', 'json']);
@@ -48,12 +50,20 @@ export interface ImportScanResult {
   folderUpdates?: ScanFolder[];
 }
 
+export interface SafDirectoryScanProgress {
+  filesFound: number;
+  directoriesVisited: number;
+  currentUri?: string;
+  errorsFound: number;
+}
+
 export interface ImportSongsOptions {
   scanFolders?: ScanFolder[];
   platformOs?: string;
   loadNativeCovers?: boolean;
   readId3Tags?: boolean;
   signal?: AbortSignal;
+  onSafProgress?: (progress: SafDirectoryScanProgress) => void;
 }
 
 interface BuildSongSource {
@@ -73,6 +83,10 @@ interface BuildSongOptions {
 interface ImportEnrichmentOptions extends BuildSongOptions {
   readId3Tags?: boolean;
   signal?: AbortSignal;
+}
+
+interface SafImportOptions extends ImportEnrichmentOptions {
+  onProgress?: (progress: SafDirectoryScanProgress) => void;
 }
 
 const safeDecode = (value: string): string => {
@@ -235,6 +249,7 @@ const addNormalizedSafError = (uri: string, errors: string[], seenErrors: Set<st
 interface SafDirectoryReadOptions {
   signal?: AbortSignal;
   readTimeoutMs?: number;
+  onProgress?: (progress: SafDirectoryScanProgress) => void;
 }
 
 class SafDirectoryReadTimeoutError extends Error {
@@ -276,55 +291,93 @@ const readSafDirectoryWithTimeout = async (
   }
 };
 
+const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+
 export const readAudioUrisFromSafDirectory = async (
   directoryUri: string,
   readDirectory: (uri: string) => Promise<string[]> = StorageAccessFramework.readDirectoryAsync,
   options: SafDirectoryReadOptions = {},
 ): Promise<{ files: string[]; errors: string[] }> => {
-  const { signal } = options;
+  const { signal, onProgress } = options;
   const files: string[] = [];
   const seenFiles = new Set<string>();
   const errors: string[] = [];
   const seenErrors = new Set<string>();
   const visited = new Set<string>();
+  let processedEntriesSinceYield = 0;
+
+  const emitProgress = (currentUri?: string): void => {
+    onProgress?.({
+      filesFound: files.length,
+      directoriesVisited: visited.size,
+      currentUri,
+      errorsFound: errors.length,
+    });
+  };
+
+  const recordSafError = (uri: string): void => {
+    const previousErrorCount = errors.length;
+    addNormalizedSafError(uri, errors, seenErrors);
+    if (errors.length !== previousErrorCount) emitProgress(uri);
+  };
+
+  const maybeYield = async (force = false): Promise<void> => {
+    if (!force && processedEntriesSinceYield < SAF_SCAN_YIELD_ENTRY_INTERVAL) return;
+    processedEntriesSinceYield = 0;
+    await yieldToEventLoop();
+    throwIfAborted(signal);
+  };
 
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
     throwIfAborted(signal);
     const normalizedDirectory = normalizeImportUriForDedupe(uri) ?? uri;
-    if (visited.has(normalizedDirectory) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
+    if (visited.has(normalizedDirectory) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH || visited.size >= MAX_SAF_DIRECTORIES) return;
     visited.add(normalizedDirectory);
+    emitProgress(uri);
 
     let entries: string[];
     try {
       throwIfAborted(signal);
       entries = await readSafDirectoryWithTimeout(uri, readDirectory, options);
       throwIfAborted(signal);
+      emitProgress(uri);
+      await maybeYield(true);
     } catch (error) {
       throwIfAborted(signal);
-      if (reportError || classifySafReadDirectoryError(error) === 'permission') addNormalizedSafError(uri, errors, seenErrors);
+      if (reportError || classifySafReadDirectoryError(error) === 'permission') recordSafError(uri);
+      else emitProgress(uri);
+      await maybeYield(true);
       return;
     }
 
     for (const entry of entries) {
       throwIfAborted(signal);
+      processedEntriesSinceYield += 1;
       if (files.length >= MAX_SAF_FILES) break;
       if (isAudioFileUri(entry)) {
         const normalizedFile = normalizeImportUriForDedupe(entry) ?? entry;
         if (!seenFiles.has(normalizedFile)) {
           seenFiles.add(normalizedFile);
           files.push(entry);
+          emitProgress(entry);
         }
+        await maybeYield();
         continue;
       }
-      if (depth < MAX_SAF_DEPTH && shouldAttemptSafDirectoryRead(entry)) {
+      if (depth < MAX_SAF_DEPTH && visited.size < MAX_SAF_DIRECTORIES && shouldAttemptSafDirectoryRead(entry)) {
         throwIfAborted(signal);
         await walk(entry, depth + 1, false);
+        emitProgress(entry);
+        await maybeYield(true);
+      } else {
+        await maybeYield();
       }
     }
   };
 
   await walk(directoryUri, 0, true);
   throwIfAborted(signal);
+  emitProgress(directoryUri);
   return { files, errors };
 };
 
@@ -425,9 +478,9 @@ export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}
 
 export const scanFromSafFolders = async (
   folders: ScanFolder[],
-  options: ImportEnrichmentOptions = {},
+  options: SafImportOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true, signal } = options;
+  const { loadNativeCover = true, readId3Tags = true, signal, onProgress } = options;
   throwIfAborted(signal);
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -442,7 +495,7 @@ export const scanFromSafFolders = async (
       continue;
     }
 
-    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal });
+    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal, onProgress });
     throwIfAborted(signal);
     if (folderErrors.length > 0) errors.push(...folderErrors);
 
@@ -473,12 +526,18 @@ export const scanFromSafFolders = async (
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs, loadNativeCovers = true, readId3Tags = true, signal } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers, readId3Tags, signal, onSafProgress } = options;
   throwIfAborted(signal);
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
-  const importOptions = { loadNativeCover: loadNativeCovers, readId3Tags, signal };
-  if (platformOs === 'android' && activeSafFolders.length > 0) return scanFromSafFolders(activeSafFolders, importOptions);
-  return scanFromMediaLibrary(importOptions);
+  if (platformOs === 'android' && activeSafFolders.length > 0) {
+    return scanFromSafFolders(activeSafFolders, {
+      loadNativeCover: loadNativeCovers ?? false,
+      readId3Tags: readId3Tags ?? false,
+      signal,
+      onProgress: onSafProgress,
+    });
+  }
+  return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers ?? true, readId3Tags: readId3Tags ?? true, signal });
 };
 
 export const loadAllAudioAssetsFromMediaLibrary = async (
