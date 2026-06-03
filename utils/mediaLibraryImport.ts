@@ -7,13 +7,14 @@ import { parseFilename } from './musicParser';
 import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilter';
-import { throwIfAborted } from './withTimeout';
+import { OperationAbortError, throwIfAborted } from './withTimeout';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 const ID3_WORKER_COUNT = 2;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
+export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 10_000;
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 const KNOWN_NON_AUDIO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'txt', 'nfo', 'cue', 'lrc', 'm3u', 'm3u8', 'pls', 'pdf', 'json']);
@@ -137,7 +138,7 @@ export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
 export const classifySafReadDirectoryError = (error: unknown): 'not-directory' | 'permission' | 'unknown' => {
   const message = String((error as { message?: unknown })?.message ?? error).toLowerCase();
   if (message.includes('enotdir') || message.includes('not a directory') || message.includes('is not a directory') || message.includes('not directory') || message.includes('not a folder')) return 'not-directory';
-  if (message.includes('securityexception') || message.includes('permission') || message.includes('denied') || message.includes('access') || message.includes("isn't readable") || message.includes('is not readable') || message.includes('not readable') || message.includes('cannot read') || message.includes("can't read") || message.includes('could not read') || message.includes('failed to read') || message.includes('read failed') || message.includes('unreadable') || message.includes('unauthorized') || message.includes('eacces') || message.includes('eperm') || message.includes('revoked') || message.includes('provider error') || message.includes('provider failed')) return 'permission';
+  if (message.includes('timed out') || message.includes('timeout') || message.includes('securityexception') || message.includes('permission') || message.includes('denied') || message.includes('access') || message.includes("isn't readable") || message.includes('is not readable') || message.includes('not readable') || message.includes('cannot read') || message.includes("can't read") || message.includes('could not read') || message.includes('failed to read') || message.includes('read failed') || message.includes('unreadable') || message.includes('unauthorized') || message.includes('eacces') || message.includes('eperm') || message.includes('revoked') || message.includes('provider error') || message.includes('provider failed')) return 'permission';
   return 'unknown';
 };
 
@@ -231,10 +232,56 @@ const addNormalizedSafError = (uri: string, errors: string[], seenErrors: Set<st
   errors.push(normalizedUri);
 };
 
+interface SafDirectoryReadOptions {
+  signal?: AbortSignal;
+  readTimeoutMs?: number;
+}
+
+class SafDirectoryReadTimeoutError extends Error {
+  constructor(uri: string, timeoutMs: number) {
+    super(`SAF directory read timed out after ${timeoutMs}ms: ${uri}`);
+    this.name = 'SafDirectoryReadTimeoutError';
+  }
+}
+
+const abortErrorFromSignal = (signal: AbortSignal): Error => {
+  const reason = signal.reason;
+  if (reason instanceof Error) return reason;
+  return new OperationAbortError(typeof reason === 'string' ? reason : undefined);
+};
+
+const readSafDirectoryWithTimeout = async (
+  uri: string,
+  readDirectory: (uri: string) => Promise<string[]>,
+  { signal, readTimeoutMs = DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS }: SafDirectoryReadOptions,
+): Promise<string[]> => {
+  throwIfAborted(signal);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abortListener: (() => void) | undefined;
+  try {
+    const readPromise = readDirectory(uri);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new SafDirectoryReadTimeoutError(uri, readTimeoutMs)), readTimeoutMs);
+    });
+    const abortPromise = new Promise<never>((_, reject) => {
+      abortListener = () => {
+        if (signal) reject(abortErrorFromSignal(signal));
+      };
+      signal?.addEventListener('abort', abortListener, { once: true });
+    });
+    return await Promise.race([readPromise, timeoutPromise, abortPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal && abortListener) signal.removeEventListener('abort', abortListener);
+  }
+};
+
 export const readAudioUrisFromSafDirectory = async (
   directoryUri: string,
   readDirectory: (uri: string) => Promise<string[]> = StorageAccessFramework.readDirectoryAsync,
+  options: SafDirectoryReadOptions = {},
 ): Promise<{ files: string[]; errors: string[] }> => {
+  const { signal } = options;
   const files: string[] = [];
   const seenFiles = new Set<string>();
   const errors: string[] = [];
@@ -242,19 +289,24 @@ export const readAudioUrisFromSafDirectory = async (
   const visited = new Set<string>();
 
   const walk = async (uri: string, depth: number, reportError: boolean): Promise<void> => {
+    throwIfAborted(signal);
     const normalizedDirectory = normalizeImportUriForDedupe(uri) ?? uri;
     if (visited.has(normalizedDirectory) || files.length >= MAX_SAF_FILES || depth > MAX_SAF_DEPTH) return;
     visited.add(normalizedDirectory);
 
     let entries: string[];
     try {
-      entries = await readDirectory(uri);
+      throwIfAborted(signal);
+      entries = await readSafDirectoryWithTimeout(uri, readDirectory, options);
+      throwIfAborted(signal);
     } catch (error) {
+      throwIfAborted(signal);
       if (reportError || classifySafReadDirectoryError(error) === 'permission') addNormalizedSafError(uri, errors, seenErrors);
       return;
     }
 
     for (const entry of entries) {
+      throwIfAborted(signal);
       if (files.length >= MAX_SAF_FILES) break;
       if (isAudioFileUri(entry)) {
         const normalizedFile = normalizeImportUriForDedupe(entry) ?? entry;
@@ -264,11 +316,15 @@ export const readAudioUrisFromSafDirectory = async (
         }
         continue;
       }
-      if (depth < MAX_SAF_DEPTH && shouldAttemptSafDirectoryRead(entry)) await walk(entry, depth + 1, false);
+      if (depth < MAX_SAF_DEPTH && shouldAttemptSafDirectoryRead(entry)) {
+        throwIfAborted(signal);
+        await walk(entry, depth + 1, false);
+      }
     }
   };
 
   await walk(directoryUri, 0, true);
+  throwIfAborted(signal);
   return { files, errors };
 };
 
@@ -386,7 +442,7 @@ export const scanFromSafFolders = async (
       continue;
     }
 
-    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri);
+    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal });
     throwIfAborted(signal);
     if (folderErrors.length > 0) errors.push(...folderErrors);
 

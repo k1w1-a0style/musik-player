@@ -83,6 +83,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
       <LibraryListShell testID="library-folders-shell">
         <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
         <FlatList
+          key="library-folders-list"
           data={scanFolders}
           keyExtractor={folderKeyExtractor}
           contentContainerStyle={styles.listContent}
@@ -105,6 +106,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         </LibrarySectionHeader>
         {albumViewMode === 'grid' ? (
           <FlatList
+            key="library-albums-grid"
             data={albumGroups}
             keyExtractor={groupKeyExtractor}
             contentContainerStyle={styles.albumGridContent}
@@ -118,6 +120,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           />
         ) : (
           <FlatList
+            key="library-albums-list"
             data={albumGroups}
             keyExtractor={groupKeyExtractor}
             contentContainerStyle={styles.listContent}
@@ -140,6 +143,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
       <LibraryListShell testID={`library-${activeTab}-shell`}>
         <LibrarySectionHeader title={activeTab === 'artists' ? 'Interpreten' : 'Genres'} count={groups.length} />
         <FlatList
+          key={`library-${activeTab}-groups-list`}
           data={groups}
           keyExtractor={groupKeyExtractor}
           contentContainerStyle={styles.listContent}
@@ -159,6 +163,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
       <LibraryListShell testID="library-playlists-shell">
         <LibrarySectionHeader title="Playlisten" count={playlistItems.length} />
         <FlatList
+          key="library-playlists-list"
           data={playlistItems}
           keyExtractor={groupKeyExtractor}
           contentContainerStyle={styles.listContent}
@@ -184,6 +189,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         />
       </LibrarySectionHeader>
       <FlatList
+        key={`library-${activeTab}-songs-list`}
         data={songsForActiveList}
         keyExtractor={songKeyExtractor}
         contentContainerStyle={styles.listContent}
