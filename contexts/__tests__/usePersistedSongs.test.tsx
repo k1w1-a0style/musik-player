@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedSongs } from '../usePersistedSongs';
+import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
@@ -52,5 +53,20 @@ describe('usePersistedSongs', () => {
     await waitFor(async () => {
       expect(await storage.get(StorageKeys.SONGS)).toEqual(songs);
     });
+  });
+
+  test('warns and keeps rendering when song persistence fails', async () => {
+    const error = new Error('storage failed');
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(musicPersistenceHelpers, 'prepareSongsForPersistence').mockRejectedValueOnce(error);
+
+    const { getByTestId } = render(<PersistedSongsProbe ready />);
+
+    expect(getByTestId('songs-count').props.children).toBe(1);
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith('[usePersistedSongs] Persistence failed:', error);
+    });
+
+    warn.mockRestore();
   });
 });

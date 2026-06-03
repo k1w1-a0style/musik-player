@@ -21,7 +21,7 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemotePlaybackAction('pause', () => runExclusiveNativePlaybackControl(() => TrackPlayer.pause()));
   });
   TrackPlayer.addEventListener(Event.RemoteStop, () => {
-    handleRemotePlaybackAction('stop', () => TrackPlayer.stop());
+    handleRemotePlaybackAction('stop', () => runExclusiveNativePlaybackControl(() => TrackPlayer.stop()));
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
     handleRemotePlaybackAction('next', () => runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext()));
