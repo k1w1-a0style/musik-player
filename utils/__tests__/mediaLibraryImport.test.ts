@@ -248,6 +248,70 @@ describe('mediaLibraryImport', () => {
     expect(capResult.files.length).toBe(mediaImport.MAX_SAF_FILES);
   });
 
+  test('readAudioUrisFromSafDirectory aborts before reading when signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('scan aborted'));
+    const read = jest.fn(async () => ['content://root/song.mp3']);
+
+    await expect(
+      mediaImport.readAudioUrisFromSafDirectory('content://root', read, {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('scan aborted');
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  test('readAudioUrisFromSafDirectory checks abort during recursive scans', async () => {
+    const controller = new AbortController();
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') return ['content://root/subdir'];
+      controller.abort(new Error('recursive scan aborted'));
+      return ['content://root/subdir/song.mp3'];
+    });
+
+    await expect(
+      mediaImport.readAudioUrisFromSafDirectory('content://root', read, {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('recursive scan aborted');
+    expect(read).toHaveBeenCalledWith('content://root/subdir');
+  });
+
+  test('readAudioUrisFromSafDirectory times out and skips a hanging child directory', async () => {
+    const read = jest.fn((uri: string) => {
+      if (uri === 'content://root') {
+        return Promise.resolve(['content://root/song.mp3', 'content://root/hangs']);
+      }
+      return new Promise<string[]>(() => undefined);
+    });
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory(
+      'content://root',
+      read,
+      { readTimeoutMs: 1 },
+    );
+
+    expect(result.files).toEqual(['content://root/song.mp3']);
+    expect(result.errors).toEqual(['content://root/hangs']);
+  });
+
+  test('scanFromSafFolders abort signal stops SAF directory reads', async () => {
+    const controller = new AbortController();
+    const read = StorageAccessFramework.readDirectoryAsync as jest.Mock;
+    read.mockImplementation(async () => {
+      controller.abort(new Error('scan flow aborted'));
+      return ['content://root/song.mp3'];
+    });
+
+    await expect(
+      mediaImport.scanFromSafFolders(
+        [{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }] as any,
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow('scan flow aborted');
+    expect(read).toHaveBeenCalledWith('content://root');
+  });
+
   test('saf recursion uses visited set to avoid cycles', async () => {
     const cyclicRead = jest.fn(async (uri: string) => {
       if (uri === 'content://root') return ['content://root/loop'];
