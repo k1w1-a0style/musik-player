@@ -16,6 +16,7 @@ const CACHE_FILE_NAME_RE = /^[a-f0-9]+-[a-f0-9]+\.(?:jpg|jpeg|png|webp)$/i;
 let latestCleanupRequestId = 0;
 let latestCleanupSongs: Song[] | undefined;
 let cleanupDrainPromise: Promise<void> | undefined;
+const protectedCoverFileNames = new Set<string>();
 
 const isLatestCleanupRequest = (requestId: number): boolean => requestId === latestCleanupRequestId;
 
@@ -46,7 +47,7 @@ const getCachedCoverFileName = (uri: string | undefined, directory: string): str
 };
 
 const getReferencedFileNames = (songs: Song[], directory: string): Set<string> => {
-  const referenced = new Set<string>();
+  const referenced = new Set(protectedCoverFileNames);
   songs.forEach(song => {
     const coverFileName = getCachedCoverFileName(song.cover, directory);
     const coverInfoFileName = getCachedCoverFileName(song.coverInfo?.uri, directory);
@@ -61,12 +62,17 @@ const deleteFilesInBatches = async (
   directory: string,
   eraseFile: (uri: string, options?: { idempotent?: boolean }) => Promise<void>,
   shouldContinue: () => boolean,
+  isProtected: (fileName: string) => boolean,
 ): Promise<void> => {
   const safeFileNames = fileNames.filter(isSafeCoverCacheFileName);
   for (let i = 0; i < safeFileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
     if (!shouldContinue()) return;
     const batch = safeFileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
-    await Promise.all(batch.map(fileName => eraseFile(`${directory}/${fileName}`, { idempotent: true })));
+    for (const fileName of batch) {
+      if (!shouldContinue()) return;
+      if (isProtected(fileName)) continue;
+      await eraseFile(`${directory}/${fileName}`, { idempotent: true });
+    }
   }
 };
 
@@ -93,7 +99,14 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
     const orphanedFileNames = cachedFileNames.filter(
       fileName => isSafeCoverCacheFileName(fileName) && !referencedFileNames.has(fileName),
     );
-    await deleteFilesInBatches(orphanedFileNames, directory, eraseFile, () => isLatestCleanupRequest(requestId));
+    await deleteFilesInBatches(
+      orphanedFileNames,
+      directory,
+      eraseFile,
+      () => isLatestCleanupRequest(requestId),
+      fileName => protectedCoverFileNames.has(fileName),
+    );
+    if (isLatestCleanupRequest(requestId)) protectedCoverFileNames.clear();
   } catch {
     // Best-effort cache maintenance must not break library hydration or persistence.
   }
@@ -112,6 +125,18 @@ const drainLatestCleanup = async (): Promise<void> => {
 export const invalidateCoverCacheCleanup = (): void => {
   latestCleanupRequestId += 1;
   latestCleanupSongs = undefined;
+  protectedCoverFileNames.clear();
+};
+
+export const protectCoverCacheUri = (uri: string | undefined): void => {
+  const directory = getCoverCacheDirectory();
+  if (!directory) return;
+  const fileName = getCachedCoverFileName(uri, directory);
+  if (fileName) protectedCoverFileNames.add(fileName);
+};
+
+export const waitForCoverCacheCleanupIdle = async (): Promise<void> => {
+  await cleanupDrainPromise;
 };
 
 export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {

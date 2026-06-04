@@ -19,6 +19,8 @@ jest.mock('expo-file-system', () => ({
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
   invalidateCoverCacheCleanup: jest.fn(),
+  protectCoverCacheUri: jest.fn(),
+  waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({

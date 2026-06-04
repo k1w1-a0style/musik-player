@@ -8,6 +8,8 @@ import type { Song } from '../../types/Song';
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
   invalidateCoverCacheCleanup: jest.fn(),
+  protectCoverCacheUri: jest.fn(),
+  waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
 jest.mock('../musicPersistenceHelpers', () => ({

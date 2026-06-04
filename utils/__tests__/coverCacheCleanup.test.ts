@@ -1,7 +1,10 @@
+import { waitFor } from '@testing-library/react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
   cleanupCoverCache,
   invalidateCoverCacheCleanup,
+  protectCoverCacheUri,
+  waitForCoverCacheCleanupIdle,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
 } from '../coverCacheCleanup';
@@ -18,6 +21,19 @@ jest.mock('expo-file-system/legacy', () => ({
   readDirectoryAsync: jest.fn(async () => []),
   deleteAsync: jest.fn(async () => undefined),
 }));
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+};
+
+const createDeferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(res => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
 
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
@@ -97,6 +113,45 @@ describe('coverCacheCleanup', () => {
     });
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
     expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps dynamically protected in-flight cover files out of an older cleanup delete batch', async () => {
+    const directoryRead = createDeferred<string[]>();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockImplementationOnce(async () => directoryRead.promise);
+
+    const staleCleanup = cleanupCoverCache([
+      { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
+
+    protectCoverCacheUri('file:///docs/covers/ccc-ddd.jpg');
+    directoryRead.resolve(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+    await staleCleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+  });
+
+  test('waits for an already-started cleanup delete before continuing cover cache writes', async () => {
+    const deleteDeferred = createDeferred<void>();
+    let idleSettled = false;
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['ccc-ddd.jpg']);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(async () => deleteDeferred.promise);
+
+    const cleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    }));
+
+    const idle = waitForCoverCacheCleanupIdle().then(() => {
+      idleSettled = true;
+    });
+    await Promise.resolve();
+    expect(idleSettled).toBe(false);
+
+    deleteDeferred.resolve(undefined);
+    await Promise.all([cleanup, idle]);
+    expect(idleSettled).toBe(true);
   });
 
   test('invalidating cleanup skips stale deletions before a newer persistence round commits', async () => {

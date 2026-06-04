@@ -8,6 +8,7 @@ import {
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
+import { protectCoverCacheUri, waitForCoverCacheCleanupIdle } from './coverCacheCleanup';
 import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
@@ -100,6 +101,8 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
+    protectCoverCacheUri(fileUri);
+    await waitForCoverCacheCleanupIdle();
     const existing = await getInfoAsync(fileUri);
     if (existing.exists) return fileUri;
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
