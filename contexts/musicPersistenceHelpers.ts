@@ -47,10 +47,21 @@ export const normalizePersistedValue = <T,>(key: string, value: T): T => {
   return value;
 };
 
+export type PersistResult =
+  | { status: 'stored' }
+  | { status: 'unchanged' }
+  | { status: 'superseded' }
+  | { status: 'failed'; error?: unknown };
+
+interface PendingPersistRequest {
+  serialized: string;
+  value: unknown;
+  resolve: Array<(result: PersistResult) => void>;
+}
+
 interface PersistQueueState {
   inFlight: boolean;
-  pendingSerialized?: string;
-  pendingValue?: unknown;
+  pendingRequest?: PendingPersistRequest;
   drainPromise?: Promise<void>;
 }
 
@@ -74,6 +85,10 @@ const getPersistQueueState = (
   return queueState;
 };
 
+const resolveRequest = (request: PendingPersistRequest, result: PersistResult): void => {
+  request.resolve.forEach(resolve => resolve(result));
+};
+
 const drainPersistQueue = async (
   key: string,
   persistedRefs: Record<string, string>,
@@ -83,21 +98,38 @@ const drainPersistQueue = async (
 
   queueState.inFlight = true;
   try {
-    while (queueState.pendingSerialized !== undefined) {
-      const serialized = queueState.pendingSerialized;
-      const normalizedValue = queueState.pendingValue;
-      queueState.pendingSerialized = undefined;
-      queueState.pendingValue = undefined;
+    while (queueState.pendingRequest) {
+      const request = queueState.pendingRequest;
+      queueState.pendingRequest = undefined;
 
-      if (persistedRefs[key] === serialized) continue;
+      if (persistedRefs[key] === request.serialized) {
+        resolveRequest(request, { status: 'unchanged' });
+        continue;
+      }
 
       try {
-        const stored = await storage.set(key, normalizedValue);
-        if (stored && queueState.pendingSerialized === undefined) {
-          persistedRefs[key] = serialized;
+        const stored = await storage.set(key, request.value);
+        if (!stored) {
+          console.warn('[MusicPersistence] Failed to persist setting.', { key, error: undefined });
+          resolveRequest(request, { status: 'failed' });
+          continue;
+        }
+
+        const nextRequest = queueState.pendingRequest as PendingPersistRequest | undefined;
+        if (nextRequest?.serialized === request.serialized) {
+          request.resolve.push(...nextRequest.resolve);
+          queueState.pendingRequest = undefined;
+        }
+
+        if (queueState.pendingRequest === undefined) {
+          persistedRefs[key] = request.serialized;
+          resolveRequest(request, { status: 'stored' });
+        } else {
+          resolveRequest(request, { status: 'superseded' });
         }
       } catch (error) {
         console.warn('[MusicPersistence] Failed to persist setting.', { key, error });
+        resolveRequest(request, { status: 'failed', error });
       }
     }
   } finally {
@@ -110,17 +142,34 @@ export const persistIfChanged = async <T,>(
   key: string,
   value: T,
   persistedRefs: Record<string, string>,
-): Promise<void> => {
+): Promise<PersistResult> => {
   const normalizedValue = normalizePersistedValue(key, value);
   const serialized = JSON.stringify(normalizedValue);
   const queueState = getPersistQueueState(persistedRefs, key);
 
-  if (persistedRefs[key] === serialized && queueState.pendingSerialized === undefined) return;
+  if (persistedRefs[key] === serialized && queueState.pendingRequest === undefined) {
+    return { status: 'unchanged' };
+  }
 
-  queueState.pendingSerialized = serialized;
-  queueState.pendingValue = normalizedValue;
+  const resultPromise = new Promise<PersistResult>(resolve => {
+    if (queueState.pendingRequest?.serialized === serialized) {
+      queueState.pendingRequest.resolve.push(resolve);
+      return;
+    }
+
+    if (queueState.pendingRequest) {
+      resolveRequest(queueState.pendingRequest, { status: 'superseded' });
+    }
+
+    queueState.pendingRequest = {
+      serialized,
+      value: normalizedValue,
+      resolve: [resolve],
+    };
+  });
+
   queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
-  await queueState.drainPromise;
+  return resultPromise;
 };
 
 export const prepareSongsForPersistence = async (

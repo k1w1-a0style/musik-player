@@ -5,8 +5,12 @@ import { usePersistedSongs } from '../usePersistedSongs';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
+jest.mock('../../utils/coverCacheCleanup', () => ({
+  cleanupCoverCache: jest.fn(async () => undefined),
+}));
+
 jest.mock('../musicPersistenceHelpers', () => ({
-  persistIfChanged: jest.fn(async () => undefined),
+  persistIfChanged: jest.fn(async () => ({ status: 'stored' })),
   prepareSongsForPersistence: jest.fn(async (songs: Song[]) => ({
     sanitizedSongs: songs,
     coversChanged: false,

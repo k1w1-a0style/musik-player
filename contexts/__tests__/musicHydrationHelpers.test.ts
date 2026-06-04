@@ -10,6 +10,7 @@ import {
   type StoredMusicHydrationState,
 } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
+import { cleanupCoverCache } from '../../utils/coverCacheCleanup';
 import type { Playlist, Song } from '../../types/Song';
 import {
   resetNativeQueueMutationLockForTests,
@@ -18,6 +19,10 @@ import {
 import { seekToMillis } from '../playbackControlHelpers';
 
 const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
+
+jest.mock('../../utils/coverCacheCleanup', () => ({
+  cleanupCoverCache: jest.fn(async () => undefined),
+}));
 
 jest.mock('../../utils/storage', () => {
   const actual = jest.requireActual('../../utils/storage');
@@ -779,6 +784,61 @@ describe('musicHydrationHelpers', () => {
     await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
       expect.objectContaining({ id: 'pl-1', songIds: ['s1'] }),
     ]);
+  });
+
+
+  test('hydrateStoredSongs runs cover cleanup after confirmed songs hydration state', async () => {
+    await hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    expect(cleanupCoverCache).toHaveBeenCalledWith(songs);
+  });
+
+  test('hydrateStoredSongs does not run cover cleanup when required songs persistence is unconfirmed', async () => {
+    jest.spyOn(storage, 'set').mockResolvedValueOnce(false);
+
+    await expect(hydrateStoredSongs({
+      stored: {
+        songs: [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }],
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    })).rejects.toThrow('Failed to persist hydrated songs.');
+
+    expect(cleanupCoverCache).not.toHaveBeenCalled();
   });
 
   test('hydrateStoredSongs does not persist songs when unchanged', async () => {

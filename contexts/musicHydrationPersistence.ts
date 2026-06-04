@@ -3,7 +3,9 @@ import { StorageKeys, storage } from '../utils/storage';
 import type { HydrationPlan } from './musicHydrationPlan';
 
 export const persistHydratedSongsIfNeeded = async (plan: HydrationPlan): Promise<void> => {
-  if (plan.shouldPersistSongs) await storage.set(StorageKeys.SONGS, plan.hydratedSongs);
+  if (!plan.shouldPersistSongs) return;
+  const stored = await storage.set(StorageKeys.SONGS, plan.hydratedSongs);
+  if (!stored) throw new Error('Failed to persist hydrated songs.');
 };
 
 export const persistHydratedPlaylistsIfNeeded = async (plan: HydrationPlan): Promise<void> => {

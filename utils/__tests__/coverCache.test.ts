@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { cacheBase64Cover, isBase64ImageDataUri, sanitizeSongsForStorage } from '../coverCache';
 import { cleanupCoverCache } from '../coverCacheCleanup';
+import * as coverCacheCleanup from '../coverCacheCleanup';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-file-system', () => ({
@@ -116,6 +117,16 @@ describe('coverCache', () => {
   test('accepts unknown image subtype when bytes indicate known image format', async () => {
     const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
     expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
+  });
+
+
+  test('sanitizeSongsForStorage does not trigger cover cache cleanup', async () => {
+    const cleanupSpy = jest.spyOn(coverCacheCleanup, 'cleanupCoverCache');
+
+    const result = await sanitizeSongsForStorage([{ id: 'pure-1', title: 'A', artist: 'B', cover: 'file:///docs/covers/keep.jpg' }]);
+
+    expect(result[0].cover).toBe('file:///docs/covers/keep.jpg');
+    expect(cleanupSpy).not.toHaveBeenCalled();
   });
 
   test('sanitizeSongsForStorage preserves track/disc/comment fields', async () => {

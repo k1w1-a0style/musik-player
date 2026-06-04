@@ -1,4 +1,6 @@
+import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
+import { cleanupCoverCache } from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
   applyHydratedQueueState,
@@ -26,6 +28,12 @@ import type {
   RunMusicHydrationArgs,
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
+
+const cleanupHydratedSongCovers = (songs: Song[]): void => {
+  void cleanupCoverCache(songs).catch(error => {
+    console.warn('[MusicHydration] Failed to clean up hydrated cover cache.', error);
+  });
+};
 
 export type {
   HydrateStoredSongsArgs,
@@ -58,6 +66,7 @@ export const hydrateStoredSongs = async ({
 
   await persistHydratedSongsIfNeeded(plan);
   if (isCancelled()) return stored;
+  cleanupHydratedSongCovers(plan.hydratedSongs);
 
   applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
 

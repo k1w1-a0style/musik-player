@@ -8,7 +8,6 @@ import {
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
-import { cleanupCoverCache } from './coverCacheCleanup';
 import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
@@ -144,6 +143,5 @@ export const sanitizeSongsForStorage = async (songs: Song[]): Promise<Song[]> =>
     const batch = songs.slice(i, i + COVER_SANITIZE_BATCH_SIZE);
     sanitized.push(...await Promise.all(batch.map(sanitizeSongCover)));
   }
-  void cleanupCoverCache(sanitized);
   return sanitized;
 };
