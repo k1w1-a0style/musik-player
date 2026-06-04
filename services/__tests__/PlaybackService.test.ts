@@ -61,6 +61,33 @@ describe('PlaybackService', () => {
     expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 
+  test('serializes remote stop behind the native playback lock', async () => {
+    let releasePlay!: () => void;
+    const playStarted = new Promise<void>(resolve => {
+      (TrackPlayer.play as jest.Mock).mockImplementationOnce(async () => {
+        resolve();
+        await new Promise<void>(release => {
+          releasePlay = release;
+        });
+      });
+    });
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
+    await playStarted;
+    trackPlayerTestApi.__trigger(Event.RemoteStop);
+    await Promise.resolve();
+
+    expect(TrackPlayer.stop).not.toHaveBeenCalled();
+
+    releasePlay();
+
+    await waitFor(() => expect(TrackPlayer.stop).toHaveBeenCalledTimes(1));
+    expect((TrackPlayer.play as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (TrackPlayer.stop as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
   test('logs remote action failures', async () => {
     const error = new Error('not ready');
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);

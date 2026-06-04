@@ -25,8 +25,8 @@ export const usePersistedSongs = (
           return;
         }
         await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
-      } catch {
-        // Persistence is best-effort; never crash provider effects because storage/cache failed.
+      } catch (error) {
+        console.warn('[usePersistedSongs] Persistence failed:', error);
       }
     })();
 
