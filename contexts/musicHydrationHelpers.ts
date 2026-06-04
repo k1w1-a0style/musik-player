@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
-import { cleanupCoverCache } from '../utils/coverCacheCleanup';
+import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
   applyHydratedQueueState,
@@ -57,6 +57,7 @@ export const hydrateStoredSongs = async ({
 }: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
   if (!stored.songs) return stored;
 
+  invalidateCoverCacheCleanup();
   const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
   if (isCancelled()) return stored;
 

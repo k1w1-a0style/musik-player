@@ -1,6 +1,7 @@
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
   cleanupCoverCache,
+  invalidateCoverCacheCleanup,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
 } from '../coverCacheCleanup';
@@ -20,6 +21,7 @@ jest.mock('expo-file-system/legacy', () => ({
 
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
+    invalidateCoverCacheCleanup();
     jest.clearAllMocks();
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
@@ -95,6 +97,20 @@ describe('coverCacheCleanup', () => {
     });
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
     expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('invalidating cleanup skips stale deletions before a newer persistence round commits', async () => {
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    const staleCleanup = cleanupCoverCache([
+      { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    invalidateCoverCacheCleanup();
+
+    await staleCleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+    expect(LegacyFileSystem.readDirectoryAsync).not.toHaveBeenCalled();
   });
 
   test('cleanup delete errors resolve without unhandled rejection', async () => {

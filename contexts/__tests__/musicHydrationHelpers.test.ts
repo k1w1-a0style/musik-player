@@ -22,6 +22,7 @@ const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
+  invalidateCoverCacheCleanup: jest.fn(),
 }));
 
 jest.mock('../../utils/storage', () => {

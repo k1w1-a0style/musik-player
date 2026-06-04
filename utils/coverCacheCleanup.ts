@@ -14,7 +14,7 @@ const CLEANUP_DELETE_BATCH_SIZE = 20;
 const CACHE_FILE_NAME_RE = /^[a-f0-9]+-[a-f0-9]+\.(?:jpg|jpeg|png|webp)$/i;
 
 let latestCleanupRequestId = 0;
-let latestCleanupSongs: Song[] = [];
+let latestCleanupSongs: Song[] | undefined;
 let cleanupDrainPromise: Promise<void> | undefined;
 
 const isLatestCleanupRequest = (requestId: number): boolean => requestId === latestCleanupRequestId;
@@ -103,9 +103,15 @@ const drainLatestCleanup = async (): Promise<void> => {
   while (true) {
     const requestId = latestCleanupRequestId;
     const songs = latestCleanupSongs;
+    if (!songs) return;
     await runCleanupCoverCache(songs, requestId);
     if (requestId === latestCleanupRequestId) return;
   }
+};
+
+export const invalidateCoverCacheCleanup = (): void => {
+  latestCleanupRequestId += 1;
+  latestCleanupSongs = undefined;
 };
 
 export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {

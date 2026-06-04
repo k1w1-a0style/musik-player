@@ -4,7 +4,7 @@ import { render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedSongs } from '../usePersistedSongs';
 import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
-import { cleanupCoverCache } from '../../utils/coverCacheCleanup';
+import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../../utils/coverCacheCleanup';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
@@ -18,6 +18,7 @@ jest.mock('expo-file-system', () => ({
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
+  invalidateCoverCacheCleanup: jest.fn(),
 }));
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -121,6 +122,7 @@ describe('usePersistedSongs', () => {
 
     rerender(<PersistedSongsWithInitialRefsProbe currentSongs={songs} initialRefs={initialRefs} />);
     await waitFor(() => expect(persistSpy).toHaveBeenCalledTimes(2));
+    expect(invalidateCoverCacheCleanup).toHaveBeenCalledTimes(2);
 
     expect(cleanupCoverCache).not.toHaveBeenCalled();
 

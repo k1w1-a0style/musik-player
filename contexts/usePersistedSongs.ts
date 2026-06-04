@@ -1,6 +1,6 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { Song } from '../types/Song';
-import { cleanupCoverCache } from '../utils/coverCacheCleanup';
+import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../utils/coverCacheCleanup';
 import { StorageKeys } from '../utils/storage';
 import {
   persistIfChanged,
@@ -21,6 +21,7 @@ export const usePersistedSongs = (
 ): void => {
   useEffect(() => {
     if (!isReady) return;
+    invalidateCoverCacheCleanup();
     let cancelled = false;
 
     (async () => {

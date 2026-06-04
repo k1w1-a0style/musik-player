@@ -7,6 +7,7 @@ import type { Song } from '../../types/Song';
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
+  invalidateCoverCacheCleanup: jest.fn(),
 }));
 
 jest.mock('../musicPersistenceHelpers', () => ({
