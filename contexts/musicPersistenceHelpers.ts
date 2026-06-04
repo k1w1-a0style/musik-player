@@ -115,18 +115,16 @@ const drainPersistQueue = async (
           continue;
         }
 
+        persistedRefs[key] = request.serialized;
         const nextRequest = queueState.pendingRequest as PendingPersistRequest | undefined;
         if (nextRequest?.serialized === request.serialized) {
           request.resolve.push(...nextRequest.resolve);
           queueState.pendingRequest = undefined;
         }
 
-        if (queueState.pendingRequest === undefined) {
-          persistedRefs[key] = request.serialized;
-          resolveRequest(request, { status: 'stored' });
-        } else {
-          resolveRequest(request, { status: 'superseded' });
-        }
+        resolveRequest(request, queueState.pendingRequest === undefined
+          ? { status: 'stored' }
+          : { status: 'superseded' });
       } catch (error) {
         console.warn('[MusicPersistence] Failed to persist setting.', { key, error });
         resolveRequest(request, { status: 'failed', error });
@@ -147,7 +145,7 @@ export const persistIfChanged = async <T,>(
   const serialized = JSON.stringify(normalizedValue);
   const queueState = getPersistQueueState(persistedRefs, key);
 
-  if (persistedRefs[key] === serialized && queueState.pendingRequest === undefined) {
+  if (persistedRefs[key] === serialized && queueState.pendingRequest === undefined && !queueState.inFlight) {
     return { status: 'unchanged' };
   }
 

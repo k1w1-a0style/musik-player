@@ -129,7 +129,7 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
 
     first.resolve(true);
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
-    expect(refs[StorageKeys.VOLUME]).toBeUndefined();
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
 
     second.resolve(true);
     await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'stored' }]);
@@ -138,6 +138,39 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.VOLUME, 0.75);
   });
 
+
+  test('does not report unchanged for an old snapshot while a newer write is in-flight', async () => {
+    const refs: Record<string, string> = { [StorageKeys.VOLUME]: JSON.stringify(0.25) };
+    const newerWrite = createDeferred<boolean>();
+    const revertedWrite = createDeferred<boolean>();
+    const setSpy = jest.spyOn(storage, 'set')
+      .mockImplementationOnce(async () => newerWrite.promise)
+      .mockImplementationOnce(async () => revertedWrite.promise);
+
+    const newerPersist = persistIfChanged(StorageKeys.VOLUME, 0.75, refs);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(1));
+
+    let revertedSettled = false;
+    const revertedPersist = persistIfChanged(StorageKeys.VOLUME, 0.25, refs).then(result => {
+      revertedSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+
+    expect(revertedSettled).toBe(false);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    newerWrite.resolve(true);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.75));
+
+    revertedWrite.resolve(true);
+
+    await expect(Promise.all([newerPersist, revertedPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'stored' }]);
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
+    expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.VOLUME, 0.75);
+    expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.VOLUME, 0.25);
+  });
 
   test('shares stored status for callers waiting on the same in-flight snapshot', async () => {
     const refs: Record<string, string> = {};
@@ -223,8 +256,6 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
       expect.objectContaining({ key: StorageKeys.EQ_ENABLED, error: expect.any(Error) }),
     );
   });
-
-
 
   test('returns failed when storage reports an unconfirmed write', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);

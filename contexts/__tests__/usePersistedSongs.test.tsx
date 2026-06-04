@@ -30,6 +30,35 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
+const newerSongs: Song[] = [{ id: 's2', title: 'Two', artist: 'B', uri: 'file:///s2.mp3' }];
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+const createDeferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
+const PersistedSongsWithInitialRefsProbe = ({
+  currentSongs,
+  initialRefs,
+}: {
+  currentSongs: Song[];
+  initialRefs: Record<string, string>;
+}) => {
+  const persistedRefs = useRef<Record<string, string>>({ ...initialRefs });
+  usePersistedSongs(true, currentSongs, jest.fn(), persistedRefs);
+  return null;
+};
 
 const PersistedSongsProbe = ({ ready }: { ready: boolean }) => {
   const [currentSongs, setCurrentSongs] = useState(songs);
@@ -75,6 +104,35 @@ describe('usePersistedSongs', () => {
     render(<PersistedSongsProbe ready />);
 
     await waitFor(() => expect(cleanupCoverCache).toHaveBeenCalledWith(songs));
+  });
+
+
+  test('does not run cleanup for a reverted snapshot until in-flight persistence commits it safely', async () => {
+    const newerWrite = createDeferred<boolean>();
+    const revertedWrite = createDeferred<boolean>();
+    const persistSpy = jest.spyOn(musicPersistenceHelpers, 'persistIfChanged');
+    const setSpy = jest.spyOn(storage, 'set')
+      .mockImplementationOnce(async () => newerWrite.promise)
+      .mockImplementationOnce(async () => revertedWrite.promise);
+    const initialRefs = { [StorageKeys.SONGS]: JSON.stringify(songs) };
+
+    const { rerender } = render(<PersistedSongsWithInitialRefsProbe currentSongs={newerSongs} initialRefs={initialRefs} />);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(1));
+
+    rerender(<PersistedSongsWithInitialRefsProbe currentSongs={songs} initialRefs={initialRefs} />);
+    await waitFor(() => expect(persistSpy).toHaveBeenCalledTimes(2));
+
+    expect(cleanupCoverCache).not.toHaveBeenCalled();
+
+    newerWrite.resolve(true);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
+    expect(cleanupCoverCache).not.toHaveBeenCalledWith(newerSongs);
+
+    revertedWrite.resolve(true);
+    await waitFor(() => expect(cleanupCoverCache).toHaveBeenCalledWith(songs));
+    expect(cleanupCoverCache).not.toHaveBeenCalledWith(newerSongs);
+    expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.SONGS, newerSongs);
+    expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.SONGS, songs);
   });
 
   test('does not run cover cleanup when songs persistence is superseded', async () => {

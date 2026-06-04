@@ -48,7 +48,7 @@ describe('usePersistedSetting race handling', () => {
 
     first.resolve(true);
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
-    expect(refs?.current[StorageKeys.VOLUME]).toBeUndefined();
+    expect(refs?.current[StorageKeys.VOLUME]).toBe(JSON.stringify(0.2));
 
     second.resolve(true);
     await waitFor(() => expect(refs?.current[StorageKeys.VOLUME]).toBe(JSON.stringify(0.8)));
