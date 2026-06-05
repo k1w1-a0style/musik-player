@@ -1,5 +1,6 @@
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName, type Playlist, type RepeatMode, type Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
+import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
 import { didSongCoversChange } from '../utils/musicHydration';
 import { sanitizePlaylists } from '../utils/playlistState';
 import { normalizeFavoriteSongIds, StorageKeys, storage } from '../utils/storage';
@@ -172,8 +173,9 @@ export const persistIfChanged = async <T,>(
 
 export const prepareSongsForPersistence = async (
   songs: Song[],
+  coverProtection?: CoverCacheProtection,
 ): Promise<{ sanitizedSongs: Song[]; coversChanged: boolean }> => {
-  const sanitizedSongs = await sanitizeSongsForStorage(songs);
+  const sanitizedSongs = await sanitizeSongsForStorage(songs, coverProtection);
   return {
     sanitizedSongs,
     coversChanged: didSongCoversChange(sanitizedSongs, songs),

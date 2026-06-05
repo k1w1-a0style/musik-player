@@ -21,11 +21,13 @@ import { seekToMillis } from '../playbackControlHelpers';
 const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
-  beginCoverCacheProtection: jest.fn(() => Symbol('cover-cache-protection')),
   cleanupCoverCache: jest.fn(async () => undefined),
+  createCoverCacheProtection: jest.fn(() => ({
+    protectUri: jest.fn(),
+    protectSongCovers: jest.fn(),
+    release: jest.fn(),
+  })),
   invalidateCoverCacheCleanup: jest.fn(),
-  protectCoverCacheUri: jest.fn(),
-  releaseCoverCacheProtection: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
@@ -818,32 +820,49 @@ describe('musicHydrationHelpers', () => {
     expect(cleanupCoverCache).toHaveBeenCalledWith(songs);
   });
 
-  test('hydrateStoredSongs does not run cover cleanup when required songs persistence is unconfirmed', async () => {
-    jest.spyOn(storage, 'set').mockResolvedValueOnce(false);
+  test.each([
+    ['returns false', undefined],
+    ['rejects', new Error('write rejected')],
+  ])('runMusicHydration continues without cleanup when normalized songs persistence %s', async (_label, writeError) => {
+    const dirtySongs: Song[] = [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
+    await storage.set(StorageKeys.SONGS, dirtySongs);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const setSpy = jest.spyOn(storage, 'set');
+    if (writeError) setSpy.mockRejectedValueOnce(writeError);
+    else setSpy.mockResolvedValueOnce(false);
+    const setSongsState = jest.fn();
+    const setPlaybackQueue = jest.fn();
+    const setIsReady = jest.fn();
 
-    await expect(hydrateStoredSongs({
-      stored: {
-        songs: [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }],
-        playlists: null,
-        eqEnabled: null,
-        eqBands: null,
-        eqPreset: null,
-        volume: null,
-        repeatMode: null,
-        shuffle: false,
-        currentSongId: null,
-      },
+    await runMusicHydration({
       songsRef: createSongRef(),
       queueContextRef: createSongRef(),
       baseQueueContextRef: createSongRef(),
       nativeQueueRef: createSongRef(),
-      setSongsState: jest.fn(),
+      setIsReady,
+      setSongsState,
       setCurrentSong: jest.fn(),
-      setPlaybackQueue: jest.fn(),
+      setPlaybackQueue,
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState: jest.fn(),
+      setRepeatMode: jest.fn(),
+      setShuffle: jest.fn(),
       isCancelled: () => false,
-    })).rejects.toThrow('Failed to persist hydrated songs.');
+    });
 
+    expect(setSongsState).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
+    expect(setSongsState).not.toHaveBeenCalledWith([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
+    expect(setIsReady).toHaveBeenCalledWith(true);
     expect(cleanupCoverCache).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration] Failed to confirm sanitized songs persistence.',
+      writeError,
+    );
+    warn.mockRestore();
   });
 
   test('hydrateStoredSongs does not persist songs when unchanged', async () => {

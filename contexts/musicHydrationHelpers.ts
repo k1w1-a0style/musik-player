@@ -1,9 +1,8 @@
 import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
 import {
-  beginCoverCacheProtection,
   cleanupCoverCache,
-  releaseCoverCacheProtection,
+  createCoverCacheProtection,
 } from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
@@ -61,18 +60,26 @@ export const hydrateStoredSongs = async ({
 }: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
   if (!stored.songs) return stored;
 
-  const coverProtection = beginCoverCacheProtection(stored.songs);
+  const coverProtection = createCoverCacheProtection();
+  coverProtection.protectSongCovers(stored.songs);
+  let canReleaseCoverProtection = true;
   try {
-    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
+    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverProtection);
     if (isCancelled()) return stored;
 
+    coverProtection.protectSongCovers(sanitizedSongs);
     const plan = createHydrationPlan(stored, sanitizedSongs);
 
     applyHydratedSongsState(plan, { songsRef, setSongsState });
 
-    await persistHydratedSongsIfNeeded(plan);
+    const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
     if (isCancelled()) return stored;
-    cleanupHydratedSongCovers(plan.hydratedSongs);
+    if (songsPersistResult.status === 'unconfirmed') {
+      canReleaseCoverProtection = false;
+      console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', songsPersistResult.error);
+    } else {
+      cleanupHydratedSongCovers(plan.hydratedSongs);
+    }
 
     applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
 
@@ -95,7 +102,7 @@ export const hydrateStoredSongs = async ({
 
     return hydratedStored;
   } finally {
-    releaseCoverCacheProtection(coverProtection);
+    if (canReleaseCoverProtection) coverProtection.release();
   }
 };
 

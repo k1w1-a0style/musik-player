@@ -8,7 +8,7 @@ import {
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
-import { protectCoverCacheUri, waitForCoverCacheCleanupIdle } from './coverCacheCleanup';
+import { waitForCoverCacheCleanupIdle, type CoverCacheProtection } from './coverCacheCleanup';
 import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
@@ -67,7 +67,11 @@ const getBaseDirectory = (): string | undefined =>
   ?? (FileSystem as { cacheDirectory?: string | null }).cacheDirectory
   ?? undefined;
 
-export const cacheBase64Cover = async (songId: string, cover?: string): Promise<string | undefined> => {
+export const cacheBase64Cover = async (
+  songId: string,
+  cover?: string,
+  protection?: CoverCacheProtection,
+): Promise<string | undefined> => {
   if (!cover) return undefined;
   const trimmed = cover.trim();
   const match = trimmed.match(DATA_URI_RE);
@@ -101,7 +105,7 @@ export const cacheBase64Cover = async (songId: string, cover?: string): Promise<
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
-    protectCoverCacheUri(fileUri);
+    protection?.protectUri(fileUri);
     await waitForCoverCacheCleanupIdle();
     const existing = await getInfoAsync(fileUri);
     if (existing.exists) return fileUri;
@@ -125,9 +129,13 @@ const removeEmbeddedCoverForStorage = (song: Song): Song => {
   };
 };
 
-export const sanitizeSongCover = async (song: Song): Promise<Song> => {
-  if (!song.cover || !isBase64ImageDataUri(song.cover)) return song;
-  const cachedUri = await cacheBase64Cover(song.id, song.cover);
+export const sanitizeSongCover = async (song: Song, protection?: CoverCacheProtection): Promise<Song> => {
+  if (!song.cover || !isBase64ImageDataUri(song.cover)) {
+    protection?.protectUri(song.cover);
+    protection?.protectUri(song.coverInfo?.uri);
+    return song;
+  }
+  const cachedUri = await cacheBase64Cover(song.id, song.cover, protection);
   if (!cachedUri) return removeEmbeddedCoverForStorage(song);
   return {
     ...song,
@@ -140,11 +148,14 @@ export const sanitizeSongCover = async (song: Song): Promise<Song> => {
   };
 };
 
-export const sanitizeSongsForStorage = async (songs: Song[]): Promise<Song[]> => {
+export const sanitizeSongsForStorage = async (
+  songs: Song[],
+  protection?: CoverCacheProtection,
+): Promise<Song[]> => {
   const sanitized: Song[] = [];
   for (let i = 0; i < songs.length; i += COVER_SANITIZE_BATCH_SIZE) {
     const batch = songs.slice(i, i + COVER_SANITIZE_BATCH_SIZE);
-    sanitized.push(...await Promise.all(batch.map(sanitizeSongCover)));
+    sanitized.push(...await Promise.all(batch.map(song => sanitizeSongCover(song, protection))));
   }
   return sanitized;
 };

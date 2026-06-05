@@ -1,11 +1,9 @@
 import { waitFor } from '@testing-library/react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
-  beginCoverCacheProtection,
+  createCoverCacheProtection,
   cleanupCoverCache,
   invalidateCoverCacheCleanup,
-  protectCoverCacheUri,
-  releaseCoverCacheProtection,
   waitForCoverCacheCleanupIdle,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
@@ -126,14 +124,14 @@ describe('coverCacheCleanup', () => {
     ]);
     await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
 
-    const protection = beginCoverCacheProtection();
-    protectCoverCacheUri('file:///docs/covers/ccc-ddd.jpg');
+    const protection = createCoverCacheProtection();
+    protection.protectUri('file:///docs/covers/ccc-ddd.jpg');
     directoryRead.resolve(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
     await staleCleanup;
 
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
-    releaseCoverCacheProtection(protection);
+    protection.release();
   });
 
   test('rechecks pending protection immediately before each delete', async () => {
@@ -146,33 +144,55 @@ describe('coverCacheCleanup', () => {
       idempotent: true,
     }));
 
-    const protection = beginCoverCacheProtection([
+    const protection = createCoverCacheProtection();
+    protection.protectSongCovers([
       { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
     ]);
     firstDelete.resolve(undefined);
     await cleanup;
 
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
-    releaseCoverCacheProtection(protection);
+    protection.release();
   });
 
   test('keeps a shared cover protected until every owning persistence round releases it', async () => {
     const pendingSongs = [
       { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
     ];
-    const firstProtection = beginCoverCacheProtection(pendingSongs);
-    const secondProtection = beginCoverCacheProtection(pendingSongs);
+    const firstProtection = createCoverCacheProtection();
+    const secondProtection = createCoverCacheProtection();
+    firstProtection.protectSongCovers(pendingSongs);
+    secondProtection.protectSongCovers(pendingSongs);
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['ccc-ddd.jpg']);
 
-    releaseCoverCacheProtection(firstProtection);
+    firstProtection.release();
     await cleanupCoverCache([]);
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
 
-    releaseCoverCacheProtection(secondProtection);
+    secondProtection.release();
     await cleanupCoverCache([]);
     expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
       idempotent: true,
     });
+  });
+
+  test('protects safe cache file names with query or fragment but ignores external and unsafe paths', async () => {
+    const protection = createCoverCacheProtection();
+    protection.protectUri('file:///docs/covers/ccc-ddd.jpg?version=2#cover');
+    protection.protectUri('file:///elsewhere/eee-fff.jpg');
+    protection.protectUri('file:///docs/covers/../escape.jpg');
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([
+      'ccc-ddd.jpg',
+      'eee-fff.jpg',
+      'aaa-bbb.jpg',
+    ]);
+
+    await cleanupCoverCache([]);
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/eee-fff.jpg', { idempotent: true });
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', { idempotent: true });
+    protection.release();
   });
 
   test('waits for an already-started cleanup delete before continuing cover cache writes', async () => {

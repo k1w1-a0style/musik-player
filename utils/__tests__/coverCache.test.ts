@@ -182,16 +182,16 @@ describe('coverCache', () => {
     ]);
     await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
 
-    const protection = coverCacheCleanup.beginCoverCacheProtection();
+    const protection = coverCacheCleanup.createCoverCacheProtection();
     const nextSnapshot = sanitizeSongsForStorage([
       { id: songId, title: 'New', artist: 'Artist', cover: `data:image/jpeg;base64,${base64}` },
-    ]);
+    ], protection);
     await Promise.resolve();
 
     directoryRead.resolve(Array.from(cachedFiles));
     const sanitizedSongs = await nextSnapshot;
     await storage.set(StorageKeys.SONGS, sanitizedSongs);
-    coverCacheCleanup.releaseCoverCacheProtection(protection);
+    protection.release();
     await oldCleanup;
 
     expect(sanitizedSongs[0].cover).toBe(expectedUri);
@@ -222,12 +222,13 @@ describe('coverCache', () => {
     await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
 
     const pendingSongs: Song[] = [{ id: 'reuse', title: 'New', artist: 'Artist', cover: expectedUri }];
-    const protection = coverCacheCleanup.beginCoverCacheProtection(pendingSongs);
-    const sanitizedSongs = await sanitizeSongsForStorage(pendingSongs);
+    const protection = coverCacheCleanup.createCoverCacheProtection();
+    protection.protectSongCovers(pendingSongs);
+    const sanitizedSongs = await sanitizeSongsForStorage(pendingSongs, protection);
     await storage.set(StorageKeys.SONGS, sanitizedSongs);
     directoryRead.resolve(Array.from(cachedFiles));
     await oldCleanup;
-    coverCacheCleanup.releaseCoverCacheProtection(protection);
+    protection.release();
 
     expect(sanitizedSongs[0].cover).toBe(expectedUri);
     await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
@@ -260,15 +261,15 @@ describe('coverCache', () => {
     const oldCleanup = cleanupCoverCache([]);
     await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith(expectedUri, { idempotent: true }));
 
-    const protection = coverCacheCleanup.beginCoverCacheProtection();
+    const protection = coverCacheCleanup.createCoverCacheProtection();
     const nextSnapshot = sanitizeSongsForStorage([
       { id: songId, title: 'New', artist: 'Artist', cover: `data:image/jpeg;base64,${base64}` },
-    ]);
+    ], protection);
     deleteDeferred.resolve(undefined);
 
     const sanitizedSongs = await nextSnapshot;
     await storage.set(StorageKeys.SONGS, sanitizedSongs);
-    coverCacheCleanup.releaseCoverCacheProtection(protection);
+    protection.release();
     await oldCleanup;
 
     expect(LegacyFileSystem.writeAsStringAsync).toHaveBeenCalledWith(expectedUri, base64, { encoding: 'base64' });

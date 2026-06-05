@@ -1,9 +1,9 @@
-import { useEffect, type MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { Song } from '../types/Song';
 import {
-  beginCoverCacheProtection,
   cleanupCoverCache,
-  releaseCoverCacheProtection,
+  createCoverCacheProtection,
+  type CoverCacheProtection,
 } from '../utils/coverCacheCleanup';
 import { StorageKeys } from '../utils/storage';
 import {
@@ -23,14 +23,27 @@ export const usePersistedSongs = (
   setSongsState: (songs: Song[]) => void,
   persistedRefs: MutableRefObject<Record<string, string>>,
 ): void => {
+  const currentSongsProtectionRef = useRef<CoverCacheProtection | undefined>(undefined);
+
+  useEffect(() => () => {
+    currentSongsProtectionRef.current?.release();
+    currentSongsProtectionRef.current = undefined;
+  }, []);
+
   useEffect(() => {
     if (!isReady) return;
-    const coverProtection = beginCoverCacheProtection(songs);
+    const coverProtection = createCoverCacheProtection();
+    coverProtection.protectSongCovers(songs);
+    const previousProtection = currentSongsProtectionRef.current;
+    currentSongsProtectionRef.current = coverProtection;
+    previousProtection?.release();
+    let canReleaseProtection = false;
     let cancelled = false;
 
     (async () => {
       try {
-        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs);
+        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs, coverProtection);
+        coverProtection.protectSongCovers(sanitizedSongs);
         if (cancelled) return;
         if (coversChanged) {
           setSongsState(sanitizedSongs);
@@ -39,6 +52,7 @@ export const usePersistedSongs = (
         if (cancelled) return;
         if (persistResult.status === 'stored' || persistResult.status === 'unchanged') {
           cleanupPersistedSongCovers(sanitizedSongs);
+          canReleaseProtection = true;
           return;
         }
         if (persistResult.status === 'failed') {
@@ -47,7 +61,12 @@ export const usePersistedSongs = (
       } catch (error) {
         console.warn('[usePersistedSongs] Persistence failed:', error);
       } finally {
-        releaseCoverCacheProtection(coverProtection);
+        if (canReleaseProtection && currentSongsProtectionRef.current === coverProtection) {
+          currentSongsProtectionRef.current = undefined;
+        }
+        if (canReleaseProtection || currentSongsProtectionRef.current !== coverProtection) {
+          coverProtection.release();
+        }
       }
     })();
 

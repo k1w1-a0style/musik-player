@@ -6,11 +6,13 @@ import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
-  beginCoverCacheProtection: jest.fn(() => Symbol('cover-cache-protection')),
   cleanupCoverCache: jest.fn(async () => undefined),
+  createCoverCacheProtection: jest.fn(() => ({
+    protectUri: jest.fn(),
+    protectSongCovers: jest.fn(),
+    release: jest.fn(),
+  })),
   invalidateCoverCacheCleanup: jest.fn(),
-  protectCoverCacheUri: jest.fn(),
-  releaseCoverCacheProtection: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
@@ -23,7 +25,7 @@ jest.mock('../musicPersistenceHelpers', () => ({
 }));
 
 const cleanupHelpers = jest.requireMock('../../utils/coverCacheCleanup') as {
-  releaseCoverCacheProtection: jest.Mock;
+  createCoverCacheProtection: jest.Mock;
 };
 
 const helpers = jest.requireMock('../musicPersistenceHelpers') as {
@@ -75,7 +77,7 @@ describe('persisted hooks', () => {
   test('usePersistedSongs persists sanitized songs', async () => {
     render(<PersistedSongsProbe ready />);
 
-    await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledWith(songs));
+    await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledWith(songs, expect.objectContaining({ protectSongCovers: expect.any(Function) })));
     await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, songs, {}));
   });
 
@@ -102,10 +104,10 @@ describe('persisted hooks', () => {
     render(<PersistedSongsProbe ready setSongsState={jest.fn()} />);
 
     await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, sanitized, {}));
-    expect(cleanupHelpers.releaseCoverCacheProtection).not.toHaveBeenCalled();
+    expect(cleanupHelpers.createCoverCacheProtection.mock.results[0].value.release).not.toHaveBeenCalled();
 
     resolvePersist({ status: 'stored' });
-    await waitFor(() => expect(cleanupHelpers.releaseCoverCacheProtection).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(cleanupHelpers.createCoverCacheProtection.mock.results[0].value.release).toHaveBeenCalledTimes(1));
   });
 
   test('usePersistedSongs swallows prepare or persist errors', async () => {
