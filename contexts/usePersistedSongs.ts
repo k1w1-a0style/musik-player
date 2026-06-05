@@ -47,6 +47,7 @@ export const usePersistedSongs = (
         if (cancelled) return;
         if (coversChanged) {
           setSongsState(sanitizedSongs);
+          return;
         }
         const persistResult = await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
         if (cancelled) return;
