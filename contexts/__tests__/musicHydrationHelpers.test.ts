@@ -21,9 +21,11 @@ import { seekToMillis } from '../playbackControlHelpers';
 const mockMigrateLegacySongFavoritesFromStoredSongs = jest.fn();
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
+  beginCoverCacheProtection: jest.fn(() => Symbol('cover-cache-protection')),
   cleanupCoverCache: jest.fn(async () => undefined),
   invalidateCoverCacheCleanup: jest.fn(),
   protectCoverCacheUri: jest.fn(),
+  releaseCoverCacheProtection: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 

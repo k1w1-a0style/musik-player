@@ -182,6 +182,7 @@ describe('coverCache', () => {
     ]);
     await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
 
+    const protection = coverCacheCleanup.beginCoverCacheProtection();
     const nextSnapshot = sanitizeSongsForStorage([
       { id: songId, title: 'New', artist: 'Artist', cover: `data:image/jpeg;base64,${base64}` },
     ]);
@@ -190,6 +191,7 @@ describe('coverCache', () => {
     directoryRead.resolve(Array.from(cachedFiles));
     const sanitizedSongs = await nextSnapshot;
     await storage.set(StorageKeys.SONGS, sanitizedSongs);
+    coverCacheCleanup.releaseCoverCacheProtection(protection);
     await oldCleanup;
 
     expect(sanitizedSongs[0].cover).toBe(expectedUri);
@@ -200,6 +202,81 @@ describe('coverCache', () => {
     expect(cachedFiles.has(expectedFileName)).toBe(true);
   });
 
+
+
+  test('older cleanup cannot delete an existing cover reused by a pending sanitized snapshot', async () => {
+    const expectedFileName = 'abc-def.jpg';
+    const expectedUri = `file:///docs/covers/${expectedFileName}`;
+    const cachedFiles = new Set([expectedFileName]);
+    const directoryRead = createDeferred<string[]>();
+
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({
+      exists: uri === 'file:///docs/covers' || cachedFiles.has(uri.slice('file:///docs/covers/'.length)),
+    }));
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockImplementationOnce(async () => directoryRead.promise);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      cachedFiles.delete(uri.slice('file:///docs/covers/'.length));
+    });
+
+    const oldCleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
+
+    const pendingSongs: Song[] = [{ id: 'reuse', title: 'New', artist: 'Artist', cover: expectedUri }];
+    const protection = coverCacheCleanup.beginCoverCacheProtection(pendingSongs);
+    const sanitizedSongs = await sanitizeSongsForStorage(pendingSongs);
+    await storage.set(StorageKeys.SONGS, sanitizedSongs);
+    directoryRead.resolve(Array.from(cachedFiles));
+    await oldCleanup;
+    coverCacheCleanup.releaseCoverCacheProtection(protection);
+
+    expect(sanitizedSongs[0].cover).toBe(expectedUri);
+    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
+      expect.objectContaining({ id: 'reuse', cover: expectedUri }),
+    ]);
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith(expectedUri, expect.anything());
+    expect(cachedFiles.has(expectedFileName)).toBe(true);
+  });
+
+  test('new sanitization rewrites and persists a cover after an older cleanup delete already started', async () => {
+    const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD';
+    const songId = 'started-delete-race';
+    const expectedFileName = `${hashForTest(songId)}-${hashForTest(base64)}.jpg`;
+    const expectedUri = `file:///docs/covers/${expectedFileName}`;
+    const cachedFiles = new Set([expectedFileName]);
+    const deleteDeferred = createDeferred<void>();
+
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({
+      exists: uri === 'file:///docs/covers' || cachedFiles.has(uri.slice('file:///docs/covers/'.length)),
+    }));
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([expectedFileName]);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(async (uri: string) => {
+      await deleteDeferred.promise;
+      cachedFiles.delete(uri.slice('file:///docs/covers/'.length));
+    });
+    (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockImplementation(async (uri: string) => {
+      cachedFiles.add(uri.slice('file:///docs/covers/'.length));
+    });
+
+    const oldCleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith(expectedUri, { idempotent: true }));
+
+    const protection = coverCacheCleanup.beginCoverCacheProtection();
+    const nextSnapshot = sanitizeSongsForStorage([
+      { id: songId, title: 'New', artist: 'Artist', cover: `data:image/jpeg;base64,${base64}` },
+    ]);
+    deleteDeferred.resolve(undefined);
+
+    const sanitizedSongs = await nextSnapshot;
+    await storage.set(StorageKeys.SONGS, sanitizedSongs);
+    coverCacheCleanup.releaseCoverCacheProtection(protection);
+    await oldCleanup;
+
+    expect(LegacyFileSystem.writeAsStringAsync).toHaveBeenCalledWith(expectedUri, base64, { encoding: 'base64' });
+    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
+      expect.objectContaining({ id: songId, cover: expectedUri }),
+    ]);
+    expect(cachedFiles.has(expectedFileName)).toBe(true);
+  });
   test('sanitizeSongsForStorage preserves track/disc/comment fields', async () => {
     const songs: Song[] = [
       {

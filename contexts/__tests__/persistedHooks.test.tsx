@@ -6,9 +6,11 @@ import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
+  beginCoverCacheProtection: jest.fn(() => Symbol('cover-cache-protection')),
   cleanupCoverCache: jest.fn(async () => undefined),
   invalidateCoverCacheCleanup: jest.fn(),
   protectCoverCacheUri: jest.fn(),
+  releaseCoverCacheProtection: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 

@@ -1,9 +1,11 @@
 import { waitFor } from '@testing-library/react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
+  beginCoverCacheProtection,
   cleanupCoverCache,
   invalidateCoverCacheCleanup,
   protectCoverCacheUri,
+  releaseCoverCacheProtection,
   waitForCoverCacheCleanupIdle,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
@@ -124,12 +126,14 @@ describe('coverCacheCleanup', () => {
     ]);
     await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
 
+    const protection = beginCoverCacheProtection();
     protectCoverCacheUri('file:///docs/covers/ccc-ddd.jpg');
     directoryRead.resolve(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
     await staleCleanup;
 
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+    releaseCoverCacheProtection(protection);
   });
 
   test('waits for an already-started cleanup delete before continuing cover cache writes', async () => {

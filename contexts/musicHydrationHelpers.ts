@@ -1,6 +1,10 @@
 import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
-import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../utils/coverCacheCleanup';
+import {
+  beginCoverCacheProtection,
+  cleanupCoverCache,
+  releaseCoverCacheProtection,
+} from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
   applyHydratedQueueState,
@@ -57,38 +61,42 @@ export const hydrateStoredSongs = async ({
 }: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
   if (!stored.songs) return stored;
 
-  invalidateCoverCacheCleanup();
-  const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
-  if (isCancelled()) return stored;
+  const coverProtection = beginCoverCacheProtection(stored.songs);
+  try {
+    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
+    if (isCancelled()) return stored;
 
-  const plan = createHydrationPlan(stored, sanitizedSongs);
+    const plan = createHydrationPlan(stored, sanitizedSongs);
 
-  applyHydratedSongsState(plan, { songsRef, setSongsState });
+    applyHydratedSongsState(plan, { songsRef, setSongsState });
 
-  await persistHydratedSongsIfNeeded(plan);
-  if (isCancelled()) return stored;
-  cleanupHydratedSongCovers(plan.hydratedSongs);
+    await persistHydratedSongsIfNeeded(plan);
+    if (isCancelled()) return stored;
+    cleanupHydratedSongCovers(plan.hydratedSongs);
 
-  applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
+    applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
 
-  await persistHydratedPlaylistsIfNeeded(plan);
-  if (isCancelled()) return stored;
+    await persistHydratedPlaylistsIfNeeded(plan);
+    if (isCancelled()) return stored;
 
-  applyHydratedCurrentSongState(plan, { setCurrentSong });
+    applyHydratedCurrentSongState(plan, { setCurrentSong });
 
-  await persistHydratedCurrentSongIdIfNeeded(plan);
-  if (isCancelled()) return stored;
+    await persistHydratedCurrentSongIdIfNeeded(plan);
+    if (isCancelled()) return stored;
 
-  const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
+    const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
 
-  if (plan.nativeQueueAction === 'clearMalformedCurrent') {
-    await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
+    if (plan.nativeQueueAction === 'clearMalformedCurrent') {
+      await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
+      return hydratedStored;
+    }
+
+    await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
+
     return hydratedStored;
+  } finally {
+    releaseCoverCacheProtection(coverProtection);
   }
-
-  await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
-
-  return hydratedStored;
 };
 
 export const runMusicHydration = async ({

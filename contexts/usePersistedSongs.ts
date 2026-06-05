@@ -1,6 +1,10 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { Song } from '../types/Song';
-import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../utils/coverCacheCleanup';
+import {
+  beginCoverCacheProtection,
+  cleanupCoverCache,
+  releaseCoverCacheProtection,
+} from '../utils/coverCacheCleanup';
 import { StorageKeys } from '../utils/storage';
 import {
   persistIfChanged,
@@ -21,7 +25,7 @@ export const usePersistedSongs = (
 ): void => {
   useEffect(() => {
     if (!isReady) return;
-    invalidateCoverCacheCleanup();
+    const coverProtection = beginCoverCacheProtection(songs);
     let cancelled = false;
 
     (async () => {
@@ -43,6 +47,8 @@ export const usePersistedSongs = (
         }
       } catch (error) {
         console.warn('[usePersistedSongs] Persistence failed:', error);
+      } finally {
+        releaseCoverCacheProtection(coverProtection);
       }
     })();
 

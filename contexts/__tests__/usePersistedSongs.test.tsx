@@ -4,7 +4,7 @@ import { render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedSongs } from '../usePersistedSongs';
 import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
-import { cleanupCoverCache, invalidateCoverCacheCleanup } from '../../utils/coverCacheCleanup';
+import { beginCoverCacheProtection, cleanupCoverCache, releaseCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
@@ -17,9 +17,11 @@ jest.mock('expo-file-system', () => ({
 }));
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
+  beginCoverCacheProtection: jest.fn(() => Symbol('cover-cache-protection')),
   cleanupCoverCache: jest.fn(async () => undefined),
   invalidateCoverCacheCleanup: jest.fn(),
   protectCoverCacheUri: jest.fn(),
+  releaseCoverCacheProtection: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
@@ -124,7 +126,7 @@ describe('usePersistedSongs', () => {
 
     rerender(<PersistedSongsWithInitialRefsProbe currentSongs={songs} initialRefs={initialRefs} />);
     await waitFor(() => expect(persistSpy).toHaveBeenCalledTimes(2));
-    expect(invalidateCoverCacheCleanup).toHaveBeenCalledTimes(2);
+    expect(beginCoverCacheProtection).toHaveBeenCalledTimes(2);
 
     expect(cleanupCoverCache).not.toHaveBeenCalled();
 
@@ -146,6 +148,7 @@ describe('usePersistedSongs', () => {
 
     await waitFor(() => expect(musicPersistenceHelpers.persistIfChanged).toHaveBeenCalledTimes(1));
     expect(cleanupCoverCache).not.toHaveBeenCalled();
+    await waitFor(() => expect(releaseCoverCacheProtection).toHaveBeenCalledTimes(1));
   });
 
   test('warns without cover cleanup when songs persistence fails', async () => {
@@ -157,6 +160,7 @@ describe('usePersistedSongs', () => {
 
     await waitFor(() => expect(warn).toHaveBeenCalledWith('[usePersistedSongs] Persistence failed:', error));
     expect(cleanupCoverCache).not.toHaveBeenCalled();
+    await waitFor(() => expect(releaseCoverCacheProtection).toHaveBeenCalledTimes(1));
     warn.mockRestore();
   });
 
