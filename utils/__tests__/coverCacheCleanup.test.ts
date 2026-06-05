@@ -136,6 +136,45 @@ describe('coverCacheCleanup', () => {
     releaseCoverCacheProtection(protection);
   });
 
+  test('rechecks pending protection immediately before each delete', async () => {
+    const firstDelete = createDeferred<void>();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(async () => firstDelete.promise);
+
+    const cleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', {
+      idempotent: true,
+    }));
+
+    const protection = beginCoverCacheProtection([
+      { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ]);
+    firstDelete.resolve(undefined);
+    await cleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    releaseCoverCacheProtection(protection);
+  });
+
+  test('keeps a shared cover protected until every owning persistence round releases it', async () => {
+    const pendingSongs = [
+      { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ];
+    const firstProtection = beginCoverCacheProtection(pendingSongs);
+    const secondProtection = beginCoverCacheProtection(pendingSongs);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['ccc-ddd.jpg']);
+
+    releaseCoverCacheProtection(firstProtection);
+    await cleanupCoverCache([]);
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+
+    releaseCoverCacheProtection(secondProtection);
+    await cleanupCoverCache([]);
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    });
+  });
+
   test('waits for an already-started cleanup delete before continuing cover cache writes', async () => {
     const deleteDeferred = createDeferred<void>();
     let idleSettled = false;

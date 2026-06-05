@@ -22,6 +22,10 @@ jest.mock('../musicPersistenceHelpers', () => ({
   })),
 }));
 
+const cleanupHelpers = jest.requireMock('../../utils/coverCacheCleanup') as {
+  releaseCoverCacheProtection: jest.Mock;
+};
+
 const helpers = jest.requireMock('../musicPersistenceHelpers') as {
   persistIfChanged: jest.Mock;
   prepareSongsForPersistence: jest.Mock;
@@ -83,7 +87,25 @@ describe('persisted hooks', () => {
     render(<PersistedSongsProbe ready setSongsState={setSongsState} />);
 
     await waitFor(() => expect(setSongsState).toHaveBeenCalledWith(sanitized));
-    expect(helpers.persistIfChanged).not.toHaveBeenCalled();
+    await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, sanitized, {}));
+  });
+
+  test('keeps sanitized cover protection until the changed snapshot persistence is final', async () => {
+    let resolvePersist!: (result: { status: 'stored' }) => void;
+    const persistResult = new Promise<{ status: 'stored' }>(resolve => {
+      resolvePersist = resolve;
+    });
+    const sanitized = [{ ...songs[0], cover: 'file:///docs/covers/abc-def.jpg' }];
+    helpers.prepareSongsForPersistence.mockResolvedValueOnce({ sanitizedSongs: sanitized, coversChanged: true });
+    helpers.persistIfChanged.mockReturnValueOnce(persistResult);
+
+    render(<PersistedSongsProbe ready setSongsState={jest.fn()} />);
+
+    await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, sanitized, {}));
+    expect(cleanupHelpers.releaseCoverCacheProtection).not.toHaveBeenCalled();
+
+    resolvePersist({ status: 'stored' });
+    await waitFor(() => expect(cleanupHelpers.releaseCoverCacheProtection).toHaveBeenCalledTimes(1));
   });
 
   test('usePersistedSongs swallows prepare or persist errors', async () => {

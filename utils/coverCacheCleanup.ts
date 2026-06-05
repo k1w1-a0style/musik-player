@@ -138,7 +138,6 @@ export const invalidateCoverCacheCleanup = (): void => {
 };
 
 export const beginCoverCacheProtection = (songs: Song[] = []): CoverCacheProtection => {
-  invalidateCoverCacheCleanup();
   const protection = Symbol('cover-cache-protection');
   const directory = getCoverCacheDirectory();
   const protectedFileNames = new Set<string>();
