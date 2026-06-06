@@ -74,6 +74,7 @@ const syncNativeQueueToLibrary = async (
       await TrackPlayer.reset();
 
       if (isStaleSync() || !isCurrent()) {
+        nativeQueueRef.current = [];
         return false;
       }
 
@@ -114,10 +115,9 @@ export const useLibraryActions = ({
       setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
       const nextQueueRef = pruneSongsByValidIds(queueContextRef.current, validSongIds);
       const nextBaseQueueRef = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
-      const nextNativeQueueRef = pruneSongsByValidIds(nativeQueueRef.current, validSongIds);
       const queueRefChanged = !hasSameOrderedSongIds(queueContextRef.current, nextQueueRef);
       const baseQueueRefChanged = !hasSameOrderedSongIds(baseQueueContextRef.current, nextBaseQueueRef);
-      const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextNativeQueueRef);
+      const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextQueueRef);
       latestNativeSyncVersionRef.current += 1;
       const syncVersion = latestNativeSyncVersionRef.current;
 
