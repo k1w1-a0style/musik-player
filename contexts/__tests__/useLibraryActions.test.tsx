@@ -239,6 +239,35 @@ describe('useLibraryActions', () => {
 
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
     expect(getByTestId('native-ref').props.children).toBe('s1');
+    expect(getByTestId('queue-ref').props.children).toBe('s1');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1');
+    expect(getByTestId('playback-queue').props.children).toBe('s1');
+    expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
+  });
+
+  test('logs and keeps queue refs unchanged when native add fails after library update', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('add failed'));
+
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalled());
+    expect(getByTestId('native-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
 

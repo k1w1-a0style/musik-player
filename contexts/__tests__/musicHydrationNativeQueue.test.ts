@@ -46,7 +46,7 @@ describe('musicHydrationNativeQueue', () => {
     expect(nativeQueueRef.current.map(song => song.id)).toEqual(['stale']);
   });
 
-  test('clears native queue ref when TrackPlayer.add fails', async () => {
+  test('keeps previous native queue ref when TrackPlayer.add fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const plan = createHydrationPlan(stored, songs);
     const nativeQueueRef = createSongRef();
@@ -55,7 +55,7 @@ describe('musicHydrationNativeQueue', () => {
 
     await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false });
 
-    expect(nativeQueueRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual(songs);
     expect(warn).toHaveBeenCalledWith('[PlaybackQueue] Failed to initialize hydrated native queue.', expect.any(Error));
     warn.mockRestore();
   });

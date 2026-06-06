@@ -63,40 +63,36 @@ const syncNativeQueueToLibrary = async (
   nextQueue: Song[],
   syncVersion: number,
   latestSyncVersionRef: MutableRefObject<number>,
-): Promise<void> => {
+): Promise<boolean> => {
   const playableQueue = toPlayableSongs(nextQueue);
   const isStaleSync = () => latestSyncVersionRef.current !== syncVersion;
 
   try {
-    await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
-      if (isStaleSync() || !isCurrent()) return;
+    const applied = await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      if (isStaleSync() || !isCurrent()) return false;
 
-      let didResetNativeQueue = false;
-      try {
-        await TrackPlayer.reset();
-        didResetNativeQueue = true;
+      await TrackPlayer.reset();
+
+      if (isStaleSync() || !isCurrent()) {
         nativeQueueRef.current = [];
-
-        if (isStaleSync() || !isCurrent()) {
-          return;
-        }
-
-        if (playableQueue.length > 0) {
-          await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-          nativeQueueRef.current = playableQueue.slice();
-        }
-
-        if (isStaleSync() || !isCurrent()) return;
-
-        if (playableQueue.length === 0) nativeQueueRef.current = [];
-      } catch (error) {
-        if (didResetNativeQueue) nativeQueueRef.current = [];
-        throw error;
+        return false;
       }
+
+      if (playableQueue.length > 0) {
+        await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+        nativeQueueRef.current = playableQueue.slice();
+      }
+
+      if (isStaleSync() || !isCurrent()) return false;
+
+      if (playableQueue.length === 0) nativeQueueRef.current = [];
+      return true;
     });
+    return applied && !isStaleSync();
   } catch (error) {
-    if (isStaleSync()) return;
+    if (isStaleSync()) return false;
     console.warn('[LibraryRemove] Failed to sync native queue after library update.', error);
+    return false;
   }
 };
 export const useLibraryActions = ({
@@ -123,14 +119,16 @@ export const useLibraryActions = ({
       const baseQueueRefChanged = !hasSameOrderedSongIds(baseQueueContextRef.current, nextBaseQueueRef);
       const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextNativeQueueRef);
 
-      if (queueRefChanged) queueContextRef.current = nextQueueRef;
-      if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;
-      const syncedQueue = queueContextRef.current.slice();
-      if (queueRefChanged) {
-        setPlaybackQueue(syncedQueue);
-      } else {
-        setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
-      }
+      const commitQueueRefs = () => {
+        if (queueRefChanged) queueContextRef.current = nextQueueRef;
+        if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;
+        const syncedQueue = queueContextRef.current.slice();
+        if (queueRefChanged) {
+          setPlaybackQueue(syncedQueue);
+        } else {
+          setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
+        }
+      };
       setSongsState(songs);
       latestCleanupVersionRef.current += 1;
       const cleanupVersion = latestCleanupVersionRef.current;
@@ -138,7 +136,12 @@ export const useLibraryActions = ({
       if (queueRefChanged || nativeQueueRefChanged) {
         latestNativeSyncVersionRef.current += 1;
         const syncVersion = latestNativeSyncVersionRef.current;
-        void syncNativeQueueToLibrary(nativeQueueRef, syncedQueue, syncVersion, latestNativeSyncVersionRef);
+        void syncNativeQueueToLibrary(nativeQueueRef, nextQueueRef, syncVersion, latestNativeSyncVersionRef).then(didSync => {
+          if (!didSync || latestNativeSyncVersionRef.current !== syncVersion) return;
+          commitQueueRefs();
+        });
+      } else {
+        commitQueueRefs();
       }
     },
     [

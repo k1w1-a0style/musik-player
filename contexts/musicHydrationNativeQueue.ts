@@ -13,14 +13,16 @@ export interface ApplyHydratedNativeQueueArgs {
 
 export const clearNativeQueueAfterMalformedRestoredSong = async (
   nativeQueueRef: MutableRefObject<Song[]>,
-): Promise<void> => {
+): Promise<boolean> => {
   try {
     await runExclusiveNativeQueueReplacement(async () => {
       await TrackPlayer.reset();
       nativeQueueRef.current = [];
     });
+    return true;
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
+    return false;
   }
 };
 
@@ -28,36 +30,33 @@ export const applyHydratedNativeQueue = async ({
   plan,
   nativeQueueRef,
   isCancelled,
-}: ApplyHydratedNativeQueueArgs): Promise<void> => {
-  if (plan.nativeQueueAction === 'none' || plan.nativeQueueAction === 'clearMalformedCurrent') return;
+}: ApplyHydratedNativeQueueArgs): Promise<boolean> => {
+  if (plan.nativeQueueAction === 'none' || plan.nativeQueueAction === 'clearMalformedCurrent') return true;
 
   try {
-    await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
-      if (isCancelled() || !isCurrent()) return;
+    const applied = await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      if (isCancelled() || !isCurrent()) return false;
       await TrackPlayer.reset();
-      nativeQueueRef.current = [];
 
       if (isCancelled() || !isCurrent()) {
-        return;
+        nativeQueueRef.current = [];
+        return false;
       }
 
       if (plan.playableQueue.length === 0) {
         console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
         nativeQueueRef.current = [];
-        return;
+        return true;
       }
 
-      try {
-        await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
-        nativeQueueRef.current = plan.playableQueue.slice();
-        if (!isCurrent()) return;
-      } catch (error) {
-        nativeQueueRef.current = [];
-        throw error;
-      }
+      await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
+      nativeQueueRef.current = plan.playableQueue.slice();
+      return true;
     });
+    return applied;
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
+    return false;
   }
 };
 

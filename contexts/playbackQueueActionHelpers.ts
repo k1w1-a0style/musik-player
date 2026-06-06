@@ -94,24 +94,17 @@ export const rebuildNativePlaybackQueue = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
 ): Promise<void> => runExclusiveNativeQueueReplacement(async () => {
-  let didResetNativeQueue = false;
-  try {
-    await TrackPlayer.reset();
-    didResetNativeQueue = true;
+  await TrackPlayer.reset();
 
-    if (queue.length === 0) {
-      nativeQueueRef.current = [];
-    } else {
-      await TrackPlayer.add(queue.map(toTrackPlayerTrack));
-      nativeQueueRef.current = queue.slice();
-    }
-
-    if (resumePositionSeconds) await TrackPlayer.seekTo(resumePositionSeconds);
-    await TrackPlayer.play();
-  } catch (error) {
-    if (didResetNativeQueue) nativeQueueRef.current = [];
-    throw error;
+  if (queue.length === 0) {
+    nativeQueueRef.current = [];
+  } else {
+    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    nativeQueueRef.current = queue.slice();
   }
+
+  if (resumePositionSeconds) await TrackPlayer.seekTo(resumePositionSeconds);
+  await TrackPlayer.play();
 });
 
 export const runPlaySongQueueAction = async ({
@@ -208,7 +201,6 @@ export const runShuffleQueueAction = async ({
     await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
-    nativeQueueRef.current = [];
     return;
   }
 
