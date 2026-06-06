@@ -77,6 +77,7 @@ const markEntryConfirmedAfterCleanup = (entry: ProtectionEntry): void => {
 };
 
 const moveEntryToSnapshot = (entry: ProtectionEntry, songs: Song[]): ProtectionEntry => {
+  if (entry.released) return entry;
   entry.protection.protectSongCovers(songs);
   const snapshotKey = getSongSnapshotKey(songs);
   if (snapshotKey === entry.snapshotKey) return entry;

@@ -24,6 +24,19 @@ describe('songCoverProtectionLifecycle', () => {
     jest.clearAllMocks();
   });
 
+  test('does not reinsert a released entry when its stale lease moves snapshots', () => {
+    const staleLease = acquireSongCoverProtection(songsA);
+    staleLease.releaseCurrentOwner();
+
+    staleLease.updateSnapshot(songsB);
+    staleLease.handoffToNextEffect(songsB);
+    const currentLease = acquireSongCoverProtection(songsB);
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
+    expect(currentLease.protection).toBe(protectionAt(1));
+  });
+
   test('does not release an older protection while its persistence can still commit', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();

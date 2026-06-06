@@ -32,8 +32,8 @@ export const usePersistedSongs = (
     (async () => {
       try {
         const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs, coverLease.protection);
-        coverLease.updateSnapshot(sanitizedSongs);
         if (cancelled) return;
+        coverLease.updateSnapshot(sanitizedSongs);
         if (coversChanged) {
           coverLease.handoffToNextEffect(sanitizedSongs);
           setSongsState(sanitizedSongs);

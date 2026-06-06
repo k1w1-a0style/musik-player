@@ -4,7 +4,10 @@ import { usePersistedSetting } from '../usePersistedSetting';
 import { usePersistedSongs } from '../usePersistedSongs';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
-import { resetSongCoverProtectionLifecycleForTests } from '../songCoverProtectionLifecycle';
+import {
+  acquireSongCoverProtection,
+  resetSongCoverProtectionLifecycleForTests,
+} from '../songCoverProtectionLifecycle';
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
@@ -89,6 +92,36 @@ describe('persisted hooks', () => {
 
     await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledWith(songs, expect.objectContaining({ protectSongCovers: expect.any(Function) })));
     await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, songs, {}));
+  });
+
+  test('does not move or persist a snapshot when prepare resolves after effect cancellation', async () => {
+    let resolvePrepare!: (value: { sanitizedSongs: Song[]; coversChanged: boolean }) => void;
+    const prepareResult = new Promise<{ sanitizedSongs: Song[]; coversChanged: boolean }>(resolve => {
+      resolvePrepare = resolve;
+    });
+    const sanitized = [{ ...songs[0], cover: 'file:///docs/covers/abc-def.jpg' }];
+    const setSongsState = jest.fn();
+    helpers.prepareSongsForPersistence.mockReturnValueOnce(prepareResult);
+
+    const { unmount } = render(<PersistedSongsProbe setSongsState={setSongsState} />);
+    await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledTimes(1));
+    const releasedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
+
+    unmount();
+    expect(releasedProtection.release).toHaveBeenCalledTimes(1);
+
+    resolvePrepare({ sanitizedSongs: sanitized, coversChanged: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setSongsState).not.toHaveBeenCalled();
+    expect(helpers.persistIfChanged).not.toHaveBeenCalled();
+    expect(cleanupHelpers.cleanupCoverCache).not.toHaveBeenCalled();
+
+    const laterLease = acquireSongCoverProtection(sanitized);
+    expect(cleanupHelpers.createCoverCacheProtection).toHaveBeenCalledTimes(2);
+    expect(laterLease.protection).not.toBe(releasedProtection);
+    laterLease.releaseCurrentOwner();
   });
 
   test('usePersistedSongs updates state when cover cache sanitizing changed songs', async () => {
