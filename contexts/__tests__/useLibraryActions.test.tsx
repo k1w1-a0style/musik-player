@@ -345,6 +345,74 @@ describe('useLibraryActions', () => {
     expect(getByTestId('playback-queue-commits').props.children).toBe(1);
   });
 
+  test('stale native sync does not update nativeQueueRef after native add resolves', async () => {
+    const deferredAdd: { resolve: () => void }[] = [];
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          deferredAdd.push({ resolve });
+        }),
+    );
+
+    const { getByTestId, rerender } = render(
+      <LibraryProbe
+        initialSongs={[songs[0], songs[1]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+    await waitFor(() => expect(deferredAdd.length).toBe(1));
+
+    rerender(
+      <LibraryProbe
+        initialSongs={[songs[0], songs[1]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[0], songs[1]]}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await act(async () => {
+      deferredAdd[0].resolve();
+      await Promise.resolve();
+    });
+    act(() => fireEvent.press(getByTestId('rerender')));
+
+    expect(getByTestId('native-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue-commits').props.children).toBe(1);
+
+    rerender(
+      <LibraryProbe
+        initialSongs={[songs[0], songs[1]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[0]]}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    await waitFor(() => expect(getByTestId('native-ref').props.children).toBe('s1'));
+    expect(getByTestId('queue-ref').props.children).toBe('s1');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1');
+    expect(TrackPlayer.add).toHaveBeenLastCalledWith([expect.objectContaining({ id: 's1' })]);
+  });
+
   test('latest native sync wins across overlapping setSongs calls', async () => {
     const deferred: { resolve: () => void }[] = [];
     (TrackPlayer.reset as jest.Mock).mockImplementation(

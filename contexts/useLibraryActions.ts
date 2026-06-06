@@ -74,12 +74,12 @@ const syncNativeQueueToLibrary = async (
       await TrackPlayer.reset();
 
       if (isStaleSync() || !isCurrent()) {
-        nativeQueueRef.current = [];
         return false;
       }
 
       if (playableQueue.length > 0) {
         await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+        if (isStaleSync()) return false;
         nativeQueueRef.current = playableQueue.slice();
       }
 
