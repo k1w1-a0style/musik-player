@@ -49,6 +49,19 @@ describe('songCoverProtectionLifecycle', () => {
     expect(protectionAt(0).release).not.toHaveBeenCalled();
   });
 
+  test('releases a dropped pending snapshot without provisional stored ownership', () => {
+    const dropped = acquireSongCoverProtection(songsB);
+    dropped.markPersisting();
+    dropped.releaseCurrentOwner();
+
+    dropped.finishPersistence({ status: 'dropped' });
+    const reacquired = acquireSongCoverProtection(songsB);
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
+    expect(reacquired.protection).toBe(protectionAt(1));
+  });
+
   test('retains an older successfully written snapshot when the newer persistence fails', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();

@@ -147,6 +147,18 @@ describe('usePersistedSongs', () => {
     expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).toHaveBeenCalledTimes(1);
   });
 
+  test('does not run cover cleanup or warn when songs persistence is dropped', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(musicPersistenceHelpers, 'persistIfChanged').mockResolvedValueOnce({ status: 'dropped' });
+
+    render(<PersistedSongsProbe ready />);
+
+    await waitFor(() => expect(musicPersistenceHelpers.persistIfChanged).toHaveBeenCalledTimes(1));
+    expect(cleanupCoverCache).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalledWith('[usePersistedSongs] Persistence failed:', expect.anything());
+    warn.mockRestore();
+  });
+
   test('does not run cover cleanup when songs persistence is superseded', async () => {
     jest.spyOn(musicPersistenceHelpers, 'persistIfChanged').mockResolvedValueOnce({ status: 'superseded' });
 

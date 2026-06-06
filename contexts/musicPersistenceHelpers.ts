@@ -52,6 +52,7 @@ export type PersistResult =
   | { status: 'stored' }
   | { status: 'unchanged' }
   | { status: 'superseded' }
+  | { status: 'dropped' }
   | { status: 'failed'; error?: unknown };
 
 interface PendingPersistRequest {
@@ -157,7 +158,7 @@ export const persistIfChanged = async <T,>(
     }
 
     if (queueState.pendingRequest) {
-      resolveRequest(queueState.pendingRequest, { status: 'superseded' });
+      resolveRequest(queueState.pendingRequest, { status: 'dropped' });
     }
 
     queueState.pendingRequest = {

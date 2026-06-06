@@ -23,7 +23,10 @@ import {
   persistHydratedSongsIfNeeded,
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
-import { acquireSongCoverProtection } from './songCoverProtectionLifecycle';
+import {
+  acquireSongCoverProtection,
+  type SongCoverProtectionLease,
+} from './songCoverProtectionLifecycle';
 import type {
   HydrateStoredSongsArgs,
   RunMusicHydrationArgs,
@@ -36,6 +39,15 @@ const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
   } catch (error) {
     console.warn('[MusicHydration] Failed to clean up hydrated cover cache.', error);
   }
+};
+
+const handoffUnconfirmedHydratedSongProtection = (
+  coverLease: SongCoverProtectionLease,
+  hydratedSongs: Song[],
+  error?: unknown,
+): void => {
+  coverLease.handoffFromHydration(hydratedSongs);
+  console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', error);
 };
 
 export type {
@@ -72,8 +84,7 @@ export const hydrateStoredSongs = async ({
 
     const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
     if (songsPersistResult.status === 'unconfirmed') {
-      coverLease.handoffFromHydration(plan.hydratedSongs);
-      console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', songsPersistResult.error);
+      handoffUnconfirmedHydratedSongProtection(coverLease, plan.hydratedSongs, songsPersistResult.error);
     } else {
       await cleanupHydratedSongCovers(plan.hydratedSongs);
       coverLease.markConfirmedAfterCleanup();

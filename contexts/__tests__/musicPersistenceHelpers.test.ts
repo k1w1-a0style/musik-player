@@ -188,7 +188,7 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
   });
 
-  test('collapses three quick updates for the same key so only the final pending value wins', async () => {
+  test('drops pending request that is replaced before it starts so only the final pending value wins', async () => {
     const refs: Record<string, string> = {};
     const first = createDeferred<boolean>();
     const second = createDeferred<boolean>();
@@ -205,7 +205,7 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
     second.resolve(true);
 
-    await expect(Promise.all([firstPersist, secondPersist, thirdPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'superseded' }, { status: 'stored' }]);
+    await expect(Promise.all([firstPersist, secondPersist, thirdPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'dropped' }, { status: 'stored' }]);
     expect(setSpy).toHaveBeenCalledTimes(2);
     expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.REPEAT_MODE, 'off');
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.REPEAT_MODE, 'all');
