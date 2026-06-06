@@ -1,11 +1,8 @@
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, type MutableRefObject } from 'react';
 import type { Song } from '../types/Song';
-import {
-  cleanupCoverCache,
-  createCoverCacheProtection,
-  type CoverCacheProtection,
-} from '../utils/coverCacheCleanup';
+import { cleanupCoverCache } from '../utils/coverCacheCleanup';
 import { StorageKeys } from '../utils/storage';
+import { acquireSongCoverProtection } from './songCoverProtectionLifecycle';
 import {
   persistIfChanged,
   prepareSongsForPersistence,
@@ -23,56 +20,45 @@ export const usePersistedSongs = (
   setSongsState: (songs: Song[]) => void,
   persistedRefs: MutableRefObject<Record<string, string>>,
 ): void => {
-  const currentSongsProtectionRef = useRef<CoverCacheProtection | undefined>(undefined);
-
-  useEffect(() => () => {
-    currentSongsProtectionRef.current?.release();
-    currentSongsProtectionRef.current = undefined;
-  }, []);
-
   useEffect(() => {
     if (!isReady) return;
-    const coverProtection = createCoverCacheProtection();
-    coverProtection.protectSongCovers(songs);
-    const previousProtection = currentSongsProtectionRef.current;
-    currentSongsProtectionRef.current = coverProtection;
-    previousProtection?.release();
-    let canReleaseProtection = false;
+    const coverLease = acquireSongCoverProtection(songs);
     let cancelled = false;
+    let persistenceStarted = false;
+    let persistenceFinished = false;
 
     (async () => {
       try {
-        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs, coverProtection);
-        coverProtection.protectSongCovers(sanitizedSongs);
+        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs, coverLease.protection);
+        coverLease.updateSnapshot(sanitizedSongs);
         if (cancelled) return;
         if (coversChanged) {
+          coverLease.handoff(sanitizedSongs);
           setSongsState(sanitizedSongs);
           return;
         }
+        coverLease.markPersisting();
+        persistenceStarted = true;
         const persistResult = await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
-        if (cancelled) return;
-        if (persistResult.status === 'stored' || persistResult.status === 'unchanged') {
+        if (!cancelled && (persistResult.status === 'stored' || persistResult.status === 'unchanged')) {
           cleanupPersistedSongCovers(sanitizedSongs);
-          canReleaseProtection = true;
-          return;
         }
-        if (persistResult.status === 'failed') {
+        coverLease.finishPersistence(persistResult);
+        persistenceFinished = true;
+        if (!cancelled && persistResult.status === 'failed') {
           console.warn('[usePersistedSongs] Persistence failed:', persistResult.error);
         }
       } catch (error) {
+        if (persistenceStarted && !persistenceFinished) {
+          coverLease.finishPersistence({ status: 'failed', error });
+        }
         console.warn('[usePersistedSongs] Persistence failed:', error);
-      } finally {
-        if (canReleaseProtection && currentSongsProtectionRef.current === coverProtection) {
-          currentSongsProtectionRef.current = undefined;
-        }
-        if (canReleaseProtection || currentSongsProtectionRef.current !== coverProtection) {
-          coverProtection.release();
-        }
       }
     })();
 
     return () => {
       cancelled = true;
+      coverLease.releaseCurrent();
     };
   }, [isReady, persistedRefs, setSongsState, songs]);
 };

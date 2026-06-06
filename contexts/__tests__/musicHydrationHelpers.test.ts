@@ -12,6 +12,7 @@ import {
 import { StorageKeys, storage } from '../../utils/storage';
 import { cleanupCoverCache } from '../../utils/coverCacheCleanup';
 import type { Playlist, Song } from '../../types/Song';
+import { resetSongCoverProtectionLifecycleForTests } from '../songCoverProtectionLifecycle';
 import {
   resetNativeQueueMutationLockForTests,
   runExclusiveNativeQueueReplacement,
@@ -46,6 +47,7 @@ const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
+    resetSongCoverProtectionLifecycleForTests();
     resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();

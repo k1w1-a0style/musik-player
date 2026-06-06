@@ -4,6 +4,7 @@ import { usePersistedSetting } from '../usePersistedSetting';
 import { usePersistedSongs } from '../usePersistedSongs';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
+import { resetSongCoverProtectionLifecycleForTests } from '../songCoverProtectionLifecycle';
 
 jest.mock('../../utils/coverCacheCleanup', () => ({
   cleanupCoverCache: jest.fn(async () => undefined),
@@ -63,6 +64,7 @@ const PersistedSongsProbe = ({
 
 describe('persisted hooks', () => {
   beforeEach(() => {
+    resetSongCoverProtectionLifecycleForTests();
     jest.clearAllMocks();
   });
 
@@ -113,18 +115,17 @@ describe('persisted hooks', () => {
 
     render(<PersistedSongsStateBridgeProbe />);
 
-    await waitFor(() => expect(cleanupHelpers.createCoverCacheProtection).toHaveBeenCalledTimes(2));
-    const firstProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
-    const secondProtection = cleanupHelpers.createCoverCacheProtection.mock.results[1].value;
-    expect(secondProtection.protectSongCovers).toHaveBeenCalledWith(sanitized);
-    expect(firstProtection.release).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(cleanupHelpers.createCoverCacheProtection).toHaveBeenCalledTimes(1));
+    const adoptedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
+    expect(adoptedProtection.protectSongCovers).toHaveBeenCalledWith(sanitized);
+    expect(adoptedProtection.release).not.toHaveBeenCalled();
     await waitFor(() => expect(helpers.persistIfChanged).toHaveBeenCalledWith(StorageKeys.SONGS, sanitized, {}));
-    expect(secondProtection.release).not.toHaveBeenCalled();
+    expect(adoptedProtection.release).not.toHaveBeenCalled();
     expect(cleanupHelpers.cleanupCoverCache).not.toHaveBeenCalled();
 
     resolvePersist({ status: 'stored' });
     await waitFor(() => expect(cleanupHelpers.cleanupCoverCache).toHaveBeenCalledWith(sanitized));
-    await waitFor(() => expect(secondProtection.release).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(adoptedProtection.release).toHaveBeenCalledTimes(1));
   });
 
   test('usePersistedSongs swallows prepare or persist errors', async () => {

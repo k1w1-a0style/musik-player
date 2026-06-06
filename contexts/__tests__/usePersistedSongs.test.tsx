@@ -7,6 +7,7 @@ import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
 import { cleanupCoverCache, createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
+import { resetSongCoverProtectionLifecycleForTests } from '../songCoverProtectionLifecycle';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',
@@ -76,6 +77,7 @@ const PersistedSongsProbe = ({ ready }: { ready: boolean }) => {
 
 describe('usePersistedSongs', () => {
   beforeEach(async () => {
+    resetSongCoverProtectionLifecycleForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();
   });
@@ -129,7 +131,7 @@ describe('usePersistedSongs', () => {
     rerender(<PersistedSongsWithInitialRefsProbe currentSongs={songs} initialRefs={initialRefs} />);
     await waitFor(() => expect(persistSpy).toHaveBeenCalledTimes(2));
     expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
-    expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).toHaveBeenCalledTimes(1);
+    expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).not.toHaveBeenCalled();
 
     expect(cleanupCoverCache).not.toHaveBeenCalled();
 
@@ -142,6 +144,7 @@ describe('usePersistedSongs', () => {
     expect(cleanupCoverCache).not.toHaveBeenCalledWith(newerSongs);
     expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.SONGS, newerSongs);
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.SONGS, songs);
+    expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).toHaveBeenCalledTimes(1);
   });
 
   test('does not run cover cleanup when songs persistence is superseded', async () => {

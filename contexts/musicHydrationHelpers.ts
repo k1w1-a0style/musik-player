@@ -1,9 +1,6 @@
 import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
-import {
-  cleanupCoverCache,
-  createCoverCacheProtection,
-} from '../utils/coverCacheCleanup';
+import { cleanupCoverCache } from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
   applyHydratedQueueState,
@@ -26,6 +23,7 @@ import {
   persistHydratedSongsIfNeeded,
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
+import { acquireSongCoverProtection } from './songCoverProtectionLifecycle';
 import type {
   HydrateStoredSongsArgs,
   RunMusicHydrationArgs,
@@ -60,14 +58,16 @@ export const hydrateStoredSongs = async ({
 }: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
   if (!stored.songs) return stored;
 
-  const coverProtection = createCoverCacheProtection();
-  coverProtection.protectSongCovers(stored.songs);
-  let canReleaseCoverProtection = true;
+  const coverLease = acquireSongCoverProtection(stored.songs);
+  let handoffSongs: Song[] | undefined;
+  const completeCoverProtection = (): void => {
+    if (handoffSongs) coverLease.handoff(handoffSongs);
+  };
   try {
-    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverProtection);
+    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
     if (isCancelled()) return stored;
 
-    coverProtection.protectSongCovers(sanitizedSongs);
+    coverLease.updateSnapshot(sanitizedSongs);
     const plan = createHydrationPlan(stored, sanitizedSongs);
 
     applyHydratedSongsState(plan, { songsRef, setSongsState });
@@ -75,10 +75,11 @@ export const hydrateStoredSongs = async ({
     const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
     if (isCancelled()) return stored;
     if (songsPersistResult.status === 'unconfirmed') {
-      canReleaseCoverProtection = false;
+      handoffSongs = plan.hydratedSongs;
       console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', songsPersistResult.error);
     } else {
       cleanupHydratedSongCovers(plan.hydratedSongs);
+      coverLease.markConfirmed();
     }
 
     applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
@@ -95,14 +96,16 @@ export const hydrateStoredSongs = async ({
 
     if (plan.nativeQueueAction === 'clearMalformedCurrent') {
       await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
+      completeCoverProtection();
       return hydratedStored;
     }
 
     await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
 
+    completeCoverProtection();
     return hydratedStored;
   } finally {
-    if (canReleaseCoverProtection) coverProtection.release();
+    coverLease.releaseCurrent();
   }
 };
 
