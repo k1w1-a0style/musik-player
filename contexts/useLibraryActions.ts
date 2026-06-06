@@ -118,6 +118,8 @@ export const useLibraryActions = ({
       const queueRefChanged = !hasSameOrderedSongIds(queueContextRef.current, nextQueueRef);
       const baseQueueRefChanged = !hasSameOrderedSongIds(baseQueueContextRef.current, nextBaseQueueRef);
       const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextNativeQueueRef);
+      latestNativeSyncVersionRef.current += 1;
+      const syncVersion = latestNativeSyncVersionRef.current;
 
       const commitQueueRefs = () => {
         if (queueRefChanged) queueContextRef.current = nextQueueRef;
@@ -134,8 +136,6 @@ export const useLibraryActions = ({
       const cleanupVersion = latestCleanupVersionRef.current;
       void cleanupCurrentSongIdAfterLibraryUpdate(validSongIds, cleanupVersion, latestCleanupVersionRef);
       if (queueRefChanged || nativeQueueRefChanged) {
-        latestNativeSyncVersionRef.current += 1;
-        const syncVersion = latestNativeSyncVersionRef.current;
         void syncNativeQueueToLibrary(nativeQueueRef, nextQueueRef, syncVersion, latestNativeSyncVersionRef).then(didSync => {
           if (!didSync || latestNativeSyncVersionRef.current !== syncVersion) return;
           commitQueueRefs();

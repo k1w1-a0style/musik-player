@@ -291,6 +291,60 @@ describe('useLibraryActions', () => {
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
+  test('new setSongs call invalidates older pending native sync even when second call does not start a new native sync', async () => {
+    const deferredReset: { resolve: () => void }[] = [];
+    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          deferredReset.push({ resolve });
+        }),
+    );
+
+    const { getByTestId, rerender } = render(
+      <LibraryProbe
+        initialSongs={[songs[0], songs[1]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+    await waitFor(() => expect(deferredReset.length).toBe(1));
+
+    rerender(
+      <LibraryProbe
+        initialSongs={[songs[0], songs[1]]}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[0], songs[1]]}
+      />,
+    );
+    act(() => fireEvent.press(getByTestId('set-songs')));
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
+
+    await act(async () => {
+      deferredReset[0].resolve();
+      await Promise.resolve();
+    });
+
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue-commits').props.children).toBe(1);
+  });
+
   test('latest native sync wins across overlapping setSongs calls', async () => {
     const deferred: { resolve: () => void }[] = [];
     (TrackPlayer.reset as jest.Mock).mockImplementation(
