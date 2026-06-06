@@ -207,6 +207,28 @@ describe('persisted hooks', () => {
     await waitFor(() => expect(protection.release).toHaveBeenCalledTimes(1));
   });
 
+  test('releases older provisional protection before post-commit cover cleanup', async () => {
+    const olderSongs: Song[] = [{ ...songs[0], id: 'old', cover: 'file:///docs/covers/aaa-bbb.jpg' }];
+    const olderLease = acquireSongCoverProtection(olderSongs);
+    olderLease.markPersisting();
+    olderLease.releaseCurrentOwner();
+    olderLease.finishPersistence({ status: 'superseded' });
+
+    render(<PersistedSongsProbe />);
+
+    await waitFor(() => expect(cleanupHelpers.cleanupCoverCache).toHaveBeenCalledWith(songs));
+    const olderProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
+    const confirmedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[1].value;
+    expect(olderProtection.release).toHaveBeenCalledTimes(1);
+    expect(olderProtection.release.mock.invocationCallOrder[0]).toBeLessThan(
+      cleanupHelpers.cleanupCoverCache.mock.invocationCallOrder[0],
+    );
+    expect(confirmedProtection.replaceProtectedSongCovers).toHaveBeenCalledWith(songs);
+    expect(confirmedProtection.replaceProtectedSongCovers.mock.invocationCallOrder[0]).toBeLessThan(
+      cleanupHelpers.cleanupCoverCache.mock.invocationCallOrder[0],
+    );
+  });
+
   test('usePersistedSongs swallows prepare or persist errors', async () => {
     helpers.prepareSongsForPersistence.mockRejectedValueOnce(new Error('prepare rejected'));
 

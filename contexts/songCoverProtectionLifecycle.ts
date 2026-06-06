@@ -23,6 +23,7 @@ export type SongCoverProtectionLease = {
   handoffToNextEffect: (songs: Song[]) => void;
   handoffFromHydration: (songs: Song[]) => void;
   markPersisting: () => void;
+  prepareConfirmedCleanup: (songs: Song[]) => void;
   finishPersistence: (result: PersistResult) => void;
   markConfirmedAfterCleanup: () => void;
   releaseCurrentOwner: () => void;
@@ -53,6 +54,25 @@ const maybeReleaseEntry = (entry: ProtectionEntry): void => {
     || entry.provisionalStored
   ) return;
   releaseEntryProtection(entry);
+};
+
+const prepareEntryForConfirmedCleanup = (entry: ProtectionEntry, songs: Song[]): void => {
+  if (entry.released) return;
+  entry.protection.replaceProtectedSongCovers(songs);
+
+  entriesBySnapshot.forEach(candidate => {
+    if (
+      candidate !== entry
+      && candidate.generation < entry.generation
+      && candidate.currentOwners === 0
+      && candidate.inFlightOwners === 0
+      && candidate.nextEffectHandoffOwners === 0
+      && candidate.hydrationHandoffOwners === 0
+    ) {
+      candidate.provisionalStored = false;
+      maybeReleaseEntry(candidate);
+    }
+  });
 };
 
 const markEntryConfirmedAfterCleanup = (entry: ProtectionEntry): void => {
@@ -174,6 +194,9 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       if (entry.released || ownsInFlight) return;
       ownsInFlight = true;
       entry.inFlightOwners += 1;
+    },
+    prepareConfirmedCleanup: songs => {
+      prepareEntryForConfirmedCleanup(entry, songs);
     },
     finishPersistence: result => {
       if (entry.released) return;

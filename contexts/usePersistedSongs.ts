@@ -48,6 +48,7 @@ export const usePersistedSongs = (
             persistenceFinished = true;
             return;
           }
+          coverLease.prepareConfirmedCleanup(sanitizedSongs);
           await cleanupPersistedSongCovers(sanitizedSongs);
         }
         coverLease.finishPersistence(persistResult);

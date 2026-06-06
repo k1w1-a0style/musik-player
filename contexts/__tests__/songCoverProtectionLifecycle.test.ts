@@ -119,6 +119,26 @@ describe('songCoverProtectionLifecycle', () => {
     expect(protectionAt(1).release).toHaveBeenCalledTimes(1);
   });
 
+  test('prepares confirmed cleanup by releasing older provisional entries while preserving active owners', () => {
+    const older = acquireSongCoverProtection(songsA);
+    older.markPersisting();
+    older.releaseCurrentOwner();
+    older.finishPersistence({ status: 'superseded' });
+
+    const confirmed = acquireSongCoverProtection(songsB);
+    confirmed.markPersisting();
+    const pending = acquireSongCoverProtection([{ ...songsA[0], id: 'c', cover: 'file:///docs/covers/eee-fff.jpg' }]);
+    pending.markPersisting();
+    pending.releaseCurrentOwner();
+
+    confirmed.prepareConfirmedCleanup(songsB);
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(protectionAt(1).replaceProtectedSongCovers).toHaveBeenCalledWith(songsB);
+    expect(protectionAt(1).release).not.toHaveBeenCalled();
+    expect(protectionAt(2).release).not.toHaveBeenCalled();
+  });
+
   test('releases an older in-flight snapshot that finishes after a newer snapshot confirmed', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();
