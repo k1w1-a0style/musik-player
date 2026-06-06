@@ -117,6 +117,7 @@ describe('persisted hooks', () => {
     expect(setSongsState).not.toHaveBeenCalled();
     expect(helpers.persistIfChanged).not.toHaveBeenCalled();
     expect(cleanupHelpers.cleanupCoverCache).not.toHaveBeenCalled();
+    expect(releasedProtection.protectSongCovers).not.toHaveBeenCalledWith(sanitized);
 
     const laterLease = acquireSongCoverProtection(sanitized);
     expect(cleanupHelpers.createCoverCacheProtection).toHaveBeenCalledTimes(2);

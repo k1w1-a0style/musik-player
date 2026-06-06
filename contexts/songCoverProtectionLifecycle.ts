@@ -97,8 +97,9 @@ const moveEntryToSnapshot = (entry: ProtectionEntry, songs: Song[]): ProtectionE
 export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLease => {
   const snapshotKey = getSongSnapshotKey(songs);
   const existingEntry = entriesBySnapshot.get(snapshotKey);
+  if (existingEntry?.released) entriesBySnapshot.delete(snapshotKey);
   let entry: ProtectionEntry;
-  if (existingEntry) {
+  if (existingEntry && !existingEntry.released) {
     entry = existingEntry;
   } else {
     entry = {

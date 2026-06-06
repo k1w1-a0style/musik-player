@@ -24,12 +24,35 @@ describe('songCoverProtectionLifecycle', () => {
     jest.clearAllMocks();
   });
 
-  test('does not reinsert a released entry when its stale lease moves snapshots', () => {
+  test('does not reinsert a released entry when updateSnapshot runs on a stale lease', () => {
     const staleLease = acquireSongCoverProtection(songsA);
     staleLease.releaseCurrentOwner();
 
     staleLease.updateSnapshot(songsB);
+    const currentLease = acquireSongCoverProtection(songsB);
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
+    expect(currentLease.protection).toBe(protectionAt(1));
+  });
+
+  test('does not reinsert a released entry when handoffToNextEffect runs on a stale lease', () => {
+    const staleLease = acquireSongCoverProtection(songsA);
+    staleLease.releaseCurrentOwner();
+
     staleLease.handoffToNextEffect(songsB);
+    const currentLease = acquireSongCoverProtection(songsB);
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
+    expect(currentLease.protection).toBe(protectionAt(1));
+  });
+
+  test('does not reinsert a released entry when handoffFromHydration runs on a stale lease', () => {
+    const staleLease = acquireSongCoverProtection(songsA);
+    staleLease.releaseCurrentOwner();
+
+    staleLease.handoffFromHydration(songsB);
     const currentLease = acquireSongCoverProtection(songsB);
 
     expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
