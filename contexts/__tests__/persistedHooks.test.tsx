@@ -125,6 +125,32 @@ describe('persisted hooks', () => {
     laterLease.releaseCurrentOwner();
   });
 
+  test('does not mark or persist unchanged covers when prepare resolves after effect cancellation', async () => {
+    let resolvePrepare!: (value: { sanitizedSongs: Song[]; coversChanged: boolean }) => void;
+    const prepareResult = new Promise<{ sanitizedSongs: Song[]; coversChanged: boolean }>(resolve => {
+      resolvePrepare = resolve;
+    });
+    const sanitized = [{ ...songs[0], cover: 'file:///docs/covers/no-change.jpg' }];
+    const setSongsState = jest.fn();
+    helpers.prepareSongsForPersistence.mockReturnValueOnce(prepareResult);
+
+    const { unmount } = render(<PersistedSongsProbe setSongsState={setSongsState} />);
+    await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledTimes(1));
+    const releasedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
+
+    unmount();
+    expect(releasedProtection.release).toHaveBeenCalledTimes(1);
+
+    resolvePrepare({ sanitizedSongs: sanitized, coversChanged: false });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setSongsState).not.toHaveBeenCalled();
+    expect(helpers.persistIfChanged).not.toHaveBeenCalled();
+    expect(cleanupHelpers.cleanupCoverCache).not.toHaveBeenCalled();
+    expect(releasedProtection.protectSongCovers).not.toHaveBeenCalledWith(sanitized);
+  });
+
   test('usePersistedSongs updates state when cover cache sanitizing changed songs', async () => {
     const sanitized = [{ ...songs[0], cover: 'file:///cached-cover.jpg' }];
     const setSongsState = jest.fn();

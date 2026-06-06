@@ -32,6 +32,7 @@ describe('songCoverProtectionLifecycle', () => {
     const currentLease = acquireSongCoverProtection(songsB);
 
     expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(protectionAt(0).protectSongCovers).not.toHaveBeenCalledWith(songsB);
     expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
     expect(currentLease.protection).toBe(protectionAt(1));
   });
@@ -44,6 +45,7 @@ describe('songCoverProtectionLifecycle', () => {
     const currentLease = acquireSongCoverProtection(songsB);
 
     expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(protectionAt(0).protectSongCovers).not.toHaveBeenCalledWith(songsB);
     expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
     expect(currentLease.protection).toBe(protectionAt(1));
   });
@@ -56,6 +58,7 @@ describe('songCoverProtectionLifecycle', () => {
     const currentLease = acquireSongCoverProtection(songsB);
 
     expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(protectionAt(0).protectSongCovers).not.toHaveBeenCalledWith(songsB);
     expect(createCoverCacheProtection).toHaveBeenCalledTimes(2);
     expect(currentLease.protection).toBe(protectionAt(1));
   });

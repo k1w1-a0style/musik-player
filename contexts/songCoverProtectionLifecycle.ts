@@ -135,6 +135,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       return entry.protection;
     },
     updateSnapshot: nextSongs => {
+      if (entry.released) return;
       const previousEntry = entry;
       entry = moveEntryToSnapshot(entry, nextSongs);
       if (entry !== previousEntry && ownsCurrent) {
@@ -144,6 +145,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       }
     },
     handoffToNextEffect: nextSongs => {
+      if (entry.released) return;
       const previousEntry = entry;
       entry = moveEntryToSnapshot(entry, nextSongs);
       if (entry !== previousEntry && ownsCurrent) {
@@ -156,6 +158,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       entry.nextEffectHandoffOwners += 1;
     },
     handoffFromHydration: nextSongs => {
+      if (entry.released) return;
       const previousEntry = entry;
       entry = moveEntryToSnapshot(entry, nextSongs);
       if (entry !== previousEntry && ownsCurrent) {
@@ -168,11 +171,12 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       entry.hydrationHandoffOwners += 1;
     },
     markPersisting: () => {
-      if (ownsInFlight) return;
+      if (entry.released || ownsInFlight) return;
       ownsInFlight = true;
       entry.inFlightOwners += 1;
     },
     finishPersistence: result => {
+      if (entry.released) return;
       if (ownsInFlight) {
         ownsInFlight = false;
         entry.inFlightOwners = Math.max(0, entry.inFlightOwners - 1);
@@ -187,6 +191,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       maybeReleaseEntry(entry);
     },
     markConfirmedAfterCleanup: () => {
+      if (entry.released) return;
       releaseCurrentOwner();
       markEntryConfirmedAfterCleanup(entry);
       maybeReleaseEntry(entry);
