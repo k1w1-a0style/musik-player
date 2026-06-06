@@ -9,6 +9,7 @@ jest.mock('../../utils/coverCacheCleanup', () => ({
   createCoverCacheProtection: jest.fn(() => ({
     protectUri: jest.fn(),
     protectSongCovers: jest.fn(),
+    replaceProtectedSongCovers: jest.fn(),
     release: jest.fn(),
   })),
 }));

@@ -86,6 +86,7 @@ export const hydrateStoredSongs = async ({
     if (songsPersistResult.status === 'unconfirmed') {
       handoffUnconfirmedHydratedSongProtection(coverLease, plan.hydratedSongs, songsPersistResult.error);
     } else {
+      coverLease.protection.replaceProtectedSongCovers(plan.hydratedSongs);
       await cleanupHydratedSongCovers(plan.hydratedSongs);
       coverLease.markConfirmedAfterCleanup();
     }

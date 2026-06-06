@@ -21,6 +21,7 @@ type CoverCacheProtectionToken = symbol;
 export type CoverCacheProtection = {
   protectUri: (uri?: string) => void;
   protectSongCovers: (songs: Song[]) => void;
+  replaceProtectedSongCovers: (songs: Song[]) => void;
   release: () => void;
 };
 
@@ -155,13 +156,19 @@ export const createCoverCacheProtection = (): CoverCacheProtection => {
     if (fileName) protectedFileNames.add(fileName);
   };
 
+  const protectSongCovers = (songs: Song[]): void => {
+    songs.forEach(song => {
+      protectUri(song.cover);
+      protectUri(song.coverInfo?.uri);
+    });
+  };
+
   return {
     protectUri,
-    protectSongCovers: songs => {
-      songs.forEach(song => {
-        protectUri(song.cover);
-        protectUri(song.coverInfo?.uri);
-      });
+    protectSongCovers,
+    replaceProtectedSongCovers: songs => {
+      protectedFileNames.clear();
+      protectSongCovers(songs);
     },
     release: () => {
       activeCoverProtections.delete(token);

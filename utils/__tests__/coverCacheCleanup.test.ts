@@ -176,6 +176,28 @@ describe('coverCacheCleanup', () => {
     });
   });
 
+  test('replaces a hydration protection with kept song covers so dropped covers can be deleted', async () => {
+    const protection = createCoverCacheProtection();
+    protection.protectSongCovers([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+      { id: 'drop', title: 'Drop', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ]);
+    protection.replaceProtectedSongCovers([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    await cleanupCoverCache([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    });
+    protection.release();
+  });
+
   test('protects safe cache file names with query or fragment but ignores external and unsafe paths', async () => {
     const protection = createCoverCacheProtection();
     protection.protectUri('file:///docs/covers/ccc-ddd.jpg?version=2#cover');

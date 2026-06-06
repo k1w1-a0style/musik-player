@@ -29,6 +29,7 @@ jest.mock('../../utils/coverCacheCleanup', () => ({
   createCoverCacheProtection: jest.fn(() => ({
     protectUri: jest.fn(),
     protectSongCovers: jest.fn(),
+    replaceProtectedSongCovers: jest.fn(),
     release: jest.fn(),
   })),
   invalidateCoverCacheCleanup: jest.fn(),
@@ -825,6 +826,58 @@ describe('musicHydrationHelpers', () => {
     expect(cleanupCoverCache).toHaveBeenCalledWith(songs);
   });
 
+  test('rescopes confirmed hydration protection before cleaning dropped song covers', async () => {
+    const keptSong: Song = {
+      id: 's1',
+      title: 'One',
+      artist: 'A',
+      uri: 'file:///s1.mp3',
+      cover: 'file:///docs/covers/aaa-bbb.jpg',
+    };
+    const droppedDuplicate: Song = {
+      id: 's1',
+      title: 'Duplicate',
+      artist: 'A',
+      uri: 'file:///duplicate.mp3',
+      cover: 'file:///docs/covers/ccc-ddd.jpg',
+    };
+    const hydratedSongs = [keptSong];
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const setSongsState = jest.fn();
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: [keptSong, droppedDuplicate],
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState,
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    });
+
+    const protection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;
+    expect(setSongsState).toHaveBeenCalledWith(hydratedSongs);
+    expect(protection.protectSongCovers).toHaveBeenCalledWith([keptSong, droppedDuplicate]);
+    expect(protection.replaceProtectedSongCovers).toHaveBeenCalledWith(hydratedSongs);
+    expect(cleanupCoverCache).toHaveBeenCalledWith(hydratedSongs);
+    expect(protection.replaceProtectedSongCovers.mock.invocationCallOrder[0]).toBeLessThan(
+      (cleanupCoverCache as jest.Mock).mock.invocationCallOrder[0],
+    );
+    warn.mockRestore();
+  });
+
   test('awaits hydrated cover cleanup before releasing confirmed protection', async () => {
     let resolveCleanup!: () => void;
     const cleanupResult = new Promise<void>(resolve => {
@@ -859,6 +912,10 @@ describe('musicHydrationHelpers', () => {
 
     await waitFor(() => expect(cleanupCoverCache).toHaveBeenCalledWith(songs));
     const protection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;
+    expect(protection.replaceProtectedSongCovers).toHaveBeenCalledWith(songs);
+    expect(protection.replaceProtectedSongCovers.mock.invocationCallOrder[0]).toBeLessThan(
+      (cleanupCoverCache as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(hydrationResolved).toBe(false);
     expect(protection.release).not.toHaveBeenCalled();
 
@@ -906,6 +963,8 @@ describe('musicHydrationHelpers', () => {
     expect(setPlaybackQueue).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
     expect(setIsReady).toHaveBeenCalledWith(true);
     expect(cleanupCoverCache).not.toHaveBeenCalled();
+    const protection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;
+    expect(protection.replaceProtectedSongCovers).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
       '[MusicHydration] Failed to confirm sanitized songs persistence.',
       writeError,
