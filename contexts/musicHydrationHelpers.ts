@@ -1,4 +1,6 @@
+import type { Song } from '../types/Song';
 import { sanitizeSongsForStorage } from '../utils/coverCache';
+import { cleanupCoverCache } from '../utils/coverCacheCleanup';
 import {
   applyHydratedCurrentSongState,
   applyHydratedQueueState,
@@ -21,11 +23,32 @@ import {
   persistHydratedSongsIfNeeded,
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
+import {
+  acquireSongCoverProtection,
+  type SongCoverProtectionLease,
+} from './songCoverProtectionLifecycle';
 import type {
   HydrateStoredSongsArgs,
   RunMusicHydrationArgs,
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
+
+const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
+  try {
+    await cleanupCoverCache(songs);
+  } catch (error) {
+    console.warn('[MusicHydration] Failed to clean up hydrated cover cache.', error);
+  }
+};
+
+const handoffUnconfirmedHydratedSongProtection = (
+  coverLease: SongCoverProtectionLease,
+  hydratedSongs: Song[],
+  error?: unknown,
+): void => {
+  coverLease.handoffFromHydration(hydratedSongs);
+  console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', error);
+};
 
 export type {
   HydrateStoredSongsArgs,
@@ -49,36 +72,49 @@ export const hydrateStoredSongs = async ({
 }: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
   if (!stored.songs) return stored;
 
-  const sanitizedSongs = await sanitizeSongsForStorage(stored.songs);
-  if (isCancelled()) return stored;
+  const coverLease = acquireSongCoverProtection(stored.songs);
+  try {
+    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
+    if (isCancelled()) return stored;
 
-  const plan = createHydrationPlan(stored, sanitizedSongs);
+    coverLease.updateSnapshot(sanitizedSongs);
+    const plan = createHydrationPlan(stored, sanitizedSongs);
 
-  applyHydratedSongsState(plan, { songsRef, setSongsState });
+    applyHydratedSongsState(plan, { songsRef, setSongsState });
 
-  await persistHydratedSongsIfNeeded(plan);
-  if (isCancelled()) return stored;
+    const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
+    if (songsPersistResult.status === 'unconfirmed') {
+      handoffUnconfirmedHydratedSongProtection(coverLease, plan.hydratedSongs, songsPersistResult.error);
+    } else {
+      coverLease.prepareConfirmedCleanup(plan.hydratedSongs);
+      await cleanupHydratedSongCovers(plan.hydratedSongs);
+      coverLease.markConfirmedAfterCleanup();
+    }
+    if (isCancelled()) return stored;
 
-  applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
+    applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
 
-  await persistHydratedPlaylistsIfNeeded(plan);
-  if (isCancelled()) return stored;
+    await persistHydratedPlaylistsIfNeeded(plan);
+    if (isCancelled()) return stored;
 
-  applyHydratedCurrentSongState(plan, { setCurrentSong });
+    applyHydratedCurrentSongState(plan, { setCurrentSong });
 
-  await persistHydratedCurrentSongIdIfNeeded(plan);
-  if (isCancelled()) return stored;
+    await persistHydratedCurrentSongIdIfNeeded(plan);
+    if (isCancelled()) return stored;
 
-  const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
+    const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
 
-  if (plan.nativeQueueAction === 'clearMalformedCurrent') {
-    await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
+    if (plan.nativeQueueAction === 'clearMalformedCurrent') {
+      await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
+      return hydratedStored;
+    }
+
+    await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
+
     return hydratedStored;
+  } finally {
+    coverLease.releaseCurrentOwner();
   }
-
-  await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
-
-  return hydratedStored;
 };
 
 export const runMusicHydration = async ({

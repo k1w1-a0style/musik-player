@@ -1,6 +1,10 @@
+import { waitFor } from '@testing-library/react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
+  createCoverCacheProtection,
   cleanupCoverCache,
+  invalidateCoverCacheCleanup,
+  waitForCoverCacheCleanupIdle,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
 } from '../coverCacheCleanup';
@@ -18,8 +22,22 @@ jest.mock('expo-file-system/legacy', () => ({
   deleteAsync: jest.fn(async () => undefined),
 }));
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+};
+
+const createDeferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(res => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
+    invalidateCoverCacheCleanup();
     jest.clearAllMocks();
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
@@ -95,6 +113,144 @@ describe('coverCacheCleanup', () => {
     });
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
     expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps dynamically protected in-flight cover files out of an older cleanup delete batch', async () => {
+    const directoryRead = createDeferred<string[]>();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockImplementationOnce(async () => directoryRead.promise);
+
+    const staleCleanup = cleanupCoverCache([
+      { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    await waitFor(() => expect(LegacyFileSystem.readDirectoryAsync).toHaveBeenCalledTimes(1));
+
+    const protection = createCoverCacheProtection();
+    protection.protectUri('file:///docs/covers/ccc-ddd.jpg');
+    directoryRead.resolve(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+    await staleCleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+    protection.release();
+  });
+
+  test('rechecks pending protection immediately before each delete', async () => {
+    const firstDelete = createDeferred<void>();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(async () => firstDelete.promise);
+
+    const cleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', {
+      idempotent: true,
+    }));
+
+    const protection = createCoverCacheProtection();
+    protection.protectSongCovers([
+      { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ]);
+    firstDelete.resolve(undefined);
+    await cleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    protection.release();
+  });
+
+  test('keeps a shared cover protected until every owning persistence round releases it', async () => {
+    const pendingSongs = [
+      { id: 'pending', title: 'Pending', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ];
+    const firstProtection = createCoverCacheProtection();
+    const secondProtection = createCoverCacheProtection();
+    firstProtection.protectSongCovers(pendingSongs);
+    secondProtection.protectSongCovers(pendingSongs);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['ccc-ddd.jpg']);
+
+    firstProtection.release();
+    await cleanupCoverCache([]);
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+
+    secondProtection.release();
+    await cleanupCoverCache([]);
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    });
+  });
+
+  test('replaces a hydration protection with kept song covers so dropped covers can be deleted', async () => {
+    const protection = createCoverCacheProtection();
+    protection.protectSongCovers([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+      { id: 'drop', title: 'Drop', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' },
+    ]);
+    protection.replaceProtectedSongCovers([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    await cleanupCoverCache([
+      { id: 'keep', title: 'Keep', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    });
+    protection.release();
+  });
+
+  test('protects safe cache file names with query or fragment but ignores external and unsafe paths', async () => {
+    const protection = createCoverCacheProtection();
+    protection.protectUri('file:///docs/covers/ccc-ddd.jpg?version=2#cover');
+    protection.protectUri('file:///elsewhere/eee-fff.jpg');
+    protection.protectUri('file:///docs/covers/../escape.jpg');
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([
+      'ccc-ddd.jpg',
+      'eee-fff.jpg',
+      'aaa-bbb.jpg',
+    ]);
+
+    await cleanupCoverCache([]);
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', expect.anything());
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/eee-fff.jpg', { idempotent: true });
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', { idempotent: true });
+    protection.release();
+  });
+
+  test('waits for an already-started cleanup delete before continuing cover cache writes', async () => {
+    const deleteDeferred = createDeferred<void>();
+    let idleSettled = false;
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['ccc-ddd.jpg']);
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(async () => deleteDeferred.promise);
+
+    const cleanup = cleanupCoverCache([]);
+    await waitFor(() => expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledWith('file:///docs/covers/ccc-ddd.jpg', {
+      idempotent: true,
+    }));
+
+    const idle = waitForCoverCacheCleanupIdle().then(() => {
+      idleSettled = true;
+    });
+    await Promise.resolve();
+    expect(idleSettled).toBe(false);
+
+    deleteDeferred.resolve(undefined);
+    await Promise.all([cleanup, idle]);
+    expect(idleSettled).toBe(true);
+  });
+
+  test('invalidating cleanup skips stale deletions before a newer persistence round commits', async () => {
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg', 'ccc-ddd.jpg']);
+
+    const staleCleanup = cleanupCoverCache([
+      { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
+    ]);
+    invalidateCoverCacheCleanup();
+
+    await staleCleanup;
+
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+    expect(LegacyFileSystem.readDirectoryAsync).not.toHaveBeenCalled();
   });
 
   test('cleanup delete errors resolve without unhandled rejection', async () => {

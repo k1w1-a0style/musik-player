@@ -36,12 +36,12 @@ describe('musicPersistenceHelpers', () => {
   test('persists only when serialized normalized value changes', async () => {
     const persistedRefs: Record<string, string> = {};
 
-    await persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs);
+    await expect(persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs)).resolves.toEqual({ status: 'stored' });
     expect(await storage.get(StorageKeys.VOLUME)).toBe(0.5);
     expect(persistedRefs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.5));
 
     await storage.set(StorageKeys.VOLUME, 0.7);
-    await persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs);
+    await expect(persistIfChanged(StorageKeys.VOLUME, 0.5, persistedRefs)).resolves.toEqual({ status: 'unchanged' });
     expect(await storage.get(StorageKeys.VOLUME)).toBe(0.7);
   });
 
@@ -55,7 +55,7 @@ describe('musicPersistenceHelpers', () => {
     expect(normalized).toEqual([
       expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1, updatedAt: expect.any(Number) }),
     ]);
-    await persistIfChanged(StorageKeys.PLAYLISTS, dirtyPlaylists, persistedRefs);
+    await expect(persistIfChanged(StorageKeys.PLAYLISTS, dirtyPlaylists, persistedRefs)).resolves.toEqual({ status: 'stored' });
 
     expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([
       expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1', 's2'], createdAt: 1, updatedAt: expect.any(Number) }),
@@ -77,7 +77,7 @@ describe('musicPersistenceHelpers', () => {
   test('normalizes favorite ids before persistence', async () => {
     const persistedRefs: Record<string, string> = {};
 
-    await persistIfChanged(StorageKeys.FAVORITE_SONG_IDS, ['s1', ' s2 ', '', 's1', 4] as unknown as string[], persistedRefs);
+    await expect(persistIfChanged(StorageKeys.FAVORITE_SONG_IDS, ['s1', ' s2 ', '', 's1', 4] as unknown as string[], persistedRefs)).resolves.toEqual({ status: 'stored' });
 
     expect(await storage.get(StorageKeys.FAVORITE_SONG_IDS)).toEqual(['s1', 's2']);
     expect(persistedRefs[StorageKeys.FAVORITE_SONG_IDS]).toBe(JSON.stringify(['s1', 's2']));
@@ -129,16 +129,66 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
 
     first.resolve(true);
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
-    expect(refs[StorageKeys.VOLUME]).toBeUndefined();
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
 
     second.resolve(true);
-    await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([undefined, undefined]);
+    await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'stored' }]);
     expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.75));
     expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.VOLUME, 0.25);
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.VOLUME, 0.75);
   });
 
-  test('collapses three quick updates for the same key so only the final pending value wins', async () => {
+
+  test('does not report unchanged for an old snapshot while a newer write is in-flight', async () => {
+    const refs: Record<string, string> = { [StorageKeys.VOLUME]: JSON.stringify(0.25) };
+    const newerWrite = createDeferred<boolean>();
+    const revertedWrite = createDeferred<boolean>();
+    const setSpy = jest.spyOn(storage, 'set')
+      .mockImplementationOnce(async () => newerWrite.promise)
+      .mockImplementationOnce(async () => revertedWrite.promise);
+
+    const newerPersist = persistIfChanged(StorageKeys.VOLUME, 0.75, refs);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(1));
+
+    let revertedSettled = false;
+    const revertedPersist = persistIfChanged(StorageKeys.VOLUME, 0.25, refs).then(result => {
+      revertedSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+
+    expect(revertedSettled).toBe(false);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    newerWrite.resolve(true);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.75));
+
+    revertedWrite.resolve(true);
+
+    await expect(Promise.all([newerPersist, revertedPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'stored' }]);
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
+    expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.VOLUME, 0.75);
+    expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.VOLUME, 0.25);
+  });
+
+  test('shares stored status for callers waiting on the same in-flight snapshot', async () => {
+    const refs: Record<string, string> = {};
+    const first = createDeferred<boolean>();
+    const setSpy = jest.spyOn(storage, 'set').mockImplementationOnce(async () => first.promise);
+
+    const firstPersist = persistIfChanged(StorageKeys.VOLUME, 0.25, refs);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(1));
+    const secondPersist = persistIfChanged(StorageKeys.VOLUME, 0.25, refs);
+
+    first.resolve(true);
+
+    await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([{ status: 'stored' }, { status: 'stored' }]);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.25));
+  });
+
+  test('drops pending request that is replaced before it starts so only the final pending value wins', async () => {
     const refs: Record<string, string> = {};
     const first = createDeferred<boolean>();
     const second = createDeferred<boolean>();
@@ -155,7 +205,7 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
     second.resolve(true);
 
-    await expect(Promise.all([firstPersist, secondPersist, thirdPersist])).resolves.toEqual([undefined, undefined, undefined]);
+    await expect(Promise.all([firstPersist, secondPersist, thirdPersist])).resolves.toEqual([{ status: 'superseded' }, { status: 'dropped' }, { status: 'stored' }]);
     expect(setSpy).toHaveBeenCalledTimes(2);
     expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.REPEAT_MODE, 'off');
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.REPEAT_MODE, 'all');
@@ -173,12 +223,12 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     const volumePersist = persistIfChanged(StorageKeys.VOLUME, 0.5, refs);
     await waitFor(() => expect(setSpy).toHaveBeenCalledWith(StorageKeys.VOLUME, 0.5));
 
-    await expect(persistIfChanged(StorageKeys.SHUFFLE, true, refs)).resolves.toBeUndefined();
+    await expect(persistIfChanged(StorageKeys.SHUFFLE, true, refs)).resolves.toEqual({ status: 'stored' });
     expect(refs[StorageKeys.SHUFFLE]).toBe(JSON.stringify(true));
     expect(refs[StorageKeys.VOLUME]).toBeUndefined();
 
     volumeWrite.resolve(true);
-    await expect(volumePersist).resolves.toBeUndefined();
+    await expect(volumePersist).resolves.toEqual({ status: 'stored' });
     expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.5));
   });
 
@@ -199,11 +249,25 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
     second.resolve(true);
 
-    await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([undefined, undefined]);
+    await expect(Promise.all([firstPersist, secondPersist])).resolves.toEqual([{ status: 'failed', error: expect.any(Error) }, { status: 'stored' }]);
     expect(refs[StorageKeys.EQ_ENABLED]).toBe(JSON.stringify(true));
     expect(warn).toHaveBeenCalledWith(
       '[MusicPersistence] Failed to persist setting.',
       expect.objectContaining({ key: StorageKeys.EQ_ENABLED, error: expect.any(Error) }),
+    );
+  });
+
+  test('returns failed when storage reports an unconfirmed write', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const refs: Record<string, string> = {};
+    jest.spyOn(storage, 'set').mockResolvedValueOnce(false);
+
+    await expect(persistIfChanged(StorageKeys.SHUFFLE, true, refs)).resolves.toEqual({ status: 'failed' });
+
+    expect(refs[StorageKeys.SHUFFLE]).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicPersistence] Failed to persist setting.',
+      expect.objectContaining({ key: StorageKeys.SHUFFLE, error: undefined }),
     );
   });
 
@@ -212,7 +276,7 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     const refs: Record<string, string> = {};
     jest.spyOn(storage, 'set').mockRejectedValueOnce(new Error('persist failed'));
 
-    await expect(persistIfChanged(StorageKeys.SHUFFLE, true, refs)).resolves.toBeUndefined();
+    await expect(persistIfChanged(StorageKeys.SHUFFLE, true, refs)).resolves.toEqual({ status: 'failed', error: expect.any(Error) });
 
     expect(refs[StorageKeys.SHUFFLE]).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(

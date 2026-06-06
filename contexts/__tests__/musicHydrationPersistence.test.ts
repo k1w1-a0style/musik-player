@@ -30,13 +30,38 @@ describe('musicHydrationPersistence', () => {
       { ...song, id: ' s1 ' },
     ]);
 
-    await persistHydratedSongsIfNeeded(plan);
+    await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'confirmed' });
     await persistHydratedPlaylistsIfNeeded(plan);
     await persistHydratedCurrentSongIdIfNeeded(plan);
 
     await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([expect.objectContaining({ id: 's1' })]);
     await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([expect.objectContaining({ songIds: ['s1'] })]);
     await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s1');
+  });
+
+  test('returns not-needed when hydrated songs already match storage', async () => {
+    const plan = createHydrationPlan({ ...storedDefaults, songs: [song], playlists: null, currentSongId: null }, [song]);
+
+    await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'not-needed' });
+  });
+
+  test('returns unconfirmed without throwing when hydrated songs write returns false', async () => {
+    const plan = createHydrationPlan({ ...storedDefaults, songs: [{ ...song, id: ' s1 ' }], playlists: null, currentSongId: null }, [
+      { ...song, id: ' s1 ' },
+    ]);
+    jest.spyOn(storage, 'set').mockResolvedValueOnce(false);
+
+    await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'unconfirmed' });
+  });
+
+  test('returns unconfirmed with the error when hydrated songs write rejects', async () => {
+    const error = new Error('write rejected');
+    const plan = createHydrationPlan({ ...storedDefaults, songs: [{ ...song, id: ' s1 ' }], playlists: null, currentSongId: null }, [
+      { ...song, id: ' s1 ' },
+    ]);
+    jest.spyOn(storage, 'set').mockRejectedValueOnce(error);
+
+    await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'unconfirmed', error });
   });
 
   test('removes current song id when the plan marks it stale', async () => {
