@@ -30,10 +30,12 @@ import type {
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
 
-const cleanupHydratedSongCovers = (songs: Song[]): void => {
-  void cleanupCoverCache(songs).catch(error => {
+const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
+  try {
+    await cleanupCoverCache(songs);
+  } catch (error) {
     console.warn('[MusicHydration] Failed to clean up hydrated cover cache.', error);
-  });
+  }
 };
 
 export type {
@@ -59,10 +61,6 @@ export const hydrateStoredSongs = async ({
   if (!stored.songs) return stored;
 
   const coverLease = acquireSongCoverProtection(stored.songs);
-  let handoffSongs: Song[] | undefined;
-  const completeCoverProtection = (): void => {
-    if (handoffSongs) coverLease.handoff(handoffSongs);
-  };
   try {
     const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
     if (isCancelled()) return stored;
@@ -73,14 +71,14 @@ export const hydrateStoredSongs = async ({
     applyHydratedSongsState(plan, { songsRef, setSongsState });
 
     const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
-    if (isCancelled()) return stored;
     if (songsPersistResult.status === 'unconfirmed') {
-      handoffSongs = plan.hydratedSongs;
+      coverLease.handoffFromHydration(plan.hydratedSongs);
       console.warn('[MusicHydration] Failed to confirm sanitized songs persistence.', songsPersistResult.error);
     } else {
-      cleanupHydratedSongCovers(plan.hydratedSongs);
-      coverLease.markConfirmed();
+      await cleanupHydratedSongCovers(plan.hydratedSongs);
+      coverLease.markConfirmedAfterCleanup();
     }
+    if (isCancelled()) return stored;
 
     applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
 
@@ -96,16 +94,14 @@ export const hydrateStoredSongs = async ({
 
     if (plan.nativeQueueAction === 'clearMalformedCurrent') {
       await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
-      completeCoverProtection();
       return hydratedStored;
     }
 
     await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
 
-    completeCoverProtection();
     return hydratedStored;
   } finally {
-    coverLease.releaseCurrent();
+    coverLease.releaseCurrentOwner();
   }
 };
 

@@ -11,23 +11,27 @@ type ProtectionEntry = {
   protection: CoverCacheProtection;
   currentOwners: number;
   inFlightOwners: number;
-  handoffPending: boolean;
+  nextEffectHandoffOwners: number;
+  hydrationHandoffOwners: number;
+  provisionalStored: boolean;
   released: boolean;
 };
 
 export type SongCoverProtectionLease = {
   protection: CoverCacheProtection;
   updateSnapshot: (songs: Song[]) => void;
-  handoff: (songs: Song[]) => void;
+  handoffToNextEffect: (songs: Song[]) => void;
+  handoffFromHydration: (songs: Song[]) => void;
   markPersisting: () => void;
   finishPersistence: (result: PersistResult) => void;
-  markConfirmed: () => void;
-  releaseCurrent: () => void;
+  markConfirmedAfterCleanup: () => void;
+  releaseCurrentOwner: () => void;
 };
 
 const entriesBySnapshot = new Map<string, ProtectionEntry>();
 let confirmedEntry: ProtectionEntry | undefined;
 let nextGeneration = 0;
+let latestConfirmedGeneration = 0;
 
 export const getSongSnapshotKey = (songs: Song[]): string => JSON.stringify(songs);
 
@@ -39,28 +43,37 @@ const releaseEntryProtection = (entry: ProtectionEntry): void => {
 };
 
 const maybeReleaseEntry = (entry: ProtectionEntry): void => {
-  if (entry.released || entry === confirmedEntry || entry.currentOwners > 0 || entry.inFlightOwners > 0 || entry.handoffPending) return;
+  if (
+    entry.released
+    || entry === confirmedEntry
+    || entry.currentOwners > 0
+    || entry.inFlightOwners > 0
+    || entry.nextEffectHandoffOwners > 0
+    || entry.hydrationHandoffOwners > 0
+    || entry.provisionalStored
+  ) return;
   releaseEntryProtection(entry);
 };
 
-const markEntryConfirmed = (entry: ProtectionEntry, releaseOlderHandoffs: boolean, releaseConfirmed: boolean): void => {
+const markEntryConfirmedAfterCleanup = (entry: ProtectionEntry): void => {
   const previousConfirmed = confirmedEntry;
   confirmedEntry = entry;
-  entry.handoffPending = false;
+  latestConfirmedGeneration = Math.max(latestConfirmedGeneration, entry.generation);
+  entry.provisionalStored = false;
+  entry.nextEffectHandoffOwners = 0;
+  entry.hydrationHandoffOwners = 0;
 
-  if (releaseOlderHandoffs) {
-    entriesBySnapshot.forEach(candidate => {
-      if (candidate !== entry && candidate.generation < entry.generation) {
-        candidate.handoffPending = false;
-        maybeReleaseEntry(candidate);
-      }
-    });
-  }
+  entriesBySnapshot.forEach(candidate => {
+    if (candidate !== entry && candidate.generation < entry.generation) {
+      candidate.nextEffectHandoffOwners = 0;
+      candidate.hydrationHandoffOwners = 0;
+      candidate.provisionalStored = false;
+      maybeReleaseEntry(candidate);
+    }
+  });
   if (previousConfirmed && previousConfirmed !== entry) maybeReleaseEntry(previousConfirmed);
-  if (releaseConfirmed) {
-    confirmedEntry = undefined;
-    releaseEntryProtection(entry);
-  }
+  confirmedEntry = undefined;
+  maybeReleaseEntry(entry);
 };
 
 const moveEntryToSnapshot = (entry: ProtectionEntry, songs: Song[]): ProtectionEntry => {
@@ -93,19 +106,22 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
       protection: createCoverCacheProtection(),
       currentOwners: 0,
       inFlightOwners: 0,
-      handoffPending: false,
+      nextEffectHandoffOwners: 0,
+      hydrationHandoffOwners: 0,
+      provisionalStored: false,
       released: false,
     };
     entriesBySnapshot.set(snapshotKey, entry);
   }
   entry.protection.protectSongCovers(songs);
-  entry.handoffPending = false;
+  if (entry.nextEffectHandoffOwners > 0) entry.nextEffectHandoffOwners -= 1;
+  else if (entry.hydrationHandoffOwners > 0) entry.hydrationHandoffOwners -= 1;
   entry.currentOwners += 1;
 
   let ownsCurrent = true;
   let ownsInFlight = false;
 
-  const releaseCurrent = (): void => {
+  const releaseCurrentOwner = (): void => {
     if (!ownsCurrent) return;
     ownsCurrent = false;
     entry.currentOwners = Math.max(0, entry.currentOwners - 1);
@@ -125,7 +141,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
         maybeReleaseEntry(previousEntry);
       }
     },
-    handoff: nextSongs => {
+    handoffToNextEffect: nextSongs => {
       const previousEntry = entry;
       entry = moveEntryToSnapshot(entry, nextSongs);
       if (entry !== previousEntry && ownsCurrent) {
@@ -135,7 +151,19 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
         entry.currentOwners = Math.max(0, entry.currentOwners - 1);
       }
       ownsCurrent = false;
-      entry.handoffPending = true;
+      entry.nextEffectHandoffOwners += 1;
+    },
+    handoffFromHydration: nextSongs => {
+      const previousEntry = entry;
+      entry = moveEntryToSnapshot(entry, nextSongs);
+      if (entry !== previousEntry && ownsCurrent) {
+        previousEntry.currentOwners = Math.max(0, previousEntry.currentOwners - 1);
+        maybeReleaseEntry(previousEntry);
+      } else if (ownsCurrent) {
+        entry.currentOwners = Math.max(0, entry.currentOwners - 1);
+      }
+      ownsCurrent = false;
+      entry.hydrationHandoffOwners += 1;
     },
     markPersisting: () => {
       if (ownsInFlight) return;
@@ -148,18 +176,20 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
         entry.inFlightOwners = Math.max(0, entry.inFlightOwners - 1);
       }
       if (result.status === 'stored' || result.status === 'unchanged') {
-        markEntryConfirmed(entry, true, true);
+        releaseCurrentOwner();
+        markEntryConfirmedAfterCleanup(entry);
       } else if (result.status === 'superseded') {
         // A superseded request may already have written this snapshot before a newer queued request finishes.
-        markEntryConfirmed(entry, false, false);
+        entry.provisionalStored = entry.generation >= latestConfirmedGeneration;
       }
       maybeReleaseEntry(entry);
     },
-    markConfirmed: () => {
-      markEntryConfirmed(entry, true, true);
+    markConfirmedAfterCleanup: () => {
+      releaseCurrentOwner();
+      markEntryConfirmedAfterCleanup(entry);
       maybeReleaseEntry(entry);
     },
-    releaseCurrent,
+    releaseCurrentOwner,
   };
 };
 
@@ -169,4 +199,5 @@ export const resetSongCoverProtectionLifecycleForTests = (): void => {
   entriesBySnapshot.clear();
   confirmedEntry = undefined;
   nextGeneration = 0;
+  latestConfirmedGeneration = 0;
 };

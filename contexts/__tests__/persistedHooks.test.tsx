@@ -128,6 +128,24 @@ describe('persisted hooks', () => {
     await waitFor(() => expect(adoptedProtection.release).toHaveBeenCalledTimes(1));
   });
 
+  test('awaits post-commit cover cleanup before releasing snapshot protection', async () => {
+    let resolveCleanup!: () => void;
+    const cleanupResult = new Promise<void>(resolve => {
+      resolveCleanup = resolve;
+    });
+    cleanupHelpers.cleanupCoverCache.mockReturnValueOnce(cleanupResult);
+
+    render(<PersistedSongsProbe />);
+
+    await waitFor(() => expect(cleanupHelpers.cleanupCoverCache).toHaveBeenCalledWith(songs));
+    const protection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
+    expect(protection.release).not.toHaveBeenCalled();
+
+    resolveCleanup();
+
+    await waitFor(() => expect(protection.release).toHaveBeenCalledTimes(1));
+  });
+
   test('usePersistedSongs swallows prepare or persist errors', async () => {
     helpers.prepareSongsForPersistence.mockRejectedValueOnce(new Error('prepare rejected'));
 

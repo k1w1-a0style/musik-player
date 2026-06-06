@@ -8,10 +8,12 @@ import {
   prepareSongsForPersistence,
 } from './musicPersistenceHelpers';
 
-const cleanupPersistedSongCovers = (songs: Song[]): void => {
-  void cleanupCoverCache(songs).catch(error => {
+const cleanupPersistedSongCovers = async (songs: Song[]): Promise<void> => {
+  try {
+    await cleanupCoverCache(songs);
+  } catch (error) {
     console.warn('[usePersistedSongs] Cover cache cleanup failed:', error);
-  });
+  }
 };
 
 export const usePersistedSongs = (
@@ -33,15 +35,20 @@ export const usePersistedSongs = (
         coverLease.updateSnapshot(sanitizedSongs);
         if (cancelled) return;
         if (coversChanged) {
-          coverLease.handoff(sanitizedSongs);
+          coverLease.handoffToNextEffect(sanitizedSongs);
           setSongsState(sanitizedSongs);
           return;
         }
         coverLease.markPersisting();
         persistenceStarted = true;
         const persistResult = await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
-        if (!cancelled && (persistResult.status === 'stored' || persistResult.status === 'unchanged')) {
-          cleanupPersistedSongCovers(sanitizedSongs);
+        if (persistResult.status === 'stored' || persistResult.status === 'unchanged') {
+          if (cancelled) {
+            coverLease.finishPersistence({ status: 'superseded' });
+            persistenceFinished = true;
+            return;
+          }
+          await cleanupPersistedSongCovers(sanitizedSongs);
         }
         coverLease.finishPersistence(persistResult);
         persistenceFinished = true;
@@ -58,7 +65,7 @@ export const usePersistedSongs = (
 
     return () => {
       cancelled = true;
-      coverLease.releaseCurrent();
+      coverLease.releaseCurrentOwner();
     };
   }, [isReady, persistedRefs, setSongsState, songs]);
 };

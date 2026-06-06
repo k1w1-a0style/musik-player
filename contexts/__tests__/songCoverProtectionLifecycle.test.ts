@@ -27,25 +27,25 @@ describe('songCoverProtectionLifecycle', () => {
   test('does not release an older protection while its persistence can still commit', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();
-    older.releaseCurrent();
+    older.releaseCurrentOwner();
 
     const newer = acquireSongCoverProtection(songsB);
 
     expect(protectionAt(0).release).not.toHaveBeenCalled();
-    newer.releaseCurrent();
+    newer.releaseCurrentOwner();
     expect(protectionAt(0).release).not.toHaveBeenCalled();
   });
 
   test('retains an older successfully written snapshot when the newer persistence fails', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();
-    older.releaseCurrent();
+    older.releaseCurrentOwner();
     const newer = acquireSongCoverProtection(songsB);
     newer.markPersisting();
 
     older.finishPersistence({ status: 'superseded' });
     newer.finishPersistence({ status: 'failed', error: new Error('newer failed') });
-    newer.releaseCurrent();
+    newer.releaseCurrentOwner();
 
     expect(protectionAt(0).release).not.toHaveBeenCalled();
   });
@@ -53,7 +53,7 @@ describe('songCoverProtectionLifecycle', () => {
   test('releases an older provisional stored snapshot after a newer snapshot confirms', () => {
     const older = acquireSongCoverProtection(songsA);
     older.markPersisting();
-    older.releaseCurrent();
+    older.releaseCurrentOwner();
     const newer = acquireSongCoverProtection(songsB);
     newer.markPersisting();
 
@@ -66,9 +66,24 @@ describe('songCoverProtectionLifecycle', () => {
     expect(protectionAt(1).release).toHaveBeenCalledTimes(1);
   });
 
+  test('releases an older in-flight snapshot that finishes after a newer snapshot confirmed', () => {
+    const older = acquireSongCoverProtection(songsA);
+    older.markPersisting();
+    older.releaseCurrentOwner();
+    const newer = acquireSongCoverProtection(songsB);
+    newer.markPersisting();
+
+    newer.finishPersistence({ status: 'stored' });
+    expect(protectionAt(0).release).not.toHaveBeenCalled();
+
+    older.finishPersistence({ status: 'superseded' });
+
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+  });
+
   test('adopts a hydration handoff and releases it after later confirmed persistence', () => {
     const hydration = acquireSongCoverProtection(songsA);
-    hydration.handoff(songsA);
+    hydration.handoffFromHydration(songsA);
 
     const persistence = acquireSongCoverProtection(songsA);
     persistence.markPersisting();
@@ -83,7 +98,7 @@ describe('songCoverProtectionLifecycle', () => {
 
   test('releases an abandoned hydration handoff after a different snapshot confirms', () => {
     const hydration = acquireSongCoverProtection(songsA);
-    hydration.handoff(songsA);
+    hydration.handoffFromHydration(songsA);
     const persistence = acquireSongCoverProtection(songsB);
     persistence.markPersisting();
 

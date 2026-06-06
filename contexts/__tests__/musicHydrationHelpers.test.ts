@@ -10,9 +10,12 @@ import {
   type StoredMusicHydrationState,
 } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
-import { cleanupCoverCache } from '../../utils/coverCacheCleanup';
+import { cleanupCoverCache, createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import type { Playlist, Song } from '../../types/Song';
-import { resetSongCoverProtectionLifecycleForTests } from '../songCoverProtectionLifecycle';
+import {
+  acquireSongCoverProtection,
+  resetSongCoverProtectionLifecycleForTests,
+} from '../songCoverProtectionLifecycle';
 import {
   resetNativeQueueMutationLockForTests,
   runExclusiveNativeQueueReplacement,
@@ -822,6 +825,49 @@ describe('musicHydrationHelpers', () => {
     expect(cleanupCoverCache).toHaveBeenCalledWith(songs);
   });
 
+  test('awaits hydrated cover cleanup before releasing confirmed protection', async () => {
+    let resolveCleanup!: () => void;
+    const cleanupResult = new Promise<void>(resolve => {
+      resolveCleanup = resolve;
+    });
+    (cleanupCoverCache as jest.Mock).mockReturnValueOnce(cleanupResult);
+    let hydrationResolved = false;
+
+    const hydration = hydrateStoredSongs({
+      stored: {
+        songs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => false,
+    }).then(() => {
+      hydrationResolved = true;
+    });
+
+    await waitFor(() => expect(cleanupCoverCache).toHaveBeenCalledWith(songs));
+    const protection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;
+    expect(hydrationResolved).toBe(false);
+    expect(protection.release).not.toHaveBeenCalled();
+
+    resolveCleanup();
+    await hydration;
+
+    expect(protection.release).toHaveBeenCalledTimes(1);
+  });
+
   test.each([
     ['returns false', undefined],
     ['rejects', new Error('write rejected')],
@@ -865,6 +911,48 @@ describe('musicHydrationHelpers', () => {
       writeError,
     );
     warn.mockRestore();
+  });
+
+  test('hands unconfirmed hydration protection off before a later cancellation return', async () => {
+    const dirtySongs: Song[] = [{ id: ' s1 ', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
+    let cancelled = false;
+    jest.spyOn(storage, 'set').mockImplementationOnce(async () => {
+      cancelled = true;
+      return false;
+    });
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await hydrateStoredSongs({
+      stored: {
+        songs: dirtySongs,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: null,
+        repeatMode: null,
+        shuffle: false,
+        currentSongId: null,
+      },
+      songsRef: createSongRef(),
+      queueContextRef: createSongRef(),
+      baseQueueContextRef: createSongRef(),
+      nativeQueueRef: createSongRef(),
+      setSongsState: jest.fn(),
+      setCurrentSong: jest.fn(),
+      setPlaybackQueue: jest.fn(),
+      isCancelled: () => cancelled,
+    });
+
+    const sanitizedSongs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
+    const hydrationProtection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;
+    expect(hydrationProtection.release).not.toHaveBeenCalled();
+
+    const persistenceLease = acquireSongCoverProtection(sanitizedSongs);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(1);
+    persistenceLease.markPersisting();
+    persistenceLease.finishPersistence({ status: 'stored' });
+    expect(hydrationProtection.release).toHaveBeenCalledTimes(1);
   });
 
   test('hydrateStoredSongs does not persist songs when unchanged', async () => {
