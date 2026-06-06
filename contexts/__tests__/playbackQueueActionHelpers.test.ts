@@ -103,13 +103,13 @@ describe('playbackQueueActionHelpers', () => {
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
 
-  test('rebuildNativePlaybackQueue keeps previous native ref when add fails', async () => {
+  test('rebuildNativePlaybackQueue clears native ref when add fails after reset', async () => {
     const nativeQueueRef = createSongRef([songs[2]]);
     (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
 
     await expect(rebuildNativePlaybackQueue(toPlayableSongs(songs), nativeQueueRef)).rejects.toThrow('native add failed');
 
-    expect(nativeQueueRef.current).toEqual([songs[2]]);
+    expect(nativeQueueRef.current).toEqual([]);
     expect(TrackPlayer.play).not.toHaveBeenCalled();
   });
 
@@ -219,6 +219,6 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.setCurrentSong).not.toHaveBeenCalled();
     expect(args.queueContextRef.current).toEqual(songs);
     expect(args.baseQueueContextRef.current).toEqual(songs);
-    expect(args.nativeQueueRef.current).toEqual([songs[2]]);
+    expect(args.nativeQueueRef.current).toEqual([]);
   });
 });

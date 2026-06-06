@@ -534,7 +534,7 @@ describe('musicHydrationHelpers', () => {
     await waitFor(() => expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5));
   });
 
-  test('sets native queue ref when hydrated add succeeds before a newer replacement intent is observed', async () => {
+  test('does not set hydrated native queue ref when add is superseded before commit', async () => {
     const nativeQueueRef = createSongRef();
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
       void runExclusiveNativeQueueReplacement(async () => undefined);
@@ -563,10 +563,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
-    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
+    expect(nativeQueueRef.current).toEqual([]);
   });
 
-  test('sets native queue ref immediately after hydrated native add even when cancelled afterwards', async () => {
+  test('does not set hydrated native queue ref when cancelled after add', async () => {
     const nativeQueueRef = createSongRef();
     let cancelled = false;
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
@@ -596,10 +596,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalled();
-    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
+    expect(nativeQueueRef.current).toEqual([]);
   });
 
-  test('keeps queue refs uncommitted when hydrated native queue initialization fails', async () => {
+  test('clears native ref and keeps queue refs uncommitted when hydrated native queue initialization fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const queueContextRef = createSongRef();
     const baseQueueContextRef = createSongRef();
@@ -633,7 +633,7 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(nativeQueueRef.current).toEqual(songs);
+    expect(nativeQueueRef.current).toEqual([]);
     expect(queueContextRef.current.map(song => song.id)).toEqual(['old']);
     expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['old']);
     expect(setPlaybackQueue).not.toHaveBeenCalled();

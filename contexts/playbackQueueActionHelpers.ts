@@ -95,10 +95,9 @@ export const rebuildNativePlaybackQueue = async (
   resumePositionSeconds?: number,
 ): Promise<void> => runExclusiveNativeQueueReplacement(async () => {
   await TrackPlayer.reset();
+  nativeQueueRef.current = [];
 
-  if (queue.length === 0) {
-    nativeQueueRef.current = [];
-  } else {
+  if (queue.length > 0) {
     await TrackPlayer.add(queue.map(toTrackPlayerTrack));
     nativeQueueRef.current = queue.slice();
   }
