@@ -66,14 +66,18 @@ const LibraryProbe = ({
       <Text testID="songs">{currentSongs.map(song => song.id).join(',')}</Text>
       <Text testID="current-title">{currentSong?.title ?? ''}</Text>
       <Text testID="playback-queue">{playbackQueue.map(song => song.id).join(',')}</Text>
+      <Text testID="playback-queue-titles">{playbackQueue.map(song => song.title).join(',')}</Text>
       <Text testID="queue-ref">{queueContextRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="queue-ref-titles">{queueContextRef.current.map(song => song.title).join(',')}</Text>
       <Text testID="base-queue-ref">{baseQueueContextRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="base-queue-ref-titles">{baseQueueContextRef.current.map(song => song.title).join(',')}</Text>
       <Text testID="native-ref">{nativeQueueRef.current.map(song => song.id).join(',')}</Text>
       <Text testID="playback-queue-commits">{playbackQueueCommitsRef.current}</Text>
       <Text testID="playlist-songs">{playlists[0]?.songIds.join(',') ?? ''}</Text>
       <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
       <Button testID="patch-song" title="patch" onPress={() => updateSongMetadata('s1', { title: 'Updated' })} />
+      <Button testID="patch-song-s2" title="patch s2" onPress={() => updateSongMetadata('s2', { title: 'Updated Two' })} />
       <Button testID="rerender" title="rerender" onPress={() => setRenderTick(prev => prev + 1)} />
     </>
   );
@@ -168,8 +172,49 @@ describe('useLibraryActions', () => {
     act(() => fireEvent.press(getByTestId('set-songs')));
 
     await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]));
-    act(() => fireEvent.press(getByTestId('rerender')));
+    await waitFor(() => expect(getByTestId('queue-ref').props.children).toBe('s2'));
+    expect(getByTestId('base-queue-ref').props.children).toBe('s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s2');
     expect(getByTestId('native-ref').props.children).toBe('');
+  });
+
+  test('metadata updates during pending native sync are preserved', async () => {
+    const deferredAdd: { resolve: () => void }[] = [];
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          deferredAdd.push({ resolve });
+        }),
+    );
+
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[1]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={[songs[1], songs[2]]}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('set-songs')));
+    await waitFor(() => expect(deferredAdd.length).toBe(1));
+
+    act(() => fireEvent.press(getByTestId('patch-song-s2')));
+
+    await act(async () => {
+      deferredAdd[0].resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(getByTestId('queue-ref').props.children).toBe('s2'));
+    expect(getByTestId('base-queue-ref').props.children).toBe('s2');
+    expect(getByTestId('playback-queue').props.children).toBe('s2');
+    expect(getByTestId('queue-ref-titles').props.children).toBe('Updated Two');
+    expect(getByTestId('base-queue-ref-titles').props.children).toBe('Updated Two');
+    expect(getByTestId('playback-queue-titles').props.children).toBe('Updated Two');
   });
 
   test('prunes stale playback state with one queue state commit when queue refs are already clean', async () => {

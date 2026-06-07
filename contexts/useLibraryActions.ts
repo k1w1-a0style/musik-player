@@ -119,22 +119,20 @@ export const useLibraryActions = ({
       setPlaylists(prev => prunePlaylists(prev, validSongIds));
       setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
       const nextQueueRef = pruneSongsByValidIds(queueContextRef.current, validSongIds);
-      const nextBaseQueueRef = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
       const queueRefChanged = !hasSameOrderedSongIds(queueContextRef.current, nextQueueRef);
-      const baseQueueRefChanged = !hasSameOrderedSongIds(baseQueueContextRef.current, nextBaseQueueRef);
       const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextQueueRef);
       latestNativeSyncVersionRef.current += 1;
       const syncVersion = latestNativeSyncVersionRef.current;
 
+      const commitPrunedLibraryQueueRefs = () => {
+        queueContextRef.current = pruneSongsByValidIds(queueContextRef.current, validSongIds);
+        baseQueueContextRef.current = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
+        setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
+      };
       const commitQueueRefs = () => {
-        if (queueRefChanged) queueContextRef.current = nextQueueRef;
-        if (baseQueueRefChanged) baseQueueContextRef.current = nextBaseQueueRef;
-        const syncedQueue = queueContextRef.current.slice();
-        if (queueRefChanged) {
-          setPlaybackQueue(syncedQueue);
-        } else {
-          setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
-        }
+        queueContextRef.current = pruneSongsByValidIds(queueContextRef.current, validSongIds);
+        baseQueueContextRef.current = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
+        setPlaybackQueue(queueContextRef.current.slice());
       };
       const commitClearedQueueRefs = () => {
         queueContextRef.current = [];
@@ -152,7 +150,11 @@ export const useLibraryActions = ({
             commitQueueRefs();
             return;
           }
-          if (syncResult === 'resetThenFailed') commitClearedQueueRefs();
+          if (syncResult === 'resetThenFailed') {
+            commitClearedQueueRefs();
+            return;
+          }
+          if (syncResult === 'stale') commitPrunedLibraryQueueRefs();
         });
       } else {
         commitQueueRefs();
