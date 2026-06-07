@@ -148,7 +148,7 @@ describe('useLibraryActions', () => {
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
-  test('native sync keeps ref for successful add even when a newer replacement intent appears', async () => {
+  test('native sync does not set ref when add is superseded by a newer replacement intent', async () => {
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
       void runExclusiveNativeQueueReplacement(async () => undefined);
     });
@@ -169,7 +169,7 @@ describe('useLibraryActions', () => {
 
     await waitFor(() => expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's2' })]));
     act(() => fireEvent.press(getByTestId('rerender')));
-    expect(getByTestId('native-ref').props.children).toBe('s2');
+    expect(getByTestId('native-ref').props.children).toBe('');
   });
 
   test('prunes stale playback state with one queue state commit when queue refs are already clean', async () => {

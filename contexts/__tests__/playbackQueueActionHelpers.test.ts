@@ -163,6 +163,7 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.baseQueueContextRef.current).toEqual([songs[0]]);
     expect(args.setPlaybackQueue).not.toHaveBeenCalled();
     expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.nativeQueueRef.current).toEqual([]);
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
