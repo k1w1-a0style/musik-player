@@ -99,11 +99,11 @@ export const rebuildNativePlaybackQueue = async (
 
   if (queue.length > 0) {
     await TrackPlayer.add(queue.map(toTrackPlayerTrack));
-    nativeQueueRef.current = queue.slice();
   }
 
   if (resumePositionSeconds) await TrackPlayer.seekTo(resumePositionSeconds);
   await TrackPlayer.play();
+  if (queue.length > 0) nativeQueueRef.current = queue.slice();
 });
 
 export const runPlaySongQueueAction = async ({
