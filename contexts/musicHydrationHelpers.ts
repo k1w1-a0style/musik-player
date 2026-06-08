@@ -92,24 +92,22 @@ export const hydrateStoredSongs = async ({
     }
     if (isCancelled()) return stored;
 
-    applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
-
     await persistHydratedPlaylistsIfNeeded(plan);
     if (isCancelled()) return stored;
-
-    applyHydratedCurrentSongState(plan, { setCurrentSong });
 
     await persistHydratedCurrentSongIdIfNeeded(plan);
     if (isCancelled()) return stored;
 
     const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
 
-    if (plan.nativeQueueAction === 'clearMalformedCurrent') {
-      await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef);
-      return hydratedStored;
-    }
+    const nativeQueueApplied = plan.nativeQueueAction === 'clearMalformedCurrent'
+      ? await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef)
+      : await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
 
-    await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
+    if (isCancelled() || !nativeQueueApplied) return hydratedStored;
+
+    applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
+    applyHydratedCurrentSongState(plan, { setCurrentSong });
 
     return hydratedStored;
   } finally {

@@ -46,7 +46,7 @@ describe('musicHydrationNativeQueue', () => {
     expect(nativeQueueRef.current.map(song => song.id)).toEqual(['stale']);
   });
 
-  test('clears native queue ref when TrackPlayer.add fails', async () => {
+  test('clears native queue ref when TrackPlayer.add fails after reset', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const plan = createHydrationPlan(stored, songs);
     const nativeQueueRef = createSongRef();
@@ -60,7 +60,7 @@ describe('musicHydrationNativeQueue', () => {
     warn.mockRestore();
   });
 
-  test('sets native queue ref when add succeeds before a newer replacement is observed', async () => {
+  test('does not set native queue ref when add succeeds after a newer replacement is observed', async () => {
     const plan = createHydrationPlan(stored, songs);
     const nativeQueueRef = createSongRef();
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
@@ -69,6 +69,6 @@ describe('musicHydrationNativeQueue', () => {
 
     await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false });
 
-    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
+    expect(nativeQueueRef.current).toEqual([]);
   });
 });
