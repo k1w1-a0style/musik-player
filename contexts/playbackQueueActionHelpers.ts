@@ -9,6 +9,7 @@ import {
 import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
+  type NativeQueueReplacementContext,
   runExclusiveNativePlaybackControl,
   runExclusiveNativeQueueReplacement,
 } from '../utils/nativeQueueMutationLock';
@@ -25,6 +26,15 @@ interface ApplyPlaybackQueueStateArgs {
   orderedQueue: Song[];
   baseQueue: Song[];
   selectedSong?: Song;
+}
+
+type ShuffleQueueActionResult = 'applied' | 'failed' | 'stale';
+
+export class NativeQueueReplacementStaleError extends Error {
+  constructor() {
+    super('Native queue replacement was superseded.');
+    this.name = 'NativeQueueReplacementStaleError';
+  }
 }
 
 interface PlaybackQueueActionRefs {
@@ -89,21 +99,43 @@ export const applyPlaybackQueueState = ({
   if (selectedSong) setCurrentSong(selectedSong);
 };
 
+export const rebuildNativePlaybackQueueUnlocked = async (
+  queue: PlayableSong[],
+  nativeQueueRef: MutableRefObject<Song[]>,
+  resumePositionSeconds?: number,
+  replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent'>,
+): Promise<boolean> => {
+  const isCurrent = replacementContext?.isCurrent ?? (() => true);
+
+  if (!isCurrent()) return false;
+  await TrackPlayer.reset();
+  nativeQueueRef.current = [];
+  if (!isCurrent()) return false;
+
+  if (queue.length > 0) {
+    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    if (!isCurrent()) return false;
+  }
+
+  if (resumePositionSeconds) {
+    await TrackPlayer.seekTo(resumePositionSeconds);
+    if (!isCurrent()) return false;
+  }
+
+  await TrackPlayer.play();
+  if (!isCurrent()) return false;
+
+  nativeQueueRef.current = queue.length > 0 ? queue.slice() : [];
+  return true;
+};
+
 export const rebuildNativePlaybackQueue = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
-): Promise<void> => runExclusiveNativeQueueReplacement(async () => {
-  await TrackPlayer.reset();
-  nativeQueueRef.current = [];
-
-  if (queue.length > 0) {
-    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
-  }
-
-  if (resumePositionSeconds) await TrackPlayer.seekTo(resumePositionSeconds);
-  await TrackPlayer.play();
-  if (queue.length > 0) nativeQueueRef.current = queue.slice();
+): Promise<void> => runExclusiveNativeQueueReplacement(async context => {
+  const rebuilt = await rebuildNativePlaybackQueueUnlocked(queue, nativeQueueRef, resumePositionSeconds, context);
+  if (!rebuilt) throw new NativeQueueReplacementStaleError();
 });
 
 export const runPlaySongQueueAction = async ({
@@ -179,40 +211,59 @@ export const runShuffleQueueAction = async ({
   setPlaybackQueue,
   setCurrentSong,
 }: RunShuffleQueueActionArgs): Promise<void> => {
-  const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
-  const current = await TrackPlayer.getActiveTrack();
-  const activeSongId = current?.id ?? currentSongId;
-  const plan = buildShuffleTogglePlan({
-    currentQueue,
-    baseQueue: baseQueueContextRef.current,
-    currentSongId: activeSongId,
-    shuffleEnabled: shuffleRef?.current ?? shuffle,
-  });
-  if (!plan) {
-    console.warn('[PlaybackQueue] Shuffle queue plan is empty; skipping toggle.');
-    return;
-  }
+  const result = await runExclusiveNativeQueueReplacement<ShuffleQueueActionResult>(async context => {
+    const { isCurrent } = context;
+    if (!isCurrent()) return 'stale';
 
-  const { nextQueue, nextBaseQueue, selectedSong } = plan;
+    const current = await TrackPlayer.getActiveTrack();
+    if (!isCurrent()) return 'stale';
 
-  try {
+    const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
+    const currentBaseQueue = baseQueueContextRef.current.slice();
+    const shuffleEnabled = shuffleRef?.current ?? shuffle;
+    const activeSongId = current?.id ?? currentSongId;
+    const plan = buildShuffleTogglePlan({
+      currentQueue,
+      baseQueue: currentBaseQueue,
+      currentSongId: activeSongId,
+      shuffleEnabled,
+    });
+    if (!plan) {
+      console.warn('[PlaybackQueue] Shuffle queue plan is empty; skipping toggle.');
+      return 'failed';
+    }
+
     const pos = await TrackPlayer.getProgress();
-    await rebuildNativePlaybackQueue(nextQueue, nativeQueueRef, pos.position);
-  } catch (error) {
-    console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
-    return;
-  }
+    if (!isCurrent()) return 'stale';
 
-  applyPlaybackQueueState({
-    queueContextRef,
-    baseQueueContextRef,
-    setPlaybackQueue,
-    setCurrentSong,
-    orderedQueue: nextQueue.slice(),
-    baseQueue: nextBaseQueue,
-    selectedSong,
+    const { nextQueue, nextBaseQueue, selectedSong } = plan;
+    const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+      nextQueue,
+      nativeQueueRef,
+      pos.position,
+      context,
+    );
+    if (!rebuilt || !isCurrent()) return 'stale';
+
+    applyPlaybackQueueState({
+      queueContextRef,
+      baseQueueContextRef,
+      setPlaybackQueue,
+      setCurrentSong,
+      orderedQueue: nextQueue.slice(),
+      baseQueue: nextBaseQueue,
+      selectedSong,
+    });
+    if (!isCurrent()) return 'stale';
+
+    const nextShuffle = !shuffleEnabled;
+    if (shuffleRef) shuffleRef.current = nextShuffle;
+    setShuffle(nextShuffle);
+    return 'applied';
+  }).catch(error => {
+    console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
+    return 'failed' as const;
   });
-  const nextShuffle = !(shuffleRef?.current ?? shuffle);
-  if (shuffleRef) shuffleRef.current = nextShuffle;
-  setShuffle(nextShuffle);
+
+  void result;
 };
