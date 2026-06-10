@@ -116,5 +116,6 @@ describe('usePlaybackQueueActions', () => {
     await waitFor(() => expect(getByTestId('shuffle').props.children).toBe('false'));
     expect(getByTestId('current').props.children).toBe('s2');
     expect(getByTestId('queue').props.children).toBe('s2,s3,s1');
+    expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s2', 's3', 's1']);
   });
 });
