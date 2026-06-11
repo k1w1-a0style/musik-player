@@ -64,6 +64,30 @@ describe('mediaLibraryImport', () => {
     );
   });
 
+
+  test('saf scan skips malformed directory entries without crashing', async () => {
+    const read = jest.fn(async () => [
+      null,
+      undefined,
+      '',
+      'content://root/valid.mp3',
+    ]) as any;
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+
+    expect(result.files).toEqual(['content://root/valid.mp3']);
+    expect(result.errors).toEqual(['content://root']);
+  });
+
+  test('saf scan treats malformed directory payload as a controlled folder error', async () => {
+    const read = jest.fn(async () => null) as any;
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual(['content://root']);
+  });
+
   test('loads all pages', async () => {
     const getAssetsPage = jest.fn(async ({ after }: { after?: string }) =>
       !after
