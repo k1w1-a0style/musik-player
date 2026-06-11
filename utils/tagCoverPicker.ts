@@ -1,4 +1,5 @@
 import type { EditableCover } from '../types/TagEdit';
+import { Base64DecodeError, decodeBase64ToBytes } from './base64';
 
 export const MAX_TAG_COVER_BYTES = 5 * 1024 * 1024;
 
@@ -7,7 +8,12 @@ export type PickedTagCover = EditableCover & {
   sizeBytes: number;
 };
 
-export type CoverPickFailureReason = 'missingUri' | 'missingBase64' | 'unsupportedMime' | 'tooLarge';
+export type CoverPickFailureReason =
+  | 'missingUri'
+  | 'missingBase64'
+  | 'invalidBase64'
+  | 'unsupportedMime'
+  | 'tooLarge';
 
 export type CoverPickResult =
   | { ok: true; cover: PickedTagCover }
@@ -27,14 +33,6 @@ const normalizeMimeType = (mimeType?: string | null, uri?: string): EditableCove
   return extension ? MIME_BY_EXTENSION[extension] ?? null : null;
 };
 
-export const base64ToBytes = (base64: string): Uint8Array => {
-  if (typeof Buffer !== 'undefined') return Uint8Array.from(Buffer.from(base64, 'base64'));
-  const binary = globalThis.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-};
-
 export const buildEditableCoverFromPickerAsset = (asset: {
   base64?: string | null;
   mimeType?: string | null;
@@ -42,10 +40,17 @@ export const buildEditableCoverFromPickerAsset = (asset: {
 }): CoverPickResult => {
   const uri = asset.uri?.trim();
   if (!uri || uri !== asset.uri) return { ok: false, reason: 'missingUri' };
-  if (!asset.base64) return { ok: false, reason: 'missingBase64' };
+  if (!asset.base64?.trim()) return { ok: false, reason: 'missingBase64' };
   const mimeType = normalizeMimeType(asset.mimeType, uri);
   if (!mimeType) return { ok: false, reason: 'unsupportedMime' };
-  const data = base64ToBytes(asset.base64);
+  let data: Uint8Array;
+  try {
+    data = decodeBase64ToBytes(asset.base64);
+  } catch (error) {
+    if (error instanceof Base64DecodeError) return { ok: false, reason: 'invalidBase64' };
+    throw error;
+  }
+  if (data.byteLength === 0) return { ok: false, reason: 'missingBase64' };
   if (data.byteLength > MAX_TAG_COVER_BYTES) return { ok: false, reason: 'tooLarge' };
   return { ok: true, cover: { data, mimeType, uri, sizeBytes: data.byteLength } };
 };

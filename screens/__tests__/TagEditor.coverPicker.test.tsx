@@ -29,7 +29,6 @@ let mockCapability = {
 let mockPlan = { blockingReasons: [] as string[] };
 
 jest.mock('expo-image-picker', () => ({
-  MediaTypeOptions: { Images: 'Images' },
   getMediaLibraryPermissionsAsync: () => mockGetMediaLibraryPermissionsAsync(),
   requestMediaLibraryPermissionsAsync: () => mockRequestMediaLibraryPermissionsAsync(),
   launchImageLibraryAsync: (...args: unknown[]) => mockLaunchImageLibraryAsync(...args),

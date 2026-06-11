@@ -26,7 +26,7 @@ export const pickTagEditorCover = async (): Promise<TagEditorCoverPickResult> =>
   let result: ImagePicker.ImagePickerResult;
   try {
     result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.9,

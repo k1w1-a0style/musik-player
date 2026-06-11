@@ -2,7 +2,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { pickTagEditorCover } from '../tagEditorCoverPicker';
 
 jest.mock('expo-image-picker', () => ({
-  MediaTypeOptions: { Images: 'Images' },
   getMediaLibraryPermissionsAsync: jest.fn(),
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
@@ -52,6 +51,59 @@ describe('pickTagEditorCover', () => {
     await expect(pickTagEditorCover()).resolves.toEqual({
       status: 'cancelled',
       message: 'Cover-Auswahl abgebrochen.',
+    });
+  });
+
+  test('uses current image-only ImagePicker API and keeps cover options', async () => {
+    mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true });
+
+    await pickTagEditorCover();
+
+    expect(mockLaunchImageLibraryAsync).toHaveBeenCalledWith({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+      base64: true,
+    });
+  });
+
+  test('returns failed result when picker returns no asset', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: false, assets: [] });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'failed',
+      message: 'Cover-URI fehlt oder ist ungültig. Bitte anderes Bild wählen.',
+    });
+    expect(warnSpy).toHaveBeenCalledWith('[CoverPicker] Picker returned no asset.');
+    warnSpy.mockRestore();
+  });
+
+  test('returns failed result when asset has no usable base64 data', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///cover.png', mimeType: 'image/png' }],
+    });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'failed',
+      message: 'Cover konnte nicht gelesen werden. Bitte anderes Bild wählen.',
+    });
+    expect(warnSpy).toHaveBeenCalledWith('[CoverPicker] Invalid cover asset selected.', { reason: 'missingBase64' });
+    warnSpy.mockRestore();
+  });
+
+  test('returns failed result when cover base64 is corrupted', async () => {
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///cover.png', mimeType: 'image/png', base64: 'broken' }],
+    });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'failed',
+      message: 'Cover-Daten sind beschädigt. Bitte anderes Bild wählen.',
     });
   });
 
