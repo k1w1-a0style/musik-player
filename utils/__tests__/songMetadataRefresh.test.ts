@@ -118,6 +118,21 @@ test('does not update cover when parsed cover matches normalized stored uri', ()
   expect(applyId3TagsToSong(songWithEquivalentCover, { cover: ` ${parsedCover} ` })).toBe(songWithEquivalentCover);
 });
 
+
+test('updates cover when both normalized references keep different query identity', () => {
+  const songWithVersionedCover: Song = {
+    ...baseSong,
+    cover: 'file:///covers/Album%20Art.jpg?version=1',
+    coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=1' },
+  };
+
+  expect(applyId3TagsToSong(songWithVersionedCover, { cover: 'file:///covers/Album%20Art.jpg?version=2' })).toEqual({
+    ...songWithVersionedCover,
+    cover: 'file:///covers/Album%20Art.jpg?version=2',
+    coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=2' },
+  });
+});
+
 test('repairs stale coverInfo when parsed embedded cover matches existing cover', () => {
   const cover = 'data:image/png;base64,cover';
   const songWithStaleCoverInfo: Song = {

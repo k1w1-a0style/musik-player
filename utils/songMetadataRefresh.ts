@@ -24,12 +24,43 @@ const safeDecode = (value: string): string => {
   }
 };
 
-export const normalizeCoverReferenceForComparison = (value?: string): string | undefined => {
+interface NormalizedCoverReference {
+  full: string;
+  withoutQueryOrFragment: string;
+  hasQueryOrFragment: boolean;
+}
+
+const normalizeCoverPath = (value: string): string =>
+  safeDecode(value)
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '');
+
+const normalizeCoverReference = (value?: string): NormalizedCoverReference | undefined => {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
-  return safeDecode(trimmed.split(/[?#]/)[0] ?? trimmed)
-    .replace(/\\/g, '/')
-    .replace(/\/+$/, '') || undefined;
+  const withoutQueryOrFragment = trimmed.split(/[?#]/)[0] ?? trimmed;
+  const normalizedFull = normalizeCoverPath(trimmed);
+  const normalizedPath = normalizeCoverPath(withoutQueryOrFragment);
+  if (!normalizedFull || !normalizedPath) return undefined;
+  return {
+    full: normalizedFull,
+    withoutQueryOrFragment: normalizedPath,
+    hasQueryOrFragment: withoutQueryOrFragment.length !== trimmed.length,
+  };
+};
+
+export const normalizeCoverReferenceForComparison = (value?: string): string | undefined =>
+  normalizeCoverReference(value)?.withoutQueryOrFragment;
+
+const areCoverReferencesEquivalent = (left?: string, right?: string): boolean => {
+  const normalizedLeft = normalizeCoverReference(left);
+  const normalizedRight = normalizeCoverReference(right);
+  if (!normalizedLeft || !normalizedRight) return normalizedLeft === normalizedRight;
+  if (normalizedLeft.full === normalizedRight.full) return true;
+  return (
+    normalizedLeft.withoutQueryOrFragment === normalizedRight.withoutQueryOrFragment
+    && !(normalizedLeft.hasQueryOrFragment && normalizedRight.hasQueryOrFragment)
+  );
 };
 
 export const resolveMetadataRefreshUri = (song: Song): string | undefined => {
@@ -58,10 +89,9 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
 
   if (hasText(tags.cover)) {
     const normalizedCover = tags.cover.trim();
-    const comparableCover = normalizeCoverReferenceForComparison(normalizedCover);
     if (
-      normalizeCoverReferenceForComparison(song.cover) !== comparableCover
-      || normalizeCoverReferenceForComparison(song.coverInfo?.uri) !== comparableCover
+      !areCoverReferencesEquivalent(song.cover, normalizedCover)
+      || !areCoverReferencesEquivalent(song.coverInfo?.uri, normalizedCover)
       || song.coverInfo?.status !== 'embedded'
     ) {
       patch.cover = normalizedCover;
