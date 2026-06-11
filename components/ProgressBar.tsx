@@ -33,6 +33,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
   const [barWidth, setBarWidth] = useState(0);
   const playbackProgress = clampPlaybackProgressValues(currentPosition, duration);
   const { progress } = playbackProgress;
+  const { currentPosition: safeCurrentPosition, duration: safeDuration } = playbackProgress;
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
     setBarWidth(e.nativeEvent.layout.width);
@@ -46,15 +47,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
   }, [barWidth, onSeek, playbackProgress.duration]);
 
   const handleAccessibilityAction = useCallback((event: AccessibilityActionEvent) => {
-    if (duration <= 0) return;
+    if (safeDuration <= 0) return;
 
     const { actionName } = event.nativeEvent;
     if (actionName === 'increment') {
-      onSeek(Math.min(currentPosition + SEEK_STEP_MS, duration));
+      onSeek(Math.min(safeCurrentPosition + SEEK_STEP_MS, safeDuration));
     } else if (actionName === 'decrement') {
-      onSeek(Math.max(currentPosition - SEEK_STEP_MS, 0));
+      onSeek(Math.max(safeCurrentPosition - SEEK_STEP_MS, 0));
     }
-  }, [currentPosition, duration, onSeek]);
+  }, [onSeek, safeCurrentPosition, safeDuration]);
 
   return (
     <View style={styles.container}>

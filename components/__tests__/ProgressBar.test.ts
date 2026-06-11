@@ -72,6 +72,34 @@ describe('ProgressBar accessibility actions', () => {
     expect(onSeek).not.toHaveBeenCalled();
   });
 
+  test('does not call onSeek for increment when currentPosition and duration are NaN', () => {
+    const onSeek = jest.fn();
+    const { getByTestId } = renderProgressBar({ currentPosition: Number.NaN, duration: Number.NaN, onSeek });
+
+    fireAccessibilityAction(getByTestId('progress-bar'), 'increment');
+
+    expect(onSeek).not.toHaveBeenCalled();
+  });
+
+  test('increment seeks from safe 0 when currentPosition is NaN and duration is finite', () => {
+    const onSeek = jest.fn();
+    const { getByTestId } = renderProgressBar({ currentPosition: Number.NaN, duration: 60_000, onSeek });
+
+    fireAccessibilityAction(getByTestId('progress-bar'), 'increment');
+
+    expect(onSeek).toHaveBeenCalledWith(10_000);
+  });
+
+  test('does not call onSeek for accessibility actions when duration is NaN', () => {
+    const onSeek = jest.fn();
+    const { getByTestId } = renderProgressBar({ currentPosition: 30_000, duration: Number.NaN, onSeek });
+
+    fireAccessibilityAction(getByTestId('progress-bar'), 'increment');
+    fireAccessibilityAction(getByTestId('progress-bar'), 'decrement');
+
+    expect(onSeek).not.toHaveBeenCalled();
+  });
+
   test('has a playback progress accessibility label', () => {
     const { getByTestId } = renderProgressBar({ currentPosition: 20_000, duration: 60_000, onSeek: jest.fn() });
 
