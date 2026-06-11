@@ -1,6 +1,8 @@
 import type { Playlist, Song } from '../types/Song';
 import { createPlaylistId } from '../utils/playlistIds';
 
+const DEFAULT_QUEUE_PLAYLIST_NAME = 'Gespeicherte Queue';
+
 export const createPlaylistRecord = (name: string, now: number = Date.now()): Playlist => ({
   id: createPlaylistId(),
   name,
@@ -9,10 +11,30 @@ export const createPlaylistRecord = (name: string, now: number = Date.now()): Pl
   updatedAt: now,
 });
 
+export const buildUniquePlaylistName = (name: string, existingPlaylists: Playlist[] = []): string => {
+  const baseName = name.trim() || DEFAULT_QUEUE_PLAYLIST_NAME;
+  const existingNames = new Set(existingPlaylists.map(playlist => playlist.name));
+  if (!existingNames.has(baseName)) return baseName;
+
+  let suffix = 2;
+  let candidate = `${baseName} (${suffix})`;
+  while (existingNames.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseName} (${suffix})`;
+  }
+  return candidate;
+};
+
+/**
+ * Creates a queue playlist with a name unique within `existingPlaylists`.
+ * When called from React state updates, pass the functional updater's `prev`
+ * playlists so pending playlist additions are included in the name check.
+ */
 export const createPlaylistRecordFromQueue = (
   name: string,
   queue: Song[],
   now: number = Date.now(),
+  existingPlaylists: Playlist[] = [],
 ): Playlist | null => {
   const seenSongIds = new Set<string>();
   const songIds = queue
@@ -26,7 +48,7 @@ export const createPlaylistRecordFromQueue = (
   if (songIds.length === 0) return null;
 
   return {
-    ...createPlaylistRecord(name.trim() || 'Gespeicherte Queue', now),
+    ...createPlaylistRecord(buildUniquePlaylistName(name, existingPlaylists), now),
     songIds,
   };
 };

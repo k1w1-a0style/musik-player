@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Playlist, Song } from '../types/Song';
 import {
   addSongToPlaylistById,
@@ -37,6 +37,11 @@ export const usePlaylistActions = ({
   songsRef,
   playSong,
 }: PlaylistActionsArgs): PlaylistActions => {
+  const pendingPlaylistsRef = useRef(playlists);
+  if (pendingPlaylistsRef.current !== playlists) {
+    pendingPlaylistsRef.current = playlists;
+  }
+
   const createPlaylist = useCallback(
     (name: string) => {
       const playlist = createPlaylistRecord(name);
@@ -48,10 +53,26 @@ export const usePlaylistActions = ({
 
   const saveQueueAsPlaylist = useCallback(
     (name: string, queue: Song[]) => {
-      const playlist = createPlaylistRecordFromQueue(name, queue);
-      if (!playlist) return null;
-      setPlaylists(prev => appendPlaylist(prev, playlist));
-      return playlist;
+      const now = Date.now();
+      const createdPlaylist = createPlaylistRecordFromQueue(name, queue, now, pendingPlaylistsRef.current);
+      if (!createdPlaylist) return null;
+
+      pendingPlaylistsRef.current = appendPlaylist(pendingPlaylistsRef.current, createdPlaylist);
+      setPlaylists(prev => {
+        const playlist = createPlaylistRecordFromQueue(name, queue, now, prev);
+        if (!playlist) return prev;
+        const playlistForPrev =
+          playlist.name === createdPlaylist.name
+            ? createdPlaylist
+            : {
+                ...createdPlaylist,
+                name: playlist.name,
+              };
+        const nextPlaylists = appendPlaylist(prev, playlistForPrev);
+        pendingPlaylistsRef.current = nextPlaylists;
+        return nextPlaylists;
+      });
+      return createdPlaylist;
     },
     [setPlaylists],
   );

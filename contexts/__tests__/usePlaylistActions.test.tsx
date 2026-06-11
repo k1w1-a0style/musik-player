@@ -33,6 +33,7 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
   return (
     <>
       <Text testID="names">{playlists.map(playlist => playlist.name).join(',')}</Text>
+      <Text testID="playlist-count">{playlists.length}</Text>
       <Text testID="song-ids">{playlists[0]?.songIds.join(',') ?? ''}</Text>
       <Text testID="saved-queue-name">{lastSavedQueuePlaylistName}</Text>
       <Button testID="create" title="create" onPress={() => createPlaylist('Created')} />
@@ -42,6 +43,15 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
         onPress={() => {
           const playlist = saveQueueAsPlaylist('Queue Mix', [songs[0], songs[1], songs[0]]);
           setLastSavedQueuePlaylistName(playlist?.name ?? 'none');
+        }}
+      />
+      <Button
+        testID="save-queue-twice"
+        title="save queue twice"
+        onPress={() => {
+          const firstPlaylist = saveQueueAsPlaylist('Queue Mix', [songs[0], songs[1]]);
+          const secondPlaylist = saveQueueAsPlaylist('Queue Mix', [songs[0], songs[1]]);
+          setLastSavedQueuePlaylistName(`${firstPlaylist?.name ?? 'none'}|${secondPlaylist?.name ?? 'none'}`);
         }}
       />
       <Button
@@ -84,6 +94,10 @@ describe('usePlaylistActions', () => {
     expect(getByTestId('names').props.children).toContain('Queue Mix');
     expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix');
 
+    act(() => fireEvent.press(getByTestId('save-queue')));
+    expect(getByTestId('names').props.children).toContain('Queue Mix (2)');
+    expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix (2)');
+
     act(() => fireEvent.press(getByTestId('save-empty-queue')));
     expect(getByTestId('names').props.children).not.toContain('Empty');
     expect(getByTestId('saved-queue-name').props.children).toBe('none');
@@ -98,7 +112,28 @@ describe('usePlaylistActions', () => {
     expect(getByTestId('song-ids').props.children).toBe('s2');
 
     act(() => fireEvent.press(getByTestId('delete')));
-    expect(getByTestId('names').props.children).toBe('Created,Queue Mix');
+    expect(getByTestId('names').props.children).toBe('Created,Queue Mix,Queue Mix (2)');
+  });
+
+  test('creates unique names when saving the same queue twice before a rerender', () => {
+    const playSong = jest.fn(async () => undefined);
+    const { getByTestId } = render(<PlaylistProbe playSong={playSong} />);
+
+    act(() => fireEvent.press(getByTestId('save-queue-twice')));
+
+    expect(getByTestId('names').props.children).toBe('Initial,Queue Mix,Queue Mix (2)');
+    expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix|Queue Mix (2)');
+  });
+
+  test('does not change playlists or return a record for an empty queue', () => {
+    const playSong = jest.fn(async () => undefined);
+    const { getByTestId } = render(<PlaylistProbe playSong={playSong} />);
+
+    act(() => fireEvent.press(getByTestId('save-empty-queue')));
+
+    expect(getByTestId('names').props.children).toBe('Initial');
+    expect(getByTestId('playlist-count').props.children).toBe(1);
+    expect(getByTestId('saved-queue-name').props.children).toBe('none');
   });
 
   test('plays the playlist queue from its first song', async () => {

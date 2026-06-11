@@ -62,21 +62,9 @@ export const useMusicHydration = ({
     return () => {
       cancelled = true;
     };
-  }, [
-    baseQueueContextRef,
-    nativeQueueRef,
-    queueContextRef,
-    setCurrentSong,
-    setEqBandsState,
-    setEqEnabledState,
-    setEqPreset,
-    setIsReady,
-    setPlaybackQueue,
-    setPlaylists,
-    setRepeatMode,
-    setShuffle,
-    setSongsState,
-    setVolumeState,
-    songsRef,
-  ]);
+    // Hydration must run exactly once for a provider mount. The refs and React
+    // setters are stable hand-off targets for that initial run, not signals for
+    // restarting persisted-state hydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 };

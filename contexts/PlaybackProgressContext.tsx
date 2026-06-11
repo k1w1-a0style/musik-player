@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useProgress } from 'react-native-track-player';
 
+/**
+ * Playback progress exposed to the UI in milliseconds.
+ * react-native-track-player reports seconds, so the provider converts exactly
+ * once before ProgressBar and seeking consumers receive these values.
+ */
 interface PlaybackProgressContextValue {
   position: number;
   duration: number;
