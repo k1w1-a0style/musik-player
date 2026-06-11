@@ -16,6 +16,22 @@ interface SongMetadataRefreshOptions {
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
 
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+export const normalizeCoverReferenceForComparison = (value?: string): string | undefined => {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return safeDecode(trimmed.split(/[?#]/)[0] ?? trimmed)
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '') || undefined;
+};
+
 export const resolveMetadataRefreshUri = (song: Song): string | undefined => {
   const primaryUri = song.uri?.trim();
   if (primaryUri) return primaryUri;
@@ -42,7 +58,12 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
 
   if (hasText(tags.cover)) {
     const normalizedCover = tags.cover.trim();
-    if (song.cover !== normalizedCover || song.coverInfo?.uri !== normalizedCover || song.coverInfo?.status !== 'embedded') {
+    const comparableCover = normalizeCoverReferenceForComparison(normalizedCover);
+    if (
+      normalizeCoverReferenceForComparison(song.cover) !== comparableCover
+      || normalizeCoverReferenceForComparison(song.coverInfo?.uri) !== comparableCover
+      || song.coverInfo?.status !== 'embedded'
+    ) {
       patch.cover = normalizedCover;
       patch.coverInfo = {
         ...song.coverInfo,

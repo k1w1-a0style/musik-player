@@ -11,6 +11,14 @@ interface ProgressBarProps {
   accentDark?: string;
 }
 
+export const clampPlaybackProgressValues = (currentPosition: number, duration: number): { currentPosition: number; duration: number; progress: number } => {
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const safePosition = Number.isFinite(currentPosition) && currentPosition > 0 ? currentPosition : 0;
+  const clampedPosition = safeDuration > 0 ? Math.min(safePosition, safeDuration) : 0;
+  const progress = safeDuration > 0 ? (clampedPosition / safeDuration) * 100 : 0;
+  return { currentPosition: clampedPosition, duration: safeDuration, progress };
+};
+
 const formatTime = (millis: number): string => {
   if (!isFinite(millis) || millis < 0) return '0:00';
   const totalSeconds = Math.floor(millis / 1000);
@@ -21,18 +29,19 @@ const formatTime = (millis: number): string => {
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek, accent, accentDark }) => {
   const [barWidth, setBarWidth] = useState(0);
-  const progress = duration > 0 ? Math.min(100, (currentPosition / duration) * 100) : 0;
+  const playbackProgress = clampPlaybackProgressValues(currentPosition, duration);
+  const { progress } = playbackProgress;
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
     setBarWidth(e.nativeEvent.layout.width);
   }, []);
 
   const handlePress = useCallback((event: GestureResponderEvent) => {
-    if (barWidth <= 0 || duration <= 0) return;
+    if (barWidth <= 0 || playbackProgress.duration <= 0) return;
     const { locationX } = event.nativeEvent;
     const ratio = Math.max(0, Math.min(1, locationX / barWidth));
-    onSeek(ratio * duration);
-  }, [barWidth, duration, onSeek]);
+    onSeek(ratio * playbackProgress.duration);
+  }, [barWidth, onSeek, playbackProgress.duration]);
 
   return (
     <View style={styles.container}>
@@ -55,8 +64,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
         </View>
       </Pressable>
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatTime(currentPosition)}</Text>
-        <Text style={styles.time}>{formatTime(duration)}</Text>
+        <Text style={styles.time}>{formatTime(playbackProgress.currentPosition)}</Text>
+        <Text style={styles.time}>{formatTime(playbackProgress.duration)}</Text>
       </View>
     </View>
   );

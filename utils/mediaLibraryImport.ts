@@ -338,8 +338,15 @@ export const readAudioUrisFromSafDirectory = async (
     let entries: string[];
     try {
       throwIfAborted(signal);
-      entries = await readSafDirectoryWithTimeout(uri, readDirectory, options);
+      const rawEntries = await readSafDirectoryWithTimeout(uri, readDirectory, options);
       throwIfAborted(signal);
+      if (!Array.isArray(rawEntries)) {
+        recordSafError(uri);
+        await maybeYield(true);
+        return;
+      }
+      entries = rawEntries.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+      if (entries.length !== rawEntries.length) recordSafError(uri);
       emitProgress(uri);
       await maybeYield(true);
     } catch (error) {

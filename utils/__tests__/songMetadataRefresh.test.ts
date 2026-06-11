@@ -1,6 +1,7 @@
 import { parseId3FromUri } from '../id3Parser';
 import {
   applyId3TagsToSong,
+  normalizeCoverReferenceForComparison,
   refreshSongsFromId3,
   resolveMetadataRefreshUri,
 } from '../songMetadataRefresh';
@@ -101,6 +102,20 @@ test('updates embedded cover and coverInfo together when ID3 cover changes', asy
     cover: newCover,
     coverInfo: { status: 'embedded', uri: newCover },
   });
+});
+
+
+test('does not update cover when parsed cover matches normalized stored uri', () => {
+  const storedCover = 'file:///covers/Album%20Art.jpg?mtime=1#image';
+  const parsedCover = 'file:///covers/Album Art.jpg';
+  const songWithEquivalentCover: Song = {
+    ...baseSong,
+    cover: storedCover,
+    coverInfo: { status: 'embedded', uri: storedCover },
+  };
+
+  expect(normalizeCoverReferenceForComparison(storedCover)).toBe(parsedCover);
+  expect(applyId3TagsToSong(songWithEquivalentCover, { cover: ` ${parsedCover} ` })).toBe(songWithEquivalentCover);
 });
 
 test('repairs stale coverInfo when parsed embedded cover matches existing cover', () => {
