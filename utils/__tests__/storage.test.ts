@@ -11,12 +11,14 @@ import {
   normalizeVolumeForStorage,
   migrateLegacySongFavoritesFromStoredSongs,
   removeScanFolder,
+  saveScanFolders,
   setFavoriteSongId,
   storage,
   StorageKeys,
   updateScanFolder,
 } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ScanFolder } from '../../types/ScanFolder';
 
 describe('storage', () => {
   const storageTestKey = (key: string): string => `@musikplayer:${key}`;
@@ -413,6 +415,156 @@ describe('storage', () => {
     expect(setItemSpy).not.toHaveBeenCalled();
   });
 
+  test('serializes parallel scan folder additions without losing either folder', async () => {
+    await Promise.all([
+      addScanFolder({ id: 'a', name: 'A', uri: 'content://a', addedAt: 1, enabled: true }),
+      addScanFolder({ id: 'b', name: 'B', uri: 'content://b', addedAt: 2, enabled: true }),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      { id: 'a', name: 'A', uri: 'content://a', addedAt: 1, enabled: true },
+      { id: 'b', name: 'B', uri: 'content://b', addedAt: 2, enabled: true },
+    ]);
+  });
+
+  test('serializes parallel scan folder remove and update without losing unrelated folders', async () => {
+    const keep = { id: 'keep', name: 'Keep', uri: 'content://keep', addedAt: 1, enabled: true };
+    const remove = { id: 'remove', name: 'Remove', uri: 'content://remove', addedAt: 2, enabled: true };
+    const update = { id: 'update', name: 'Update', uri: 'content://update', addedAt: 3, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [keep, remove, update]);
+
+    await Promise.all([
+      removeScanFolder('remove'),
+      updateScanFolder('update', { name: 'Updated', enabled: false }),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      keep,
+      { ...update, name: 'Updated', enabled: false },
+    ]);
+  });
+
+  test('serializes scan folder error updates with parallel additions', async () => {
+    const existing = { id: 'existing', name: 'Existing', uri: 'content://existing', addedAt: 1, enabled: true };
+    const added = { id: 'added', name: 'Added', uri: 'content://added', addedAt: 2, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [existing]);
+
+    await Promise.all([
+      updateScanFolder('existing', { lastError: 'Read failed' }),
+      addScanFolder(added),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      { ...existing, lastError: 'Read failed' },
+      added,
+    ]);
+  });
+
+  test('merges scan folder hydration saves with normal writes', async () => {
+    const hydrated = { id: 'hydrated', name: 'Hydrated', uri: 'content://hydrated', addedAt: 1, enabled: true };
+    const normal = { id: 'normal', name: 'Normal', uri: 'content://normal', addedAt: 2, enabled: true };
+
+    await Promise.all([
+      saveScanFolders([hydrated]),
+      addScanFolder(normal),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([hydrated, normal]);
+  });
+
+  test('does not let an older scan folder snapshot erase newer metadata', async () => {
+    const oldSnapshot = {
+      id: 'a',
+      name: 'Old Name',
+      uri: 'content://a',
+      addedAt: 1,
+      enabled: true,
+    };
+    const current = {
+      ...oldSnapshot,
+      name: 'Current Name',
+      enabled: false,
+      lastError: 'Read failed',
+      permission: { persisted: true },
+      saf: { treeUri: 'content://tree/a' },
+    } as ScanFolder & { permission: { persisted: boolean }; saf: { treeUri: string } };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [current]);
+
+    await saveScanFolders([oldSnapshot]);
+
+    await expect(getScanFolders()).resolves.toEqual([current]);
+  });
+
+  test('serializes scan folder snapshot saves with updates without erasing newer fields', async () => {
+    const oldSnapshot = { id: 'a', name: 'Folder A', uri: 'content://a', addedAt: 1, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [oldSnapshot]);
+
+    await Promise.all([
+      updateScanFolder('a', { lastError: 'Permission denied' }),
+      saveScanFolders([oldSnapshot]),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([{ ...oldSnapshot, lastError: 'Permission denied' }]);
+  });
+
+  test('snapshot scan folder saves still add incoming folders and keep unrelated existing folders', async () => {
+    const existing = { id: 'existing', name: 'Existing', uri: 'content://existing', addedAt: 1, enabled: true };
+    const incoming = { id: 'incoming', name: 'Incoming', uri: 'content://incoming', addedAt: 2, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [existing]);
+
+    await saveScanFolders([incoming]);
+
+    await expect(getScanFolders()).resolves.toEqual([incoming, existing]);
+  });
+
+  test('preserves permission and SAF metadata during parallel scan folder updates', async () => {
+    const existing = {
+      id: 'existing',
+      name: 'Existing',
+      uri: 'content://existing',
+      addedAt: 1,
+      enabled: true,
+      permission: { persisted: true },
+      saf: { treeUri: 'content://tree/existing' },
+    } as ScanFolder & { permission: { persisted: boolean }; saf: { treeUri: string } };
+    const added = {
+      id: 'added',
+      name: 'Added',
+      uri: 'content://added',
+      addedAt: 2,
+      enabled: true,
+      saf: { treeUri: 'content://tree/added' },
+    } as ScanFolder & { saf: { treeUri: string } };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [existing]);
+
+    await Promise.all([
+      updateScanFolder('existing', { lastError: 'Permission lost' }),
+      addScanFolder(added),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([
+      { ...existing, lastError: 'Permission lost' },
+      added,
+    ]);
+  });
+
+  test('continues scan folder mutations after a locked write fails', async () => {
+    const setItemMock = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+    setItemMock.mockImplementationOnce(async (key) => {
+      if (key === storageTestKey(StorageKeys.SCAN_FOLDERS)) {
+        throw new Error('scan folder write failed');
+      }
+    });
+
+    await expect(addScanFolder({ id: 'first', name: 'First', uri: 'content://first', addedAt: 1, enabled: true })).rejects.toThrow('scan folder write failed');
+    await expect(addScanFolder({ id: 'second', name: 'Second', uri: 'content://second', addedAt: 2, enabled: true })).resolves.toEqual([
+      { id: 'second', name: 'Second', uri: 'content://second', addedAt: 2, enabled: true },
+    ]);
+    await expect(getScanFolders()).resolves.toEqual([
+      { id: 'second', name: 'Second', uri: 'content://second', addedAt: 2, enabled: true },
+    ]);
+  });
+
   test('normalizes storage song ids', () => {
     expect(normalizeStorageSongId(' s1 ')).toBe('s1');
     expect(normalizeStorageSongId('')).toBeUndefined();
@@ -646,6 +798,73 @@ describe('storage', () => {
     jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
 
     await expect(setFavoriteSongId('s1', true)).rejects.toThrow('Failed to persist favorite song ids');
+  });
+
+  test('serializes parallel favorite additions without losing either id', async () => {
+    await Promise.all([
+      setFavoriteSongId('s1', true),
+      setFavoriteSongId('s2', true),
+    ]);
+
+    await expect(getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
+  });
+
+  test('serializes duplicate parallel favorite additions without duplicates', async () => {
+    await Promise.all([
+      setFavoriteSongId(' s1 ', true),
+      setFavoriteSongId('s1', true),
+    ]);
+
+    await expect(getFavoriteSongIds()).resolves.toEqual(['s1']);
+  });
+
+  test('serializes parallel favorite add and remove without losing unrelated ids', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, ['keep', 'remove']);
+
+    await Promise.all([
+      setFavoriteSongId('add', true),
+      setFavoriteSongId('remove', false),
+    ]);
+
+    await expect(getFavoriteSongIds()).resolves.toEqual(['keep', 'add']);
+  });
+
+  test('serializes legacy favorite migration with normal favorite writes', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 'legacy', title: 'Legacy Song', artist: 'Artist', favorite: true },
+    ]));
+
+    await Promise.all([
+      migrateLegacySongFavoritesFromStoredSongs(),
+      setFavoriteSongId('normal', true),
+    ]);
+
+    await expect(getFavoriteSongIds()).resolves.toEqual(['legacy', 'normal']);
+  });
+
+  test('continues favorite mutations after a locked write fails', async () => {
+    const setItemMock = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+    setItemMock.mockImplementationOnce(async (key) => {
+      if (key === storageTestKey(StorageKeys.FAVORITE_SONG_IDS)) {
+        throw new Error('favorite write failed');
+      }
+    });
+
+    await expect(setFavoriteSongId('first', true)).rejects.toThrow('Failed to persist favorite song ids');
+    await expect(setFavoriteSongId('second', true)).resolves.toEqual(['second']);
+    await expect(getFavoriteSongIds()).resolves.toEqual(['second']);
+  });
+
+  test('keeps normalization and deduplication during serialized favorite mutations', async () => {
+    await storage.set(StorageKeys.FAVORITE_SONG_IDS, [' s1 ', '', 's1']);
+
+    await Promise.all([
+      setFavoriteSongId(' s2 ', true),
+      setFavoriteSongId('s2', true),
+      setFavoriteSongId('   ', true),
+    ]);
+
+    await expect(getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
   });
 
   test('normalizes current song ids for generic and typed storage access', async () => {

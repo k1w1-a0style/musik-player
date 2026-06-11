@@ -291,6 +291,31 @@ const removeItem = async (key: StorageKey): Promise<void> => {
   await AsyncStorage.removeItem(storageKey(key));
 };
 
+type MutationQueue = {
+  current: Promise<void>;
+};
+
+const createMutationQueue = (): MutationQueue => ({ current: Promise.resolve() });
+
+const runSerializedMutation = async <T,>(
+  queue: MutationQueue,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const previous = queue.current.catch(() => undefined);
+  const next = previous.then(operation);
+  queue.current = next.then(() => undefined, () => undefined);
+  return next;
+};
+
+const favoriteSongIdsMutationQueue = createMutationQueue();
+const scanFoldersMutationQueue = createMutationQueue();
+
+export const withFavoriteSongIdsMutationLock = async <T,>(operation: () => Promise<T>): Promise<T> =>
+  runSerializedMutation(favoriteSongIdsMutationQueue, operation);
+
+export const withScanFoldersMutationLock = async <T,>(operation: () => Promise<T>): Promise<T> =>
+  runSerializedMutation(scanFoldersMutationQueue, operation);
+
 export const storage = {
   async get<T>(key: string): Promise<T | null> {
     try {
@@ -412,22 +437,23 @@ export const storage = {
 
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
 
-export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> => {
-  const existingIds = await storage.getFavoriteSongIds().catch(() => []);
-  try {
-    const rawSongs = await getItem(StorageKeys.SONGS);
-    if (!rawSongs) return existingIds;
-    const parsedSongs = JSON.parse(rawSongs);
-    const legacyIds = collectLegacyFavoriteSongIds(parsedSongs);
-    if (legacyIds.length === 0) return existingIds;
-    const mergedIds = normalizeFavoriteSongIds([...existingIds, ...legacyIds]);
-    if (mergedIds.length === existingIds.length) return existingIds;
-    await storage.setFavoriteSongIds(mergedIds);
-    return mergedIds;
-  } catch {
-    return existingIds;
-  }
-};
+export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> =>
+  withFavoriteSongIdsMutationLock(async () => {
+    const existingIds = await storage.getFavoriteSongIds().catch(() => []);
+    try {
+      const rawSongs = await getItem(StorageKeys.SONGS);
+      if (!rawSongs) return existingIds;
+      const parsedSongs = JSON.parse(rawSongs);
+      const legacyIds = collectLegacyFavoriteSongIds(parsedSongs);
+      if (legacyIds.length === 0) return existingIds;
+      const mergedIds = normalizeFavoriteSongIds([...existingIds, ...legacyIds]);
+      if (mergedIds.length === existingIds.length) return existingIds;
+      await storage.setFavoriteSongIds(mergedIds);
+      return mergedIds;
+    } catch {
+      return existingIds;
+    }
+  });
 
 export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
   const normalizedSongId = normalizeStorageSongId(songId);
@@ -439,41 +465,68 @@ export const isFavoriteSongId = async (songId: string): Promise<boolean> => {
 export const setFavoriteSongId = async (songId: string, favorite: boolean): Promise<string[]> => {
   const normalizedSongId = normalizeStorageSongId(songId);
   if (!normalizedSongId) return getFavoriteSongIds();
-  const ids = await getFavoriteSongIds();
-  if (favorite && ids.includes(normalizedSongId)) return ids;
-  if (!favorite && !ids.includes(normalizedSongId)) return ids;
-  const next = favorite
-    ? normalizeFavoriteSongIds([...ids, normalizedSongId])
-    : ids.filter(id => id !== normalizedSongId);
-  try {
-    await storage.setFavoriteSongIds(next);
-  } catch (error) {
-    throw new Error(`Failed to persist favorite song ids: ${String(error)}`);
-  }
-  return next;
+
+  return withFavoriteSongIdsMutationLock(async () => {
+    const ids = await getFavoriteSongIds();
+    if (favorite && ids.includes(normalizedSongId)) return ids;
+    if (!favorite && !ids.includes(normalizedSongId)) return ids;
+    const next = favorite
+      ? normalizeFavoriteSongIds([...ids, normalizedSongId])
+      : ids.filter(id => id !== normalizedSongId);
+    try {
+      await storage.setFavoriteSongIds(next);
+    } catch (error) {
+      throw new Error(`Failed to persist favorite song ids: ${String(error)}`);
+    }
+    return next;
+  });
 };
 
 export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScanFolders();
 
+const getScanFolderIdentity = (folder: ScanFolder): string => folder.id || folder.uri;
+
+const mergeScanFolder = (currentFolder: ScanFolder | undefined, incomingFolder: ScanFolder): ScanFolder => {
+  if (!currentFolder) return incomingFolder;
+  return { ...incomingFolder, ...currentFolder };
+};
+
+const mergeScanFolderSnapshots = (currentFolders: ScanFolder[], incomingFolders: ScanFolder[]): ScanFolder[] => {
+  const currentFoldersByIdentity = new Map(currentFolders.map(folder => [getScanFolderIdentity(folder), folder]));
+  const incomingIdentities = new Set(incomingFolders.map(getScanFolderIdentity));
+  const mergedIncomingFolders = incomingFolders.map(folder =>
+    mergeScanFolder(currentFoldersByIdentity.get(getScanFolderIdentity(folder)), folder),
+  );
+  const currentOnlyFolders = currentFolders.filter(folder => !incomingIdentities.has(getScanFolderIdentity(folder)));
+  return [...mergedIncomingFolders, ...currentOnlyFolders];
+};
+
 export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
-  await storage.setScanFolders(folders);
+  // Treat full-list saves as snapshot hydration: merge with the latest stored state so stale snapshots
+  // cannot erase newer metadata written by targeted scan-folder mutations.
+  await withScanFoldersMutationLock(async () => {
+    const currentFolders = await getScanFolders();
+    await storage.setScanFolders(mergeScanFolderSnapshots(currentFolders, folders));
+  });
 };
 
-export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  if (folders.some(existing => existing.uri === folder.uri)) return folders;
-  const next = [...folders, folder];
-  await saveScanFolders(next);
-  return next;
-};
+export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> =>
+  withScanFoldersMutationLock(async () => {
+    const folders = await getScanFolders();
+    if (folders.some(existing => existing.uri === folder.uri)) return folders;
+    const next = [...folders, folder];
+    await storage.setScanFolders(next);
+    return next;
+  });
 
-export const removeScanFolder = async (id: string): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  const next = folders.filter(folder => folder.id !== id);
-  if (next.length === folders.length) return folders;
-  await saveScanFolders(next);
-  return next;
-};
+export const removeScanFolder = async (id: string): Promise<ScanFolder[]> =>
+  withScanFoldersMutationLock(async () => {
+    const folders = await getScanFolders();
+    const next = folders.filter(folder => folder.id !== id);
+    if (next.length === folders.length) return folders;
+    await storage.setScanFolders(next);
+    return next;
+  });
 
 const isSameScanFolderShallow = (left: ScanFolder, right: ScanFolder): boolean =>
   Object.keys(left).length === Object.keys(right).length
@@ -481,21 +534,24 @@ const isSameScanFolderShallow = (left: ScanFolder, right: ScanFolder): boolean =
     Object.is(value, right[key as keyof ScanFolder]),
   );
 
-export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): Promise<ScanFolder[]> => {
-  const folders = await getScanFolders();
-  let changed = false;
-  const next = folders.map(folder => {
-    if (folder.id !== id) return folder;
-    const candidate = { ...folder, ...patch, id: folder.id };
-    if (isSameScanFolderShallow(folder, candidate)) return folder;
-    changed = true;
-    return candidate;
+export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): Promise<ScanFolder[]> =>
+  withScanFoldersMutationLock(async () => {
+    const folders = await getScanFolders();
+    let changed = false;
+    const next = folders.map(folder => {
+      if (folder.id !== id) return folder;
+      const candidate = { ...folder, ...patch, id: folder.id };
+      if (isSameScanFolderShallow(folder, candidate)) return folder;
+      changed = true;
+      return candidate;
+    });
+    if (!changed) return folders;
+    await storage.setScanFolders(next);
+    return next;
   });
-  if (!changed) return folders;
-  await saveScanFolders(next);
-  return next;
-};
 
 export const clearScanFolders = async (): Promise<void> => {
-  await storage.remove(StorageKeys.SCAN_FOLDERS);
+  await withScanFoldersMutationLock(async () => {
+    await storage.remove(StorageKeys.SCAN_FOLDERS);
+  });
 };
