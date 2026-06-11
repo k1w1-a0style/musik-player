@@ -9,6 +9,7 @@
 
 import * as FileSystem from 'expo-file-system';
 import { readAsStringAsync, EncodingType, getInfoAsync } from 'expo-file-system/legacy';
+import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
 import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 
 export interface Id3Tags {
@@ -25,6 +26,8 @@ export interface Id3Tags {
 }
 const HEAD_READ_LIMIT = 1024 * 1024;
 const TAIL_READ_LIMIT = 1024 * 1024;
+const ID3_FRAME_SCAN_LIMIT = 8 * 1024 * 1024;
+const ID3_TEXT_FRAME_READ_LIMIT = 64 * 1024;
 
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number | undefined => {
   if (off < 0 || off + 4 > bytes.length) return undefined;
@@ -192,29 +195,7 @@ const decodeComm = (
   return { description, text };
 };
 
-const bytesToBase64 = (bytes: Uint8Array): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let out = '';
-  let i = 0;
-  for (; i + 2 < bytes.length; i += 3) {
-    const b = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
-    out +=
-      chars[(b >> 18) & 63] +
-      chars[(b >> 12) & 63] +
-      chars[(b >> 6) & 63] +
-      chars[b & 63];
-  }
-  if (i < bytes.length) {
-    const r = bytes.length - i;
-    const b = (bytes[i] << 16) | ((r > 1 ? bytes[i + 1] : 0) << 8);
-    out +=
-      chars[(b >> 18) & 63] +
-      chars[(b >> 12) & 63] +
-      (r > 1 ? chars[(b >> 6) & 63] : '=') +
-      '=';
-  }
-  return out;
-};
+const bytesToBase64 = (bytes: Uint8Array): string => encodeBytesToBase64(bytes);
 
 const buildCoverDataUri = (
   imageBytes: Uint8Array,
@@ -566,27 +547,113 @@ export const parseMp4CoverFromBuffer = (
 ): string | undefined =>
   findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
 
-const base64ToBytes = (b64: string): Uint8Array => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const lookup = new Int16Array(256).fill(-1);
-  for (let i = 0; i < chars.length; i += 1) lookup[chars.charCodeAt(i)] = i;
-  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
-  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
-  let buf = 0;
-  let bits = 0;
-  let j = 0;
-  for (let i = 0; i < clean.length; i += 1) {
-    const v = lookup[clean.charCodeAt(i)];
-    if (v < 0) continue;
-    buf = (buf << 6) | v;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out[j] = (buf >> bits) & 0xff;
-      j += 1;
-    }
+const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
+
+const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
+  TIT2: 'title',
+  TPE1: 'artist',
+  TPE2: 'artist',
+  TALB: 'album',
+  TYER: 'year',
+  TDRC: 'year',
+  TCON: 'genre',
+  TRCK: 'trackNumber',
+  TPOS: 'discNumber',
+  TT2: 'title',
+  TP1: 'artist',
+  TP2: 'artist',
+  TAL: 'album',
+  TYE: 'year',
+  TCO: 'genre',
+  TRK: 'trackNumber',
+  TPA: 'discNumber',
+};
+
+const mergeId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => ({
+  ...base,
+  ...Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => typeof value === 'string' && value.length > 0),
+  ),
+});
+
+const applyTextFrame = (tags: Id3Tags, id: string, frameBytes: Uint8Array): void => {
+  if (id === 'COMM' || id === 'COM') {
+    const comm = decodeComm(frameBytes, 0, frameBytes.length);
+    if (comm?.text && !tags.comment) tags.comment = comm.text;
+    return;
   }
-  return out.subarray(0, j);
+  const key = TEXT_FRAME_IDS[id];
+  if (!key || (key === 'artist' && tags.artist)) return;
+  const text = decodeText(frameBytes, 0, frameBytes.length);
+  if (text) tags[key] = text;
+};
+
+type ReadRange = (position: number, length: number) => Promise<Uint8Array>;
+
+const parseId3TextFramesByRange = async (
+  initialBytes: Uint8Array,
+  readRange: ReadRange,
+): Promise<Id3Tags> => {
+  const tags: Id3Tags = {};
+  if (
+    initialBytes.length < 10 ||
+    initialBytes[0] !== 0x49 ||
+    initialBytes[1] !== 0x44 ||
+    initialBytes[2] !== 0x33
+  ) {
+    return tags;
+  }
+  const majorVersion = initialBytes[3];
+  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
+  const flags = initialBytes[5];
+  if ((flags & 0x80) !== 0) return tags;
+  const totalSize = decodeSyncsafe(initialBytes, 6);
+  if (totalSize === undefined) return tags;
+  const scanEnd = Math.min(10 + totalSize, ID3_FRAME_SCAN_LIMIT);
+  let p = 10;
+  if (majorVersion !== 2) {
+    const rawTagEnd = Math.min(initialBytes.length, scanEnd) - 10;
+    p += skipExtendedId3Header(
+      initialBytes.subarray(10, Math.min(initialBytes.length, scanEnd)),
+      majorVersion,
+      flags,
+      0,
+      rawTagEnd,
+    );
+  }
+
+  while (p + (majorVersion === 2 ? 6 : 10) <= scanEnd) {
+    const headerLength = majorVersion === 2 ? 6 : 10;
+    const header = p + headerLength <= initialBytes.length
+      ? initialBytes.subarray(p, p + headerLength)
+      : await readRange(p, headerLength);
+    if (header.length < headerLength) break;
+    const id = readLatin1(header, 0, majorVersion === 2 ? 3 : 4);
+    if (!id || id.charCodeAt(0) === 0) break;
+    if (!new RegExp(`^[A-Z0-9]{${majorVersion === 2 ? 3 : 4}}$`).test(id)) break;
+    const frameSize = majorVersion === 2
+      ? (header[3] << 16) | (header[4] << 8) | header[5]
+      : majorVersion === 4
+        ? decodeSyncsafe(header, 4)
+        : decodeSize(header, 4);
+    if (frameSize === undefined || frameSize <= 0) break;
+    if (majorVersion !== 2 && hasUnsupportedFrameFlags(majorVersion, header[8], header[9])) {
+      p += headerLength + frameSize;
+      continue;
+    }
+    if (
+      (id in TEXT_FRAME_IDS || id === 'COMM' || id === 'COM') &&
+      frameSize <= ID3_TEXT_FRAME_READ_LIMIT
+    ) {
+      const bodyStart = p + headerLength;
+      const body = bodyStart + frameSize <= initialBytes.length
+        ? initialBytes.subarray(bodyStart, bodyStart + frameSize)
+        : await readRange(bodyStart, frameSize);
+      if (body.length === frameSize) applyTextFrame(tags, id, body);
+    }
+    p += headerLength + frameSize;
+  }
+  return tags;
 };
 
 /**
@@ -612,7 +679,28 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
         length: HEAD_READ_LIMIT,
       });
       const bytes = base64ToBytes(b64);
-      const id3 = parseHeadBytes(bytes);
+      const readRange = async (position: number, length: number): Promise<Uint8Array> =>
+        base64ToBytes(
+          await readAsStringAsync(normalizedUri, {
+            encoding: encodingBase64,
+            length,
+            position,
+          }),
+        );
+      let id3 = parseHeadBytes(bytes);
+      if (
+        !id3.cover &&
+        bytes.length >= 10 &&
+        bytes[0] === 0x49 &&
+        bytes[1] === 0x44 &&
+        bytes[2] === 0x33
+      ) {
+        try {
+          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange));
+        } catch (error) {
+          console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
+        }
+      }
       if (id3.cover || !looksLikeMp4) return id3;
       try {
         const info = await getInfoAsync(normalizedUri);
@@ -639,7 +727,14 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     }
     const FileCtor = (
       FileSystem as unknown as {
-        File?: new (u: string) => { bytes: () => Promise<Uint8Array> };
+        File?: new (u: string) => {
+          bytes: () => Promise<Uint8Array>;
+          open?: () => {
+            readBytes: (length: number) => Uint8Array;
+            offset: number | null;
+            close?: () => void;
+          };
+        };
       }
     ).File;
     if (!FileCtor) return {};
@@ -647,8 +742,42 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       const info = await getInfoAsync(normalizedUri);
       if (!info.exists) return {};
       const size = info.size ?? 0;
-      if (size <= 0 || size > HEAD_READ_LIMIT) return {};
+      if (size <= 0) return {};
       const file = new FileCtor(normalizedUri);
+      const open = (
+        file as {
+          open?: () => {
+            readBytes: (length: number) => Uint8Array;
+            offset: number | null;
+            close?: () => void;
+          };
+        }
+      ).open;
+      if (typeof open === 'function') {
+        const handle = open.call(file);
+        if (handle) {
+          try {
+            const head = handle.readBytes(Math.min(HEAD_READ_LIMIT, size));
+            const readRange = async (position: number, length: number): Promise<Uint8Array> => {
+              handle.offset = position;
+              return handle.readBytes(length);
+            };
+            let parsed = parseHeadBytes(head);
+            if (
+              head.length >= 10 &&
+              head[0] === 0x49 &&
+              head[1] === 0x44 &&
+              head[2] === 0x33
+            ) {
+              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange));
+            }
+            return parsed;
+          } finally {
+            handle.close?.();
+          }
+        }
+      }
+      if (size > HEAD_READ_LIMIT) return {};
       const bytes = await file.bytes();
       return parseHeadBytes(bytes.subarray(0, HEAD_READ_LIMIT));
     } catch {

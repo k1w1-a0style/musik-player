@@ -71,3 +71,23 @@ test('rejects oversized cover', () => {
     reason: 'tooLarge',
   });
 });
+
+
+test('rejects invalid base64 without saving corrupted cover data', () => {
+  expect(buildEditableCoverFromPickerAsset({ base64: 'not-valid', mimeType: 'image/png', uri: 'file:///cover.png' })).toEqual({
+    ok: false,
+    reason: 'invalidBase64',
+  });
+});
+
+test('decodes picked cover without global atob', () => {
+  const originalAtob = globalThis.atob;
+  Object.defineProperty(globalThis, 'atob', { configurable: true, writable: true, value: undefined });
+  try {
+    const result = buildEditableCoverFromPickerAsset({ base64: 'cG5n', mimeType: 'image/png', uri: 'file:///cover.png' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(Array.from(result.cover.data)).toEqual([112, 110, 103]);
+  } finally {
+    Object.defineProperty(globalThis, 'atob', { configurable: true, writable: true, value: originalAtob });
+  }
+});

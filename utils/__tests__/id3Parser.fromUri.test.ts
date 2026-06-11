@@ -3,6 +3,7 @@ import { parseId3FromUri } from '../id3Parser';
 const mockReadAsStringAsync = jest.fn();
 const mockGetInfoAsync = jest.fn();
 const mockFileBytes = jest.fn();
+const mockOpen = jest.fn();
 
 jest.mock('expo-file-system', () => ({
   File: class {
@@ -12,6 +13,9 @@ jest.mock('expo-file-system', () => ({
     }
     bytes() {
       return mockFileBytes();
+    }
+    open() {
+      return mockOpen();
     }
   },
 }));
@@ -58,6 +62,7 @@ describe('parseId3FromUri', () => {
     mockReadAsStringAsync.mockReset();
     mockGetInfoAsync.mockReset();
     mockFileBytes.mockReset();
+    mockOpen.mockReset();
   });
 
   test('uses mp4 parsing when URI has query params', async () => {
@@ -215,12 +220,76 @@ describe('parseId3FromUri', () => {
     expect(mockFileBytes).toHaveBeenCalled();
   });
 
-  test('does not use File.bytes fallback for large files', async () => {
+  test('uses bounded File.open fallback instead of File.bytes for large files', async () => {
     mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
     mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    const bytes = Uint8Array.from([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0]);
+    let offset: number | null = 0;
+    const handle = {
+      get offset() {
+        return offset;
+      },
+      set offset(next: number | null) {
+        offset = next;
+      },
+      readBytes: jest.fn((length: number): Uint8Array => bytes.subarray(offset ?? 0, (offset ?? 0) + length)),
+      close: jest.fn(),
+    };
+    mockOpen.mockReturnValueOnce(handle);
 
-    const tags = await parseId3FromUri('file:///music/big.mp3');
-    expect(tags).toEqual({});
+    await parseId3FromUri('file:///music/big.mp3');
+    expect(mockOpen).toHaveBeenCalled();
     expect(mockFileBytes).not.toHaveBeenCalled();
+    expect(handle.readBytes).toHaveBeenCalledWith(1024 * 1024);
+    expect(handle.close).toHaveBeenCalled();
+  });
+
+  test('legacy fallback scans large ID3 tags without loading oversized APIC payloads', async () => {
+    const titleFrame = id3TextFrame('TIT2', 'After Cover');
+    const apicSize = 2 * 1024 * 1024;
+    const apicHeader = [...enc('APIC'), ...u32be(apicSize), 0, 0];
+    const tagSize = apicHeader.length + apicSize + titleFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const firstChunk = new Array(1024 * 1024).fill(0);
+    firstChunk.splice(0, header.length, ...header);
+    firstChunk.splice(header.length, apicHeader.length, ...apicHeader);
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position === undefined) return b64(firstChunk);
+      if (options.position === 10 + apicSize + apicHeader.length) return b64(titleFrame.slice(0, 10));
+      if (options.position === 10 + apicSize + apicHeader.length + 10) return b64(titleFrame.slice(10));
+      return '';
+    });
+
+    const tags = await parseId3FromUri('file:///music/large-apic.mp3');
+
+    expect(tags.title).toBe('After Cover');
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith(
+      'file:///music/large-apic.mp3',
+      expect.objectContaining({ length: 1024 * 1024 }),
+    );
+    expect(mockReadAsStringAsync).not.toHaveBeenCalledWith(
+      'file:///music/large-apic.mp3',
+      expect.objectContaining({ length: apicSize }),
+    );
+  });
+
+  test('returns controlled result when ranged metadata scan cannot read later frames', async () => {
+    const titleFrame = id3TextFrame('TIT2', 'Hidden');
+    const apicSize = 2 * 1024 * 1024;
+    const apicHeader = [...enc('APIC'), ...u32be(apicSize), 0, 0];
+    const tagSize = apicHeader.length + apicSize + titleFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const firstChunk = new Array(1024 * 1024).fill(0);
+    firstChunk.splice(0, header.length, ...header);
+    firstChunk.splice(header.length, apicHeader.length, ...apicHeader);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(firstChunk));
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('range failed'));
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const tags = await parseId3FromUri('file:///music/unreadable-range.mp3');
+
+    expect(tags).toEqual({});
+    expect(warnSpy).toHaveBeenCalledWith('[ID3Parser] Bounded ID3 frame scan failed.', expect.any(Error));
+    warnSpy.mockRestore();
   });
 });
