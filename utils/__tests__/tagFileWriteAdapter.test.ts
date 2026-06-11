@@ -3,14 +3,29 @@ const mockWriteAsStringAsync = jest.fn();
 const mockCopyAsync = jest.fn();
 const mockDeleteAsync = jest.fn();
 const mockGetInfoAsync = jest.fn();
+let mockLegacyReadAsStringAsync: unknown;
+let mockLegacyWriteAsStringAsync: unknown;
+let mockLegacyCopyAsync: unknown;
+let mockLegacyDeleteAsync: unknown;
+let mockLegacyGetInfoAsync: unknown;
 
 jest.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
-  readAsStringAsync: (...args: unknown[]) => mockReadAsStringAsync(...args),
-  writeAsStringAsync: (...args: unknown[]) => mockWriteAsStringAsync(...args),
-  copyAsync: (...args: unknown[]) => mockCopyAsync(...args),
-  deleteAsync: (...args: unknown[]) => mockDeleteAsync(...args),
-  getInfoAsync: (...args: unknown[]) => mockGetInfoAsync(...args),
+  get readAsStringAsync() {
+    return mockLegacyReadAsStringAsync;
+  },
+  get writeAsStringAsync() {
+    return mockLegacyWriteAsStringAsync;
+  },
+  get copyAsync() {
+    return mockLegacyCopyAsync;
+  },
+  get deleteAsync() {
+    return mockLegacyDeleteAsync;
+  },
+  get getInfoAsync() {
+    return mockLegacyGetInfoAsync;
+  },
 }));
 jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 
@@ -19,10 +34,17 @@ import {
   getDefaultReplaceSupportForPlatform,
   TagFileWriteAdapterError,
 } from '../tagFileWriteAdapter';
+import * as Base64Helpers from '../base64';
 
 describe('expoTagFileWriteAdapter', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
+    mockLegacyReadAsStringAsync = (...args: unknown[]) => mockReadAsStringAsync(...args);
+    mockLegacyWriteAsStringAsync = (...args: unknown[]) => mockWriteAsStringAsync(...args);
+    mockLegacyCopyAsync = (...args: unknown[]) => mockCopyAsync(...args);
+    mockLegacyDeleteAsync = (...args: unknown[]) => mockDeleteAsync(...args);
+    mockLegacyGetInfoAsync = (...args: unknown[]) => mockGetInfoAsync(...args);
     mockReadAsStringAsync.mockResolvedValue('AQIDBA==');
     mockWriteAsStringAsync.mockResolvedValue(undefined);
     mockCopyAsync.mockResolvedValue(undefined);
@@ -102,4 +124,33 @@ describe('expoTagFileWriteAdapter', () => {
   test('expo adapter exposes replace capability from platform helper', () => {
     expect(expoTagFileWriteAdapter.canReplaceExistingFile?.()).toBe(true);
   });
+
+  test('missing FileSystem function produces a controlled adapter error', async () => {
+    mockLegacyReadAsStringAsync = undefined;
+
+    await expect(expoTagFileWriteAdapter.readBytes('file:///missing-api.mp3')).rejects.toMatchObject({
+      name: 'TagFileWriteAdapterError',
+      operation: 'readBytes',
+      message: 'FileSystem function readAsStringAsync is unavailable.',
+    });
+  });
+
+  test('base64 conversion is delegated to the central helpers', async () => {
+    const decodeBase64ToBytes = jest
+      .spyOn(Base64Helpers, 'decodeBase64ToBytes')
+      .mockReturnValue(new Uint8Array([9, 8, 7]));
+    const encodeBytesToBase64 = jest
+      .spyOn(Base64Helpers, 'encodeBytesToBase64')
+      .mockReturnValue('encoded-for-fs');
+    mockReadAsStringAsync.mockResolvedValueOnce('encoded-from-fs');
+
+    await expect(expoTagFileWriteAdapter.readBytes('file:///read.mp3')).resolves.toEqual(new Uint8Array([9, 8, 7]));
+    expect(decodeBase64ToBytes).toHaveBeenCalledWith('encoded-from-fs');
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    await expoTagFileWriteAdapter.writeBytes('file:///write.mp3', bytes);
+    expect(encodeBytesToBase64).toHaveBeenCalledWith(bytes);
+    expect(mockWriteAsStringAsync).toHaveBeenCalledWith('file:///write.mp3', 'encoded-for-fs', { encoding: 'base64' });
+  });
+
 });
