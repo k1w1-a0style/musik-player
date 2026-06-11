@@ -88,6 +88,7 @@ interface ImportEnrichmentOptions extends BuildSongOptions {
 }
 
 interface SafImportOptions extends ImportEnrichmentOptions {
+  readTimeoutMs?: number;
   onProgress?: (progress: SafDirectoryScanProgress) => void;
 }
 
@@ -152,11 +153,21 @@ export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
   return !KNOWN_NON_AUDIO_EXTENSIONS.has(extension);
 };
 
-export const classifySafReadDirectoryError = (error: unknown): 'not-directory' | 'permission' | 'unknown' => {
+export type SafReadDirectoryErrorKind = 'timeout' | 'aborted' | 'session-skip' | 'native' | 'not-directory' | 'permission' | 'unknown';
+
+const classifySafNativeReadErrorMessage = (error: unknown): 'not-directory' | 'permission' | 'unknown' => {
   const message = String((error as { message?: unknown })?.message ?? error).toLowerCase();
   if (message.includes('enotdir') || message.includes('not a directory') || message.includes('is not a directory') || message.includes('not directory') || message.includes('not a folder')) return 'not-directory';
   if (message.includes('timed out') || message.includes('timeout') || message.includes('securityexception') || message.includes('permission') || message.includes('denied') || message.includes('access') || message.includes("isn't readable") || message.includes('is not readable') || message.includes('not readable') || message.includes('cannot read') || message.includes("can't read") || message.includes('could not read') || message.includes('failed to read') || message.includes('read failed') || message.includes('unreadable') || message.includes('unauthorized') || message.includes('eacces') || message.includes('eperm') || message.includes('revoked') || message.includes('provider error') || message.includes('provider failed')) return 'permission';
   return 'unknown';
+};
+
+export const classifySafReadDirectoryError = (error: unknown): SafReadDirectoryErrorKind => {
+  if (error instanceof SafDirectoryReadTimeoutError) return 'timeout';
+  if (error instanceof SafDirectoryReadAbortedError) return 'aborted';
+  if (error instanceof SafDirectoryReadSessionSkipError) return 'session-skip';
+  if (error instanceof SafDirectoryNativeReadError) return 'native';
+  return classifySafNativeReadErrorMessage(error);
 };
 
 export const deriveFolderNameFromUri = (uri: string): string => deriveSafDisplayName(uri) || 'Ordner';
@@ -255,43 +266,117 @@ interface SafDirectoryReadOptions {
   onProgress?: (progress: SafDirectoryScanProgress) => void;
 }
 
-class SafDirectoryReadTimeoutError extends Error {
+const safTimedOutDirectoryUris = new Set<string>();
+
+export class SafDirectoryReadTimeoutError extends Error {
+  readonly uri: string;
+  readonly timeoutMs: number;
+
   constructor(uri: string, timeoutMs: number) {
     super(`SAF directory read timed out after ${timeoutMs}ms: ${uri}`);
     this.name = 'SafDirectoryReadTimeoutError';
+    this.uri = uri;
+    this.timeoutMs = timeoutMs;
   }
 }
 
-const abortErrorFromSignal = (signal: AbortSignal): Error => {
+export class SafDirectoryReadAbortedError extends Error {
+  readonly uri: string;
+  readonly cause?: unknown;
+
+  constructor(uri: string, cause?: unknown) {
+    const reason = cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : undefined;
+    super(reason ? `SAF directory read aborted for ${uri}: ${reason}` : `SAF directory read aborted for ${uri}`);
+    this.name = 'SafDirectoryReadAbortedError';
+    this.uri = uri;
+    this.cause = cause;
+  }
+}
+
+export class SafDirectoryNativeReadError extends Error {
+  readonly uri: string;
+  readonly cause: unknown;
+
+  constructor(uri: string, cause: unknown) {
+    const reason = String((cause as { message?: unknown })?.message ?? cause);
+    super(`SAF native directory read failed for ${uri}: ${reason}`);
+    this.name = 'SafDirectoryNativeReadError';
+    this.uri = uri;
+    this.cause = cause;
+  }
+}
+
+export class SafDirectoryReadSessionSkipError extends Error {
+  readonly uri: string;
+
+  constructor(uri: string) {
+    super(`SAF directory read skipped after a previous timeout in this session: ${uri}`);
+    this.name = 'SafDirectoryReadSessionSkipError';
+    this.uri = uri;
+  }
+}
+
+const abortErrorFromSignal = (uri: string, signal: AbortSignal): SafDirectoryReadAbortedError => {
   const reason = signal.reason;
-  if (reason instanceof Error) return reason;
-  return new OperationAbortError(typeof reason === 'string' ? reason : undefined);
+  const cause = reason instanceof Error ? reason : new OperationAbortError(typeof reason === 'string' ? reason : undefined);
+  return new SafDirectoryReadAbortedError(uri, cause);
 };
 
-const readSafDirectoryWithTimeout = async (
+const safTimeoutKey = (uri: string): string => normalizeImportUriForDedupe(uri) ?? uri;
+
+export const resetSafTimedOutUrisForTests = (): void => {
+  safTimedOutDirectoryUris.clear();
+};
+
+export const readSafDirectoryWithTimeout = async (
   uri: string,
   readDirectory: (uri: string) => Promise<string[]>,
-  { signal, readTimeoutMs = DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS }: SafDirectoryReadOptions,
+  { signal, readTimeoutMs = DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS }: SafDirectoryReadOptions = {},
 ): Promise<string[]> => {
-  throwIfAborted(signal);
+  if (signal?.aborted) throw abortErrorFromSignal(uri, signal);
+
+  const timeoutKey = safTimeoutKey(uri);
+  if (safTimedOutDirectoryUris.has(timeoutKey)) {
+    throw new SafDirectoryReadSessionSkipError(uri);
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abortListener: (() => void) | undefined;
+
   try {
-    const readPromise = readDirectory(uri);
+    const readPromise = Promise.resolve()
+      .then(() => readDirectory(uri))
+      .catch((error: unknown) => {
+        throw new SafDirectoryNativeReadError(uri, error);
+      });
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new SafDirectoryReadTimeoutError(uri, readTimeoutMs)), readTimeoutMs);
     });
     const abortPromise = new Promise<never>((_, reject) => {
       abortListener = () => {
-        if (signal) reject(abortErrorFromSignal(signal));
+        if (signal) reject(abortErrorFromSignal(uri, signal));
       };
       signal?.addEventListener('abort', abortListener, { once: true });
     });
+
     return await Promise.race([readPromise, timeoutPromise, abortPromise]);
+  } catch (error) {
+    if (error instanceof SafDirectoryReadTimeoutError) {
+      safTimedOutDirectoryUris.add(timeoutKey);
+    }
+    throw error;
   } finally {
     if (timer) clearTimeout(timer);
     if (signal && abortListener) signal.removeEventListener('abort', abortListener);
   }
+};
+
+
+const shouldRecordSafReadError = (error: unknown, reportError: boolean): boolean => {
+  if (reportError) return true;
+  if (error instanceof SafDirectoryReadTimeoutError || error instanceof SafDirectoryReadSessionSkipError) return true;
+  if (error instanceof SafDirectoryNativeReadError) return classifySafNativeReadErrorMessage(error.cause) === 'permission';
+  return classifySafReadDirectoryError(error) === 'permission';
 };
 
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
@@ -353,8 +438,9 @@ export const readAudioUrisFromSafDirectory = async (
       emitProgress(uri);
       await maybeYield(true);
     } catch (error) {
+      if (error instanceof SafDirectoryReadAbortedError) throw error;
       throwIfAborted(signal);
-      if (reportError || classifySafReadDirectoryError(error) === 'permission') recordSafError(uri);
+      if (shouldRecordSafReadError(error, reportError)) recordSafError(uri);
       else emitProgress(uri);
       await maybeYield(true);
       return;
@@ -490,12 +576,17 @@ export const scanFromSafFolders = async (
   folders: ScanFolder[],
   options: SafImportOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true, signal, onProgress } = options;
+  const { loadNativeCover = true, readId3Tags = true, signal, onProgress, readTimeoutMs } = options;
   throwIfAborted(signal);
   const songs: Song[] = [];
   const errors: string[] = [];
+  const seenErrors = new Set<string>();
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
+
+  const recordImportError = (uri: string): void => {
+    addNormalizedSafError(uri, errors, seenErrors);
+  };
 
   for (const folder of folders) {
     throwIfAborted(signal);
@@ -505,9 +596,9 @@ export const scanFromSafFolders = async (
       continue;
     }
 
-    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal, onProgress });
+    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal, onProgress, readTimeoutMs });
     throwIfAborted(signal);
-    if (folderErrors.length > 0) errors.push(...folderErrors);
+    if (folderErrors.length > 0) folderErrors.forEach(recordImportError);
 
     if (folderErrors.length > 0 && files.length === 0) folderUpdates.push({ ...folder, lastError: 'Nicht lesbar' });
     else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
@@ -522,7 +613,7 @@ export const scanFromSafFolders = async (
         throwIfAborted(signal);
       } catch {
         throwIfAborted(signal);
-        errors.push(uri);
+        recordImportError(uri);
         songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
         throwIfAborted(signal);
       }

@@ -16,8 +16,119 @@ jest.mock('../coverCache', () => ({
 }));
 
 describe('mediaLibraryImport', () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+    mediaImport.resetSafTimedOutUrisForTests();
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockReset();
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    mediaImport.resetSafTimedOutUrisForTests();
+  });
+
   test('SAF directory timeout defaults to 2000ms', () => {
     expect(mediaImport.DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS).toBe(2000);
+  });
+
+  test('readSafDirectoryWithTimeout returns successful SAF directory entries and clears its timer', async () => {
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+    const read = jest.fn(async () => ['content://root/song.mp3']);
+
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root', read, { readTimeoutMs: 100 }),
+    ).resolves.toEqual(['content://root/song.mp3']);
+
+    expect(read).toHaveBeenCalledWith('content://root');
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
+  test('readSafDirectoryWithTimeout marks timeout distinctly and clears its timer', async () => {
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+    const read = jest.fn(() => new Promise<string[]>(() => undefined));
+
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, { readTimeoutMs: 1 }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
+  test('readSafDirectoryWithTimeout marks abort distinctly and removes its abort listener', async () => {
+    const controller = new AbortController();
+    const addListenerSpy = jest.spyOn(controller.signal, 'addEventListener');
+    const removeListenerSpy = jest.spyOn(controller.signal, 'removeEventListener');
+    const read = jest.fn(() => new Promise<string[]>(() => undefined));
+
+    const resultPromise = mediaImport.readSafDirectoryWithTimeout('content://root/abort', read, {
+      signal: controller.signal,
+      readTimeoutMs: 10_000,
+    });
+    controller.abort(new Error('user cancelled'));
+
+    await expect(resultPromise).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadAbortedError);
+    expect(addListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+    expect(removeListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
+  test('readSafDirectoryWithTimeout wraps native read failures distinctly', async () => {
+    const read = jest.fn(async () => {
+      throw new Error('provider failed');
+    });
+
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/native', read, { readTimeoutMs: 100 }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryNativeReadError);
+  });
+
+  test('readSafDirectoryWithTimeout timeout does not create an unhandled native rejection', async () => {
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    let rejectNative: ((error: Error) => void) | undefined;
+    const read = jest.fn(
+      () => new Promise<string[]>((_resolve, reject) => {
+        rejectNative = reject;
+      }),
+    );
+
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs-then-fails', read, {
+        readTimeoutMs: 1,
+      }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+
+    rejectNative?.(new Error('late native failure'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    process.off('unhandledRejection', unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
+  test('SAF timeout session skip blocks only the timed-out URI and is resettable', async () => {
+    const read = jest.fn((uri: string) => {
+      if (uri === 'content://root/hangs') return new Promise<string[]>(() => undefined);
+      return Promise.resolve([`${uri}/song.mp3`]);
+    });
+
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, { readTimeoutMs: 1 }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, { readTimeoutMs: 1 }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadSessionSkipError);
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/other', read, { readTimeoutMs: 100 }),
+    ).resolves.toEqual(['content://root/other/song.mp3']);
+
+    expect(read).toHaveBeenCalledTimes(2);
+    mediaImport.resetSafTimedOutUrisForTests();
+    await expect(
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', async () => ['content://root/hangs/retry.mp3'], {
+        readTimeoutMs: 100,
+      }),
+    ).resolves.toEqual(['content://root/hangs/retry.mp3']);
   });
 
   test('classifySafReadDirectoryError classifies directory/access/unknown errors', () => {
@@ -62,6 +173,26 @@ describe('mediaLibraryImport', () => {
     expect(mediaImport.classifySafReadDirectoryError(new Error('random failure'))).toBe(
       'unknown',
     );
+    expect(
+      mediaImport.classifySafReadDirectoryError(
+        new mediaImport.SafDirectoryReadTimeoutError('content://x', 1),
+      ),
+    ).toBe('timeout');
+    expect(
+      mediaImport.classifySafReadDirectoryError(
+        new mediaImport.SafDirectoryReadAbortedError('content://x', new Error('stop')),
+      ),
+    ).toBe('aborted');
+    expect(
+      mediaImport.classifySafReadDirectoryError(
+        new mediaImport.SafDirectoryNativeReadError('content://x', new Error('provider failed')),
+      ),
+    ).toBe('native');
+    expect(
+      mediaImport.classifySafReadDirectoryError(
+        new mediaImport.SafDirectoryReadSessionSkipError('content://x'),
+      ),
+    ).toBe('session-skip');
   });
 
 
@@ -378,6 +509,58 @@ describe('mediaLibraryImport', () => {
 
     expect(result.files).toEqual(['content://root/song.mp3']);
     expect(result.errors).toEqual(['content://root/hangs']);
+  });
+
+  test('readAudioUrisFromSafDirectory session-skips a previously timed-out child without another native read', async () => {
+    const read = jest.fn((uri: string) => {
+      if (uri === 'content://root') {
+        return Promise.resolve(['content://root/hangs', 'content://root/hangs?token=retry']);
+      }
+      return new Promise<string[]>(() => undefined);
+    });
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory(
+      'content://root',
+      read,
+      { readTimeoutMs: 1 },
+    );
+
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual(['content://root/hangs']);
+    expect(read).toHaveBeenCalledWith('content://root/hangs');
+    expect(read).not.toHaveBeenCalledWith('content://root/hangs?token=retry');
+  });
+
+  test('scanFromSafFolders treats timeout as an unreadable folder and does not reread that URI in the same session', async () => {
+    const read = StorageAccessFramework.readDirectoryAsync as jest.Mock;
+    read.mockImplementation(() => new Promise<string[]>(() => undefined));
+
+    const result = await mediaImport.scanFromSafFolders(
+      [
+        { id: 'f1', name: 'Music A', uri: 'content://timeout-root', addedAt: 1, enabled: true },
+        { id: 'f2', name: 'Music B', uri: 'content://timeout-root', addedAt: 2, enabled: true },
+      ] as any,
+      { readTimeoutMs: 1 },
+    );
+
+    expect(result.songs).toEqual([]);
+    expect(result.errors).toEqual(['content://timeout-root']);
+    expect(result.folderUpdates?.map(folder => folder.lastError)).toEqual(['Nicht lesbar', 'Nicht lesbar']);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  test('readAudioUrisFromSafDirectory abort does not look like a native folder error', async () => {
+    const controller = new AbortController();
+    const read = jest.fn(() => {
+      controller.abort(new Error('user stopped import'));
+      return Promise.resolve(['content://root/song.mp3']);
+    });
+
+    await expect(
+      mediaImport.readAudioUrisFromSafDirectory('content://root', read, {
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadAbortedError);
   });
 
   test('readAudioUrisFromSafDirectory uses 2000ms timeout for a hanging child directory by default', async () => {
