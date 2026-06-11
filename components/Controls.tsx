@@ -11,6 +11,13 @@ import {
 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
+import type { RepeatMode } from '../types/Song';
+
+const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
+  off: 'Wiederholung aus',
+  one: 'Song wiederholen',
+  all: 'Alle Titel wiederholen',
+};
 
 interface PressScaleProps {
   children: React.ReactNode;
@@ -134,7 +141,7 @@ const Controls: React.FC = () => {
 
       <PressScale
         testID="controls-repeat"
-        accessibilityLabel={`Wiederholung: ${repeatMode}`}
+        accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
         onPress={cycleRepeatMode}
         size={38}
         accentColor={repeatMode !== 'off' ? theme.palette.primary : theme.palette.border}

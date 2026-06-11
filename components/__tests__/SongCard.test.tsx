@@ -50,4 +50,21 @@ describe('SongCard', () => {
     expect(onInfoSong).toHaveBeenCalledWith(song);
     expect(onPressSong).not.toHaveBeenCalled();
   });
+
+  test('marks current song as selected for accessibility', () => {
+    const { getByTestId } = render(
+      <SongCard song={song} onPressSong={jest.fn()} isCurrent isPlaying={false} />,
+    );
+
+    expect(getByTestId('song-card-1').props.accessibilityState?.selected).toBe(true);
+  });
+
+  test('does not mark non-current song as selected for accessibility', () => {
+    const { getByTestId } = render(
+      <SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,
+    );
+
+    expect(getByTestId('song-card-1').props.accessibilityState?.selected).not.toBe(true);
+  });
+
 });

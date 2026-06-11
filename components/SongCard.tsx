@@ -57,6 +57,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       testID={`song-card-${songTestId}`}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} von ${song.artist}`}
+      accessibilityState={{ selected: isCurrent }}
       onPress={handlePress}
       style={({ pressed }) => [styles.container, isCurrent && styles.currentSong, pressed && styles.pressed]}
     >

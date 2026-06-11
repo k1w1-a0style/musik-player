@@ -80,6 +80,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           <Pressable
             testID="mini-player-next"
             accessibilityRole="button"
+            accessibilityLabel="Nächster Titel"
             accessibilityState={{ disabled: !canSkipNext }}
             onPress={handleNext}
             style={!canSkipNext && styles.disabled}

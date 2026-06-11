@@ -29,6 +29,8 @@ const EqualizerBandSliders: React.FC<EqualizerBandSlidersProps> = ({
             step={1}
             value={value}
             onValueChange={nextValue => onChangeBand(i, nextValue)}
+            accessibilityLabel={`EQ Band ${label} Hz`}
+            accessibilityState={{ disabled: !eqEnabled }}
             disabled={!eqEnabled}
             minimumTrackTintColor={theme.palette.primary}
             maximumTrackTintColor={theme.palette.border}
