@@ -298,6 +298,20 @@ describe('mediaLibraryImport', () => {
     expect(result.skipped).toEqual([]);
   });
 
+  test('scanAudioAssetsFromMediaLibrary skips explicit non-audio media types even with whitelisted extensions', async () => {
+    const video = mediaAsset('video', 'clip.mp4', 180, undefined, undefined, 'video');
+    const photo = mediaAsset('photo', 'track.mp3', 180, undefined, undefined, 'photo');
+    const getAssetsPage = getSingleMediaLibraryPage(video, photo);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+
+    expect(result.assets).toEqual([]);
+    expect(result.skipped).toEqual([
+      { asset: video, reason: 'not-audio' },
+      { asset: photo, reason: 'not-audio' },
+    ]);
+  });
+
   test('scanAudioAssetsFromMediaLibrary still applies duration filtering to mediaType audio assets', async () => {
     const shortAudiobook = mediaAsset('short-audiobook', 'short-audiobook.m4b', 3, undefined, undefined, 'audio');
     const getAssetsPage = getSingleMediaLibraryPage(shortAudiobook);

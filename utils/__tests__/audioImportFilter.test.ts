@@ -88,8 +88,18 @@ describe('audioImportFilter', () => {
     expectConsistentRejectReason(item, null, { enableDurationFilter: false });
   });
 
+  test('treats explicit non-audio media types as authoritative over extension or mime type', () => {
+    expectConsistentRejectReason(asset('clip.mp4', 180, undefined, undefined, 'video'), 'not-audio');
+    expectConsistentRejectReason(asset('track.mp3', 180, undefined, undefined, 'photo'), 'not-audio');
+    expectConsistentRejectReason(asset('voice-note.mp3', 180, undefined, 'audio/mpeg', 'video'), 'not-audio');
+  });
+
+  test('allows unknown or missing media type to fall back to mime type or extension identity', () => {
+    expectConsistentRejectReason(asset('unknown-media-type.mp3', 180, undefined, undefined, 'unknown'), null);
+    expectConsistentRejectReason(asset('known-extension.mp3', 180), null);
+  });
+
   test('rejects assets without audio media type, mime type, or extension identity', () => {
-    expectConsistentRejectReason(asset('unknown-format.m4b', 180, undefined, undefined, 'photo'), 'not-audio');
     expectConsistentRejectReason(asset('unknown-format.m4b', 180), 'not-audio');
   });
 

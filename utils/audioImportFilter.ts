@@ -116,6 +116,11 @@ const blockedFilenamePrefix = (asset: AudioAssetLike): string | undefined => {
 
 const hasAudioMediaType = (asset: AudioAssetLike): boolean => normalize(asset.mediaType) === 'audio';
 
+const hasExplicitNonAudioMediaType = (asset: AudioAssetLike): boolean => {
+  const mediaType = normalize(asset.mediaType);
+  return mediaType === 'photo' || mediaType === 'video' || mediaType === 'pairedvideo';
+};
+
 const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
   const mime = normalize(asset.mimeType);
   return mime.startsWith('audio/');
@@ -123,8 +128,12 @@ const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
 
 const hasKnownAudioExtension = (asset: AudioAssetLike): boolean => AUDIO_EXTENSIONS.has(extensionFromAsset(asset));
 
-const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean =>
-  hasAudioMediaType(asset) || hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
+const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean => {
+  // MediaLibrary uses 'unknown' when the platform cannot classify an asset, so MIME/extension
+  // checks are still allowed for that value. Explicit photo/video classifications are authoritative.
+  if (hasExplicitNonAudioMediaType(asset)) return false;
+  return hasAudioMediaType(asset) || hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
+};
 
 export const getAudioAssetRejectReason = (
   asset: AudioAssetLike,
