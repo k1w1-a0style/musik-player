@@ -6,7 +6,7 @@
 - [ ] `scheme` = `musik-player`
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`
-- [ ] `newArchEnabled=false`
+- [ ] `newArchEnabled=false` bleibt bewusst gesetzt, bis New Architecture separat mit Playback-/Background-Smokes validiert wurde
 - [ ] `expo.extra.eas.projectId` ist vorhanden
 
 ## Lokale Gates
@@ -24,6 +24,14 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 - [ ] Tests grün
 - [ ] Lint grün; `lint:ci` darf Warnungen nicht verstecken
 - [ ] Expo Config Werte stimmen
+
+## DeepScan Readiness Snapshot
+
+Die bisherigen DeepScan-Phasen sind im Projekt-Checklog zusammengefasst: [`PROJECT_CHECKLOG.md`](../PROJECT_CHECKLOG.md). Vor einem finalen Release bleibt der vollständige Aggregationslauf separat auszuführen; dieser Config-/Doku-Schritt ersetzt ihn nicht.
+
+Abgedeckte Bereiche: Storage-Races, Cover/Base64/ID3, FileSystem/Tag-Write, ErrorBoundary/UX/A11y, CoverCache-Hashing, SAF-Timeout/Abort, Storage-API und Import-Filter.
+
+Bewusst separat: i18n-Migration, New-Architecture-Aktivierung, vollständiger finaler Gesamttest und langfristige Import-/Codec-Erweiterungen.
 
 ## CI-/Workflow-Sichtbarkeit
 
