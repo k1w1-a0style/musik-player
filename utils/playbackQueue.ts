@@ -37,12 +37,16 @@ export const hasSameSongIdMultiset = (a: Song[], b: Song[]): boolean => {
   });
 };
 
-export const shuffleQueueKeepingCurrent = (queue: Song[], currentSongId?: string): Song[] => {
+export const shuffleQueueKeepingCurrent = (
+  queue: Song[],
+  currentSongId?: string,
+  random: () => number = Math.random,
+): Song[] => {
   const ordered = moveSongToFront(queue, currentSongId);
   if (ordered.length <= 2) return ordered;
   const [current, ...rest] = ordered;
   for (let i = rest.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [rest[i], rest[j]] = [rest[j], rest[i]];
   }
   return current ? [current, ...rest] : rest;

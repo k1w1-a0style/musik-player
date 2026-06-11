@@ -253,7 +253,8 @@ describe('coverCacheCleanup', () => {
     expect(LegacyFileSystem.readDirectoryAsync).not.toHaveBeenCalled();
   });
 
-  test('cleanup delete errors resolve without unhandled rejection', async () => {
+  test('cleanup delete errors resolve without unhandled rejection and log sanitized warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const unhandled = jest.fn();
     process.once('unhandledRejection', unhandled);
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg']);
@@ -263,7 +264,14 @@ describe('coverCacheCleanup', () => {
     await new Promise(resolve => setImmediate(resolve));
 
     expect(unhandled).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCacheCleanup]',
+      'Best-effort cleanup failed; cache state was left unchanged.',
+      'delete failed',
+    );
+    expect(warnSpy.mock.calls.flat().join(' ')).not.toContain('file:///docs/covers/aaa-bbb.jpg');
     process.removeListener('unhandledRejection', unhandled);
+    warnSpy.mockRestore();
   });
 
   test('does nothing when cache directory is missing', async () => {

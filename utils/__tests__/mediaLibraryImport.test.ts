@@ -146,6 +146,12 @@ describe('mediaLibraryImport', () => {
     expect(read).toHaveBeenCalledWith('content://root/notes.xyz');
   });
 
+  test('recognizes audio file extensions case-insensitively and ignores query or fragment', () => {
+    expect(mediaImport.deriveExtension('content://root/Music.Track.MP3?token=1#frag')).toBe('mp3');
+    expect(mediaImport.isAudioFileUri('content://root/Music.Track.FLAC?token=1#frag')).toBe(true);
+    expect(mediaImport.isAudioFileUri('content://root/cover.JPG?token=1')).toBe(false);
+  });
+
   test('SAF directory-read heuristic skips known sidecar extensions only', () => {
     expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/cover.jpg')).toBe(
       false,
@@ -154,6 +160,9 @@ describe('mediaLibraryImport', () => {
       false,
     );
     expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/song.mp3')).toBe(
+      false,
+    );
+    expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/song.MP3?token=1')).toBe(
       false,
     );
     expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/AC.DC')).toBe(true);

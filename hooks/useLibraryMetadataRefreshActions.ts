@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
+import { DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS } from '../utils/libraryOperationTimeouts';
 import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
 import {
   buildMetadataRefreshAvailabilityResult,
@@ -12,8 +13,6 @@ import { useLibraryMetadataRefreshStateUpdate } from './useLibraryMetadataRefres
 
 export type { UseLibraryMetadataRefreshActionsOptions, UseLibraryMetadataRefreshActionsResult } from './libraryMetadataRefreshActionTypes';
 
-const DEFAULT_METADATA_REFRESH_TIMEOUT_MS = 90_000;
-
 export const useLibraryMetadataRefreshActions = ({
   songs,
   setSongs,
@@ -21,7 +20,7 @@ export const useLibraryMetadataRefreshActions = ({
   setLoading,
   setImportStatus,
   showAlert,
-  importTimeoutMs = DEFAULT_METADATA_REFRESH_TIMEOUT_MS,
+  importTimeoutMs = DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS,
   refreshSongsFromId3Impl = refreshSongsFromId3,
   withTimeoutImpl = withTimeout,
 }: UseLibraryMetadataRefreshActionsOptions): UseLibraryMetadataRefreshActionsResult => {

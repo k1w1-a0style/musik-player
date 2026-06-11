@@ -16,16 +16,11 @@ export interface NormalizePlayableQueueOptions {
   logger?: Pick<Console, 'warn'>;
 }
 
-declare const __DEV__: boolean;
-
-const isDevRuntime = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__;
-
 const getNormalizeLogger = (
   options?: NormalizePlayableQueueOptions,
 ): Pick<Console, 'warn'> | undefined => {
-  if (options?.warn === false) return undefined;
-  if (options?.warn === true) return options.logger ?? console;
-  return isDevRuntime() ? options?.logger ?? console : undefined;
+  if (options?.warn !== true) return undefined;
+  return options.logger ?? console;
 };
 
 const warnDroppedSong = (

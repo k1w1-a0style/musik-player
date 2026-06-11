@@ -18,6 +18,10 @@ let latestCleanupSongs: Song[] | undefined;
 let cleanupDrainPromise: Promise<void> | undefined;
 type CoverCacheProtectionToken = symbol;
 
+const logCleanupWarning = (message: string, error: unknown): void => {
+  console.warn('[CoverCacheCleanup]', message, error instanceof Error ? error.message : String(error));
+};
+
 export type CoverCacheProtection = {
   protectUri: (uri?: string) => void;
   protectSongCovers: (songs: Song[]) => void;
@@ -124,8 +128,10 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
       () => isLatestCleanupRequest(requestId),
       fileName => referencedFileNames.has(fileName) || isCoverFileProtected(fileName),
     );
-  } catch {
+  } catch (error) {
     // Best-effort cache maintenance must not break library hydration or persistence.
+    // Log only the reason, not file URIs, to keep expected cleanup failures diagnosable without leaking paths.
+    logCleanupWarning('Best-effort cleanup failed; cache state was left unchanged.', error);
   }
 };
 

@@ -15,6 +15,8 @@ const ID3_WORKER_COUNT = 2;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 export const MAX_SAF_DIRECTORIES = 300;
+// Bound each speculative SAF child-directory read; Android providers can hang on
+// unknown entries, and this keeps scans moving while callers can still override in tests.
 export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 2_000;
 const SAF_SCAN_YIELD_ENTRY_INTERVAL = 25;
 
@@ -134,7 +136,8 @@ export const deriveMimeType = (rawMimeType: unknown, extension?: string): string
     const normalized = rawMimeType.trim().toLowerCase();
     if (normalized.startsWith('audio/') && normalized.includes('/')) return normalized;
   }
-  return extension ? EXTENSION_MIME_MAP[extension] : undefined;
+  const normalizedExtension = extension?.trim().replace(/^\.+/, '').toLowerCase();
+  return normalizedExtension ? EXTENSION_MIME_MAP[normalizedExtension] : undefined;
 };
 
 export const isAudioFileUri = (uri: string): boolean => {

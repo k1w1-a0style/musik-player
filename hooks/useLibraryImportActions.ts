@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
+import { DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS } from '../utils/libraryOperationTimeouts';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import { getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
@@ -18,8 +19,6 @@ import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImport
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
 
-const DEFAULT_IMPORT_TIMEOUT_MS = 90_000;
-
 export const useLibraryImportActions = ({
   scanFolders,
   songs,
@@ -31,7 +30,7 @@ export const useLibraryImportActions = ({
   showAlert,
   persistChangedFolderUpdates,
   platformOs = Platform.OS,
-  importTimeoutMs = DEFAULT_IMPORT_TIMEOUT_MS,
+  importTimeoutMs = DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS,
   importSongsFromSourcesImpl = importSongsFromSources,
   requestMediaLibraryPermissionsAsync = MediaLibrary.requestPermissionsAsync,
   scanMediaLibraryCandidatesImpl = scanMediaLibraryCandidates,
