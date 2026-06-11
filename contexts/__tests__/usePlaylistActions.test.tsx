@@ -33,6 +33,7 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
   return (
     <>
       <Text testID="names">{playlists.map(playlist => playlist.name).join(',')}</Text>
+      <Text testID="playlist-count">{playlists.length}</Text>
       <Text testID="song-ids">{playlists[0]?.songIds.join(',') ?? ''}</Text>
       <Text testID="saved-queue-name">{lastSavedQueuePlaylistName}</Text>
       <Button testID="create" title="create" onPress={() => createPlaylist('Created')} />
@@ -84,6 +85,10 @@ describe('usePlaylistActions', () => {
     expect(getByTestId('names').props.children).toContain('Queue Mix');
     expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix');
 
+    act(() => fireEvent.press(getByTestId('save-queue')));
+    expect(getByTestId('names').props.children).toContain('Queue Mix (2)');
+    expect(getByTestId('saved-queue-name').props.children).toBe('Queue Mix (2)');
+
     act(() => fireEvent.press(getByTestId('save-empty-queue')));
     expect(getByTestId('names').props.children).not.toContain('Empty');
     expect(getByTestId('saved-queue-name').props.children).toBe('none');
@@ -98,7 +103,7 @@ describe('usePlaylistActions', () => {
     expect(getByTestId('song-ids').props.children).toBe('s2');
 
     act(() => fireEvent.press(getByTestId('delete')));
-    expect(getByTestId('names').props.children).toBe('Created,Queue Mix');
+    expect(getByTestId('names').props.children).toBe('Created,Queue Mix,Queue Mix (2)');
   });
 
   test('plays the playlist queue from its first song', async () => {

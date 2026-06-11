@@ -1,5 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, type LayoutChangeEvent, type GestureResponderEvent } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  type AccessibilityActionEvent,
+  type LayoutChangeEvent,
+  type GestureResponderEvent,
+} from 'react-native';
 import { Volume2, VolumeX } from 'lucide-react-native';
 import { theme } from '../theme';
 
@@ -8,7 +15,9 @@ interface Props {
   onVolumeChange: (v: number) => void;
 }
 
-const clampVolume = (value: number): number => Math.max(0, Math.min(1, value));
+const clampVolume = (value: number): number =>
+  Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
+const ACCESSIBILITY_VOLUME_STEP = 0.1;
 
 const ModernControls: React.FC<Props> = ({ volume, onVolumeChange }) => {
   const [trackWidth, setTrackWidth] = useState(1);
@@ -22,6 +31,18 @@ const ModernControls: React.FC<Props> = ({ volume, onVolumeChange }) => {
   const onTrackLayout = useCallback((event: LayoutChangeEvent) => {
     setTrackWidth(Math.max(1, event.nativeEvent.layout.width));
   }, []);
+
+  const handleAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      const currentVolume = clampVolume(volume);
+      if (event.nativeEvent.actionName === 'increment') {
+        onVolumeChange(clampVolume(currentVolume + ACCESSIBILITY_VOLUME_STEP));
+      } else if (event.nativeEvent.actionName === 'decrement') {
+        onVolumeChange(clampVolume(currentVolume - ACCESSIBILITY_VOLUME_STEP));
+      }
+    },
+    [onVolumeChange, volume],
+  );
 
   const percent = Math.round(clampVolume(volume) * 100);
 
@@ -37,7 +58,9 @@ const ModernControls: React.FC<Props> = ({ volume, onVolumeChange }) => {
           testID="volume-slider"
           accessibilityRole="adjustable"
           accessibilityLabel="Lautstärke"
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
           accessibilityValue={{ min: 0, max: 100, now: percent }}
+          onAccessibilityAction={handleAccessibilityAction}
           style={styles.sliderHitbox}
           onLayout={onTrackLayout}
           onStartShouldSetResponder={() => true}

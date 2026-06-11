@@ -104,6 +104,18 @@ describe('useMusicHydration', () => {
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
   });
 
+  test('runs hydration only once for a provider mount across rerenders', async () => {
+    await storage.set(StorageKeys.SONGS, storedSongs);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+
+    const { getByTestId, rerender } = render(<HydrationProbe />);
+
+    await waitFor(() => expect(getByTestId('ready').props.children).toBe('true'));
+    rerender(<HydrationProbe />);
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+  });
+
   test('clears missing persisted current song id', async () => {
     await storage.set(StorageKeys.SONGS, storedSongs);
     await storage.set(StorageKeys.CURRENT_SONG_ID, 'missing');

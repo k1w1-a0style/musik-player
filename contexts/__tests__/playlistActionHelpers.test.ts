@@ -1,6 +1,7 @@
 import {
   appendPlaylist,
   buildPlaylistQueue,
+  buildUniquePlaylistName,
   createPlaylistRecord,
   createPlaylistRecordFromQueue,
   runPlayPlaylistAction,
@@ -45,6 +46,21 @@ describe('playlistActionHelpers', () => {
       updatedAt: 123,
     });
     expect(created?.id).toEqual(expect.any(String));
+  });
+
+  test('creates unique names for saved queue playlists', () => {
+    expect(
+      buildUniquePlaylistName('Gespeicherte Queue', [
+        { ...playlist, name: 'Gespeicherte Queue' },
+        { ...playlist, id: 'pl-2', name: 'Gespeicherte Queue (2)' },
+      ]),
+    ).toBe('Gespeicherte Queue (3)');
+
+    expect(
+      createPlaylistRecordFromQueue('Queue Mix', songs, 123, [
+        { ...playlist, name: 'Queue Mix' },
+      ])?.name,
+    ).toBe('Queue Mix (2)');
   });
 
   test('returns null for empty queue playlists', () => {

@@ -48,12 +48,12 @@ export const usePlaylistActions = ({
 
   const saveQueueAsPlaylist = useCallback(
     (name: string, queue: Song[]) => {
-      const playlist = createPlaylistRecordFromQueue(name, queue);
+      const playlist = createPlaylistRecordFromQueue(name, queue, Date.now(), playlists);
       if (!playlist) return null;
       setPlaylists(prev => appendPlaylist(prev, playlist));
       return playlist;
     },
-    [setPlaylists],
+    [playlists, setPlaylists],
   );
 
   const deletePlaylist = useCallback(
