@@ -248,7 +248,7 @@ describe('coverCache', () => {
     await oldCleanup;
 
     expect(sanitizedSongs[0].cover).toBe(expectedUri);
-    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
       expect.objectContaining({ id: songId, cover: expectedUri }),
     ]);
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith(expectedUri, expect.anything());
@@ -282,7 +282,7 @@ describe('coverCache', () => {
     protection.release();
 
     expect(sanitizedSongs[0].cover).toBe(expectedUri);
-    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
       expect.objectContaining({ id: 'reuse', cover: expectedUri }),
     ]);
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith(expectedUri, expect.anything());
@@ -324,7 +324,7 @@ describe('coverCache', () => {
     await oldCleanup;
 
     expect(LegacyFileSystem.writeAsStringAsync).toHaveBeenCalledWith(expectedUri, base64, { encoding: 'base64' });
-    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([
       expect.objectContaining({ id: songId, cover: expectedUri }),
     ]);
     expect(cachedFiles.has(expectedFileName)).toBe(true);

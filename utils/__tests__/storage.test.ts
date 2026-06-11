@@ -19,6 +19,7 @@ import {
 } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScanFolder } from '../../types/ScanFolder';
+import type { EqPresetName, Playlist, RepeatMode, Song } from '../../types/Song';
 
 describe('storage', () => {
   const storageTestKey = (key: string): string => `@musikplayer:${key}`;
@@ -27,7 +28,7 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), raw);
 
     await expect(storage.getCurrentSongId()).resolves.toBe(expected);
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBe(expected);
   };
 
   type ExpectedStorageWrite = {
@@ -61,7 +62,7 @@ describe('storage', () => {
 
   test('round-trips JSON-serialisable values', async () => {
     await storage.set(StorageKeys.VOLUME, 0.42);
-    expect(await storage.get<number>(StorageKeys.VOLUME)).toBe(0.42);
+    expect(await storage.get(StorageKeys.VOLUME)).toBe(0.42);
   });
 
   test('normalizes writes for valid storage keys', async () => {
@@ -96,6 +97,49 @@ describe('storage', () => {
     const values = Object.values(StorageKeys);
 
     expect(new Set(values).size).toBe(values.length);
+  });
+
+  test('storage.get binds known StorageKeys to their value types', async () => {
+    const songs: Song[] | null = await storage.get(StorageKeys.SONGS);
+    const playlists: Playlist[] | null = await storage.get(StorageKeys.PLAYLISTS);
+    const currentSongId: string | null = await storage.get(StorageKeys.CURRENT_SONG_ID);
+    const eqPreset: EqPresetName | 'custom' | null = await storage.get(StorageKeys.EQ_PRESET);
+    const eqBands: number[] | null = await storage.get(StorageKeys.EQ_BANDS);
+    const eqEnabled: boolean | null = await storage.get(StorageKeys.EQ_ENABLED);
+    const volume: number | null = await storage.get(StorageKeys.VOLUME);
+    const repeatMode: RepeatMode | null = await storage.get(StorageKeys.REPEAT_MODE);
+    const shuffle: boolean | null = await storage.get(StorageKeys.SHUFFLE);
+    const scanFolders: ScanFolder[] | null = await storage.get(StorageKeys.SCAN_FOLDERS);
+    const favoriteSongIds: string[] | null = await storage.get(StorageKeys.FAVORITE_SONG_IDS);
+    const unknownValue: unknown | null = await storage.get('customKey');
+
+    expect({
+      songs,
+      playlists,
+      currentSongId,
+      eqPreset,
+      eqBands,
+      eqEnabled,
+      volume,
+      repeatMode,
+      shuffle,
+      scanFolders,
+      favoriteSongIds,
+      unknownValue,
+    }).toEqual({
+      songs: null,
+      playlists: null,
+      currentSongId: null,
+      eqPreset: null,
+      eqBands: null,
+      eqEnabled: null,
+      volume: null,
+      repeatMode: null,
+      shuffle: null,
+      scanFolders: null,
+      favoriteSongIds: null,
+      unknownValue: null,
+    });
   });
 
   test('storage.get returns [] for non-array songs JSON payloads', async () => {
@@ -867,10 +911,10 @@ describe('storage', () => {
     await expect(getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
   });
 
-  test('normalizes current song ids for generic and typed storage access', async () => {
+  test('normalizes current song ids for storage access', async () => {
     await storage.setCurrentSongId(' s1 ');
     expect(await storage.getCurrentSongId()).toBe('s1');
-    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
 
     await storage.set(StorageKeys.CURRENT_SONG_ID, ' s2 ');
     expect(await storage.getCurrentSongId()).toBe('s2');
@@ -901,17 +945,17 @@ describe('storage', () => {
 
   test('keeps raw and JSON string settings compatible', async () => {
     await storage.setCurrentSongId('s1');
-    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
     await storage.set(StorageKeys.CURRENT_SONG_ID, 's2');
     expect(await storage.getCurrentSongId()).toBe('s2');
 
     await storage.setEqPreset('rock');
-    expect(await storage.get<string>(StorageKeys.EQ_PRESET)).toBe('rock');
+    expect(await storage.get(StorageKeys.EQ_PRESET)).toBe('rock');
     await storage.set(StorageKeys.EQ_PRESET, 'jazz');
     expect(await storage.getEqPreset()).toBe('jazz');
 
     await storage.setRepeatMode('one');
-    expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBe('one');
+    expect(await storage.get(StorageKeys.REPEAT_MODE)).toBe('one');
     await storage.set(StorageKeys.REPEAT_MODE, 'all');
     expect(await storage.getRepeatMode()).toBe('all');
   });
@@ -920,7 +964,7 @@ describe('storage', () => {
     await storage.setCurrentSongId(' s-json ');
     expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.CURRENT_SONG_ID))).toBe('"s-json"');
     await expect(storage.getCurrentSongId()).resolves.toBe('s-json');
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s-json');
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s-json');
 
     await storage.setEqPreset('rock');
     expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.EQ_PRESET))).toBe('"rock"');
@@ -1007,11 +1051,11 @@ describe('storage', () => {
   test('getCurrentSongId rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), JSON.stringify({ id: 's1' }));
     await expect(storage.getCurrentSongId()).resolves.toBeNull();
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.CURRENT_SONG_ID), JSON.stringify(['s1']));
     await expect(storage.getCurrentSongId()).resolves.toBeNull();
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured currentSongId input to null', async () => {
@@ -1033,29 +1077,29 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), '1');
 
     await expect(storage.getEqPreset()).resolves.toBe('flat');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
     await expect(storage.getRepeatMode()).resolves.toBe('off');
-    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
   });
 
   test('keeps unsupported keys null when stored JSON parses into invalid values', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), '"loud"');
 
-    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.VOLUME)).resolves.toBeNull();
   });
 
   test('persists and restores custom eq preset', async () => {
     await expect(storage.setEqPreset('custom')).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('custom');
     await expect(storage.set(StorageKeys.EQ_PRESET, 'custom')).resolves.toBe(true);
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('continues to accept standard eq preset names', async () => {
     await expect(storage.setEqPreset('flat')).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('flat');
     await expect(storage.set(StorageKeys.EQ_PRESET, 'flat')).resolves.toBe(true);
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBe('flat');
   });
 
   test('setEqPreset writes also for identical raw values', async () => {
@@ -1080,29 +1124,29 @@ describe('storage', () => {
 
   test('rejects invalid eq preset strings when reading', async () => {
     await expect(storage.set(StorageKeys.EQ_PRESET, 'megaBass123' as unknown as string)).resolves.toBe(true);
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
   });
 
   test('reads raw custom eq preset string via fallback parser', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), 'custom');
     await expect(storage.getEqPreset()).resolves.toBe('custom');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('reads JSON custom eq preset string via parser', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), '"custom"');
     await expect(storage.getEqPreset()).resolves.toBe('custom');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBe('custom');
   });
 
   test('getEqPreset rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), JSON.stringify({ preset: 'rock' }));
     await expect(storage.getEqPreset()).resolves.toBe('flat');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_PRESET), JSON.stringify(['rock']));
     await expect(storage.getEqPreset()).resolves.toBe('flat');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured eqPreset input to null', async () => {
@@ -1132,7 +1176,7 @@ describe('storage', () => {
   test('setEqPreset runtime-guards invalid bypassed values to flat', async () => {
     await expect(storage.setEqPreset('megaBass123' as never)).resolves.toBeUndefined();
     await expect(storage.getEqPreset()).resolves.toBe('flat');
-    await expect(storage.get<string>(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
+    await expect(storage.get(StorageKeys.EQ_PRESET)).resolves.not.toBe('megaBass123');
   });
 
   test('setRepeatMode writes also for identical raw values', async () => {
@@ -1158,11 +1202,11 @@ describe('storage', () => {
   test('getRepeatMode rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), JSON.stringify({ mode: 'all' }));
     await expect(storage.getRepeatMode()).resolves.toBe('off');
-    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.REPEAT_MODE), JSON.stringify(['all']));
     await expect(storage.getRepeatMode()).resolves.toBe('off');
-    await expect(storage.get<string>(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.REPEAT_MODE)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured repeatMode input to null', async () => {
@@ -1213,11 +1257,11 @@ describe('storage', () => {
   test('getEqEnabled rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), JSON.stringify({ enabled: true }));
     await expect(storage.getEqEnabled()).resolves.toBe(false);
-    await expect(storage.get<boolean>(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_ENABLED), JSON.stringify([true]));
     await expect(storage.getEqEnabled()).resolves.toBe(false);
-    await expect(storage.get<boolean>(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_ENABLED)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured eqEnabled input to null', async () => {
@@ -1261,11 +1305,11 @@ describe('storage', () => {
   test('getShuffle rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), JSON.stringify({ enabled: true }));
     await expect(storage.getShuffle()).resolves.toBe(false);
-    await expect(storage.get<boolean>(StorageKeys.SHUFFLE)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.SHUFFLE)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SHUFFLE), JSON.stringify([true]));
     await expect(storage.getShuffle()).resolves.toBe(false);
-    await expect(storage.get<boolean>(StorageKeys.SHUFFLE)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.SHUFFLE)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured shuffle input to null', async () => {
@@ -1281,10 +1325,10 @@ describe('storage', () => {
     await storage.set(StorageKeys.SHUFFLE, 'yes');
     await storage.set(StorageKeys.CURRENT_SONG_ID, '   ');
 
-    expect(await storage.get<number>(StorageKeys.VOLUME)).toBeNull();
-    expect(await storage.get<string>(StorageKeys.REPEAT_MODE)).toBeNull();
-    expect(await storage.get<boolean>(StorageKeys.SHUFFLE)).toBeNull();
-    expect(await storage.get<string>(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(await storage.get(StorageKeys.VOLUME)).toBeNull();
+    expect(await storage.get(StorageKeys.REPEAT_MODE)).toBeNull();
+    expect(await storage.get(StorageKeys.SHUFFLE)).toBeNull();
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
   });
 
   test('normalizes volume values for storage', () => {
@@ -1344,11 +1388,11 @@ describe('storage', () => {
   test('getVolume rejects structured JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), JSON.stringify({ value: 0.5 }));
     await expect(storage.getVolume()).resolves.toBe(1);
-    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.VOLUME)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.VOLUME), JSON.stringify([0.5]));
     await expect(storage.getVolume()).resolves.toBe(1);
-    await expect(storage.get<number>(StorageKeys.VOLUME)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.VOLUME)).resolves.toBeNull();
   });
 
   test('storage.set normalizes structured volume input to null', async () => {
@@ -1367,7 +1411,7 @@ describe('storage', () => {
   test('clamps persisted eq band arrays when reading through generic storage', async () => {
     await storage.set(StorageKeys.EQ_BANDS, [99, -99, 0, 1, 2, 3, 4, 5, 6, Number.NaN]);
 
-    expect(await storage.get<number[]>(StorageKeys.EQ_BANDS)).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
+    expect(await storage.get(StorageKeys.EQ_BANDS)).toEqual([12, -12, 0, 1, 2, 3, 4, 5, 6, 0]);
   });
 
   test('getEqBands clamps valid-length arrays and falls back for invalid shape', async () => {
@@ -1417,11 +1461,11 @@ describe('storage', () => {
       JSON.stringify({ bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }),
     );
     await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    await expect(storage.get<number[]>(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_BANDS)).resolves.toBeNull();
 
     await AsyncStorage.setItem(storageTestKey(StorageKeys.EQ_BANDS), JSON.stringify([0, 0, 0]));
     await expect(storage.getEqBands()).resolves.toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    await expect(storage.get<number[]>(StorageKeys.EQ_BANDS)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.EQ_BANDS)).resolves.toBeNull();
   });
 
   test('storage.set normalizes object eqBands input to null', async () => {

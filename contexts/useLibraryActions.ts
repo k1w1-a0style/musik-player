@@ -45,7 +45,7 @@ const cleanupCurrentSongIdAfterLibraryUpdate = async (
 
   try {
     if (isStaleCleanup()) return;
-    const currentSongId = await storage.get<string>(StorageKeys.CURRENT_SONG_ID);
+    const currentSongId = await storage.get(StorageKeys.CURRENT_SONG_ID);
     if (isStaleCleanup()) return;
     const normalizedCurrentSongId = currentSongId?.trim();
     if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
