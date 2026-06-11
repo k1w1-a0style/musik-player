@@ -18,19 +18,21 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 
 - i18n: keine Migration in dieser Review-Runde; betrifft UI-Texte breitflächig und braucht einen eigenen Plan.
 - New Architecture: nicht aktivieren, solange `react-native-track-player@4.1.2` verwendet wird; vorher Playback-, Background-, Notification- und Android-Smoke-Tests durchführen.
-- Vollständiger finaler Gesamttest: als separater Validierungsschritt auf dem letzten gemergten Stand ausführen.
+- Vollständiger finaler Gesamttest: am 2026-06-11 auf dem aktuellen gemergten Stand erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
 
 ## Finale Validierung vor Release oder codex→main-Handoff
 
-Automatisierte Gates:
+Automatisierte Gates (finaler Lauf am 2026-06-11 erfolgreich):
 
-- [ ] `npm run typecheck`
-- [ ] `npm run lint:ci`
-- [ ] `npm test -- --runInBand`
-- [ ] `npx expo config --type public`
-- [ ] `npm test -- --runInBand --testPathPattern=__tests__/expoReleaseConfigGate.test.ts`
-- [ ] `npm test -- --runInBand --testPathPattern=__tests__/androidManifestPermissionGate.test.ts`
+- [x] `npm run typecheck`
+- [x] `npm run lint:ci`
+- [x] `npm test -- --runInBand`
+- [x] `npm run test:coverage`
+- [x] `npx expo config --type public`
+- [x] `npx jest --runInBand --testPathPattern=__tests__/expoReleaseConfigGate.test.ts`
+- [x] `npx jest --runInBand --testPathPattern=__tests__/androidManifestPermissionGate.test.ts`
+- [x] `npm run check:android-permissions`
 
 Optionale/manuelle Android-Smokes nach Build oder SDK-/FileSystem-Änderungen:
 
