@@ -28,6 +28,11 @@ The non-legacy `expo-file-system` import is present only as a compatibility/fall
 
 Tests mock both `expo-file-system/legacy` and selected `expo-file-system` fallback fields in the existing Jest suites for import, cover cache, tag writes, and MusicContext persistence/hydration. Those tests are guard coverage for current import paths; they are not a replacement for device smoke testing after an SDK upgrade.
 
+## Config gates before platform/runtime upgrades
+
+- `newArchEnabled=false` is intentional while `react-native-track-player@4.1.2` is used. Do not flip it during an SDK or dependency bump without a dedicated New Architecture PR and Android playback/background/notification smoke coverage.
+- `tsconfig.json` no longer carries `ignoreDeprecations`; future TypeScript deprecation warnings should be handled explicitly instead of being globally suppressed.
+
 ## SDK upgrade risks to keep visible
 
 - Legacy helpers may be removed, relocated, renamed, or stop being exported from `expo-file-system/legacy`.

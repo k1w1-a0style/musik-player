@@ -60,6 +60,11 @@ Die Testanzahl wird bewusst nicht hart im README gepflegt. Aktuell maßgeblich i
 npm test -- --runInBand
 ```
 
+## Konfigurationsentscheidungen
+
+- `tsconfig.json` nutzt kein `ignoreDeprecations` mehr; TypeScript-Warnungen sollen nicht pauschal unterdrückt werden.
+- `newArchEnabled=false` bleibt bewusst gesetzt, solange `react-native-track-player@4.1.2` im Einsatz ist. Eine New-Architecture-Aktivierung braucht einen separaten PR mit Playback-, Background-, Notification- und Android-Smoke-Tests.
+
 ## Release-Hinweise
 
 - Vor einem Release immer einen **echten Android-/EAS-Build** ausführen (nicht nur Expo Go).
