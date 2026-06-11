@@ -6,7 +6,7 @@ import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename } from './musicParser';
 import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
-import { getAudioAssetRejectReason, isLikelyMusicAsset } from './audioImportFilter';
+import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
 import { OperationAbortError, throwIfAborted } from './withTimeout';
 
 const PAGE_SIZE = 200;
@@ -42,6 +42,12 @@ type GetAssetsPage = (options: MediaLibrary.AssetsOptions) => Promise<GetAssetsR
 export interface AudioImportScanResult {
   assets: MediaAsset[];
   skipped: Array<{ asset: MediaAsset; reason: string }>;
+}
+
+export interface MediaLibraryScanOptions extends AudioImportFilterOptions {
+  /** Disable all likely-music checks when false; defaults to true. */
+  filterLikelyMusic?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface ImportScanResult {
@@ -479,9 +485,9 @@ export const readAudioUrisFromSafDirectory = async (
 
 export const scanAudioAssetsFromMediaLibrary = async (
   getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync,
-  options: { filterLikelyMusic?: boolean; signal?: AbortSignal } = {},
+  options: MediaLibraryScanOptions = {},
 ): Promise<AudioImportScanResult> => {
-  const { filterLikelyMusic = true, signal } = options;
+  const { filterLikelyMusic = true, signal, ...filterOptions } = options;
   throwIfAborted(signal);
   const seenIds = new Set<string>();
   const seenUris = new Set<string>();
@@ -498,8 +504,8 @@ export const scanAudioAssetsFromMediaLibrary = async (
     for (const asset of page.assets) {
       if (seenIds.has(asset.id)) continue;
       seenIds.add(asset.id);
-      if (filterLikelyMusic && !isLikelyMusicAsset(asset)) {
-        skipped.push({ asset, reason: getAudioAssetRejectReason(asset) ?? 'not-likely-music' });
+      if (filterLikelyMusic && !isLikelyMusicAsset(asset, filterOptions)) {
+        skipped.push({ asset, reason: getAudioAssetRejectReason(asset, filterOptions) ?? 'not-likely-music' });
         continue;
       }
       const normalizedUri = normalizeImportUriForDedupe(asset.uri);
@@ -518,7 +524,7 @@ export const scanAudioAssetsFromMediaLibrary = async (
   return { assets, skipped };
 };
 
-export const scanMediaLibraryCandidates = async (options: { signal?: AbortSignal } = {}): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary(MediaLibrary.getAssetsAsync, options);
+export const scanMediaLibraryCandidates = async (options: MediaLibraryScanOptions = {}): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary(MediaLibrary.getAssetsAsync, options);
 
 export const enrichMediaLibraryAssets = async (
   assets: MediaAsset[],
@@ -643,7 +649,7 @@ export const importSongsFromSources = async (options: ImportSongsOptions = {}): 
 
 export const loadAllAudioAssetsFromMediaLibrary = async (
   getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync,
-  options: { filterLikelyMusic?: boolean } = {},
+  options: Omit<MediaLibraryScanOptions, 'signal'> = {},
 ): Promise<MediaAsset[]> => {
   const result = await scanAudioAssetsFromMediaLibrary(getAssetsPage, options);
   return result.assets;

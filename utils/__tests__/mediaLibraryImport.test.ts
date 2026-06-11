@@ -219,11 +219,71 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root']);
   });
 
+  const mediaAsset = (id: string, filename: string, duration: number, uri = `file:///music/${filename}`, mimeType?: string) => ({
+    id,
+    filename,
+    duration,
+    uri,
+    mimeType,
+  });
+
+  const getSingleMediaLibraryPage = (...assets: Array<ReturnType<typeof mediaAsset>>) => jest.fn(async () => ({
+    assets,
+    hasNextPage: false,
+    endCursor: undefined,
+  })) as any;
+
+  test('scanAudioAssetsFromMediaLibrary uses the default 45-second filter and stable skipped reasons', async () => {
+    const short = mediaAsset('short', 'short-click.mp3', 3);
+    const full = mediaAsset('full', 'full-song.mp3', 180, undefined, 'audio/mpeg');
+    const getAssetsPage = getSingleMediaLibraryPage(short, full);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+
+    expect(result.assets.map(asset => asset.id)).toEqual(['full']);
+    expect(result.skipped).toEqual([{ asset: short, reason: 'shorter-than-45s' }]);
+  });
+
+  test('scanAudioAssetsFromMediaLibrary keeps likely-music filtering fully disabled when requested', async () => {
+    const short = mediaAsset('short', 'short-click.mp3', 3);
+    const notification = mediaAsset('notification', 'ping.mp3', 90, 'file:///storage/emulated/0/Notifications/ping.mp3');
+    const getAssetsPage = getSingleMediaLibraryPage(short, notification);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage, { filterLikelyMusic: false });
+
+    expect(result.assets.map(asset => asset.id)).toEqual(['short', 'notification']);
+    expect(result.skipped).toEqual([]);
+  });
+
+  test('scanAudioAssetsFromMediaLibrary passes custom minimum duration into the filter', async () => {
+    const short = mediaAsset('short', 'short-song.mp3', 30);
+    const getAssetsPage = getSingleMediaLibraryPage(short);
+
+    await expect(mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage)).resolves.toMatchObject({
+      assets: [],
+      skipped: [{ asset: short, reason: 'shorter-than-45s' }],
+    });
+    await expect(
+      mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage, { minMusicDurationSeconds: 30 }),
+    ).resolves.toMatchObject({ assets: [short], skipped: [] });
+  });
+
+  test('scanAudioAssetsFromMediaLibrary can disable only duration filtering', async () => {
+    const short = mediaAsset('short', 'short-song.mp3', 3);
+    const nonAudio = mediaAsset('cover', 'cover.jpg', 180, undefined, 'image/jpeg');
+    const getAssetsPage = getSingleMediaLibraryPage(short, nonAudio);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage, { enableDurationFilter: false });
+
+    expect(result.assets).toEqual([short]);
+    expect(result.skipped).toEqual([{ asset: nonAudio, reason: 'not-audio' }]);
+  });
+
   test('loads all pages', async () => {
     const getAssetsPage = jest.fn(async ({ after }: { after?: string }) =>
       !after
-        ? { assets: [{ id: '1' }, { id: '2' }], hasNextPage: true, endCursor: 'a' }
-        : { assets: [{ id: '3' }], hasNextPage: false, endCursor: 'b' },
+        ? { assets: [mediaAsset('1', 'one.mp3', 90), mediaAsset('2', 'two.mp3', 90)], hasNextPage: true, endCursor: 'a' }
+        : { assets: [mediaAsset('3', 'three.mp3', 90)], hasNextPage: false, endCursor: 'b' },
     ) as any;
     const result = await mediaImport.loadAllAudioAssetsFromMediaLibrary(getAssetsPage);
     expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
