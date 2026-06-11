@@ -25,6 +25,11 @@ export const buildUniquePlaylistName = (name: string, existingPlaylists: Playlis
   return candidate;
 };
 
+/**
+ * Creates a queue playlist with a name unique within `existingPlaylists`.
+ * When called from React state updates, pass the functional updater's `prev`
+ * playlists so pending playlist additions are included in the name check.
+ */
 export const createPlaylistRecordFromQueue = (
   name: string,
   queue: Song[],
