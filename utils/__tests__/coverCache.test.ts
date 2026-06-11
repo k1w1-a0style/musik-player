@@ -2,7 +2,7 @@ import { waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
-import { cacheBase64Cover, isBase64ImageDataUri, sanitizeSongsForStorage } from '../coverCache';
+import { cacheBase64Cover, isBase64ImageDataUri, MAX_CACHED_COVER_BYTES, sanitizeSongsForStorage } from '../coverCache';
 import { cleanupCoverCache } from '../coverCacheCleanup';
 import * as coverCacheCleanup from '../coverCacheCleanup';
 import type { Song } from '../../types/Song';
@@ -19,7 +19,6 @@ jest.mock('expo-file-system', () => ({
   deleteAsync: jest.fn(async () => undefined),
 }));
 
-
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -34,12 +33,22 @@ const createDeferred = <T,>(): Deferred<T> => {
 };
 
 const hashForTest = (value: string): string => {
-  let h = 2166136261;
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  let h3 = 0xc0decafe;
+  let h4 = 0x9e3779b9;
   for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+    const code = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+    h3 = Math.imul(h3 ^ code, 2246822507);
+    h4 = Math.imul(h4 ^ code, 3266489909);
   }
-  return (h >>> 0).toString(16);
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h3 ^ (h3 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h4 ^ (h4 >>> 13), 3266489909);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return [h1, h2, h3, h4].map(part => (part >>> 0).toString(16).padStart(8, '0')).join('');
 };
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -72,7 +81,7 @@ describe('coverCache', () => {
 
   test('migrates base64 covers to local file URIs', async () => {
     const songs: Song[] = [
-      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD' },
+      { id: '1', title: 'A', artist: 'X', cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=' },
       { id: '2', title: 'B', artist: 'Y', cover: 'file:///cache/covers/2.jpg' },
     ];
 
@@ -93,7 +102,7 @@ describe('coverCache', () => {
 
   test('reuses existing cached file without rewriting', async () => {
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
-    const cached = await cacheBase64Cover('reuse-1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    const cached = await cacheBase64Cover('reuse-1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=');
     expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
     expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
@@ -146,14 +155,52 @@ describe('coverCache', () => {
   });
 
   test('ignores payload that does not match declared mime signature', async () => {
-    await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD')).resolves.toBeUndefined();
+    await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=')).resolves.toBeUndefined();
   });
 
   test('accepts unknown image subtype when bytes indicate known image format', async () => {
-    const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD');
+    const cached = await cacheBase64Cover('ok-3', 'data:image/heic;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=');
     expect(cached).toMatch(/^file:\/\/\/docs\/covers\/.+\.jpg$/);
   });
 
+  test('rejects oversized covers before touching the filesystem or warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const oversizedBase64 = `${'A'.repeat(Math.ceil((MAX_CACHED_COVER_BYTES + 1) / 3) * 4)}`;
+
+    await expect(cacheBase64Cover('too-large', `data:image/jpeg;base64,${oversizedBase64}`)).resolves.toBeUndefined();
+
+    expect(LegacyFileSystem.makeDirectoryAsync).not.toHaveBeenCalled();
+    expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test('invalid and mime-mismatched covers do not write or warn', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(cacheBase64Cover('bad', 'data:image/jpeg;base64,??')).resolves.toBeUndefined();
+    await expect(cacheBase64Cover('bad-2', 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=')).resolves.toBeUndefined();
+
+    expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test('builds stable collision-resistant file names from song id and cover content', async () => {
+    const jpegA = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
+    const jpegB = '/9j/4QAQSkZJRgABAQAAAQABAAD=';
+    const first = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`);
+    const second = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`);
+    const differentCover = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegB}`);
+    const differentSong = await cacheBase64Cover('song-b', `data:image/jpeg;base64,${jpegA}`);
+
+    expect(first).toBe(second);
+    expect(first).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
+    expect(differentCover).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
+    expect(differentSong).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
+    expect(differentCover).not.toBe(first);
+    expect(differentSong).not.toBe(first);
+  });
 
   test('sanitizeSongsForStorage does not trigger cover cache cleanup', async () => {
     const cleanupSpy = jest.spyOn(coverCacheCleanup, 'cleanupCoverCache');
@@ -164,9 +211,8 @@ describe('coverCache', () => {
     expect(cleanupSpy).not.toHaveBeenCalled();
   });
 
-
   test('older cleanup cannot delete a newly sanitized cover before its snapshot is persisted', async () => {
-    const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD';
+    const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
     const songId = 'new-cover-race';
     const expectedFileName = `${hashForTest(songId)}-${hashForTest(base64)}.jpg`;
     const expectedUri = `file:///docs/covers/${expectedFileName}`;
@@ -209,8 +255,6 @@ describe('coverCache', () => {
     expect(cachedFiles.has(expectedFileName)).toBe(true);
   });
 
-
-
   test('older cleanup cannot delete an existing cover reused by a pending sanitized snapshot', async () => {
     const expectedFileName = 'abc-def.jpg';
     const expectedUri = `file:///docs/covers/${expectedFileName}`;
@@ -246,7 +290,7 @@ describe('coverCache', () => {
   });
 
   test('new sanitization rewrites and persists a cover after an older cleanup delete already started', async () => {
-    const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD';
+    const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
     const songId = 'started-delete-race';
     const expectedFileName = `${hashForTest(songId)}-${hashForTest(base64)}.jpg`;
     const expectedUri = `file:///docs/covers/${expectedFileName}`;
@@ -285,6 +329,7 @@ describe('coverCache', () => {
     ]);
     expect(cachedFiles.has(expectedFileName)).toBe(true);
   });
+
   test('sanitizeSongsForStorage preserves track/disc/comment fields', async () => {
     const songs: Song[] = [
       {
@@ -294,7 +339,7 @@ describe('coverCache', () => {
         trackNumber: '5/10',
         discNumber: '1/2',
         comment: 'Keep me',
-        cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD',
+        cover: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD=',
       },
     ];
 

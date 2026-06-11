@@ -9,6 +9,13 @@ import {
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
 import { waitForCoverCacheCleanupIdle, type CoverCacheProtection } from './coverCacheCleanup';
+import {
+  Base64DecodeError,
+  decodeBase64PrefixToBytes,
+  getBase64DecodedByteLength,
+  getBase64DecodedByteLengthEstimate,
+  validateBase64Payload,
+} from './base64';
 import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
@@ -19,38 +26,6 @@ export const isBase64ImageDataUri = (value?: string): boolean => {
   if (!value) return false;
   return DATA_URI_RE.test(value.trim());
 };
-
-const isLikelyValidBase64Payload = (value: string): boolean => /^[A-Za-z0-9+/=\s]+$/.test(value) && value.replace(/\s+/g, '').length >= 4;
-
-const getDecodedBase64ByteLength = (value: string): number => {
-  const clean = value.replace(/\s+/g, '');
-  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
-  return Math.floor((clean.length * 3) / 4) - padding;
-};
-
-const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const lookup = new Int16Array(256).fill(-1);
-  for (let i = 0; i < chars.length; i += 1) lookup[chars.charCodeAt(i)] = i;
-  const clean = value.replace(/[^A-Za-z0-9+/]/g, '');
-  const out = new Uint8Array(maxBytes);
-  let buf = 0;
-  let bits = 0;
-  let j = 0;
-  for (let i = 0; i < clean.length && j < maxBytes; i += 1) {
-    const v = lookup[clean.charCodeAt(i)];
-    if (v < 0) continue;
-    buf = (buf << 6) | v;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out[j] = (buf >> bits) & 0xff;
-      j += 1;
-    }
-  }
-  return out.subarray(0, j);
-};
-
 
 export type CoverCacheWriteFailureReason =
   | 'cache_directory_unavailable'
@@ -86,12 +61,22 @@ const getCoverCacheFailureReason = (error: unknown): CoverCacheWriteFailureReaso
   error instanceof CoverCacheWriteError ? error.reason : 'cache_unexpected_failed';
 
 const hashString = (value: string): string => {
-  let h = 2166136261;
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  let h3 = 0xc0decafe;
+  let h4 = 0x9e3779b9;
   for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+    const code = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+    h3 = Math.imul(h3 ^ code, 2246822507);
+    h4 = Math.imul(h4 ^ code, 3266489909);
   }
-  return (h >>> 0).toString(16);
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h3 ^ (h3 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h4 ^ (h4 >>> 13), 3266489909);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return [h1, h2, h3, h4].map(part => (part >>> 0).toString(16).padStart(8, '0')).join('');
 };
 
 const getBaseDirectory = (): string | undefined =>
@@ -110,6 +95,27 @@ export const cacheBase64Cover = async (
   const trimmed = cover.trim();
   const match = trimmed.match(DATA_URI_RE);
   if (!match) return cover;
+
+  const rawBase64 = trimmed.slice(match[0].length);
+  if (getBase64DecodedByteLengthEstimate(rawBase64) > MAX_CACHED_COVER_BYTES) return undefined;
+
+  let base64: string;
+  let prefixBytes: Uint8Array;
+  try {
+    base64 = validateBase64Payload(rawBase64);
+    if (getBase64DecodedByteLength(base64) > MAX_CACHED_COVER_BYTES) return undefined;
+    prefixBytes = decodeBase64PrefixToBytes(base64, 16);
+  } catch (error) {
+    if (error instanceof Base64DecodeError) return undefined;
+    throw error;
+  }
+  const declaredMime = normalizeImageMime(match[1]);
+  const detectedMime = detectImageMimeFromBytes(prefixBytes);
+  if (declaredMime) {
+    if (detectedMime !== declaredMime) return undefined;
+  } else if (!detectedMime) {
+    return undefined;
+  }
 
   const baseDir = getBaseDirectory();
   if (!baseDir) {
@@ -132,17 +138,6 @@ export const cacheBase64Cover = async (
 
     await withCoverCacheFailureReason(mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
 
-    const base64 = trimmed.slice(match[0].length);
-    if (!isLikelyValidBase64Payload(base64)) return undefined;
-    if (getDecodedBase64ByteLength(base64) > MAX_CACHED_COVER_BYTES) return undefined;
-    const prefixBytes = base64PrefixToBytes(base64);
-    const declaredMime = normalizeImageMime(match[1]);
-    const detectedMime = detectImageMimeFromBytes(prefixBytes);
-    if (declaredMime) {
-      if (detectedMime !== declaredMime) return undefined;
-    } else if (!detectedMime) {
-      return undefined;
-    }
     const ext = imageExtensionFromMime(detectedMime ?? declaredMime ?? 'image/jpeg');
     const contentHash = hashString(base64);
     const safeSongId = hashString(songId);

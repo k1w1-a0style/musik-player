@@ -11,10 +11,16 @@ export class Base64DecodeError extends Error {
   }
 }
 
-const normalizeBase64 = (value: string): string => value.replace(/\s+/g, '');
+export const normalizeBase64Payload = (value: string): string => value.replace(/\s+/g, '');
 
-const validateBase64 = (value: string): string => {
-  const normalized = normalizeBase64(value);
+export const getBase64DecodedByteLengthEstimate = (value: string): number => {
+  const normalized = normalizeBase64Payload(value);
+  const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
+};
+
+export const validateBase64Payload = (value: string): string => {
+  const normalized = normalizeBase64Payload(value);
   if (normalized.length === 0) throw new Base64DecodeError('Base64 data is empty.');
   if (normalized.length % 4 !== 0) throw new Base64DecodeError('Invalid base64 length.');
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
@@ -26,6 +32,9 @@ const validateBase64 = (value: string): string => {
   }
   return normalized;
 };
+
+export const getBase64DecodedByteLength = (value: string): number =>
+  getBase64DecodedByteLengthEstimate(validateBase64Payload(value));
 
 const decodeBase64Manually = (normalized: string): Uint8Array => {
   const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0;
@@ -49,7 +58,7 @@ const decodeBase64Manually = (normalized: string): Uint8Array => {
 };
 
 export const decodeBase64ToBytes = (value: string): Uint8Array => {
-  const normalized = validateBase64(value);
+  const normalized = validateBase64Payload(value);
   const atobFn = globalThis.atob;
   if (typeof atobFn === 'function') {
     try {
@@ -62,6 +71,13 @@ export const decodeBase64ToBytes = (value: string): Uint8Array => {
     }
   }
   return decodeBase64Manually(normalized);
+};
+
+export const decodeBase64PrefixToBytes = (value: string, maxBytes: number): Uint8Array => {
+  const normalized = validateBase64Payload(value);
+  if (maxBytes <= 0) return new Uint8Array(0);
+  const charsNeeded = Math.min(normalized.length, Math.ceil(maxBytes / 3) * 4);
+  return decodeBase64Manually(normalized.slice(0, charsNeeded)).subarray(0, maxBytes);
 };
 
 export const encodeBytesToBase64 = (bytes: Uint8Array): string => {
