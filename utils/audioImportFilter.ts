@@ -2,8 +2,27 @@ import * as MediaLibrary from 'expo-media-library';
 
 export const MIN_MUSIC_DURATION_SECONDS = 45;
 
+export interface AudioImportFilterOptions {
+  /** Minimum positive asset duration required when the duration filter is enabled. */
+  minMusicDurationSeconds?: number;
+  /** Set to false to keep metadata/path filters but allow short audio files. */
+  enableDurationFilter?: boolean;
+}
+
+export interface NormalizedAudioImportFilterOptions {
+  minMusicDurationSeconds: number;
+  enableDurationFilter: boolean;
+}
+
+export const DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS: NormalizedAudioImportFilterOptions = {
+  minMusicDurationSeconds: MIN_MUSIC_DURATION_SECONDS,
+  enableDurationFilter: true,
+};
+
 type AudioAssetLike = Pick<MediaLibrary.Asset, 'filename' | 'uri'> &
-  Partial<Pick<MediaLibrary.Asset, 'duration'>> & { mimeType?: string | null };
+  Partial<Pick<MediaLibrary.Asset, 'duration' | 'mediaType'>> & { mimeType?: string | null };
+
+const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 
 const BLOCKED_DIRECTORY_SEGMENTS = new Set([
   'whatsapp',
@@ -36,6 +55,22 @@ const BLOCKED_FILENAME_PREFIXES = [
   'recording ',
 ];
 
+export const normalizeAudioImportFilterOptions = (
+  options: AudioImportFilterOptions = {},
+): NormalizedAudioImportFilterOptions => {
+  const minMusicDurationSeconds =
+    typeof options.minMusicDurationSeconds === 'number' &&
+    Number.isFinite(options.minMusicDurationSeconds) &&
+    options.minMusicDurationSeconds >= 0
+      ? options.minMusicDurationSeconds
+      : DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS.minMusicDurationSeconds;
+
+  return {
+    minMusicDurationSeconds,
+    enableDurationFilter: options.enableDurationFilter ?? DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS.enableDurationFilter,
+  };
+};
+
 const normalize = (value?: string | null): string => {
   const raw = value ?? '';
   try {
@@ -63,6 +98,14 @@ const filenameStem = (filename?: string | null, uri?: string | null): string => 
   return stripQueryAndFragment(base).replace(/\.[^.]+$/, '').trim();
 };
 
+const extensionFromAsset = (asset: AudioAssetLike): string => {
+  const normalizedFilename = normalize(asset.filename);
+  const fallback = pathSegments(asset.uri).pop() ?? '';
+  const base = stripQueryAndFragment(normalizedFilename || fallback);
+  const match = /\.([^.]+)$/.exec(base);
+  return match?.[1]?.trim() ?? '';
+};
+
 const blockedDirectorySegment = (asset: AudioAssetLike): string | undefined =>
   pathSegments(asset.uri).find(segment => BLOCKED_DIRECTORY_SEGMENTS.has(segment));
 
@@ -71,16 +114,38 @@ const blockedFilenamePrefix = (asset: AudioAssetLike): string | undefined => {
   return BLOCKED_FILENAME_PREFIXES.find(prefix => stem.startsWith(prefix));
 };
 
+const hasAudioMediaType = (asset: AudioAssetLike): boolean => normalize(asset.mediaType) === 'audio';
+
+const hasExplicitNonAudioMediaType = (asset: AudioAssetLike): boolean => {
+  const mediaType = normalize(asset.mediaType);
+  return mediaType === 'photo' || mediaType === 'video' || mediaType === 'pairedvideo';
+};
+
 const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
   const mime = normalize(asset.mimeType);
   return mime.startsWith('audio/');
 };
 
-export const getAudioAssetRejectReason = (asset: AudioAssetLike): string | null => {
+const hasKnownAudioExtension = (asset: AudioAssetLike): boolean => AUDIO_EXTENSIONS.has(extensionFromAsset(asset));
+
+const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean => {
+  // MediaLibrary uses 'unknown' when the platform cannot classify an asset, so MIME/extension
+  // checks are still allowed for that value. Explicit photo/video classifications are authoritative.
+  if (hasExplicitNonAudioMediaType(asset)) return false;
+  return hasAudioMediaType(asset) || hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
+};
+
+export const getAudioAssetRejectReason = (
+  asset: AudioAssetLike,
+  options: AudioImportFilterOptions = {},
+): string | null => {
+  const { enableDurationFilter, minMusicDurationSeconds } = normalizeAudioImportFilterOptions(options);
   const duration = typeof asset.duration === 'number' ? asset.duration : undefined;
 
-  if (duration != null && duration > 0 && duration < MIN_MUSIC_DURATION_SECONDS) {
-    return `shorter-than-${MIN_MUSIC_DURATION_SECONDS}s`;
+  if (!hasSupportedAudioIdentity(asset)) return 'not-audio';
+
+  if (enableDurationFilter && duration != null && duration > 0 && duration < minMusicDurationSeconds) {
+    return `shorter-than-${minMusicDurationSeconds}s`;
   }
 
   const directorySegment = blockedDirectorySegment(asset);
@@ -92,4 +157,7 @@ export const getAudioAssetRejectReason = (asset: AudioAssetLike): string | null 
   return null;
 };
 
-export const isLikelyMusicAsset = (asset: AudioAssetLike): boolean => getAudioAssetRejectReason(asset) == null;
+export const isLikelyMusicAsset = (
+  asset: AudioAssetLike,
+  options: AudioImportFilterOptions = {},
+): boolean => getAudioAssetRejectReason(asset, options) == null;
