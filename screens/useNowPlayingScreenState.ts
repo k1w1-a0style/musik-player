@@ -7,6 +7,15 @@ import { useNowPlayingMenu } from './useNowPlayingMenu';
 import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
 
+export const buildSavedQueuePlaylistName = (date = new Date()): string => {
+  const ts = date.toLocaleString('de-DE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+
+  return `Gespeicherte Queue — ${ts}`;
+};
+
 export const useNowPlayingScreenState = () => {
   const insets = useSafeAreaInsets();
   const {
@@ -30,7 +39,7 @@ export const useNowPlayingScreenState = () => {
   });
 
   const saveCurrentQueueAsPlaylist = () => {
-    const playlist = saveQueueAsPlaylist('Gespeicherte Queue', playbackQueue);
+    const playlist = saveQueueAsPlaylist(buildSavedQueuePlaylistName(), playbackQueue);
     if (!playlist) {
       Alert.alert('Queue speichern', 'Die aktuelle Queue enthält keine Songs.');
       return;

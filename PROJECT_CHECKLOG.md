@@ -13,6 +13,8 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] Storage-API-Typing und Scan-Folder-Merges dokumentiert/stabilisiert.
 - [x] Import-Filter für sehr kurze Audiodateien konfigurierbar gemacht.
 - [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; `newArchEnabled=false` bleibt bewusst dokumentiert.
+- [x] Playlist-Timestamp für gespeicherte Queue ergänzt.
+- [x] `moveOrReplaceFile` Interface-Vertrag dokumentiert.
 
 ## Bewusst separate Themen
 

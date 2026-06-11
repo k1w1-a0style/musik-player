@@ -1,13 +1,16 @@
 import React from 'react';
-import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
-import { useNowPlayingScreenState } from '../useNowPlayingScreenState';
+import { Alert, Pressable, Text } from 'react-native';
+import { fireEvent, render } from '@testing-library/react-native';
+import { buildSavedQueuePlaylistName, useNowPlayingScreenState } from '../useNowPlayingScreenState';
 
 const mockSong = { id: 's1', title: 'One', artist: 'A' };
 const mockSeekTo = jest.fn(async () => undefined);
 const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
-const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Queue', songIds: ['s1'], createdAt: 1 }));
+let mockPlaybackQueue = [mockSong];
+const mockSaveQueueAsPlaylist = jest.fn((name: string, queue: typeof mockPlaybackQueue) =>
+  queue.length ? { id: 'pl-1', name, songIds: queue.map((song) => song.id), createdAt: 1 } : null,
+);
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 12 }),
@@ -15,7 +18,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('../../contexts/MusicContext', () => ({
   useNowPlayingMusicContext: () => ({
-    playbackQueue: [mockSong],
+    playbackQueue: mockPlaybackQueue,
     currentSong: mockSong,
     seekTo: mockSeekTo,
     isPlaying: true,
@@ -80,11 +83,27 @@ const ScreenStateProbe = () => {
       <Text testID="position">{state.position}</Text>
       <Text testID="duration">{state.duration}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
+      <Pressable testID="save-queue" onPress={state.saveCurrentQueueAsPlaylist}>
+        <Text>Save queue</Text>
+      </Pressable>
     </>
   );
 };
 
 describe('useNowPlayingScreenState', () => {
+  beforeEach(() => {
+    mockPlaybackQueue = [mockSong];
+    mockSaveQueueAsPlaylist.mockClear();
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-06-11T14:35:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
   test('combines now playing screen state', () => {
     const { getByTestId } = render(<ScreenStateProbe />);
 
@@ -96,5 +115,37 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('position').props.children).toBe(3);
     expect(getByTestId('duration').props.children).toBe(9);
     expect(getByTestId('can-save-queue').props.children).toBe('true');
+  });
+
+  test('builds saved queue playlist names with German timestamps', () => {
+    const name = buildSavedQueuePlaylistName(new Date('2026-06-11T14:35:00.000Z'));
+
+    expect(name).toMatch(/^Gespeicherte Queue — .+/);
+    expect(name).toContain('11.06.26');
+    expect(name).toContain('14:35');
+  });
+
+  test('saves the current queue with a timestamped playlist name and shows it in the alert', () => {
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('save-queue'));
+
+    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
+      expect.stringMatching(/^Gespeicherte Queue — .+/),
+      [mockSong],
+    );
+    const savedName = mockSaveQueueAsPlaylist.mock.calls[0][0];
+    expect(savedName).toContain('11.06.26');
+    expect(savedName).toContain('14:35');
+    expect(Alert.alert).toHaveBeenCalledWith('Playlist gespeichert', `„${savedName}“ wurde erstellt.`);
+  });
+
+  test('keeps the empty queue alert unchanged', () => {
+    mockPlaybackQueue = [];
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('save-queue'));
+
+    expect(Alert.alert).toHaveBeenCalledWith('Queue speichern', 'Die aktuelle Queue enthält keine Songs.');
   });
 });
