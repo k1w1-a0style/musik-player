@@ -98,7 +98,8 @@ describe('coverCache', () => {
     expect(LegacyFileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
-  test('strips embedded base64 cover when file write fails', async () => {
+  test('strips embedded base64 cover when file write fails and logs a debuggable warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (LegacyFileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('write rejected'));
     const originalCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
     const songs: Song[] = [
@@ -115,6 +116,12 @@ describe('coverCache', () => {
 
     expect(result[0].cover).toBeUndefined();
     expect(result[0].coverInfo).toEqual({ status: 'none' });
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCache]',
+      'Optional cover cache write failed; embedded cover will not be persisted.',
+      { reason: 'cache_write_failed' },
+    );
+    warnSpy.mockRestore();
   });
 
   test('strips invalid embedded base64 cover during storage sanitizing', async () => {

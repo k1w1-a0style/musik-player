@@ -12,6 +12,8 @@ type WriteTagsOptions = { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: numb
 
 type TagFileInfo = { exists: boolean; size?: number; isDirectory?: boolean };
 
+type AttemptUris = { backupUri: string; tempUri: string };
+
 const assertSafeFileSize = (size: number, maxFileSizeBytes: number): void => {
   if (size > maxFileSizeBytes) {
     throw new TagWriterError(
@@ -60,6 +62,91 @@ const readTargetBytes = async (
   }
 };
 
+const cleanupAttemptFiles = async (
+  adapter: TagFileWriteAdapter,
+  { backupUri, tempUri }: AttemptUris,
+  warnings?: string[],
+  context = 'after aborted write',
+): Promise<void> => {
+  try {
+    await adapter.deleteFile(tempUri);
+  } catch (error) {
+    const message = `Temp cleanup failed ${context}; temp file retained.`;
+    if (warnings) warnings.push(message);
+    else tagWriterWarn(message, error);
+  }
+  try {
+    await adapter.deleteFile(backupUri);
+  } catch (error) {
+    const message = `Backup cleanup failed ${context}; backup file retained.`;
+    if (warnings) warnings.push(message);
+    else tagWriterWarn(message, error);
+  }
+};
+
+const rollbackFromBackup = async (
+  adapter: TagFileWriteAdapter,
+  uri: string,
+  original: Uint8Array,
+  attemptUris: AttemptUris,
+  reason: unknown,
+): Promise<WriteTagsResult> => {
+  const { backupUri, tempUri } = attemptUris;
+  try {
+    await adapter.copyFile(backupUri, uri);
+    const restored = await adapter.readBytes(uri);
+    if (!areBytesEqual(restored, original)) {
+      throw new Error('Rollback verification failed; restored bytes differ from original.');
+    }
+    const rollbackWarnings = [
+      `Replace failed and rollback restored backup: ${String(reason)}`,
+    ];
+    await cleanupAttemptFiles(adapter, attemptUris, rollbackWarnings, 'after rollback');
+    return {
+      status: 'rolledBack',
+      sourceUri: uri,
+      backupUri,
+      tempUri,
+      bytesBefore: original.length,
+      bytesAfter: original.length,
+      warnings: rollbackWarnings,
+    };
+  } catch (rollbackError) {
+    try {
+      await adapter.deleteFile(tempUri);
+    } catch (cleanupError) {
+      tagWriterWarn('Temp cleanup failed after failed rollback; temp file retained.', cleanupError);
+    }
+    throw new TagWriterError(
+      'RollbackFailed',
+      `Replace failed and rollback failed: ${String(reason)}; rollback error: ${String(rollbackError)}`,
+    );
+  }
+};
+
+const verifyBytes = async (
+  adapter: TagFileWriteAdapter,
+  uri: string,
+  expected: Uint8Array,
+  failurePrefix: string,
+): Promise<void> => {
+  let actual: Uint8Array;
+  try {
+    actual = await adapter.readBytes(uri);
+  } catch (error) {
+    throw new TagWriterError(
+      'VerificationFailed',
+      `${failurePrefix} could not be verified: ${String(error)}`,
+    );
+  }
+  if (!areBytesEqual(actual, expected)) {
+    throw new TagWriterError(
+      'VerificationFailed',
+      `${failurePrefix} bytes do not match rewritten payload.`,
+    );
+  }
+};
+
 export const writeTagsToFileOrThrow = async (
   song: Song,
   draft: TagEditDraft,
@@ -99,97 +186,41 @@ export const writeTagsToFileOrThrow = async (
         bytesAfter: next.length,
         warnings: [],
       };
-    const backupUri = buildAttemptScopedUri(uri, 'bak');
-    const tempUri = buildAttemptScopedUri(uri, 'tmp');
-    const cleanupBackupAndTemp = async (): Promise<void> => {
-      try {
-        await adapter.deleteFile(tempUri);
-      } catch (error) {
-        tagWriterWarn('Temp cleanup failed after aborted write; temp file retained.', error);
-      }
-      try {
-        await adapter.deleteFile(backupUri);
-      } catch (error) {
-        tagWriterWarn('Backup cleanup failed after aborted write; backup file retained.', error);
-      }
+
+    const attemptUris = {
+      backupUri: buildAttemptScopedUri(uri, 'bak'),
+      tempUri: buildAttemptScopedUri(uri, 'tmp'),
     };
+    const { backupUri, tempUri } = attemptUris;
+
     try {
       await adapter.copyFile(uri, backupUri);
-    } catch {
-      throw new TagWriterError('BackupFailed', 'Backup creation failed.');
+    } catch (error) {
+      throw new TagWriterError('BackupFailed', `Backup creation failed: ${String(error)}`);
     }
     try {
       await adapter.writeBytes(tempUri, next);
-    } catch {
-      await cleanupBackupAndTemp();
-      throw new TagWriterError('TempWriteFailed', 'Temp file write failed.');
-    }
-    let tempBytes: Uint8Array;
-    try {
-      tempBytes = await adapter.readBytes(tempUri);
     } catch (error) {
-      await cleanupBackupAndTemp();
-      throw new TagWriterError(
-        'VerificationFailed',
-        `Temp output could not be verified: ${String(error)}`,
-      );
+      await cleanupAttemptFiles(adapter, attemptUris);
+      throw new TagWriterError('TempWriteFailed', `Temp file write failed: ${String(error)}`);
     }
-    if (!areBytesEqual(tempBytes, next)) {
-      await cleanupBackupAndTemp();
-      throw new TagWriterError(
-        'VerificationFailed',
-        'Temp output bytes do not match rewritten payload.',
-      );
+
+    try {
+      await verifyBytes(adapter, tempUri, next, 'Temp output');
+    } catch (error) {
+      await cleanupAttemptFiles(adapter, attemptUris);
+      throw error;
     }
+
     try {
       await adapter.moveOrReplaceFile(tempUri, uri);
+      await verifyBytes(adapter, uri, next, 'Replaced target');
     } catch (error) {
-      try {
-        await adapter.copyFile(backupUri, uri);
-        const rollbackWarnings = [
-          `Replace failed and rollback restored backup: ${String(error)}`,
-        ];
-        try {
-          await adapter.deleteFile(tempUri);
-        } catch {
-          rollbackWarnings.push(
-            'Temp cleanup failed after rollback; temp file retained.',
-          );
-        }
-        try {
-          await adapter.deleteFile(backupUri);
-        } catch {
-          rollbackWarnings.push(
-            'Backup cleanup failed after rollback; backup file retained.',
-          );
-        }
-        return {
-          status: 'rolledBack',
-          sourceUri: uri,
-          backupUri,
-          tempUri,
-          bytesBefore: original.length,
-          bytesAfter: original.length,
-          warnings: rollbackWarnings,
-        };
-      } catch {
-        throw new TagWriterError(
-          'RollbackFailed',
-          `Replace failed and rollback failed: ${String(error)}`,
-        );
-      }
+      return rollbackFromBackup(adapter, uri, original, attemptUris, error);
     }
+
     const warnings: string[] = [];
-    try {
-      await adapter.deleteFile(tempUri);
-    } catch {
-      warnings.push('Temp cleanup failed; temp file retained.');
-    }
-    try {
-      await adapter.deleteFile(backupUri);
-    } catch {
-      warnings.push('Backup cleanup failed; backup file retained.');
-    }
+    await cleanupAttemptFiles(adapter, attemptUris, warnings, 'after successful write');
     return {
       status: 'written',
       sourceUri: uri,

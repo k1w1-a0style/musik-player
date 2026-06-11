@@ -51,6 +51,40 @@ const base64PrefixToBytes = (value: string, maxBytes = 16): Uint8Array => {
   return out.subarray(0, j);
 };
 
+
+export type CoverCacheWriteFailureReason =
+  | 'cache_directory_unavailable'
+  | 'cache_filesystem_unavailable'
+  | 'cache_mkdir_failed'
+  | 'cache_info_failed'
+  | 'cache_write_failed'
+  | 'cache_unexpected_failed';
+
+class CoverCacheWriteError extends Error {
+  constructor(readonly reason: CoverCacheWriteFailureReason, readonly cause?: unknown) {
+    super(reason);
+    this.name = 'CoverCacheWriteError';
+  }
+}
+
+const logCoverCacheWarning = (reason: CoverCacheWriteFailureReason): void => {
+  console.warn('[CoverCache]', 'Optional cover cache write failed; embedded cover will not be persisted.', { reason });
+};
+
+const withCoverCacheFailureReason = async <T>(
+  operation: Promise<T>,
+  reason: CoverCacheWriteFailureReason,
+): Promise<T> => {
+  try {
+    return await operation;
+  } catch (error) {
+    throw new CoverCacheWriteError(reason, error);
+  }
+};
+
+const getCoverCacheFailureReason = (error: unknown): CoverCacheWriteFailureReason =>
+  error instanceof CoverCacheWriteError ? error.reason : 'cache_unexpected_failed';
+
 const hashString = (value: string): string => {
   let h = 2166136261;
   for (let i = 0; i < value.length; i += 1) {
@@ -78,7 +112,10 @@ export const cacheBase64Cover = async (
   if (!match) return cover;
 
   const baseDir = getBaseDirectory();
-  if (!baseDir) return undefined;
+  if (!baseDir) {
+    logCoverCacheWarning('cache_directory_unavailable');
+    return undefined;
+  }
 
   try {
     const directory = `${baseDir}covers`;
@@ -86,9 +123,14 @@ export const cacheBase64Cover = async (
       ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
     const write = writeAsStringAsync
       ?? (FileSystem as unknown as { writeAsStringAsync?: typeof writeAsStringAsync }).writeAsStringAsync;
-    if (!mkdir || !write) return undefined;
+    const getInfo = getInfoAsync
+      ?? (FileSystem as unknown as { getInfoAsync?: typeof getInfoAsync }).getInfoAsync;
+    if (!mkdir || !write || !getInfo) {
+      logCoverCacheWarning('cache_filesystem_unavailable');
+      return undefined;
+    }
 
-    await mkdir(directory, { intermediates: true });
+    await withCoverCacheFailureReason(mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
 
     const base64 = trimmed.slice(match[0].length);
     if (!isLikelyValidBase64Payload(base64)) return undefined;
@@ -107,14 +149,15 @@ export const cacheBase64Cover = async (
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
     protection?.protectUri(fileUri);
     await waitForCoverCacheCleanupIdle();
-    const existing = await getInfoAsync(fileUri);
+    const existing = await withCoverCacheFailureReason(getInfo(fileUri), 'cache_info_failed');
     if (existing.exists) return fileUri;
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
-    await write(fileUri, base64, {
+    await withCoverCacheFailureReason(write(fileUri, base64, {
       encoding: base64Encoding,
-    });
+    }), 'cache_write_failed');
     return fileUri;
-  } catch {
+  } catch (error) {
+    logCoverCacheWarning(getCoverCacheFailureReason(error));
     return undefined;
   }
 };

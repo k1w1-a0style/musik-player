@@ -1078,6 +1078,49 @@ describe('writeTagsToFile safe file writes', () => {
     );
   });
 
+  test('replace verification failure rolls back to original bytes', async () => {
+    const uri = 'file:///a.mp3';
+    const original = u8(1, 2, 3);
+    const { adapter, files } = mkAdapter({ [uri]: original });
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
+      files.set(uri, u8(9, 9, 9));
+    });
+    const result = await writeTagsToFile(
+      song({ uri, fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' } },
+      { adapter },
+    );
+    expect(result.status).toBe('rolledBack');
+    expect(files.get(uri)).toEqual(original);
+    expect(result.warnings.join(' ')).toMatch(/rollback restored backup/i);
+  });
+
+  test('rollback verification failure is reported as RollbackFailed', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    jest.spyOn(adapter, 'moveOrReplaceFile').mockImplementation(async () => {
+      throw new Error('replace failed');
+    });
+    jest.spyOn(adapter, 'copyFile').mockImplementation(async (from: string, to: string) => {
+      if (from.endsWith('.bak') && to === uri) {
+        files.set(uri, u8(7, 7, 7));
+        return;
+      }
+      const v = files.get(from);
+      if (!v) throw new Error('missing');
+      files.set(to, v.slice());
+    });
+    await expectWriteFailure(
+      writeTagsToFile(
+        song({ uri, fileInfo: { extension: 'mp3' } }),
+        { songId: '1', tags: { title: 'X' } },
+        { adapter },
+      ),
+      'RollbackFailed',
+    );
+    expect(files.get(uri)).toEqual(u8(7, 7, 7));
+  });
+
   test('backup cleanup failure keeps success with warning', async () => {
     const uri = 'file:///a.mp3';
     const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
