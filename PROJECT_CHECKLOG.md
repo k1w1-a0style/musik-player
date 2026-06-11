@@ -29,8 +29,8 @@ Automatisierte Gates:
 - [ ] `npm run lint:ci`
 - [ ] `npm test -- --runInBand`
 - [ ] `npx expo config --type public`
-- [ ] `npm test -- --runInBand --testPathPatterns=__tests__/expoReleaseConfigGate.test.ts`
-- [ ] `npm test -- --runInBand --testPathPatterns=__tests__/androidManifestPermissionGate.test.ts`
+- [ ] `npm test -- --runInBand --testPathPattern=__tests__/expoReleaseConfigGate.test.ts`
+- [ ] `npm test -- --runInBand --testPathPattern=__tests__/androidManifestPermissionGate.test.ts`
 
 Optionale/manuelle Android-Smokes nach Build oder SDK-/FileSystem-Änderungen:
 
