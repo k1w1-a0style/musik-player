@@ -90,6 +90,18 @@ describe('playbackPlan helpers', () => {
     );
   });
 
+  test('does not log warnings by default for expected queue normalization drops', () => {
+    const logger = { warn: jest.fn() };
+
+    const normalized = normalizePlayableQueue([
+      { id: 's1', title: 'No Uri', artist: 'A' },
+      songs[0],
+    ], { logger });
+
+    expect(normalized.map(song => song.id)).toEqual(['s1']);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   test('does not log warnings when warn=false', () => {
     const logger = { warn: jest.fn() };
 
@@ -179,7 +191,7 @@ describe('playbackPlan helpers', () => {
     expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['external', 's1', 's2', 's3']);
   });
 
-  test('builds shuffle-on plan while keeping current song first', () => {
+  test('builds shuffle-on plan deterministically with injected randomness while keeping current song first', () => {
     const plan = buildShuffleTogglePlan({
       currentQueue: songs,
       baseQueue: [],
@@ -188,8 +200,7 @@ describe('playbackPlan helpers', () => {
       random: () => 0,
     });
 
-    expect(plan?.nextQueue[0].id).toBe('s2');
-    expect(plan?.nextQueue.map(song => song.id).sort()).toEqual(['s1', 's2', 's3']);
+    expect(plan?.nextQueue.map(song => song.id)).toEqual(['s2', 's3', 's1']);
     expect(plan?.nextBaseQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
     expect(plan?.selectedSong?.id).toBe('s2');
   });

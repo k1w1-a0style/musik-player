@@ -313,10 +313,18 @@ describe('coverCache', () => {
     expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalledWith('file:///docs/covers/aaa-bbb.jpg', expect.anything());
   });
 
-  test('ignores cleanup failures', async () => {
+  test('ignores cleanup failures and logs a sanitized warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('no access'));
 
     await expect(cleanupCoverCache([])).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCacheCleanup]',
+      'Best-effort cleanup failed; cache state was left unchanged.',
+      { reason: 'cache_read_failed' },
+    );
+    warnSpy.mockRestore();
   });
 });

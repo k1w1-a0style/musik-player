@@ -35,6 +35,8 @@ const createDeferred = <T,>(): Deferred<T> => {
   return { promise, resolve };
 };
 
+const stringifyWarnCalls = (warnSpy: jest.SpyInstance): string => JSON.stringify(warnSpy.mock.calls);
+
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
     invalidateCoverCacheCleanup();
@@ -253,17 +255,70 @@ describe('coverCacheCleanup', () => {
     expect(LegacyFileSystem.readDirectoryAsync).not.toHaveBeenCalled();
   });
 
-  test('cleanup delete errors resolve without unhandled rejection', async () => {
+  test('getInfo failures log a classified reason without leaking file uris or local paths', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('Cannot stat file:///docs/covers from /storage/emulated/0/Music/covers'),
+    );
+
+    await expect(cleanupCoverCache([])).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCacheCleanup]',
+      'Best-effort cleanup failed; cache state was left unchanged.',
+      { reason: 'cache_info_failed' },
+    );
+    const logText = stringifyWarnCalls(warnSpy);
+    expect(logText).not.toContain('file://');
+    expect(logText).not.toContain('/storage/emulated/0');
+    expect(logText).not.toContain('/Music/covers');
+    warnSpy.mockRestore();
+  });
+
+  test('readDirectory failures log a classified reason without leaking content or SAF document uris', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('Cannot read content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2FAlbum#frag'),
+    );
+
+    await expect(cleanupCoverCache([])).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCacheCleanup]',
+      'Best-effort cleanup failed; cache state was left unchanged.',
+      { reason: 'cache_read_failed' },
+    );
+    const logText = stringifyWarnCalls(warnSpy);
+    expect(logText).not.toContain('content://');
+    expect(logText).not.toContain('com.android.externalstorage.documents');
+    expect(logText).not.toContain('primary%3AMusic');
+    warnSpy.mockRestore();
+  });
+
+  test('cleanup delete errors resolve without unhandled rejection and log sanitized classified warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const unhandled = jest.fn();
     process.once('unhandledRejection', unhandled);
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg']);
-    (LegacyFileSystem.deleteAsync as jest.Mock).mockRejectedValueOnce(new Error('delete failed'));
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('delete failed for file:///docs/covers/aaa-bbb.jpg at /storage/emulated/0/Music/aaa-bbb.jpg?token=1'),
+    );
 
     await expect(cleanupCoverCache([])).resolves.toBeUndefined();
     await new Promise(resolve => setImmediate(resolve));
 
     expect(unhandled).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[CoverCacheCleanup]',
+      'Best-effort cleanup failed; cache state was left unchanged.',
+      { reason: 'cache_delete_failed' },
+    );
+    const logText = stringifyWarnCalls(warnSpy);
+    expect(logText).not.toContain('file:///docs/covers');
+    expect(logText).not.toContain('aaa-bbb.jpg');
+    expect(logText).not.toContain('/storage/emulated/0');
     process.removeListener('unhandledRejection', unhandled);
+    warnSpy.mockRestore();
   });
 
   test('does nothing when cache directory is missing', async () => {

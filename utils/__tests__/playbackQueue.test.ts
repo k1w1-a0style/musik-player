@@ -55,13 +55,10 @@ describe('playbackQueue helpers', () => {
     expect(hasSameSongIdMultiset([songs[0], songs[0]], [songs[0], songs[1]])).toBe(false);
   });
 
-  test('keeps current song first while shuffling the rest', () => {
-    jest.spyOn(Math, 'random').mockReturnValue(0);
+  test('keeps current song first while shuffling the rest with injected randomness', () => {
+    const result = shuffleQueueKeepingCurrent(songs, ' s2 ', () => 0);
 
-    const result = shuffleQueueKeepingCurrent(songs, ' s2 ');
-
-    expect(result[0].id).toBe('s2');
-    expect(result.map(song => song.id).sort()).toEqual(['s1', 's2', 's3']);
+    expect(result.map(song => song.id)).toEqual(['s2', 's1', 's3']);
   });
 
   test('shuffle returns copied queue for two or fewer items', () => {

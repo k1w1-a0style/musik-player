@@ -17,6 +17,31 @@ let latestCleanupRequestId = 0;
 let latestCleanupSongs: Song[] | undefined;
 let cleanupDrainPromise: Promise<void> | undefined;
 type CoverCacheProtectionToken = symbol;
+type CleanupFailureReason = 'cache_info_failed' | 'cache_read_failed' | 'cache_delete_failed' | 'cleanup_failed';
+
+class CoverCacheCleanupError extends Error {
+  constructor(readonly reason: CleanupFailureReason) {
+    super(reason);
+  }
+}
+
+const getCleanupFailureReason = (error: unknown): CleanupFailureReason =>
+  error instanceof CoverCacheCleanupError ? error.reason : 'cleanup_failed';
+
+const logCleanupWarning = (reason: CleanupFailureReason): void => {
+  console.warn('[CoverCacheCleanup]', 'Best-effort cleanup failed; cache state was left unchanged.', { reason });
+};
+
+const withCleanupFailureReason = async <T>(
+  operation: Promise<T>,
+  reason: CleanupFailureReason,
+): Promise<T> => {
+  try {
+    return await operation;
+  } catch {
+    throw new CoverCacheCleanupError(reason);
+  }
+};
 
 export type CoverCacheProtection = {
   protectUri: (uri?: string) => void;
@@ -89,7 +114,10 @@ const deleteFilesInBatches = async (
     for (const fileName of batch) {
       if (!shouldContinue()) return;
       if (isProtected(fileName)) continue;
-      await eraseFile(`${directory}/${fileName}`, { idempotent: true });
+      await withCleanupFailureReason(
+        eraseFile(`${directory}/${fileName}`, { idempotent: true }),
+        'cache_delete_failed',
+      );
     }
   }
 };
@@ -108,11 +136,11 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
     const eraseFile = fs.deleteAsync ?? fallbackFs.deleteAsync;
     if (!getInfo || !readDirectory || !eraseFile) return;
 
-    const info = await getInfo(directory);
+    const info = await withCleanupFailureReason(getInfo(directory), 'cache_info_failed');
     if (!info.exists || !isLatestCleanupRequest(requestId)) return;
 
     const referencedFileNames = getReferencedFileNames(songs, directory);
-    const cachedFileNames = await readDirectory(directory);
+    const cachedFileNames = await withCleanupFailureReason(readDirectory(directory), 'cache_read_failed');
     if (!isLatestCleanupRequest(requestId)) return;
     const orphanedFileNames = cachedFileNames.filter(
       fileName => isSafeCoverCacheFileName(fileName) && !referencedFileNames.has(fileName),
@@ -124,8 +152,9 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
       () => isLatestCleanupRequest(requestId),
       fileName => referencedFileNames.has(fileName) || isCoverFileProtected(fileName),
     );
-  } catch {
+  } catch (error) {
     // Best-effort cache maintenance must not break library hydration or persistence.
+    logCleanupWarning(getCleanupFailureReason(error));
   }
 };
 
