@@ -486,13 +486,24 @@ export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScan
 
 const getScanFolderIdentity = (folder: ScanFolder): string => folder.id || folder.uri;
 
+const mergeScanFolder = (currentFolder: ScanFolder | undefined, incomingFolder: ScanFolder): ScanFolder => {
+  if (!currentFolder) return incomingFolder;
+  return { ...incomingFolder, ...currentFolder };
+};
+
 const mergeScanFolderSnapshots = (currentFolders: ScanFolder[], incomingFolders: ScanFolder[]): ScanFolder[] => {
+  const currentFoldersByIdentity = new Map(currentFolders.map(folder => [getScanFolderIdentity(folder), folder]));
   const incomingIdentities = new Set(incomingFolders.map(getScanFolderIdentity));
+  const mergedIncomingFolders = incomingFolders.map(folder =>
+    mergeScanFolder(currentFoldersByIdentity.get(getScanFolderIdentity(folder)), folder),
+  );
   const currentOnlyFolders = currentFolders.filter(folder => !incomingIdentities.has(getScanFolderIdentity(folder)));
-  return [...incomingFolders, ...currentOnlyFolders];
+  return [...mergedIncomingFolders, ...currentOnlyFolders];
 };
 
 export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
+  // Treat full-list saves as snapshot hydration: merge with the latest stored state so stale snapshots
+  // cannot erase newer metadata written by targeted scan-folder mutations.
   await withScanFoldersMutationLock(async () => {
     const currentFolders = await getScanFolders();
     await storage.setScanFolders(mergeScanFolderSnapshots(currentFolders, folders));

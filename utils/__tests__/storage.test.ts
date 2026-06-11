@@ -472,6 +472,51 @@ describe('storage', () => {
     await expect(getScanFolders()).resolves.toEqual([hydrated, normal]);
   });
 
+  test('does not let an older scan folder snapshot erase newer metadata', async () => {
+    const oldSnapshot = {
+      id: 'a',
+      name: 'Old Name',
+      uri: 'content://a',
+      addedAt: 1,
+      enabled: true,
+    };
+    const current = {
+      ...oldSnapshot,
+      name: 'Current Name',
+      enabled: false,
+      lastError: 'Read failed',
+      permission: { persisted: true },
+      saf: { treeUri: 'content://tree/a' },
+    } as ScanFolder & { permission: { persisted: boolean }; saf: { treeUri: string } };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [current]);
+
+    await saveScanFolders([oldSnapshot]);
+
+    await expect(getScanFolders()).resolves.toEqual([current]);
+  });
+
+  test('serializes scan folder snapshot saves with updates without erasing newer fields', async () => {
+    const oldSnapshot = { id: 'a', name: 'Folder A', uri: 'content://a', addedAt: 1, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [oldSnapshot]);
+
+    await Promise.all([
+      updateScanFolder('a', { lastError: 'Permission denied' }),
+      saveScanFolders([oldSnapshot]),
+    ]);
+
+    await expect(getScanFolders()).resolves.toEqual([{ ...oldSnapshot, lastError: 'Permission denied' }]);
+  });
+
+  test('snapshot scan folder saves still add incoming folders and keep unrelated existing folders', async () => {
+    const existing = { id: 'existing', name: 'Existing', uri: 'content://existing', addedAt: 1, enabled: true };
+    const incoming = { id: 'incoming', name: 'Incoming', uri: 'content://incoming', addedAt: 2, enabled: true };
+    await storage.set(StorageKeys.SCAN_FOLDERS, [existing]);
+
+    await saveScanFolders([incoming]);
+
+    await expect(getScanFolders()).resolves.toEqual([incoming, existing]);
+  });
+
   test('preserves permission and SAF metadata during parallel scan folder updates', async () => {
     const existing = {
       id: 'existing',
