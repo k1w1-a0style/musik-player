@@ -323,7 +323,7 @@ describe('coverCache', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       '[CoverCacheCleanup]',
       'Best-effort cleanup failed; cache state was left unchanged.',
-      'no access',
+      { reason: 'cache_read_failed' },
     );
     warnSpy.mockRestore();
   });
