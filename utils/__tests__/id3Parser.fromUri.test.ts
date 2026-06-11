@@ -244,6 +244,59 @@ describe('parseId3FromUri', () => {
     expect(handle.close).toHaveBeenCalled();
   });
 
+  test('File.open fallback scans text frames after oversized APIC without File.bytes', async () => {
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(3 * 1024 * 1024));
+    const titleFrame = id3TextFrame('TIT2', 'After Open Cover');
+    const apicSize = 2 * 1024 * 1024;
+    const apicHeader = [...enc('APIC'), ...u32be(apicSize), 0, 0];
+    const tagSize = apicHeader.length + apicSize + titleFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const content = new Uint8Array(10 + tagSize);
+    content.set(header, 0);
+    content.set(apicHeader, header.length);
+    content.set(titleFrame, 10 + apicHeader.length + apicSize);
+    let offset: number | null = 0;
+    const handle = {
+      get offset() {
+        return offset;
+      },
+      set offset(next: number | null) {
+        offset = next;
+      },
+      readBytes: jest.fn((length: number): Uint8Array =>
+        content.subarray(offset ?? 0, (offset ?? 0) + length),
+      ),
+      close: jest.fn(),
+    };
+    mockOpen.mockReturnValueOnce(handle);
+
+    const tags = await parseId3FromUri('file:///music/big-open.mp3');
+
+    expect(tags.title).toBe('After Open Cover');
+    expect(mockFileBytes).not.toHaveBeenCalled();
+    expect(handle.readBytes).not.toHaveBeenCalledWith(apicSize);
+    expect(handle.close).toHaveBeenCalled();
+  });
+
+  test('skips File.bytes fallback for large files without a range-capable handle', async () => {
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    mockOpen.mockReturnValueOnce(undefined);
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const tags = await parseId3FromUri('file:///music/no-range.mp3?x=1');
+
+    expect(tags).toEqual({});
+    expect(mockOpen).toHaveBeenCalled();
+    expect(mockFileBytes).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[ID3Parser] Skipping File.bytes fallback for large file without range read support.',
+      { uri: 'file:///music/no-range.mp3', size: 2 * 1024 * 1024, limit: 1024 * 1024 },
+    );
+    warnSpy.mockRestore();
+  });
+
   test('legacy fallback scans large ID3 tags without loading oversized APIC payloads', async () => {
     const titleFrame = id3TextFrame('TIT2', 'After Cover');
     const apicSize = 2 * 1024 * 1024;

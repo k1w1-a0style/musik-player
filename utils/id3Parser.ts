@@ -29,6 +29,26 @@ const TAIL_READ_LIMIT = 1024 * 1024;
 const ID3_FRAME_SCAN_LIMIT = 8 * 1024 * 1024;
 const ID3_TEXT_FRAME_READ_LIMIT = 64 * 1024;
 
+type Id3FileInfo = { exists: boolean; size: number };
+
+const getId3FileInfo = async (uri: string): Promise<Id3FileInfo> => {
+  // Keep legacy getInfo localized: modern Paths.info lacks file size and File.info
+  // can throw for provider-backed/non-file URIs. The deprecated risk is isolated here;
+  // migrate when the modern API exposes async, URI-compatible exists+size metadata.
+  const info = (await getInfoAsync(uri)) as { exists?: boolean; size?: unknown } | undefined;
+  return {
+    exists: Boolean(info?.exists),
+    size: typeof info?.size === 'number' ? info.size : 0,
+  };
+};
+
+const warnLargeBytesFallbackSkipped = (uri: string, size: number): void => {
+  console.warn(
+    '[ID3Parser] Skipping File.bytes fallback for large file without range read support.',
+    { uri, size, limit: HEAD_READ_LIMIT },
+  );
+};
+
 const decodeSyncsafe = (bytes: Uint8Array, off: number): number | undefined => {
   if (off < 0 || off + 4 > bytes.length) return undefined;
   const b0 = bytes[off];
@@ -703,9 +723,9 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
       }
       if (id3.cover || !looksLikeMp4) return id3;
       try {
-        const info = await getInfoAsync(normalizedUri);
+        const info = await getId3FileInfo(normalizedUri);
         if (!info.exists) return id3;
-        const size = info.size ?? 0;
+        const size = info.size;
         if (size <= HEAD_READ_LIMIT) return id3;
         const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
         const tailStart = Math.max(0, size - tailReadLength);
@@ -739,9 +759,9 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     ).File;
     if (!FileCtor) return {};
     try {
-      const info = await getInfoAsync(normalizedUri);
+      const info = await getId3FileInfo(normalizedUri);
       if (!info.exists) return {};
-      const size = info.size ?? 0;
+      const size = info.size;
       if (size <= 0) return {};
       const file = new FileCtor(normalizedUri);
       const open = (
@@ -777,7 +797,12 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
           }
         }
       }
-      if (size > HEAD_READ_LIMIT) return {};
+      if (size > HEAD_READ_LIMIT) {
+        // File.bytes() loads the entire file. Without File.open()/range reads, large
+        // media must return a controlled empty result rather than risk a memory spike.
+        warnLargeBytesFallbackSkipped(normalizedUri, size);
+        return {};
+      }
       const bytes = await file.bytes();
       return parseHeadBytes(bytes.subarray(0, HEAD_READ_LIMIT));
     } catch {

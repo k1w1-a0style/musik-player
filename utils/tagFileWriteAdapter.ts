@@ -1,6 +1,6 @@
-import { copyAsync, deleteAsync, EncodingType, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
-import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
+import * as Base64Helpers from './base64';
 
 export interface TagFileWriteAdapter {
   canReplaceExistingFile?: () => Promise<boolean> | boolean;
@@ -31,6 +31,12 @@ export class TagFileWriteAdapterError extends Error {
   }
 }
 
+// Tag writes need the legacy FileSystem module for now because Expo's modern File API
+// does not provide an async, consistently overwrite-safe copy/delete/getInfo surface for
+// URI-backed media files across platforms. The risk is relying on deprecated APIs, so this
+// adapter is the single boundary; migrate once modern async file replacement and range-safe
+// info semantics are available for the target Expo SDK/platforms.
+
 type LegacyFileSystemFunction<T extends (...args: never[]) => Promise<unknown>> = T | undefined;
 
 const missingFunctionError = (operation: TagFileWriteOperation, functionName: string): TagFileWriteAdapterError =>
@@ -54,7 +60,7 @@ const requireFileSystemFunction = <T extends (...args: never[]) => Promise<unkno
   return fn;
 };
 
-const base64Encoding = (): 'base64' => (EncodingType.Base64 ?? 'base64') as 'base64';
+const base64Encoding = (): 'base64' => (LegacyFileSystem.EncodingType.Base64 ?? 'base64') as 'base64';
 
 export const getDefaultReplaceSupportForPlatform = (platform: string): boolean => platform === 'android';
 
@@ -62,24 +68,24 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   canReplaceExistingFile: () => getDefaultReplaceSupportForPlatform(Platform.OS),
   async readBytes(uri) {
     try {
-      const read = requireFileSystemFunction('readBytes', 'readAsStringAsync', readAsStringAsync);
+      const read = requireFileSystemFunction('readBytes', 'readAsStringAsync', LegacyFileSystem.readAsStringAsync);
       const base64 = await read(uri, { encoding: base64Encoding() });
-      return decodeBase64ToBytes(String(base64));
+      return Base64Helpers.decodeBase64ToBytes(String(base64));
     } catch (error) {
       throw wrapFileSystemError('readBytes', `Failed to read bytes from ${uri}.`, error);
     }
   },
   async writeBytes(uri, bytes) {
     try {
-      const write = requireFileSystemFunction('writeBytes', 'writeAsStringAsync', writeAsStringAsync);
-      await write(uri, encodeBytesToBase64(bytes), { encoding: base64Encoding() });
+      const write = requireFileSystemFunction('writeBytes', 'writeAsStringAsync', LegacyFileSystem.writeAsStringAsync);
+      await write(uri, Base64Helpers.encodeBytesToBase64(bytes), { encoding: base64Encoding() });
     } catch (error) {
       throw wrapFileSystemError('writeBytes', `Failed to write bytes to ${uri}.`, error);
     }
   },
   async copyFile(fromUri, toUri) {
     try {
-      const copy = requireFileSystemFunction('copyFile', 'copyAsync', copyAsync);
+      const copy = requireFileSystemFunction('copyFile', 'copyAsync', LegacyFileSystem.copyAsync);
       await copy({ from: fromUri, to: toUri });
     } catch (error) {
       throw wrapFileSystemError('copyFile', `Failed to copy ${fromUri} to ${toUri}.`, error);
@@ -87,7 +93,7 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   },
   async moveOrReplaceFile(fromUri, toUri) {
     try {
-      const copy = requireFileSystemFunction('moveOrReplaceFile', 'copyAsync', copyAsync);
+      const copy = requireFileSystemFunction('moveOrReplaceFile', 'copyAsync', LegacyFileSystem.copyAsync);
       await copy({ from: fromUri, to: toUri });
     } catch (error) {
       throw wrapFileSystemError('moveOrReplaceFile', `Failed to replace ${toUri} with ${fromUri}.`, error);
@@ -95,7 +101,7 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   },
   async deleteFile(uri) {
     try {
-      const erase = requireFileSystemFunction('deleteFile', 'deleteAsync', deleteAsync);
+      const erase = requireFileSystemFunction('deleteFile', 'deleteAsync', LegacyFileSystem.deleteAsync);
       await erase(uri, { idempotent: true });
     } catch (error) {
       throw wrapFileSystemError('deleteFile', `Failed to delete ${uri}.`, error);
@@ -103,7 +109,7 @@ export const expoTagFileWriteAdapter: TagFileWriteAdapter = {
   },
   async getInfo(uri) {
     try {
-      const infoForUri = requireFileSystemFunction('getInfo', 'getInfoAsync', getInfoAsync);
+      const infoForUri = requireFileSystemFunction('getInfo', 'getInfoAsync', LegacyFileSystem.getInfoAsync);
       const info = await infoForUri(uri);
       if (!info || typeof info !== 'object' || !('exists' in info)) {
         throw new TagFileWriteAdapterError('getInfo', `FileSystem info for ${uri} was malformed.`);
