@@ -130,6 +130,12 @@ describe('MiniPlayer', () => {
     expect(getByTestId('mini-player-previous').props.accessibilityState?.disabled).toBe(true);
   });
 
+  test('exposes next button accessibility label', () => {
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+
+    expect(getByTestId('mini-player-next').props.accessibilityLabel).toBe('Nächster Titel');
+  });
+
   test('renders null without current song', () => {
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ currentSong: null }));
     const { queryByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);

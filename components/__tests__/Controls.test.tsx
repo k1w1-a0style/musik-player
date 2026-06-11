@@ -51,4 +51,17 @@ describe('Controls', () => {
     expect(getByTestId('controls-previous').props.accessibilityState?.disabled).toBe(true);
     expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
   });
+
+  test.each([
+    ['off', 'Wiederholung aus'],
+    ['one', 'Song wiederholen'],
+    ['all', 'Alle Titel wiederholen'],
+  ])('uses localized repeat accessibility label for %s mode', (repeatMode, expectedLabel) => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ repeatMode }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-repeat').props.accessibilityLabel).toBe(expectedLabel);
+  });
+
 });

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, GestureResponderEvent, LayoutChangeEvent, Pressable } from 'react-native';
+import { View, Text, StyleSheet, GestureResponderEvent, LayoutChangeEvent, Pressable, type AccessibilityActionEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../theme';
 
@@ -19,6 +19,8 @@ export const clampPlaybackProgressValues = (currentPosition: number, duration: n
   return { currentPosition: clampedPosition, duration: safeDuration, progress };
 };
 
+const SEEK_STEP_MS = 10_000;
+
 const formatTime = (millis: number): string => {
   if (!isFinite(millis) || millis < 0) return '0:00';
   const totalSeconds = Math.floor(millis / 1000);
@@ -31,6 +33,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
   const [barWidth, setBarWidth] = useState(0);
   const playbackProgress = clampPlaybackProgressValues(currentPosition, duration);
   const { progress } = playbackProgress;
+  const { currentPosition: safeCurrentPosition, duration: safeDuration } = playbackProgress;
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
     setBarWidth(e.nativeEvent.layout.width);
@@ -43,12 +46,27 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
     onSeek(ratio * playbackProgress.duration);
   }, [barWidth, onSeek, playbackProgress.duration]);
 
+  const handleAccessibilityAction = useCallback((event: AccessibilityActionEvent) => {
+    if (safeDuration <= 0) return;
+
+    const { actionName } = event.nativeEvent;
+    if (actionName === 'increment') {
+      onSeek(Math.min(safeCurrentPosition + SEEK_STEP_MS, safeDuration));
+    } else if (actionName === 'decrement') {
+      onSeek(Math.max(safeCurrentPosition - SEEK_STEP_MS, 0));
+    }
+  }, [onSeek, safeCurrentPosition, safeDuration]);
+
   return (
     <View style={styles.container}>
       <Pressable
         testID="progress-bar"
         accessibilityRole="adjustable"
+        accessibilityLabel="Wiedergabe-Fortschritt"
         accessibilityValue={{ now: Math.round(progress), min: 0, max: 100 }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        accessibilityHint="Nach oben oder unten wischen zum Vor- oder Zurückspulen"
+        onAccessibilityAction={handleAccessibilityAction}
         style={styles.progressBarContainer}
         onLayout={handleLayout}
         onPress={handlePress}
