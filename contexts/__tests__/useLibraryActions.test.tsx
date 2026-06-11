@@ -264,7 +264,7 @@ describe('useLibraryActions', () => {
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
-  test('logs and keeps native ref unchanged when native reset fails', async () => {
+  test('native reset failure prunes JS queue refs without marking native queue synced', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
 
@@ -272,10 +272,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0]]}
-        initialQueueRef={[songs[0]]}
-        initialBaseQueueRef={[songs[0]]}
-        initialNativeQueueRef={[songs[0]]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
         nextSongs={[songs[1], songs[2]]}
       />,
     );
@@ -283,10 +283,14 @@ describe('useLibraryActions', () => {
     act(() => fireEvent.press(getByTestId('set-songs')));
 
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
-    expect(getByTestId('native-ref').props.children).toBe('s1');
-    expect(getByTestId('queue-ref').props.children).toBe('s1');
-    expect(getByTestId('base-queue-ref').props.children).toBe('s1');
-    expect(getByTestId('playback-queue').props.children).toBe('s1');
+    await waitFor(() => expect(getByTestId('playback-queue').props.children).toBe('s2'));
+    expect(getByTestId('songs').props.children).toBe('s2,s3');
+    expect(getByTestId('queue-ref').props.children).toBe('s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s2');
+    expect(getByTestId('native-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('queue-ref').props.children).not.toContain('s1');
+    expect(getByTestId('base-queue-ref').props.children).not.toContain('s1');
+    expect(getByTestId('playback-queue').props.children).not.toContain('s1');
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
 
