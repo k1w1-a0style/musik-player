@@ -11,12 +11,14 @@ const asset = (
   duration: number | undefined,
   uri = `file:///storage/emulated/0/Music/${filename}`,
   mimeType?: string,
+  mediaType?: 'audio' | 'photo' | 'video' | 'unknown',
 ) => ({
   id: filename,
   filename,
   duration,
   uri,
   mimeType,
+  mediaType,
 });
 
 const expectConsistentRejectReason = (
@@ -73,6 +75,22 @@ describe('audioImportFilter', () => {
 
   test('keeps unknown mime types with known audio extensions acceptable', () => {
     expectConsistentRejectReason(asset('track.flac', 180, undefined, 'application/octet-stream'), null);
+  });
+
+  test('accepts MediaLibrary audio identity without mime type or whitelisted extension', () => {
+    expectConsistentRejectReason(asset('audiobook.m4b', 180, undefined, undefined, 'audio'), null);
+  });
+
+  test('keeps MediaLibrary audio identity subject to duration filtering', () => {
+    const item = asset('audiobook.m4b', 30, undefined, undefined, 'audio');
+
+    expectConsistentRejectReason(item, 'shorter-than-45s');
+    expectConsistentRejectReason(item, null, { enableDurationFilter: false });
+  });
+
+  test('rejects assets without audio media type, mime type, or extension identity', () => {
+    expectConsistentRejectReason(asset('unknown-format.m4b', 180, undefined, undefined, 'photo'), 'not-audio');
+    expectConsistentRejectReason(asset('unknown-format.m4b', 180), 'not-audio');
   });
 
   test('normalizes invalid duration filter option values back to defaults', () => {

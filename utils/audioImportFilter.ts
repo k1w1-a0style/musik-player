@@ -20,7 +20,7 @@ export const DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS: NormalizedAudioImportFilterOpt
 };
 
 type AudioAssetLike = Pick<MediaLibrary.Asset, 'filename' | 'uri'> &
-  Partial<Pick<MediaLibrary.Asset, 'duration'>> & { mimeType?: string | null };
+  Partial<Pick<MediaLibrary.Asset, 'duration' | 'mediaType'>> & { mimeType?: string | null };
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 
@@ -114,6 +114,8 @@ const blockedFilenamePrefix = (asset: AudioAssetLike): string | undefined => {
   return BLOCKED_FILENAME_PREFIXES.find(prefix => stem.startsWith(prefix));
 };
 
+const hasAudioMediaType = (asset: AudioAssetLike): boolean => normalize(asset.mediaType) === 'audio';
+
 const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
   const mime = normalize(asset.mimeType);
   return mime.startsWith('audio/');
@@ -121,7 +123,8 @@ const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
 
 const hasKnownAudioExtension = (asset: AudioAssetLike): boolean => AUDIO_EXTENSIONS.has(extensionFromAsset(asset));
 
-const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean => hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
+const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean =>
+  hasAudioMediaType(asset) || hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
 
 export const getAudioAssetRejectReason = (
   asset: AudioAssetLike,

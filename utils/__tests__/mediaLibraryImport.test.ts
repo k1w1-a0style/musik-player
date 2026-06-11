@@ -219,12 +219,20 @@ describe('mediaLibraryImport', () => {
     expect(result.errors).toEqual(['content://root']);
   });
 
-  const mediaAsset = (id: string, filename: string, duration: number, uri = `file:///music/${filename}`, mimeType?: string) => ({
+  const mediaAsset = (
+    id: string,
+    filename: string,
+    duration: number,
+    uri = `file:///music/${filename}`,
+    mimeType?: string,
+    mediaType?: 'audio' | 'photo' | 'video' | 'unknown',
+  ) => ({
     id,
     filename,
     duration,
     uri,
     mimeType,
+    mediaType,
   });
 
   const getSingleMediaLibraryPage = (...assets: Array<ReturnType<typeof mediaAsset>>) => jest.fn(async () => ({
@@ -247,11 +255,12 @@ describe('mediaLibraryImport', () => {
   test('scanAudioAssetsFromMediaLibrary keeps likely-music filtering fully disabled when requested', async () => {
     const short = mediaAsset('short', 'short-click.mp3', 3);
     const notification = mediaAsset('notification', 'ping.mp3', 90, 'file:///storage/emulated/0/Notifications/ping.mp3');
-    const getAssetsPage = getSingleMediaLibraryPage(short, notification);
+    const unknown = mediaAsset('unknown', 'unknown.bin', 90, undefined, undefined, 'photo');
+    const getAssetsPage = getSingleMediaLibraryPage(short, notification, unknown);
 
     const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage, { filterLikelyMusic: false });
 
-    expect(result.assets.map(asset => asset.id)).toEqual(['short', 'notification']);
+    expect(result.assets.map(asset => asset.id)).toEqual(['short', 'notification', 'unknown']);
     expect(result.skipped).toEqual([]);
   });
 
@@ -277,6 +286,26 @@ describe('mediaLibraryImport', () => {
 
     expect(result.assets).toEqual([short]);
     expect(result.skipped).toEqual([{ asset: nonAudio, reason: 'not-audio' }]);
+  });
+
+  test('scanAudioAssetsFromMediaLibrary imports MediaLibrary audio assets with unlisted extensions', async () => {
+    const audiobook = mediaAsset('audiobook', 'audiobook.m4b', 180, undefined, undefined, 'audio');
+    const getAssetsPage = getSingleMediaLibraryPage(audiobook);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+
+    expect(result.assets).toEqual([audiobook]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  test('scanAudioAssetsFromMediaLibrary still applies duration filtering to mediaType audio assets', async () => {
+    const shortAudiobook = mediaAsset('short-audiobook', 'short-audiobook.m4b', 3, undefined, undefined, 'audio');
+    const getAssetsPage = getSingleMediaLibraryPage(shortAudiobook);
+
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+
+    expect(result.assets).toEqual([]);
+    expect(result.skipped).toEqual([{ asset: shortAudiobook, reason: 'shorter-than-45s' }]);
   });
 
   test('loads all pages', async () => {
