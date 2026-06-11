@@ -204,6 +204,9 @@ describe('NowPlaying cover fallback', () => {
     fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
     fireEvent.press(getByText('Queue speichern'));
 
-    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith('Gespeicherte Queue', mockNowPlayingContext.playbackQueue);
+    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
+      expect.stringMatching(/^Gespeicherte Queue — .+/),
+      mockNowPlayingContext.playbackQueue,
+    );
   });
 });

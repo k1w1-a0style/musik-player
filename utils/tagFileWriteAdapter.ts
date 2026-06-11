@@ -7,6 +7,11 @@ export interface TagFileWriteAdapter {
   readBytes(uri: string): Promise<Uint8Array>;
   writeBytes(uri: string, bytes: Uint8Array): Promise<void>;
   copyFile(fromUri: string, toUri: string): Promise<void>;
+  /**
+   * Copies "fromUri" over "toUri" by replacing the target, then resolves.
+   * Does not delete "fromUri"; callers must clean up temporary source files.
+   * This intentionally does not behave like a rename/move operation.
+   */
   moveOrReplaceFile(fromUri: string, toUri: string): Promise<void>;
   deleteFile(uri: string): Promise<void>;
   getInfo(uri: string): Promise<{ exists: boolean; size?: number; isDirectory?: boolean }>;
