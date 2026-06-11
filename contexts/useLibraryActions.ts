@@ -154,7 +154,9 @@ export const useLibraryActions = ({
             commitClearedQueueRefs();
             return;
           }
-          if (syncResult === 'stale') commitPrunedLibraryQueueRefs();
+          if (syncResult === 'stale' || syncResult === 'failed') {
+            commitPrunedLibraryQueueRefs();
+          }
         });
       } else {
         commitQueueRefs();
