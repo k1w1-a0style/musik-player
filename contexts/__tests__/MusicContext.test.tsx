@@ -187,7 +187,7 @@ describe('MusicContext', () => {
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('set-songs'));
     await waitFor(async () => {
-      const stored = await storage.get<Song[]>(StorageKeys.SONGS);
+      const stored = await storage.get(StorageKeys.SONGS);
       expect(stored?.length).toBe(4);
     });
   });
@@ -381,7 +381,7 @@ describe('MusicContext', () => {
     await waitReady(getByTestId);
 
     await waitFor(async () => {
-      const stored = await storage.get<Song[]>(StorageKeys.SONGS);
+      const stored = await storage.get(StorageKeys.SONGS);
       expect(stored?.[0]?.cover).toMatch(/^file:\/\/\/docs\/covers\/.+\.png$/);
       expect(stored?.[0]?.cover?.startsWith('data:image/')).toBe(false);
     });

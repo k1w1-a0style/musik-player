@@ -711,7 +711,7 @@ describe('musicHydrationHelpers', () => {
       setShuffle: jest.fn(),
     });
 
-    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
       expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
     ]);
     expect(setPlaylists).toHaveBeenCalledWith([
@@ -812,7 +812,7 @@ describe('musicHydrationHelpers', () => {
     expect(setPlaylists).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'pl-1', songIds: ['s1'] }),
     ]);
-    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
       expect.objectContaining({ id: 'pl-1', songIds: ['s1'] }),
     ]);
   });
@@ -1142,7 +1142,7 @@ describe('musicHydrationHelpers', () => {
       expect.objectContaining({ id: 's2' }),
     ]);
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
-    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
       expect.objectContaining({ id: 'pl-1', songIds: ['s1', 's2'] }),
     ]);
   });

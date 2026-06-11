@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
-import type { Playlist, Song } from '../types/Song';
+import type { Playlist, RepeatMode, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 
 const PREFIX = '@musikplayer:';
@@ -22,7 +22,51 @@ export const StorageKeys = {
   FAVORITE_SONG_IDS: 'favoriteSongIds',
 } as const;
 
-type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
+export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
+type StoredEqPresetName = EqPresetName | 'custom';
+
+type StorageValueByKey = {
+  [StorageKeys.SONGS]: Song[];
+  [StorageKeys.PLAYLISTS]: Playlist[];
+  [StorageKeys.CURRENT_SONG_ID]: string;
+  [StorageKeys.EQ_PRESET]: StoredEqPresetName;
+  [StorageKeys.EQ_BANDS]: number[];
+  [StorageKeys.EQ_ENABLED]: boolean;
+  [StorageKeys.VOLUME]: number;
+  [StorageKeys.REPEAT_MODE]: RepeatMode;
+  [StorageKeys.SHUFFLE]: boolean;
+  [StorageKeys.SCAN_FOLDERS]: ScanFolder[];
+  [StorageKeys.FAVORITE_SONG_IDS]: string[];
+};
+
+interface StorageApi {
+  get<K extends StorageKey>(key: K): Promise<StorageValueByKey[K] | null>;
+  get(key: string): Promise<unknown | null>;
+  set<T>(key: string, value: T): Promise<boolean>;
+  remove(key: string): Promise<void>;
+  getSongs(): Promise<Song[]>;
+  setSongs(songs: unknown[]): Promise<void>;
+  getPlaylists(): Promise<Playlist[]>;
+  setPlaylists(playlists: unknown[]): Promise<void>;
+  getCurrentSongId(): Promise<string | null>;
+  setCurrentSongId(songId?: string | null): Promise<void>;
+  getEqPreset(): Promise<StoredEqPresetName>;
+  setEqPreset(preset: StoredEqPresetName): Promise<void>;
+  getEqBands(): Promise<number[]>;
+  setEqBands(bands: number[]): Promise<void>;
+  getEqEnabled(): Promise<boolean>;
+  setEqEnabled(enabled: boolean): Promise<void>;
+  getVolume(): Promise<number>;
+  setVolume(volume: number): Promise<void>;
+  getRepeatMode(): Promise<RepeatMode>;
+  setRepeatMode(mode: RepeatMode): Promise<void>;
+  getShuffle(): Promise<boolean>;
+  setShuffle(enabled: boolean): Promise<void>;
+  getScanFolders(): Promise<ScanFolder[]>;
+  setScanFolders(folders: unknown[]): Promise<void>;
+  getFavoriteSongIds(): Promise<string[]>;
+  setFavoriteSongIds(songIds: string[]): Promise<void>;
+}
 
 const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
 
@@ -201,7 +245,6 @@ const isRepeatMode = (value: unknown): value is 'off' | 'one' | 'all' =>
 
 const isEqPresetName = (value: unknown): value is EqPresetName =>
   typeof value === 'string' && value in EQ_PRESETS;
-type StoredEqPresetName = EqPresetName | 'custom';
 const isStoredEqPresetName = (value: unknown): value is StoredEqPresetName =>
   value === 'custom' || isEqPresetName(value);
 
@@ -316,12 +359,12 @@ export const withFavoriteSongIdsMutationLock = async <T,>(operation: () => Promi
 export const withScanFoldersMutationLock = async <T,>(operation: () => Promise<T>): Promise<T> =>
   runSerializedMutation(scanFoldersMutationQueue, operation);
 
-export const storage = {
-  async get<T>(key: string): Promise<T | null> {
+export const storage: StorageApi = {
+  async get(key: string): Promise<unknown | null> {
     try {
       const raw = await AsyncStorage.getItem(storageKey(key));
       if (raw == null) return null;
-      return parseStoredValue(key, raw) as T | null;
+      return parseStoredValue(key, raw);
     } catch {
       return null;
     }
@@ -435,6 +478,7 @@ export const storage = {
   },
 };
 
+// Named aliases are kept for production dependency injection at library-startup boundaries.
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
 
 export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> =>
@@ -482,12 +526,14 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
   });
 };
 
+// Named aliases are kept for production dependency injection at library-startup boundaries.
 export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScanFolders();
 
 const getScanFolderIdentity = (folder: ScanFolder): string => folder.id || folder.uri;
 
 const mergeScanFolder = (currentFolder: ScanFolder | undefined, incomingFolder: ScanFolder): ScanFolder => {
   if (!currentFolder) return incomingFolder;
+  // Current-wins is intentional: snapshot saves must not overwrite newer targeted mutations.
   return { ...incomingFolder, ...currentFolder };
 };
 
@@ -502,8 +548,7 @@ const mergeScanFolderSnapshots = (currentFolders: ScanFolder[], incomingFolders:
 };
 
 export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
-  // Treat full-list saves as snapshot hydration: merge with the latest stored state so stale snapshots
-  // cannot erase newer metadata written by targeted scan-folder mutations.
+  // Exported for snapshot-style persistence/tests only: this is a current-wins merge, not a blind replace.
   await withScanFoldersMutationLock(async () => {
     const currentFolders = await getScanFolders();
     await storage.setScanFolders(mergeScanFolderSnapshots(currentFolders, folders));

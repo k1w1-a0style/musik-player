@@ -34,9 +34,9 @@ describe('musicHydrationPersistence', () => {
     await persistHydratedPlaylistsIfNeeded(plan);
     await persistHydratedCurrentSongIdIfNeeded(plan);
 
-    await expect(storage.get<Song[]>(StorageKeys.SONGS)).resolves.toEqual([expect.objectContaining({ id: 's1' })]);
-    await expect(storage.get<Playlist[]>(StorageKeys.PLAYLISTS)).resolves.toEqual([expect.objectContaining({ songIds: ['s1'] })]);
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s1');
+    await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([expect.objectContaining({ id: 's1' })]);
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([expect.objectContaining({ songIds: ['s1'] })]);
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s1');
   });
 
   test('returns not-needed when hydrated songs already match storage', async () => {
@@ -73,7 +73,7 @@ describe('musicHydrationPersistence', () => {
 
     await persistHydratedCurrentSongIdIfNeeded(plan);
 
-    await expect(storage.get<string>(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
     expect(warn).toHaveBeenCalledWith(
       '[MusicHydration] Restored current song is not playable; clearing persisted current song id.',
       expect.objectContaining({ songId: 's1' }),
