@@ -1,4 +1,12 @@
-import { Base64DecodeError, decodeBase64ToBytes, encodeBytesToBase64 } from '../base64';
+import {
+  Base64DecodeError,
+  decodeBase64PrefixToBytes,
+  decodeBase64ToBytes,
+  encodeBytesToBase64,
+  getBase64DecodedByteLength,
+  getBase64DecodedByteLengthEstimate,
+  validateBase64Payload,
+} from '../base64';
 
 const originalAtob = globalThis.atob;
 const originalBtoa = globalThis.btoa;
@@ -10,6 +18,16 @@ afterEach(() => {
 
 test('decodes valid base64', () => {
   expect(Array.from(decodeBase64ToBytes('Y292ZXI='))).toEqual([99, 111, 118, 101, 114]);
+});
+
+test('normalizes and measures valid base64 without decoding full payload', () => {
+  expect(validateBase64Payload(' Y292\nZXI= ')).toBe('Y292ZXI=');
+  expect(getBase64DecodedByteLength(' Y292\nZXI= ')).toBe(5);
+  expect(getBase64DecodedByteLengthEstimate('Y292ZXI=')).toBe(5);
+});
+
+test('decodes only the requested base64 prefix', () => {
+  expect(Array.from(decodeBase64PrefixToBytes('Y292ZXItbG9uZ2VyLXBheWxvYWQ=', 5))).toEqual([99, 111, 118, 101, 114]);
 });
 
 test('rejects empty base64', () => {
