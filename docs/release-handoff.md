@@ -56,17 +56,17 @@ Vor dem Main-Merge muss mindestens ein Android-Smoke auf einem echten Gerät ode
 - [ ] Gespeicherte Library lädt korrekt.
 - [ ] Import aus MediaLibrary funktioniert.
 - [ ] Import über SAF-Ordner funktioniert.
-- [ ] Playback Start/Pause/Next/Previous funktioniert.
+- [ ] Wiedergabe Start/Pause/Nächster/Vorheriger Titel funktioniert.
 - [ ] Background-, Lockscreen- und Notification-Steuerung bleiben stabil.
-- [ ] Queue bleibt nach Library-Änderungen stabil.
+- [ ] Warteschlange bleibt nach Library-Änderungen stabil.
 - [ ] Hydration nach App-Neustart bleibt stabil.
 - [ ] Favoriten und Playlists persistieren.
-- [ ] Tag Edit für unterstützte lokale `file://` Tracks funktioniert.
-- [ ] `content://` Tracks bleiben für Tag-/Cover-Writes read-only.
+- [ ] Tag-Bearbeitung für unterstützte lokale `file://`-Titel funktioniert.
+- [ ] `content://`-Titel bleiben für Tag-/Cover-Writes read-only.
 - [ ] Empty URI wird vor Tag-/Cover-Writes blockiert.
 - [ ] Große Dateien werden vor Write-Versuchen blockiert.
-- [ ] Cover Replace/Remove funktioniert nur für unterstützte writable Tracks.
-- [ ] External Cover ist nicht removable.
+- [ ] Cover ersetzen/entfernen funktioniert nur für unterstützte schreibbare Titel.
+- [ ] externes Cover ist nicht entfernbar.
 - [ ] Cover cache cleanup inklusive `readDirectoryAsync` funktioniert.
 - [ ] Das generierte Android-Manifest enthält keine Mikrofon-/Foto-/Video-Permissions.
 

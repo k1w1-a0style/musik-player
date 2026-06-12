@@ -68,7 +68,7 @@ describe('playlistActionHelpers', () => {
   });
 
   test('uses fallback name for unnamed queue playlists', () => {
-    expect(createPlaylistRecordFromQueue('   ', songs, 123)?.name).toBe('Gespeicherte Queue');
+    expect(createPlaylistRecordFromQueue('   ', songs, 123)?.name).toBe('Gespeicherte Warteschlange');
   });
 
   test('appends playlists immutably', () => {
