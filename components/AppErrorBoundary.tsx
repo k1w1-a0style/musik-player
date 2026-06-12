@@ -50,7 +50,13 @@ export default class AppErrorBoundary extends React.Component<AppErrorBoundaryPr
           testID={this.props.testID ?? 'app-error-boundary-fallback'}
         >
           <Text style={styles.text}>{this.props.fallbackMessage ?? DEFAULT_FALLBACK_MESSAGE}</Text>
-          <Pressable onPress={this.handleReset} style={styles.button} testID="app-error-boundary-reset">
+          <Pressable
+            onPress={this.handleReset}
+            style={styles.button}
+            testID="app-error-boundary-reset"
+            accessibilityRole="button"
+            accessibilityLabel="Neu versuchen"
+          >
             <Text style={styles.buttonText}>Neu versuchen</Text>
           </Pressable>
         </View>

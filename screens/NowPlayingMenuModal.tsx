@@ -21,7 +21,12 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   onSaveQueueAsPlaylist,
 }) => (
   <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-    <Pressable style={styles.menuBackdrop} onPress={onClose}>
+    <Pressable
+      style={styles.menuBackdrop}
+      onPress={onClose}
+      accessible={false}
+      testID="now-playing-menu-backdrop"
+    >
       <View style={styles.menuCard}>
         <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
         <NowPlayingMenuItem

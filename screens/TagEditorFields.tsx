@@ -21,6 +21,8 @@ const TagEditorFields: React.FC<TagEditorFieldsProps> = ({
         <Text style={styles.label}>{field.label}</Text>
         <TextInput
           testID={`input-${field.key}`}
+          accessibilityLabel={field.label}
+          accessibilityState={{ disabled: !editable }}
           placeholder="Nicht verfügbar"
           placeholderTextColor={theme.palette.text.muted}
           value={form[field.key]}

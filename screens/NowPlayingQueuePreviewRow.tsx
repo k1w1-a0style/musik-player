@@ -18,9 +18,19 @@ const NowPlayingQueuePreviewRow = React.memo(({
   onPress,
 }: NowPlayingQueuePreviewRowProps) => {
   const handlePress = React.useCallback(() => onPress(id), [id, onPress]);
+  const trimmedArtist = artist.trim();
+  const accessibilityLabel = trimmedArtist
+    ? `${title} von ${trimmedArtist} abspielen`
+    : `${title} abspielen`;
 
   return (
-    <Pressable style={[styles.queueItem, isCurrent && styles.queueItemActive]} onPress={handlePress}>
+    <Pressable
+      style={[styles.queueItem, isCurrent && styles.queueItemActive]}
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ selected: isCurrent }}
+    >
       <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
       <View style={styles.queueTextWrap}>
         <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
