@@ -2,9 +2,11 @@ import { buildEditableCoverFromPickerAsset, MAX_TAG_COVER_BYTES } from '../tagCo
 
 const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
 const pngBytes = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const gifBytes = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61];
 const webpBytes = [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50];
 const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
 const pngBase64 = Buffer.from(pngBytes).toString('base64');
+const gifBase64 = Buffer.from(gifBytes).toString('base64');
 const webpBase64 = Buffer.from(webpBytes).toString('base64');
 const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
 
@@ -65,6 +67,13 @@ test('rejects missing base64', () => {
   });
 });
 
+test('rejects declared gif covers as unsupported mime', () => {
+  expect(buildEditableCoverFromPickerAsset({ base64: gifBase64, mimeType: 'image/gif', uri: 'file:///cover.gif' })).toEqual({
+    ok: false,
+    reason: 'unsupportedMime',
+  });
+});
+
 test('rejects detected image types that cannot be written as editable covers', () => {
   expect(buildEditableCoverFromPickerAsset({ base64: webpBase64, mimeType: 'image/webp', uri: 'file:///cover.webp' })).toEqual({
     ok: false,
@@ -99,6 +108,19 @@ test('uses detected jpeg mime when declared mime says png', () => {
   if (!result.ok) return;
   expect(result.cover.mimeType).toBe('image/jpeg');
   expect(Array.from(result.cover.data)).toEqual(jpgBytes);
+});
+
+test('uses detected png mime when declared mime says jpeg', () => {
+  const result = buildEditableCoverFromPickerAsset({
+    base64: pngBase64,
+    mimeType: 'image/jpeg',
+    uri: 'file:///cover.jpg',
+  });
+
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.cover.mimeType).toBe('image/png');
+  expect(Array.from(result.cover.data)).toEqual(pngBytes);
 });
 
 test('uses detected mime when extension fallback differs from encoded bytes', () => {
