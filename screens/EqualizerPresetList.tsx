@@ -14,7 +14,7 @@ const EqualizerPresetList: React.FC<EqualizerPresetListProps> = ({
   onApplyPreset,
 }) => (
   <>
-    <Text style={styles.sectionTitle}>Presets</Text>
+    <Text style={styles.sectionTitle}>Voreinstellungen</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
       {PRESET_KEYS.map(key => {
         const active = eqPreset === key;
@@ -23,6 +23,9 @@ const EqualizerPresetList: React.FC<EqualizerPresetListProps> = ({
             key={key}
             onPress={() => onApplyPreset(key)}
             style={({ pressed }) => [styles.preset, active && styles.presetActive, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Equalizer-Preset ${PRESET_LABELS[key]} anwenden`}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.presetText, active && styles.presetTextActive]}>{PRESET_LABELS[key]}</Text>
           </Pressable>
@@ -30,7 +33,7 @@ const EqualizerPresetList: React.FC<EqualizerPresetListProps> = ({
       })}
       {eqPreset === 'custom' && (
         <View style={[styles.preset, styles.presetActive]}>
-          <Text style={[styles.presetText, styles.presetTextActive]}>Custom</Text>
+          <Text style={[styles.presetText, styles.presetTextActive]}>Benutzerdefiniert</Text>
         </View>
       )}
     </ScrollView>

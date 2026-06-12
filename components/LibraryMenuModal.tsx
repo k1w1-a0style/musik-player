@@ -31,7 +31,12 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   onOpenSettings,
 }) => (
   <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-    <Pressable style={styles.menuBackdrop} onPress={onClose} testID="library-menu-backdrop">
+    <Pressable
+      style={styles.menuBackdrop}
+      onPress={onClose}
+      accessible={false}
+      testID="library-menu-backdrop"
+    >
       <View style={styles.menuCard} testID="library-menu-card">
         <LibraryMenuItem label="Importieren / Rescan" onPress={onImport} disabled={loading || !isReady} />
         <LibraryMenuItem label="Metadaten aktualisieren" onPress={onRefreshMetadata} disabled={loading || !isReady || !hasSongs} />

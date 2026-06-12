@@ -20,6 +20,8 @@ const TagEditorActions: React.FC<TagEditorActionsProps> = ({
   <>
     <Pressable
       testID="save-button"
+      accessibilityRole="button"
+      accessibilityLabel={saving ? 'Speichern läuft' : 'Metadaten speichern'}
       accessibilityState={{ disabled: !canSave }}
       style={[styles.saveButton, !canSave && styles.disabledButton]}
       disabled={!canSave}
@@ -36,7 +38,12 @@ const TagEditorActions: React.FC<TagEditorActionsProps> = ({
       <Text style={styles.saveText}>{saving ? 'Speichern…' : 'Speichern'}</Text>
     </Pressable>
 
-    <Pressable style={styles.backButton} onPress={onBack}>
+    <Pressable
+      style={styles.backButton}
+      onPress={onBack}
+      accessibilityRole="button"
+      accessibilityLabel="Zurück"
+    >
       <Text style={styles.saveText}>Zurück</Text>
     </Pressable>
     {status && <Text style={styles.status}>{status}</Text>}
