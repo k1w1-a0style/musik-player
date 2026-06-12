@@ -12,7 +12,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] SAF-Timeout-/Abort-Verhalten stabilisiert.
 - [x] Storage-API-Typing und Scan-Folder-Merges dokumentiert/stabilisiert.
 - [x] Import-Filter für sehr kurze Audiodateien konfigurierbar gemacht.
-- [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; `newArchEnabled=false` bleibt bewusst dokumentiert.
+- [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; New Architecture wird jetzt testweise auf `codex` aktiviert.
 - [x] Playlist-Timestamp für gespeicherte Warteschlange ergänzt.
 - [x] `moveOrReplaceFile` Interface-Vertrag dokumentiert.
 
@@ -27,13 +27,13 @@ Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
 - [x] TagEditor/Modal/Warteschlange/EQ/ErrorBoundary A11y-Paket erledigt.
 - [x] Deutsch-only Sweep für sichtbare UI- und Accessibility-Texte erledigt.
 - [x] Keine i18n-Struktur eingeführt; App bleibt dauerhaft Deutsch-only.
-- [x] Keine New-Architecture-Arbeiten durchgeführt.
 - [x] Keine Builds/APKs erstellt.
 
 ## Bewusst separate Themen
 
 - i18n: keine Migration; App ist dauerhaft Deutsch-only.
-- New Architecture: späterer separater Schritt und nicht Teil von V6.6. Nicht aktivieren, solange `react-native-track-player@4.1.2` verwendet wird; vorher Playback-, Background-, Notification- und Android-Smoke-Tests durchführen.
+- New Architecture: testweise auf `codex` für das Android-only-Projekt mit SDK 54 aktiviert; finaler Status offen bis neuer Android Dev-Build und Geräte-Smoke erfolgreich sind. Nicht als release-ready markieren, solange kein echter Android-Smoke gelaufen ist.
+- Android Dev-APK Smoke: nach New-Architecture-Aktivierung zwingend neu ausführen. Bei Build- oder Runtime-Problemen wird per separatem Fix-PR korrigiert oder New Architecture gezielt zurückgerollt.
 - V6.6 Android Dev-APK Smoke: offen/manuell; bleibt lokaler manueller Schritt nach Merge der V6.6-Fixes und ist nicht als smoke-final markiert.
 - Vollständiger finaler Gesamttest: am 2026-06-12 im V6.6-Final-PR erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
@@ -51,7 +51,7 @@ Automatisierte Gates (finaler V6.6-Lauf am 2026-06-12 erfolgreich):
 - [x] `npx jest --runInBand --testPathPattern=__tests__/androidManifestPermissionGate.test.ts`
 - [x] `npm run check:android-permissions`
 
-Optionale/manuelle Android-Smokes nach Build oder SDK-/FileSystem-Änderungen:
+Optionale/manuelle Android-Smokes nach Build, SDK-/FileSystem-Änderungen oder New-Architecture-Aktivierung:
 
 - [ ] MediaLibrary-Import.
 - [ ] SAF-Ordnerimport inklusive Timeout-/Abort-Verhalten.

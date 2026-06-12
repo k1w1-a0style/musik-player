@@ -6,7 +6,7 @@
 - [ ] `scheme` = `musik-player`
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`
-- [ ] `newArchEnabled=false` bleibt bewusst gesetzt, bis New Architecture separat mit Playback-/Background-Smokes validiert wurde
+- [ ] `newArchEnabled=true` ist nur testweise für Android aktiviert; Release-Freigabe erst nach neuem Dev-APK-Build und Geräte-Smoke
 - [ ] `expo.extra.eas.projectId` ist vorhanden
 
 ## Lokale Gates
@@ -31,7 +31,24 @@ Die bisherigen DeepScan-Phasen sind im Projekt-Checklog zusammengefasst: [`PROJE
 
 Abgedeckte Bereiche: Storage-Races, Cover/Base64/ID3, FileSystem/Tag-Write, ErrorBoundary/UX/A11y, CoverCache-Hashing, SAF-Timeout/Abort, Storage-API und Import-Filter.
 
-Bewusst separat: i18n-Migration, New-Architecture-Aktivierung, vollständiger finaler Gesamttest und langfristige Import-/Codec-Erweiterungen.
+Bewusst separat: i18n-Migration, finale New-Architecture-Freigabe nach Android Dev-Build/Geräte-Smoke, vollständiger finaler Gesamttest und langfristige Import-/Codec-Erweiterungen.
+
+## New-Architecture Android Dev-APK Smoke
+
+New Architecture ist testweise für das Android-only-Projekt aktiviert. Diese Liste ist Pflicht nach dem Merge und vor jeder Release-Freigabe; ohne echten Android Dev-Build und Geräte-Smoke bleibt der Status offen.
+
+- [ ] Dev-APK wurde nach New-Architecture-Aktivierung neu gebaut.
+- [ ] App startet auf echtem Android-Gerät.
+- [ ] Musikimport funktioniert.
+- [ ] Wiedergabe Start/Pause/Nächster/Vorheriger Titel funktioniert.
+- [ ] Background Playback bleibt stabil.
+- [ ] Lockscreen-Steuerung funktioniert.
+- [ ] Notification-Steuerung funktioniert.
+- [ ] EQ-Modul initialisiert ohne Crash.
+- [ ] Palette/Cover-Extraktion funktioniert ohne Crash.
+- [ ] SAF/content:// bleibt read-only für Tag-/Cover-Writes.
+- [ ] Tag-Bearbeitung für lokale file://-Titel funktioniert.
+- [ ] Keine regressiven Permission-Änderungen im Android-Manifest.
 
 ## CI-/Workflow-Sichtbarkeit
 
