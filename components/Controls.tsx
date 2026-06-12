@@ -96,7 +96,7 @@ const Controls: React.FC = () => {
     <View style={styles.container} testID="controls">
       <PressScale
         testID="controls-shuffle"
-        accessibilityLabel={shuffle ? 'Shuffle aus' : 'Shuffle an'}
+        accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
         onPress={toggleShuffle}
         size={38}
         accentColor={shuffle ? theme.palette.primary : theme.palette.border}
@@ -116,7 +116,7 @@ const Controls: React.FC = () => {
 
       <PressScale
         testID="controls-play-pause"
-        accessibilityLabel={isPlaying ? 'Pause' : 'Abspielen'}
+        accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
         onPress={togglePlayPause}
         disabled={!currentSong || isBuffering}
         size={62}

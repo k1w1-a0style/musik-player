@@ -52,6 +52,29 @@ describe('Controls', () => {
     expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
   });
 
+
+  test.each([
+    [true, 'Pausieren'],
+    [false, 'Abspielen'],
+  ])('play-pause button label is correct when isPlaying is %s', (isPlaying, expectedLabel) => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ isPlaying }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-play-pause').props.accessibilityLabel).toBe(expectedLabel);
+  });
+
+  test.each([
+    [true, 'Zufallswiedergabe aus'],
+    [false, 'Zufallswiedergabe an'],
+  ])('shuffle button uses correct label when shuffle is %s', (shuffle, expectedLabel) => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ shuffle }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-shuffle').props.accessibilityLabel).toBe(expectedLabel);
+  });
+
   test.each([
     ['off', 'Wiederholung aus'],
     ['one', 'Song wiederholen'],

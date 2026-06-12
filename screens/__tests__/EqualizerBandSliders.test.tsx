@@ -12,8 +12,9 @@ describe('EqualizerBandSliders', () => {
       <EqualizerBandSliders eqEnabled eqBands={eqBands} onChangeBand={jest.fn()} />,
     );
 
-    expect(getByLabelText('EQ Band 60 Hz')).toBeTruthy();
-    expect(getByLabelText('EQ Band 170 Hz')).toBeTruthy();
+    expect(getByLabelText('EQ-Band 60 Hz')).toBeTruthy();
+    expect(getByLabelText('EQ-Band 170 Hz')).toBeTruthy();
+    expect(getByLabelText('EQ-Band 1 kHz')).toBeTruthy();
   });
 
   test('exposes disabled accessibility state when EQ is disabled', () => {
@@ -21,6 +22,6 @@ describe('EqualizerBandSliders', () => {
       <EqualizerBandSliders eqEnabled={false} eqBands={eqBands} onChangeBand={jest.fn()} />,
     );
 
-    expect(getByLabelText('EQ Band 60 Hz').props.accessibilityState?.disabled).toBe(true);
+    expect(getByLabelText('EQ-Band 60 Hz').props.accessibilityState?.disabled).toBe(true);
   });
 });

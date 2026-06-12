@@ -4,6 +4,9 @@ import Slider from '@react-native-community/slider';
 import { EQ_BAND_LABELS } from '../types/Song';
 import { theme } from '../theme';
 
+const toA11yHz = (label: string): string =>
+  label.endsWith('K') ? `${label.slice(0, -1)} kHz` : `${label} Hz`;
+
 interface EqualizerBandSlidersProps {
   eqEnabled: boolean;
   eqBands: number[];
@@ -29,7 +32,7 @@ const EqualizerBandSliders: React.FC<EqualizerBandSlidersProps> = ({
             step={1}
             value={value}
             onValueChange={nextValue => onChangeBand(i, nextValue)}
-            accessibilityLabel={`EQ Band ${label} Hz`}
+            accessibilityLabel={`EQ-Band ${toA11yHz(label)}`}
             accessibilityState={{ disabled: !eqEnabled }}
             disabled={!eqEnabled}
             minimumTrackTintColor={theme.palette.primary}
