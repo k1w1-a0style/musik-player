@@ -68,21 +68,21 @@ npm run test:coverage -- --runInBand
 - [ ] Library lädt gespeicherte Songs.
 - [ ] Import aus MediaLibrary funktioniert.
 - [ ] Import aus SAF-Ordner funktioniert.
-- [ ] Playback Start/Pause/Next/Previous funktioniert.
-- [ ] Queue bleibt nach Library-Änderungen stabil.
+- [ ] Wiedergabe Start/Pause/Nächster/Vorheriger Titel funktioniert.
+- [ ] Warteschlange bleibt nach Library-Änderungen stabil.
 - [ ] Hydration nach App-Neustart bleibt stabil.
 - [ ] Favoriten persistieren.
 - [ ] Playlists persistieren.
 
 ### Tag-/Cover-Flows
 
-- [ ] Tag Edit für unterstützten `file://` Track funktioniert.
+- [ ] Tag-Bearbeitung für unterstützten `file://`-Titel funktioniert.
 - [ ] `content://` bleibt read-only.
 - [ ] Empty URI wird blockiert.
 - [ ] Große Datei wird vor Write blockiert.
-- [ ] Cover Replace funktioniert für unterstützte writable `file://` Tracks.
-- [ ] Cover Remove funktioniert für embedded/cached File-Cover.
-- [ ] External Cover ist nicht removable.
+- [ ] Cover ersetzen funktioniert für unterstützte schreibbare `file://`-Titel.
+- [ ] Cover entfernen funktioniert für embedded/cached File-Cover.
+- [ ] externes Cover ist nicht entfernbar.
 - [ ] Backup/Temp/Verify-Verhalten wurde manuell geprüft.
 
 ### Storage-/Legacy-Flows
@@ -144,28 +144,28 @@ npx eas build --platform android --profile preview
 ## Smoke Tests
 
 - [ ] App startet ohne Crash
-- [ ] Playback Smoke Test (Play/Pause/Next/Prev, keine Regression)
+- [ ] Wiedergabe-Smoke-Test (Play/Pause/Next/Prev, keine Regression)
 - [ ] Background/Lockscreen/Notification Smoke Test
 - [ ] Bluetooth/Headset Controls Smoke Test, wenn verfügbar
 - [ ] Repeat/Shuffle Restore Smoke Test nach App-Neustart
 - [ ] Import/SAF Smoke Test (Import läuft, SAF-Ordnerauswahl verständlich)
 - [ ] ID3 Smoke Test mit MP3 v2.2/v2.3/v2.4 lesen; v2.2 Textfelder müssen beim Import sichtbar sein
 - [ ] Cover Smoke Test (embedded Cover wird angezeigt; zu große/ungültige Cover bleiben stabil)
-- [ ] Tag Edit Smoke Test (Save/No-op/Error Zustände sichtbar)
-- [ ] Tag Edit Size-Limit Smoke Test (zu große Dateien werden blockiert, bevor geschrieben wird)
-- [ ] Cover Remove Smoke Test (`removeCover` funktioniert nur für erkannte embedded/cached File-Cover, nicht für reine external CoverInfo)
-- [ ] Cover Replace Smoke Test (unterstützter writable `file://` Track schreibt neues Cover; UI darf bis zum späteren Re-Scan zunächst die gewählte Cover-URI anzeigen)
+- [ ] Tag-Bearbeitung-Smoke-Test (Save/No-op/Error Zustände sichtbar)
+- [ ] Tag-Bearbeitung-Size-Limit-Smoke-Test (zu große Dateien werden blockiert, bevor geschrieben wird)
+- [ ] Cover-entfernen-Smoke-Test (`removeCover` funktioniert nur für erkannte embedded/cached File-Cover, nicht für reine externe CoverInfo)
+- [ ] Cover-ersetzen-Smoke-Test (unterstützter schreibbarer `file://`-Titel schreibt neues Cover; UI darf bis zum späteren Re-Scan zunächst die gewählte Cover-URI anzeigen)
 - [ ] content:// Block Smoke Test (Schreiben klar blockiert/read-only)
 - [ ] MiniPlayer/NowPlaying Smoke Test (disabled states + Navigation)
-- [ ] TrackInfo/TagEditor Smoke Test (fehlende Felder = „Nicht verfügbar“)
+- [ ] TrackInfo/TagEditor-Smoke-Test (fehlende Felder = „Nicht verfügbar“)
 - [ ] Equalizer Smoke Test (Status geräteabhängig/experimentell, kein falsches Versprechen)
 - [ ] NowPlaying Smoke Test ohne Visualizer-Prompt/FFT-Anzeige
 
 ## Known limitations
 
 - SAF/content:// Writes sind bewusst read-only; direkte SAF-Tag-Writes sind nicht implementiert
-- Cover ersetzen ist nur für unterstützte writable `file://` Tracks aktiv; unsupported Container bleiben blockiert
+- Cover ersetzen ist nur für unterstützte schreibbare `file://`-Titel aktiv; nicht unterstützte Container bleiben blockiert
 - MP4/M4A Cover-/Tag-Writes funktionieren nur für bekannte sichere Atom-Layouts
-- Nach Cover Replace kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
+- Nach Cover ersetzen kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
 - Visualizer/FFT ist im Release-Pfad entfernt; native Android-Visualizer-API wird nicht verdrahtet
 - Sehr große Dateien werden beim In-App-Tag-Schreiben blockiert

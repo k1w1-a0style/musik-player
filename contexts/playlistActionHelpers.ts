@@ -1,7 +1,7 @@
 import type { Playlist, Song } from '../types/Song';
 import { createPlaylistId } from '../utils/playlistIds';
 
-const DEFAULT_QUEUE_PLAYLIST_NAME = 'Gespeicherte Queue';
+const DEFAULT_QUEUE_PLAYLIST_NAME = 'Gespeicherte Warteschlange';
 
 export const createPlaylistRecord = (name: string, now: number = Date.now()): Playlist => ({
   id: createPlaylistId(),
