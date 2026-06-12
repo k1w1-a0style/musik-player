@@ -17,7 +17,8 @@ expectEqual('name', config.name, 'k1w1-Musik');
 expectEqual('scheme', config.scheme, 'musik-player');
 expectEqual('slug', config.slug, 'musik-player');
 expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');
-expectEqual('newArchEnabled', config.newArchEnabled, false);
+// New Architecture is intentionally enabled on codex for Android Dev-APK smoke testing.
+expectEqual('newArchEnabled', config.newArchEnabled, true);
 
 const androidPermissions = config.android?.permissions ?? [];
 const blockedPermissions = config.android?.blockedPermissions ?? [];
