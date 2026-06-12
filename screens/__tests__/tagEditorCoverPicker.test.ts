@@ -11,6 +11,11 @@ const mockGetMediaLibraryPermissionsAsync = ImagePicker.getMediaLibraryPermissio
 const mockRequestMediaLibraryPermissionsAsync = ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock;
 const mockLaunchImageLibraryAsync = ImagePicker.launchImageLibraryAsync as jest.Mock;
 
+const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
+const pngBytes = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
+const pngBase64 = Buffer.from(pngBytes).toString('base64');
+
 describe('pickTagEditorCover', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -21,7 +26,7 @@ describe('pickTagEditorCover', () => {
     mockGetMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied' });
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: Buffer.from('cover').toString('base64') }],
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: jpgBase64 }],
     });
 
     const result = await pickTagEditorCover();
@@ -32,7 +37,7 @@ describe('pickTagEditorCover', () => {
     if (result.status === 'selected') {
       expect(result.cover.uri).toBe('file:///cover.jpg');
       expect(result.cover.mimeType).toBe('image/jpeg');
-      expect(result.cover.sizeBytes).toBe(5);
+      expect(result.cover.sizeBytes).toBe(jpgBytes.length);
     }
   });
 
@@ -119,10 +124,25 @@ describe('pickTagEditorCover', () => {
     });
   });
 
+  test('returns failed result when cover bytes do not match declared mime type', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: pngBase64 }],
+    });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'failed',
+      message: 'Cover-Daten passen nicht zum Bildformat. Bitte anderes Bild wählen.',
+    });
+    expect(warnSpy).toHaveBeenCalledWith('[CoverPicker] Invalid cover asset selected.', { reason: 'invalidImageBytes' });
+    warnSpy.mockRestore();
+  });
+
   test('returns selected cover result for valid asset', async () => {
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: Buffer.from('cover').toString('base64') }],
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: jpgBase64 }],
     });
 
     const result = await pickTagEditorCover();
@@ -132,7 +152,7 @@ describe('pickTagEditorCover', () => {
     if (result.status === 'selected') {
       expect(result.cover.uri).toBe('file:///cover.jpg');
       expect(result.cover.mimeType).toBe('image/jpeg');
-      expect(result.cover.sizeBytes).toBe(5);
+      expect(result.cover.sizeBytes).toBe(jpgBytes.length);
     }
   });
 

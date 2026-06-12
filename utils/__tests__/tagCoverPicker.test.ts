@@ -1,23 +1,27 @@
 import { buildEditableCoverFromPickerAsset, MAX_TAG_COVER_BYTES } from '../tagCoverPicker';
 
+const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
+const pngBytes = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
+const pngBase64 = Buffer.from(pngBytes).toString('base64');
 const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
 
 test('builds jpeg cover from mime type', () => {
   const result = buildEditableCoverFromPickerAsset({
-    base64: toBase64('cover'),
+    base64: jpgBase64,
     mimeType: 'image/jpeg',
     uri: 'file:///cover.jpg',
   });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.cover.mimeType).toBe('image/jpeg');
-  expect(result.cover.sizeBytes).toBe(5);
-  expect(Array.from(result.cover.data)).toEqual(Array.from(Buffer.from('cover')));
+  expect(result.cover.sizeBytes).toBe(jpgBytes.length);
+  expect(Array.from(result.cover.data)).toEqual(jpgBytes);
 });
 
 test('accepts jpg extension fallback when mime type is missing', () => {
   const result = buildEditableCoverFromPickerAsset({
-    base64: toBase64('cover'),
+    base64: jpgBase64,
     uri: 'file:///cover.jpeg?cache=1',
   });
   expect(result.ok).toBe(true);
@@ -27,24 +31,26 @@ test('accepts jpg extension fallback when mime type is missing', () => {
 
 test('accepts png cover', () => {
   const result = buildEditableCoverFromPickerAsset({
-    base64: toBase64('png'),
+    base64: pngBase64,
     mimeType: 'image/png',
     uri: 'file:///cover.png',
   });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.cover.mimeType).toBe('image/png');
+  expect(result.cover.sizeBytes).toBe(pngBytes.length);
+  expect(Array.from(result.cover.data)).toEqual(pngBytes);
 });
 
 test('rejects missing URI', () => {
-  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('png'), mimeType: 'image/png' })).toEqual({
+  expect(buildEditableCoverFromPickerAsset({ base64: pngBase64, mimeType: 'image/png' })).toEqual({
     ok: false,
     reason: 'missingUri',
   });
 });
 
 test('rejects whitespace URI', () => {
-  expect(buildEditableCoverFromPickerAsset({ base64: toBase64('png'), mimeType: 'image/png', uri: '   ' })).toEqual({
+  expect(buildEditableCoverFromPickerAsset({ base64: pngBase64, mimeType: 'image/png', uri: '   ' })).toEqual({
     ok: false,
     reason: 'missingUri',
   });
@@ -80,13 +86,41 @@ test('rejects invalid base64 without saving corrupted cover data', () => {
   });
 });
 
+test('rejects cover when declared mime does not match image bytes', () => {
+  expect(buildEditableCoverFromPickerAsset({
+    base64: pngBase64,
+    mimeType: 'image/jpeg',
+    uri: 'file:///cover.jpg',
+  })).toEqual({
+    ok: false,
+    reason: 'invalidImageBytes',
+  });
+});
+
+test('rejects cover when extension fallback does not match image bytes', () => {
+  expect(buildEditableCoverFromPickerAsset({
+    base64: pngBase64,
+    uri: 'file:///cover.jpg',
+  })).toEqual({
+    ok: false,
+    reason: 'invalidImageBytes',
+  });
+  expect(buildEditableCoverFromPickerAsset({
+    base64: jpgBase64,
+    uri: 'file:///cover.png',
+  })).toEqual({
+    ok: false,
+    reason: 'invalidImageBytes',
+  });
+});
+
 test('decodes picked cover without global atob', () => {
   const originalAtob = globalThis.atob;
   Object.defineProperty(globalThis, 'atob', { configurable: true, writable: true, value: undefined });
   try {
-    const result = buildEditableCoverFromPickerAsset({ base64: 'cG5n', mimeType: 'image/png', uri: 'file:///cover.png' });
+    const result = buildEditableCoverFromPickerAsset({ base64: pngBase64, mimeType: 'image/png', uri: 'file:///cover.png' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(Array.from(result.cover.data)).toEqual([112, 110, 103]);
+    if (result.ok) expect(Array.from(result.cover.data)).toEqual(pngBytes);
   } finally {
     Object.defineProperty(globalThis, 'atob', { configurable: true, writable: true, value: originalAtob });
   }

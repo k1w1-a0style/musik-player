@@ -1,5 +1,6 @@
 import type { EditableCover } from '../types/TagEdit';
 import { Base64DecodeError, decodeBase64ToBytes } from './base64';
+import { detectImageMimeFromBytes } from './imageMime';
 
 export const MAX_TAG_COVER_BYTES = 5 * 1024 * 1024;
 
@@ -13,7 +14,8 @@ export type CoverPickFailureReason =
   | 'missingBase64'
   | 'invalidBase64'
   | 'unsupportedMime'
-  | 'tooLarge';
+  | 'tooLarge'
+  | 'invalidImageBytes';
 
 export type CoverPickResult =
   | { ok: true; cover: PickedTagCover }
@@ -52,5 +54,7 @@ export const buildEditableCoverFromPickerAsset = (asset: {
   }
   if (data.byteLength === 0) return { ok: false, reason: 'missingBase64' };
   if (data.byteLength > MAX_TAG_COVER_BYTES) return { ok: false, reason: 'tooLarge' };
+  const detectedMime = detectImageMimeFromBytes(data);
+  if (detectedMime !== mimeType) return { ok: false, reason: 'invalidImageBytes' };
   return { ok: true, cover: { data, mimeType, uri, sizeBytes: data.byteLength } };
 };
