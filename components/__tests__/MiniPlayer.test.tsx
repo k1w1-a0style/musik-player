@@ -97,7 +97,9 @@ describe('MiniPlayer', () => {
 
   test('tapping parent opens mini player', () => {
     const onOpen = jest.fn();
-    const { getByTestId } = render(<MiniPlayer onOpen={onOpen} />);
+    const { getByTestId, getByLabelText } = render(<MiniPlayer onOpen={onOpen} />);
+
+    expect(getByLabelText('Wiedergabe öffnen')).toBeTruthy();
 
     fireEvent.press(getByTestId('mini-player-open'));
 

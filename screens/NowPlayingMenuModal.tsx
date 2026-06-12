@@ -23,9 +23,9 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
     <Pressable style={styles.menuBackdrop} onPress={onClose}>
       <View style={styles.menuCard}>
-        <NowPlayingMenuItem label="TrackInfo öffnen" onPress={onOpenTrackInfo} />
+        <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
         <NowPlayingMenuItem
-          label="Queue speichern"
+          label="Warteschlange speichern"
           onPress={() => {
             onSaveQueueAsPlaylist();
             onClose();

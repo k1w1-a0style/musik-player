@@ -28,19 +28,19 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
         <Text style={styles.artist} numberOfLines={1}>{artist}</Text>
       </View>
       <Pressable
-      disabled={favoritePending}
-      onPress={onToggleFavorite}
-      style={styles.heartBtn}
-      hitSlop={12}
-      accessibilityRole="button"
-      accessibilityLabel="Track favorisieren"
-      accessibilityState={{ disabled: favoritePending }}
-    >
-      <Heart
-        color={favorite ? theme.palette.primary : theme.palette.text.primary}
-        fill={favorite ? theme.palette.primary : 'transparent'}
-        size={22}
-      />
+        disabled={favoritePending}
+        onPress={onToggleFavorite}
+        style={styles.heartBtn}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel={favorite ? 'Titel ist Favorit — tippen zum Entfernen' : 'Titel favorisieren'}
+        accessibilityState={{ disabled: favoritePending, checked: favorite }}
+      >
+        <Heart
+          color={favorite ? theme.palette.primary : theme.palette.text.primary}
+          fill={favorite ? theme.palette.primary : 'transparent'}
+          size={22}
+        />
       </Pressable>
     </View>
   );

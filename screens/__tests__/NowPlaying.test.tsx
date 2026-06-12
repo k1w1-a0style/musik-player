@@ -3,6 +3,13 @@ import { Image } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
+const FAVORITE_ADD_LABEL = 'Titel favorisieren';
+const FAVORITE_REMOVE_LABEL = 'Titel ist Favorit — tippen zum Entfernen';
+const CLOSE_NOW_PLAYING_LABEL = 'Wiedergabe schließen';
+const OPEN_NOW_PLAYING_MENU_LABEL = 'Wiedergabe-Menü öffnen';
+const OPEN_TRACK_INFO_LABEL = 'Titelinformationen öffnen';
+const SAVE_QUEUE_LABEL = 'Warteschlange speichern';
+
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
 const pendingFavoriteLookup = () => new Promise<boolean>(() => undefined);
@@ -107,17 +114,33 @@ describe('NowPlaying cover fallback', () => {
     expect(UNSAFE_queryByType(Image)).toBeNull();
   });
 
+  test('favorite button shows correct label and checked state when track is already a favorite', async () => {
+    mockIsFavoriteSongId.mockResolvedValue(true);
+    const { getByLabelText } = render(<NowPlaying />);
+
+    await waitFor(() => {
+      const favoriteButton = getByLabelText(FAVORITE_REMOVE_LABEL);
+      expect(favoriteButton).toBeTruthy();
+      expect(favoriteButton.props.accessibilityState?.checked).toBe(true);
+    });
+  });
+
   test('favorite icon persists an actionable favorite state', async () => {
     mockIsFavoriteSongId.mockResolvedValue(false);
     const { getByLabelText } = render(<NowPlaying />);
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
 
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    const addButton = getByLabelText(FAVORITE_ADD_LABEL);
+    expect(addButton.props.accessibilityState?.checked).toBe(false);
+
+    fireEvent.press(addButton);
 
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() =>
-      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
-    );
+    await waitFor(() => {
+      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
+      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
+      expect(removeButton.props.accessibilityState?.checked).toBe(true);
+    });
   });
 
   test('favorite icon normalizes current song id before lookup and persistence', async () => {
@@ -126,16 +149,21 @@ describe('NowPlaying cover fallback', () => {
     const { getByLabelText } = render(<NowPlaying />);
 
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
 
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
+    await waitFor(() => {
+      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
+      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
+      expect(removeButton.props.accessibilityState?.checked).toBe(true);
+    });
   });
 
   test('favorite icon ignores blank current song ids', async () => {
     setCurrentSongId('   ');
     const { getByLabelText } = render(<NowPlaying />);
 
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
 
     expect(mockIsFavoriteSongId).not.toHaveBeenCalled();
     expect(mockSetFavoriteSongId).not.toHaveBeenCalled();
@@ -152,22 +180,28 @@ describe('NowPlaying cover fallback', () => {
     const { getByLabelText } = render(<NowPlaying />);
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
 
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() =>
-      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
-    );
+    await waitFor(() => {
+      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
+      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
+      expect(removeButton.props.accessibilityState?.checked).toBe(true);
+    });
 
     await act(async () => {
       resolveFavoriteLookup(false);
     });
 
-    expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false);
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    const staleProtectedButton = getByLabelText(FAVORITE_REMOVE_LABEL);
+    expect(staleProtectedButton.props.accessibilityState?.disabled).toBe(false);
+    expect(staleProtectedButton.props.accessibilityState?.checked).toBe(true);
+    fireEvent.press(staleProtectedButton);
     expect(mockSetFavoriteSongId).toHaveBeenLastCalledWith('s1', false);
-    await waitFor(() =>
-      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
-    );
+    await waitFor(() => {
+      const addButton = getByLabelText(FAVORITE_ADD_LABEL);
+      expect(addButton.props.accessibilityState?.disabled).toBe(false);
+      expect(addButton.props.accessibilityState?.checked).toBe(false);
+    });
   });
 
   test('favorite icon rolls back when persistence fails', async () => {
@@ -176,33 +210,37 @@ describe('NowPlaying cover fallback', () => {
     const { getByLabelText, UNSAFE_getByProps } = render(<NowPlaying />);
     await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
 
-    fireEvent.press(getByLabelText('Track favorisieren'));
+    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
 
     expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() =>
-      expect(getByLabelText('Track favorisieren').props.accessibilityState?.disabled).toBe(false),
-    );
-    expect(UNSAFE_getByProps({ accessibilityLabel: 'Track favorisieren' }).props.accessibilityState?.disabled).toBe(false);
+    await waitFor(() => {
+      const addButton = getByLabelText(FAVORITE_ADD_LABEL);
+      expect(addButton.props.accessibilityState?.disabled).toBe(false);
+      expect(addButton.props.accessibilityState?.checked).toBe(false);
+    });
+    const unsafeFavoriteButton = UNSAFE_getByProps({ accessibilityLabel: FAVORITE_ADD_LABEL });
+    expect(unsafeFavoriteButton.props.accessibilityState?.disabled).toBe(false);
+    expect(unsafeFavoriteButton.props.accessibilityState?.checked).toBe(false);
   });
 
   test('close button remains interactive and triggers goBack', () => {
     const { getByTestId, getByLabelText } = render(<NowPlaying />);
-    expect(getByLabelText('Now Playing schließen')).toBeTruthy();
+    expect(getByLabelText(CLOSE_NOW_PLAYING_LABEL)).toBeTruthy();
     fireEvent.press(getByTestId('now-playing-close'));
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
   test('more menu is interactive and opens actions', () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
-    fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
-    expect(getByText('TrackInfo öffnen')).toBeTruthy();
-    expect(getByText('Queue speichern')).toBeTruthy();
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    expect(getByText(OPEN_TRACK_INFO_LABEL)).toBeTruthy();
+    expect(getByText(SAVE_QUEUE_LABEL)).toBeTruthy();
   });
 
   test('queue save menu item saves the current queue as playlist', () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
-    fireEvent.press(getByLabelText('Now Playing Menü öffnen'));
-    fireEvent.press(getByText('Queue speichern'));
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText(SAVE_QUEUE_LABEL));
 
     expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
       expect.stringMatching(/^Gespeicherte Queue — .+/),

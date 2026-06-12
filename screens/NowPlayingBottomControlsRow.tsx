@@ -23,7 +23,7 @@ const NowPlayingBottomControlsRow = React.memo(({
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
       <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
     </GlassCard>
-    <Pressable onPress={onOpenTrackInfo} style={styles.bottomBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="TrackInfo öffnen">
+    <Pressable onPress={onOpenTrackInfo} style={styles.bottomBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Titelinformationen öffnen">
       <Disc3 color={theme.palette.text.muted} size={20} />
     </Pressable>
   </View>
