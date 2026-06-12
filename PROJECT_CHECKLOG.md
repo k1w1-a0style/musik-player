@@ -35,12 +35,12 @@ Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
 - i18n: keine Migration; App ist dauerhaft Deutsch-only.
 - New Architecture: späterer separater Schritt und nicht Teil von V6.6. Nicht aktivieren, solange `react-native-track-player@4.1.2` verwendet wird; vorher Playback-, Background-, Notification- und Android-Smoke-Tests durchführen.
 - V6.6 Android Dev-APK Smoke: offen/manuell; bleibt lokaler manueller Schritt nach Merge der V6.6-Fixes und ist nicht als smoke-final markiert.
-- Vollständiger finaler Gesamttest: am 2026-06-11 auf dem aktuellen gemergten Stand erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
+- Vollständiger finaler Gesamttest: am 2026-06-12 im V6.6-Final-PR erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
 
 ## Finale Validierung vor Release oder codex→main-Handoff
 
-Automatisierte Gates (finaler Lauf am 2026-06-11 erfolgreich):
+Automatisierte Gates (finaler V6.6-Lauf am 2026-06-12 erfolgreich):
 
 - [x] `npm run typecheck`
 - [x] `npm run lint:ci`
