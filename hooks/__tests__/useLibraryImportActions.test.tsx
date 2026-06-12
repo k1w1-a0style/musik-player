@@ -129,7 +129,7 @@ test('scan folder import publishes preparing reading and found statuses', async 
   await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('scan-song')]));
   expect(setImportStatus).toHaveBeenCalledWith('Import wird vorbereitet…');
   expect(setImportStatus).toHaveBeenCalledWith('Scan-Ordner werden gelesen… (1)');
-  expect(setImportStatus).toHaveBeenCalledWith('1 Tracks gefunden. Bibliothek wird aktualisiert…');
+  expect(setImportStatus).toHaveBeenCalledWith('1 Titel gefunden. Bibliothek wird aktualisiert…');
 });
 
 test('scan folder import publishes throttled SAF scan progress statuses', async () => {
@@ -153,9 +153,9 @@ test('scan folder import publishes throttled SAF scan progress statuses', async 
   fireEvent.press(screen.getByText('import'));
 
   await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('scan-song')]));
-  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 0 Tracks gefunden');
-  expect(setImportStatus).not.toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 1 Tracks gefunden');
-  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 2 Ordner gelesen, 2 Tracks gefunden');
+  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 0 Titel gefunden');
+  expect(setImportStatus).not.toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 1 Titel gefunden');
+  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 2 Ordner gelesen, 2 Titel gefunden');
   dateNowSpy.mockRestore();
 });
 

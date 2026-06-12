@@ -120,7 +120,7 @@ describe('useNowPlayingScreenState', () => {
   test('builds saved queue playlist names with German timestamps', () => {
     const name = buildSavedQueuePlaylistName(new Date('2026-06-11T14:35:00.000Z'));
 
-    expect(name).toMatch(/^Gespeicherte Queue — .+/);
+    expect(name).toMatch(/^Gespeicherte Warteschlange — .+/);
     expect(name).toContain('11.06.26');
     expect(name).toContain('14:35');
   });
@@ -131,7 +131,7 @@ describe('useNowPlayingScreenState', () => {
     fireEvent.press(getByTestId('save-queue'));
 
     expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
-      expect.stringMatching(/^Gespeicherte Queue — .+/),
+      expect.stringMatching(/^Gespeicherte Warteschlange — .+/),
       [mockSong],
     );
     const savedName = mockSaveQueueAsPlaylist.mock.calls[0][0];
@@ -146,6 +146,6 @@ describe('useNowPlayingScreenState', () => {
 
     fireEvent.press(getByTestId('save-queue'));
 
-    expect(Alert.alert).toHaveBeenCalledWith('Queue speichern', 'Die aktuelle Queue enthält keine Songs.');
+    expect(Alert.alert).toHaveBeenCalledWith('Warteschlange speichern', 'Die aktuelle Warteschlange enthält keine Titel.');
   });
 });

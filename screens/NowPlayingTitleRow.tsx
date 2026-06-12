@@ -19,7 +19,7 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
   onToggleFavorite,
 }) => {
   const title = normalizeLibraryText(currentSong?.title) || 'Kein Titel ausgewählt';
-  const artist = currentSong ? displayArtist(currentSong) : 'Wähle einen Song aus der Bibliothek';
+  const artist = currentSong ? displayArtist(currentSong) : 'Wähle einen Titel aus der Bibliothek';
 
   return (
     <View style={styles.titleRow}>

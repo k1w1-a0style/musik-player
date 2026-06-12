@@ -77,7 +77,7 @@ describe('Controls', () => {
 
   test.each([
     ['off', 'Wiederholung aus'],
-    ['one', 'Song wiederholen'],
+    ['one', 'Titel wiederholen'],
     ['all', 'Alle Titel wiederholen'],
   ])('uses localized repeat accessibility label for %s mode', (repeatMode, expectedLabel) => {
     mockUseMusicContext.mockReturnValue(makeCtx({ repeatMode }));

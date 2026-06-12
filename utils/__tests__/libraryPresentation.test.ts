@@ -119,7 +119,7 @@ test('groupSongs groups and sorts with cover fallback', () => {
   ], 'album');
 
   expect(groups.map(group => group.title)).toEqual(['A Album', 'Z Album']);
-  expect(groups[0].subtitle).toBe('A • 2 Tracks');
+  expect(groups[0].subtitle).toBe('A • 2 Titel');
   expect(groups[0].cover).toBe('cover-a');
   expect(groups[0].songs.map(item => item.title)).toEqual(['Alpha', 'Gamma']);
 });
@@ -140,7 +140,7 @@ test('groupSongs does not mutate original song array order', () => {
 test('groupSongs uses singular subtitle for one track', () => {
   const groups = groupSongs([song({ id: '1', title: 'Alpha', artist: 'A', genre: 'Techno' })], 'genre');
 
-  expect(groups[0].subtitle).toBe('1 Track');
+  expect(groups[0].subtitle).toBe('1 Titel');
 });
 
 test('buildLibraryGroups matches individual groupSongs outputs', () => {
@@ -215,7 +215,7 @@ test('songs without album or artist group without crashing', () => {
   expect(groups).toHaveLength(1);
   expect(groups[0].id).toBe('album:unknown-artist:unknown-album');
   expect(groups[0].title).toBe('Unbekanntes Album');
-  expect(groups[0].subtitle).toBe('Unbekannt • 2 Tracks');
+  expect(groups[0].subtitle).toBe('Unbekannt • 2 Titel');
 });
 
 test('duplicate album titles from different artists stay separated in library groups', () => {
@@ -225,7 +225,7 @@ test('duplicate album titles from different artists stay separated in library gr
   ]);
 
   expect(grouped.albumGroups).toHaveLength(2);
-  expect(grouped.albumGroups.map(group => group.subtitle)).toEqual(['Artist A • 1 Track', 'Artist B • 1 Track']);
+  expect(grouped.albumGroups.map(group => group.subtitle)).toEqual(['Artist A • 1 Titel', 'Artist B • 1 Titel']);
 });
 
 test('song keys do not fall back to array indexes when ids are missing', () => {

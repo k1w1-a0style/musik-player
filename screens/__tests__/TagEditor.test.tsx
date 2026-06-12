@@ -128,7 +128,7 @@ test('renders fields with current song', () => {
 test('not found state', () => {
   mockSongId = '404';
   const { getByText } = render(<TagEditor />);
-  expect(getByText('Song nicht gefunden.')).toBeTruthy();
+  expect(getByText('Titel nicht gefunden.')).toBeTruthy();
   mockSongId = 's1';
 });
 

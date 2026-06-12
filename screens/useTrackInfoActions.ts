@@ -28,7 +28,7 @@ export const useTrackInfoActions = ({
 
     Alert.alert(
       'Aus Bibliothek entfernen?',
-      'Der Track wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
+      'Der Titel wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
       [
         { text: 'Abbrechen', style: 'cancel' },
         {

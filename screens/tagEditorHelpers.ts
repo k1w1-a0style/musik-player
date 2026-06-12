@@ -99,7 +99,7 @@ export const buildDraftFromDirtyFields = (
 };
 
 export const capabilityReason = (reason?: string): string =>
-  reason ?? 'Schreiben ist für diesen Track nicht verfügbar.';
+  reason ?? 'Schreiben ist für diesen Titel nicht verfügbar.';
 
 export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
   if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;

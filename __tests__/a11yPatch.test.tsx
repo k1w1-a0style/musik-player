@@ -11,8 +11,8 @@ import TagEditorFields from '../screens/TagEditorFields';
 import type { FormState } from '../screens/tagEditorHelpers';
 
 const form: FormState = {
-  title: 'Song A',
-  artist: 'Artist A',
+  title: 'Titel A',
+  artist: 'Künstler A',
   album: 'Album A',
   year: '2026',
   genre: 'Rock',
@@ -100,38 +100,38 @@ describe('V6.6 accessibility patch', () => {
     const { getByLabelText, rerender } = render(
       <NowPlayingQueuePreviewRow
         id="song-a"
-        title="Song A"
-        artist="Artist A"
+        title="Titel A"
+        artist="Künstler A"
         isCurrent={false}
         onPress={onPress}
       />,
     );
 
-    const row = getByLabelText('Song A von Artist A abspielen');
+    const row = getByLabelText('Titel A von Künstler A abspielen');
     expect(row.props.accessibilityRole).toBe('button');
     expect(row.props.accessibilityState).toEqual({ selected: false });
 
     rerender(
       <NowPlayingQueuePreviewRow
         id="song-a"
-        title="Song A"
-        artist="Artist A"
+        title="Titel A"
+        artist="Künstler A"
         isCurrent
         onPress={onPress}
       />,
     );
-    expect(getByLabelText('Song A von Artist A abspielen').props.accessibilityState).toEqual({ selected: true });
+    expect(getByLabelText('Titel A von Künstler A abspielen').props.accessibilityState).toEqual({ selected: true });
 
     rerender(
       <NowPlayingQueuePreviewRow
         id="song-b"
-        title="Song B"
+        title="Titel B"
         artist=""
         isCurrent={false}
         onPress={onPress}
       />,
     );
-    expect(getByLabelText('Song B abspielen').props.accessibilityLabel).toBe('Song B abspielen');
+    expect(getByLabelText('Titel B abspielen').props.accessibilityLabel).toBe('Titel B abspielen');
   });
 
   test('EqualizerPresetList uses German visible labels and exposes preset button state', () => {

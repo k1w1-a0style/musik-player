@@ -117,6 +117,6 @@ describe('TrackInfo', () => {
     mockRouteSongId = '404';
     const { getByText } = render(<TrackInfo />);
 
-    expect(getByText('Song nicht gefunden.')).toBeTruthy();
+    expect(getByText('Titel nicht gefunden.')).toBeTruthy();
   });
 });

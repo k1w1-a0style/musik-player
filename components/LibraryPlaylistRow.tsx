@@ -19,7 +19,7 @@ const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onPla
       </View>
       <View style={styles.groupTextWrap}>
         <Text style={styles.groupTitle} numberOfLines={1}>{playlist.name}</Text>
-        <Text style={styles.groupSubtitle}>{playlist.validCount} {playlist.validCount === 1 ? 'Track' : 'Tracks'}</Text>
+        <Text style={styles.groupSubtitle}>{playlist.validCount} Titel</Text>
         {playlist.validCount !== playlist.totalCount && <Text style={styles.playlistWarning}>{playlist.totalCount - playlist.validCount} nicht mehr gefunden</Text>}
       </View>
       <Pressable

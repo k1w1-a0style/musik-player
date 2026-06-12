@@ -15,9 +15,9 @@ const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
 
 const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string => {
   if (progress.directoriesVisited > 0) {
-    return `Scan läuft… ${progress.directoriesVisited} Ordner gelesen, ${progress.filesFound} Tracks gefunden`;
+    return `Scan läuft… ${progress.directoriesVisited} Ordner gelesen, ${progress.filesFound} Titel gefunden`;
   }
-  return `Scan läuft… ${progress.filesFound} Tracks gefunden`;
+  return `Scan läuft… ${progress.filesFound} Titel gefunden`;
 };
 
 interface UseLibraryScanFolderImportFlowOptions {

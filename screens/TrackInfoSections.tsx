@@ -27,7 +27,7 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   <>
     <Text style={styles.section}>Basis</Text>
     <TrackInfoRow label="Titel" value={valueOrNA(song.title)} />
-    <TrackInfoRow label="Artist" value={valueOrNA(song.artist)} />
+    <TrackInfoRow label="Künstler" value={valueOrNA(song.artist)} />
     <TrackInfoRow label="Album" value={valueOrNA(song.album)} />
     <TrackInfoRow label="Jahr" value={valueOrNA(song.year)} />
     <TrackInfoRow label="Genre" value={valueOrNA(song.genre)} />

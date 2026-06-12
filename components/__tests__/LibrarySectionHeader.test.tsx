@@ -17,7 +17,7 @@ test('renders header count', () => {
 
 test('renders header action content', () => {
   const { getByText } = render(
-    <LibrarySectionHeader title="Tracks" count="5">
+    <LibrarySectionHeader title="Titel" count="5">
       <Text>Header Action</Text>
     </LibrarySectionHeader>,
   );
