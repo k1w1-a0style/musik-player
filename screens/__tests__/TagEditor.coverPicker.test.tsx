@@ -118,6 +118,15 @@ beforeEach(() => {
   mockUpdateSongMetadata.mockReset();
 });
 
+test('cover controls expose German accessibility labels before picking a cover', () => {
+  const { getByTestId } = render(<TagEditor />);
+
+  expect(getByTestId('remove-cover').props.accessibilityLabel).toBe('Cover entfernen');
+  expect(getByTestId('pick-cover').props.accessibilityLabel).toBe(
+    'Cover auswählen (JPG/PNG, max. 5 MB)',
+  );
+});
+
 test('cancelled cover picker shows a status and keeps save disabled', async () => {
   mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: [] });
   const { getByTestId, getByText } = render(<TagEditor />);
@@ -154,6 +163,7 @@ test('valid picked cover enables save and writes cover draft', async () => {
   fireEvent.press(getByTestId('pick-cover'));
 
   await waitFor(() => expect(getByText('Neues Cover ausgewählt. Speichern schreibt es in die Datei.')).toBeTruthy());
+  expect(getByTestId('pick-cover').props.accessibilityLabel).toBe('Cover ausgewählt — tippen zum Ändern');
   expect(getByTestId('cover-preview')).toBeTruthy();
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(false);
