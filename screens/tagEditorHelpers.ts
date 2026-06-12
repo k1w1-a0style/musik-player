@@ -64,7 +64,7 @@ export const COVER_PICK_ERROR_MESSAGES = {
   invalidBase64: 'Cover-Daten sind beschädigt. Bitte anderes Bild wählen.',
   unsupportedMime: 'Nur JPG/JPEG und PNG werden als Cover unterstützt.',
   tooLarge: 'Cover ist zu groß. Bitte ein Bild bis maximal 5 MB wählen.',
-  invalidImageBytes: 'Cover-Daten passen nicht zum Bildformat. Bitte anderes Bild wählen.',
+  invalidImageBytes: 'Cover-Daten enthalten kein unterstütztes JPG/PNG-Bild. Bitte anderes Bild wählen.',
 } as const;
 
 export const toInitialForm = (song: Song): FormState => ({
