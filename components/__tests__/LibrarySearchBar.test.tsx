@@ -22,3 +22,14 @@ test('passes autoFocus to text input', () => {
 
   expect(getByTestId('library-search-input').props.autoFocus).toBe(true);
 });
+
+test('uses localized accessibility label and placeholder', () => {
+  const { getByTestId } = render(<LibrarySearchBar value="" onChangeText={jest.fn()} />);
+
+  expect(getByTestId('library-search-input').props.accessibilityLabel).toBe(
+    'Bibliothek durchsuchen',
+  );
+  expect(getByTestId('library-search-input').props.placeholder).toBe(
+    'Titel, Künstler, Album, Genre suchen',
+  );
+});

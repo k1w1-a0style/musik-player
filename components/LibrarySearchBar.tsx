@@ -15,7 +15,8 @@ const LibrarySearchBar: React.FC<LibrarySearchBarProps> = ({ value, onChangeText
     <TextInput
       value={value}
       onChangeText={onChangeText}
-      placeholder="Titel, Artist, Album, Genre suchen"
+      accessibilityLabel="Bibliothek durchsuchen"
+      placeholder="Titel, Künstler, Album, Genre suchen"
       placeholderTextColor={theme.palette.text.muted}
       style={styles.searchInput}
       autoFocus={autoFocus}
