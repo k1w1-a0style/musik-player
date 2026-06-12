@@ -31,6 +31,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
       <Pressable
         testID="remove-cover"
         accessibilityRole="switch"
+        accessibilityLabel="Cover entfernen"
         accessibilityState={{ checked: removeCover, disabled: removeDisabled }}
         style={[styles.toggle, hasReplacementCover && styles.disabledButton]}
         disabled={removeDisabled}
@@ -42,6 +43,11 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
       <Pressable
         testID="pick-cover"
         accessibilityRole="button"
+        accessibilityLabel={
+          hasReplacementCover
+            ? 'Cover ausgewählt — tippen zum Ändern'
+            : 'Cover auswählen (JPG/PNG, max. 5 MB)'
+        }
         accessibilityState={{ disabled: pickDisabled }}
         disabled={pickDisabled}
         style={({ pressed }) => [
