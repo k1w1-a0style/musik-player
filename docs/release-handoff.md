@@ -73,9 +73,9 @@ Vor dem Main-Merge muss mindestens ein Android-Smoke auf einem echten Gerät ode
 
 ## New-Architecture Android Dev-APK Smoke
 
-New Architecture ist testweise für das Android-only-Projekt aktiviert. Der Status bleibt bis zu einem neuen Android Dev-Build und erfolgreichem Geräte-Smoke offen; ohne diesen Smoke ist der Handoff nicht release-ready.
+New Architecture ist im Release-/Rollback-Pfad deaktiviert. Wird sie in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert, bleibt der Status bis zu einem neuen Android Dev-Build und erfolgreichem Geräte-Smoke offen; ohne diesen Smoke ist der Handoff dann nicht release-ready.
 
-- [ ] Dev-APK wurde nach New-Architecture-Aktivierung neu gebaut.
+- [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
 - [ ] Musikimport funktioniert.
 - [ ] Wiedergabe Start/Pause/Nächster/Vorheriger Titel funktioniert.
@@ -101,7 +101,7 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 Vor einem Preview- oder Release-Build prüfen:
 
 - [ ] EAS Login ist korrekt.
-- [ ] Expo App-Identität, Android Package und testweise `newArchEnabled=true` stimmen.
+- [ ] Expo App-Identität, Android Package und `newArchEnabled=false` als Release-/Rollback-Vorgabe stimmen.
 - [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen; neue oder unerwartete Mikrofon-/Foto-/Video-Permissions blockieren den Main-Handoff.
 - [ ] Der Cover-cache-cleanup Smoke-Check bleibt inklusive `readDirectoryAsync` dokumentiert.
 - [ ] Preview-/Release-Profil und Build-Ziel wurden bewusst ausgewählt.
@@ -129,7 +129,7 @@ Ein Merge nach `main` ist blockiert, solange einer dieser Punkte zutrifft:
 - Fehlender oder roter CI-Run auf dem letzten `codex`-Commit.
 - Fehlende oder fehlgeschlagene lokale Gates: Install, Lint, Typecheck, Tests oder Coverage.
 - Coverage wurde abgesenkt und nicht nachvollziehbar begründet.
-- Android-Smoke-Test fehlt oder zeigt Regressionen, insbesondere nach der New-Architecture-Aktivierung, bei Empty-URI-Blocking, External-Cover-Remove-Blocking oder Cover-cache-cleanup inklusive `readDirectoryAsync`.
+- Android-Smoke-Test fehlt oder zeigt Regressionen, insbesondere nach einer künftigen New-Architecture-Aktivierung, bei Empty-URI-Blocking, External-Cover-Remove-Blocking oder Cover-cache-cleanup inklusive `readDirectoryAsync`.
 - EAS-/Expo-Konfiguration ist unklar, widersprüchlich oder nicht reproduzierbar.
 - Neue oder unerwartete Mikrofon-/Foto-/Video-Permissions erscheinen in Expo Config oder generiertem Android-Manifest.
 - Eine destructive migration ist offen, ungeklärt oder nicht rollback-fähig dokumentiert.

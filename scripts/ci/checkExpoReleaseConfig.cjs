@@ -17,8 +17,8 @@ expectEqual('name', config.name, 'k1w1-Musik');
 expectEqual('scheme', config.scheme, 'musik-player');
 expectEqual('slug', config.slug, 'musik-player');
 expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');
-// New Architecture is intentionally enabled on codex for Android Dev-APK smoke testing.
-expectEqual('newArchEnabled', config.newArchEnabled, true);
+// Keep the release gate on the supported architecture while react-native-track-player@4.1.2 is pinned.
+expectEqual('newArchEnabled', config.newArchEnabled, false);
 
 const androidPermissions = config.android?.permissions ?? [];
 const blockedPermissions = config.android?.blockedPermissions ?? [];

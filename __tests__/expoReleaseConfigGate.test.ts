@@ -24,7 +24,7 @@ const baseConfig = {
       'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
     ],
   },
-  newArchEnabled: true,
+  newArchEnabled: false,
   extra: { eas: { projectId: '00000000-0000-4000-8000-000000000000' } },
 };
 
@@ -45,14 +45,14 @@ describe('Expo release config gate', () => {
     expect(result.stdout).toContain('Expo config release gate passed.');
   });
 
-  it('fails when New Architecture test mode is disabled', () => {
+  it('fails when New Architecture is enabled in the release config', () => {
     const result = runGate({
       ...baseConfig,
-      newArchEnabled: false,
+      newArchEnabled: true,
     });
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('newArchEnabled: expected true, got false');
+    expect(result.stderr).toContain('newArchEnabled: expected false, got true');
   });
 
   it('fails when RECORD_AUDIO is declared as an Android permission', () => {

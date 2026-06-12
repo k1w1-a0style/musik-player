@@ -6,7 +6,7 @@
 - [ ] `scheme` = `musik-player`
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`
-- [ ] `newArchEnabled=true` ist nur testweise für Android aktiviert; Release-Freigabe erst nach neuem Dev-APK-Build und Geräte-Smoke
+- [ ] `newArchEnabled=false` bleibt Release-/Rollback-Vorgabe, solange `react-native-track-player@4.1.2` im Einsatz ist
 - [ ] `expo.extra.eas.projectId` ist vorhanden
 
 ## Lokale Gates
@@ -35,9 +35,9 @@ Bewusst separat: i18n-Migration, finale New-Architecture-Freigabe nach Android D
 
 ## New-Architecture Android Dev-APK Smoke
 
-New Architecture ist testweise für das Android-only-Projekt aktiviert. Diese Liste ist Pflicht nach dem Merge und vor jeder Release-Freigabe; ohne echten Android Dev-Build und Geräte-Smoke bleibt der Status offen.
+New Architecture ist im Release-/Rollback-Pfad deaktiviert. Diese Liste wird Pflicht, sobald New Architecture in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert wird; ohne echten Android Dev-Build und Geräte-Smoke bleibt der Status dann offen.
 
-- [ ] Dev-APK wurde nach New-Architecture-Aktivierung neu gebaut.
+- [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
 - [ ] Musikimport funktioniert.
 - [ ] Wiedergabe Start/Pause/Nächster/Vorheriger Titel funktioniert.

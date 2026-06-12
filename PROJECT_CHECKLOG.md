@@ -12,7 +12,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] SAF-Timeout-/Abort-Verhalten stabilisiert.
 - [x] Storage-API-Typing und Scan-Folder-Merges dokumentiert/stabilisiert.
 - [x] Import-Filter für sehr kurze Audiodateien konfigurierbar gemacht.
-- [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; New Architecture wird jetzt testweise auf `codex` aktiviert.
+- [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; New Architecture bleibt wegen `react-native-track-player@4.1.2` im Release-/Rollback-Pfad deaktiviert.
 - [x] Playlist-Timestamp für gespeicherte Warteschlange ergänzt.
 - [x] `moveOrReplaceFile` Interface-Vertrag dokumentiert.
 
@@ -32,8 +32,8 @@ Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
 ## Bewusst separate Themen
 
 - i18n: keine Migration; App ist dauerhaft Deutsch-only.
-- New Architecture: testweise auf `codex` für das Android-only-Projekt mit SDK 54 aktiviert; finaler Status offen bis neuer Android Dev-Build und Geräte-Smoke erfolgreich sind. Nicht als release-ready markieren, solange kein echter Android-Smoke gelaufen ist.
-- Android Dev-APK Smoke: nach New-Architecture-Aktivierung zwingend neu ausführen. Bei Build- oder Runtime-Problemen wird per separatem Fix-PR korrigiert oder New Architecture gezielt zurückgerollt.
+- New Architecture: bleibt auf `newArchEnabled=false`, solange `react-native-track-player@4.1.2` gepinnt ist. Eine spätere testweise Aktivierung braucht einen separaten Opt-in-PR oder das passende Dependency-Upgrade inklusive Android Dev-Build und Geräte-Smoke.
+- Android Dev-APK Smoke: nach jeder künftigen New-Architecture-Aktivierung zwingend neu ausführen. Bei Build- oder Runtime-Problemen wird per separatem Fix-PR korrigiert oder New Architecture gezielt zurückgerollt.
 - V6.6 Android Dev-APK Smoke: offen/manuell; bleibt lokaler manueller Schritt nach Merge der V6.6-Fixes und ist nicht als smoke-final markiert.
 - Vollständiger finaler Gesamttest: am 2026-06-12 im V6.6-Final-PR erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
