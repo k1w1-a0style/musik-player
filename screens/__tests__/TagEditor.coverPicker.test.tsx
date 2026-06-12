@@ -82,6 +82,9 @@ jest.mock('../../utils/tagWriter', () => {
 });
 
 const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
+const gifBase64 = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]).toString('base64');
+const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
+const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
 
 beforeEach(() => {
   jest
@@ -129,7 +132,7 @@ test('cancelled cover picker shows a status and keeps save disabled', async () =
 test('unsupported picked cover type is rejected', async () => {
   mockLaunchImageLibraryAsync.mockResolvedValue({
     canceled: false,
-    assets: [{ base64: toBase64('gif'), mimeType: 'image/gif', uri: 'file:///cover.gif' }],
+    assets: [{ base64: gifBase64, mimeType: 'image/gif', uri: 'file:///cover.gif' }],
   });
   const { getByTestId, getByText } = render(<TagEditor />);
 
@@ -143,7 +146,7 @@ test('unsupported picked cover type is rejected', async () => {
 test('valid picked cover enables save and writes cover draft', async () => {
   mockLaunchImageLibraryAsync.mockResolvedValue({
     canceled: false,
-    assets: [{ base64: toBase64('jpg'), mimeType: 'image/jpeg', uri: 'file:///new-cover.jpg' }],
+    assets: [{ base64: jpgBase64, mimeType: 'image/jpeg', uri: 'file:///new-cover.jpg' }],
   });
   mockWriteTagsToFile.mockResolvedValue({ status: 'written', warnings: [] });
   const { getByTestId, getByText } = render(<TagEditor />);
@@ -161,7 +164,7 @@ test('valid picked cover enables save and writes cover draft', async () => {
   const draft = mockWriteTagsToFile.mock.calls[0][1];
   expect(draft.removeCover).toBeUndefined();
   expect(draft.cover.mimeType).toBe('image/jpeg');
-  expect(Array.from(draft.cover.data)).toEqual(Array.from(Buffer.from('jpg')));
+  expect(Array.from(draft.cover.data)).toEqual(jpgBytes);
   expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
     cover: 'file:///new-cover.jpg',
     coverInfo: { status: 'embedded', uri: 'file:///new-cover.jpg' },

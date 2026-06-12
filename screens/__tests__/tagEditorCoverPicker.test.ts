@@ -11,6 +11,11 @@ const mockGetMediaLibraryPermissionsAsync = ImagePicker.getMediaLibraryPermissio
 const mockRequestMediaLibraryPermissionsAsync = ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock;
 const mockLaunchImageLibraryAsync = ImagePicker.launchImageLibraryAsync as jest.Mock;
 
+const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
+const webpBytes = [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50];
+const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
+const webpBase64 = Buffer.from(webpBytes).toString('base64');
+
 describe('pickTagEditorCover', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -21,7 +26,7 @@ describe('pickTagEditorCover', () => {
     mockGetMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied' });
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: Buffer.from('cover').toString('base64') }],
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: jpgBase64 }],
     });
 
     const result = await pickTagEditorCover();
@@ -32,7 +37,7 @@ describe('pickTagEditorCover', () => {
     if (result.status === 'selected') {
       expect(result.cover.uri).toBe('file:///cover.jpg');
       expect(result.cover.mimeType).toBe('image/jpeg');
-      expect(result.cover.sizeBytes).toBe(5);
+      expect(result.cover.sizeBytes).toBe(jpgBytes.length);
     }
   });
 
@@ -110,7 +115,7 @@ describe('pickTagEditorCover', () => {
   test('returns failed result for invalid cover asset', async () => {
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///cover.gif', mimeType: 'image/gif', base64: 'abc' }],
+      assets: [{ uri: 'file:///cover.webp', mimeType: 'image/webp', base64: webpBase64 }],
     });
 
     await expect(pickTagEditorCover()).resolves.toEqual({
@@ -119,10 +124,41 @@ describe('pickTagEditorCover', () => {
     });
   });
 
+  test('returns selected cover with detected mime when picker mime differs from encoded bytes', async () => {
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///cover.png', mimeType: 'image/png', base64: jpgBase64 }],
+    });
+
+    const result = await pickTagEditorCover();
+
+    expect(result.status).toBe('selected');
+    if (result.status === 'selected') {
+      expect(result.cover.uri).toBe('file:///cover.png');
+      expect(result.cover.mimeType).toBe('image/jpeg');
+      expect(result.cover.sizeBytes).toBe(jpgBytes.length);
+    }
+  });
+
+  test('returns failed result when cover bytes are not a supported image', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: Buffer.from('not an image').toString('base64') }],
+    });
+
+    await expect(pickTagEditorCover()).resolves.toEqual({
+      status: 'failed',
+      message: 'Cover-Daten enthalten kein unterstütztes JPG/PNG-Bild. Bitte anderes Bild wählen.',
+    });
+    expect(warnSpy).toHaveBeenCalledWith('[CoverPicker] Invalid cover asset selected.', { reason: 'invalidImageBytes' });
+    warnSpy.mockRestore();
+  });
+
   test('returns selected cover result for valid asset', async () => {
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: Buffer.from('cover').toString('base64') }],
+      assets: [{ uri: 'file:///cover.jpg', mimeType: 'image/jpeg', base64: jpgBase64 }],
     });
 
     const result = await pickTagEditorCover();
@@ -132,7 +168,7 @@ describe('pickTagEditorCover', () => {
     if (result.status === 'selected') {
       expect(result.cover.uri).toBe('file:///cover.jpg');
       expect(result.cover.mimeType).toBe('image/jpeg');
-      expect(result.cover.sizeBytes).toBe(5);
+      expect(result.cover.sizeBytes).toBe(jpgBytes.length);
     }
   });
 
