@@ -16,7 +16,7 @@ const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: NowPlaying
       style={styles.headerBtn}
       onPress={onClose}
       accessibilityRole="button"
-      accessibilityLabel="Now Playing schließen"
+      accessibilityLabel="Wiedergabe schließen"
     >
       <ChevronDown color={theme.palette.text.primary} size={22} />
     </Pressable>
@@ -29,7 +29,7 @@ const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: NowPlaying
       style={styles.headerBtn}
       onPress={onMore}
       accessibilityRole="button"
-      accessibilityLabel="Now Playing Menü öffnen"
+      accessibilityLabel="Wiedergabe-Menü öffnen"
     >
       <MoreHorizontal color={theme.palette.text.primary} size={22} />
     </Pressable>

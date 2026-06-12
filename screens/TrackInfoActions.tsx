@@ -15,12 +15,17 @@ const TrackInfoActions: React.FC<TrackInfoActionsProps> = ({
 }) => (
   <>
     <View style={styles.actionRow}>
-      <Pressable accessibilityRole="button" style={styles.editButton} onPress={onOpenTagEditor}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Tags bearbeiten"
+        style={styles.editButton}
+        onPress={onOpenTagEditor}
+      >
         <Text style={styles.editButtonText}>ID3/M4A Tags bearbeiten</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Track aus Bibliothek entfernen"
+        accessibilityLabel="Titel aus Bibliothek entfernen"
         style={styles.removeButton}
         onPress={onRemoveFromLibrary}
       >
