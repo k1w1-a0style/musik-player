@@ -146,8 +146,7 @@ class SystemAudioModule : Module() {
             val base64Payload = uri.substring(comma + 1)
             if (decodedBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
             val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
-            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            decodeByteArrayForPalette(bytes)
           }
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
@@ -155,22 +154,82 @@ class SystemAudioModule : Module() {
           null
         }
         else -> {
-          val ctx = appContext.reactContext ?: return null
           val parsed = Uri.parse(uri)
           if (parsed.scheme == "file") {
             val path = parsed.path ?: return null
-            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            BitmapFactory.decodeFile(path, opts)
+            decodeFileForPalette(path)
           } else {
-            ctx.contentResolver.openInputStream(parsed)?.use { stream ->
-              val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-              BitmapFactory.decodeStream(stream, null, opts)
-            }
+            decodeContentUriForPalette(parsed)
           }
         }
       }
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      Log.d(TAG, "palette bitmap decode failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
       null
+    }
+  }
+
+  private fun hasValidBounds(opts: BitmapFactory.Options): Boolean =
+    opts.outWidth > 0 && opts.outHeight > 0
+
+  private fun calculateInSampleSize(width: Int, height: Int, maxPixels: Int): Int {
+    if (width <= 0 || height <= 0 || maxPixels <= 0) return 1
+
+    var sampleSize = 1
+    while ((width.toLong() / sampleSize) * (height.toLong() / sampleSize) > maxPixels) {
+      if (sampleSize > Int.MAX_VALUE / 2) return sampleSize
+      sampleSize *= 2
+    }
+    return sampleSize.coerceAtLeast(1)
+  }
+
+  private fun decodeByteArrayForPalette(bytes: ByteArray): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (!hasValidBounds(bounds)) return null
+
+    val opts = BitmapFactory.Options().apply {
+      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+  }
+
+  private fun decodeFileForPalette(path: String): Bitmap? {
+    val file = File(path)
+    if (!file.exists() || !file.isFile) return null
+
+    val fileLength = file.length()
+    if (fileLength > MAX_PALETTE_IMAGE_BYTES) {
+      Log.d(TAG, "palette file too large bytes=$fileLength path=${path.safeLogUri()}")
+      return null
+    }
+
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (!hasValidBounds(bounds)) return null
+
+    val opts = BitmapFactory.Options().apply {
+      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+    }
+    return BitmapFactory.decodeFile(path, opts)
+  }
+
+  private fun decodeContentUriForPalette(uri: Uri): Bitmap? {
+    val ctx = appContext.reactContext ?: return null
+
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    val boundsStream = ctx.contentResolver.openInputStream(uri) ?: return null
+    boundsStream.use { stream ->
+      BitmapFactory.decodeStream(stream, null, bounds)
+    }
+
+    if (!hasValidBounds(bounds)) return null
+
+    val opts = BitmapFactory.Options().apply {
+      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+    }
+    return ctx.contentResolver.openInputStream(uri)?.use { stream ->
+      BitmapFactory.decodeStream(stream, null, opts)
     }
   }
 
@@ -307,5 +366,6 @@ class SystemAudioModule : Module() {
     private const val MAX_EMBEDDED_ARTWORK_CACHE_BYTES = 25L * 1024L * 1024L
     private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
+    private const val MAX_PALETTE_PIXELS = 1024 * 1024
   }
 }
