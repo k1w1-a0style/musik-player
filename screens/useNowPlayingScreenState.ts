@@ -13,7 +13,7 @@ export const buildSavedQueuePlaylistName = (date = new Date()): string => {
     timeStyle: 'short',
   });
 
-  return `Gespeicherte Queue — ${ts}`;
+  return `Gespeicherte Warteschlange — ${ts}`;
 };
 
 export const useNowPlayingScreenState = () => {
@@ -41,7 +41,7 @@ export const useNowPlayingScreenState = () => {
   const saveCurrentQueueAsPlaylist = () => {
     const playlist = saveQueueAsPlaylist(buildSavedQueuePlaylistName(), playbackQueue);
     if (!playlist) {
-      Alert.alert('Queue speichern', 'Die aktuelle Queue enthält keine Songs.');
+      Alert.alert('Warteschlange speichern', 'Die aktuelle Warteschlange enthält keine Titel.');
       return;
     }
     Alert.alert('Playlist gespeichert', `„${playlist.name}“ wurde erstellt.`);

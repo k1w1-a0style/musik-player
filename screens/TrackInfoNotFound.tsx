@@ -7,7 +7,7 @@ import { theme } from '../theme';
 const TrackInfoNotFound: React.FC = () => (
   <AppBackground>
     <Screen contentStyle={styles.container}>
-      <Text style={styles.error}>Song nicht gefunden.</Text>
+      <Text style={styles.error}>Titel nicht gefunden.</Text>
     </Screen>
   </AppBackground>
 );

@@ -35,19 +35,19 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   const container = getSupportedContainer(song);
 
   if (uri === undefined) {
-    return { canRead: false, canWrite: false, uriType: 'unknown', supportedContainer: container, reason: 'Song has no readable URI.' };
+    return { canRead: false, canWrite: false, uriType: 'unknown', supportedContainer: container, reason: 'Der Titel hat keine lesbare URI.' };
   }
 
   if (uriType === 'empty') {
-    return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'Song URI is empty.' };
+    return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'Die Titel-URI ist leer.' };
   }
 
   if (uriType === 'remote') {
-    return { canRead: true, canWrite: false, uriType, supportedContainer: container, reason: 'Remote URLs are read-only.' };
+    return { canRead: true, canWrite: false, uriType, supportedContainer: container, reason: 'Remote-URLs sind schreibgeschützt.' };
   }
 
   if (container === 'unsupported') {
-    return { canRead: true, canWrite: false, uriType, supportedContainer: container, reason: 'Container not supported for tag editing.' };
+    return { canRead: true, canWrite: false, uriType, supportedContainer: container, reason: 'Container wird für Tag-Bearbeitung nicht unterstützt.' };
   }
 
   if (uriType === 'content') {
@@ -56,7 +56,7 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
       canWrite: false,
       uriType,
       supportedContainer: container,
-      reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Der Track kann angezeigt, aber nicht direkt bearbeitet werden.',
+      reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Der Titel kann angezeigt, aber nicht direkt bearbeitet werden.',
     };
   }
 
@@ -68,10 +68,10 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
       uriType,
       supportedContainer: container,
       reason: canReplace
-        ? 'Local file writes are supported through guarded backup/temp verification flow.'
-        : 'Safe existing file replacement is not supported on this platform yet.',
+        ? 'Lokale Datei-Schreibvorgänge werden über Backup-, Temp- und Verifikationsschutz unterstützt.'
+        : 'Sicheres Ersetzen vorhandener Dateien wird auf dieser Plattform noch nicht unterstützt.',
     };
   }
 
-  return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'Unsupported URI type.' };
+  return { canRead: false, canWrite: false, uriType, supportedContainer: container, reason: 'URI-Typ wird nicht unterstützt.' };
 };

@@ -181,7 +181,7 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
 };
 
 const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string => {
-  const trackCount = `${sortedSongs.length} ${sortedSongs.length === 1 ? 'Track' : 'Tracks'}`;
+  const trackCount = `${sortedSongs.length} Titel`;
   if (kind !== 'album') return trackCount;
   const artist = displayArtist(sortedSongs[0]);
   return `${artist} • ${trackCount}`;

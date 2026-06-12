@@ -135,7 +135,7 @@ describe('useTrackInfoScreenState', () => {
 
     expect(alertSpy).toHaveBeenCalledWith(
       'Aus Bibliothek entfernen?',
-      'Der Track wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
+      'Der Titel wird nur aus der App-Bibliothek entfernt. Die Audiodatei auf deinem Gerät bleibt erhalten.',
       expect.arrayContaining([
         expect.objectContaining({ text: 'Abbrechen', style: 'cancel' }),
         expect.objectContaining({ text: 'Entfernen', style: 'destructive' }),

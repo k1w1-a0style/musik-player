@@ -45,7 +45,7 @@ describe('tagEditCapability', () => {
     const androidM4aCap = getTagEditCapability(song({ uri: 'file:///music/a.m4a', fileInfo: { extension: 'm4a' } }), 'android');
     expect(iosCap.canWrite).toBe(false);
     expect(webCap.canWrite).toBe(false);
-    expect(iosCap.reason).toMatch(/Safe existing file replacement is not supported/i);
+    expect(iosCap.reason).toMatch(/Sicheres Ersetzen vorhandener Dateien wird auf dieser Plattform noch nicht unterstützt/i);
     expect(androidMp4Cap.canWrite).toBe(true);
     expect(androidM4aCap.canWrite).toBe(true);
     expect(isFileWriteSupportedOnPlatform('android')).toBe(true);

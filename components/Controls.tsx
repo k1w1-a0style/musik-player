@@ -15,7 +15,7 @@ import type { RepeatMode } from '../types/Song';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
   off: 'Wiederholung aus',
-  one: 'Song wiederholen',
+  one: 'Titel wiederholen',
   all: 'Alle Titel wiederholen',
 };
 

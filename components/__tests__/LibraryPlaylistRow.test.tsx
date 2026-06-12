@@ -15,13 +15,13 @@ test('renders playlist name and track count', () => {
   const { getByText } = render(<LibraryPlaylistRow playlist={playlist()} onPlay={jest.fn()} />);
 
   expect(getByText('Mix')).toBeTruthy();
-  expect(getByText('2 Tracks')).toBeTruthy();
+  expect(getByText('2 Titel')).toBeTruthy();
 });
 
 test('renders singular track label', () => {
   const { getByText } = render(<LibraryPlaylistRow playlist={playlist({ validCount: 1, totalCount: 1 })} onPlay={jest.fn()} />);
 
-  expect(getByText('1 Track')).toBeTruthy();
+  expect(getByText('1 Titel')).toBeTruthy();
 });
 
 test('renders warning for missing songs', () => {

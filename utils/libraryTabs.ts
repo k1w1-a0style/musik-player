@@ -1,11 +1,11 @@
 import type { ScanFolder } from '../types/ScanFolder';
 
 export const LIBRARY_TABS = [
-  { key: 'tracks', label: 'Tracks' },
+  { key: 'tracks', label: 'Titel' },
   { key: 'favorites', label: 'Favoriten' },
   { key: 'playlists', label: 'Playlisten' },
   { key: 'albums', label: 'Alben' },
-  { key: 'artists', label: 'Interpreten' },
+  { key: 'artists', label: 'Künstler' },
   { key: 'genres', label: 'Genres' },
   { key: 'folders', label: 'Ordner' },
 ] as const;

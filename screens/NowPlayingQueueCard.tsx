@@ -43,8 +43,8 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   return (
     <View style={[styles.queueCard, { maxHeight }]}>
       <View style={styles.queueHeaderRow}>
-        <Text style={styles.queueEyebrow}>QUEUE</Text>
-        <Text style={styles.queueCount}>{queue.length} Tracks</Text>
+        <Text style={styles.queueEyebrow}>WARTESCHLANGE</Text>
+        <Text style={styles.queueCount}>{queue.length} Titel</Text>
       </View>
       <FlatList
         data={queue}

@@ -38,7 +38,7 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
           onCoverError={onCoverError}
         />
 
-        <Text style={styles.header}>TrackInfo</Text>
+        <Text style={styles.header}>Titelinfo</Text>
         <TrackInfoActions
           onOpenTagEditor={onOpenTagEditor}
           onRemoveFromLibrary={onRemoveFromLibrary}

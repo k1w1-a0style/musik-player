@@ -15,7 +15,7 @@ const mockNavigate = jest.fn();
 const pendingFavoriteLookup = () => new Promise<boolean>(() => undefined);
 const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(pendingFavoriteLookup);
 const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
-const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Queue', songIds: ['s1'], createdAt: 1 }));
+const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Warteschlange', songIds: ['s1'], createdAt: 1 }));
 let mockNowPlayingStateCrash = false;
 
 jest.mock('@react-navigation/native', () => ({
@@ -243,7 +243,7 @@ describe('NowPlaying cover fallback', () => {
     fireEvent.press(getByText(SAVE_QUEUE_LABEL));
 
     expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
-      expect.stringMatching(/^Gespeicherte Queue — .+/),
+      expect.stringMatching(/^Gespeicherte Warteschlange — .+/),
       mockNowPlayingContext.playbackQueue,
     );
   });

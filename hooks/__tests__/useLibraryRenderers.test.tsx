@@ -86,7 +86,7 @@ const song = (id: string, overrides: Partial<Song> = {}): Song => ({
 const group = (id: string, songs: Song[]): LibraryGroupItem => ({
   id,
   title: id,
-  subtitle: `${songs.length} Tracks`,
+  subtitle: `${songs.length} Titel`,
   songs,
 });
 

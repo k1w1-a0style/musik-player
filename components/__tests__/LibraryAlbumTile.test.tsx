@@ -6,7 +6,7 @@ import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 const album = (patch: Partial<LibraryGroupItem> = {}): LibraryGroupItem => ({
   id: patch.id ?? 'a1',
   title: patch.title ?? 'Warehouse Dreams',
-  subtitle: patch.subtitle ?? 'DJ Kiwi • 12 Tracks',
+  subtitle: patch.subtitle ?? 'DJ Kiwi • 12 Titel',
   cover: patch.cover,
   songs: patch.songs ?? [],
 });
@@ -15,7 +15,7 @@ test('renders album title and subtitle', () => {
   const { getByText } = render(<LibraryAlbumTile album={album()} onPress={jest.fn()} />);
 
   expect(getByText('Warehouse Dreams')).toBeTruthy();
-  expect(getByText('DJ Kiwi • 12 Tracks')).toBeTruthy();
+  expect(getByText('DJ Kiwi • 12 Titel')).toBeTruthy();
 });
 
 test('renders first letter when no cover exists', () => {

@@ -112,7 +112,7 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
   const group: LibraryGroupItem = {
     id: 'album:One',
     title: 'One',
-    subtitle: '1 Track',
+    subtitle: '1 Titel',
     songs: [song],
   };
   const playlist: LibraryPlaylistItem = {

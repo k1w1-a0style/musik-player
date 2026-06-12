@@ -122,7 +122,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     expect(getByText('K1W1 Music')).toBeTruthy();
-    expect(getByText('Tracks')).toBeTruthy();
+    expect(getByText('Titel')).toBeTruthy();
     expect(getByText('Favoriten')).toBeTruthy();
     expect(getByText('Genres')).toBeTruthy();
     expect(getByText('Ordner')).toBeTruthy();
@@ -157,7 +157,7 @@ describe('Library', () => {
 
     fireEvent.press(getByLabelText('Playlisten anzeigen'));
     expect(getByText('Meine Liste')).toBeTruthy();
-    expect(getByText('1 Track')).toBeTruthy();
+    expect(getByText('1 Titel')).toBeTruthy();
 
     fireEvent.press(getByLabelText('Playlist Meine Liste abspielen'));
     expect(mockPlayPlaylist).toHaveBeenCalledWith('pl1');
@@ -192,7 +192,7 @@ describe('Library', () => {
 
     await waitFor(() => expect(mockRefreshSongsFromId3).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })])));
     expect(mockSetSongs).toHaveBeenCalledWith(refreshedSongs);
-    expect(Alert.alert).toHaveBeenCalledWith('Metadaten aktualisiert', '1 Tracks aktualisiert. 0 übersprungen. 0 fehlgeschlagen.');
+    expect(Alert.alert).toHaveBeenCalledWith('Metadaten aktualisiert', '1 Titel aktualisiert. 0 übersprungen. 0 fehlgeschlagen.');
     view.unmount();
   });
 
