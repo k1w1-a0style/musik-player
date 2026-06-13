@@ -122,8 +122,10 @@ export const rebuildNativePlaybackQueueUnlocked = async (
     if (!isCurrent()) return false;
   }
 
-  await TrackPlayer.play();
-  if (!isCurrent()) return false;
+  if (queue.length > 0) {
+    await TrackPlayer.play();
+    if (!isCurrent()) return false;
+  }
 
   nativeQueueRef.current = queue.length > 0 ? queue.slice() : [];
   return true;

@@ -95,4 +95,33 @@ describe('useCurrentSongSync', () => {
     expect(getByTestId('current').props.children).toBe('');
     expect(persistCurrentSongId).toHaveBeenCalledWith(null);
   });
+
+  test('ignores active-track events without a track or trackId payload and keeps current song', () => {
+    const persistCurrentSongId = jest.fn(async () => undefined);
+    const { getByTestId } = render(<SyncProbe persistCurrentSongId={persistCurrentSongId} />);
+
+    act(() => {
+      trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { track: { id: 's1' } });
+    });
+    expect(getByTestId('current').props.children).toBe('s1');
+
+    act(() => {
+      trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { index: 0 });
+    });
+
+    expect(getByTestId('current').props.children).toBe('s1');
+    expect(persistCurrentSongId).toHaveBeenCalledTimes(1);
+  });
+
+  test('removes active-track listener on unmount', () => {
+    const remove = jest.fn();
+    (TrackPlayer.addEventListener as jest.Mock).mockReturnValueOnce({ remove });
+    const persistCurrentSongId = jest.fn(async () => undefined);
+
+    const { unmount } = render(<SyncProbe persistCurrentSongId={persistCurrentSongId} />);
+    unmount();
+
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
 });

@@ -71,4 +71,20 @@ describe('musicHydrationNativeQueue', () => {
 
     expect(nativeQueueRef.current).toEqual([]);
   });
+
+  test('resets but does not add or play when hydration produces an empty native queue', async () => {
+    const plan = createHydrationPlan({ ...stored, songs: [], currentSongId: null }, []);
+    const nativeQueueRef = createSongRef();
+    nativeQueueRef.current = songs.slice();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(warn).toHaveBeenCalledWith('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+  });
+
 });

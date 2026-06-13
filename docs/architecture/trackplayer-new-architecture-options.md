@@ -117,6 +117,7 @@ rg -n "react-native-track-player" -g '!node_modules/**' -g '!docs/**' -g '!cover
 
 ### Fehlende Tests / Smokes vor V5 oder NewArch
 
+- A2 erweitert die Unit-/Hook-Testabdeckung für die aktuelle `react-native-track-player@4.1.2`-Nutzung (Remote Events, Controls, Queue/Hydration, CurrentSong, Progress und Metadata), bleibt aber ein Sicherheits-/Test-PR ohne Upgrade und ohne NewArch-Aktivierung.
 - Echten Android-Dev-Build mit New Architecture gibt es in A1 nicht.
 - Kein automatisierter End-to-End-Test für Android Notification Controls.
 - Kein automatisierter End-to-End-Test für Lockscreen/MediaSession Controls.

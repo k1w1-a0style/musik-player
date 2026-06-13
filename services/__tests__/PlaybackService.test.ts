@@ -6,6 +6,7 @@ import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMut
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
   __trigger: (event: string, payload?: unknown) => void;
+  __getListeners: (event: string) => unknown[];
 };
 
 const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
@@ -29,6 +30,14 @@ describe('PlaybackService', () => {
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteSeek, expect.any(Function));
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteJumpForward, expect.any(Function));
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteJumpBackward, expect.any(Function));
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePause)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteStop)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteNext)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePrevious)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteSeek)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpForward)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpBackward)).toHaveLength(1);
   });
 
   test('runs remote play action', async () => {
@@ -98,4 +107,44 @@ describe('PlaybackService', () => {
 
     await waitFor(() => expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote next failed', error));
   });
+
+  test.each([
+    [Event.RemotePause, TrackPlayer.pause, undefined],
+    [Event.RemoteStop, TrackPlayer.stop, undefined],
+    [Event.RemoteNext, TrackPlayer.skipToNext, undefined],
+    [Event.RemotePrevious, TrackPlayer.skipToPrevious, undefined],
+  ])('runs remote action for %s', async (event, nativeAction, payload) => {
+    (nativeAction as jest.Mock).mockResolvedValueOnce(undefined);
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(event, payload);
+
+    await waitFor(() => expect(nativeAction).toHaveBeenCalledTimes(1));
+  });
+
+  test.each([
+    [Event.RemoteJumpForward, 15, 15],
+    [Event.RemoteJumpForward, undefined, 10],
+    [Event.RemoteJumpBackward, 7, -7],
+    [Event.RemoteJumpBackward, undefined, -10],
+  ])('runs jump seekBy for %s with interval %p', async (event, interval, expectedOffset) => {
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(event, { interval });
+
+    await waitFor(() => expect(TrackPlayer.seekBy).toHaveBeenCalledWith(expectedOffset));
+  });
+
+  test('keeps the service alive after a remote handler rejection', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('pause failed'));
+    await PlaybackService();
+
+    trackPlayerTestApi.__trigger(Event.RemotePause);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote pause failed', expect.any(Error)));
+
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
+    await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalledTimes(1));
+  });
+
 });

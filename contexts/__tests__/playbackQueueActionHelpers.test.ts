@@ -477,4 +477,57 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.baseQueueContextRef.current).toEqual(songs);
     expect(args.nativeQueueRef.current).toEqual([]);
   });
+
+  test('rebuildNativePlaybackQueue resets before adding multiple songs and then starts playback', async () => {
+    const nativeQueueRef = createSongRef();
+
+    await rebuildNativePlaybackQueue(toPlayableSongs(songs), nativeQueueRef);
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.add).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 's1' }),
+      expect.objectContaining({ id: 's2' }),
+      expect.objectContaining({ id: 's3' }),
+    ]);
+    expect((TrackPlayer.reset as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (TrackPlayer.add as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((TrackPlayer.add as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (TrackPlayer.play as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1', 's2', 's3']);
+  });
+
+  test('rebuildNativePlaybackQueue clears an empty queue without adding or starting playback', async () => {
+    const nativeQueueRef = createSongRef([songs[0]]);
+
+    await rebuildNativePlaybackQueue([], nativeQueueRef);
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(nativeQueueRef.current).toEqual([]);
+  });
+
+  test('runShuffleQueueAction keeps the active song selected after rebuilding shuffled queue', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = songs.slice();
+    args.baseQueueContextRef.current = songs.slice();
+    args.nativeQueueRef.current = songs.slice();
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's2' });
+    const setShuffle = jest.fn();
+
+    await runShuffleQueueAction({
+      ...args,
+      currentSongId: 's1',
+      shuffle: false,
+      setShuffle,
+    });
+
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[1]);
+    const rebuiltQueue = args.setPlaybackQueue.mock.calls[0][0] as Song[];
+    expect(rebuiltQueue[0].id).toBe('s2');
+    expect(args.nativeQueueRef.current[0].id).toBe('s2');
+  });
+
 });

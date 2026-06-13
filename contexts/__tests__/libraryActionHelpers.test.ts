@@ -164,4 +164,35 @@ describe('libraryActionHelpers', () => {
       expect.objectContaining({ songId: 's1', queueIndex: 0, error: expect.any(Error) }),
     );
   });
+
+  test('updates native metadata with the queued index, artwork and stable track id', () => {
+    const nativeQueueRef = createSongRef([
+      songs[0],
+      { ...songs[1], title: 'Updated Two', cover: ' file:///updated-art.jpg ' },
+    ]);
+    const baseQueueContextRef = createSongRef(songs.slice());
+
+    updateNativeMetadataForSong('s2', nativeQueueRef, baseQueueContextRef);
+
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(1, expect.objectContaining({
+      id: 's2',
+      title: 'Updated Two',
+      artwork: 'file:///updated-art.jpg',
+    }));
+  });
+
+  test('metadata update allows missing artwork and keeps normalized id stable after tag changes', () => {
+    const nativeQueueRef = createSongRef([{ ...songs[0], id: ' s1 ', title: 'Retagged One', album: 'New Album', cover: undefined }]);
+    const baseQueueContextRef = createSongRef(songs.slice());
+
+    updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({
+      id: 's1',
+      title: 'Retagged One',
+      album: 'New Album',
+      artwork: undefined,
+    }));
+  });
+
 });

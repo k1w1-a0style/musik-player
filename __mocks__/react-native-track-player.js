@@ -143,6 +143,7 @@ const TrackPlayer = {
   },
   __getQueue: () => queue,
   __getRepeatMode: () => repeatMode,
+  __getListeners: event => Array.from(listeners.get(event) ?? []),
   __trigger: trigger,
 };
 
