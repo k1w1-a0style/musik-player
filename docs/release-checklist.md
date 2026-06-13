@@ -37,6 +37,8 @@ Bewusst separat: i18n-Migration, finale New-Architecture-Freigabe nach Android D
 
 New Architecture ist im Release-/Rollback-Pfad deaktiviert. Diese Liste wird Pflicht, sobald New Architecture in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert wird; ohne echten Android Dev-Build und Geräte-Smoke bleibt der Status dann offen.
 
+Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
+
 - [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
 - [ ] Musikimport funktioniert.

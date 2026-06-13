@@ -75,6 +75,8 @@ Vor dem Main-Merge muss mindestens ein Android-Smoke auf einem echten Gerät ode
 
 New Architecture ist im Release-/Rollback-Pfad deaktiviert. Wird sie in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert, bleibt der Status bis zu einem neuen Android Dev-Build und erfolgreichem Geräte-Smoke offen; ohne diesen Smoke ist der Handoff dann nicht release-ready.
 
+Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
+
 - [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
 - [ ] Musikimport funktioniert.
