@@ -19,7 +19,7 @@ const clampVolume = (value: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
 const ACCESSIBILITY_VOLUME_STEP = 0.1;
 
-const ModernControls: React.FC<Props> = ({ volume, onVolumeChange }) => {
+const VolumeSlider: React.FC<Props> = ({ volume, onVolumeChange }) => {
   const [trackWidth, setTrackWidth] = useState(1);
 
   const applyFromTouch = useCallback((event: GestureResponderEvent) => {
@@ -123,4 +123,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ModernControls;
+export default VolumeSlider;

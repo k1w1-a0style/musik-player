@@ -1,11 +1,11 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import ModernControls from '../ModernControls';
+import VolumeSlider from '../VolumeSlider';
 
-describe('ModernControls', () => {
+describe('VolumeSlider', () => {
   test('exposes adjustable volume semantics and accessibility value', () => {
     const onVolumeChange = jest.fn();
-    const { getByTestId } = render(<ModernControls volume={0.42} onVolumeChange={onVolumeChange} />);
+    const { getByTestId } = render(<VolumeSlider volume={0.42} onVolumeChange={onVolumeChange} />);
 
     expect(getByTestId('volume-slider').props.accessibilityRole).toBe('adjustable');
     expect(getByTestId('volume-slider').props.accessibilityActions).toEqual([
@@ -17,7 +17,7 @@ describe('ModernControls', () => {
 
   test('increments and decrements volume through accessibility actions', () => {
     const onVolumeChange = jest.fn();
-    const { getByTestId } = render(<ModernControls volume={0.5} onVolumeChange={onVolumeChange} />);
+    const { getByTestId } = render(<VolumeSlider volume={0.5} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
 
     fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
@@ -29,19 +29,19 @@ describe('ModernControls', () => {
 
   test('keeps accessibility changes between 0 and 100 percent', () => {
     const onVolumeChange = jest.fn();
-    const { getByTestId, rerender } = render(<ModernControls volume={0.98} onVolumeChange={onVolumeChange} />);
+    const { getByTestId, rerender } = render(<VolumeSlider volume={0.98} onVolumeChange={onVolumeChange} />);
 
     fireEvent(getByTestId('volume-slider'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     expect(onVolumeChange).toHaveBeenLastCalledWith(1);
 
-    rerender(<ModernControls volume={0.02} onVolumeChange={onVolumeChange} />);
+    rerender(<VolumeSlider volume={0.02} onVolumeChange={onVolumeChange} />);
     fireEvent(getByTestId('volume-slider'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
     expect(onVolumeChange).toHaveBeenLastCalledWith(0);
   });
 
   test('keeps touch based volume changes working', () => {
     const onVolumeChange = jest.fn();
-    const { getByTestId } = render(<ModernControls volume={0.25} onVolumeChange={onVolumeChange} />);
+    const { getByTestId } = render(<VolumeSlider volume={0.25} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
 
     fireEvent(slider, 'layout', { nativeEvent: { layout: { width: 200 } } });

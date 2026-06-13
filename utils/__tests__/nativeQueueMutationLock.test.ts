@@ -64,4 +64,44 @@ describe('nativeQueueMutationLock', () => {
     expect(secondReplacementIsCurrent).toBe(true);
     expect(getNativeQueueReplacementVersion()).toBe(2);
   });
+
+  test('failed mutations do not block later playback controls', async () => {
+    const events: string[] = [];
+
+    await expect(runExclusiveNativeQueueReplacement(async () => {
+      events.push('replacement:start');
+      throw new Error('native failure');
+    })).rejects.toThrow('native failure');
+
+    await runExclusiveNativePlaybackControl(async () => {
+      events.push('control:after-failure');
+    });
+
+    expect(events).toEqual(['replacement:start', 'control:after-failure']);
+  });
+
+  test('resetNativeQueueMutationLockForTests clears replacement version and pending chain', async () => {
+    let releaseBlockedReplacement: () => void = () => undefined;
+    const blockedReplacement = runExclusiveNativeQueueReplacement(async () => {
+      await new Promise<void>(resolve => {
+        releaseBlockedReplacement = resolve;
+      });
+    });
+
+    await flushMicrotasks();
+    expect(getNativeQueueReplacementVersion()).toBe(1);
+
+    resetNativeQueueMutationLockForTests();
+
+    const events: string[] = [];
+    await runExclusiveNativePlaybackControl(async () => {
+      events.push('control:after-reset');
+    });
+
+    releaseBlockedReplacement();
+    await blockedReplacement;
+
+    expect(getNativeQueueReplacementVersion()).toBe(0);
+    expect(events).toEqual(['control:after-reset']);
+  });
 });

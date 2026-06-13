@@ -3,7 +3,7 @@
 ## Build Config
 
 - [ ] `name` = `k1w1-Musik`
-- [ ] `scheme` = `musik-player`
+- [ ] `scheme` = `musik-player` (für Expo/Dev-Client-Identität beibehalten; aktuell ist kein App-Deep-Link-Handling implementiert oder als Release-Gate geplant)
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`
 - [ ] `newArchEnabled=false` bleibt Release-/Rollback-Vorgabe, solange `react-native-track-player@4.1.2` im Einsatz ist
@@ -23,7 +23,7 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 - [ ] Typecheck grün
 - [ ] Tests grün
 - [ ] Lint grün; `lint:ci` darf Warnungen nicht verstecken
-- [ ] Expo Config Werte stimmen
+- [ ] Expo Config Werte stimmen; `assetBundlePatterns` bleibt bewusst unverändert, bis ein Dev-Build/APK-Inspect belegt, dass eine engere Asset-Auswahl keine Icons, Splash- oder Plugin-Assets entfernt
 
 ## DeepScan Readiness Snapshot
 
