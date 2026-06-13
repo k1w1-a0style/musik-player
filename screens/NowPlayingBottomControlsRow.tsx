@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import GlassCard from '../components/GlassCard';
-import ModernControls from '../components/ModernControls';
+import VolumeSlider from '../components/VolumeSlider';
 import { theme } from '../theme';
 
 interface NowPlayingBottomControlsRowProps {
@@ -21,7 +21,7 @@ const NowPlayingBottomControlsRow = React.memo(({
   <View style={[styles.bottomRow, { paddingBottom: Math.max(28, bottomInset + 24) }]}>
     <View style={styles.bottomSpacer} />
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
-      <ModernControls volume={volume} onVolumeChange={onVolumeChange} />
+      <VolumeSlider volume={volume} onVolumeChange={onVolumeChange} />
     </GlassCard>
     <Pressable onPress={onOpenTrackInfo} style={styles.bottomBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Titelinformationen öffnen">
       <Disc3 color={theme.palette.text.muted} size={20} />

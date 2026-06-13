@@ -14,10 +14,6 @@ import {
   runExclusiveNativeQueueReplacement,
 } from '../utils/nativeQueueMutationLock';
 
-const trackPlayerWithSkip = TrackPlayer as typeof TrackPlayer & {
-  skip?: (index: number, initialPosition?: number) => Promise<void>;
-};
-
 interface ApplyPlaybackQueueStateArgs {
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
@@ -159,14 +155,14 @@ export const runPlaySongQueueAction = async ({
 
   const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
 
-  if (canReuseNativeQueue && trackPlayerWithSkip.skip) {
+  if (canReuseNativeQueue) {
     const orderedQueue = plan.reusableOrderedQueue;
 
     try {
       await runExclusiveNativePlaybackControl(async () => {
         const activeTrack = await TrackPlayer.getActiveTrack();
         if (activeTrack?.id !== requestedSong.id) {
-          await trackPlayerWithSkip.skip(nativeIndex);
+          await TrackPlayer.skip(nativeIndex);
         }
         await TrackPlayer.play();
       });
