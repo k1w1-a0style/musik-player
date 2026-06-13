@@ -52,6 +52,8 @@ Erwartung:
 
 Vor dem Main-Merge muss mindestens ein Android-Smoke auf einem echten Gerät oder Emulator dokumentiert sein:
 
+Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/testing/android-dev-apk-smoke-report.md`](./testing/android-dev-apk-smoke-report.md).
+
 - [ ] App startet ohne Crash.
 - [ ] Gespeicherte Library lädt korrekt.
 - [ ] Import aus MediaLibrary funktioniert.

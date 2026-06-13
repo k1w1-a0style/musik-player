@@ -162,6 +162,8 @@ npx eas build --platform android --profile preview
 
 ## Smoke Tests
 
+Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/testing/android-dev-apk-smoke-report.md`](./testing/android-dev-apk-smoke-report.md).
+
 - [ ] App startet ohne Crash
 - [ ] Wiedergabe-Smoke-Test (Play/Pause/Next/Prev, keine Regression)
 - [ ] Background/Lockscreen/Notification Smoke Test

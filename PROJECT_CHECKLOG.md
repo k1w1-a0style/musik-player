@@ -18,6 +18,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] A0 New-Architecture-Kompatibilitätsaudit angelegt; New Architecture bleibt deaktiviert und eine Aktivierung erfordert zuerst eine separate TrackPlayer-/Native-Kompatibilitätsentscheidung.
 - [x] A1 TrackPlayer-Kompatibilitätsanalyse erstellt; keine Dependencies geändert, New Architecture bleibt deaktiviert, nächster möglicher Schritt wäre A2 nur nach Entscheidung.
 - [x] A2 TrackPlayer-V4-Testabdeckung erweitert; keine Dependencies geändert, New Architecture bleibt deaktiviert, Android-Smokes für Background/Notification/Lockscreen bleiben manuell offen.
+- [x] A3 Android Dev-APK Smoke-Report-Vorlage erstellt; kein Build / keine APK erstellt; echter Geräte-Smoke bleibt manuell offen.
 
 ## V6.6 Code-/Test-/Review-Fixes
 
