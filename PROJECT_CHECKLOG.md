@@ -15,6 +15,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] Config-TechDebt geprüft: `ignoreDeprecations` entfernt; New Architecture bleibt wegen `react-native-track-player@4.1.2` im Release-/Rollback-Pfad deaktiviert.
 - [x] Playlist-Timestamp für gespeicherte Warteschlange ergänzt.
 - [x] `moveOrReplaceFile` Interface-Vertrag dokumentiert.
+- [x] A0 New-Architecture-Kompatibilitätsaudit angelegt; New Architecture bleibt deaktiviert und eine Aktivierung erfordert zuerst eine separate TrackPlayer-/Native-Kompatibilitätsentscheidung.
 
 ## V6.6 Code-/Test-/Review-Fixes
 
