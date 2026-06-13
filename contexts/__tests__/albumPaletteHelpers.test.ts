@@ -1,5 +1,6 @@
 import SystemAudio from 'expo-system-audio';
 import {
+  ALBUM_PALETTE_EXTRACTION_TIMEOUT_MS,
   extractAlbumPalette,
   getAlbumPaletteArtworkUri,
 } from '../albumPaletteHelpers';
@@ -15,6 +16,11 @@ const songWithCover: Song = {
 describe('albumPaletteHelpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   test('gets artwork uri from song', () => {
@@ -29,11 +35,26 @@ describe('albumPaletteHelpers', () => {
     expect(SystemAudio.extractPalette).toHaveBeenCalledWith('file:///cover.jpg');
   });
 
-  test('returns null without artwork or when extraction fails', async () => {
+  test('returns null when artwork is missing', async () => {
     await expect(extractAlbumPalette(undefined)).resolves.toBeNull();
     expect(SystemAudio.extractPalette).not.toHaveBeenCalled();
+  });
 
+  test('returns null when native palette extraction rejects', async () => {
     jest.spyOn(SystemAudio, 'extractPalette').mockRejectedValueOnce(new Error('failed'));
+
     await expect(extractAlbumPalette('file:///cover.jpg')).resolves.toBeNull();
+  });
+
+  test('returns null when native palette extraction times out', async () => {
+    jest.useFakeTimers();
+    // Intentionally unresolved to model a native call that never returns; withTimeout
+    // releases the JS awaiter even though the native work itself may still be pending.
+    jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(() => undefined));
+
+    const result = extractAlbumPalette('file:///cover.jpg');
+    jest.advanceTimersByTime(ALBUM_PALETTE_EXTRACTION_TIMEOUT_MS);
+
+    await expect(result).resolves.toBeNull();
   });
 });

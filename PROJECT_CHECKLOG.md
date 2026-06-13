@@ -19,6 +19,8 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] A1 TrackPlayer-Kompatibilitätsanalyse erstellt; keine Dependencies geändert, New Architecture bleibt deaktiviert, nächster möglicher Schritt wäre A2 nur nach Entscheidung.
 - [x] A2 TrackPlayer-V4-Testabdeckung erweitert; keine Dependencies geändert, New Architecture bleibt deaktiviert, Android-Smokes für Background/Notification/Lockscreen bleiben manuell offen.
 - [x] A3 Android Dev-APK Smoke-Report-Vorlage erstellt; kein Build / keine APK erstellt; echter Geräte-Smoke bleibt manuell offen.
+- [x] DeepScan V2 P1 umgesetzt: Audio-Extensions zentralisiert, Palette-Timeout abgesichert, RNTP-Postinstall-Hinweis verbessert und production EAS auf den Store-Bundle-Pfad vorbereitet.
+- [x] Keine NewArch-, Dependency-, TrackPlayer- oder Native-Änderung vorgenommen; Dev-APK-Smoke bleibt weiterhin manuell offen.
 
 ## V6.6 Code-/Test-/Review-Fixes
 

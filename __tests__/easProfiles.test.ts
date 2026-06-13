@@ -20,8 +20,8 @@ describe('EAS build profile environments', () => {
     expect(easConfig.build.preview.android.withoutCredentials).toBe(true);
   });
 
-  it('pins production to the production environment while keeping Android output as APK', () => {
+  it('pins production to the production environment and Android App Bundle output', () => {
     expect(easConfig.build.production.environment).toBe('production');
-    expect(easConfig.build.production.android.buildType).toBe('apk');
+    expect(easConfig.build.production.android.buildType).toBe('app-bundle');
   });
 });

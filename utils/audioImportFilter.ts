@@ -1,4 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
+import { AUDIO_EXTENSIONS } from './audioExtensions';
 
 export const MIN_MUSIC_DURATION_SECONDS = 45;
 
@@ -21,8 +22,6 @@ export const DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS: NormalizedAudioImportFilterOpt
 
 type AudioAssetLike = Pick<MediaLibrary.Asset, 'filename' | 'uri'> &
   Partial<Pick<MediaLibrary.Asset, 'duration' | 'mediaType'>> & { mimeType?: string | null };
-
-const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
 
 const BLOCKED_DIRECTORY_SEGMENTS = new Set([
   'whatsapp',

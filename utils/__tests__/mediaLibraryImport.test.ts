@@ -2,6 +2,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { cacheBase64Cover } from '../coverCache';
 import { parseId3FromUri } from '../id3Parser';
 import * as mediaImport from '../mediaLibraryImport';
+import { AUDIO_EXTENSIONS, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 123 })),
@@ -378,6 +379,21 @@ describe('mediaLibraryImport', () => {
     expect(read).not.toHaveBeenCalledWith('content://root/playlist.m3u');
     expect(read).toHaveBeenCalledWith('content://root/unknownSidecar');
     expect(read).toHaveBeenCalledWith('content://root/notes.xyz');
+  });
+
+  test('uses the shared audio-extension basis for SAF file detection', () => {
+    for (const extension of AUDIO_EXTENSIONS) {
+      expect(mediaImport.isAudioFileUri(`content://root/shared-audio.${extension}`)).toBe(true);
+      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/shared-audio.${extension}`)).toBe(false);
+      expect(mediaImport.deriveMimeType(undefined, extension)?.startsWith('audio/')).toBe(true);
+    }
+  });
+
+  test('continues to skip known non-audio sidecar extensions during SAF probing', () => {
+    for (const extension of KNOWN_NON_AUDIO_EXTENSIONS) {
+      expect(mediaImport.isAudioFileUri(`content://root/sidecar.${extension}`)).toBe(false);
+      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/sidecar.${extension}`)).toBe(false);
+    }
   });
 
   test('recognizes audio file extensions case-insensitively and ignores query or fragment', () => {

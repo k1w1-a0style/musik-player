@@ -8,6 +8,7 @@ import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
 import { OperationAbortError, throwIfAborted } from './withTimeout';
+import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -19,21 +20,6 @@ export const MAX_SAF_DIRECTORIES = 300;
 // unknown entries, and this keeps scans moving while callers can still override in tests.
 export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 2_000;
 const SAF_SCAN_YIELD_ENTRY_INTERVAL = 25;
-
-const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']);
-const KNOWN_NON_AUDIO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'txt', 'nfo', 'cue', 'lrc', 'm3u', 'm3u8', 'pls', 'pdf', 'json']);
-
-const EXTENSION_MIME_MAP: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  mp4: 'audio/mp4',
-  aac: 'audio/aac',
-  flac: 'audio/flac',
-  wav: 'audio/wav',
-  ogg: 'audio/ogg',
-  opus: 'audio/ogg',
-  webm: 'audio/webm',
-};
 
 type MediaAsset = MediaLibrary.Asset;
 type GetAssetsResult = MediaLibrary.PagedInfo<MediaAsset>;
@@ -376,7 +362,6 @@ export const readSafDirectoryWithTimeout = async (
     if (signal && abortListener) signal.removeEventListener('abort', abortListener);
   }
 };
-
 
 const shouldRecordSafReadError = (error: unknown, reportError: boolean): boolean => {
   if (reportError) return true;
