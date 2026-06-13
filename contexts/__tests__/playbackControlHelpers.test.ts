@@ -141,4 +141,54 @@ describe('playbackControlHelpers', () => {
     expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(0);
   });
+
+  test.each([State.Paused, State.Stopped])('toggles TrackPlayer playback from %s to play', async state => {
+    (TrackPlayer.getPlaybackState as jest.Mock).mockResolvedValueOnce({ state });
+
+    await toggleTrackPlayerPlayback();
+
+    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+  });
+
+  test.each([State.Buffering, State.Loading])('does not treat transient %s state as permanently playing', async state => {
+    (TrackPlayer.getPlaybackState as jest.Mock).mockResolvedValueOnce({ state });
+
+    await toggleTrackPlayerPlayback();
+
+    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+  });
+
+  test('previous before or at the restart threshold skips to the previous track', async () => {
+    jest.spyOn(TrackPlayer, 'getProgress').mockResolvedValueOnce({ position: 3, duration: 10, buffered: 3 });
+
+    await skipToPreviousOrRestart();
+
+    expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['off', 0],
+    ['all', 2],
+    ['one', 1],
+  ] as const)('maps repeat mode %s to TrackPlayer repeat mode %s', async (repeatMode, nativeRepeatMode) => {
+    await applyRepeatModeToTrackPlayer(repeatMode);
+
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(nativeRepeatMode);
+  });
+
+  test.each([
+    [-100, 0],
+    [0, 0],
+    [0.75, 0.75],
+    [100, 1],
+    [Number.POSITIVE_INFINITY, 1],
+  ])('applies volume boundary %p as %p', async (volume, expected) => {
+    await expect(applyVolumeToTrackPlayer(volume)).resolves.toBe(expected);
+
+    expect(TrackPlayer.setVolume).toHaveBeenCalledWith(expected);
+  });
+
 });

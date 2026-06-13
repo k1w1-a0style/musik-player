@@ -42,4 +42,30 @@ describe('PlaybackProgressContext', () => {
     expect(getByTestId('progress-position').props.children).toBe('1000');
     expect(getByTestId('progress-duration').props.children).toBe('2000');
   });
+
+  test('passes the expected update interval to TrackPlayer useProgress', () => {
+    (TrackPlayer as RNTPMock).useProgress.mockReturnValue({ position: 0, duration: 0, buffered: 0 });
+
+    render(
+      <PlaybackProgressProvider>
+        <Probe />
+      </PlaybackProgressProvider>,
+    );
+
+    expect((TrackPlayer as RNTPMock).useProgress).toHaveBeenCalledWith(500);
+  });
+
+  test('keeps progress rendering stable when duration is zero', () => {
+    (TrackPlayer as RNTPMock).useProgress.mockReturnValue({ position: 0, duration: 0, buffered: 0 });
+
+    const { getByTestId } = render(
+      <PlaybackProgressProvider>
+        <Probe />
+      </PlaybackProgressProvider>,
+    );
+
+    expect(getByTestId('progress-position').props.children).toBe('0');
+    expect(getByTestId('progress-duration').props.children).toBe('0');
+  });
+
 });

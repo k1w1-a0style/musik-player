@@ -72,4 +72,22 @@ describe('trackPlayerTrack adapter', () => {
       coverInfo: { uri: ' file:///cover-info.jpg ' },
     })!).artwork).toBe('file:///cover-info.jpg');
   });
+
+  test('maps required V4 track fields while allowing missing optional metadata', () => {
+    expect(toTrackPlayerTrack(asPlayableSong({
+      id: 's-min',
+      title: 'Minimal',
+      artist: 'Artist',
+      uri: 'file:///minimal.mp3',
+    })!)).toEqual({
+      id: 's-min',
+      url: 'file:///minimal.mp3',
+      title: 'Minimal',
+      artist: 'Artist',
+      album: undefined,
+      artwork: undefined,
+      duration: undefined,
+    });
+  });
+
 });
