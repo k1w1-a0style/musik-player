@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const rootDir = process.cwd();
+const PATTERN_NOT_FOUND_HINT = [
+  'Check the installed RNTP version,',
+  'remove or update this patch when upgrading TrackPlayer,',
+  'then run npm install again.',
+].join(' ');
 const pkgPath = path.join(rootDir, 'node_modules', 'react-native-track-player', 'package.json');
 
 if (!fs.existsSync(pkgPath)) {
@@ -57,7 +62,9 @@ for (const { from, to } of replacements) {
     continue;
   }
   if (!content.includes(from)) {
-    console.error(`[patch-react-native-track-player] ERROR: Expected pattern not found: ${from}`);
+    console.error(
+      `[patch-react-native-track-player] ERROR: Expected pattern not found: ${from}. ${PATTERN_NOT_FOUND_HINT}`,
+    );
     process.exit(1);
   }
   content = content.replace(from, to);

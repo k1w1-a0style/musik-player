@@ -5,6 +5,7 @@ import {
   isLikelyMusicAsset,
   normalizeAudioImportFilterOptions,
 } from '../audioImportFilter';
+import { AUDIO_EXTENSIONS, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 
 const asset = (
   filename: string,
@@ -38,6 +39,21 @@ describe('audioImportFilter', () => {
       enableDurationFilter: true,
     });
     expect(normalizeAudioImportFilterOptions()).toEqual(DEFAULT_AUDIO_IMPORT_FILTER_OPTIONS);
+  });
+
+
+  test('uses the shared audio-extension basis for import filtering', () => {
+    for (const extension of AUDIO_EXTENSIONS) {
+      expectConsistentRejectReason(asset(`shared-audio.${extension}`, 180), null);
+    }
+  });
+
+  test('keeps known audio extensions accepted and known non-audio extensions skipped', () => {
+    expectConsistentRejectReason(asset('known.flac', 180), null);
+    expectConsistentRejectReason(asset('known.opus', 180), null);
+    for (const extension of KNOWN_NON_AUDIO_EXTENSIONS) {
+      expectConsistentRejectReason(asset(`sidecar.${extension}`, 180), 'not-audio');
+    }
   });
 
   test('keeps normal music tracks at or above the default minimum duration', () => {
