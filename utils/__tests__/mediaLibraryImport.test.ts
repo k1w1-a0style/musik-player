@@ -2,7 +2,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { cacheBase64Cover } from '../coverCache';
 import { parseId3FromUri } from '../id3Parser';
 import * as mediaImport from '../mediaLibraryImport';
-import { AUDIO_EXTENSIONS, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
+import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 123 })),
@@ -29,8 +29,13 @@ describe('mediaLibraryImport', () => {
     mediaImport.resetSafTimedOutUrisForTests();
   });
 
-  test('SAF directory timeout defaults to 2000ms', () => {
-    expect(mediaImport.DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS).toBe(2000);
+  test('SAF directory timeout defaults to 4000ms', () => {
+    expect(mediaImport.DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS).toBe(4000);
+  });
+
+  test('maps opus extension to the audio/opus MIME type', () => {
+    expect(EXTENSION_MIME_MAP.opus).toBe('audio/opus');
+    expect(mediaImport.deriveMimeType(undefined, 'opus')).toBe('audio/opus');
   });
 
   test('readSafDirectoryWithTimeout returns successful SAF directory entries and clears its timer', async () => {
@@ -682,7 +687,7 @@ describe('mediaLibraryImport', () => {
     ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadAbortedError);
   });
 
-  test('readAudioUrisFromSafDirectory uses 2000ms timeout for a hanging child directory by default', async () => {
+  test('readAudioUrisFromSafDirectory uses 4000ms timeout for a hanging child directory by default', async () => {
     const controller = new AbortController();
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
     const read = jest.fn((uri: string) => {

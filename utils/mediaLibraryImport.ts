@@ -12,13 +12,15 @@ import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
-const ID3_WORKER_COUNT = 2;
+// Not real threads/WebWorkers: two async readers interleave ID3 I/O on the JS queue.
+const ID3_CONCURRENT_READERS = 2;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 export const MAX_SAF_DIRECTORIES = 300;
 // Bound each speculative SAF child-directory read; Android providers can hang on
-// unknown entries, and this keeps scans moving while callers can still override in tests.
-export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 2_000;
+// unknown entries. 4s is intentionally conservative enough for slower SAF
+// providers while still keeping scans moving; callers can override in tests.
+export const DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS = 4_000;
 const SAF_SCAN_YIELD_ENTRY_INTERVAL = 25;
 
 type MediaAsset = MediaLibrary.Asset;
@@ -523,7 +525,7 @@ export const enrichMediaLibraryAssets = async (
   const errors: string[] = [];
   const queue = [...assets];
 
-  const workers = Array.from({ length: ID3_WORKER_COUNT }, async () => {
+  const workers = Array.from({ length: ID3_CONCURRENT_READERS }, async () => {
     while (queue.length > 0) {
       throwIfAborted(signal);
       const asset = queue.shift();
