@@ -16,6 +16,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] Playlist-Timestamp für gespeicherte Warteschlange ergänzt.
 - [x] `moveOrReplaceFile` Interface-Vertrag dokumentiert.
 - [x] A0 New-Architecture-Kompatibilitätsaudit angelegt; New Architecture bleibt deaktiviert und eine Aktivierung erfordert zuerst eine separate TrackPlayer-/Native-Kompatibilitätsentscheidung.
+- [x] A1 TrackPlayer-Kompatibilitätsanalyse erstellt; keine Dependencies geändert, New Architecture bleibt deaktiviert, nächster möglicher Schritt wäre A2 nur nach Entscheidung.
 
 ## V6.6 Code-/Test-/Review-Fixes
 

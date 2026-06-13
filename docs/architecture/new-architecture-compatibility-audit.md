@@ -2,6 +2,8 @@
 
 Status: **Analyse/Dokumentation only**. Dieser Audit aktiviert die React-Native-New-Architecture nicht, ändert keine Dependencies, baut keine APK und ersetzt keinen echten Android-Geräte-Smoke.
 
+TrackPlayer-spezifische Optionen siehe: [`docs/architecture/trackplayer-new-architecture-options.md`](./trackplayer-new-architecture-options.md).
+
 ## A0 Projektzustand
 
 | Prüfpunkt | Aktueller Stand | Quelle / Regel | A0-Entscheidung |
