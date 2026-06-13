@@ -2,6 +2,7 @@ import type { Song } from '../../types/Song';
 import { createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import {
   acquireSongCoverProtection,
+  getSongSnapshotKey,
   resetSongCoverProtectionLifecycleForTests,
 } from '../songCoverProtectionLifecycle';
 
@@ -18,6 +19,36 @@ const songsA: Song[] = [{ id: 'a', title: 'A', artist: 'Artist', cover: 'file://
 const songsB: Song[] = [{ id: 'b', title: 'B', artist: 'Artist', cover: 'file:///docs/covers/ccc-ddd.jpg' }];
 
 const protectionAt = (index: number) => (createCoverCacheProtection as jest.Mock).mock.results[index].value;
+
+describe('getSongSnapshotKey', () => {
+  test('returns the same key for the same song state', () => {
+    const songs: Song[] = [
+      { id: 'a', title: 'A', artist: 'Artist', uri: 'file:///music/a.mp3', cover: 'file:///covers/a.jpg' },
+      { id: 'b', title: 'B', artist: 'Artist', uri: 'file:///music/b.mp3', coverInfo: { status: 'cached', uri: 'file:///covers/b.jpg' } },
+    ];
+
+    expect(getSongSnapshotKey(songs)).toBe(getSongSnapshotKey(songs.map(song => ({ ...song }))));
+  });
+
+  test('changes when relevant cover or artwork metadata changes', () => {
+    const baseSong: Song = { id: 'a', title: 'A', artist: 'Artist', uri: 'file:///music/a.mp3', cover: 'file:///covers/a.jpg' };
+
+    expect(getSongSnapshotKey([baseSong])).not.toBe(
+      getSongSnapshotKey([{ ...baseSong, cover: 'file:///covers/a-new.jpg' }]),
+    );
+    expect(getSongSnapshotKey([{ ...baseSong, coverInfo: { status: 'cached', uri: 'file:///covers/a.jpg' } }])).not.toBe(
+      getSongSnapshotKey([{ ...baseSong, coverInfo: { status: 'external', uri: 'file:///covers/a.jpg' } }]),
+    );
+  });
+
+  test('does not copy large base64 covers into the snapshot key', () => {
+    const base64Cover = `data:image/jpeg;base64,${'a'.repeat(20_000)}`;
+    const key = getSongSnapshotKey([{ id: 'a', title: 'A', artist: 'Artist', cover: base64Cover }]);
+
+    expect(key).not.toContain(base64Cover);
+    expect(key.length).toBeLessThan(200);
+  });
+});
 
 describe('songCoverProtectionLifecycle', () => {
   beforeEach(() => {

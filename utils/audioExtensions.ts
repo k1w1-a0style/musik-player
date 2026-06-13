@@ -26,6 +26,6 @@ export const EXTENSION_MIME_MAP: Record<string, string> = {
   flac: 'audio/flac',
   wav: 'audio/wav',
   ogg: 'audio/ogg',
-  opus: 'audio/ogg',
+  opus: 'audio/opus',
   webm: 'audio/webm',
 };

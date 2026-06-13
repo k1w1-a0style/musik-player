@@ -9,7 +9,7 @@ describe('Library metadata helpers', () => {
     expect(deriveMimeType(undefined, 'flac')).toBe('audio/flac');
     expect(deriveMimeType(undefined, 'wav')).toBe('audio/wav');
     expect(deriveMimeType(undefined, 'ogg')).toBe('audio/ogg');
-    expect(deriveMimeType(undefined, 'opus')).toBe('audio/ogg');
+    expect(deriveMimeType(undefined, 'opus')).toBe('audio/opus');
     expect(deriveMimeType(undefined, 'webm')).toBe('audio/webm');
     expect(deriveMimeType(undefined, 'MP3')).toBe('audio/mpeg');
     expect(deriveMimeType(undefined, '.FLAC')).toBe('audio/flac');

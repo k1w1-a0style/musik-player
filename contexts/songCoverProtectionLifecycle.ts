@@ -34,7 +34,37 @@ let confirmedEntry: ProtectionEntry | undefined;
 let nextGeneration = 0;
 let latestConfirmedGeneration = 0;
 
-export const getSongSnapshotKey = (songs: Song[]): string => JSON.stringify(songs);
+
+const hashSnapshotField = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const compactSnapshotField = (value: string | undefined): string => {
+  if (!value) return '-';
+  return `${value.length}:${hashSnapshotField(value)}`;
+};
+
+const getSongArtworkSnapshot = (song: Song): string => {
+  const artworkStatus = song.coverInfo?.status ?? (song.cover || song.coverInfo?.uri ? 'unknown' : 'none');
+  return [
+    artworkStatus,
+    compactSnapshotField(song.cover),
+    compactSnapshotField(song.coverInfo?.uri),
+  ].join('@');
+};
+
+export const getSongSnapshotKey = (songs: Song[]): string => songs
+  .map(song => [
+    compactSnapshotField(song.id),
+    compactSnapshotField(song.uri),
+    getSongArtworkSnapshot(song),
+  ].join('|'))
+  .join('\n');
 
 const releaseEntryProtection = (entry: ProtectionEntry): void => {
   if (entry.released) return;

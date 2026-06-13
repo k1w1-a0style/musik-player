@@ -1537,6 +1537,17 @@ describe('storage', () => {
     await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual(expectedSongs);
   });
 
+  test('treats persisted albumArtist null as an omitted optional value', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 's1', title: 'Song', artist: 'Artist', albumArtist: null },
+    ]));
+
+    const [song] = await storage.getSongs();
+
+    expect(song).toEqual({ id: 's1', title: 'Song', artist: 'Artist' });
+    expect(Object.prototype.hasOwnProperty.call(song, 'albumArtist')).toBe(false);
+  });
+
   test('setSongs strips null albumArtist while preserving valid songs', async () => {
     await storage.setSongs([
       { id: 's1', title: 'Song', artist: 'Artist', albumArtist: null },
