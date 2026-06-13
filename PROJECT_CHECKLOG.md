@@ -23,6 +23,7 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] DeepScan V2 P2 Performance-/Import-Cleanup umgesetzt.
 - [x] DeepScan V2 Backlog Audit durchgeführt: `ModernControls` war ausschließlich ein Lautstärke-Slider und wurde ohne UI-/Verhaltensänderung zu `VolumeSlider` umbenannt; `theme.fonts.mono` nutzt auf Android den System-Fallback `monospace`; der RNTP-`skip`-Cast wurde nach grünem Typecheck entfernt; `nativeQueueMutationLock` deckt Fehlerfolge und Test-Reset zusätzlich ab.
 - [x] Bewusst dokumentierte DeepScan-V2-Restpunkte ohne Blind-Refactor: Cover-cache-directory-Recovery bleibt Edge-Case, weil `documentDirectory` im Expo-Zielpfad vorhanden ist und der bestehende Fallback nur optional greift; `assetBundlePatterns` bleibt bis APK-Inspect unverändert; MutationQueue-Konsolidierung bleibt Architekturthema; Version `1.0.0`/`AppVersionSource=remote` bleibt unverändert; `scheme` bleibt für Expo/Dev-Client ohne Deep-Link-System.
+  - [x] Deferred bis separater Nachweis: Dev-Build/APK-Inspect für Asset-Bundling und echter Android-Smoke für Cover-cache-Recovery; in diesem Audit wurden dafür bewusst keine APK, keine Native-Änderung und kein Dependency-/SDK-Upgrade angestoßen.
 - [x] Keine Dependency-, NewArch-, TrackPlayer- oder Native-Änderung vorgenommen; Dev-APK-Smoke bleibt weiterhin manuell offen.
 
 ## V6.6 Code-/Test-/Review-Fixes
