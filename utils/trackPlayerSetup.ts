@@ -31,7 +31,7 @@ export const TRACK_PLAYER_OPTIONS: UpdateOptions = {
     Capability.SkipToPrevious,
     Capability.SeekTo,
   ],
-  // Controls native PlaybackProgressUpdated and notification-related events;
+  // Controls native PlaybackProgressUpdated and notification-related events (interval: 2 s);
   // UI progress polling is handled separately via useProgress(500).
   progressUpdateEventInterval: 2,
 };
