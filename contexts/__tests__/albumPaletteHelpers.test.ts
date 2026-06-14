@@ -57,4 +57,18 @@ describe('albumPaletteHelpers', () => {
 
     await expect(result).resolves.toBeNull();
   });
+
+  test('returns null when album palette extraction is externally aborted', async () => {
+    jest.useFakeTimers();
+    // Intentionally unresolved to model a native call that remains non-cancellable while
+    // the JS awaiter/timer path is aborted by the caller.
+    jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(() => undefined));
+    const controller = new AbortController();
+
+    const result = extractAlbumPalette('file:///cover.jpg', { signal: controller.signal });
+    controller.abort();
+
+    await expect(result).resolves.toBeNull();
+    jest.clearAllTimers();
+  });
 });

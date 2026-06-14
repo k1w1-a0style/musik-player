@@ -28,6 +28,10 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] DeepScan V4 P1 Micro-Fixes umgesetzt: albumPaletteHelpers Native-Promise-Semantik dokumentiert, progressUpdateEventInterval-Einheit präzisiert, configPermissions-Test auf alle blockedPermissions erweitert.
 - [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
 - [x] Dev-APK-Smoke bleibt weiterhin offen.
+- [x] DeepScan V4 P2 optional umgesetzt: `useAlbumPalette` bricht den JS-Timeout-Pfad bei Songwechsel/Unmount per `AbortController` ab.
+- [x] `SystemAudio.extractPalette` bleibt non-cancellable; kein Native-Abort.
+- [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
+- [x] Dev-APK-Smoke bleibt weiterhin offen.
 
 ## V6.6 Code-/Test-/Review-Fixes
 

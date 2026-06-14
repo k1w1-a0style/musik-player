@@ -11,14 +11,14 @@ export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null 
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    extractAlbumPalette(currentArtworkUri).then(nextPalette => {
-      if (!cancelled) setPalette(nextPalette);
+    extractAlbumPalette(currentArtworkUri, { signal: controller.signal }).then(nextPalette => {
+      if (!controller.signal.aborted) setPalette(nextPalette);
     });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [currentArtworkUri]);
 
