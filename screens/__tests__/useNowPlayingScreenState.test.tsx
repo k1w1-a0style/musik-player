@@ -96,7 +96,7 @@ describe('useNowPlayingScreenState', () => {
     mockSaveQueueAsPlaylist.mockClear();
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-06-11T14:35:00.000Z'));
+    jest.setSystemTime(new Date(2026, 5, 11, 14, 35, 0));
   });
 
   afterEach(() => {
@@ -118,7 +118,7 @@ describe('useNowPlayingScreenState', () => {
   });
 
   test('builds saved queue playlist names with German timestamps', () => {
-    const name = buildSavedQueuePlaylistName(new Date('2026-06-11T14:35:00.000Z'));
+    const name = buildSavedQueuePlaylistName(new Date(2026, 5, 11, 14, 35, 0));
 
     expect(name).toMatch(/^Gespeicherte Warteschlange — .+/);
     expect(name).toContain('11.06.26');
