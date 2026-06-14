@@ -15,9 +15,9 @@ describe('release permissions config', () => {
 
   it('does not declare microphone or visual media permissions in android permissions', () => {
     const permissions: string[] = appJson?.expo?.android?.permissions ?? [];
-    expect(permissions).toEqual(
-      expect.not.arrayContaining(microphoneAndVisualMediaPermissions),
-    );
+    for (const permission of microphoneAndVisualMediaPermissions) {
+      expect(permissions).not.toContain(permission);
+    }
   });
 
   it('blocks all microphone and visual media permissions after Expo prebuild merges plugin permissions', () => {
