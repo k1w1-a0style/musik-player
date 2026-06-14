@@ -33,6 +33,18 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
 - [x] Dev-APK-Smoke bleibt weiterhin offen.
 
+## Finaler Dev-APK-Build-Ready-Check
+
+Status: Letzter Build-Ready-Check vor separatem EAS Development Build.
+
+- [x] Finaler Dev-APK-Build-Ready-Check durchgeführt.
+- [x] Lokalen timezone-brittle Jest-Test für gespeicherte Warteschlangen-Namen stabilisiert.
+- [x] Alle lokalen Quality Gates grün.
+- [x] EAS/GitHub Development-Build-Workflow geprüft.
+- [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
+- [x] Keine APK gebaut.
+- [ ] Dev-APK-Smoke bleibt bis nach dem EAS Development Build offen.
+
 ## V6.6 Code-/Test-/Review-Fixes
 
 Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
