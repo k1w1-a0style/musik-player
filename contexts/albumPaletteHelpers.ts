@@ -14,6 +14,9 @@ export const extractAlbumPalette = async (
   if (!artworkUri) return null;
 
   try {
+    // Note: SystemAudio.extractPalette is a non-cancellable native call.
+    // withTimeout releases the JS awaiter on timeout; the underlying native
+    // work may continue until the Android layer finishes it.
     return await withTimeout(
       SystemAudio.extractPalette(artworkUri),
       ALBUM_PALETTE_EXTRACTION_TIMEOUT_MS,

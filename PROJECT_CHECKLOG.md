@@ -25,6 +25,9 @@ Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
 - [x] Bewusst dokumentierte DeepScan-V2-Restpunkte ohne Blind-Refactor: Cover-cache-directory-Recovery bleibt Edge-Case, weil `documentDirectory` im Expo-Zielpfad vorhanden ist und der bestehende Fallback nur optional greift; `assetBundlePatterns` bleibt bis APK-Inspect unverändert; MutationQueue-Konsolidierung bleibt Architekturthema; Version `1.0.0`/`AppVersionSource=remote` bleibt unverändert; `scheme` bleibt für Expo/Dev-Client ohne Deep-Link-System.
   - [x] Deferred bis separater Nachweis: Dev-Build/APK-Inspect für Asset-Bundling und echter Android-Smoke für Cover-cache-Recovery; in diesem Audit wurden dafür bewusst keine APK, keine Native-Änderung und kein Dependency-/SDK-Upgrade angestoßen.
 - [x] Keine Dependency-, NewArch-, TrackPlayer- oder Native-Änderung vorgenommen; Dev-APK-Smoke bleibt weiterhin manuell offen.
+- [x] DeepScan V4 P1 Micro-Fixes umgesetzt: albumPaletteHelpers Native-Promise-Semantik dokumentiert, progressUpdateEventInterval-Einheit präzisiert, configPermissions-Test auf alle blockedPermissions erweitert.
+- [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
+- [x] Dev-APK-Smoke bleibt weiterhin offen.
 
 ## V6.6 Code-/Test-/Review-Fixes
 
