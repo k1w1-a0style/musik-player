@@ -17,6 +17,7 @@ export interface LibraryControllerMusicState {
   playlists: Playlist[];
   setSongs: (songs: Song[]) => void;
   songs: Song[];
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
   songsCount: number;
 }
 
@@ -42,6 +43,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     playlists = defaultPlaylists,
     setSongs,
     songs,
+    updateSongMetadata,
   } = useLibraryMusicContext();
   const screen = useLibraryScreenState();
   const { favoriteIds, scanFolders, setScanFolders } = useLibraryStoredState(screen.activeTab);
@@ -56,6 +58,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
       playlists,
       setSongs,
       songs,
+      updateSongMetadata,
       songsCount: songs.length,
     },
     screen,

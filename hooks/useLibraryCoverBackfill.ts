@@ -6,11 +6,12 @@ import { getSongArtworkUri } from '../utils/songArtwork';
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
   setSongs: (songs: Song[]) => void;
+  updateSongMetadata?: (songId: string, patch: Partial<Song>) => void;
 }
 
 const buildAttemptKey = (song: Song): string => song.id || song.uri || song.fileInfo?.uri || `${song.title}:${song.artist}`;
 
-export const useLibraryCoverBackfill = ({ songs, setSongs }: UseLibraryCoverBackfillOptions): void => {
+export const useLibraryCoverBackfill = ({ songs, setSongs, updateSongMetadata }: UseLibraryCoverBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
 
@@ -22,7 +23,6 @@ export const useLibraryCoverBackfill = ({ songs, setSongs }: UseLibraryCoverBack
     generationRef.current = generation;
     const controller = new AbortController();
     const candidateKeys = new Set(candidates.map(buildAttemptKey));
-    candidateKeys.forEach(key => attemptedRef.current.add(key));
 
     void backfillEmbeddedSongCovers(songs, {
       concurrency: 1,
@@ -38,7 +38,17 @@ export const useLibraryCoverBackfill = ({ songs, setSongs }: UseLibraryCoverBack
         if (getSongArtworkUri(song) || !needsEmbeddedCoverBackfill(song)) return song;
         return next;
       });
-      if (merged.some((song, index) => song !== songs[index])) setSongs(merged);
+      merged.forEach((song, index) => {
+        if (song === songs[index]) return;
+        attemptedRef.current.add(buildAttemptKey(songs[index]));
+        if (updateSongMetadata) {
+          updateSongMetadata(song.id, {
+            cover: song.cover,
+            coverInfo: song.coverInfo,
+          });
+        }
+      });
+      if (!updateSongMetadata && merged.some((song, index) => song !== songs[index])) setSongs(merged);
     }).catch(error => {
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);
     });
@@ -46,5 +56,5 @@ export const useLibraryCoverBackfill = ({ songs, setSongs }: UseLibraryCoverBack
     return () => {
       controller.abort();
     };
-  }, [setSongs, songs]);
+  }, [setSongs, songs, updateSongMetadata]);
 };

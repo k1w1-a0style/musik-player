@@ -64,20 +64,27 @@ const LibraryProbe = ({
   return (
     <>
       <Text testID="songs">{currentSongs.map(song => song.id).join(',')}</Text>
+      <Text testID="song-covers">{currentSongs.map(song => song.cover ?? '').join(',')}</Text>
       <Text testID="current-title">{currentSong?.title ?? ''}</Text>
+      <Text testID="current-cover">{currentSong?.cover ?? ''}</Text>
       <Text testID="playback-queue">{playbackQueue.map(song => song.id).join(',')}</Text>
       <Text testID="playback-queue-titles">{playbackQueue.map(song => song.title).join(',')}</Text>
+      <Text testID="playback-queue-covers">{playbackQueue.map(song => song.cover ?? '').join(',')}</Text>
       <Text testID="queue-ref">{queueContextRef.current.map(song => song.id).join(',')}</Text>
       <Text testID="queue-ref-titles">{queueContextRef.current.map(song => song.title).join(',')}</Text>
+      <Text testID="queue-ref-covers">{queueContextRef.current.map(song => song.cover ?? '').join(',')}</Text>
       <Text testID="base-queue-ref">{baseQueueContextRef.current.map(song => song.id).join(',')}</Text>
       <Text testID="base-queue-ref-titles">{baseQueueContextRef.current.map(song => song.title).join(',')}</Text>
+      <Text testID="base-queue-ref-covers">{baseQueueContextRef.current.map(song => song.cover ?? '').join(',')}</Text>
       <Text testID="native-ref">{nativeQueueRef.current.map(song => song.id).join(',')}</Text>
+      <Text testID="native-ref-covers">{nativeQueueRef.current.map(song => song.cover ?? '').join(',')}</Text>
       <Text testID="playback-queue-commits">{playbackQueueCommitsRef.current}</Text>
       <Text testID="playlist-songs">{playlists[0]?.songIds.join(',') ?? ''}</Text>
       <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
       <Button testID="patch-song" title="patch" onPress={() => updateSongMetadata('s1', { title: 'Updated' })} />
       <Button testID="patch-song-s2" title="patch s2" onPress={() => updateSongMetadata('s2', { title: 'Updated Two' })} />
+      <Button testID="patch-cover-s1" title="patch cover" onPress={() => updateSongMetadata('s1', { cover: 'file:///cover-s1.jpg', coverInfo: { status: 'embedded', uri: 'file:///cover-s1.jpg' } })} />
       <Button testID="rerender" title="rerender" onPress={() => setRenderTick(prev => prev + 1)} />
     </>
   );
@@ -176,6 +183,38 @@ describe('useLibraryActions', () => {
     expect(getByTestId('base-queue-ref').props.children).toBe('s2');
     expect(getByTestId('playback-queue').props.children).toBe('s2');
     expect(getByTestId('native-ref').props.children).toBe('');
+  });
+
+
+  test('cover metadata updates propagate to library, current song, queues, refs, and native metadata without reordering', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={songs}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('patch-cover-s1')));
+
+    await waitFor(() => expect(getByTestId('song-covers').props.children).toBe('file:///cover-s1.jpg,,'));
+    expect(getByTestId('current-cover').props.children).toBe('file:///cover-s1.jpg');
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
+    expect(getByTestId('playback-queue-covers').props.children).toBe('file:///cover-s1.jpg,');
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('queue-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
+    expect(getByTestId('native-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('native-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({ artwork: 'file:///cover-s1.jpg' }));
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
   test('metadata updates during pending native sync are preserved', async () => {
