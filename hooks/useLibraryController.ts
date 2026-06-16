@@ -1,4 +1,5 @@
 import { useLibraryControllerActions } from './useLibraryControllerActions';
+import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
 import { useLibraryControllerProps } from './useLibraryControllerProps';
 import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
 import { useLibraryControllerState } from './useLibraryControllerState';
@@ -84,6 +85,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     setSongs,
     songs,
   });
+
+  useLibraryCoverBackfill({ songs, setSongs });
 
   const {
     getSongItemLayout,
