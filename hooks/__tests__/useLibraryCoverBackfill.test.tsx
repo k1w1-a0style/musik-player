@@ -97,4 +97,33 @@ describe('useLibraryCoverBackfill', () => {
 
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
   });
+
+  test('does not retry persisted no-cover files after remount', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(undefined);
+    const applySongMetadataPatches = jest.fn();
+
+    const first = renderHook(() => useLibraryCoverBackfill({
+      songs: [song('a')],
+      setSongs: jest.fn(),
+      applySongMetadataPatches,
+    }));
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+      a: {
+        cover: undefined,
+        coverInfo: { status: 'none', uri: undefined },
+      },
+    }));
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+    first.unmount();
+
+    renderHook(() => useLibraryCoverBackfill({
+      songs: [song('a', { coverInfo: { status: 'none', uri: undefined } })],
+      setSongs: jest.fn(),
+      applySongMetadataPatches,
+    }));
+    await flush();
+
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
 });

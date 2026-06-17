@@ -1,5 +1,5 @@
 import SystemAudio from 'expo-system-audio';
-import { backfillEmbeddedSongCovers } from '../songCoverBackfill';
+import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../songCoverBackfill';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
@@ -16,6 +16,28 @@ const song = (id: string, patch: Partial<Song> = {}): Song => ({
 
 beforeEach(() => {
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
+});
+
+describe('needsEmbeddedCoverBackfill', () => {
+  test('treats local songs without artwork or final no-cover state as candidates', () => {
+    expect(needsEmbeddedCoverBackfill(song('a'))).toBe(true);
+  });
+
+  test('skips songs that already have artwork', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { cover: 'file:///cover.jpg' }))).toBe(false);
+  });
+
+  test('skips songs that already have coverInfo uri artwork', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'embedded', uri: 'file:///cover.jpg' } }))).toBe(false);
+  });
+
+  test('skips songs with persisted completed no-cover state', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'none' } }))).toBe(false);
+  });
+
+  test('continues to block remote source uris', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { uri: 'https://example.com/a.mp3' }))).toBe(false);
+  });
 });
 
 test('backfills songs without covers and skips existing artwork', async () => {

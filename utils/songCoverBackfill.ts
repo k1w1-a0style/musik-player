@@ -32,6 +32,7 @@ const isRemoteUri = (uri: string): boolean => /^https?:\/\//i.test(uri.trim());
 
 export const needsEmbeddedCoverBackfill = (song: Song): boolean => {
   if (getSongArtworkUri(song)) return false;
+  if (song.coverInfo?.status === 'none' && !song.coverInfo.uri) return false;
   const uri = song.uri?.trim() || song.fileInfo?.uri?.trim();
   return Boolean(uri && !isRemoteUri(uri));
 };

@@ -147,6 +147,20 @@ test('repairs stale coverInfo when parsed embedded cover matches existing cover'
   });
 });
 
+test('allows later ID3 cover refresh to replace a persisted no-cover backfill state', () => {
+  const cover = 'file:///covers/fresh-cover.jpg';
+  const songWithoutEmbeddedCover: Song = {
+    ...baseSong,
+    coverInfo: { status: 'none' },
+  };
+
+  expect(applyId3TagsToSong(songWithoutEmbeddedCover, { cover })).toEqual({
+    ...songWithoutEmbeddedCover,
+    cover,
+    coverInfo: { status: 'embedded', uri: cover },
+  });
+});
+
 test('keeps existing cover when ID3 refresh returns no cover', async () => {
   const songWithCover: Song = {
     ...baseSong,
