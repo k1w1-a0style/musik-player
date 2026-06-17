@@ -1,17 +1,18 @@
 import { useEffect, useRef } from 'react';
 import type { Song } from '../types/Song';
+import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../utils/songCoverBackfill';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
   setSongs: (songs: Song[]) => void;
-  updateSongMetadata?: (songId: string, patch: Partial<Song>) => void;
+  applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
 }
 
 const buildAttemptKey = (song: Song): string => song.id || song.uri || song.fileInfo?.uri || `${song.title}:${song.artist}`;
 
-export const useLibraryCoverBackfill = ({ songs, setSongs, updateSongMetadata }: UseLibraryCoverBackfillOptions): void => {
+export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatches }: UseLibraryCoverBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
 
@@ -38,17 +39,18 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, updateSongMetadata }:
         if (getSongArtworkUri(song) || !needsEmbeddedCoverBackfill(song)) return song;
         return next;
       });
+      const patchesBySongId: SongMetadataPatchesById = {};
       merged.forEach((song, index) => {
         if (song === songs[index]) return;
         attemptedRef.current.add(buildAttemptKey(songs[index]));
-        if (updateSongMetadata) {
-          updateSongMetadata(song.id, {
-            cover: song.cover,
-            coverInfo: song.coverInfo,
-          });
-        }
+        patchesBySongId[song.id] = {
+          cover: song.cover,
+          coverInfo: song.coverInfo,
+        };
       });
-      if (!updateSongMetadata && merged.some((song, index) => song !== songs[index])) setSongs(merged);
+      const hasPatches = Object.keys(patchesBySongId).length > 0;
+      if (applySongMetadataPatches && hasPatches) applySongMetadataPatches(patchesBySongId);
+      else if (hasPatches) setSongs(merged);
     }).catch(error => {
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);
     });
@@ -56,5 +58,5 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, updateSongMetadata }:
     return () => {
       controller.abort();
     };
-  }, [setSongs, songs, updateSongMetadata]);
+  }, [setSongs, songs, applySongMetadataPatches]);
 };

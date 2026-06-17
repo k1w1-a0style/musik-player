@@ -63,7 +63,7 @@ describe('useMusicProviderActions', () => {
 
   test('composes playback, library, and playlist domain actions without changing public action names', () => {
     const playback = { playSong: noopAsync, toggleShuffle: noopAsync };
-    const library = { setSongs: noop, addSongs: noop, updateSongMetadata: noop };
+    const library = { setSongs: noop, addSongs: noop, updateSongMetadata: noop, applySongMetadataPatches: noop };
     const playlists = {
       createPlaylist: () => playlist,
       saveQueueAsPlaylist: () => null,

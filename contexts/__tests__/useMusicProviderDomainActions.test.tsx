@@ -77,6 +77,7 @@ describe('useMusicProviderDomainActions', () => {
       setSongs: noop,
       addSongs: noop,
       updateSongMetadata: noop,
+  applySongMetadataPatches: noop,
       createPlaylist: () => ({ id: 'pl-1', name: 'New', songIds: [], createdAt: 1, updatedAt: 1 }),
       saveQueueAsPlaylist: () => null,
       deletePlaylist: noop,

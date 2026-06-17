@@ -20,7 +20,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       setSongs,
       songs,
       songsCount,
-      updateSongMetadata,
+      applySongMetadataPatches,
     },
     screen: {
       activeTab,
@@ -87,7 +87,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songs,
   });
 
-  useLibraryCoverBackfill({ songs, setSongs, updateSongMetadata });
+  useLibraryCoverBackfill({ songs, setSongs, applySongMetadataPatches });
 
   const {
     getSongItemLayout,

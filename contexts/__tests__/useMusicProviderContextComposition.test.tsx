@@ -69,6 +69,7 @@ const actions: MusicProviderDomainActions = {
   setSongs: noop,
   addSongs: noop,
   updateSongMetadata: noop,
+  applySongMetadataPatches: noop,
   createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2, updatedAt: 2 }),
   saveQueueAsPlaylist: () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3, updatedAt: 3 }),
   deletePlaylist: noop,
