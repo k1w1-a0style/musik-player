@@ -89,6 +89,7 @@ const LibraryProbe = ({
       <Button testID="set-songs" title="set" onPress={() => setSongs(nextSongs)} />
       <Button testID="add-songs" title="add" onPress={() => addSongs([songs[0], songs[1]])} />
       <Button testID="patch-song" title="patch" onPress={() => updateSongMetadata('s1', { title: 'Updated' })} />
+      <Button testID="noop-patch-song" title="noop patch" onPress={() => updateSongMetadata('s1', { title: 'One' })} />
       <Button testID="patch-song-s2" title="patch s2" onPress={() => updateSongMetadata('s2', { title: 'Updated Two' })} />
       <Button testID="patch-cover-s1" title="patch cover" onPress={() => updateSongMetadata('s1', { cover: 'file:///cover-s1.jpg', coverInfo: { status: 'embedded', uri: 'file:///cover-s1.jpg' } })} />
       <Button testID="bulk-cover" title="bulk cover" onPress={() => applySongMetadataPatches({
@@ -195,6 +196,29 @@ describe('useLibraryActions', () => {
     expect(getByTestId('native-ref').props.children).toBe('');
   });
 
+
+
+  test('no-op metadata patches preserve array refs and skip native metadata updates', async () => {
+    const { getByTestId } = render(
+      <LibraryProbe
+        initialSongs={songs}
+        initialCurrentSong={songs[0]}
+        initialPlaybackQueue={[songs[0], songs[1]]}
+        initialQueueRef={[songs[0], songs[1]]}
+        initialBaseQueueRef={[songs[0], songs[1]]}
+        initialNativeQueueRef={[songs[0], songs[1]]}
+        nextSongs={songs}
+      />,
+    );
+
+    act(() => fireEvent.press(getByTestId('noop-patch-song')));
+
+    await waitFor(() => expect(getByTestId('songs-commits').props.children).toBe(0));
+    expect(getByTestId('playback-queue-commits').props.children).toBe(0);
+    expect(getByTestId('current-title').props.children).toBe('One');
+    expect(getByTestId('playback-queue-titles').props.children).toBe('One,Two');
+    expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
+  });
 
   test('cover metadata updates propagate to library, current song, queues, refs, and native metadata without reordering', async () => {
     const { getByTestId } = render(

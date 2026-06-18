@@ -3,12 +3,13 @@ import type { Song } from '../types/Song';
 import { cacheLocalCoverFile, isLikelyVolatileArtworkUri } from './coverCache';
 import type { CoverCacheProtection } from './coverCacheCleanup';
 import { getSongArtworkUri } from './songArtwork';
-import { throwIfAborted } from './withTimeout';
+import { isAbortError, throwIfAborted } from './withTimeout';
 
 export interface SongCoverBackfillResult {
   songs: Song[];
   updated: number;
   attempted: number;
+  aborted?: boolean;
 }
 
 export interface SongCoverBackfillOptions {
@@ -69,6 +70,7 @@ export const backfillEmbeddedSongCovers = async (
   let nextCandidate = 0;
   let processedSinceYield = 0;
   let updated = 0;
+  let attempted = 0;
 
   const maybeYield = async (): Promise<void> => {
     processedSinceYield += 1;
@@ -86,6 +88,7 @@ export const backfillEmbeddedSongCovers = async (
       if (!candidate) return;
       const uri = candidate.song.uri?.trim() || candidate.song.fileInfo?.uri?.trim();
       if (!uri) {
+        attempted += 1;
         await maybeYield();
         continue;
       }
@@ -98,21 +101,29 @@ export const backfillEmbeddedSongCovers = async (
         throwIfAborted(signal);
       } catch {
         throwIfAborted(signal);
+        attempted += 1;
         await maybeYield();
         continue;
       }
       if (hadLocalArtwork && !artworkUri) {
+        attempted += 1;
         await maybeYield();
         continue;
       }
       const patched = applyCoverResult(candidate.song, artworkUri);
       nextSongs[candidate.index] = patched;
       if (patched !== candidate.song && artworkUri) updated += 1;
+      attempted += 1;
       await maybeYield();
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(concurrency, candidateIndexes.length || 1) }, () => worker()));
-  throwIfAborted(signal);
-  return { songs: nextSongs, updated, attempted: candidateIndexes.length };
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, candidateIndexes.length || 1) }, () => worker()));
+    throwIfAborted(signal);
+  } catch (error) {
+    if (isAbortError(error) && attempted > 0) return { songs: nextSongs, updated, attempted, aborted: true };
+    throw error;
+  }
+  return { songs: nextSongs, updated, attempted };
 };

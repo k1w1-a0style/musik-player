@@ -35,7 +35,10 @@ export const useLibraryMetadataRefreshLifecycle = ({
   []);
 
   const ensureCurrentRefresh = useCallback((generation: MetadataRefreshGeneration): void => {
-    if (!isCurrentRefresh(generation)) throwIfAborted(generation.controller.signal);
+    if (!isCurrentRefresh(generation)) {
+      throwIfAborted(generation.controller.signal);
+      throw new OperationAbortError('Metadata refresh superseded or no longer current');
+    }
   }, [isCurrentRefresh]);
 
   const finishRefresh = useCallback((generation: MetadataRefreshGeneration): void => {

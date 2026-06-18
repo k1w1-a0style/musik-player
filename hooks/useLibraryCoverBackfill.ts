@@ -16,7 +16,8 @@ interface PendingCoverProtection {
   release: () => void;
 }
 
-const buildAttemptKey = (song: Song): string => song.id || song.uri || song.fileInfo?.uri || `${song.title}:${song.artist}`;
+const buildAttemptKey = (song: Song): string =>
+  `${song.id}|${song.uri ?? ''}|${song.fileInfo?.uri ?? ''}|${song.coverInfo?.status ?? ''}|${song.coverInfo?.embeddedArtworkChecked === true ? 'checked' : 'unchecked'}`;
 
 const songSnapshotContainsUri = (songs: Song[], uri: string): boolean =>
   songs.some(song => song.cover === uri || song.coverInfo?.uri === uri);
@@ -39,7 +40,7 @@ const createIdempotentProtectionRelease = (protection: CoverCacheProtection): ((
   };
 };
 
-export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatches }: UseLibraryCoverBackfillOptions): void => {
+export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: UseLibraryCoverBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
   const pendingProtectionsRef = useRef<PendingCoverProtection[]>([]);
@@ -77,7 +78,7 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
       coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildAttemptKey(song)),
     }).then(result => {
-      if (controller.signal.aborted || generationRef.current !== generation || result.attempted === 0) {
+      if ((!result.aborted && controller.signal.aborted) || generationRef.current !== generation || result.attempted === 0) {
         releaseProtection();
         return;
       }
@@ -99,8 +100,11 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
       });
       const hasPatches = Object.keys(patchesBySongId).length > 0;
       const protectedUris = getPatchCoverUris(patchesBySongId);
-      if (applySongMetadataPatches && hasPatches) applySongMetadataPatches(patchesBySongId);
-      else if (hasPatches) setSongs(merged);
+      if (hasPatches) {
+        if (applySongMetadataPatches) {
+          applySongMetadataPatches(patchesBySongId);
+        }
+      }
       if (hasPatches && protectedUris.size > 0) pendingProtectionsRef.current.push({ uris: protectedUris, release: releaseProtection });
       else releaseProtection();
     }).catch(error => {
@@ -111,5 +115,5 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
     return () => {
       controller.abort();
     };
-  }, [setSongs, songs, applySongMetadataPatches]);
+  }, [songs, applySongMetadataPatches]);
 };
