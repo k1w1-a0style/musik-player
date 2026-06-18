@@ -81,6 +81,18 @@ test('updates changed text metadata from ID3 tags', async () => {
     discNumber: '1/1',
     comment: 'Nice',
   });
+  expect(result.patchesBySongId).toEqual({
+    s1: {
+      title: 'New Title',
+      artist: 'New Artist',
+      album: 'New Album',
+      year: '2024',
+      genre: 'Techno',
+      trackNumber: '1/10',
+      discNumber: '1/1',
+      comment: 'Nice',
+    },
+  });
 });
 
 test('updates embedded cover and coverInfo together when ID3 cover changes', async () => {
