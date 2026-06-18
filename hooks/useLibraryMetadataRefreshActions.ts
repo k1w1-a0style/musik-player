@@ -20,6 +20,7 @@ export const useLibraryMetadataRefreshActions = ({
   setLoading,
   setImportStatus,
   showAlert,
+  applySongMetadataPatches,
   importTimeoutMs = DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS,
   refreshSongsFromId3Impl = refreshSongsFromId3,
   withTimeoutImpl = withTimeout,
@@ -42,6 +43,7 @@ export const useLibraryMetadataRefreshActions = ({
     setSongs,
     showAlert,
     ensureCurrentRefresh,
+    applySongMetadataPatches,
   });
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {

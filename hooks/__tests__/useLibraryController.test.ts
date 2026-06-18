@@ -297,6 +297,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     setLoading: mockScreenState.setLoading,
     setMenuOpen: mockScreenState.setMenuOpen,
     setSongs: mockMusicContext.setSongs,
+    applySongMetadataPatches: mockMusicContext.applySongMetadataPatches,
     showAlert: mockAlerts.showAlert,
     songs: [],
   });

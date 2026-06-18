@@ -29,6 +29,28 @@ const TAIL_READ_LIMIT = 1024 * 1024;
 const ID3_FRAME_SCAN_LIMIT = 8 * 1024 * 1024;
 const ID3_TEXT_FRAME_READ_LIMIT = 64 * 1024;
 
+export interface ParseId3Options {
+  includeCover?: boolean;
+  signal?: AbortSignal;
+  maxHeadBytes?: number;
+  maxTailBytes?: number;
+  maxFrameScanBytes?: number;
+}
+
+const shouldIncludeCover = (options?: Pick<ParseId3Options, 'includeCover'>): boolean =>
+  options?.includeCover !== false;
+
+const throwIfParseAborted = (signal?: AbortSignal): void => {
+  if (!signal?.aborted) return;
+  throw signal.reason instanceof Error ? signal.reason : new Error('ID3 parsing aborted');
+};
+
+const clampPositiveLimit = (value: number | undefined, fallback: number): number =>
+  Number.isFinite(value) && (value as number) > 0 ? Math.floor(value as number) : fallback;
+
+const clampNonNegativeLimit = (value: number | undefined, fallback: number): number =>
+  Number.isFinite(value) && (value as number) >= 0 ? Math.floor(value as number) : fallback;
+
 type Id3FileInfo = { exists: boolean; size: number };
 
 const getId3FileInfo = async (uri: string): Promise<Id3FileInfo> => {
@@ -323,7 +345,8 @@ const hasFrameUnsynchronization = (majorVersion: number, flag2: number): boolean
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
  * Supports common ID3v2.2/v2.3/v2.4 text and cover frames.
  */
-export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
+export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options, 'includeCover'> = {}): Id3Tags => {
+  const includeCover = shouldIncludeCover(options);
   const tags: Id3Tags = {};
   if (
     bytes.length < 10 ||
@@ -394,7 +417,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
           break;
         }
         case 'PIC': {
-          if (!tags.cover) {
+          if (includeCover && !tags.cover) {
             const cover = decodePIC(frameBytes, bodyStart, bodyEnd);
             if (cover) tags.cover = cover;
           }
@@ -466,7 +489,7 @@ export const parseId3Buffer = (bytes: Uint8Array): Id3Tags => {
         break;
       }
       case 'APIC':
-        if (!tags.cover) {
+        if (includeCover && !tags.cover) {
           const cover = decodeAPIC(frameBytes, bodyStart, bodyEnd);
           if (cover) tags.cover = cover;
         }
@@ -613,6 +636,7 @@ type ReadRange = (position: number, length: number) => Promise<Uint8Array>;
 const parseId3TextFramesByRange = async (
   initialBytes: Uint8Array,
   readRange: ReadRange,
+  options: Pick<ParseId3Options, 'signal' | 'maxFrameScanBytes'> = {},
 ): Promise<Id3Tags> => {
   const tags: Id3Tags = {};
   if (
@@ -629,7 +653,7 @@ const parseId3TextFramesByRange = async (
   if ((flags & 0x80) !== 0) return tags;
   const totalSize = decodeSyncsafe(initialBytes, 6);
   if (totalSize === undefined) return tags;
-  const scanEnd = Math.min(10 + totalSize, ID3_FRAME_SCAN_LIMIT);
+  const scanEnd = Math.min(10 + totalSize, clampPositiveLimit(options.maxFrameScanBytes, ID3_FRAME_SCAN_LIMIT));
   let p = 10;
   if (majorVersion !== 2) {
     const rawTagEnd = Math.min(initialBytes.length, scanEnd) - 10;
@@ -643,6 +667,7 @@ const parseId3TextFramesByRange = async (
   }
 
   while (p + (majorVersion === 2 ? 6 : 10) <= scanEnd) {
+    throwIfParseAborted(options.signal);
     const headerLength = majorVersion === 2 ? 6 : 10;
     const header = p + headerLength <= initialBytes.length
       ? initialBytes.subarray(p, p + headerLength)
@@ -680,15 +705,20 @@ const parseId3TextFramesByRange = async (
  * Read & parse ID3 tags from a file URI (e.g. from expo-media-library or expo-document-picker).
  * Reads a bounded head chunk (and tail chunk for MP4-like files) to keep parsing efficient.
  */
-export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
+export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}): Promise<Id3Tags> => {
   try {
+    throwIfParseAborted(options.signal);
+    const includeCover = shouldIncludeCover(options);
+    const maxHeadBytes = clampPositiveLimit(options.maxHeadBytes, HEAD_READ_LIMIT);
+    const maxTailBytes = clampNonNegativeLimit(options.maxTailBytes, TAIL_READ_LIMIT);
+    const maxFrameScanBytes = clampPositiveLimit(options.maxFrameScanBytes, ID3_FRAME_SCAN_LIMIT);
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
     const normalizedUri = uri.startsWith('content://') ? uri : (uri.split('?')[0] ?? uri);
     const extensionProbeUri = uri.split('?')[0] ?? uri;
     const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(extensionProbeUri);
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
-      const id3 = parseId3Buffer(bytes);
-      if (id3.cover) return id3;
+      const id3 = parseId3Buffer(bytes, { includeCover });
+      if (!includeCover || id3.cover) return id3;
       if (!looksLikeMp4) return id3;
       const mp4Cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
       return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
@@ -696,7 +726,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
     try {
       const b64 = await readAsStringAsync(normalizedUri, {
         encoding: encodingBase64,
-        length: HEAD_READ_LIMIT,
+        length: maxHeadBytes,
       });
       const bytes = base64ToBytes(b64);
       const readRange = async (position: number, length: number): Promise<Uint8Array> =>
@@ -707,6 +737,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
             position,
           }),
         );
+      throwIfParseAborted(options.signal);
       let id3 = parseHeadBytes(bytes);
       if (
         !id3.cover &&
@@ -716,33 +747,37 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
         bytes[2] === 0x33
       ) {
         try {
-          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange));
+          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange, { signal: options.signal, maxFrameScanBytes }));
         } catch (error) {
           console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
         }
       }
-      if (id3.cover || !looksLikeMp4) return id3;
+      if (!includeCover || id3.cover || !looksLikeMp4) return id3;
       try {
         const info = await getId3FileInfo(normalizedUri);
         if (!info.exists) return id3;
         const size = info.size;
-        if (size <= HEAD_READ_LIMIT) return id3;
-        const tailReadLength = Math.min(TAIL_READ_LIMIT, size);
+        if (size <= maxHeadBytes) return id3;
+        if (maxTailBytes <= 0) return id3;
+        const tailReadLength = Math.min(maxTailBytes, size);
         const tailStart = Math.max(0, size - tailReadLength);
         const tailB64 = await readAsStringAsync(normalizedUri, {
           encoding: encodingBase64,
           length: tailReadLength,
           position: tailStart,
         });
+        throwIfParseAborted(options.signal);
         const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), {
           trustedTopLevel: false,
         });
         if (tailCover) return { ...id3, cover: tailCover };
       } catch {
+        throwIfParseAborted(options.signal);
         return id3;
       }
       return id3;
     } catch {
+      throwIfParseAborted(options.signal);
       // fallback to File API when legacy path is unavailable
     }
     const FileCtor = (
@@ -777,7 +812,8 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
         const handle = open.call(file);
         if (handle) {
           try {
-            const head = handle.readBytes(Math.min(HEAD_READ_LIMIT, size));
+            throwIfParseAborted(options.signal);
+            const head = handle.readBytes(Math.min(maxHeadBytes, size));
             const readRange = async (position: number, length: number): Promise<Uint8Array> => {
               handle.offset = position;
               return handle.readBytes(length);
@@ -789,7 +825,7 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
               head[1] === 0x44 &&
               head[2] === 0x33
             ) {
-              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange));
+              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameScanBytes }));
             }
             return parsed;
           } finally {
@@ -797,18 +833,21 @@ export const parseId3FromUri = async (uri: string): Promise<Id3Tags> => {
           }
         }
       }
-      if (size > HEAD_READ_LIMIT) {
+      if (size > maxHeadBytes) {
         // File.bytes() loads the entire file. Without File.open()/range reads, large
         // media must return a controlled empty result rather than risk a memory spike.
         warnLargeBytesFallbackSkipped(normalizedUri, size);
         return {};
       }
       const bytes = await file.bytes();
-      return parseHeadBytes(bytes.subarray(0, HEAD_READ_LIMIT));
+      throwIfParseAborted(options.signal);
+      return parseHeadBytes(bytes.subarray(0, maxHeadBytes));
     } catch {
+      throwIfParseAborted(options.signal);
       return {};
     }
   } catch {
+    throwIfParseAborted(options.signal);
     return {};
   }
 };

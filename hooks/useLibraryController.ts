@@ -84,6 +84,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     setScanFolders,
     setSearchOpen,
     setSongs,
+    applySongMetadataPatches,
     songs,
   });
 

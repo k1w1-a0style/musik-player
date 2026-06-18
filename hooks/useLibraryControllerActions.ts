@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
+import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from '../utils/libraryTabs';
 import { useLibraryAlerts } from './useLibraryAlerts';
@@ -18,6 +19,7 @@ export interface UseLibraryControllerActionsOptions {
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
   setSongs: (songs: Song[]) => void;
+  applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
   songs: Song[];
 }
 
@@ -43,6 +45,7 @@ export const useLibraryControllerActions = ({
   setScanFolders,
   setSearchOpen,
   setSongs,
+  applySongMetadataPatches,
   songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
   const { openTrackInfo } = useLibraryNavigationActions();
@@ -90,6 +93,7 @@ export const useLibraryControllerActions = ({
     setMenuOpen,
     setSongs,
     showAlert,
+    applySongMetadataPatches,
     songs,
   });
 

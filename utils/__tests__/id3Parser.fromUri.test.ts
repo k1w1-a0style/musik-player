@@ -58,6 +58,21 @@ describe('parseId3FromUri', () => {
     return b64([...header, ...flat]);
   };
 
+  test('includeCover false reads text metadata without producing ID3 cover data URIs', async () => {
+    const image = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4];
+    const apicBody = [0x00, ...enc('image/jpeg'), 0, 0x03, 0, ...image];
+    const apicFrame = [...enc('APIC'), ...u32be(apicBody.length), 0, 0, ...apicBody];
+    mockReadAsStringAsync.mockResolvedValueOnce(buildId3([
+      id3TextFrame('TIT2', 'No Cover Refresh'),
+      apicFrame,
+    ]));
+
+    const tags = await parseId3FromUri('file:///music/no-cover-refresh.mp3', { includeCover: false });
+
+    expect(tags.title).toBe('No Cover Refresh');
+    expect(tags.cover).toBeUndefined();
+  });
+
   beforeEach(() => {
     mockReadAsStringAsync.mockReset();
     mockGetInfoAsync.mockReset();

@@ -1,5 +1,5 @@
 import type { Song } from '../types/Song';
-import { parseId3FromUri, type Id3Tags } from './id3Parser';
+import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { throwIfAborted } from './withTimeout';
 
 export interface SongMetadataRefreshResult {
@@ -8,10 +8,12 @@ export interface SongMetadataRefreshResult {
   skipped: number;
   failed: number;
   errors: string[];
+  patchesBySongId: Record<string, Partial<Song>>;
 }
-interface SongMetadataRefreshOptions {
+interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes'> {
   concurrency?: number;
   signal?: AbortSignal;
+  onProgress?: (processed: number, total: number) => void;
 }
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
@@ -76,7 +78,7 @@ const assignChanged = <K extends keyof Song>(patch: Partial<Song>, song: Song, k
   if (song[key] !== normalized) patch[key] = normalized as Song[K];
 };
 
-export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
+export const buildId3SongPatch = (song: Song, tags: Id3Tags): Partial<Song> => {
   const patch: Partial<Song> = {};
   assignChanged(patch, song, 'title', tags.title);
   assignChanged(patch, song, 'artist', tags.artist);
@@ -104,17 +106,29 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
     }
   }
 
+  return patch;
+};
+
+export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
+  const patch = buildId3SongPatch(song, tags);
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 
-const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_CONCURRENCY = 1;
 const MAX_CONCURRENCY = 2;
-const REFRESH_YIELD_BATCH_SIZE = 8;
+export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
+  includeCover: false,
+  maxHeadBytes: 256 * 1024,
+  maxTailBytes: 0,
+  maxFrameScanBytes: 512 * 1024,
+} as const;
+const REFRESH_YIELD_BATCH_SIZE = 1;
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 const didSongChange = (before: Song, after: Song): boolean => before !== after;
 
 interface SongRefreshOutcome {
   song: Song;
+  patch?: Partial<Song>;
   updatedDelta: number;
   skippedDelta: number;
   failedDelta: number;
@@ -132,12 +146,14 @@ export const refreshSongsFromId3 = async (
 ): Promise<SongMetadataRefreshResult> => {
   const refreshed: Song[] = new Array(songs.length);
   const errors: string[] = [];
+  const patchesBySongId: Record<string, Partial<Song>> = {};
   const outcomes: SongRefreshOutcome[] = new Array(songs.length);
   const concurrency = clampConcurrency(options?.concurrency);
   const signal = options?.signal;
   throwIfAborted(signal);
   let nextIndex = 0;
   let processedSinceYield = 0;
+  let processed = 0;
 
   const maybeYield = async (): Promise<void> => {
     processedSinceYield += 1;
@@ -153,11 +169,20 @@ export const refreshSongsFromId3 = async (
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
-      const tags = await parseId3FromUri(uri);
+      const tags = await parseId3FromUri(uri, {
+        ...MANUAL_METADATA_REFRESH_ID3_OPTIONS,
+        includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
+        maxHeadBytes: options?.maxHeadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxHeadBytes,
+        maxTailBytes: options?.maxTailBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes,
+        maxFrameScanBytes: options?.maxFrameScanBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameScanBytes,
+        signal,
+      });
       throwIfAborted(signal);
-      const next = applyId3TagsToSong(song, tags);
+      const patch = buildId3SongPatch(song, tags);
+      const next = Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
       return {
         song: next,
+        patch: didSongChange(song, next) ? patch : undefined,
         updatedDelta: didSongChange(song, next) ? 1 : 0,
         skippedDelta: 0,
         failedDelta: 0,
@@ -175,6 +200,8 @@ export const refreshSongsFromId3 = async (
       nextIndex += 1;
       if (index >= songs.length) return;
       outcomes[index] = await refreshOne(songs[index]);
+      processed += 1;
+      options?.onProgress?.(processed, songs.length);
       await maybeYield();
       throwIfAborted(signal);
     }
@@ -192,8 +219,9 @@ export const refreshSongsFromId3 = async (
     updated += outcome.updatedDelta;
     skipped += outcome.skippedDelta;
     failed += outcome.failedDelta;
+    if (outcome.patch) patchesBySongId[outcome.song.id] = outcome.patch;
     if (outcome.errorUri) errors.push(outcome.errorUri);
   }
 
-  return { songs: refreshed, updated, skipped, failed, errors };
+  return { songs: refreshed, updated, skipped, failed, errors, patchesBySongId };
 };
