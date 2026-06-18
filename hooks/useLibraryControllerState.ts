@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
+import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import type { Playlist, Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { useLibraryScreenState, type UseLibraryScreenStateResult } from './useLibraryScreenState';
@@ -17,6 +18,8 @@ export interface LibraryControllerMusicState {
   playlists: Playlist[];
   setSongs: (songs: Song[]) => void;
   songs: Song[];
+  updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   songsCount: number;
 }
 
@@ -42,6 +45,8 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     playlists = defaultPlaylists,
     setSongs,
     songs,
+    updateSongMetadata,
+    applySongMetadataPatches,
   } = useLibraryMusicContext();
   const screen = useLibraryScreenState();
   const { favoriteIds, scanFolders, setScanFolders } = useLibraryStoredState(screen.activeTab);
@@ -56,6 +61,8 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
       playlists,
       setSongs,
       songs,
+      updateSongMetadata,
+      applySongMetadataPatches,
       songsCount: songs.length,
     },
     screen,

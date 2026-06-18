@@ -99,6 +99,7 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
         ...song.coverInfo,
         status: 'embedded',
         uri: normalizedCover,
+        embeddedArtworkChecked: true,
       };
     }
   }
@@ -106,8 +107,10 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 
-const DEFAULT_CONCURRENCY = 4;
-const MAX_CONCURRENCY = 6;
+const DEFAULT_CONCURRENCY = 2;
+const MAX_CONCURRENCY = 2;
+const REFRESH_YIELD_BATCH_SIZE = 8;
+const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 const didSongChange = (before: Song, after: Song): boolean => before !== after;
 
 interface SongRefreshOutcome {
@@ -134,6 +137,15 @@ export const refreshSongsFromId3 = async (
   const signal = options?.signal;
   throwIfAborted(signal);
   let nextIndex = 0;
+  let processedSinceYield = 0;
+
+  const maybeYield = async (): Promise<void> => {
+    processedSinceYield += 1;
+    if (processedSinceYield < REFRESH_YIELD_BATCH_SIZE) return;
+    processedSinceYield = 0;
+    await yieldToEventLoop();
+    throwIfAborted(signal);
+  };
 
   const refreshOne = async (song: Song): Promise<SongRefreshOutcome> => {
     throwIfAborted(signal);
@@ -163,6 +175,7 @@ export const refreshSongsFromId3 = async (
       nextIndex += 1;
       if (index >= songs.length) return;
       outcomes[index] = await refreshOne(songs[index]);
+      await maybeYield();
       throwIfAborted(signal);
     }
   };

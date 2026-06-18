@@ -38,6 +38,7 @@ const mockMusicContext: MockLibraryMusicContext = {
   isReady: true,
   isPlaying: false,
   updateSongMetadata: fn,
+  applySongMetadataPatches: fn,
   playlists: [],
   playPlaylist: asyncFn,
 };

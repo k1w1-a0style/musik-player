@@ -12,6 +12,7 @@ const baseValue: MusicContextValue = {
   setSongs: noop,
   addSongs: noop,
   updateSongMetadata: noop,
+  applySongMetadataPatches: noop,
   currentSong: { id: 's1', title: 'One', artist: 'A' },
   playbackQueue: [{ id: 's1', title: 'One', artist: 'A' }],
   isPlaying: true,

@@ -5,6 +5,7 @@ import {
   documentDirectory,
   cacheDirectory,
   getInfoAsync,
+  copyAsync,
 } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
@@ -85,6 +86,82 @@ const getBaseDirectory = (): string | undefined =>
   ?? (FileSystem as { documentDirectory?: string | null }).documentDirectory
   ?? (FileSystem as { cacheDirectory?: string | null }).cacheDirectory
   ?? undefined;
+
+const FILE_EXTENSION_RE = /\.([a-zA-Z0-9]+)(?:[?#].*)?$/;
+
+const isRemoteUri = (uri: string): boolean => /^https?:\/\//i.test(uri.trim());
+
+const deriveCoverFileExtension = (uri: string): string => {
+  const match = uri.match(FILE_EXTENSION_RE);
+  const ext = match?.[1]?.toLowerCase();
+  if (ext && ext.length <= 5) return ext;
+  return 'jpg';
+};
+
+export const getManagedCoverCacheDirectory = (): string | undefined => {
+  const baseDir = getBaseDirectory();
+  return baseDir ? `${baseDir}covers` : undefined;
+};
+
+export const isManagedCoverCacheUri = (uri?: string): boolean => {
+  if (!uri) return false;
+  const directory = getManagedCoverCacheDirectory();
+  return Boolean(directory && uri.trim().startsWith(`${directory}/`));
+};
+
+export const isLikelyVolatileArtworkUri = (uri?: string): boolean => {
+  if (!uri) return false;
+  const trimmed = uri.trim();
+  if (!trimmed || isRemoteUri(trimmed) || isManagedCoverCacheUri(trimmed)) return false;
+  const volatileRoot = cacheDirectory
+    ?? (FileSystem as { cacheDirectory?: string | null }).cacheDirectory
+    ?? undefined;
+  return Boolean(volatileRoot && trimmed.startsWith(volatileRoot));
+};
+
+export const cacheLocalCoverFile = async (
+  songId: string,
+  sourceUri?: string,
+  protection?: CoverCacheProtection,
+): Promise<string | undefined> => {
+  const source = sourceUri?.trim();
+  if (!source || isRemoteUri(source)) return undefined;
+  const directory = getManagedCoverCacheDirectory();
+  if (!directory) {
+    logCoverCacheWarning('cache_directory_unavailable');
+    return undefined;
+  }
+
+  try {
+    const mkdir = makeDirectoryAsync
+      ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
+    const copy = copyAsync
+      ?? (FileSystem as unknown as { copyAsync?: typeof copyAsync }).copyAsync;
+    const getInfo = getInfoAsync
+      ?? (FileSystem as unknown as { getInfoAsync?: typeof getInfoAsync }).getInfoAsync;
+    if (!mkdir || !copy || !getInfo) {
+      logCoverCacheWarning('cache_filesystem_unavailable');
+      return undefined;
+    }
+
+    const sourceInfo = await withCoverCacheFailureReason(getInfo(source), 'cache_info_failed');
+    if (!sourceInfo.exists) return undefined;
+    await withCoverCacheFailureReason(mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
+
+    const safeSongId = hashString(songId);
+    const sourceHash = hashString(source);
+    const fileUri = `${directory}/${safeSongId}-${sourceHash}.${deriveCoverFileExtension(source)}`;
+    protection?.protectUri(fileUri);
+    await waitForCoverCacheCleanupIdle();
+    const existing = await withCoverCacheFailureReason(getInfo(fileUri), 'cache_info_failed');
+    if (existing.exists) return fileUri;
+    await withCoverCacheFailureReason(copy({ from: source, to: fileUri }), 'cache_write_failed');
+    return fileUri;
+  } catch (error) {
+    logCoverCacheWarning(getCoverCacheFailureReason(error));
+    return undefined;
+  }
+};
 
 export const cacheBase64Cover = async (
   songId: string,

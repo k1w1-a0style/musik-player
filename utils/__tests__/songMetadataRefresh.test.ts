@@ -100,7 +100,7 @@ test('updates embedded cover and coverInfo together when ID3 cover changes', asy
     ...songWithCover,
     title: 'New Title',
     cover: newCover,
-    coverInfo: { status: 'embedded', uri: newCover },
+    coverInfo: { status: 'embedded', uri: newCover, embeddedArtworkChecked: true },
   });
 });
 
@@ -129,7 +129,7 @@ test('updates cover when both normalized references keep different query identit
   expect(applyId3TagsToSong(songWithVersionedCover, { cover: 'file:///covers/Album%20Art.jpg?version=2' })).toEqual({
     ...songWithVersionedCover,
     cover: 'file:///covers/Album%20Art.jpg?version=2',
-    coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=2' },
+    coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=2', embeddedArtworkChecked: true },
   });
 });
 
@@ -143,7 +143,21 @@ test('repairs stale coverInfo when parsed embedded cover matches existing cover'
 
   expect(applyId3TagsToSong(songWithStaleCoverInfo, { cover })).toEqual({
     ...songWithStaleCoverInfo,
-    coverInfo: { status: 'embedded', uri: cover },
+    coverInfo: { status: 'embedded', uri: cover, embeddedArtworkChecked: true },
+  });
+});
+
+test('allows later ID3 cover refresh to replace a persisted no-cover backfill state', () => {
+  const cover = 'file:///covers/fresh-cover.jpg';
+  const songWithoutEmbeddedCover: Song = {
+    ...baseSong,
+    coverInfo: { status: 'none', embeddedArtworkChecked: true },
+  };
+
+  expect(applyId3TagsToSong(songWithoutEmbeddedCover, { cover })).toEqual({
+    ...songWithoutEmbeddedCover,
+    cover,
+    coverInfo: { status: 'embedded', uri: cover, embeddedArtworkChecked: true },
   });
 });
 

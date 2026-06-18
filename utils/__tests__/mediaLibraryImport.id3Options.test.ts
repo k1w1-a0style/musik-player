@@ -76,5 +76,5 @@ test('SAF import from default sources skips ID3 for faster initial import', asyn
 
   expect(parseId3FromUri).not.toHaveBeenCalled();
   expect(result.songs[0].title).toBe('Fast Song');
-  expect(result.songs[0].coverInfo?.status).toBe('none');
+  expect(result.songs[0].coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
 });

@@ -2,7 +2,7 @@ import { waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
-import { cacheBase64Cover, isBase64ImageDataUri, MAX_CACHED_COVER_BYTES, sanitizeSongsForStorage } from '../coverCache';
+import { cacheBase64Cover, cacheLocalCoverFile, isBase64ImageDataUri, MAX_CACHED_COVER_BYTES, sanitizeSongsForStorage } from '../coverCache';
 import { cleanupCoverCache } from '../coverCacheCleanup';
 import * as coverCacheCleanup from '../coverCacheCleanup';
 import type { Song } from '../../types/Song';
@@ -17,6 +17,7 @@ jest.mock('expo-file-system', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: false })),
   readDirectoryAsync: jest.fn(async () => []),
   deleteAsync: jest.fn(async () => undefined),
+  copyAsync: jest.fn(async () => undefined),
 }));
 
 type Deferred<T> = {
@@ -60,6 +61,7 @@ jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: false })),
   readDirectoryAsync: jest.fn(async () => []),
   deleteAsync: jest.fn(async () => undefined),
+  copyAsync: jest.fn(async () => undefined),
 }));
 
 describe('coverCache', () => {
@@ -71,6 +73,18 @@ describe('coverCache', () => {
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
     (FileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+  });
+
+  test('copies local cover files into the managed cover cache', async () => {
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({ exists: uri === 'file:///cache/native-cover.jpg' }));
+
+    const protection = { protectUri: jest.fn(), protectSongCovers: jest.fn(), replaceProtectedSongCovers: jest.fn(), release: jest.fn() };
+    const result = await cacheLocalCoverFile('song-a', 'file:///cache/native-cover.jpg', protection);
+
+    expect(result).toMatch(/^file:\/\/\/docs\/covers\//);
+    expect(result).not.toBe('file:///cache/native-cover.jpg');
+    expect(protection.protectUri).toHaveBeenCalledWith(result);
+    expect(LegacyFileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///cache/native-cover.jpg', to: result });
   });
 
   test('detects image base64 data uri', () => {

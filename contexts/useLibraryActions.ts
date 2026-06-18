@@ -9,8 +9,7 @@ import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import {
   mergeUniqueSongs,
-  patchNullableSongById,
-  patchSongById,
+  normalizeSongIdForLibrary,
   patchSongRefs,
   pruneNullableSongByValidIds,
   pruneSongsByValidIds,
@@ -27,14 +26,36 @@ export interface LibraryActionsArgs {
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
 }
 
+export type SongMetadataPatchesById = Record<string, Partial<Song>>;
+
 export interface LibraryActions {
   setSongs: (songs: Song[]) => void;
   addSongs: (songs: Song[]) => void;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
 }
 
 export { mergeUniqueSongs, patchSongById } from './libraryActionHelpers';
 
+
+
+const normalizeMetadataPatchMap = (patchesBySongId: SongMetadataPatchesById): Map<string, Partial<Song>> => {
+  const normalized = new Map<string, Partial<Song>>();
+  Object.entries(patchesBySongId).forEach(([songId, patch]) => {
+    const normalizedSongId = normalizeSongIdForLibrary(songId);
+    if (!normalizedSongId || Object.keys(patch).length === 0) return;
+    normalized.set(normalizedSongId, patch);
+  });
+  return normalized;
+};
+
+const patchSongByMetadataPatchMap = (patchesByNormalizedSongId: ReadonlyMap<string, Partial<Song>>) => (song: Song): Song => {
+  const normalizedSongId = normalizeSongIdForLibrary(song.id);
+  if (!normalizedSongId) return song;
+  const patch = patchesByNormalizedSongId.get(normalizedSongId);
+  if (!patch) return song;
+  return { ...song, ...(song.id === normalizedSongId ? {} : { id: normalizedSongId }), ...patch };
+};
 
 const cleanupCurrentSongIdAfterLibraryUpdate = async (
   validSongIds: ReadonlySet<string>,
@@ -180,14 +201,22 @@ export const useLibraryActions = ({
     [setSongsState],
   );
 
-  const updateSongMetadata = useCallback(
-    (songId: string, patch: Partial<Song>) => {
-      const patchSong = patchSongById(songId, patch);
+  const applySongMetadataPatches = useCallback(
+    (patchesBySongId: SongMetadataPatchesById) => {
+      const patchesByNormalizedSongId = normalizeMetadataPatchMap(patchesBySongId);
+      if (patchesByNormalizedSongId.size === 0) return;
+      const patchSong = patchSongByMetadataPatchMap(patchesByNormalizedSongId);
+      const affectedNativeSongIds = new Set<string>();
+      nativeQueueRef.current.forEach(song => {
+        const songId = normalizeSongIdForLibrary(song.id);
+        if (songId && patchesByNormalizedSongId.has(songId)) affectedNativeSongIds.add(songId);
+      });
+
       setSongsState(prev => prev.map(patchSong));
-      setCurrentSong(prev => patchNullableSongById(songId, patch, prev));
+      setCurrentSong(prev => (prev ? patchSong(prev) : null));
       setPlaybackQueue(prev => prev.map(patchSong));
       patchSongRefs(patchSong, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
-      updateNativeMetadataForSong(songId, nativeQueueRef, baseQueueContextRef);
+      affectedNativeSongIds.forEach(songId => updateNativeMetadataForSong(songId, nativeQueueRef, baseQueueContextRef));
     },
     [
       baseQueueContextRef,
@@ -199,5 +228,12 @@ export const useLibraryActions = ({
     ],
   );
 
-  return { setSongs, addSongs, updateSongMetadata };
+  const updateSongMetadata = useCallback(
+    (songId: string, patch: Partial<Song>) => {
+      applySongMetadataPatches({ [songId]: patch });
+    },
+    [applySongMetadataPatches],
+  );
+
+  return { setSongs, addSongs, updateSongMetadata, applySongMetadataPatches };
 };

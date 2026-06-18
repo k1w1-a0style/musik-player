@@ -14,6 +14,7 @@ type LibraryMusicContextInput = Pick<
   | 'isReady'
   | 'isPlaying'
   | 'updateSongMetadata'
+  | 'applySongMetadataPatches'
   | 'playlists'
   | 'playPlaylist'
 >;
@@ -44,6 +45,7 @@ export const buildLibraryMusicContextValue = ({
   isReady,
   isPlaying,
   updateSongMetadata,
+  applySongMetadataPatches,
   playlists,
   playPlaylist,
 }: LibraryMusicContextInput): LibraryMusicContextValue => ({
@@ -54,6 +56,7 @@ export const buildLibraryMusicContextValue = ({
   isReady,
   isPlaying,
   updateSongMetadata,
+  applySongMetadataPatches,
   playlists,
   playPlaylist,
 });

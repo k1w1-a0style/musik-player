@@ -88,3 +88,12 @@ Optionale/manuelle Android-Smokes nach Build, SDK-/FileSystem-Änderungen oder N
 - [ ] Tag Edit/Cover Replace/Remove nur für unterstützte writable `file://` Titel.
 - [ ] `content://`/SAF bleibt read-only für Tag-/Cover-Writes.
 - [ ] Cover cache cleanup inklusive Orphan-Enumeration.
+
+## Android-Smoke-Fix Cover-Backfill / Metadata Refresh (2026-06-16)
+
+- [x] Android-Smoke-Fund behoben: Cover werden nach Import/Refresh automatisch im Hintergrund nachgeladen.
+- [x] SongCard ist nicht mehr der einzige Cover-Ladepfad über Current-Song.
+- [x] Metadata Refresh wurde für große Libraries entlastet.
+- [x] Keine Dependency-/NewArch-/TrackPlayer-/Native-Änderung.
+- [x] Keine APK gebaut.
+- [ ] Echter Android-Smoke muss nach Merge erneut laufen.

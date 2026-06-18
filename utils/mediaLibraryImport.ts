@@ -203,6 +203,7 @@ export const buildSongFromImportSource = async (
   const parsedCover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
   const nativeCover = parsedCover || !loadNativeCover ? undefined : await getNativeEmbeddedCover(source.uri);
   const cover = parsedCover ?? nativeCover;
+  const coverStatus = cover ? (cachedCover || nativeCover ? 'cached' : 'external') : 'none';
   const size = await resolveAssetSize(source.uri, source.size);
 
   return {
@@ -232,7 +233,7 @@ export const buildSongFromImportSource = async (
       codec: extension,
       bitrate: bitrateFromSizeAndDuration(size, source.durationMs),
     },
-    coverInfo: { status: cover ? (cachedCover || nativeCover ? 'cached' : 'external') : 'none', uri: cover },
+    coverInfo: { status: coverStatus, uri: cover, embeddedArtworkChecked: loadNativeCover },
   };
 };
 

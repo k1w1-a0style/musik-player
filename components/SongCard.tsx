@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
 import { CircleEllipsis, Music2 } from 'lucide-react-native';
-import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import { buildSongKey } from '../utils/libraryPresentation';
@@ -17,29 +16,13 @@ interface SongCardProps {
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying }) => {
   const [coverFailed, setCoverFailed] = useState(false);
-  const [nativeArtworkUri, setNativeArtworkUri] = useState<string | undefined>();
-  const artworkUri = getSongArtworkUri(song) ?? nativeArtworkUri;
+  const artworkUri = getSongArtworkUri(song);
   const songTestId = song.id.trim() || buildSongKey(song);
 
   useEffect(() => {
     setCoverFailed(false);
-    setNativeArtworkUri(undefined);
   }, [song.id, song.cover, song.coverInfo?.uri]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (getSongArtworkUri(song) || !song.uri || !isCurrent) return;
-    SystemAudio.extractEmbeddedArtwork(song.uri)
-      .then(result => {
-        if (!cancelled && result?.uri) setNativeArtworkUri(result.uri);
-      })
-      .catch(error => {
-        console.error('[SongCard] Failed to extract embedded artwork', error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isCurrent, song]);
 
   const handlePress = useCallback(() => {
     onPressSong(song);

@@ -1,11 +1,13 @@
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
+import type { SongMetadataPatchesById } from './useLibraryActions';
 
 export interface MusicContextValue {
   songs: Song[];
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   currentSong: Song | null;
   playbackQueue: Song[];
   isPlaying: boolean;
@@ -49,6 +51,7 @@ export interface LibraryMusicContextValue {
   isReady: boolean;
   isPlaying: boolean;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   playlists: Playlist[];
   playPlaylist: (playlistId: string) => Promise<void>;
 }

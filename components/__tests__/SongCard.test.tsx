@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
+import SystemAudio from 'expo-system-audio';
 import SongCard from '../SongCard';
 
 describe('SongCard', () => {
@@ -67,4 +68,19 @@ describe('SongCard', () => {
     expect(getByTestId('song-card-1').props.accessibilityState?.selected).not.toBe(true);
   });
 
+});
+
+jest.mock('expo-system-audio', () => ({
+  extractEmbeddedArtwork: jest.fn(),
+}));
+
+test('does not trigger native embedded-artwork extraction from rows', () => {
+  render(
+    <>
+      <SongCard song={{ id: 'a', title: 'A', artist: 'Artist', uri: 'file:///a.mp3' }} onPressSong={jest.fn()} isCurrent isPlaying={false} />
+      <SongCard song={{ id: 'b', title: 'B', artist: 'Artist', uri: 'file:///b.mp3' }} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />
+    </>,
+  );
+
+  expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
 });
