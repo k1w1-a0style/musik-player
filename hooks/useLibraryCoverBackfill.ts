@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../utils/songCoverBackfill';
+import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 interface UseLibraryCoverBackfillOptions {
@@ -23,15 +24,26 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     const controller = new AbortController();
+    const protection = createCoverCacheProtection();
+    let protectionReleased = false;
+    const releaseProtection = (): void => {
+      if (protectionReleased) return;
+      protectionReleased = true;
+      protection.release();
+    };
     const candidateKeys = new Set(candidates.map(buildAttemptKey));
 
     void backfillEmbeddedSongCovers(songs, {
       concurrency: 1,
       batchSize: 6,
       signal: controller.signal,
+      coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildAttemptKey(song)),
     }).then(result => {
-      if (controller.signal.aborted || generationRef.current !== generation || result.attempted === 0) return;
+      if (controller.signal.aborted || generationRef.current !== generation || result.attempted === 0) {
+        releaseProtection();
+        return;
+      }
       const merged = songs.map((song, index) => {
         const next = result.songs[index];
         const nextArtwork = getSongArtworkUri(next);
@@ -51,7 +63,9 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
       const hasPatches = Object.keys(patchesBySongId).length > 0;
       if (applySongMetadataPatches && hasPatches) applySongMetadataPatches(patchesBySongId);
       else if (hasPatches) setSongs(merged);
+      releaseProtection();
     }).catch(error => {
+      releaseProtection();
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);
     });
 

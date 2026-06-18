@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useLibraryCoverBackfill } from '../useLibraryCoverBackfill';
+import { createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
@@ -10,6 +11,18 @@ jest.mock('expo-system-audio', () => ({
 jest.mock('../../utils/coverCache', () => ({
   cacheLocalCoverFile: jest.fn(async (_songId: string, uri?: string) => uri?.replace('file:///cache/', 'file:///docs/covers/')),
   isLikelyVolatileArtworkUri: jest.fn((uri?: string) => uri?.startsWith('file:///cache/') ?? false),
+}));
+
+const mockRelease = jest.fn();
+const mockProtection = {
+  protectUri: jest.fn(),
+  protectSongCovers: jest.fn(),
+  replaceProtectedSongCovers: jest.fn(),
+  release: mockRelease,
+};
+
+jest.mock('../../utils/coverCacheCleanup', () => ({
+  createCoverCacheProtection: jest.fn(() => mockProtection),
 }));
 
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
@@ -28,6 +41,11 @@ const flush = async (): Promise<void> => {
 describe('useLibraryCoverBackfill', () => {
   beforeEach(() => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
+    mockRelease.mockClear();
+    mockProtection.protectUri.mockClear();
+    mockProtection.protectSongCovers.mockClear();
+    mockProtection.replaceProtectedSongCovers.mockClear();
+    (createCoverCacheProtection as jest.Mock).mockClear();
   });
 
   test('requeues coverless songs after an aborted stale backfill round', async () => {
@@ -50,6 +68,7 @@ describe('useLibraryCoverBackfill', () => {
     await flush();
 
     expect(applySongMetadataPatches).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
   });
 
@@ -65,6 +84,7 @@ describe('useLibraryCoverBackfill', () => {
         coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true },
       },
     }));
+    expect(mockRelease).toHaveBeenCalledTimes(1);
   });
 
 
@@ -130,6 +150,14 @@ describe('useLibraryCoverBackfill', () => {
     await flush();
 
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
+
+  test('releases cover cache protection when backfill errors', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockRejectedValue(new Error('native failed'));
+
+    renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], setSongs: jest.fn(), applySongMetadataPatches: jest.fn() }));
+
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
   });
 
   test('recovers volatile cached artwork through the bulk metadata path', async () => {

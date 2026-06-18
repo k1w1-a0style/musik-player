@@ -1,5 +1,6 @@
 import SystemAudio from 'expo-system-audio';
 import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../songCoverBackfill';
+import { cacheLocalCoverFile } from '../coverCache';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
@@ -69,9 +70,11 @@ test('backfills songs without covers and skips existing artwork', async () => {
 
 test('stabilizes extracted native cache artwork before applying cover result', async () => {
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg' });
+  const protection = { protectUri: jest.fn(), protectSongCovers: jest.fn(), replaceProtectedSongCovers: jest.fn(), release: jest.fn() };
 
-  const result = await backfillEmbeddedSongCovers([song('a')]);
+  const result = await backfillEmbeddedSongCovers([song('a')], { coverCacheProtection: protection });
 
+  expect(cacheLocalCoverFile).toHaveBeenCalledWith('a', 'file:///cache/native-cover.jpg', protection);
   expect(result.songs[0]).toMatchObject({
     cover: 'file:///docs/covers/native-cover.jpg',
     coverInfo: { status: 'cached', uri: 'file:///docs/covers/native-cover.jpg', embeddedArtworkChecked: true },

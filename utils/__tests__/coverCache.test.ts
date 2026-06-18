@@ -78,10 +78,12 @@ describe('coverCache', () => {
   test('copies local cover files into the managed cover cache', async () => {
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({ exists: uri === 'file:///cache/native-cover.jpg' }));
 
-    const result = await cacheLocalCoverFile('song-a', 'file:///cache/native-cover.jpg');
+    const protection = { protectUri: jest.fn(), protectSongCovers: jest.fn(), replaceProtectedSongCovers: jest.fn(), release: jest.fn() };
+    const result = await cacheLocalCoverFile('song-a', 'file:///cache/native-cover.jpg', protection);
 
     expect(result).toMatch(/^file:\/\/\/docs\/covers\//);
     expect(result).not.toBe('file:///cache/native-cover.jpg');
+    expect(protection.protectUri).toHaveBeenCalledWith(result);
     expect(LegacyFileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///cache/native-cover.jpg', to: result });
   });
 

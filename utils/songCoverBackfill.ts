@@ -1,6 +1,7 @@
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { cacheLocalCoverFile, isLikelyVolatileArtworkUri } from './coverCache';
+import type { CoverCacheProtection } from './coverCacheCleanup';
 import { getSongArtworkUri } from './songArtwork';
 import { throwIfAborted } from './withTimeout';
 
@@ -16,6 +17,7 @@ export interface SongCoverBackfillOptions {
   signal?: AbortSignal;
   shouldProcessSong?: (song: Song) => boolean;
   yieldToUi?: () => Promise<void>;
+  coverCacheProtection?: CoverCacheProtection;
 }
 
 const DEFAULT_CONCURRENCY = 1;
@@ -61,6 +63,7 @@ export const backfillEmbeddedSongCovers = async (
   const yieldToUi = options.yieldToUi ?? defaultYieldToUi;
   const shouldProcessSong = options.shouldProcessSong ?? needsEmbeddedCoverBackfill;
   const signal = options.signal;
+  const coverCacheProtection = options.coverCacheProtection;
   const nextSongs = [...songs];
   const candidateIndexes = songs.map((song, index) => ({ song, index })).filter(({ song }) => shouldProcessSong(song));
   let nextCandidate = 0;
@@ -91,7 +94,7 @@ export const backfillEmbeddedSongCovers = async (
       try {
         const extractedUri = (await SystemAudio.extractEmbeddedArtwork(uri))?.uri;
         hadLocalArtwork = Boolean(extractedUri && !isRemoteUri(extractedUri));
-        if (hadLocalArtwork) artworkUri = await cacheLocalCoverFile(candidate.song.id, extractedUri);
+        if (hadLocalArtwork) artworkUri = await cacheLocalCoverFile(candidate.song.id, extractedUri, coverCacheProtection);
         throwIfAborted(signal);
       } catch {
         throwIfAborted(signal);
