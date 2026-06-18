@@ -72,11 +72,14 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
   });
 
-  test('propagates completed backfilled covers through the bulk metadata path', async () => {
+  test('keeps protection until completed backfilled covers are owned by the songs snapshot', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
     const applySongMetadataPatches = jest.fn();
 
-    renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], setSongs: jest.fn(), applySongMetadataPatches }));
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      { initialProps: { value: [song('a')] } },
+    );
 
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
@@ -84,21 +87,42 @@ describe('useLibraryCoverBackfill', () => {
         coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true },
       },
     }));
-    expect(mockRelease).toHaveBeenCalledTimes(1);
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rerender({ value: [song('a', { cover: 'file:///cover-a.jpg', coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true } })] });
+
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
   });
 
 
-  test('batches multiple completed covers into one bulk metadata call', async () => {
+  test('batches multiple completed covers and releases protection only after all cover uris are owned', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async (uri: string) => ({ uri: `${uri}.jpg` }));
     const applySongMetadataPatches = jest.fn();
 
-    renderHook(() => useLibraryCoverBackfill({ songs: [song('a'), song('b')], setSongs: jest.fn(), applySongMetadataPatches }));
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      { initialProps: { value: [song('a'), song('b')] } },
+    );
 
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledTimes(1));
     expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///a.mp3.jpg', embeddedArtworkChecked: true } },
       b: { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///b.mp3.jpg', embeddedArtworkChecked: true } },
     });
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rerender({ value: [
+      song('a', { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///a.mp3.jpg', embeddedArtworkChecked: true } }),
+      song('b'),
+    ] });
+    await flush();
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rerender({ value: [
+      song('a', { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///a.mp3.jpg', embeddedArtworkChecked: true } }),
+      song('b', { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///b.mp3.jpg', embeddedArtworkChecked: true } }),
+    ] });
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
   });
 
   test('does not repeatedly retry completed coverless files while mounted', async () => {
@@ -121,6 +145,7 @@ describe('useLibraryCoverBackfill', () => {
     await flush();
 
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+    expect(mockRelease).toHaveBeenCalledTimes(1);
   });
 
   test('does not retry persisted no-cover files after remount', async () => {
@@ -150,6 +175,20 @@ describe('useLibraryCoverBackfill', () => {
     await flush();
 
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
+
+  test('releases pending cover protection on unmount if snapshot never owns the uri', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
+    const applySongMetadataPatches = jest.fn();
+
+    const rendered = renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], setSongs: jest.fn(), applySongMetadataPatches }));
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalled());
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rendered.unmount();
+
+    expect(mockRelease).toHaveBeenCalledTimes(1);
   });
 
   test('releases cover cache protection when backfill errors', async () => {
