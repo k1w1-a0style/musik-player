@@ -99,6 +99,7 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
         ...song.coverInfo,
         status: 'embedded',
         uri: normalizedCover,
+        embeddedArtworkChecked: true,
       };
     }
   }

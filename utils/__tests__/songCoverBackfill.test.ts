@@ -6,6 +6,11 @@ jest.mock('expo-system-audio', () => ({
   extractEmbeddedArtwork: jest.fn(),
 }));
 
+jest.mock('../coverCache', () => ({
+  cacheLocalCoverFile: jest.fn(async (_songId: string, uri?: string) => uri?.replace('file:///cache/', 'file:///docs/covers/')),
+  isLikelyVolatileArtworkUri: jest.fn((uri?: string) => uri?.startsWith('file:///cache/') ?? false),
+}));
+
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
   id,
   title: id,
@@ -31,12 +36,16 @@ describe('needsEmbeddedCoverBackfill', () => {
     expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'embedded', uri: 'file:///cover.jpg' } }))).toBe(false);
   });
 
-  test('skips songs with persisted completed no-cover state', () => {
-    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'none' } }))).toBe(false);
+  test('treats fresh imports without native cover checks as candidates', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'none' } }))).toBe(true);
   });
 
-  test('treats imports that skipped native cover loading as candidates', () => {
-    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'unknown' } }))).toBe(true);
+  test('skips songs with persisted completed no-cover state', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'none', embeddedArtworkChecked: true } }))).toBe(false);
+  });
+
+  test('treats volatile artwork cache uris as candidates', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { cover: 'file:///cache/native-cover.jpg', coverInfo: { status: 'embedded', uri: 'file:///cache/native-cover.jpg', embeddedArtworkChecked: true } }))).toBe(true);
   });
 
   test('continues to block remote source uris', () => {
@@ -54,8 +63,19 @@ test('backfills songs without covers and skips existing artwork', async () => {
 
   expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
   expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledWith('file:///a.mp3');
-  expect(result.songs[0]).toMatchObject({ cover: 'file:///cover-a.jpg', coverInfo: { status: 'embedded', uri: 'file:///cover-a.jpg' } });
+  expect(result.songs[0]).toMatchObject({ cover: 'file:///cover-a.jpg', coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true } });
   expect(result.songs[1].cover).toBe('file:///existing.jpg');
+});
+
+test('stabilizes extracted native cache artwork before applying cover result', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg' });
+
+  const result = await backfillEmbeddedSongCovers([song('a')]);
+
+  expect(result.songs[0]).toMatchObject({
+    cover: 'file:///docs/covers/native-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///docs/covers/native-cover.jpg', embeddedArtworkChecked: true },
+  });
 });
 
 test('per-song extraction failures do not abort the whole backfill', async () => {
@@ -65,7 +85,7 @@ test('per-song extraction failures do not abort the whole backfill', async () =>
 
   const result = await backfillEmbeddedSongCovers([song('a'), song('b')], { concurrency: 1 });
 
-  expect(result.songs[0].coverInfo?.status).toBe('none');
+  expect(result.songs[0].coverInfo).toBeUndefined();
   expect(result.songs[1].cover).toBe('file:///cover-b.jpg');
 });
 

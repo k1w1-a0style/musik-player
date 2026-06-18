@@ -36,7 +36,7 @@ export const useLibraryCoverBackfill = ({ songs, setSongs, applySongMetadataPatc
         const next = result.songs[index];
         const nextArtwork = getSongArtworkUri(next);
         if (!nextArtwork && next.coverInfo?.status !== 'none') return song;
-        if (getSongArtworkUri(song) || !needsEmbeddedCoverBackfill(song)) return song;
+        if (!needsEmbeddedCoverBackfill(song)) return song;
         return next;
       });
       const patchesBySongId: SongMetadataPatchesById = {};

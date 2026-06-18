@@ -7,6 +7,11 @@ jest.mock('expo-system-audio', () => ({
   extractEmbeddedArtwork: jest.fn(),
 }));
 
+jest.mock('../../utils/coverCache', () => ({
+  cacheLocalCoverFile: jest.fn(async (_songId: string, uri?: string) => uri?.replace('file:///cache/', 'file:///docs/covers/')),
+  isLikelyVolatileArtworkUri: jest.fn((uri?: string) => uri?.startsWith('file:///cache/') ?? false),
+}));
+
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
   id,
   title: id,
@@ -57,7 +62,7 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
         cover: 'file:///cover-a.jpg',
-        coverInfo: { status: 'embedded', uri: 'file:///cover-a.jpg' },
+        coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true },
       },
     }));
   });
@@ -71,8 +76,8 @@ describe('useLibraryCoverBackfill', () => {
 
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledTimes(1));
     expect(applySongMetadataPatches).toHaveBeenCalledWith({
-      a: { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'embedded', uri: 'file:///a.mp3.jpg' } },
-      b: { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'embedded', uri: 'file:///b.mp3.jpg' } },
+      a: { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///a.mp3.jpg', embeddedArtworkChecked: true } },
+      b: { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///b.mp3.jpg', embeddedArtworkChecked: true } },
     });
   });
 
@@ -89,7 +94,7 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
         cover: undefined,
-        coverInfo: { status: 'none', uri: undefined },
+        coverInfo: { status: 'none', uri: undefined, embeddedArtworkChecked: true },
       },
     }));
     rerender({ value: [song('a')] });
@@ -111,19 +116,37 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
         cover: undefined,
-        coverInfo: { status: 'none', uri: undefined },
+        coverInfo: { status: 'none', uri: undefined, embeddedArtworkChecked: true },
       },
     }));
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
     first.unmount();
 
     renderHook(() => useLibraryCoverBackfill({
-      songs: [song('a', { coverInfo: { status: 'none', uri: undefined } })],
+      songs: [song('a', { coverInfo: { status: 'none', uri: undefined, embeddedArtworkChecked: true } })],
       setSongs: jest.fn(),
       applySongMetadataPatches,
     }));
     await flush();
 
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
+
+  test('recovers volatile cached artwork through the bulk metadata path', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg' });
+    const applySongMetadataPatches = jest.fn();
+
+    renderHook(() => useLibraryCoverBackfill({
+      songs: [song('a', { cover: 'file:///cache/missing.jpg', coverInfo: { status: 'embedded', uri: 'file:///cache/missing.jpg', embeddedArtworkChecked: true } })],
+      setSongs: jest.fn(),
+      applySongMetadataPatches,
+    }));
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+      a: {
+        cover: 'file:///docs/covers/native-cover.jpg',
+        coverInfo: { status: 'cached', uri: 'file:///docs/covers/native-cover.jpg', embeddedArtworkChecked: true },
+      },
+    }));
   });
 });

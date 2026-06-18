@@ -19,6 +19,7 @@ export interface SongAudioInfo {
 export interface SongCoverInfo {
   status?: 'none' | 'embedded' | 'cached' | 'external' | 'unknown';
   uri?: string;
+  embeddedArtworkChecked?: boolean;
 }
 
 export interface Song {

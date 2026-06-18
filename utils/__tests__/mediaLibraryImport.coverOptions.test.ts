@@ -29,7 +29,7 @@ test('buildSongFromImportSource can skip native cover loading', async () => {
 
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
   expect(song.cover).toBeUndefined();
-  expect(song.coverInfo).toEqual({ status: 'unknown', uri: undefined });
+  expect(song.coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
 });
 
 test('enrichMediaLibraryAssets loads native covers by default', async () => {
@@ -67,5 +67,5 @@ test('enrichMediaLibraryAssets can explicitly skip native covers', async () => {
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
   expect(result.songs).toHaveLength(1);
   expect(result.songs[0].cover).toBeUndefined();
-  expect(result.songs[0].coverInfo?.status).toBe('unknown');
+  expect(result.songs[0].coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
 });

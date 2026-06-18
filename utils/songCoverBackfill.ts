@@ -1,5 +1,6 @@
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
+import { cacheLocalCoverFile, isLikelyVolatileArtworkUri } from './coverCache';
 import { getSongArtworkUri } from './songArtwork';
 import { throwIfAborted } from './withTimeout';
 
@@ -31,19 +32,23 @@ const defaultYieldToUi = (): Promise<void> => new Promise(resolve => setTimeout(
 const isRemoteUri = (uri: string): boolean => /^https?:\/\//i.test(uri.trim());
 
 export const needsEmbeddedCoverBackfill = (song: Song): boolean => {
-  if (getSongArtworkUri(song)) return false;
-  if (song.coverInfo?.status === 'none' && !song.coverInfo.uri) return false;
   const uri = song.uri?.trim() || song.fileInfo?.uri?.trim();
-  return Boolean(uri && !isRemoteUri(uri));
+  if (!uri || isRemoteUri(uri)) return false;
+
+  const artworkUri = getSongArtworkUri(song);
+  if (artworkUri && !isLikelyVolatileArtworkUri(artworkUri)) return false;
+  if (song.coverInfo?.status === 'none' && song.coverInfo.embeddedArtworkChecked === true && !song.coverInfo.uri) return false;
+  return true;
 };
 
 const applyCoverResult = (song: Song, uri?: string): Song => ({
   ...song,
-  ...(uri ? { cover: uri } : {}),
+  cover: uri,
   coverInfo: {
     ...song.coverInfo,
-    status: uri ? 'embedded' : 'none',
-    uri: uri || song.coverInfo?.uri,
+    status: uri ? 'cached' : 'none',
+    uri,
+    embeddedArtworkChecked: true,
   },
 });
 
@@ -82,12 +87,20 @@ export const backfillEmbeddedSongCovers = async (
         continue;
       }
       let artworkUri: string | undefined;
+      let hadLocalArtwork = false;
       try {
-        artworkUri = (await SystemAudio.extractEmbeddedArtwork(uri))?.uri;
-        if (artworkUri && isRemoteUri(artworkUri)) artworkUri = undefined;
+        const extractedUri = (await SystemAudio.extractEmbeddedArtwork(uri))?.uri;
+        hadLocalArtwork = Boolean(extractedUri && !isRemoteUri(extractedUri));
+        if (hadLocalArtwork) artworkUri = await cacheLocalCoverFile(candidate.song.id, extractedUri);
         throwIfAborted(signal);
       } catch {
         throwIfAborted(signal);
+        await maybeYield();
+        continue;
+      }
+      if (hadLocalArtwork && !artworkUri) {
+        await maybeYield();
+        continue;
       }
       const patched = applyCoverResult(candidate.song, artworkUri);
       nextSongs[candidate.index] = patched;
