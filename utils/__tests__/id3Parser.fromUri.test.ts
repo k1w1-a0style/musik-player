@@ -80,6 +80,100 @@ describe('parseId3FromUri', () => {
     mockOpen.mockReset();
   });
 
+
+  test('includeCover false skips a large APIC payload and still reads later text frames', async () => {
+    const apicSize = 700 * 1024;
+    const titleFrame = id3TextFrame('TIT2', 'Title After Cover');
+    const artistFrame = id3TextFrame('TPE1', 'Artist After Cover');
+    const apicHeader = [...enc('APIC'), ...u32be(apicSize), 0, 0];
+    const tagSize = apicHeader.length + apicSize + titleFrame.length + artistFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const firstChunk = new Array(256 * 1024).fill(0);
+    firstChunk.splice(0, header.length, ...header);
+    firstChunk.splice(header.length, apicHeader.length, ...apicHeader);
+    const titleHeaderPosition = 10 + apicHeader.length + apicSize;
+    const artistHeaderPosition = titleHeaderPosition + titleFrame.length;
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position === undefined) return b64(firstChunk);
+      if (options.position === titleHeaderPosition) return b64(titleFrame.slice(0, 10));
+      if (options.position === titleHeaderPosition + 10) return b64(titleFrame.slice(10));
+      if (options.position === artistHeaderPosition) return b64(artistFrame.slice(0, 10));
+      if (options.position === artistHeaderPosition + 10) return b64(artistFrame.slice(10));
+      return '';
+    });
+
+    const tags = await parseId3FromUri('file:///music/large-cover-before-text.mp3', {
+      includeCover: false,
+      maxHeadBytes: 256 * 1024,
+      maxFrameBodyReadBytes: 128 * 1024,
+      maxFrameOffsetBytes: 2 * 1024 * 1024,
+    });
+
+    expect(tags).toMatchObject({ title: 'Title After Cover', artist: 'Artist After Cover' });
+    expect(tags.cover).toBeUndefined();
+    expect(mockReadAsStringAsync).not.toHaveBeenCalledWith(
+      'file:///music/large-cover-before-text.mp3',
+      expect.objectContaining({ position: 20, length: apicSize }),
+    );
+  });
+
+  test('includeCover false does not read oversized text frame bodies beyond the body budget', async () => {
+    const hugeTextSize = 200 * 1024;
+    const hugeTitleHeader = [...enc('TIT2'), ...u32be(hugeTextSize), 0, 0];
+    const albumFrame = id3TextFrame('TALB', 'Small Album');
+    const tagSize = hugeTitleHeader.length + hugeTextSize + albumFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const firstChunk = new Array(64 * 1024).fill(0);
+    firstChunk.splice(0, header.length, ...header);
+    firstChunk.splice(header.length, hugeTitleHeader.length, ...hugeTitleHeader);
+    const albumHeaderPosition = 10 + hugeTitleHeader.length + hugeTextSize;
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position === undefined) return b64(firstChunk);
+      if (options.position === albumHeaderPosition) return b64(albumFrame.slice(0, 10));
+      if (options.position === albumHeaderPosition + 10) return b64(albumFrame.slice(10));
+      return '';
+    });
+
+    const tags = await parseId3FromUri('file:///music/huge-text-frame.mp3', {
+      includeCover: false,
+      maxHeadBytes: 64 * 1024,
+      maxFrameBodyReadBytes: 64 * 1024,
+      maxFrameOffsetBytes: 1024 * 1024,
+    });
+
+    expect(tags.title).toBeUndefined();
+    expect(tags.album).toBe('Small Album');
+    expect(mockReadAsStringAsync).not.toHaveBeenCalledWith(
+      'file:///music/huge-text-frame.mp3',
+      expect.objectContaining({ position: 20, length: hugeTextSize }),
+    );
+  });
+
+  test('abort during ranged text scan rejects without continuing', async () => {
+    const apicSize = 700 * 1024;
+    const titleFrame = id3TextFrame('TIT2', 'Never Read');
+    const apicHeader = [...enc('APIC'), ...u32be(apicSize), 0, 0];
+    const tagSize = apicHeader.length + apicSize + titleFrame.length;
+    const header = [...enc('ID3'), 3, 0, 0, ...synchsafe(tagSize)];
+    const firstChunk = new Array(256 * 1024).fill(0);
+    firstChunk.splice(0, header.length, ...header);
+    firstChunk.splice(header.length, apicHeader.length, ...apicHeader);
+    const controller = new AbortController();
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position === undefined) return b64(firstChunk);
+      controller.abort(new Error('stop scan'));
+      return b64(titleFrame.slice(0, 10));
+    });
+
+    await expect(parseId3FromUri('file:///music/abort-scan.mp3', {
+      includeCover: false,
+      signal: controller.signal,
+      maxHeadBytes: 256 * 1024,
+      maxFrameBodyReadBytes: 128 * 1024,
+      maxFrameOffsetBytes: 2 * 1024 * 1024,
+    })).rejects.toThrow('stop scan');
+  });
+
   test('uses mp4 parsing when URI has query params', async () => {
     const webp = [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50];
     const data = atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...webp]);

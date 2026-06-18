@@ -66,7 +66,7 @@ test('updates changed text metadata from ID3 tags', async () => {
 
   const result = await refreshSongsFromId3([baseSong]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 0, maxFrameScanBytes: 512 * 1024 }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 0, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
   expect(result.updated).toBe(1);
   expect(result.skipped).toBe(0);
   expect(result.failed).toBe(0);

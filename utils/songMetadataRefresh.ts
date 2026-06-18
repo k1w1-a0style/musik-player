@@ -10,7 +10,7 @@ export interface SongMetadataRefreshResult {
   errors: string[];
   patchesBySongId: Record<string, Partial<Song>>;
 }
-interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes'> {
+interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
   concurrency?: number;
   signal?: AbortSignal;
   onProgress?: (processed: number, total: number) => void;
@@ -120,7 +120,8 @@ export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
   includeCover: false,
   maxHeadBytes: 256 * 1024,
   maxTailBytes: 0,
-  maxFrameScanBytes: 512 * 1024,
+  maxFrameOffsetBytes: 8 * 1024 * 1024,
+  maxFrameBodyReadBytes: 512 * 1024,
 } as const;
 const REFRESH_YIELD_BATCH_SIZE = 1;
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
@@ -174,7 +175,9 @@ export const refreshSongsFromId3 = async (
         includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
         maxHeadBytes: options?.maxHeadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxHeadBytes,
         maxTailBytes: options?.maxTailBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes,
-        maxFrameScanBytes: options?.maxFrameScanBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameScanBytes,
+        maxFrameScanBytes: options?.maxFrameScanBytes,
+        maxFrameOffsetBytes: options?.maxFrameOffsetBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameOffsetBytes,
+        maxFrameBodyReadBytes: options?.maxFrameBodyReadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameBodyReadBytes,
         signal,
       });
       throwIfAborted(signal);

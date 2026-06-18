@@ -35,6 +35,8 @@ export interface ParseId3Options {
   maxHeadBytes?: number;
   maxTailBytes?: number;
   maxFrameScanBytes?: number;
+  maxFrameOffsetBytes?: number;
+  maxFrameBodyReadBytes?: number;
 }
 
 const shouldIncludeCover = (options?: Pick<ParseId3Options, 'includeCover'>): boolean =>
@@ -636,7 +638,7 @@ type ReadRange = (position: number, length: number) => Promise<Uint8Array>;
 const parseId3TextFramesByRange = async (
   initialBytes: Uint8Array,
   readRange: ReadRange,
-  options: Pick<ParseId3Options, 'signal' | 'maxFrameScanBytes'> = {},
+  options: Pick<ParseId3Options, 'signal' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> = {},
 ): Promise<Id3Tags> => {
   const tags: Id3Tags = {};
   if (
@@ -653,7 +655,12 @@ const parseId3TextFramesByRange = async (
   if ((flags & 0x80) !== 0) return tags;
   const totalSize = decodeSyncsafe(initialBytes, 6);
   if (totalSize === undefined) return tags;
-  const scanEnd = Math.min(10 + totalSize, clampPositiveLimit(options.maxFrameScanBytes, ID3_FRAME_SCAN_LIMIT));
+  const scanEnd = Math.min(10 + totalSize, clampPositiveLimit(options.maxFrameOffsetBytes, ID3_FRAME_SCAN_LIMIT));
+  const bodyReadLimit = clampNonNegativeLimit(
+    options.maxFrameBodyReadBytes ?? options.maxFrameScanBytes,
+    ID3_FRAME_SCAN_LIMIT,
+  );
+  let bodyBytesRead = 0;
   let p = 10;
   if (majorVersion !== 2) {
     const rawTagEnd = Math.min(initialBytes.length, scanEnd) - 10;
@@ -672,6 +679,7 @@ const parseId3TextFramesByRange = async (
     const header = p + headerLength <= initialBytes.length
       ? initialBytes.subarray(p, p + headerLength)
       : await readRange(p, headerLength);
+    throwIfParseAborted(options.signal);
     if (header.length < headerLength) break;
     const id = readLatin1(header, 0, majorVersion === 2 ? 3 : 4);
     if (!id || id.charCodeAt(0) === 0) break;
@@ -688,13 +696,18 @@ const parseId3TextFramesByRange = async (
     }
     if (
       (id in TEXT_FRAME_IDS || id === 'COMM' || id === 'COM') &&
-      frameSize <= ID3_TEXT_FRAME_READ_LIMIT
+      frameSize <= ID3_TEXT_FRAME_READ_LIMIT &&
+      bodyBytesRead + frameSize <= bodyReadLimit
     ) {
       const bodyStart = p + headerLength;
       const body = bodyStart + frameSize <= initialBytes.length
         ? initialBytes.subarray(bodyStart, bodyStart + frameSize)
         : await readRange(bodyStart, frameSize);
-      if (body.length === frameSize) applyTextFrame(tags, id, body);
+      throwIfParseAborted(options.signal);
+      if (body.length === frameSize) {
+        bodyBytesRead += frameSize;
+        applyTextFrame(tags, id, body);
+      }
     }
     p += headerLength + frameSize;
   }
@@ -711,7 +724,11 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
     const includeCover = shouldIncludeCover(options);
     const maxHeadBytes = clampPositiveLimit(options.maxHeadBytes, HEAD_READ_LIMIT);
     const maxTailBytes = clampNonNegativeLimit(options.maxTailBytes, TAIL_READ_LIMIT);
-    const maxFrameScanBytes = clampPositiveLimit(options.maxFrameScanBytes, ID3_FRAME_SCAN_LIMIT);
+    const maxFrameOffsetBytes = clampPositiveLimit(options.maxFrameOffsetBytes, ID3_FRAME_SCAN_LIMIT);
+    const maxFrameBodyReadBytes = clampNonNegativeLimit(
+      options.maxFrameBodyReadBytes ?? options.maxFrameScanBytes,
+      ID3_FRAME_SCAN_LIMIT,
+    );
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
     const normalizedUri = uri.startsWith('content://') ? uri : (uri.split('?')[0] ?? uri);
     const extensionProbeUri = uri.split('?')[0] ?? uri;
@@ -747,8 +764,9 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
         bytes[2] === 0x33
       ) {
         try {
-          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange, { signal: options.signal, maxFrameScanBytes }));
+          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
         } catch (error) {
+          throwIfParseAborted(options.signal);
           console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
         }
       }
@@ -825,7 +843,7 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
               head[1] === 0x44 &&
               head[2] === 0x33
             ) {
-              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameScanBytes }));
+              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
             }
             return parsed;
           } finally {
