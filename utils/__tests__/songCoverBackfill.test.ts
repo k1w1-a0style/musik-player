@@ -35,6 +35,10 @@ describe('needsEmbeddedCoverBackfill', () => {
     expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'none' } }))).toBe(false);
   });
 
+  test('treats imports that skipped native cover loading as candidates', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', { coverInfo: { status: 'unknown' } }))).toBe(true);
+  });
+
   test('continues to block remote source uris', () => {
     expect(needsEmbeddedCoverBackfill(song('a', { uri: 'https://example.com/a.mp3' }))).toBe(false);
   });
