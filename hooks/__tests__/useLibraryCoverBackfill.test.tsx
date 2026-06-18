@@ -72,6 +72,34 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
   });
 
+  test('discards aborted partial results after the cleanup snapshot no longer needs backfill', async () => {
+    let secondResolve: (value: { uri: string }) => void = () => {};
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock)
+      .mockResolvedValueOnce({ uri: 'file:///stale-cover-a.jpg' })
+      .mockImplementationOnce(() => new Promise(resolve => {
+        secondResolve = resolve;
+      }));
+    const applySongMetadataPatches = jest.fn();
+
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      { initialProps: { value: [song('a'), song('b')] } },
+    );
+
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+    rerender({
+      value: [
+        song('a', { cover: 'file:///fresh-cover-a.jpg', coverInfo: { status: 'cached', uri: 'file:///fresh-cover-a.jpg', embeddedArtworkChecked: true } }),
+        song('b', { coverInfo: { status: 'none', uri: undefined, embeddedArtworkChecked: true } }),
+      ],
+    });
+    secondResolve({ uri: 'file:///stale-cover-b.jpg' });
+    await flush();
+
+    expect(applySongMetadataPatches).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+  });
+
   test('keeps protection until completed backfilled covers are owned by the songs snapshot', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
     const applySongMetadataPatches = jest.fn();

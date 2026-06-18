@@ -44,6 +44,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
   const pendingProtectionsRef = useRef<PendingCoverProtection[]>([]);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     if (pendingProtectionsRef.current.length === 0) return;
@@ -56,6 +57,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   }, [songs]);
 
   useEffect(() => () => {
+    mountedRef.current = false;
     pendingProtectionsRef.current.forEach(pending => pending.release());
     pendingProtectionsRef.current = [];
   }, []);
@@ -70,6 +72,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     const protection = createCoverCacheProtection();
     const releaseProtection = createIdempotentProtectionRelease(protection);
     const candidateKeys = new Set(candidates.map(buildAttemptKey));
+    let isCurrentRun = true;
 
     void backfillEmbeddedSongCovers(songs, {
       concurrency: 1,
@@ -78,7 +81,12 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
       coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildAttemptKey(song)),
     }).then(result => {
-      if ((!result.aborted && controller.signal.aborted) || generationRef.current !== generation || result.attempted === 0) {
+      if (
+        (!result.aborted && controller.signal.aborted)
+        || (result.aborted && (!mountedRef.current || !isCurrentRun))
+        || generationRef.current !== generation
+        || result.attempted === 0
+      ) {
         releaseProtection();
         return;
       }
@@ -113,6 +121,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     });
 
     return () => {
+      isCurrentRun = false;
       controller.abort();
     };
   }, [songs, applySongMetadataPatches]);
