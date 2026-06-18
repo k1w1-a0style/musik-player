@@ -53,12 +53,11 @@ describe('useLibraryCoverBackfill', () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(
       () => new Promise(resolve => deferred.push({ resolve })),
     );
-    const setSongs = jest.fn();
     const applySongMetadataPatches = jest.fn();
     const songs = [song('a')];
 
     const { rerender } = renderHook(
-      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs, applySongMetadataPatches }),
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
       { initialProps: { value: songs } },
     );
 
@@ -82,7 +81,7 @@ describe('useLibraryCoverBackfill', () => {
     const applySongMetadataPatches = jest.fn();
 
     const { rerender } = renderHook(
-      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
       { initialProps: { value: [song('a'), song('b')] } },
     );
 
@@ -105,7 +104,7 @@ describe('useLibraryCoverBackfill', () => {
     const applySongMetadataPatches = jest.fn();
 
     const { rerender } = renderHook(
-      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
       { initialProps: { value: [song('a')] } },
     );
 
@@ -128,7 +127,7 @@ describe('useLibraryCoverBackfill', () => {
     const applySongMetadataPatches = jest.fn();
 
     const { rerender } = renderHook(
-      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
       { initialProps: { value: [song('a'), song('b')] } },
     );
 
@@ -159,7 +158,7 @@ describe('useLibraryCoverBackfill', () => {
     const songs = [song('a')];
 
     const { rerender } = renderHook(
-      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, setSongs: jest.fn(), applySongMetadataPatches }),
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
       { initialProps: { value: songs } },
     );
 
@@ -182,7 +181,6 @@ describe('useLibraryCoverBackfill', () => {
 
     const first = renderHook(() => useLibraryCoverBackfill({
       songs: [song('a')],
-      setSongs: jest.fn(),
       applySongMetadataPatches,
     }));
 
@@ -197,7 +195,6 @@ describe('useLibraryCoverBackfill', () => {
 
     renderHook(() => useLibraryCoverBackfill({
       songs: [song('a', { coverInfo: { status: 'none', uri: undefined, embeddedArtworkChecked: true } })],
-      setSongs: jest.fn(),
       applySongMetadataPatches,
     }));
     await flush();
@@ -209,7 +206,7 @@ describe('useLibraryCoverBackfill', () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
     const applySongMetadataPatches = jest.fn();
 
-    const rendered = renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], setSongs: jest.fn(), applySongMetadataPatches }));
+    const rendered = renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], applySongMetadataPatches }));
 
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalled());
     expect(mockRelease).not.toHaveBeenCalled();
@@ -222,7 +219,7 @@ describe('useLibraryCoverBackfill', () => {
   test('releases cover cache protection when backfill errors', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockRejectedValue(new Error('native failed'));
 
-    renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], setSongs: jest.fn(), applySongMetadataPatches: jest.fn() }));
+    renderHook(() => useLibraryCoverBackfill({ songs: [song('a')], applySongMetadataPatches: jest.fn() }));
 
     await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
   });
@@ -233,7 +230,6 @@ describe('useLibraryCoverBackfill', () => {
 
     renderHook(() => useLibraryCoverBackfill({
       songs: [song('a', { cover: 'file:///cache/missing.jpg', coverInfo: { status: 'embedded', uri: 'file:///cache/missing.jpg', embeddedArtworkChecked: true } })],
-      setSongs: jest.fn(),
       applySongMetadataPatches,
     }));
 

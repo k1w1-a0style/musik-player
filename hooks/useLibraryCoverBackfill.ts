@@ -7,8 +7,7 @@ import { getSongArtworkUri } from '../utils/songArtwork';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
-  setSongs: (songs: Song[]) => void;
-  applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
+  applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
 }
 
 interface PendingCoverProtection {
@@ -109,9 +108,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
       const hasPatches = Object.keys(patchesBySongId).length > 0;
       const protectedUris = getPatchCoverUris(patchesBySongId);
       if (hasPatches) {
-        if (applySongMetadataPatches) {
-          applySongMetadataPatches(patchesBySongId);
-        }
+        applySongMetadataPatches(patchesBySongId);
       }
       if (hasPatches && protectedUris.size > 0) pendingProtectionsRef.current.push({ uris: protectedUris, release: releaseProtection });
       else releaseProtection();

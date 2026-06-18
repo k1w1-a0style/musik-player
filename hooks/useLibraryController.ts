@@ -88,7 +88,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songs,
   });
 
-  useLibraryCoverBackfill({ songs, setSongs, applySongMetadataPatches });
+  useLibraryCoverBackfill({ songs, applySongMetadataPatches });
 
   const {
     getSongItemLayout,
