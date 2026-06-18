@@ -66,7 +66,7 @@ test('updates changed text metadata from ID3 tags', async () => {
 
   const result = await refreshSongsFromId3([baseSong]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3');
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 0, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
   expect(result.updated).toBe(1);
   expect(result.skipped).toBe(0);
   expect(result.failed).toBe(0);
@@ -80,6 +80,18 @@ test('updates changed text metadata from ID3 tags', async () => {
     trackNumber: '1/10',
     discNumber: '1/1',
     comment: 'Nice',
+  });
+  expect(result.patchesBySongId).toEqual({
+    s1: {
+      title: 'New Title',
+      artist: 'New Artist',
+      album: 'New Album',
+      year: '2024',
+      genre: 'Techno',
+      trackNumber: '1/10',
+      discNumber: '1/1',
+      comment: 'Nice',
+    },
   });
 });
 
@@ -200,7 +212,7 @@ test('uses fileInfo fallback when primary uri is blank', async () => {
 
   const result = await refreshSongsFromId3([songWithFallback]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///fallback.mp3');
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///fallback.mp3', expect.objectContaining({ includeCover: false }));
   expect(result.updated).toBe(1);
   expect(result.skipped).toBe(0);
   expect(result.failed).toBe(0);

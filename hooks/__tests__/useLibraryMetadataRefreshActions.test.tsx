@@ -116,7 +116,7 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
 
   fireEvent.press(screen.getByText('refresh'));
 
-  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], { signal: expect.any(AbortSignal) }));
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], expect.objectContaining({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) })));
   const refreshCopy = getMetadataRefreshFlowCopy();
   expect(withTimeoutCalls).toHaveBeenCalledWith(expect.any(Function), 100, refreshCopy.timeoutMessage);
   expect(setSongs).toHaveBeenCalledWith([song('updated', 'Fresh')]);
@@ -314,6 +314,6 @@ test('passes the active refresh signal to the injected timeout runner', async ()
 
   fireEvent.press(screen.getByText('refresh'));
 
-  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], { signal: observedSignals[0] }));
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledWith([song('old')], expect.objectContaining({ signal: observedSignals[0], onProgress: expect.any(Function) })));
   expect(observedSignals).toHaveLength(1);
 });

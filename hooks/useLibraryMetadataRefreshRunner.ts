@@ -26,7 +26,10 @@ export const useLibraryMetadataRefreshRunner = ({
     const refreshCopy = getMetadataRefreshFlowCopy();
     setImportStatus(refreshCopy.readingStatus);
     const result = await withTimeoutImpl(
-      signal => refreshSongsFromId3Impl(songs, { signal }),
+      signal => refreshSongsFromId3Impl(songs, {
+        signal,
+        onProgress: (processed, total) => setImportStatus(`Metadaten ${processed}/${total}`),
+      }),
       importTimeoutMs,
       refreshCopy.timeoutMessage,
       { signal: generation.controller.signal },
