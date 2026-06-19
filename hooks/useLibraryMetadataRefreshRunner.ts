@@ -4,7 +4,7 @@ import type { Song } from '../types/Song';
 import { getMetadataRefreshFlowCopy } from '../utils/libraryImportFlow';
 import { isTimeoutError } from '../utils/withTimeout';
 import { isMetadataRefreshPartialError } from '../utils/songMetadataRefresh';
-import type { refreshSongsFromId3, SongMetadataRefreshResult } from '../utils/songMetadataRefresh';
+import type { refreshSongsFromId3, SongMetadataRefreshProcessedSong, SongMetadataRefreshResult } from '../utils/songMetadataRefresh';
 import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunner } from './libraryMetadataRefreshActionTypes';
 
 
@@ -49,6 +49,30 @@ const mergeMetadataRefreshResult = (
   };
 };
 
+const mergeProcessedSongIntoRefreshResult = (
+  current: SongMetadataRefreshResult,
+  processedSong: SongMetadataRefreshProcessedSong,
+): SongMetadataRefreshResult => {
+  const songs = [...current.songs];
+  songs[processedSong.index] = processedSong.song;
+  return {
+    songs,
+    updated: current.updated + processedSong.updatedDelta,
+    skipped: current.skipped + processedSong.skippedDelta,
+    failed: current.failed + processedSong.failedDelta,
+    errors: processedSong.errorUri ? [...current.errors, processedSong.errorUri] : current.errors,
+    patchesBySongId: processedSong.patch
+      ? { ...current.patchesBySongId, [processedSong.song.id]: processedSong.patch }
+      : current.patchesBySongId,
+    processed: current.processed + 1,
+    total: current.total,
+    completed: false,
+    timedOut: current.timedOut,
+    aborted: current.aborted,
+    lastProcessedSongId: processedSong.song.id,
+  };
+};
+
 interface UseLibraryMetadataRefreshRunnerOptions {
   songs: Song[];
   setImportStatus: Dispatch<SetStateAction<string | null>>;
@@ -81,12 +105,16 @@ export const useLibraryMetadataRefreshRunner = ({
       const elapsed = Date.now() - startedAt;
       const remainingMs = chunkStart === 0 ? importTimeoutMs : Math.max(1, importTimeoutMs - elapsed);
       const chunk = orderedSongs.slice(chunkStart, chunkStart + METADATA_REFRESH_CHUNK_SIZE);
+      let currentChunkPartial = emptyMetadataRefreshResult(chunk, songs.length);
       try {
         const chunkResult = await withTimeoutImpl(
           signal => refreshSongsFromId3Impl(chunk, {
             signal,
             includeCover: false,
             onProgress: processed => setImportStatus(`Metadaten ${result.processed + processed}/${songs.length}`),
+            onSongProcessed: processedSong => {
+              currentChunkPartial = mergeProcessedSongIntoRefreshResult(currentChunkPartial, processedSong);
+            },
           }),
           remainingMs,
           refreshCopy.timeoutMessage,
@@ -99,6 +127,16 @@ export const useLibraryMetadataRefreshRunner = ({
           result = { ...result, completed: false, timedOut: error.result.timedOut || undefined, aborted: error.result.aborted || undefined };
           resumeIndexRef.current = (startIndex + result.processed) % songs.length;
           return result;
+        }
+        if (isTimeoutError(error) && currentChunkPartial.processed > 0) {
+          result = mergeMetadataRefreshResult(
+            result,
+            { ...currentChunkPartial, completed: false, timedOut: true },
+            chunkStart,
+            orderedSongs,
+          );
+          resumeIndexRef.current = (startIndex + result.processed) % songs.length;
+          return { ...result, completed: false, timedOut: true };
         }
         if (isTimeoutError(error) && result.processed > 0) {
           resumeIndexRef.current = (startIndex + result.processed) % songs.length;

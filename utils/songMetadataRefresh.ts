@@ -26,10 +26,22 @@ export class MetadataRefreshPartialError extends Error {
 
 export const isMetadataRefreshPartialError = (error: unknown): error is MetadataRefreshPartialError =>
   error instanceof MetadataRefreshPartialError;
+
+export interface SongMetadataRefreshProcessedSong {
+  index: number;
+  song: Song;
+  patch?: Partial<Song>;
+  updatedDelta: number;
+  skippedDelta: number;
+  failedDelta: number;
+  errorUri?: string;
+}
+
 interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
   concurrency?: number;
   signal?: AbortSignal;
   onProgress?: (processed: number, total: number) => void;
+  onSongProcessed?: (partial: SongMetadataRefreshProcessedSong) => void;
 }
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
@@ -220,6 +232,7 @@ export const refreshSongsFromId3 = async (
       nextIndex += 1;
       if (index >= songs.length) return;
       outcomes[index] = await refreshOne(songs[index]);
+      options?.onSongProcessed?.({ index, ...outcomes[index] });
       processed += 1;
       lastProcessedSongId = songs[index].id;
       options?.onProgress?.(processed, songs.length);
