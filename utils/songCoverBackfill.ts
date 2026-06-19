@@ -38,22 +38,32 @@ export const needsEmbeddedCoverBackfill = (song: Song): boolean => {
   const uri = song.uri?.trim() || song.fileInfo?.uri?.trim();
   if (!uri || isRemoteUri(uri)) return false;
 
+  if (song.coverInfo?.pendingEmbeddedArtworkRefresh === true) return true;
+
   const artworkUri = getSongArtworkUri(song);
   if (artworkUri && !isLikelyVolatileArtworkUri(artworkUri)) return false;
   if (song.coverInfo?.status === 'none' && song.coverInfo.embeddedArtworkChecked === true && !song.coverInfo.uri) return false;
   return true;
 };
 
-const applyCoverResult = (song: Song, uri?: string): Song => ({
-  ...song,
-  cover: uri,
-  coverInfo: {
-    ...song.coverInfo,
-    status: uri ? 'cached' : 'none',
-    uri,
-    embeddedArtworkChecked: true,
-  },
-});
+const applyCoverResult = (song: Song, uri?: string): Song => {
+  const pendingPreviewUri = song.coverInfo?.pendingEmbeddedArtworkRefresh === true
+    ? getSongArtworkUri(song)
+    : undefined;
+  const nextUri = uri ?? pendingPreviewUri;
+
+  return {
+    ...song,
+    cover: nextUri,
+    coverInfo: {
+      ...song.coverInfo,
+      status: uri ? 'cached' : pendingPreviewUri ? 'external' : 'none',
+      uri: nextUri,
+      embeddedArtworkChecked: true,
+      ...(song.coverInfo?.pendingEmbeddedArtworkRefresh === true ? { pendingEmbeddedArtworkRefresh: false } : {}),
+    },
+  };
+};
 
 export const backfillEmbeddedSongCovers = async (
   songs: Song[],

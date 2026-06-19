@@ -196,7 +196,7 @@ const applyEditableTagPatch = (
 
 export const buildMetadataPatchFromDraft = (
   draft: TagEditDraft,
-  _replacementCover?: PickedTagCover | null,
+  replacementCover?: PickedTagCover | null,
 ): Partial<Song> => {
   const normalizedTags = normalizeEditableTags(draft.tags);
   const metadataPatch: Partial<Song> = {};
@@ -212,14 +212,16 @@ export const buildMetadataPatchFromDraft = (
   }
 
   if (draft.cover) {
-    // The cover was written into the audio file. Avoid persisting picker URIs
-    // (often temporary on iOS) and let embedded-cover backfill extract a stable URI.
-    metadataPatch.cover = undefined;
+    // Keep the freshly picked artwork visible as an external/pending preview,
+    // but do not treat that picker URI as the stable embedded artwork result.
+    const previewUri = replacementCover?.uri;
+    metadataPatch.cover = previewUri;
     metadataPatch.coverInfo = {
-      status: 'embedded',
-      uri: undefined,
+      status: 'external',
+      uri: previewUri,
       embeddedArtworkChecked: false,
       embeddedArtworkRevision: nextEmbeddedArtworkRevision(),
+      pendingEmbeddedArtworkRefresh: true,
     } satisfies SongCoverInfo;
   }
 

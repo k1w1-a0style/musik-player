@@ -239,8 +239,8 @@ describe('useLibraryCoverBackfill', () => {
 
 
   test('includes embedded artwork revision in the backfill attempt key', () => {
-    const firstReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 } });
-    const secondReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 2 } });
+    const firstReplacement = song('a', { cover: 'file:///first-preview.jpg', coverInfo: { status: 'external', uri: 'file:///first-preview.jpg', embeddedArtworkChecked: false, embeddedArtworkRevision: 1, pendingEmbeddedArtworkRefresh: true } });
+    const secondReplacement = song('a', { cover: 'file:///second-preview.jpg', coverInfo: { status: 'external', uri: 'file:///second-preview.jpg', embeddedArtworkChecked: false, embeddedArtworkRevision: 2, pendingEmbeddedArtworkRefresh: true } });
     const legacyReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false } });
 
     expect(buildCoverBackfillAttemptKey(firstReplacement)).not.toBe(buildCoverBackfillAttemptKey(secondReplacement));
@@ -252,7 +252,7 @@ describe('useLibraryCoverBackfill', () => {
       .mockResolvedValueOnce({ uri: 'file:///first-cover.jpg' })
       .mockResolvedValueOnce({ uri: 'file:///second-cover.jpg' });
     const applySongMetadataPatches = jest.fn();
-    const firstReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 } });
+    const firstReplacement = song('a', { cover: 'file:///first-preview.jpg', coverInfo: { status: 'external', uri: 'file:///first-preview.jpg', embeddedArtworkChecked: false, embeddedArtworkRevision: 1, pendingEmbeddedArtworkRefresh: true } });
 
     const { rerender } = renderHook(
       ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
@@ -262,7 +262,7 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
         cover: 'file:///first-cover.jpg',
-        coverInfo: { status: 'cached', uri: 'file:///first-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 1 },
+        coverInfo: { status: 'cached', uri: 'file:///first-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 1, pendingEmbeddedArtworkRefresh: false },
       },
     }));
 
@@ -270,12 +270,12 @@ describe('useLibraryCoverBackfill', () => {
     await flush();
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
 
-    rerender({ value: [song('a', { cover: undefined, coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 2 } })] });
+    rerender({ value: [song('a', { cover: 'file:///second-preview.jpg', coverInfo: { status: 'external', uri: 'file:///second-preview.jpg', embeddedArtworkChecked: false, embeddedArtworkRevision: 2, pendingEmbeddedArtworkRefresh: true } })] });
 
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: {
         cover: 'file:///second-cover.jpg',
-        coverInfo: { status: 'cached', uri: 'file:///second-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 2 },
+        coverInfo: { status: 'cached', uri: 'file:///second-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 2, pendingEmbeddedArtworkRefresh: false },
       },
     }));
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2);

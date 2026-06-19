@@ -176,7 +176,13 @@ test('valid picked cover enables save and writes cover draft', async () => {
   expect(draft.cover.mimeType).toBe('image/jpeg');
   expect(Array.from(draft.cover.data)).toEqual(jpgBytes);
   expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
-    cover: undefined,
-    coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: expect.any(Number) },
+    cover: 'file:///new-cover.jpg',
+    coverInfo: {
+      status: 'external',
+      uri: 'file:///new-cover.jpg',
+      embeddedArtworkChecked: false,
+      embeddedArtworkRevision: expect.any(Number),
+      pendingEmbeddedArtworkRefresh: true,
+    },
   });
 });

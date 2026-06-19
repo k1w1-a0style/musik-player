@@ -22,6 +22,8 @@ export interface SongCoverInfo {
   embeddedArtworkChecked?: boolean;
   /** Monotonic in-app revision used to retry embedded-cover extraction after tag cover writes. */
   embeddedArtworkRevision?: number;
+  /** True while a visible picked-cover preview waits for stable embedded artwork extraction. */
+  pendingEmbeddedArtworkRefresh?: boolean;
 }
 
 export interface Song {

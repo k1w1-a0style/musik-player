@@ -80,7 +80,7 @@ describe('tagEditorHelpers', () => {
     });
   });
 
-  test('adds replacement cover patch without persisting picker URI so backfill can extract a stable cover', () => {
+  test('adds replacement cover patch as a pending preview so backfill can extract a stable cover', () => {
     const cover: PickedTagCover = {
       uri: 'file:///new-cover.jpg',
       mimeType: 'image/jpeg',
@@ -92,8 +92,14 @@ describe('tagEditorHelpers', () => {
     const patch = buildMetadataPatchFromDraft(draft, cover);
 
     expect(patch).toEqual({
-      cover: undefined,
-      coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 },
+      cover: 'file:///new-cover.jpg',
+      coverInfo: {
+        status: 'external',
+        uri: 'file:///new-cover.jpg',
+        embeddedArtworkChecked: false,
+        embeddedArtworkRevision: 1,
+        pendingEmbeddedArtworkRefresh: true,
+      },
     });
     expect(needsEmbeddedCoverBackfill({ ...song, ...patch, uri: 'file:///song.mp3' })).toBe(true);
   });
@@ -118,8 +124,10 @@ describe('tagEditorHelpers', () => {
 
     expect(firstPatch.coverInfo?.embeddedArtworkRevision).toBe(1);
     expect(secondPatch.coverInfo?.embeddedArtworkRevision).toBe(2);
-    expect(firstPatch.cover).toBeUndefined();
-    expect(secondPatch.cover).toBeUndefined();
+    expect(firstPatch.cover).toBe('file:///first-cover.jpg');
+    expect(secondPatch.cover).toBe('file:///second-cover.jpg');
+    expect(firstPatch.coverInfo?.pendingEmbeddedArtworkRefresh).toBe(true);
+    expect(secondPatch.coverInfo?.pendingEmbeddedArtworkRefresh).toBe(true);
   });
 
   test('detects file-removable covers from legacy cover presence and embedded/cached statuses only', () => {
