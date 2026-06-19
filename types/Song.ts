@@ -20,6 +20,8 @@ export interface SongCoverInfo {
   status?: 'none' | 'embedded' | 'cached' | 'external' | 'unknown';
   uri?: string;
   embeddedArtworkChecked?: boolean;
+  /** Monotonic in-app revision used to retry embedded-cover extraction after tag cover writes. */
+  embeddedArtworkRevision?: number;
 }
 
 export interface Song {

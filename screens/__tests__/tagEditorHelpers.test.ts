@@ -4,6 +4,7 @@ import {
   buildMetadataPatchFromDraft,
   ERROR_MESSAGES,
   hasRemovableCover,
+  resetEmbeddedArtworkRevisionForTests,
   safetyNotice,
   statusMessage,
   tagWriterErrorMessage,
@@ -42,6 +43,10 @@ const writeResult = (status: WriteTagsResult['status']): WriteTagsResult => ({
 });
 
 describe('tagEditorHelpers', () => {
+  beforeEach(() => {
+    resetEmbeddedArtworkRevisionForTests();
+  });
+
   test('builds initial form from song', () => {
     expect(toInitialForm(song)).toMatchObject({
       title: 'Title',
@@ -88,9 +93,33 @@ describe('tagEditorHelpers', () => {
 
     expect(patch).toEqual({
       cover: undefined,
-      coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false },
+      coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 },
     });
     expect(needsEmbeddedCoverBackfill({ ...song, ...patch, uri: 'file:///song.mp3' })).toBe(true);
+  });
+
+
+  test('increments embedded artwork revision for repeated replacement patches', () => {
+    const firstCover: PickedTagCover = {
+      uri: 'file:///first-cover.jpg',
+      mimeType: 'image/jpeg',
+      data: new Uint8Array([1]),
+      sizeBytes: 1,
+    };
+    const secondCover: PickedTagCover = {
+      uri: 'file:///second-cover.jpg',
+      mimeType: 'image/jpeg',
+      data: new Uint8Array([2]),
+      sizeBytes: 1,
+    };
+
+    const firstPatch = buildMetadataPatchFromDraft(buildDraftFromDirtyFields('s1', form, {}, false, firstCover), firstCover);
+    const secondPatch = buildMetadataPatchFromDraft(buildDraftFromDirtyFields('s1', form, {}, false, secondCover), secondCover);
+
+    expect(firstPatch.coverInfo?.embeddedArtworkRevision).toBe(1);
+    expect(secondPatch.coverInfo?.embeddedArtworkRevision).toBe(2);
+    expect(firstPatch.cover).toBeUndefined();
+    expect(secondPatch.cover).toBeUndefined();
   });
 
   test('detects file-removable covers from legacy cover presence and embedded/cached statuses only', () => {

@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
-import { useLibraryCoverBackfill } from '../useLibraryCoverBackfill';
+import { buildCoverBackfillAttemptKey, useLibraryCoverBackfill } from '../useLibraryCoverBackfill';
 import { createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import type { Song } from '../../types/Song';
 
@@ -235,6 +235,54 @@ describe('useLibraryCoverBackfill', () => {
       song('b', { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///b.mp3.jpg', embeddedArtworkChecked: true } }),
     ] });
     await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+  });
+
+
+  test('includes embedded artwork revision in the backfill attempt key', () => {
+    const firstReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 } });
+    const secondReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 2 } });
+    const legacyReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false } });
+
+    expect(buildCoverBackfillAttemptKey(firstReplacement)).not.toBe(buildCoverBackfillAttemptKey(secondReplacement));
+    expect(buildCoverBackfillAttemptKey(legacyReplacement)).toBe('a|file:///a.mp3||embedded|unchecked|');
+  });
+
+  test('retries backfill for repeated tag cover replacement revisions without looping after completion', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock)
+      .mockResolvedValueOnce({ uri: 'file:///first-cover.jpg' })
+      .mockResolvedValueOnce({ uri: 'file:///second-cover.jpg' });
+    const applySongMetadataPatches = jest.fn();
+    const firstReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 1 } });
+
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
+      { initialProps: { value: [firstReplacement] } },
+    );
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+      a: {
+        cover: 'file:///first-cover.jpg',
+        coverInfo: { status: 'cached', uri: 'file:///first-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 1 },
+      },
+    }));
+
+    rerender({ value: [song('a', { cover: 'file:///first-cover.jpg', coverInfo: { status: 'cached', uri: 'file:///first-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 1 } })] });
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+
+    rerender({ value: [song('a', { cover: undefined, coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false, embeddedArtworkRevision: 2 } })] });
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+      a: {
+        cover: 'file:///second-cover.jpg',
+        coverInfo: { status: 'cached', uri: 'file:///second-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 2 },
+      },
+    }));
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2);
+
+    rerender({ value: [song('a', { cover: 'file:///second-cover.jpg', coverInfo: { status: 'cached', uri: 'file:///second-cover.jpg', embeddedArtworkChecked: true, embeddedArtworkRevision: 2 } })] });
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2);
   });
 
   test('does not repeatedly retry completed coverless files while mounted', async () => {

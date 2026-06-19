@@ -22,8 +22,15 @@ interface SafeBackfillPatchInput {
   candidateKeys: Set<string>;
 }
 
-const buildAttemptKey = (song: Song): string =>
-  `${song.id}|${song.uri ?? ''}|${song.fileInfo?.uri ?? ''}|${song.coverInfo?.status ?? ''}|${song.coverInfo?.embeddedArtworkChecked === true ? 'checked' : 'unchecked'}`;
+export const buildCoverBackfillAttemptKey = (song: Song): string =>
+  [
+    song.id,
+    song.uri ?? '',
+    song.fileInfo?.uri ?? '',
+    song.coverInfo?.status ?? '',
+    song.coverInfo?.embeddedArtworkChecked === true ? 'checked' : 'unchecked',
+    song.coverInfo?.embeddedArtworkRevision ?? '',
+  ].join('|');
 
 const songSnapshotContainsUri = (songs: Song[], uri: string): boolean =>
   songs.some(song => song.cover === uri || song.coverInfo?.uri === uri);
@@ -56,7 +63,7 @@ const buildSafeBackfillPatches = ({
   const patchesBySongId: SongMetadataPatchesById = {};
 
   originalSongs.forEach((originalSong, index) => {
-    const originalAttemptKey = buildAttemptKey(originalSong);
+    const originalAttemptKey = buildCoverBackfillAttemptKey(originalSong);
     if (!candidateKeys.has(originalAttemptKey)) return;
 
     const resultSong = resultSongs[index];
@@ -64,7 +71,7 @@ const buildSafeBackfillPatches = ({
 
     const currentSong = currentSongsById.get(originalSong.id);
     if (!currentSong) return;
-    if (buildAttemptKey(currentSong) !== originalAttemptKey) return;
+    if (buildCoverBackfillAttemptKey(currentSong) !== originalAttemptKey) return;
     if (!needsEmbeddedCoverBackfill(currentSong)) return;
 
     const resultArtwork = getSongArtworkUri(resultSong);
@@ -105,7 +112,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   }, []);
 
   useEffect(() => {
-    const candidates = songs.filter(song => needsEmbeddedCoverBackfill(song) && !attemptedRef.current.has(buildAttemptKey(song)));
+    const candidates = songs.filter(song => needsEmbeddedCoverBackfill(song) && !attemptedRef.current.has(buildCoverBackfillAttemptKey(song)));
     if (candidates.length === 0) return undefined;
 
     const generation = generationRef.current + 1;
@@ -113,14 +120,14 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     const controller = new AbortController();
     const protection = createCoverCacheProtection();
     const releaseProtection = createIdempotentProtectionRelease(protection);
-    const candidateKeys = new Set(candidates.map(buildAttemptKey));
+    const candidateKeys = new Set(candidates.map(buildCoverBackfillAttemptKey));
 
     void backfillEmbeddedSongCovers(songs, {
       concurrency: 1,
       batchSize: 6,
       signal: controller.signal,
       coverCacheProtection: protection,
-      shouldProcessSong: song => candidateKeys.has(buildAttemptKey(song)),
+      shouldProcessSong: song => candidateKeys.has(buildCoverBackfillAttemptKey(song)),
     }).then(result => {
       if (
         !mountedRef.current
@@ -139,7 +146,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
       });
       Object.keys(patchesBySongId).forEach(songId => {
         const originalSong = songs.find(song => song.id === songId);
-        if (originalSong) attemptedRef.current.add(buildAttemptKey(originalSong));
+        if (originalSong) attemptedRef.current.add(buildCoverBackfillAttemptKey(originalSong));
       });
       const hasPatches = Object.keys(patchesBySongId).length > 0;
       const protectedUris = getPatchCoverUris(patchesBySongId);

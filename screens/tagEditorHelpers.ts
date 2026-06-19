@@ -22,6 +22,17 @@ const TAG_LAYOUT_UNSUPPORTED_MESSAGE =
 const FILE_REPLACE_UNSUPPORTED_MESSAGE =
   'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
+let embeddedArtworkRevision = 0;
+
+export const nextEmbeddedArtworkRevision = (): number => {
+  embeddedArtworkRevision += 1;
+  return embeddedArtworkRevision;
+};
+
+export const resetEmbeddedArtworkRevisionForTests = (): void => {
+  embeddedArtworkRevision = 0;
+};
+
 export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
   { key: 'title', label: 'Titel' },
   { key: 'artist', label: 'Künstler' },
@@ -208,6 +219,7 @@ export const buildMetadataPatchFromDraft = (
       status: 'embedded',
       uri: undefined,
       embeddedArtworkChecked: false,
+      embeddedArtworkRevision: nextEmbeddedArtworkRevision(),
     } satisfies SongCoverInfo;
   }
 
