@@ -11,6 +11,11 @@ import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunn
 const METADATA_REFRESH_CHUNK_SIZE = 25;
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 
+interface MetadataRefreshProcessingItem {
+  song: Song;
+  originalIndex: number;
+}
+
 const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMetadataRefreshResult => ({
   songs,
   updated: 0,
@@ -26,12 +31,11 @@ const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMe
 const mergeMetadataRefreshResult = (
   current: SongMetadataRefreshResult,
   chunkResult: SongMetadataRefreshResult,
-  startIndex: number,
-  allSongs: Song[],
+  chunkItems: MetadataRefreshProcessingItem[],
 ): SongMetadataRefreshResult => {
   const mergedSongs = [...current.songs];
-  for (let index = 0; index < chunkResult.songs.length; index += 1) {
-    mergedSongs[startIndex + index] = chunkResult.songs[index];
+  for (let index = 0; index < chunkResult.songs.length && index < chunkItems.length; index += 1) {
+    mergedSongs[chunkItems[index].originalIndex] = chunkResult.songs[index];
   }
   return {
     songs: mergedSongs,
@@ -41,7 +45,7 @@ const mergeMetadataRefreshResult = (
     errors: [...(current.errors ?? []), ...(chunkResult.errors ?? [])],
     patchesBySongId: { ...(current.patchesBySongId ?? {}), ...(chunkResult.patchesBySongId ?? {}) },
     processed: current.processed + (chunkResult.processed ?? chunkResult.songs.length),
-    total: allSongs.length,
+    total: current.total,
     completed: false,
     timedOut: chunkResult.timedOut || current.timedOut || undefined,
     aborted: chunkResult.aborted || current.aborted || undefined,
@@ -73,6 +77,14 @@ const mergeProcessedSongIntoRefreshResult = (
   };
 };
 
+const buildMetadataRefreshProcessingItems = (songs: Song[], startIndex: number): MetadataRefreshProcessingItem[] => [
+  ...songs.slice(startIndex).map((song, offset) => ({ song, originalIndex: startIndex + offset })),
+  ...songs.slice(0, startIndex).map((song, originalIndex) => ({ song, originalIndex })),
+];
+
+const advanceResumeIndex = (startIndex: number, processed: number, total: number): number =>
+  total > 0 ? (startIndex + processed) % total : 0;
+
 interface UseLibraryMetadataRefreshRunnerOptions {
   songs: Song[];
   setImportStatus: Dispatch<SetStateAction<string | null>>;
@@ -96,15 +108,16 @@ export const useLibraryMetadataRefreshRunner = ({
     const refreshCopy = getMetadataRefreshFlowCopy();
     const startedAt = Date.now();
     const startIndex = resumeIndexRef.current < songs.length ? resumeIndexRef.current : 0;
-    const orderedSongs = [...songs.slice(startIndex), ...songs.slice(0, startIndex)];
-    let result = emptyMetadataRefreshResult(orderedSongs, songs.length);
+    const processingItems = buildMetadataRefreshProcessingItems(songs, startIndex);
+    let result = emptyMetadataRefreshResult(songs, songs.length);
     setImportStatus(refreshCopy.readingStatus);
 
-    for (let chunkStart = 0; chunkStart < orderedSongs.length; chunkStart += METADATA_REFRESH_CHUNK_SIZE) {
+    for (let chunkStart = 0; chunkStart < processingItems.length; chunkStart += METADATA_REFRESH_CHUNK_SIZE) {
       ensureCurrentRefresh(generation);
       const elapsed = Date.now() - startedAt;
       const remainingMs = chunkStart === 0 ? importTimeoutMs : Math.max(1, importTimeoutMs - elapsed);
-      const chunk = orderedSongs.slice(chunkStart, chunkStart + METADATA_REFRESH_CHUNK_SIZE);
+      const chunkItems = processingItems.slice(chunkStart, chunkStart + METADATA_REFRESH_CHUNK_SIZE);
+      const chunk = chunkItems.map(item => item.song);
       let currentChunkPartial = emptyMetadataRefreshResult(chunk, songs.length);
       try {
         const chunkResult = await withTimeoutImpl(
@@ -120,32 +133,31 @@ export const useLibraryMetadataRefreshRunner = ({
           refreshCopy.timeoutMessage,
           { signal: generation.controller.signal },
         );
-        result = mergeMetadataRefreshResult(result, chunkResult, chunkStart, orderedSongs);
+        result = mergeMetadataRefreshResult(result, chunkResult, chunkItems);
       } catch (error) {
         if (isMetadataRefreshPartialError(error)) {
-          result = mergeMetadataRefreshResult(result, error.result, chunkStart, orderedSongs);
+          result = mergeMetadataRefreshResult(result, error.result, chunkItems);
           result = { ...result, completed: false, timedOut: error.result.timedOut || undefined, aborted: error.result.aborted || undefined };
-          resumeIndexRef.current = (startIndex + result.processed) % songs.length;
+          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
           return result;
         }
         if (isTimeoutError(error) && currentChunkPartial.processed > 0) {
           result = mergeMetadataRefreshResult(
             result,
             { ...currentChunkPartial, completed: false, timedOut: true },
-            chunkStart,
-            orderedSongs,
+            chunkItems,
           );
-          resumeIndexRef.current = (startIndex + result.processed) % songs.length;
+          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
           return { ...result, completed: false, timedOut: true };
         }
         if (isTimeoutError(error) && result.processed > 0) {
-          resumeIndexRef.current = (startIndex + result.processed) % songs.length;
+          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
           return { ...result, completed: false, timedOut: true };
         }
         throw error;
       }
-      resumeIndexRef.current = (startIndex + result.processed) % songs.length;
-      if (chunkStart + METADATA_REFRESH_CHUNK_SIZE < orderedSongs.length) {
+      resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
+      if (chunkStart + METADATA_REFRESH_CHUNK_SIZE < processingItems.length) {
         await yieldToEventLoop();
       }
     }

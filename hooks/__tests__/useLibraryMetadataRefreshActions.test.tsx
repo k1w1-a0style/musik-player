@@ -413,6 +413,71 @@ test('preserves active first chunk progress when timeout wins the race and resum
   expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 3)).toEqual(['s11', 's12', 's13']);
 });
 
+test('fallback setSongs keeps original library order after resumed refresh', async () => {
+  const librarySongs = songs(30);
+  const setSongs = jest.fn();
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest
+    .fn()
+    .mockImplementationOnce((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+      chunk.slice(0, 10).forEach((processedSong, index) => {
+        options?.onSongProcessed?.({
+          index,
+          song: processedSong,
+          updatedDelta: 0,
+          skippedDelta: 1,
+          failedDelta: 0,
+        });
+      });
+      return new Promise(() => undefined);
+    })
+    .mockImplementation((chunk: Song[]) => Promise.resolve({
+      songs: chunk.map(processedSong => (
+        processedSong.id === 's11' ? { ...processedSong, title: 'Fresh s11' } : processedSong
+      )),
+      updated: chunk.some(processedSong => processedSong.id === 's11') ? 1 : 0,
+      skipped: chunk.filter(processedSong => processedSong.id !== 's11').length,
+      failed: 0,
+      errors: [],
+      patchesBySongId: chunk.some(processedSong => processedSong.id === 's11') ? { s11: { title: 'Fresh s11' } } : {},
+      processed: chunk.length,
+      total: chunk.length,
+      completed: true,
+    }));
+  const withTimeoutImpl = jest
+    .fn()
+    .mockImplementationOnce(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+      if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+      throw timeoutError;
+    })
+    .mockImplementation(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => (
+      typeof operation === 'function' ? operation(new AbortController().signal) : operation
+    ));
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      setSongs={setSongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(setSongs).not.toHaveBeenCalled();
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalled());
+  const appliedSongs = setSongs.mock.calls[0][0] as Song[];
+  expect(appliedSongs.map(appliedSong => appliedSong.id)).toEqual(librarySongs.map(appliedSong => appliedSong.id));
+  expect(appliedSongs[10].title).toBe('Fresh s11');
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 29, 0));
+});
+
 test('preserves later chunk in-flight progress without double-counting completed chunks', async () => {
   const librarySongs = songs(40);
   const applySongMetadataPatches = jest.fn();
