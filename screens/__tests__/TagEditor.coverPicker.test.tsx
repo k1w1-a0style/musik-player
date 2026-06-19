@@ -183,6 +183,7 @@ test('valid picked cover enables save and writes cover draft', async () => {
       embeddedArtworkChecked: false,
       embeddedArtworkRevision: expect.any(Number),
       pendingEmbeddedArtworkRefresh: true,
+      embeddedArtworkRefreshFailed: false,
     },
   });
 });

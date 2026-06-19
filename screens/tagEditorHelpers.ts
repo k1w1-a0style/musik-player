@@ -222,6 +222,7 @@ export const buildMetadataPatchFromDraft = (
       embeddedArtworkChecked: false,
       embeddedArtworkRevision: nextEmbeddedArtworkRevision(),
       pendingEmbeddedArtworkRefresh: true,
+      embeddedArtworkRefreshFailed: false,
     } satisfies SongCoverInfo;
   }
 

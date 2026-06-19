@@ -41,6 +41,7 @@ export const needsEmbeddedCoverBackfill = (song: Song): boolean => {
   if (song.coverInfo?.pendingEmbeddedArtworkRefresh === true) return true;
 
   const artworkUri = getSongArtworkUri(song);
+  if (song.coverInfo?.embeddedArtworkRefreshFailed === true && artworkUri) return false;
   if (artworkUri && !isLikelyVolatileArtworkUri(artworkUri)) return false;
   if (song.coverInfo?.status === 'none' && song.coverInfo.embeddedArtworkChecked === true && !song.coverInfo.uri) return false;
   return true;
@@ -60,7 +61,10 @@ const applyCoverResult = (song: Song, uri?: string): Song => {
       status: uri ? 'cached' : pendingPreviewUri ? 'external' : 'none',
       uri: nextUri,
       embeddedArtworkChecked: true,
-      ...(song.coverInfo?.pendingEmbeddedArtworkRefresh === true ? { pendingEmbeddedArtworkRefresh: false } : {}),
+      ...(song.coverInfo?.pendingEmbeddedArtworkRefresh === true ? {
+        pendingEmbeddedArtworkRefresh: false,
+        embeddedArtworkRefreshFailed: !uri && Boolean(pendingPreviewUri),
+      } : {}),
     },
   };
 };

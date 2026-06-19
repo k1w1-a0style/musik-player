@@ -99,6 +99,7 @@ describe('tagEditorHelpers', () => {
         embeddedArtworkChecked: false,
         embeddedArtworkRevision: 1,
         pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
       },
     });
     expect(needsEmbeddedCoverBackfill({ ...song, ...patch, uri: 'file:///song.mp3' })).toBe(true);
@@ -128,6 +129,8 @@ describe('tagEditorHelpers', () => {
     expect(secondPatch.cover).toBe('file:///second-cover.jpg');
     expect(firstPatch.coverInfo?.pendingEmbeddedArtworkRefresh).toBe(true);
     expect(secondPatch.coverInfo?.pendingEmbeddedArtworkRefresh).toBe(true);
+    expect(firstPatch.coverInfo?.embeddedArtworkRefreshFailed).toBe(false);
+    expect(secondPatch.coverInfo?.embeddedArtworkRefreshFailed).toBe(false);
   });
 
   test('detects file-removable covers from legacy cover presence and embedded/cached statuses only', () => {

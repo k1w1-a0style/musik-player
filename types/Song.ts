@@ -24,6 +24,8 @@ export interface SongCoverInfo {
   embeddedArtworkRevision?: number;
   /** True while a visible picked-cover preview waits for stable embedded artwork extraction. */
   pendingEmbeddedArtworkRefresh?: boolean;
+  /** True when embedded extraction found no stable artwork and the preview should be preserved. */
+  embeddedArtworkRefreshFailed?: boolean;
 }
 
 export interface Song {

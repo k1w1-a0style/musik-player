@@ -58,6 +58,7 @@ describe('needsEmbeddedCoverBackfill', () => {
         embeddedArtworkChecked: false,
         embeddedArtworkRevision: 1,
         pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
       },
     }))).toBe(true);
   });
@@ -107,6 +108,7 @@ test('keeps pending preview artwork when embedded extraction finds no cover', as
         embeddedArtworkChecked: false,
         embeddedArtworkRevision: 1,
         pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
       },
     }),
   ]);
@@ -119,8 +121,24 @@ test('keeps pending preview artwork when embedded extraction finds no cover', as
       embeddedArtworkChecked: true,
       embeddedArtworkRevision: 1,
       pendingEmbeddedArtworkRefresh: false,
+      embeddedArtworkRefreshFailed: true,
     },
   });
+});
+
+
+test('skips failed pending previews with visible artwork to avoid erasing previews on retry', () => {
+  expect(needsEmbeddedCoverBackfill(song('a', {
+    cover: 'file:///picker-cover.jpg',
+    coverInfo: {
+      status: 'external',
+      uri: 'file:///picker-cover.jpg',
+      embeddedArtworkChecked: true,
+      embeddedArtworkRevision: 1,
+      pendingEmbeddedArtworkRefresh: false,
+      embeddedArtworkRefreshFailed: true,
+    },
+  }))).toBe(false);
 });
 
 test('per-song extraction failures do not abort the whole backfill', async () => {
