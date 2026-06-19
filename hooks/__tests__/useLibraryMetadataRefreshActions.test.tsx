@@ -478,6 +478,49 @@ test('fallback setSongs keeps original library order after resumed refresh', asy
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 29, 0));
 });
 
+test('multiple partial timeouts eventually complete when resume index wraps', async () => {
+  const librarySongs = songs(30);
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest.fn().mockImplementation((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+    chunk.slice(0, 10).forEach((processedSong, index) => {
+      options?.onSongProcessed?.({
+        index,
+        song: processedSong,
+        updatedDelta: 0,
+        skippedDelta: 1,
+        failedDelta: 0,
+      });
+    });
+    return new Promise(() => undefined);
+  });
+  const withTimeoutImpl = async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+    if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+    throw timeoutError;
+  };
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(refreshSongsFromId3Impl.mock.calls[0][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s1', 's2']);
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s11', 's12']);
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(0, 10, 0)));
+  expect(refreshSongsFromId3Impl.mock.calls[2][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s21', 's22']);
+  expect(showAlert).not.toHaveBeenCalledWith(getMetadataRefreshPartialAlert(30, 30));
+});
+
 test('preserves later chunk in-flight progress without double-counting completed chunks', async () => {
   const librarySongs = songs(40);
   const applySongMetadataPatches = jest.fn();

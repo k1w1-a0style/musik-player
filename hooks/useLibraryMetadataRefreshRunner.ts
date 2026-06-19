@@ -85,6 +85,25 @@ const buildMetadataRefreshProcessingItems = (songs: Song[], startIndex: number):
 const advanceResumeIndex = (startIndex: number, processed: number, total: number): number =>
   total > 0 ? (startIndex + processed) % total : 0;
 
+const didCompleteRefreshCycle = (startIndex: number, processed: number, total: number): boolean =>
+  total <= 0 || (processed > 0 && advanceResumeIndex(startIndex, processed, total) === 0);
+
+const completeOrResumePartialResult = (
+  result: SongMetadataRefreshResult,
+  startIndex: number,
+  total: number,
+  setResumeIndex: (nextIndex: number) => void,
+): SongMetadataRefreshResult => {
+  const nextResumeIndex = advanceResumeIndex(startIndex, result.processed, total);
+  if (didCompleteRefreshCycle(startIndex, result.processed, total)) {
+    setResumeIndex(0);
+    return { ...result, completed: true, timedOut: undefined };
+  }
+
+  setResumeIndex(nextResumeIndex);
+  return { ...result, completed: false, timedOut: true };
+};
+
 interface UseLibraryMetadataRefreshRunnerOptions {
   songs: Song[];
   setImportStatus: Dispatch<SetStateAction<string | null>>;
@@ -138,8 +157,9 @@ export const useLibraryMetadataRefreshRunner = ({
         if (isMetadataRefreshPartialError(error)) {
           result = mergeMetadataRefreshResult(result, error.result, chunkItems);
           result = { ...result, completed: false, timedOut: error.result.timedOut || undefined, aborted: error.result.aborted || undefined };
-          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
-          return result;
+          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
+            resumeIndexRef.current = nextIndex;
+          });
         }
         if (isTimeoutError(error) && currentChunkPartial.processed > 0) {
           result = mergeMetadataRefreshResult(
@@ -147,12 +167,14 @@ export const useLibraryMetadataRefreshRunner = ({
             { ...currentChunkPartial, completed: false, timedOut: true },
             chunkItems,
           );
-          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
-          return { ...result, completed: false, timedOut: true };
+          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
+            resumeIndexRef.current = nextIndex;
+          });
         }
         if (isTimeoutError(error) && result.processed > 0) {
-          resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
-          return { ...result, completed: false, timedOut: true };
+          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
+            resumeIndexRef.current = nextIndex;
+          });
         }
         throw error;
       }
