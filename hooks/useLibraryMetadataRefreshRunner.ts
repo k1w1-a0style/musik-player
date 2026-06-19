@@ -92,16 +92,13 @@ const completeOrResumePartialResult = (
   result: SongMetadataRefreshResult,
   startIndex: number,
   total: number,
-  setResumeIndex: (nextIndex: number) => void,
-): SongMetadataRefreshResult => {
+): MetadataRefreshSongsResult => {
   const nextResumeIndex = advanceResumeIndex(startIndex, result.processed, total);
   if (didCompleteRefreshCycle(startIndex, result.processed, total)) {
-    setResumeIndex(0);
-    return { ...result, completed: true, timedOut: undefined };
+    return { ...result, completed: true, timedOut: undefined, nextResumeIndex: 0 };
   }
 
-  setResumeIndex(nextResumeIndex);
-  return { ...result, completed: false, timedOut: true };
+  return { ...result, completed: false, timedOut: true, nextResumeIndex };
 };
 
 interface UseLibraryMetadataRefreshRunnerOptions {
@@ -157,9 +154,7 @@ export const useLibraryMetadataRefreshRunner = ({
         if (isMetadataRefreshPartialError(error)) {
           result = mergeMetadataRefreshResult(result, error.result, chunkItems);
           result = { ...result, completed: false, timedOut: error.result.timedOut || undefined, aborted: error.result.aborted || undefined };
-          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
-            resumeIndexRef.current = nextIndex;
-          });
+          return completeOrResumePartialResult(result, startIndex, songs.length);
         }
         if (isTimeoutError(error) && currentChunkPartial.processed > 0) {
           result = mergeMetadataRefreshResult(
@@ -167,27 +162,31 @@ export const useLibraryMetadataRefreshRunner = ({
             { ...currentChunkPartial, completed: false, timedOut: true },
             chunkItems,
           );
-          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
-            resumeIndexRef.current = nextIndex;
-          });
+          return completeOrResumePartialResult(result, startIndex, songs.length);
         }
         if (isTimeoutError(error) && result.processed > 0) {
-          return completeOrResumePartialResult(result, startIndex, songs.length, nextIndex => {
-            resumeIndexRef.current = nextIndex;
-          });
+          return completeOrResumePartialResult(result, startIndex, songs.length);
         }
         throw error;
       }
-      resumeIndexRef.current = advanceResumeIndex(startIndex, result.processed, songs.length);
       if (chunkStart + METADATA_REFRESH_CHUNK_SIZE < processingItems.length) {
         await yieldToEventLoop();
       }
     }
 
     ensureCurrentRefresh(generation);
-    resumeIndexRef.current = 0;
-    return { ...result, completed: true };
+    return { ...result, completed: true, nextResumeIndex: 0 };
   }, [ensureCurrentRefresh, importTimeoutMs, refreshSongsFromId3Impl, setImportStatus, songs, withTimeoutImpl]);
 
-  return { runMetadataRefresh };
+  const commitMetadataRefreshProgress = useCallback((result: MetadataRefreshSongsResult): void => {
+    if (result.completed) {
+      resumeIndexRef.current = 0;
+      return;
+    }
+    if (typeof result.nextResumeIndex === 'number') {
+      resumeIndexRef.current = result.nextResumeIndex;
+    }
+  }, []);
+
+  return { runMetadataRefresh, commitMetadataRefreshProgress };
 };

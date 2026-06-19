@@ -10,6 +10,7 @@ interface UseLibraryMetadataRefreshStateUpdateOptions {
   showAlert: (alert: LibraryAlertCopy) => void;
   ensureCurrentRefresh: (generation: MetadataRefreshGeneration) => void;
   applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
+  commitMetadataRefreshProgress?: (result: MetadataRefreshSongsResult) => void;
 }
 
 export const useLibraryMetadataRefreshStateUpdate = ({
@@ -17,6 +18,7 @@ export const useLibraryMetadataRefreshStateUpdate = ({
   showAlert,
   ensureCurrentRefresh,
   applySongMetadataPatches,
+  commitMetadataRefreshProgress,
 }: UseLibraryMetadataRefreshStateUpdateOptions) => {
   const applyMetadataRefreshResult = useCallback((result: MetadataRefreshSongsResult, generation: MetadataRefreshGeneration): void => {
     ensureCurrentRefresh(generation);
@@ -29,8 +31,9 @@ export const useLibraryMetadataRefreshStateUpdate = ({
       }
     }
     ensureCurrentRefresh(generation);
+    commitMetadataRefreshProgress?.(result);
     showAlert(refreshResult.alert);
-  }, [applySongMetadataPatches, ensureCurrentRefresh, setSongs, showAlert]);
+  }, [applySongMetadataPatches, commitMetadataRefreshProgress, ensureCurrentRefresh, setSongs, showAlert]);
 
   return { applyMetadataRefreshResult };
 };

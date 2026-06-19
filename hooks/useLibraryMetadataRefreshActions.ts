@@ -31,7 +31,7 @@ export const useLibraryMetadataRefreshActions = ({
     ensureCurrentRefresh,
     finishRefresh,
   } = useLibraryMetadataRefreshLifecycle({ setLoading, setImportStatus });
-  const { runMetadataRefresh } = useLibraryMetadataRefreshRunner({
+  const { runMetadataRefresh, commitMetadataRefreshProgress } = useLibraryMetadataRefreshRunner({
     songs,
     setImportStatus,
     importTimeoutMs,
@@ -44,6 +44,7 @@ export const useLibraryMetadataRefreshActions = ({
     showAlert,
     ensureCurrentRefresh,
     applySongMetadataPatches,
+    commitMetadataRefreshProgress,
   });
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {

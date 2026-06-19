@@ -413,6 +413,53 @@ test('preserves active first chunk progress when timeout wins the race and resum
   expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 3)).toEqual(['s11', 's12', 's13']);
 });
 
+test('does not commit resume progress when applying a partial result fails', async () => {
+  const librarySongs = songs(30);
+  const applyError = new Error('apply failed');
+  const applySongMetadataPatches = jest.fn()
+    .mockImplementationOnce(() => {
+      throw applyError;
+    })
+    .mockImplementation(() => undefined);
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest.fn().mockImplementation((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+    chunk.slice(0, 10).forEach((processedSong, index) => {
+      options?.onSongProcessed?.({
+        index,
+        song: { ...processedSong, title: `Fresh ${processedSong.id}` },
+        patch: { title: `Fresh ${processedSong.id}` },
+        updatedDelta: 1,
+        skippedDelta: 0,
+        failedDelta: 0,
+      });
+    });
+    return new Promise(() => undefined);
+  });
+  const withTimeoutImpl = async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+    if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+    throw timeoutError;
+  };
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+      applySongMetadataPatches={applySongMetadataPatches}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(applyError)));
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2));
+  expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 3)).toEqual(['s1', 's2', 's3']);
+});
+
 test('fallback setSongs keeps original library order after resumed refresh', async () => {
   const librarySongs = songs(30);
   const setSongs = jest.fn();
