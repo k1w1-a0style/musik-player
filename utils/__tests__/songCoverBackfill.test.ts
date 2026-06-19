@@ -92,7 +92,7 @@ test('per-song extraction failures do not abort the whole backfill', async () =>
   expect(result.songs[1].cover).toBe('file:///cover-b.jpg');
 });
 
-test('abort prevents stale updates from completing', async () => {
+test('abort before any completed song prevents stale updates from completing', async () => {
   const controller = new AbortController();
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async () => {
     controller.abort();
@@ -100,6 +100,25 @@ test('abort prevents stale updates from completing', async () => {
   });
 
   await expect(backfillEmbeddedSongCovers([song('a')], { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+});
+
+test('returns partial completed results when aborted after progress', async () => {
+  const controller = new AbortController();
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async (uri: string) => ({ uri: `${uri}.jpg` }));
+
+  const result = await backfillEmbeddedSongCovers([song('a'), song('b')], {
+    signal: controller.signal,
+    concurrency: 1,
+    batchSize: 1,
+    yieldToUi: async () => {
+      controller.abort();
+    },
+  });
+
+  expect(result).toMatchObject({ attempted: 1, updated: 1, aborted: true });
+  expect(result.songs[0].cover).toBe('file:///a.mp3.jpg');
+  expect(result.songs[1]).toBeDefined();
+  expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
 });
 
 test('limits concurrent native artwork extraction', async () => {

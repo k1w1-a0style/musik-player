@@ -35,7 +35,10 @@ export const useLibraryImportLifecycle = ({
   []);
 
   const ensureCurrentImport = useCallback((generation: ImportGeneration): void => {
-    if (!isCurrentImport(generation)) throwIfAborted(generation.controller.signal);
+    if (!isCurrentImport(generation)) {
+      throwIfAborted(generation.controller.signal);
+      throw new OperationAbortError('Import superseded or no longer current');
+    }
   }, [isCurrentImport]);
 
   const finishImport = useCallback((generation: ImportGeneration): void => {

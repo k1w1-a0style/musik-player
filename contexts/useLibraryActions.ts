@@ -54,7 +54,27 @@ const patchSongByMetadataPatchMap = (patchesByNormalizedSongId: ReadonlyMap<stri
   if (!normalizedSongId) return song;
   const patch = patchesByNormalizedSongId.get(normalizedSongId);
   if (!patch) return song;
-  return { ...song, ...(song.id === normalizedSongId ? {} : { id: normalizedSongId }), ...patch };
+
+  let changed = song.id !== normalizedSongId;
+  const next: Song = { ...song, ...(song.id === normalizedSongId ? {} : { id: normalizedSongId }) };
+  (Object.keys(patch) as Array<keyof Song>).forEach(key => {
+    const value = patch[key];
+    if (next[key] !== value) {
+      (next as Record<keyof Song, unknown>)[key] = value;
+      changed = true;
+    }
+  });
+  return changed ? next : song;
+};
+
+const patchSongsArray = (songs: Song[], patchSong: (song: Song) => Song): Song[] => {
+  let changed = false;
+  const next = songs.map(song => {
+    const patched = patchSong(song);
+    if (patched !== song) changed = true;
+    return patched;
+  });
+  return changed ? next : songs;
 };
 
 const cleanupCurrentSongIdAfterLibraryUpdate = async (
@@ -212,11 +232,18 @@ export const useLibraryActions = ({
         if (songId && patchesByNormalizedSongId.has(songId)) affectedNativeSongIds.add(songId);
       });
 
-      setSongsState(prev => prev.map(patchSong));
+      setSongsState(prev => patchSongsArray(prev, patchSong));
       setCurrentSong(prev => (prev ? patchSong(prev) : null));
-      setPlaybackQueue(prev => prev.map(patchSong));
-      patchSongRefs(patchSong, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
-      affectedNativeSongIds.forEach(songId => updateNativeMetadataForSong(songId, nativeQueueRef, baseQueueContextRef));
+      setPlaybackQueue(prev => patchSongsArray(prev, patchSong));
+      const affectedChangedNativeSongIds = new Set<string>();
+      const trackNativeChange = (song: Song): Song => {
+        const patched = patchSong(song);
+        const songId = normalizeSongIdForLibrary(song.id);
+        if (patched !== song && songId && affectedNativeSongIds.has(songId)) affectedChangedNativeSongIds.add(songId);
+        return patched;
+      };
+      patchSongRefs(trackNativeChange, [queueContextRef, baseQueueContextRef, nativeQueueRef]);
+      affectedChangedNativeSongIds.forEach(songId => updateNativeMetadataForSong(songId, nativeQueueRef, baseQueueContextRef));
     },
     [
       baseQueueContextRef,

@@ -211,3 +211,29 @@ describe('songCoverProtectionLifecycle', () => {
     expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
   });
 });
+
+test('confirmed cleanup releases hydration handoff when normalized hydration changes snapshot key', () => {
+  resetSongCoverProtectionLifecycleForTests();
+  jest.clearAllMocks();
+  const storedSongs: Song[] = [
+    { id: 's1', title: 'One', artist: 'Artist', uri: 'file:///s1.mp3' },
+    { id: ' s1 ', title: 'Duplicate', artist: 'Artist', uri: 'file:///s1-duplicate.mp3' },
+    { id: 'bad', title: 'Bad', artist: 'Artist', uri: '   ' },
+  ];
+  const normalizedSongs: Song[] = [
+    { id: 's1', title: 'One', artist: 'Artist', uri: 'file:///s1.mp3' },
+  ];
+
+  const hydrationLease = acquireSongCoverProtection(storedSongs);
+  hydrationLease.updateSnapshot(normalizedSongs);
+  hydrationLease.handoffFromHydration(normalizedSongs);
+
+  const confirmedLease = acquireSongCoverProtection(normalizedSongs);
+  confirmedLease.prepareConfirmedCleanup(normalizedSongs);
+  expect(protectionAt(0).release).not.toHaveBeenCalled();
+
+  confirmedLease.markConfirmedAfterCleanup();
+
+  expect(protectionAt(0).replaceProtectedSongCovers).toHaveBeenCalledWith(normalizedSongs);
+  expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+});
