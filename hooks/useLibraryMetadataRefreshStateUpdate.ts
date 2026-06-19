@@ -20,7 +20,7 @@ export const useLibraryMetadataRefreshStateUpdate = ({
 }: UseLibraryMetadataRefreshStateUpdateOptions) => {
   const applyMetadataRefreshResult = useCallback((result: MetadataRefreshSongsResult, generation: MetadataRefreshGeneration): void => {
     ensureCurrentRefresh(generation);
-    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
+    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed, result.processed, result.total, result.completed);
     if (refreshResult.shouldApplyUpdate) {
       if (applySongMetadataPatches && Object.keys(result.patchesBySongId ?? {}).length > 0) {
         applySongMetadataPatches(result.patchesBySongId ?? {});

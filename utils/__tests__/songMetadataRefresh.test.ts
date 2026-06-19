@@ -318,3 +318,39 @@ test('concurrency 1 behaves sequentially and invalid options clamp to sequential
   await refreshSongsFromId3(songs, { concurrency: Number.NaN });
   expect(seen.length).toBe(3);
 });
+
+test('exposes processed partial results when abort happens after progress', async () => {
+  const controller = new AbortController();
+  const songs: Song[] = [
+    { ...baseSong, id: 's1', uri: 'file:///1.mp3' },
+    { ...baseSong, id: 's2', uri: 'file:///2.mp3' },
+  ];
+  (parseId3FromUri as jest.Mock).mockImplementation(async (uri: string) => {
+    if (uri.endsWith('1.mp3')) return { title: 'Fresh 1' };
+    return { title: 'Fresh 2' };
+  });
+
+  await expect(refreshSongsFromId3(songs, {
+    signal: controller.signal,
+    onProgress: () => controller.abort(new Error('stop')),
+  })).rejects.toMatchObject({
+    name: 'MetadataRefreshPartialError',
+    result: expect.objectContaining({
+      updated: 1,
+      processed: 1,
+      total: 2,
+      completed: false,
+      aborted: true,
+      patchesBySongId: { s1: { title: 'Fresh 1' } },
+      lastProcessedSongId: 's1',
+    }),
+  });
+});
+
+test('manual metadata refresh parser options keep cover parsing disabled', async () => {
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'No Cover Parse' });
+
+  await refreshSongsFromId3([baseSong]);
+
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false }));
+});

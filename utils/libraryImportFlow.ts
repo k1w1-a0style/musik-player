@@ -4,6 +4,7 @@ import type { LibraryTab } from './libraryTabs';
 import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
+  metadataRefreshPartialSummary,
   metadataRefreshSummary,
   scanFoldersReadingStatus,
   tracksFoundStatus,
@@ -209,10 +210,17 @@ export const getMetadataRefreshCompleteAlert = (updated: number, skipped: number
   message: metadataRefreshSummary(updated, skipped, failed),
 });
 
-export const buildMetadataRefreshResult = (songs: Song[], updated: number, skipped: number, failed: number): MetadataRefreshResult => ({
+export const getMetadataRefreshPartialAlert = (processed: number, total: number): LibraryAlertMessage => ({
+  title: libraryImportMessages.metadataPartiallyUpdatedTitle,
+  message: metadataRefreshPartialSummary(processed, total),
+});
+
+export const buildMetadataRefreshResult = (songs: Song[], updated: number, skipped: number, failed: number, processed?: number, total?: number, completed = true): MetadataRefreshResult => ({
   shouldApplyUpdate: shouldApplyMetadataRefresh(updated),
   songs,
-  alert: getMetadataRefreshCompleteAlert(updated, skipped, failed),
+  alert: !completed && (processed ?? 0) > 0
+    ? getMetadataRefreshPartialAlert(processed ?? 0, total ?? songs.length)
+    : getMetadataRefreshCompleteAlert(updated, skipped, failed),
 });
 
 export const getImportStoppedAlert = (error: unknown): LibraryAlertMessage => ({
