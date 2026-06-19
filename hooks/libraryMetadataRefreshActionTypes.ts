@@ -12,7 +12,9 @@ export interface MetadataRefreshGeneration {
 
 export type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>, timeoutMs: number, timeoutMessage: string, options?: TimeoutOptions) => Promise<T>;
 
-export type MetadataRefreshSongsResult = Awaited<ReturnType<typeof refreshSongsFromId3>>;
+export type MetadataRefreshSongsResult = Awaited<ReturnType<typeof refreshSongsFromId3>> & {
+  nextResumeIndex?: number;
+};
 
 export interface UseLibraryMetadataRefreshActionsOptions {
   songs: Song[];

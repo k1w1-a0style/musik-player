@@ -9,11 +9,39 @@ export interface SongMetadataRefreshResult {
   failed: number;
   errors: string[];
   patchesBySongId: Record<string, Partial<Song>>;
+  processed: number;
+  total: number;
+  completed: boolean;
+  timedOut?: boolean;
+  aborted?: boolean;
+  lastProcessedSongId?: string;
 }
+
+export class MetadataRefreshPartialError extends Error {
+  constructor(message: string, public readonly result: SongMetadataRefreshResult, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'MetadataRefreshPartialError';
+  }
+}
+
+export const isMetadataRefreshPartialError = (error: unknown): error is MetadataRefreshPartialError =>
+  error instanceof MetadataRefreshPartialError;
+
+export interface SongMetadataRefreshProcessedSong {
+  index: number;
+  song: Song;
+  patch?: Partial<Song>;
+  updatedDelta: number;
+  skippedDelta: number;
+  failedDelta: number;
+  errorUri?: string;
+}
+
 interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
   concurrency?: number;
   signal?: AbortSignal;
   onProgress?: (processed: number, total: number) => void;
+  onSongProcessed?: (partial: SongMetadataRefreshProcessedSong) => void;
 }
 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
@@ -155,6 +183,7 @@ export const refreshSongsFromId3 = async (
   let nextIndex = 0;
   let processedSinceYield = 0;
   let processed = 0;
+  let lastProcessedSongId: string | undefined;
 
   const maybeYield = async (): Promise<void> => {
     processedSinceYield += 1;
@@ -203,28 +232,58 @@ export const refreshSongsFromId3 = async (
       nextIndex += 1;
       if (index >= songs.length) return;
       outcomes[index] = await refreshOne(songs[index]);
+      options?.onSongProcessed?.({ index, ...outcomes[index] });
       processed += 1;
+      lastProcessedSongId = songs[index].id;
       options?.onProgress?.(processed, songs.length);
       await maybeYield();
       throwIfAborted(signal);
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(concurrency, songs.length || 1) }, () => worker()));
-  throwIfAborted(signal);
+  const buildResult = (completed: boolean, reason?: unknown): SongMetadataRefreshResult => {
+    let updated = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (let index = 0; index < songs.length; index += 1) {
+      const outcome = outcomes[index];
+      refreshed[index] = outcome?.song ?? songs[index];
+      if (!outcome) continue;
+      updated += outcome.updatedDelta;
+      skipped += outcome.skippedDelta;
+      failed += outcome.failedDelta;
+      if (outcome.patch) patchesBySongId[outcome.song.id] = outcome.patch;
+      if (outcome.errorUri) errors.push(outcome.errorUri);
+    }
+    const isTimedOut = reason instanceof Error && reason.name === 'TimeoutError';
+    const isAborted = Boolean(reason) && !isTimedOut;
+    return {
+      songs: refreshed,
+      updated,
+      skipped,
+      failed,
+      errors,
+      patchesBySongId,
+      processed,
+      total: songs.length,
+      completed,
+      timedOut: isTimedOut || undefined,
+      aborted: isAborted || undefined,
+      lastProcessedSongId,
+    };
+  };
 
-  let updated = 0;
-  let skipped = 0;
-  let failed = 0;
-  for (let index = 0; index < outcomes.length; index += 1) {
-    const outcome = outcomes[index];
-    refreshed[index] = outcome.song;
-    updated += outcome.updatedDelta;
-    skipped += outcome.skippedDelta;
-    failed += outcome.failedDelta;
-    if (outcome.patch) patchesBySongId[outcome.song.id] = outcome.patch;
-    if (outcome.errorUri) errors.push(outcome.errorUri);
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, songs.length || 1) }, () => worker()));
+    throwIfAborted(signal);
+  } catch (error) {
+    const partial = buildResult(false, error);
+    if (partial.processed > 0) {
+      throw new MetadataRefreshPartialError(error instanceof Error ? error.message : 'Metadata refresh stopped', partial, error);
+    }
+    throw error;
   }
 
-  return { songs: refreshed, updated, skipped, failed, errors, patchesBySongId };
+  return buildResult(true);
+
 };

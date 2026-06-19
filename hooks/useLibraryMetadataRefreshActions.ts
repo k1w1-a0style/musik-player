@@ -31,7 +31,7 @@ export const useLibraryMetadataRefreshActions = ({
     ensureCurrentRefresh,
     finishRefresh,
   } = useLibraryMetadataRefreshLifecycle({ setLoading, setImportStatus });
-  const { runMetadataRefresh } = useLibraryMetadataRefreshRunner({
+  const { runMetadataRefresh, commitMetadataRefreshProgress } = useLibraryMetadataRefreshRunner({
     songs,
     setImportStatus,
     importTimeoutMs,
@@ -44,6 +44,7 @@ export const useLibraryMetadataRefreshActions = ({
     showAlert,
     ensureCurrentRefresh,
     applySongMetadataPatches,
+    commitMetadataRefreshProgress,
   });
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {
@@ -58,10 +59,14 @@ export const useLibraryMetadataRefreshActions = ({
     setLoading(true);
     try {
       const result = await runMetadataRefresh(generation);
+      if (!result.completed) {
+        console.warn(`[LibraryRefresh] Metadata refresh timed out after ${Math.round(importTimeoutMs / 1000)}s. processed=${result.processed}/${result.total} updated=${result.updated} skipped=${result.skipped} failed=${result.failed} lastSongId=${result.lastProcessedSongId ?? 'none'} partialApplied=${Object.keys(result.patchesBySongId ?? {}).length > 0}`);
+      }
       applyMetadataRefreshResult(result, generation);
     } catch (error) {
       if (isTimeoutError(error)) {
         console.warn('[LibraryRefresh] Metadata refresh timed out.', error);
+        console.warn(`[LibraryRefresh] Metadata refresh timed out after ${Math.round(importTimeoutMs / 1000)}s. processed=0/${songs.length} updated=0 skipped=0 failed=0 lastSongId=none partialApplied=false`, error);
       } else if (!isCurrentRefresh(generation) || isAbortError(error)) {
         console.warn('[LibraryRefresh] Metadata refresh cancelled.', error);
         return;
@@ -72,7 +77,7 @@ export const useLibraryMetadataRefreshActions = ({
     } finally {
       finishRefresh(generation);
     }
-  }, [applyMetadataRefreshResult, finishRefresh, isCurrentRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
+  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
 
   return { refreshMetadataFromFiles };
 };

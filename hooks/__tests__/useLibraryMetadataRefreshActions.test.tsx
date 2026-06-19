@@ -8,8 +8,10 @@ import {
   getMetadataUpdateStoppedAlert,
   getMetadataRefreshFlowCopy,
   getNoSongsMetadataAlert,
+  getMetadataRefreshPartialAlert,
 } from '../../utils/libraryImportFlow';
 import { OperationAbortError, TimeoutError } from '../../utils/withTimeout';
+import { MetadataRefreshPartialError } from '../../utils/songMetadataRefresh';
 
 const song = (id: string, title = id): Song => ({
   id,
@@ -18,6 +20,19 @@ const song = (id: string, title = id): Song => ({
   album: 'Album',
   uri: `file://${id}.mp3`,
 });
+
+const songs = (count: number): Song[] =>
+  Array.from({ length: count }, (_, index) => song(`s${index + 1}`));
+
+type TestSongProcessedCallback = (partial: {
+  index: number;
+  song: Song;
+  patch?: Partial<Song>;
+  updatedDelta: number;
+  skippedDelta: number;
+  failedDelta: number;
+  errorUri?: string;
+}) => void;
 
 interface HookHarnessProps {
   songs?: Song[];
@@ -28,6 +43,7 @@ interface HookHarnessProps {
   showAlert?: jest.Mock;
   refreshSongsFromId3Impl?: jest.Mock;
   withTimeoutImpl?: <T>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), timeoutMs: number, timeoutMessage: string, options?: { signal?: AbortSignal }) => Promise<T>;
+  applySongMetadataPatches?: jest.Mock;
 }
 
 const HookHarness = ({
@@ -39,6 +55,7 @@ const HookHarness = ({
   showAlert = jest.fn(),
   refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 0, failed: 0 }),
   withTimeoutImpl = operation => (typeof operation === 'function' ? operation(new AbortController().signal) : operation),
+  applySongMetadataPatches,
 }: HookHarnessProps) => {
   const actions = useLibraryMetadataRefreshActions({
     songs,
@@ -50,6 +67,7 @@ const HookHarness = ({
     importTimeoutMs: 100,
     refreshSongsFromId3Impl,
     withTimeoutImpl,
+    applySongMetadataPatches,
   });
 
   return <Button title="refresh" onPress={() => void actions.refreshMetadataFromFiles()} />;
@@ -295,6 +313,378 @@ test('cancels stale overlapping refresh without applying stale state or stopped 
   expect(showAlert).not.toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(expect.any(Error)));
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+
+test('applies partial progress before timeout and shows continuation alert', async () => {
+  const applySongMetadataPatches = jest.fn();
+  const showAlert = jest.fn();
+  const partialResult = {
+    songs: [song('s1', 'Fresh'), song('s2')],
+    updated: 1,
+    skipped: 1,
+    failed: 0,
+    errors: [],
+    patchesBySongId: { s1: { title: 'Fresh' } },
+    processed: 2,
+    total: 3,
+    completed: false,
+    timedOut: true,
+    lastProcessedSongId: 's2',
+  };
+  const refreshSongsFromId3Impl = jest.fn().mockRejectedValue(
+    new MetadataRefreshPartialError('timed out', partialResult, new TimeoutError('timed out')),
+  );
+  const screen = render(
+    <HookHarness
+      songs={[song('s1'), song('s2'), song('s3')]}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      applySongMetadataPatches={applySongMetadataPatches}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({ s1: { title: 'Fresh' } }));
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(2, 3));
+});
+
+test('preserves active first chunk progress when timeout wins the race and resumes after it', async () => {
+  const librarySongs = songs(30);
+  const applySongMetadataPatches = jest.fn();
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest
+    .fn()
+    .mockImplementationOnce((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+      chunk.slice(0, 10).forEach((processedSong, index) => {
+        options?.onSongProcessed?.({
+          index,
+          song: { ...processedSong, title: `Fresh ${index + 1}` },
+          patch: { title: `Fresh ${index + 1}` },
+          updatedDelta: 1,
+          skippedDelta: 0,
+          failedDelta: 0,
+        });
+      });
+      return new Promise(() => undefined);
+    })
+    .mockResolvedValue({
+      songs: librarySongs.slice(10),
+      updated: 0,
+      skipped: 20,
+      failed: 0,
+      errors: [],
+      patchesBySongId: {},
+      processed: 20,
+      total: 30,
+      completed: true,
+    });
+  const withTimeoutImpl = jest
+    .fn()
+    .mockImplementationOnce(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+      if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+      throw timeoutError;
+    })
+    .mockImplementation(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => (
+      typeof operation === 'function' ? operation(new AbortController().signal) : operation
+    ));
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+      applySongMetadataPatches={applySongMetadataPatches}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith(
+    Object.fromEntries(librarySongs.slice(0, 10).map((processedSong, index) => [processedSong.id, { title: `Fresh ${index + 1}` }])),
+  ));
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30));
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2));
+  expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 3)).toEqual(['s11', 's12', 's13']);
+});
+
+test('does not commit resume progress when applying a partial result fails', async () => {
+  const librarySongs = songs(30);
+  const applyError = new Error('apply failed');
+  const applySongMetadataPatches = jest.fn()
+    .mockImplementationOnce(() => {
+      throw applyError;
+    })
+    .mockImplementation(() => undefined);
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest.fn().mockImplementation((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+    chunk.slice(0, 10).forEach((processedSong, index) => {
+      options?.onSongProcessed?.({
+        index,
+        song: { ...processedSong, title: `Fresh ${processedSong.id}` },
+        patch: { title: `Fresh ${processedSong.id}` },
+        updatedDelta: 1,
+        skippedDelta: 0,
+        failedDelta: 0,
+      });
+    });
+    return new Promise(() => undefined);
+  });
+  const withTimeoutImpl = async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+    if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+    throw timeoutError;
+  };
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+      applySongMetadataPatches={applySongMetadataPatches}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(applyError)));
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2));
+  expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 3)).toEqual(['s1', 's2', 's3']);
+});
+
+test('fallback setSongs keeps original library order after resumed refresh', async () => {
+  const librarySongs = songs(30);
+  const setSongs = jest.fn();
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest
+    .fn()
+    .mockImplementationOnce((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+      chunk.slice(0, 10).forEach((processedSong, index) => {
+        options?.onSongProcessed?.({
+          index,
+          song: processedSong,
+          updatedDelta: 0,
+          skippedDelta: 1,
+          failedDelta: 0,
+        });
+      });
+      return new Promise(() => undefined);
+    })
+    .mockImplementation((chunk: Song[]) => Promise.resolve({
+      songs: chunk.map(processedSong => (
+        processedSong.id === 's11' ? { ...processedSong, title: 'Fresh s11' } : processedSong
+      )),
+      updated: chunk.some(processedSong => processedSong.id === 's11') ? 1 : 0,
+      skipped: chunk.filter(processedSong => processedSong.id !== 's11').length,
+      failed: 0,
+      errors: [],
+      patchesBySongId: chunk.some(processedSong => processedSong.id === 's11') ? { s11: { title: 'Fresh s11' } } : {},
+      processed: chunk.length,
+      total: chunk.length,
+      completed: true,
+    }));
+  const withTimeoutImpl = jest
+    .fn()
+    .mockImplementationOnce(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+      if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+      throw timeoutError;
+    })
+    .mockImplementation(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => (
+      typeof operation === 'function' ? operation(new AbortController().signal) : operation
+    ));
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      setSongs={setSongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(setSongs).not.toHaveBeenCalled();
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(setSongs).toHaveBeenCalled());
+  const appliedSongs = setSongs.mock.calls[0][0] as Song[];
+  expect(appliedSongs.map(appliedSong => appliedSong.id)).toEqual(librarySongs.map(appliedSong => appliedSong.id));
+  expect(appliedSongs[10].title).toBe('Fresh s11');
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 29, 0));
+});
+
+test('multiple partial timeouts eventually complete when resume index wraps', async () => {
+  const librarySongs = songs(30);
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const refreshSongsFromId3Impl = jest.fn().mockImplementation((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+    chunk.slice(0, 10).forEach((processedSong, index) => {
+      options?.onSongProcessed?.({
+        index,
+        song: processedSong,
+        updatedDelta: 0,
+        skippedDelta: 1,
+        failedDelta: 0,
+      });
+    });
+    return new Promise(() => undefined);
+  });
+  const withTimeoutImpl = async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+    if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+    throw timeoutError;
+  };
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(refreshSongsFromId3Impl.mock.calls[0][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s1', 's2']);
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(10, 30)));
+  expect(refreshSongsFromId3Impl.mock.calls[1][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s11', 's12']);
+
+  fireEvent.press(screen.getByText('refresh'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(0, 10, 0)));
+  expect(refreshSongsFromId3Impl.mock.calls[2][0].map((processedSong: Song) => processedSong.id).slice(0, 2)).toEqual(['s21', 's22']);
+  expect(showAlert).not.toHaveBeenCalledWith(getMetadataRefreshPartialAlert(30, 30));
+});
+
+test('preserves later chunk in-flight progress without double-counting completed chunks', async () => {
+  const librarySongs = songs(40);
+  const applySongMetadataPatches = jest.fn();
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const completedChunkPatches = Object.fromEntries(librarySongs.slice(0, 25).map(processedSong => [processedSong.id, { title: `Done ${processedSong.id}` }]));
+  const activeChunkPatches = Object.fromEntries(librarySongs.slice(25, 32).map(processedSong => [processedSong.id, { title: `Partial ${processedSong.id}` }]));
+  const refreshSongsFromId3Impl = jest
+    .fn()
+    .mockResolvedValueOnce({
+      songs: librarySongs.slice(0, 25).map(processedSong => ({ ...processedSong, title: `Done ${processedSong.id}` })),
+      updated: 25,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      patchesBySongId: completedChunkPatches,
+      processed: 25,
+      total: 25,
+      completed: true,
+    })
+    .mockImplementationOnce((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+      chunk.slice(0, 7).forEach((processedSong, index) => {
+        options?.onSongProcessed?.({
+          index,
+          song: { ...processedSong, title: `Partial ${processedSong.id}` },
+          patch: { title: `Partial ${processedSong.id}` },
+          updatedDelta: 1,
+          skippedDelta: 0,
+          failedDelta: 0,
+        });
+      });
+      return new Promise(() => undefined);
+    });
+  const withTimeoutImpl = jest
+    .fn()
+    .mockImplementationOnce(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => (
+      typeof operation === 'function' ? operation(new AbortController().signal) : operation
+    ))
+    .mockImplementationOnce(async <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>)): Promise<T> => {
+      if (typeof operation === 'function') void operation(new AbortController().signal).catch(() => undefined);
+      throw timeoutError;
+    });
+  const screen = render(
+    <HookHarness
+      songs={librarySongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      withTimeoutImpl={withTimeoutImpl}
+      applySongMetadataPatches={applySongMetadataPatches}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+    ...completedChunkPatches,
+    ...activeChunkPatches,
+  }));
+  expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshPartialAlert(32, 40));
+});
+
+test('normal successful chunk uses chunk result once instead of double-merging callback progress', async () => {
+  const setSongs = jest.fn();
+  const showAlert = jest.fn();
+  const refreshSongsFromId3Impl = jest.fn().mockImplementation((chunk: Song[], options?: { onSongProcessed?: TestSongProcessedCallback }) => {
+    const updatedSong = { ...chunk[0], title: 'Fresh once' };
+    options?.onSongProcessed?.({
+      index: 0,
+      song: updatedSong,
+      patch: { title: 'Fresh once' },
+      updatedDelta: 1,
+      skippedDelta: 0,
+      failedDelta: 0,
+    });
+    return Promise.resolve({
+      songs: [updatedSong],
+      updated: 1,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      patchesBySongId: { s1: { title: 'Fresh once' } },
+      processed: 1,
+      total: 1,
+      completed: true,
+    });
+  });
+  const screen = render(
+    <HookHarness
+      songs={[song('s1')]}
+      setSongs={setSongs}
+      showAlert={showAlert}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 0, 0)));
+  expect(showAlert).not.toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(2, 0, 0));
+  expect(setSongs).toHaveBeenCalledWith([{ ...song('s1'), title: 'Fresh once' }]);
+});
+
+test('timeout with zero processed keeps stopped message', async () => {
+  const showAlert = jest.fn();
+  const timeoutError = new TimeoutError('timed out');
+  const withTimeoutImpl = async <T,>(): Promise<T> => { throw timeoutError; };
+  const screen = render(
+    <HookHarness
+      songs={[song('s1')]}
+      showAlert={showAlert}
+      withTimeoutImpl={withTimeoutImpl}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMetadataUpdateStoppedAlert(timeoutError)));
 });
 
 test('passes the active refresh signal to the injected timeout runner', async () => {

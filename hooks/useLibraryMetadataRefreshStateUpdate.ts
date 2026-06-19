@@ -10,6 +10,7 @@ interface UseLibraryMetadataRefreshStateUpdateOptions {
   showAlert: (alert: LibraryAlertCopy) => void;
   ensureCurrentRefresh: (generation: MetadataRefreshGeneration) => void;
   applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
+  commitMetadataRefreshProgress?: (result: MetadataRefreshSongsResult) => void;
 }
 
 export const useLibraryMetadataRefreshStateUpdate = ({
@@ -17,10 +18,11 @@ export const useLibraryMetadataRefreshStateUpdate = ({
   showAlert,
   ensureCurrentRefresh,
   applySongMetadataPatches,
+  commitMetadataRefreshProgress,
 }: UseLibraryMetadataRefreshStateUpdateOptions) => {
   const applyMetadataRefreshResult = useCallback((result: MetadataRefreshSongsResult, generation: MetadataRefreshGeneration): void => {
     ensureCurrentRefresh(generation);
-    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed);
+    const refreshResult = buildMetadataRefreshResult(result.songs, result.updated, result.skipped, result.failed, result.processed, result.total, result.completed);
     if (refreshResult.shouldApplyUpdate) {
       if (applySongMetadataPatches && Object.keys(result.patchesBySongId ?? {}).length > 0) {
         applySongMetadataPatches(result.patchesBySongId ?? {});
@@ -29,8 +31,9 @@ export const useLibraryMetadataRefreshStateUpdate = ({
       }
     }
     ensureCurrentRefresh(generation);
+    commitMetadataRefreshProgress?.(result);
     showAlert(refreshResult.alert);
-  }, [applySongMetadataPatches, ensureCurrentRefresh, setSongs, showAlert]);
+  }, [applySongMetadataPatches, commitMetadataRefreshProgress, ensureCurrentRefresh, setSongs, showAlert]);
 
   return { applyMetadataRefreshResult };
 };

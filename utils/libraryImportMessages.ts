@@ -11,6 +11,7 @@ export const libraryImportMessages = {
   noSongsTitle: 'Keine Titel',
   noSongsMetadataMessage: 'Importiere zuerst Musik, bevor Metadaten aktualisiert werden.',
   metadataUpdatedTitle: 'Metadaten aktualisiert',
+  metadataPartiallyUpdatedTitle: 'Metadaten teilweise aktualisiert',
   metadataUpdateStoppedTitle: 'Metadaten-Update gestoppt',
   metadataUpdateFallbackError: 'Metadaten konnten nicht aktualisiert werden.',
   importStoppedTitle: 'Import gestoppt',
@@ -40,3 +41,6 @@ export const tracksSavingStatus = (count: number): string =>
 
 export const metadataRefreshSummary = (updated: number, skipped: number, failed: number): string =>
   `${updated} Titel aktualisiert. ${skipped} übersprungen. ${failed} fehlgeschlagen.`;
+
+export const metadataRefreshPartialSummary = (processed: number, total: number): string =>
+  `${processed} von ${total} Titeln wurden geprüft. Starte die Aktualisierung erneut, um fortzufahren.`;
