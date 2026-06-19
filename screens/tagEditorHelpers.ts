@@ -233,6 +233,14 @@ const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>
   new Set(['embedded', 'cached']);
 
 export const hasRemovableCover = (song: Song): boolean => {
+  const hasArtwork = Boolean(song.cover || song.coverInfo?.uri);
+  if (hasArtwork && (
+    song.coverInfo?.pendingEmbeddedArtworkRefresh === true
+    || song.coverInfo?.embeddedArtworkRefreshFailed === true
+  )) {
+    return true;
+  }
+
   const status = song.coverInfo?.status;
   if (status) return REMOVABLE_COVER_STATUSES.has(status);
   return Boolean(song.cover);

@@ -178,6 +178,33 @@ describe('tagEditorHelpers', () => {
     ).toBe(false);
     expect(
       hasRemovableCover({
+        id: 's5-pending',
+        title: 'Pending replacement preview',
+        artist: 'Artist',
+        cover: 'file:///picked-cover.jpg',
+        coverInfo: {
+          status: 'external',
+          uri: 'file:///picked-cover.jpg',
+          pendingEmbeddedArtworkRefresh: true,
+        },
+      }),
+    ).toBe(true);
+    expect(
+      hasRemovableCover({
+        id: 's5-failed',
+        title: 'Failed replacement preview',
+        artist: 'Artist',
+        cover: 'file:///picked-cover.jpg',
+        coverInfo: {
+          status: 'external',
+          uri: 'file:///picked-cover.jpg',
+          pendingEmbeddedArtworkRefresh: false,
+          embeddedArtworkRefreshFailed: true,
+        },
+      }),
+    ).toBe(true);
+    expect(
+      hasRemovableCover({
         id: 's6',
         title: 'No cover',
         artist: 'Artist',
