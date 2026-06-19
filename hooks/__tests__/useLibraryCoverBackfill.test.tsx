@@ -99,6 +99,91 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
   });
 
+  test('keeps safe partial cover patches from a normal songs-change abort', async () => {
+    let secondResolve: (value: { uri: string }) => void = () => {};
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock)
+      .mockResolvedValueOnce({ uri: 'file:///cover-a.jpg' })
+      .mockImplementationOnce(() => new Promise(resolve => {
+        secondResolve = resolve;
+      }))
+      .mockResolvedValue({ uri: 'file:///later-cover.jpg' });
+    const applySongMetadataPatches = jest.fn();
+
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
+      { initialProps: { value: [song('a'), song('b')] } },
+    );
+
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+    rerender({ value: [song('a', { title: 'renamed-a' }), song('b', { title: 'renamed-b' })] });
+    secondResolve({ uri: 'file:///stale-cover-b.jpg' });
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
+      a: {
+        cover: 'file:///cover-a.jpg',
+        coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true },
+      },
+    }));
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rerender({
+      value: [
+        song('a', { title: 'renamed-a', cover: 'file:///cover-a.jpg', coverInfo: { status: 'cached', uri: 'file:///cover-a.jpg', embeddedArtworkChecked: true } }),
+        song('b', { title: 'renamed-b' }),
+      ],
+    });
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+  });
+
+  test('discards aborted partial results after unmount', async () => {
+    let secondResolve: (value: { uri: string }) => void = () => {};
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock)
+      .mockResolvedValueOnce({ uri: 'file:///cover-a.jpg' })
+      .mockImplementationOnce(() => new Promise(resolve => {
+        secondResolve = resolve;
+      }));
+    const applySongMetadataPatches = jest.fn();
+
+    const rendered = renderHook(() => useLibraryCoverBackfill({
+      songs: [song('a'), song('b')],
+      applySongMetadataPatches,
+    }));
+
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+    rendered.unmount();
+    secondResolve({ uri: 'file:///stale-cover-b.jpg' });
+    await flush();
+
+    expect(applySongMetadataPatches).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+  });
+
+  test('does not let an older aborted partial patch a changed newer backfill candidate', async () => {
+    let secondResolve: (value: { uri: string }) => void = () => {};
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock)
+      .mockResolvedValueOnce({ uri: 'file:///old-cover-a.jpg' })
+      .mockImplementationOnce(() => new Promise(resolve => {
+        secondResolve = resolve;
+      }))
+      .mockResolvedValue({ uri: 'file:///new-cover-a.jpg' });
+    const applySongMetadataPatches = jest.fn();
+
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
+      { initialProps: { value: [song('a'), song('b')] } },
+    );
+
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+    rerender({ value: [song('a', { uri: 'file:///a-new.mp3' }), song('b', { uri: 'file:///b-new.mp3' })] });
+    secondResolve({ uri: 'file:///old-cover-b.jpg' });
+    await flush();
+
+    expect(applySongMetadataPatches).not.toHaveBeenCalledWith({
+      a: expect.objectContaining({ cover: 'file:///old-cover-a.jpg' }),
+    });
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+  });
+
   test('keeps protection until completed backfilled covers are owned by the songs snapshot', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
     const applySongMetadataPatches = jest.fn();
