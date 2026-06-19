@@ -9,6 +9,9 @@ const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>)
   run().catch(error => logRemotePlaybackError(action, error));
 };
 
+const normalizeJumpInterval = (interval: unknown): number =>
+  typeof interval === 'number' && Number.isFinite(interval) && interval > 0 ? interval : 10;
+
 /**
  * Background service registered in index.js.
  * Handles remote controls from Lockscreen / Notification / Bluetooth.
@@ -37,9 +40,9 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemotePlaybackAction('seek', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(position)));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {
-    handleRemotePlaybackAction('jump forward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(interval ?? 10)));
+    handleRemotePlaybackAction('jump forward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(normalizeJumpInterval(interval))));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => {
-    handleRemotePlaybackAction('jump backward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(-(interval ?? 10))));
+    handleRemotePlaybackAction('jump backward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(-normalizeJumpInterval(interval))));
   });
 };

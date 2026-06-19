@@ -49,6 +49,20 @@ describe('needsEmbeddedCoverBackfill', () => {
     expect(needsEmbeddedCoverBackfill(song('a', { cover: 'file:///cache/native-cover.jpg', coverInfo: { status: 'embedded', uri: 'file:///cache/native-cover.jpg', embeddedArtworkChecked: true } }))).toBe(true);
   });
 
+  test('treats pending embedded refresh previews as candidates even with visible artwork', () => {
+    expect(needsEmbeddedCoverBackfill(song('a', {
+      cover: 'file:///picker-cover.jpg',
+      coverInfo: {
+        status: 'external',
+        uri: 'file:///picker-cover.jpg',
+        embeddedArtworkChecked: false,
+        embeddedArtworkRevision: 1,
+        pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
+      },
+    }))).toBe(true);
+  });
+
   test('continues to block remote source uris', () => {
     expect(needsEmbeddedCoverBackfill(song('a', { uri: 'https://example.com/a.mp3' }))).toBe(false);
   });
@@ -79,6 +93,52 @@ test('stabilizes extracted native cache artwork before applying cover result', a
     cover: 'file:///docs/covers/native-cover.jpg',
     coverInfo: { status: 'cached', uri: 'file:///docs/covers/native-cover.jpg', embeddedArtworkChecked: true },
   });
+});
+
+
+test('keeps pending preview artwork when embedded extraction finds no cover', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(undefined);
+
+  const result = await backfillEmbeddedSongCovers([
+    song('a', {
+      cover: 'file:///picker-cover.jpg',
+      coverInfo: {
+        status: 'external',
+        uri: 'file:///picker-cover.jpg',
+        embeddedArtworkChecked: false,
+        embeddedArtworkRevision: 1,
+        pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
+      },
+    }),
+  ]);
+
+  expect(result.songs[0]).toMatchObject({
+    cover: 'file:///picker-cover.jpg',
+    coverInfo: {
+      status: 'external',
+      uri: 'file:///picker-cover.jpg',
+      embeddedArtworkChecked: true,
+      embeddedArtworkRevision: 1,
+      pendingEmbeddedArtworkRefresh: false,
+      embeddedArtworkRefreshFailed: true,
+    },
+  });
+});
+
+
+test('skips failed pending previews with visible artwork to avoid erasing previews on retry', () => {
+  expect(needsEmbeddedCoverBackfill(song('a', {
+    cover: 'file:///picker-cover.jpg',
+    coverInfo: {
+      status: 'external',
+      uri: 'file:///picker-cover.jpg',
+      embeddedArtworkChecked: true,
+      embeddedArtworkRevision: 1,
+      pendingEmbeddedArtworkRefresh: false,
+      embeddedArtworkRefreshFailed: true,
+    },
+  }))).toBe(false);
 });
 
 test('per-song extraction failures do not abort the whole backfill', async () => {

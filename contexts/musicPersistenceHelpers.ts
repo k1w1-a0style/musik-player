@@ -96,7 +96,7 @@ const drainPersistQueue = async (
   persistedRefs: Record<string, string>,
   queueState: PersistQueueState,
 ): Promise<void> => {
-  if (queueState.inFlight) return queueState.drainPromise;
+  if (queueState.inFlight) return queueState.drainPromise ?? Promise.resolve();
 
   queueState.inFlight = true;
   try {

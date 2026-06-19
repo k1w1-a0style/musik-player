@@ -28,7 +28,7 @@ test('media library enrichment reads ID3 by default', async () => {
     { id: 's1', uri: 'file:///song.mp3', filename: 'Fallback.mp3', duration: 1 } as any,
   ]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3');
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', { signal: undefined });
   expect(result.songs[0].title).toBe('ID3 Title');
   expect(result.songs[0].artist).toBe('ID3 Artist');
 });
@@ -51,7 +51,7 @@ test('SAF scan reads ID3 by default and can explicitly skip it', async () => {
   const metadataResult = await scanFromSafFolders([
     { id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true },
   ]);
-  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3');
+  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', { signal: undefined });
   expect(metadataResult.songs[0].title).toBe('SAF Title');
   expect(metadataResult.songs[0].artist).toBe('SAF Artist');
 
@@ -62,6 +62,58 @@ test('SAF scan reads ID3 by default and can explicitly skip it', async () => {
   );
   expect(parseId3FromUri).not.toHaveBeenCalled();
   expect(fastResult.songs[0].title).toBe('song');
+});
+
+
+test('media library enrichment passes abort signal to ID3 reads', async () => {
+  const controller = new AbortController();
+
+  await enrichMediaLibraryAssets(
+    [{ id: 's1', uri: 'file:///song.mp3', filename: 'Fallback.mp3', duration: 1 } as any],
+    0,
+    { readId3Tags: true, signal: controller.signal },
+  );
+
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', { signal: controller.signal });
+});
+
+test('media library enrichment does not swallow ID3 abort as empty tags', async () => {
+  const controller = new AbortController();
+  const abortError = new Error('cancelled');
+  (parseId3FromUri as jest.Mock).mockImplementationOnce(async () => {
+    controller.abort(abortError);
+    throw abortError;
+  });
+
+  await expect(enrichMediaLibraryAssets(
+    [{ id: 's1', uri: 'file:///song.mp3', filename: 'Fallback.mp3', duration: 1 } as any],
+    0,
+    { readId3Tags: true, signal: controller.signal },
+  )).rejects.toThrow('cancelled');
+});
+
+test('media library enrichment treats non-abort ID3 failures as empty tags', async () => {
+  (parseId3FromUri as jest.Mock).mockRejectedValueOnce(new Error('bad tags'));
+
+  const result = await enrichMediaLibraryAssets([
+    { id: 's1', uri: 'file:///Fallback.mp3', filename: 'Fallback.mp3', duration: 1 } as any,
+  ]);
+
+  expect(result.songs[0].title).toBe('Fallback');
+  expect(result.errors).toEqual([]);
+});
+
+
+test('SAF scan passes abort signal to ID3 reads', async () => {
+  const controller = new AbortController();
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue(['content://root/song.mp3']);
+
+  await scanFromSafFolders(
+    [{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }],
+    { readId3Tags: true, signal: controller.signal },
+  );
+
+  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', { signal: controller.signal });
 });
 
 

@@ -125,8 +125,15 @@ describe('PlaybackService', () => {
   test.each([
     [Event.RemoteJumpForward, 15, 15],
     [Event.RemoteJumpForward, undefined, 10],
+    [Event.RemoteJumpForward, Number.NaN, 10],
+    [Event.RemoteJumpForward, Number.POSITIVE_INFINITY, 10],
+    [Event.RemoteJumpForward, -5, 10],
+    [Event.RemoteJumpForward, '15', 10],
     [Event.RemoteJumpBackward, 7, -7],
     [Event.RemoteJumpBackward, undefined, -10],
+    [Event.RemoteJumpBackward, Number.NaN, -10],
+    [Event.RemoteJumpBackward, Number.POSITIVE_INFINITY, -10],
+    [Event.RemoteJumpBackward, -5, -10],
   ])('runs jump seekBy for %s with interval %p', async (event, interval, expectedOffset) => {
     await PlaybackService();
 

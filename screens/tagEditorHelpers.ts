@@ -12,7 +12,7 @@ import { normalizeEditableTags } from '../utils/tagValidation';
 export type FormState = Record<keyof EditableTrackTags, string>;
 
 const SAF_READ_ONLY_MESSAGE =
-  'Diese Datei liegt in einem geschützten Android-Ordner. Kopiere sie zuerst in einen lokalen Musikordner, um Tags bearbeiten zu können.';
+  'Bei Android-Medien- oder SAF-Quellen kann der Schreibzugriff eingeschränkt sein. Falls Speichern fehlschlägt, wähle die Datei erneut über den System-Dateiauswahldialog aus.';
 const ID3V22_UNSUPPORTED_MESSAGE =
   'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
@@ -21,6 +21,17 @@ const TAG_LAYOUT_UNSUPPORTED_MESSAGE =
   'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE =
   'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
+
+let embeddedArtworkRevision = 0;
+
+export const nextEmbeddedArtworkRevision = (): number => {
+  embeddedArtworkRevision += 1;
+  return embeddedArtworkRevision;
+};
+
+export const resetEmbeddedArtworkRevisionForTests = (): void => {
+  embeddedArtworkRevision = 0;
+};
 
 export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
   { key: 'title', label: 'Titel' },
@@ -201,10 +212,18 @@ export const buildMetadataPatchFromDraft = (
   }
 
   if (draft.cover) {
-    // Keep the freshly picked URI visible after save; a later scan/cache extraction can
-    // replace it with a stable embedded-cover URI without adding a save-time reparse here.
-    metadataPatch.cover = replacementCover?.uri;
-    metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
+    // Keep the freshly picked artwork visible as an external/pending preview,
+    // but do not treat that picker URI as the stable embedded artwork result.
+    const previewUri = replacementCover?.uri;
+    metadataPatch.cover = previewUri;
+    metadataPatch.coverInfo = {
+      status: 'external',
+      uri: previewUri,
+      embeddedArtworkChecked: false,
+      embeddedArtworkRevision: nextEmbeddedArtworkRevision(),
+      pendingEmbeddedArtworkRefresh: true,
+      embeddedArtworkRefreshFailed: false,
+    } satisfies SongCoverInfo;
   }
 
   return metadataPatch;
@@ -214,6 +233,14 @@ const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>
   new Set(['embedded', 'cached']);
 
 export const hasRemovableCover = (song: Song): boolean => {
+  const hasArtwork = Boolean(song.cover || song.coverInfo?.uri);
+  if (hasArtwork && (
+    song.coverInfo?.pendingEmbeddedArtworkRefresh === true
+    || song.coverInfo?.embeddedArtworkRefreshFailed === true
+  )) {
+    return true;
+  }
+
   const status = song.coverInfo?.status;
   if (status) return REMOVABLE_COVER_STATUSES.has(status);
   return Boolean(song.cover);

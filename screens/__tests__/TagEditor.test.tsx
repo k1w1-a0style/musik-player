@@ -213,8 +213,8 @@ test('shows content URI read-only safety notice', () => {
     },
   ];
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/geschützten Android-Ordner/)).toBeTruthy();
-  expect(getByText(/lokalen Musikordner/)).toBeTruthy();
+  expect(getByText(/Android-Medien- oder SAF-Quellen/)).toBeTruthy();
+  expect(getByText(/System-Dateiauswahldialog/)).toBeTruthy();
 });
 
 test('unchanged form does not write', () => {
@@ -528,6 +528,49 @@ test('remove-cover disabled for external cover info with song.cover because it i
   ];
   const { getByTestId } = render(<TagEditor />);
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
+});
+
+test('remove-cover enabled for pending replacement preview and clears pending state on save', async () => {
+  mockSongs = [
+    {
+      ...mockSongs[0],
+      cover: 'file:///picked-cover.jpg',
+      coverInfo: {
+        status: 'external',
+        uri: 'file:///picked-cover.jpg',
+        pendingEmbeddedArtworkRefresh: true,
+        embeddedArtworkRefreshFailed: false,
+      },
+    },
+  ];
+  mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
+  const { getByTestId } = render(<TagEditor />);
+
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(false);
+  fireEvent.press(getByTestId('remove-cover'));
+  fireEvent.press(getByTestId('save-button'));
+
+  await waitFor(() => expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
+    cover: undefined,
+    coverInfo: undefined,
+  }));
+});
+
+test('remove-cover enabled for failed replacement preview', () => {
+  mockSongs = [
+    {
+      ...mockSongs[0],
+      cover: 'file:///picked-cover.jpg',
+      coverInfo: {
+        status: 'external',
+        uri: 'file:///picked-cover.jpg',
+        pendingEmbeddedArtworkRefresh: false,
+        embeddedArtworkRefreshFailed: true,
+      },
+    },
+  ];
+  const { getByTestId } = render(<TagEditor />);
+  expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(false);
 });
 
 test('hasRemovableCover treats embedded/cached file cover statuses and legacy cover-only songs as removable but external/none/unknown as not removable', () => {
