@@ -213,8 +213,8 @@ test('shows content URI read-only safety notice', () => {
     },
   ];
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/geschützten Android-Ordner/)).toBeTruthy();
-  expect(getByText(/lokalen Musikordner/)).toBeTruthy();
+  expect(getByText(/Android-Medien- oder SAF-Quellen/)).toBeTruthy();
+  expect(getByText(/System-Dateiauswahldialog/)).toBeTruthy();
 });
 
 test('unchanged form does not write', () => {

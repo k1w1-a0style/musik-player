@@ -179,9 +179,14 @@ const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> 
   }
 };
 
-const readId3TagsIfEnabled = async (uri: string, enabled: boolean): Promise<Id3Tags> => {
+const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal): Promise<Id3Tags> => {
   if (!enabled) return {};
-  return parseId3FromUri(uri).catch(() => ({}));
+  try {
+    return await parseId3FromUri(uri, { signal });
+  } catch {
+    throwIfAborted(signal);
+    return {};
+  }
 };
 
 const bitrateFromSizeAndDuration = (size?: number, durationMs?: number): number | undefined => {
@@ -532,7 +537,7 @@ export const enrichMediaLibraryAssets = async (
       const asset = queue.shift();
       if (!asset) break;
       try {
-        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags);
+        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal);
         throwIfAborted(signal);
         songs.push(await buildSongFromImportSource({
           id: asset.id,
@@ -601,7 +606,7 @@ export const scanFromSafFolders = async (
     for (const uri of files) {
       throwIfAborted(signal);
       try {
-        const tags = await readId3TagsIfEnabled(uri, readId3Tags);
+        const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
         throwIfAborted(signal);
         songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
         throwIfAborted(signal);

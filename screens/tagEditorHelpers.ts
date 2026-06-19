@@ -12,7 +12,7 @@ import { normalizeEditableTags } from '../utils/tagValidation';
 export type FormState = Record<keyof EditableTrackTags, string>;
 
 const SAF_READ_ONLY_MESSAGE =
-  'Diese Datei liegt in einem geschützten Android-Ordner. Kopiere sie zuerst in einen lokalen Musikordner, um Tags bearbeiten zu können.';
+  'Bei Android-Medien- oder SAF-Quellen kann der Schreibzugriff eingeschränkt sein. Falls Speichern fehlschlägt, wähle die Datei erneut über den System-Dateiauswahldialog aus.';
 const ID3V22_UNSUPPORTED_MESSAGE =
   'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
@@ -185,7 +185,7 @@ const applyEditableTagPatch = (
 
 export const buildMetadataPatchFromDraft = (
   draft: TagEditDraft,
-  replacementCover?: PickedTagCover | null,
+  _replacementCover?: PickedTagCover | null,
 ): Partial<Song> => {
   const normalizedTags = normalizeEditableTags(draft.tags);
   const metadataPatch: Partial<Song> = {};
@@ -201,10 +201,14 @@ export const buildMetadataPatchFromDraft = (
   }
 
   if (draft.cover) {
-    // Keep the freshly picked URI visible after save; a later scan/cache extraction can
-    // replace it with a stable embedded-cover URI without adding a save-time reparse here.
-    metadataPatch.cover = replacementCover?.uri;
-    metadataPatch.coverInfo = { status: 'embedded', uri: replacementCover?.uri } as SongCoverInfo;
+    // The cover was written into the audio file. Avoid persisting picker URIs
+    // (often temporary on iOS) and let embedded-cover backfill extract a stable URI.
+    metadataPatch.cover = undefined;
+    metadataPatch.coverInfo = {
+      status: 'embedded',
+      uri: undefined,
+      embeddedArtworkChecked: false,
+    } satisfies SongCoverInfo;
   }
 
   return metadataPatch;
