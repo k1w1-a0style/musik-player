@@ -333,6 +333,7 @@ test('exposes processed partial results when abort happens after progress', asyn
   await expect(refreshSongsFromId3(songs, {
     signal: controller.signal,
     onProgress: () => controller.abort(new Error('stop')),
+    concurrency: 1,
   })).rejects.toMatchObject({
     name: 'MetadataRefreshPartialError',
     result: expect.objectContaining({
@@ -356,7 +357,7 @@ test('notifies per-song partial progress for updated skipped and failed songs', 
   });
   const onSongProcessed = jest.fn();
 
-  await refreshSongsFromId3([baseSong, withoutUri, failing], { onSongProcessed });
+  await refreshSongsFromId3([baseSong, withoutUri, failing], { onSongProcessed, concurrency: 1 });
 
   expect(onSongProcessed).toHaveBeenNthCalledWith(1, expect.objectContaining({
     index: 0,

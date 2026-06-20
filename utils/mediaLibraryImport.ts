@@ -14,6 +14,7 @@ const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
 // Not real threads/WebWorkers: two async readers interleave ID3 I/O on the JS queue.
 const ID3_CONCURRENT_READERS = 2;
+const SAF_ID3_CONCURRENT_READERS = 2;
 export const MAX_SAF_FILES = 5000;
 const MAX_SAF_DEPTH = 2;
 export const MAX_SAF_DIRECTORIES = 300;
@@ -603,20 +604,26 @@ export const scanFromSafFolders = async (
     else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
     else folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
 
-    for (const uri of files) {
-      throwIfAborted(signal);
-      try {
-        const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
+    const queue = [...files];
+    const workers = Array.from({ length: Math.min(SAF_ID3_CONCURRENT_READERS, queue.length || 1) }, async () => {
+      while (queue.length > 0) {
         throwIfAborted(signal);
-        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
-        throwIfAborted(signal);
-      } catch {
-        throwIfAborted(signal);
-        recordImportError(uri);
-        songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
-        throwIfAborted(signal);
+        const uri = queue.shift();
+        if (!uri) return;
+        try {
+          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
+          throwIfAborted(signal);
+          songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
+          throwIfAborted(signal);
+        } catch {
+          throwIfAborted(signal);
+          recordImportError(uri);
+          songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
+          throwIfAborted(signal);
+        }
       }
-    }
+    });
+    await Promise.all(workers);
   }
 
   throwIfAborted(signal);

@@ -142,8 +142,8 @@ export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
   return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 
-const DEFAULT_CONCURRENCY = 1;
-const MAX_CONCURRENCY = 2;
+const DEFAULT_CONCURRENCY = 2;
+const MAX_CONCURRENCY = 3;
 export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
   includeCover: false,
   maxHeadBytes: 256 * 1024,

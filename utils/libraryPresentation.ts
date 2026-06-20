@@ -114,6 +114,55 @@ export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' 
   return `song-meta:${artistKey}:${titleKey}:${durationKey}`;
 };
 
+
+const hasNonEmptyText = (value?: string | null): value is string => Boolean(value?.trim());
+const hasUsableNumber = (value?: number | null): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
+const hasUsableArtwork = (song?: Pick<Song, 'cover' | 'coverInfo'> | null): boolean => Boolean(getSongArtworkUri(song));
+
+const preferText = (incoming?: string, previous?: string): string | undefined => hasNonEmptyText(incoming) ? incoming : previous;
+const preferNumber = (incoming?: number, previous?: number): number | undefined => hasUsableNumber(incoming) ? incoming : previous;
+
+export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, incomingSong: Song): Song => {
+  if (!previousSong) return incomingSong;
+
+  const merged: Song = {
+    ...previousSong,
+    ...incomingSong,
+    album: preferText(incomingSong.album, previousSong.album),
+    albumArtist: preferText(incomingSong.albumArtist, previousSong.albumArtist),
+    genre: preferText(incomingSong.genre, previousSong.genre),
+    year: preferText(incomingSong.year, previousSong.year),
+    trackNumber: preferText(incomingSong.trackNumber, previousSong.trackNumber),
+    discNumber: preferText(incomingSong.discNumber, previousSong.discNumber),
+    duration: preferNumber(incomingSong.duration, previousSong.duration),
+    fileInfo: {
+      ...previousSong.fileInfo,
+      ...incomingSong.fileInfo,
+      uri: preferText(incomingSong.fileInfo?.uri, previousSong.fileInfo?.uri),
+      filename: preferText(incomingSong.fileInfo?.filename, previousSong.fileInfo?.filename),
+      size: preferNumber(incomingSong.fileInfo?.size, previousSong.fileInfo?.size),
+      source: preferText(incomingSong.fileInfo?.source, previousSong.fileInfo?.source),
+      importedAt: preferNumber(incomingSong.fileInfo?.importedAt, previousSong.fileInfo?.importedAt),
+    },
+    audioInfo: {
+      ...previousSong.audioInfo,
+      ...incomingSong.audioInfo,
+      bitrate: preferNumber(incomingSong.audioInfo?.bitrate, previousSong.audioInfo?.bitrate),
+      sampleRate: preferNumber(incomingSong.audioInfo?.sampleRate, previousSong.audioInfo?.sampleRate),
+      channels: preferNumber(incomingSong.audioInfo?.channels, previousSong.audioInfo?.channels),
+    },
+  };
+
+  if (!hasUsableArtwork(incomingSong) && hasUsableArtwork(previousSong)) {
+    merged.cover = previousSong.cover;
+    merged.coverInfo = previousSong.coverInfo;
+  }
+
+  if (!previousSong.fileInfo && !incomingSong.fileInfo) delete merged.fileInfo;
+  if (!previousSong.audioInfo && !incomingSong.audioInfo) delete merged.audioInfo;
+  return merged;
+};
+
 const mergeSongKeys = (song: Song): string[] => [
   normalizedSongUriKey(song),
   normalizedSongFingerprintKey(song),
@@ -149,7 +198,7 @@ export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[]
     const keys = mergeSongKeys(song);
     const canonicalKey = keys.find(key => byKey.has(key)) ?? keys[0] ?? buildSongKey(song);
     const previousSong = byKey.get(canonicalKey);
-    const mergedSong = { ...previousSong, ...song };
+    const mergedSong = mergeSongPreservingRichMetadata(previousSong, song);
 
     if (previousSong) {
       byKey.forEach((value, key) => {

@@ -9,6 +9,7 @@ import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunn
 
 
 const METADATA_REFRESH_CHUNK_SIZE = 25;
+const METADATA_REFRESH_ID3_CONCURRENCY = 2;
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 
 interface MetadataRefreshProcessingItem {
@@ -126,7 +127,7 @@ export const useLibraryMetadataRefreshRunner = ({
     const startIndex = resumeIndexRef.current < songs.length ? resumeIndexRef.current : 0;
     const processingItems = buildMetadataRefreshProcessingItems(songs, startIndex);
     let result = emptyMetadataRefreshResult(songs, songs.length);
-    setImportStatus(refreshCopy.readingStatus);
+    setImportStatus(startIndex > 0 ? `${refreshCopy.readingStatus} (Fortsetzen bei ${startIndex + 1}/${songs.length})` : refreshCopy.readingStatus);
 
     for (let chunkStart = 0; chunkStart < processingItems.length; chunkStart += METADATA_REFRESH_CHUNK_SIZE) {
       ensureCurrentRefresh(generation);
@@ -140,7 +141,8 @@ export const useLibraryMetadataRefreshRunner = ({
           signal => refreshSongsFromId3Impl(chunk, {
             signal,
             includeCover: false,
-            onProgress: processed => setImportStatus(`Metadaten ${result.processed + processed}/${songs.length}`),
+            concurrency: METADATA_REFRESH_ID3_CONCURRENCY,
+            onProgress: processed => setImportStatus(`Metadaten ${Math.min(songs.length, startIndex + result.processed + processed)}/${songs.length}`),
             onSongProcessed: processedSong => {
               currentChunkPartial = mergeProcessedSongIntoRefreshResult(currentChunkPartial, processedSong);
             },

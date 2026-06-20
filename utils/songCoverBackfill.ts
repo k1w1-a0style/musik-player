@@ -19,9 +19,10 @@ export interface SongCoverBackfillOptions {
   shouldProcessSong?: (song: Song) => boolean;
   yieldToUi?: () => Promise<void>;
   coverCacheProtection?: CoverCacheProtection;
+  onSongProcessed?: (song: Song, index: number) => void;
 }
 
-const DEFAULT_CONCURRENCY = 1;
+const DEFAULT_CONCURRENCY = 2;
 const MAX_CONCURRENCY = 2;
 const DEFAULT_BATCH_SIZE = 8;
 
@@ -126,6 +127,7 @@ export const backfillEmbeddedSongCovers = async (
       }
       const patched = applyCoverResult(candidate.song, artworkUri);
       nextSongs[candidate.index] = patched;
+      options.onSongProcessed?.(patched, candidate.index);
       if (patched !== candidate.song && artworkUri) updated += 1;
       attempted += 1;
       await maybeYield();
