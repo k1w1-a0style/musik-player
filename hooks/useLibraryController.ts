@@ -1,4 +1,5 @@
 import { useLibraryControllerActions } from './useLibraryControllerActions';
+import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
 import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
 import { useLibraryControllerProps } from './useLibraryControllerProps';
 import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
@@ -89,6 +90,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
   });
 
   useLibraryCoverBackfill({ songs, applySongMetadataPatches });
+  useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });
 
   const {
     getSongItemLayout,
