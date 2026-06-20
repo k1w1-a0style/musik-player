@@ -48,7 +48,7 @@ Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-a
 - [ ] Notification-Steuerung funktioniert.
 - [ ] EQ-Modul initialisiert ohne Crash.
 - [ ] Palette/Cover-Extraktion funktioniert ohne Crash.
-- [ ] SAF/content:// bleibt read-only für Tag-/Cover-Writes.
+- [ ] SAF/content-MP3-Texttag-Write und blockierte SAF-Write-Grenzen bleiben unverändert stabil.
 - [ ] Tag-Bearbeitung für lokale file://-Titel funktioniert.
 - [ ] Keine regressiven Permission-Änderungen im Android-Manifest.
 
@@ -93,10 +93,13 @@ npm run test:coverage -- --runInBand
 - [ ] Favoriten persistieren.
 - [ ] Playlists persistieren.
 
-### Tag-/Cover-Flows
+### Tag-/Cover-/Metadata-Flows
 
+- [ ] AlbumArtist-Anzeige, Gruppierung und Tag-Editor-Speichern funktionieren.
+- [ ] AudioInfo-Backfill ergänzt bestehende Titel ohne Dauer/Bitrate/SampleRate/Channels, ohne vorhandene positive Werte zu überschreiben.
 - [ ] Tag-Bearbeitung für unterstützten `file://`-Titel funktioniert.
-- [ ] `content://` bleibt read-only.
+- [ ] SAF/content-MP3-Texttag-Write funktioniert nur mit bestehender persisted Permission und unterstütztem Layout.
+- [ ] SAF/content-Cover-Writes, MP4/M4A-SAF-Writes und unsupported Layouts bleiben sichtbar blockiert.
 - [ ] Empty URI wird blockiert.
 - [ ] Große Datei wird vor Write blockiert.
 - [ ] Cover ersetzen funktioniert für unterstützte schreibbare `file://`-Titel.
@@ -125,7 +128,7 @@ npm run test:coverage -- --runInBand
 
 - [ ] Keine aktiven P1/P2 Review-Threads offen.
 - [ ] Kein failing Typecheck/Lint/Test/Coverage-Gate.
-- [ ] Keine fehlende manuelle Android-Smoke-Prüfung nach SDK-/FileSystem-Änderung.
+- [ ] Keine fehlende manuelle Android-Smoke-Prüfung nach Native-/SDK-/FileSystem-Änderung.
 - [ ] Keine unklare destructive migration.
 - [ ] Keine abgesenkte Coverage ohne Begründung.
 
@@ -173,10 +176,13 @@ Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/
 - [ ] ID3 Smoke Test mit MP3 v2.2/v2.3/v2.4 lesen; v2.2 Textfelder müssen beim Import sichtbar sein
 - [ ] Cover Smoke Test (embedded Cover wird angezeigt; zu große/ungültige Cover bleiben stabil)
 - [ ] Tag-Bearbeitung-Smoke-Test (Save/No-op/Error Zustände sichtbar)
+- [ ] SAF/content-MP3-Texttag-Write Smoke Test mit bestehender persisted Permission
+- [ ] SAF/content-Cover-/unsupported-Layout Block Smoke Test
 - [ ] Tag-Bearbeitung-Size-Limit-Smoke-Test (zu große Dateien werden blockiert, bevor geschrieben wird)
 - [ ] Cover-entfernen-Smoke-Test (`removeCover` funktioniert nur für erkannte embedded/cached File-Cover, nicht für reine externe CoverInfo)
 - [ ] Cover-ersetzen-Smoke-Test (unterstützter schreibbarer `file://`-Titel schreibt neues Cover; UI darf bis zum späteren Re-Scan zunächst die gewählte Cover-URI anzeigen)
-- [ ] content:// Block Smoke Test (Schreiben klar blockiert/read-only)
+- [ ] AlbumArtist Smoke Test (Anzeige, Gruppierung und Speichern)
+- [ ] AudioInfo-Backfill Smoke Test (bestehende Titel werden ergänzt)
 - [ ] MiniPlayer/NowPlaying Smoke Test (disabled states + Navigation)
 - [ ] TrackInfo/TagEditor-Smoke-Test (fehlende Felder = „Nicht verfügbar“)
 - [ ] Equalizer Smoke Test (Status geräteabhängig/experimentell, kein falsches Versprechen)
@@ -184,7 +190,8 @@ Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/
 
 ## Known limitations
 
-- SAF/content:// Writes sind bewusst read-only; direkte SAF-Tag-Writes sind nicht implementiert
+- SAF/content:// MP3-Texttag-Writes sind nur über die native SAF-Schreibroute mit bestehender persisted Permission, unterstütztem Layout und erfolgreicher Byte-Verifikation freigegeben
+- SAF/content:// Cover-Writes, MP4/M4A-SAF-Writes und unsupported Layouts bleiben bewusst blockiert
 - Cover ersetzen ist nur für unterstützte schreibbare `file://`-Titel aktiv; nicht unterstützte Container bleiben blockiert
 - MP4/M4A Cover-/Tag-Writes funktionieren nur für bekannte sichere Atom-Layouts
 - Nach Cover ersetzen kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
