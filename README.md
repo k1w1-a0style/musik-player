@@ -8,9 +8,11 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 
 ## Features (aktueller Stand)
 
-- Lokale Musikbibliothek via `expo-media-library` inkl. ID3-Auslese.
+- Lokale Musikbibliothek via `expo-media-library` und SAF-Ordnerimport inklusive ID3-Auslese.
+- Native AudioInfo-Ermittlung für lokale und SAF-Quellen beim Import sowie Backfill für bereits gespeicherte Titel.
+- AlbumArtist-Erkennung, Album-Gruppierung und Tag-Editor-Unterstützung.
 - Wiedergabe mit `react-native-track-player` (Lockscreen/Bluetooth/Background).
-- Playlists, Cover-Ansichten, Tag-Editor (einziger Schreibpfad), Equalizer-UI.
+- Playlists, Cover-Ansichten, Tag-Editor, Equalizer-UI.
 - Native Visualizer/FFT-Auswertung ist im Release-Pfad entfernt; Now Playing zeigt keine FFT-Daten an.
 
 > Hinweis: Push-Notifications werden nicht mehr als separates Utility geführt.
@@ -69,7 +71,10 @@ npm test -- --runInBand
 
 - Vor einem Release immer einen **echten Android-/EAS-Build** ausführen (nicht nur Expo Go).
 - Playback benötigt **keinen Mikrofonzugriff**; `RECORD_AUDIO` wird in der App-Konfiguration nicht angefordert.
-- Der Tag-Editor schreibt nur lokale `file://` MP3/MP4/M4A-Dateien über Backup + Temp + Byteprüfung. `content://`/SAF bleibt read-only, bis ein echter SAF-Write-Flow vorhanden ist.
+- Native Änderungen für AudioInfo und SAF-TagWriter benötigen einen neuen Development Build, bevor sie auf dem Gerät wirksam sind.
+- Der Tag-Editor schreibt lokale MP3/MP4/M4A-Dateien über Backup, Temp-Datei und Byteprüfung.
+- SAF-MP3-Texttags sind nur über die native SAF-Schreibroute mit bestehender Berechtigung, unterstütztem Layout und erfolgreicher Byteprüfung freigegeben.
+- SAF-Cover-Schreiben, MP4/M4A-SAF-Schreiben und nicht unterstützte Layouts bleiben bewusst blockiert.
 - Für große Audio-Dateien ist In-App-Tag-Schreiben begrenzt, um RAM- und Dateikorruptionsrisiken auf Android zu senken.
 
 ## Projektstruktur (vereinfacht)
