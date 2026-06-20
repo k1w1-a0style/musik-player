@@ -214,6 +214,7 @@ export const buildId3v23TagFromDraft = (
   const touchedFrameIds = new Set<string>();
   if (hasDraftTagIntent(draft, 'title')) touchedFrameIds.add('TIT2');
   if (hasDraftTagIntent(draft, 'artist')) touchedFrameIds.add('TPE1');
+  if (hasDraftTagIntent(draft, 'albumArtist')) touchedFrameIds.add('TPE2');
   if (hasDraftTagIntent(draft, 'album')) touchedFrameIds.add('TALB');
   if (hasDraftTagIntent(draft, 'year')) {
     touchedFrameIds.add('TYER');
@@ -232,6 +233,8 @@ export const buildId3v23TagFromDraft = (
     replacement.push(textFrame('TIT2', tags.title));
   if (hasDraftTagIntent(draft, 'artist') && tags.artist)
     replacement.push(textFrame('TPE1', tags.artist));
+  if (hasDraftTagIntent(draft, 'albumArtist') && tags.albumArtist)
+    replacement.push(textFrame('TPE2', tags.albumArtist));
   if (hasDraftTagIntent(draft, 'album') && tags.album)
     replacement.push(textFrame('TALB', tags.album));
   if (hasDraftTagIntent(draft, 'year') && tags.year) {
