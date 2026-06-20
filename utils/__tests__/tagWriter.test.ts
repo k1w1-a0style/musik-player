@@ -1184,7 +1184,11 @@ describe('writeTagsToFile SAF/content native route', () => {
     const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
     expect(result.status).toBe('written');
     expect(native.readAudioFileBase64).toHaveBeenCalledWith('content://media/a.mp3', expect.any(Number));
-    expect(native.writeAudioTags).toHaveBeenCalledWith('content://media/a.mp3', expect.objectContaining({ container: 'mp3', changedFields: ['title'] }));
+    expect(native.writeAudioTags).toHaveBeenCalledWith('content://media/a.mp3', expect.objectContaining({
+      container: 'mp3',
+      changedFields: ['title'],
+      expectedOriginalSha256Hex: '039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81',
+    }));
   });
 
   test('file:// keeps using existing adapter path instead of native SAF writer', async () => {

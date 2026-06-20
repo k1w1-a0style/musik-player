@@ -34,6 +34,7 @@ export interface AudioTagWriteRequest {
   /** Base64 encoded, already tag-rewritten full audio payload. */
   rewrittenAudioBase64?: string;
   expectedOriginalSizeBytes?: number;
+  expectedOriginalSha256Hex?: string;
   expectedWrittenSizeBytes?: number;
   maxFileSizeBytes?: number;
   changedFields?: string[];

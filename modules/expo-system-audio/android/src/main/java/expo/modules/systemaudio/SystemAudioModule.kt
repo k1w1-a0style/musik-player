@@ -18,6 +18,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 
 /**
@@ -170,6 +171,7 @@ class SystemAudioModule : Module() {
       ?: return result(false, "InvalidTagData", "Rewritten audio payload is missing.")
     val maxBytes = (request["maxFileSizeBytes"] as? Number)?.toLong() ?: MAX_SAFE_TAG_WRITE_FILE_BYTES
     val expectedOriginal = (request["expectedOriginalSizeBytes"] as? Number)?.toLong()
+    val expectedOriginalSha256 = (request["expectedOriginalSha256Hex"] as? String)?.trim()?.lowercase()
     val expectedWritten = (request["expectedWrittenSizeBytes"] as? Number)?.toLong()
     val ctx = appContext.reactContext ?: return result(false, "WriteNotImplemented", "Android context is unavailable.")
     val resolver = ctx.contentResolver
@@ -189,6 +191,12 @@ class SystemAudioModule : Module() {
         ?: return result(false, "UnsupportedUri", "Original SAF document could not be read.")
       if (expectedOriginal != null && expectedOriginal != original.size.toLong()) {
         return result(false, "VerificationFailed", "Original size changed before write; aborting without modifying the document.", bytesBefore = original.size.toLong())
+      }
+      if (expectedOriginalSha256.isNullOrBlank()) {
+        return result(false, "VerificationFailed", "Original content digest is required before writing SAF documents.", bytesBefore = original.size.toLong())
+      }
+      if (!isValidSha256Hex(expectedOriginalSha256) || sha256Hex(original) != expectedOriginalSha256) {
+        return result(false, "VerificationFailed", "Original content changed before write; aborting without modifying the document.", bytesBefore = original.size.toLong())
       }
       val rewritten = Base64.decode(rewrittenBase64, Base64.DEFAULT)
       if (rewritten.isEmpty()) return result(false, "InvalidTagData", "Rewritten audio payload is empty.", bytesBefore = original.size.toLong())
@@ -232,6 +240,14 @@ class SystemAudioModule : Module() {
       return result(false, "ReplaceFailed", "SAF provider failed during write: ${e.message}")
     }
   }
+
+  private fun sha256Hex(bytes: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+    return digest.joinToString("") { byte -> "%02x".format(byte) }
+  }
+
+  private fun isValidSha256Hex(value: String): Boolean =
+    value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }
 
   private fun readAllBytesFromUri(uri: Uri, maxBytes: Long): ByteArray? {
     val ctx = appContext.reactContext ?: return null

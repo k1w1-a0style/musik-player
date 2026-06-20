@@ -7,6 +7,7 @@ import { withUriWriteLock } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
 import { TagWriterError } from './tagWriterError';
 import { applyTagEditToBuffer, validateTagWriteDraftOrThrow } from './tagWriterValidation';
+import { sha256Hex } from './sha256';
 
 const textTagFields = ['title', 'artist', 'album', 'year', 'genre', 'trackNumber', 'discNumber', 'comment'] as const;
 
@@ -99,6 +100,7 @@ export const writeTagsToSafContentUri = async (
         container,
         rewrittenAudioBase64: encodeBytesToBase64(rewritten),
         expectedOriginalSizeBytes: original.length,
+        expectedOriginalSha256Hex: sha256Hex(original),
         expectedWrittenSizeBytes: rewritten.length,
         maxFileSizeBytes: maxBytes,
         changedFields,
