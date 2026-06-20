@@ -13,6 +13,7 @@ import type { FormState } from '../screens/tagEditorHelpers';
 const form: FormState = {
   title: 'Titel A',
   artist: 'Künstler A',
+  albumArtist: '',
   album: 'Album A',
   year: '2026',
   genre: 'Rock',

@@ -13,6 +13,7 @@ const trimToUndefined = (value?: string): string | undefined => {
 export const normalizeEditableTags = (tags: EditableTrackTags): EditableTrackTags => ({
   title: trimToUndefined(tags.title),
   artist: trimToUndefined(tags.artist),
+  albumArtist: trimToUndefined(tags.albumArtist),
   album: trimToUndefined(tags.album),
   year: trimToUndefined(tags.year),
   genre: trimToUndefined(tags.genre),
