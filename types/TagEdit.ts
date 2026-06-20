@@ -13,6 +13,7 @@ export interface TagEditCapability {
 export interface EditableTrackTags {
   title?: string;
   artist?: string;
+  albumArtist?: string;
   album?: string;
   year?: string;
   genre?: string;
