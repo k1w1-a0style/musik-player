@@ -1,6 +1,7 @@
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { cacheBase64Cover } from '../coverCache';
 import { parseId3FromUri } from '../id3Parser';
+import SystemAudio from 'expo-system-audio';
 import * as mediaImport from '../mediaLibraryImport';
 import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 
@@ -22,6 +23,10 @@ describe('mediaLibraryImport', () => {
     mediaImport.resetSafTimedOutUrisForTests();
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockReset();
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+    (SystemAudio.extractAudioInfo as jest.Mock).mockReset();
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValue(null);
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -821,6 +826,68 @@ describe('mediaLibraryImport', () => {
       'content://dir/The%20Artist%20-%20Title.mp3',
       undefined,
     );
+  });
+
+
+  test('scanFromSafFolders enriches SAF songs with native audio info', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/song.mp3']);
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValueOnce({
+      durationMs: 245000,
+      sizeBytes: 9_800_000,
+      bitrateBps: 320000,
+      sampleRateHz: 44100,
+      channels: 2,
+      mimeType: 'audio/mpeg',
+      displayName: 'Native Song.mp3',
+    });
+
+    const result = await mediaImport.scanFromSafFolders([
+      { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
+    ] as any, { loadNativeCover: false });
+
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledWith('content://dir/song.mp3');
+    expect(result.songs[0]).toMatchObject({
+      duration: 245000,
+      fileInfo: { filename: 'Native Song.mp3', size: 9_800_000, mimeType: 'audio/mpeg' },
+      audioInfo: { bitrate: 320, sampleRate: 44100, channels: 2, codec: 'audio/mpeg' },
+    });
+  });
+
+  test('native bitrate wins over size and duration estimate', async () => {
+    const song = await mediaImport.buildSongFromImportSource({
+      id: 'x',
+      uri: 'content://x.mp3',
+      source: 'saf',
+      durationMs: 100000,
+      size: 1_000_000,
+      bitrateBps: 128000,
+    } as any, {}, { loadNativeCover: false });
+
+    expect(song.audioInfo?.bitrate).toBe(128);
+  });
+
+  test('falls back to estimated bitrate when native bitrate is missing', async () => {
+    const song = await mediaImport.buildSongFromImportSource({
+      id: 'x',
+      uri: 'content://x.mp3',
+      source: 'saf',
+      durationMs: 100000,
+      size: 1_000_000,
+    } as any, {}, { loadNativeCover: false });
+
+    expect(song.audioInfo?.bitrate).toBe(80);
+  });
+
+  test('extractAudioInfo failures do not abort SAF import', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/bad.mp3']);
+    (SystemAudio.extractAudioInfo as jest.Mock).mockRejectedValueOnce(new Error('provider failed'));
+
+    const result = await mediaImport.scanFromSafFolders([
+      { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
+    ] as any, { loadNativeCover: false });
+
+    expect(result.songs).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
   });
 
   test('saf import collects root folder errors', async () => {

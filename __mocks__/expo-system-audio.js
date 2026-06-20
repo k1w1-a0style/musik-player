@@ -12,6 +12,7 @@ const SystemAudio = {
   eqRelease: jest.fn(),
   extractPalette: jest.fn(() => new Promise(() => {})),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
+  extractAudioInfo: jest.fn().mockResolvedValue(null),
 };
 
 module.exports = {
