@@ -9,7 +9,7 @@ import { TagWriterError } from './tagWriterError';
 import { applyTagEditToBuffer, validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { sha256Hex } from './sha256';
 
-const textTagFields = ['title', 'artist', 'album', 'year', 'genre', 'trackNumber', 'discNumber', 'comment'] as const;
+const textTagFields = ['title', 'artist', 'albumArtist', 'album', 'year', 'genre', 'trackNumber', 'discNumber', 'comment'] as const;
 
 const changedFieldsForDraft = (draft: TagEditDraft): string[] => {
   const fields: string[] = textTagFields.filter(field => Object.prototype.hasOwnProperty.call(draft.tags, field));
