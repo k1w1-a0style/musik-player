@@ -213,12 +213,34 @@ class SystemAudioModule : Module() {
         }
         val pfd = resolver.openFileDescriptor(parsed, "rwt")
           ?: return result(false, "MissingWritePermission", "Provider refused writable file descriptor.", bytesBefore = original.size.toLong())
-        pfd.use { descriptor ->
-          FileOutputStream(descriptor.fileDescriptor).use { out ->
-            out.write(rewritten)
-            out.flush()
-            descriptor.fileDescriptor.sync()
+        try {
+          pfd.use { descriptor ->
+            FileOutputStream(descriptor.fileDescriptor).use { out ->
+              out.write(rewritten)
+              out.flush()
+              descriptor.fileDescriptor.sync()
+            }
           }
+        } catch (e: Throwable) {
+          Log.d(TAG, "SAF descriptor write failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+          restoreOriginalAfterFailedSafWrite(parsed, original)
+          val restored = readAllBytesFromUri(parsed, maxBytes)
+          if (restored == null || !restored.contentEquals(original)) {
+            return result(
+              false,
+              "RollbackFailed",
+              "SAF provider failed during write and rollback could not be verified.",
+              bytesBefore = original.size.toLong(),
+              bytesAfter = rewritten.size.toLong(),
+            )
+          }
+          return result(
+            false,
+            "ReplaceFailed",
+            "SAF provider failed during write; original bytes were restored: ${e.message}",
+            bytesBefore = original.size.toLong(),
+            bytesAfter = rewritten.size.toLong(),
+          )
         }
         val after = readAllBytesFromUri(parsed, maxBytes)
         if (after == null || !after.contentEquals(rewritten)) {
