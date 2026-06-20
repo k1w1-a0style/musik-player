@@ -1,6 +1,7 @@
 import { parseId3FromUri } from '../id3Parser';
 import {
   applyId3TagsToSong,
+  buildId3SongPatch,
   normalizeCoverReferenceForComparison,
   refreshSongsFromId3,
   resolveMetadataRefreshUri,
@@ -34,6 +35,7 @@ test('applies trimmed ID3 text fields without overwriting with blanks', () => {
   expect(applyId3TagsToSong(baseSong, {
     title: ' New Title ',
     artist: '   ',
+    albumArtist: ' Album Artist ',
     album: 'New Album',
     year: ' 2024 ',
     genre: 'Techno',
@@ -43,6 +45,7 @@ test('applies trimmed ID3 text fields without overwriting with blanks', () => {
   })).toEqual({
     ...baseSong,
     title: 'New Title',
+    albumArtist: 'Album Artist',
     album: 'New Album',
     year: '2024',
     genre: 'Techno',
@@ -389,4 +392,9 @@ test('manual metadata refresh parser options keep cover parsing disabled', async
   await refreshSongsFromId3([baseSong]);
 
   expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false }));
+});
+
+test('buildId3SongPatch includes albumArtist and ignores blank incoming albumArtist', () => {
+  expect(buildId3SongPatch(baseSong, { albumArtist: ' Various Artists ' })).toEqual({ albumArtist: 'Various Artists' });
+  expect(buildId3SongPatch({ ...baseSong, albumArtist: 'Existing' }, { albumArtist: '   ' })).toEqual({});
 });

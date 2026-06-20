@@ -960,3 +960,10 @@ test('buildSongFromImportSource maps track/disc/comment fields', async () => {
   expect(song.discNumber).toBe('1/2');
   expect(song.comment).toBe('Note');
 });
+test('buildSongFromImportSource sets albumArtist from ID3 tags', async () => {
+  const song = await mediaImport.buildSongFromImportSource(
+    { id: 'album-artist', uri: 'file:///album-artist.mp3', source: 'saf' } as any,
+    { title: 'Song', artist: 'Track Artist', albumArtist: 'Various Artists' } as any,
+  );
+  expect(song.albumArtist).toBe('Various Artists');
+});

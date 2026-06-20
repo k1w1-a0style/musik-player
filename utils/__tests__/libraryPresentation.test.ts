@@ -293,3 +293,15 @@ test('song keys do not fall back to array indexes when ids are missing', () => {
   expect(key).toBe('song-uri:file:///music/no-id.mp3');
   expect(key).not.toBe('0');
 });
+
+test('album keys group compilation tracks by shared albumArtist', () => {
+  const left = buildAlbumKey(song({ id: 'c1', artist: 'Track Artist A', albumArtist: 'Various Artists', album: 'Sampler' }));
+  const right = buildAlbumKey(song({ id: 'c2', artist: 'Track Artist B', albumArtist: 'Various Artists', album: 'Sampler' }));
+  expect(left).toBe(right);
+});
+
+test('album keys keep same album title separated without albumArtist', () => {
+  const left = buildAlbumKey(song({ id: 'g1', artist: 'Artist A', album: 'Greatest Hits' }));
+  const right = buildAlbumKey(song({ id: 'g2', artist: 'Artist B', album: 'Greatest Hits' }));
+  expect(left).not.toBe(right);
+});

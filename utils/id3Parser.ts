@@ -15,6 +15,7 @@ import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 export interface Id3Tags {
   title?: string;
   artist?: string;
+  albumArtist?: string;
   album?: string;
   year?: string;
   genre?: string;
@@ -24,6 +25,70 @@ export interface Id3Tags {
   /** data:image/... base64 data URI */
   cover?: string;
 }
+
+const ID3V1_GENRES = [
+  'Blues', 'Classic Rock', 'Country', 'Dance', 'Disco', 'Funk', 'Grunge', 'Hip-Hop',
+  'Jazz', 'Metal', 'New Age', 'Oldies', 'Other', 'Pop', 'R&B', 'Rap', 'Reggae', 'Rock',
+  'Techno', 'Industrial', 'Alternative', 'Ska', 'Death Metal', 'Pranks', 'Soundtrack',
+  'Euro-Techno', 'Ambient', 'Trip-Hop', 'Vocal', 'Jazz+Funk', 'Fusion', 'Trance',
+  'Classical', 'Instrumental', 'Acid', 'House', 'Game', 'Sound Clip', 'Gospel', 'Noise',
+  'AlternRock', 'Bass', 'Soul', 'Punk', 'Space', 'Meditative', 'Instrumental Pop',
+  'Instrumental Rock', 'Ethnic', 'Gothic', 'Darkwave', 'Techno-Industrial', 'Electronic',
+  'Pop-Folk', 'Eurodance', 'Dream', 'Southern Rock', 'Comedy', 'Cult', 'Gangsta',
+  'Top 40', 'Christian Rap', 'Pop/Funk', 'Jungle', 'Native American', 'Cabaret',
+  'New Wave', 'Psychadelic', 'Rave', 'Showtunes', 'Trailer', 'Lo-Fi', 'Tribal',
+  'Acid Punk', 'Acid Jazz', 'Polka', 'Retro', 'Musical', 'Rock & Roll', 'Hard Rock',
+  'Folk', 'Folk-Rock', 'National Folk', 'Swing', 'Fast Fusion', 'Bebob', 'Latin',
+  'Revival', 'Celtic', 'Bluegrass', 'Avantgarde', 'Gothic Rock', 'Progressive Rock',
+  'Psychedelic Rock', 'Symphonic Rock', 'Slow Rock', 'Big Band', 'Chorus',
+  'Easy Listening', 'Acoustic', 'Humour', 'Speech', 'Chanson', 'Opera', 'Chamber Music',
+  'Sonata', 'Symphony', 'Booty Bass', 'Primus', 'Porn Groove', 'Satire', 'Slow Jam',
+  'Club', 'Tango', 'Samba', 'Folklore', 'Ballad', 'Power Ballad', 'Rhythmic Soul',
+  'Freestyle', 'Duet', 'Punk Rock', 'Drum Solo', 'A capella', 'Euro-House', 'Dance Hall',
+  'Goa', 'Drum & Bass', 'Club-House', 'Hardcore', 'Terror', 'Indie', 'BritPop',
+  'Negerpunk', 'Polsk Punk', 'Beat', 'Christian Gangsta Rap', 'Heavy Metal',
+  'Black Metal', 'Crossover', 'Contemporary Christian', 'Christian Rock', 'Merengue',
+  'Salsa', 'Thrash Metal', 'Anime', 'JPop', 'Synthpop',
+] as const;
+
+export const normalizeId3Genre = (value?: string): string | undefined => {
+  const raw = value?.normalize('NFKC').replace(/\0/g, '').trim();
+  if (!raw) return undefined;
+  const parts: string[] = [];
+  const addPart = (part?: string): void => {
+    const cleaned = part?.replace(/[()]/g, '').replace(/\s+/gu, ' ').trim();
+    if (!cleaned) return;
+    if (!parts.some(existing => existing.toLocaleLowerCase('de-DE') === cleaned.toLocaleLowerCase('de-DE'))) {
+      parts.push(cleaned);
+    }
+  };
+  const addCode = (codeText: string): string | undefined => {
+    const code = Number(codeText);
+    const mapped = Number.isInteger(code) ? ID3V1_GENRES[code] : undefined;
+    addPart(mapped ?? codeText);
+    return mapped;
+  };
+
+  const wholeNumericMatch = raw.match(/^\d+$/u);
+  if (wholeNumericMatch) {
+    addCode(wholeNumericMatch[0]);
+    return parts.join('; ') || undefined;
+  }
+
+  const parenthesizedCodeMatch = raw.match(/^\((\d+)\)(.*)$/u);
+  if (parenthesizedCodeMatch) {
+    const mapped = addCode(parenthesizedCodeMatch[1]);
+    const suffix = parenthesizedCodeMatch[2]?.trim();
+    if (suffix && (!mapped || suffix.toLocaleLowerCase('de-DE') !== mapped.toLocaleLowerCase('de-DE'))) {
+      addPart(suffix);
+    }
+    return parts.join('; ') || undefined;
+  }
+
+  addPart(raw);
+  return parts.join('; ') || undefined;
+};
+
 const HEAD_READ_LIMIT = 1024 * 1024;
 const TAIL_READ_LIMIT = 1024 * 1024;
 const ID3_FRAME_SCAN_LIMIT = 8 * 1024 * 1024;
@@ -392,8 +457,10 @@ export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options,
           tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TP1':
+          tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
+          break;
         case 'TP2':
-          if (!tags.artist) tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
+          tags.albumArtist = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TAL':
           tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
@@ -402,7 +469,7 @@ export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options,
           tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
           break;
         case 'TCO':
-          tags.genre = decodeText(frameBytes, bodyStart, bodyEnd);
+          tags.genre = normalizeId3Genre(decodeText(frameBytes, bodyStart, bodyEnd));
           break;
         case 'TRK':
           tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
@@ -463,8 +530,10 @@ export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options,
         tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TPE1':
+        tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
+        break;
       case 'TPE2':
-        if (!tags.artist) tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
+        tags.albumArtist = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TALB':
         tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
@@ -474,7 +543,7 @@ export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options,
         tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
         break;
       case 'TCON':
-        tags.genre = decodeText(frameBytes, bodyStart, bodyEnd);
+        tags.genre = normalizeId3Genre(decodeText(frameBytes, bodyStart, bodyEnd));
         break;
       case 'TRCK':
         tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
@@ -597,7 +666,7 @@ const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
 const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
   TIT2: 'title',
   TPE1: 'artist',
-  TPE2: 'artist',
+  TPE2: 'albumArtist',
   TALB: 'album',
   TYER: 'year',
   TDRC: 'year',
@@ -606,7 +675,7 @@ const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
   TPOS: 'discNumber',
   TT2: 'title',
   TP1: 'artist',
-  TP2: 'artist',
+  TP2: 'albumArtist',
   TAL: 'album',
   TYE: 'year',
   TCO: 'genre',
@@ -628,8 +697,11 @@ const applyTextFrame = (tags: Id3Tags, id: string, frameBytes: Uint8Array): void
     return;
   }
   const key = TEXT_FRAME_IDS[id];
-  if (!key || (key === 'artist' && tags.artist)) return;
-  const text = decodeText(frameBytes, 0, frameBytes.length);
+  if (!key) return;
+  if ((key === 'artist' && tags.artist) || (key === 'albumArtist' && tags.albumArtist)) return;
+  const text = key === 'genre'
+    ? normalizeId3Genre(decodeText(frameBytes, 0, frameBytes.length))
+    : decodeText(frameBytes, 0, frameBytes.length);
   if (text) tags[key] = text;
 };
 
