@@ -6,6 +6,7 @@
 
 const SystemAudio = {
   isAvailable: false,
+  hasNativeTagWriter: false,
   eqInit: jest.fn().mockResolvedValue(null),
   eqSetEnabled: jest.fn().mockReturnValue(false),
   eqSetBandLevel: jest.fn().mockReturnValue(false),
@@ -13,6 +14,16 @@ const SystemAudio = {
   extractPalette: jest.fn(() => new Promise(() => {})),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   extractAudioInfo: jest.fn().mockResolvedValue(null),
+  readAudioFileBase64: jest.fn().mockResolvedValue(null),
+  writeAudioTags: jest.fn(async (uri, request = {}) => ({
+    success: false,
+    uri,
+    changedFields: [],
+    failedFields: request.changedFields || [],
+    errorCode: 'WriteNotImplemented',
+    message: 'Native audio tag writer is unavailable. A new development build is required.',
+    verified: false,
+  })),
 };
 
 module.exports = {

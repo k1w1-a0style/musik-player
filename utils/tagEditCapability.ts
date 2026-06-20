@@ -29,6 +29,8 @@ export const isSupportedTagEditContainer = (song: Song): boolean => getSupported
 
 export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
 
+export const isSafWritableContentSource = (song: Song): boolean => song.fileInfo?.source === 'saf';
+
 export const getTagEditCapability = (song: Song, platform: string = Platform.OS): TagEditCapability => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const uriType = getUriType(uri);
@@ -51,12 +53,23 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   }
 
   if (uriType === 'content') {
+    const isAndroidSafMp3 = platform === 'android' && container === 'mp3' && isSafWritableContentSource(song);
+    let reason: string;
+    if (isAndroidSafMp3) {
+      reason = 'SAF/content:// MP3-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz unterstützt.';
+    } else if (container !== 'mp3') {
+      reason = 'SAF/content:// Schreiben ist für dieses Format noch nicht unterstützt.';
+    } else if (platform !== 'android') {
+      reason = 'SAF/content:// Schreiben ist nur in der Android-Development-Build unterstützt.';
+    } else {
+      reason = 'MediaLibrary content:// Tracks sind ohne SAF-Schreibfreigabe oder MediaStore-Schreibflow schreibgeschützt.';
+    }
     return {
       canRead: true,
-      canWrite: false,
+      canWrite: isAndroidSafMp3,
       uriType,
       supportedContainer: container,
-      reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Der Titel kann angezeigt, aber nicht direkt bearbeitet werden.',
+      reason,
     };
   }
 

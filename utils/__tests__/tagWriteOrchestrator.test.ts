@@ -1,9 +1,12 @@
 import type { Song } from '../../types/Song';
 import { assertSafeWriteAllowed, createRollbackPlan, createTagWriteOperationPlan, getPrimaryBlockingReason, simulateTagWriteOperation, validateWritePreconditions } from '../tagWriteOrchestrator';
 import { writeTagsToFile } from '../tagWriter';
+import { getTagEditCapability } from '../tagEditCapability';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
 const draft = { songId: '1', tags: { title: 'New' } };
+const safMp3Song = (): Song => song({ uri: 'content://tree/song.mp3', fileInfo: { extension: 'mp3', source: 'saf' } });
+
 
 describe('tagWriteOrchestrator dry-run behavior', () => {
   test('remote URL is blocked as UnsupportedUri', () => {
@@ -63,18 +66,93 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).toContain('WriteNotImplemented');
   });
 
-  test('content:// mp3 shows SAF warning and blocks with MissingWritePermission', () => {
-    const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), draft);
+  test('content:// mp3 shows SAF warning and is plannable for native verification flow when source is SAF', () => {
+    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
     expect(plan.warnings.join(' ')).toMatch(/SAF/i);
-    expect(plan.blockingReasons).toContain('MissingWritePermission');
+    expect(plan.blockingReasons).not.toContain('MissingWritePermission');
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
     expect(plan.estimatedRisk).toBe('high');
+    expect(simulateTagWriteOperation(plan).ok).toBe(true);
+    expect(assertSafeWriteAllowed(plan)).toBeNull();
+  });
+
+  test('tag edit capability only marks Android SAF MP3 content sources writable', () => {
+    expect(getTagEditCapability(safMp3Song(), 'android').canWrite).toBe(true);
+    expect(getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android').canWrite).toBe(false);
+    expect(getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android').canWrite).toBe(false);
+    expect(getTagEditCapability(safMp3Song(), 'ios').canWrite).toBe(false);
+  });
+
+  test('content:// mp3 cover payload is blocked before save while text-only remains allowed', () => {
+    const plan = createTagWriteOperationPlan(
+      safMp3Song(),
+      { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
+      'android',
+    );
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(plan.warnings.join(' ')).toMatch(/cover artwork writes are not supported/i);
+  });
+
+  test('content:// mp3 removeCover is blocked before save', () => {
+    const plan = createTagWriteOperationPlan(
+      safMp3Song(),
+      { songId: '1', tags: { title: 'X' }, removeCover: true },
+      'android',
+    );
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+  });
+
+  test('media-library content:// mp3 is blocked before dry-run success', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }),
+      draft,
+      'android',
+    );
+    expect(plan.permission.canWrite).toBe(false);
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(simulateTagWriteOperation(plan).ok).toBe(false);
+    expect(assertSafeWriteAllowed(plan)).toBe('WriteNotImplemented');
+  });
+
+  test('unsupported content containers are blocked before dry-run success', () => {
+    const m4aPlan = createTagWriteOperationPlan(
+      song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }),
+      draft,
+      'android',
+    );
+    const mp4Plan = createTagWriteOperationPlan(
+      song({ uri: 'content://tree/a.mp4', fileInfo: { extension: 'mp4', source: 'saf' } }),
+      draft,
+      'android',
+    );
+    expect(m4aPlan.blockingReasons).toContain('UnsupportedFormat');
+    expect(mp4Plan.blockingReasons).toContain('UnsupportedFormat');
+    expect(simulateTagWriteOperation(m4aPlan).ok).toBe(false);
+    expect(assertSafeWriteAllowed(m4aPlan)).toBe('UnsupportedFormat');
+  });
+
+  test('content:// mp3 is blocked on non-Android platforms', () => {
+    const iosPlan = createTagWriteOperationPlan(safMp3Song(), draft, 'ios');
+    const webPlan = createTagWriteOperationPlan(safMp3Song(), draft, 'web');
+    expect(iosPlan.blockingReasons).toContain('WriteNotImplemented');
+    expect(webPlan.blockingReasons).toContain('WriteNotImplemented');
+    expect(simulateTagWriteOperation(iosPlan).ok).toBe(false);
+  });
+
+  test('file:// cover edit is not blocked by the SAF cover rule', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'file:///media/a.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
+      'android',
+    );
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
   });
 
   test('assertSafeWriteAllowed returns primary blocking reason', () => {
-    const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), {
+    const plan = createTagWriteOperationPlan(safMp3Song(), {
       songId: '1',
       tags: { year: '12' },
-    });
+    }, 'android');
     expect(getPrimaryBlockingReason(plan)).toBe('InvalidTagData');
     expect(assertSafeWriteAllowed(plan)).toBe('InvalidTagData');
   });
@@ -116,15 +194,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile with content uri returns controlled permissionDenied result', async () => {
+  test('writeTagsToFile with content uri returns controlled native-unavailable result', async () => {
     const result = await writeTagsToFile(
-      song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }),
-      { songId: '1', tags: {} },
+      safMp3Song(),
+      { songId: '1', tags: { title: 'X' } },
     );
 
     expect(result).toMatchObject({
-      status: 'permissionDenied',
-      errorCode: 'MissingWritePermission',
+      status: 'writeFailed',
+      errorCode: 'WriteNotImplemented',
     });
   });
 });

@@ -1,10 +1,12 @@
 package expo.modules.systemaudio
 
 import android.graphics.Bitmap
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.media.audiofx.Equalizer
 import android.net.Uri
@@ -13,7 +15,10 @@ import android.util.Log
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 
 /**
@@ -94,6 +99,16 @@ class SystemAudioModule : Module() {
       extractAudioInfo(uri)
     }
 
+
+
+    AsyncFunction("readAudioFileBase64") { uri: String, maxBytes: Long? ->
+      readAudioFileBase64(uri, maxBytes ?: MAX_SAFE_TAG_WRITE_FILE_BYTES)
+    }
+
+    AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
+      writeAudioTags(uri, request)
+    }
+
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
       if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
@@ -115,6 +130,201 @@ class SystemAudioModule : Module() {
 
     OnDestroy {
       releaseEqualizer()
+    }
+  }
+
+
+  private fun readAudioFileBase64(uri: String, maxBytes: Long): String? {
+    val parsed = Uri.parse(uri)
+    val size = fileSizeForAnyUri(parsed)
+    if (size != null && size > maxBytes) return null
+    return try {
+      val bytes = readAllBytesFromUri(parsed, maxBytes) ?: return null
+      Base64.encodeToString(bytes, Base64.NO_WRAP)
+    } catch (e: Throwable) {
+      Log.d(TAG, "audio read failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      null
+    }
+  }
+
+  private fun writeAudioTags(uri: String, request: Map<String, Any?>): Map<String, Any?> {
+    val changedFields = (request["changedFields"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+    fun result(success: Boolean, code: String?, message: String, verified: Boolean = false, bytesBefore: Long? = null, bytesAfter: Long? = null): Map<String, Any?> = mapOf(
+      "success" to success,
+      "uri" to uri,
+      "changedFields" to if (success) changedFields else emptyList<String>(),
+      "failedFields" to if (success) emptyList<String>() else changedFields,
+      "errorCode" to code,
+      "message" to message,
+      "verified" to verified,
+      "bytesBefore" to bytesBefore,
+      "bytesAfter" to bytesAfter,
+    )
+
+    val parsed = try { Uri.parse(uri) } catch (_: Throwable) {
+      return result(false, "UnsupportedUri", "URI could not be parsed.")
+    }
+    if (parsed.scheme != "content") {
+      return result(false, "UnsupportedUri", "Native SAF tag writing only accepts content:// URIs.")
+    }
+    val rewrittenBase64 = request["rewrittenAudioBase64"] as? String
+      ?: return result(false, "InvalidTagData", "Rewritten audio payload is missing.")
+    val maxBytes = (request["maxFileSizeBytes"] as? Number)?.toLong() ?: MAX_SAFE_TAG_WRITE_FILE_BYTES
+    val expectedOriginal = (request["expectedOriginalSizeBytes"] as? Number)?.toLong()
+    val expectedOriginalSha256 = (request["expectedOriginalSha256Hex"] as? String)?.trim()?.lowercase()
+    val expectedWritten = (request["expectedWrittenSizeBytes"] as? Number)?.toLong()
+    val ctx = appContext.reactContext ?: return result(false, "WriteNotImplemented", "Android context is unavailable.")
+    val resolver = ctx.contentResolver
+
+    try {
+      if (!hasSafWritePermission(parsed)) {
+        return result(false, "MissingWritePermission", "No persisted or direct writable SAF permission is available for this URI.")
+      }
+      if (!isDocumentWritable(parsed)) {
+        return result(false, "MissingWritePermission", "The SAF provider does not advertise writable document flags.")
+      }
+      val originalSize = fileSizeForAnyUri(parsed)
+      if (originalSize != null && originalSize > maxBytes) {
+        return result(false, "FileTooLarge", "File exceeds the safe tag write size limit.", bytesBefore = originalSize)
+      }
+      val original = readAllBytesFromUri(parsed, maxBytes)
+        ?: return result(false, "UnsupportedUri", "Original SAF document could not be read.")
+      if (expectedOriginal != null && expectedOriginal != original.size.toLong()) {
+        return result(false, "VerificationFailed", "Original size changed before write; aborting without modifying the document.", bytesBefore = original.size.toLong())
+      }
+      if (expectedOriginalSha256.isNullOrBlank()) {
+        return result(false, "VerificationFailed", "Original content digest is required before writing SAF documents.", bytesBefore = original.size.toLong())
+      }
+      if (!isValidSha256Hex(expectedOriginalSha256) || sha256Hex(original) != expectedOriginalSha256) {
+        return result(false, "VerificationFailed", "Original content changed before write; aborting without modifying the document.", bytesBefore = original.size.toLong())
+      }
+      val rewritten = Base64.decode(rewrittenBase64, Base64.DEFAULT)
+      if (rewritten.isEmpty()) return result(false, "InvalidTagData", "Rewritten audio payload is empty.", bytesBefore = original.size.toLong())
+      if (rewritten.size.toLong() > maxBytes) return result(false, "FileTooLarge", "Rewritten audio exceeds the safe tag write size limit.", bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+      if (expectedWritten != null && expectedWritten != rewritten.size.toLong()) {
+        return result(false, "VerificationFailed", "Rewritten size does not match the expected payload size.", bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+      }
+
+      val temp = File.createTempFile("saf-tag-write-", ".tmp", ctx.cacheDir)
+      try {
+        temp.writeBytes(rewritten)
+        if (!temp.isFile || temp.length() != rewritten.size.toLong() || !temp.readBytes().contentEquals(rewritten)) {
+          return result(false, "VerificationFailed", "Temporary rewritten payload verification failed.", bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+        }
+        val pfd = resolver.openFileDescriptor(parsed, "rwt")
+          ?: return result(false, "MissingWritePermission", "Provider refused writable file descriptor.", bytesBefore = original.size.toLong())
+        try {
+          pfd.use { descriptor ->
+            FileOutputStream(descriptor.fileDescriptor).use { out ->
+              out.write(rewritten)
+              out.flush()
+              descriptor.fileDescriptor.sync()
+            }
+          }
+        } catch (e: Throwable) {
+          Log.d(TAG, "SAF descriptor write failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+          restoreOriginalAfterFailedSafWrite(parsed, original)
+          val restored = readAllBytesFromUri(parsed, maxBytes)
+          if (restored == null || !restored.contentEquals(original)) {
+            return result(
+              false,
+              "RollbackFailed",
+              "SAF provider failed during write and rollback could not be verified.",
+              bytesBefore = original.size.toLong(),
+              bytesAfter = rewritten.size.toLong(),
+            )
+          }
+          return result(
+            false,
+            "ReplaceFailed",
+            "SAF provider failed during write; original bytes were restored: ${e.message}",
+            bytesBefore = original.size.toLong(),
+            bytesAfter = rewritten.size.toLong(),
+          )
+        }
+        val after = readAllBytesFromUri(parsed, maxBytes)
+        if (after == null || !after.contentEquals(rewritten)) {
+          restoreOriginalAfterFailedSafWrite(parsed, original)
+          val restored = readAllBytesFromUri(parsed, maxBytes)
+          if (restored == null || !restored.contentEquals(original)) {
+            return result(false, "RollbackFailed", "Written SAF document failed verification and rollback could not be verified.", bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+          }
+          return result(false, "VerificationFailed", "Written SAF document failed verification; original bytes were restored.", bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+        }
+        return result(true, null, "Tags written and verified.", verified = true, bytesBefore = original.size.toLong(), bytesAfter = rewritten.size.toLong())
+      } finally {
+        try { temp.delete() } catch (_: Throwable) {}
+      }
+    } catch (e: SecurityException) {
+      return result(false, "MissingWritePermission", "SAF provider denied write permission: ${e.message}")
+    } catch (e: Throwable) {
+      Log.d(TAG, "SAF tag write failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      return result(false, "ReplaceFailed", "SAF provider failed during write: ${e.message}")
+    }
+  }
+
+  private fun sha256Hex(bytes: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+    return digest.joinToString("") { byte -> "%02x".format(byte) }
+  }
+
+  private fun isValidSha256Hex(value: String): Boolean =
+    value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }
+
+  private fun readAllBytesFromUri(uri: Uri, maxBytes: Long): ByteArray? {
+    val ctx = appContext.reactContext ?: return null
+    val out = ByteArrayOutputStream()
+    ctx.contentResolver.openInputStream(uri)?.use { input ->
+      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+      var total = 0L
+      while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        total += read.toLong()
+        if (total > maxBytes) return null
+        out.write(buffer, 0, read)
+      }
+    } ?: return null
+    return out.toByteArray()
+  }
+
+  private fun fileSizeForAnyUri(uri: Uri): Long? {
+    if (uri.scheme == "content") return readOpenableInfo(uri.toString())?.sizeBytes
+    return fileSizeForUri(uri.toString())
+  }
+
+  private fun hasSafWritePermission(uri: Uri): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    val direct = try { ctx.checkUriPermission(uri, android.os.Process.myPid(), android.os.Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED } catch (_: Throwable) { false }
+    if (direct) return true
+    return ctx.contentResolver.persistedUriPermissions.any { perm ->
+      perm.isWritePermission && (perm.uri == uri || uri.toString().startsWith(perm.uri.toString()))
+    }
+  }
+
+  private fun isDocumentWritable(uri: Uri): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    return try {
+      if (!DocumentsContract.isDocumentUri(ctx, uri)) return true
+      ctx.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
+        if (!cursor.moveToFirst()) return@use false
+        val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+        if (index < 0 || cursor.isNull(index)) return@use false
+        val flags = cursor.getInt(index)
+        (flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0 ||
+          (flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0
+      } ?: false
+    } catch (_: Throwable) { false }
+  }
+
+  private fun restoreOriginalAfterFailedSafWrite(uri: Uri, original: ByteArray) {
+    val ctx = appContext.reactContext ?: return
+    ctx.contentResolver.openFileDescriptor(uri, "rwt")?.use { descriptor ->
+      FileOutputStream(descriptor.fileDescriptor).use { out ->
+        out.write(original)
+        out.flush()
+        descriptor.fileDescriptor.sync()
+      }
     }
   }
 
@@ -490,5 +700,6 @@ class SystemAudioModule : Module() {
     private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_PIXELS = 1024 * 1024
+    private const val MAX_SAFE_TAG_WRITE_FILE_BYTES = 50L * 1024L * 1024L
   }
 }
