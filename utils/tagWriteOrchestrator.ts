@@ -73,8 +73,11 @@ export const validateWritePreconditions = (
   if (!uri || uriType === 'empty' || uriType === 'unknown' || uriType === 'remote')
     errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
+  if (uriType === 'content' && container !== 'mp3') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
     errors.push('FileTooLarge');
+  if (uriType === 'content' && !capability.canWrite)
+    errors.push('WriteNotImplemented');
   if (uriType === 'content' && (draft.cover || draft.removeCover))
     errors.push('WriteNotImplemented');
   if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
