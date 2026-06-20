@@ -20,6 +20,7 @@ const song: Song = {
   id: 's1',
   title: 'Title',
   artist: 'Artist',
+  albumArtist: 'Various Artists',
   album: 'Album',
   cover: 'file:///cover.jpg',
   coverInfo: { status: 'external', uri: 'file:///cover.jpg' },
@@ -28,6 +29,7 @@ const song: Song = {
 const form: FormState = {
   title: ' New Title ',
   artist: 'Artist',
+  albumArtist: ' Various Artists ',
   album: '   ',
   year: '',
   genre: '',
@@ -51,22 +53,24 @@ describe('tagEditorHelpers', () => {
     expect(toInitialForm(song)).toMatchObject({
       title: 'Title',
       artist: 'Artist',
+      albumArtist: 'Various Artists',
       album: 'Album',
     });
   });
 
   test('builds draft from dirty fields only', () => {
-    expect(buildDraftFromDirtyFields('s1', form, { title: true }, false)).toEqual({
+    expect(buildDraftFromDirtyFields('s1', form, { title: true, albumArtist: true }, false)).toEqual({
       songId: 's1',
-      tags: { title: ' New Title ' },
+      tags: { title: ' New Title ', albumArtist: ' Various Artists ' },
     });
   });
 
   test('builds metadata patch from normalized tags', () => {
-    const draft = buildDraftFromDirtyFields('s1', form, { title: true, album: true }, false);
+    const draft = buildDraftFromDirtyFields('s1', form, { title: true, albumArtist: true, album: true }, false);
 
     expect(buildMetadataPatchFromDraft(draft)).toEqual({
       title: 'New Title',
+      albumArtist: 'Various Artists',
       album: undefined,
     });
   });
@@ -105,7 +109,6 @@ describe('tagEditorHelpers', () => {
     expect(needsEmbeddedCoverBackfill({ ...song, ...patch, uri: 'file:///song.mp3' })).toBe(true);
   });
 
-
   test('increments embedded artwork revision for repeated replacement patches', () => {
     const firstCover: PickedTagCover = {
       uri: 'file:///first-cover.jpg',
@@ -135,99 +138,28 @@ describe('tagEditorHelpers', () => {
 
   test('detects file-removable covers from legacy cover presence and embedded/cached statuses only', () => {
     expect(hasRemovableCover({ ...song, coverInfo: undefined })).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's2',
-        title: 'Embedded with URI',
-        artist: 'Artist',
-        coverInfo: { status: 'embedded', uri: 'file:///embedded.jpg' },
-      }),
-    ).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's3',
-        title: 'Cached with URI',
-        artist: 'Artist',
-        coverInfo: { status: 'cached', uri: 'file:///cached.jpg' },
-      }),
-    ).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's4',
-        title: 'Embedded without URI',
-        artist: 'Artist',
-        coverInfo: { status: 'embedded' },
-      }),
-    ).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's5',
-        title: 'External only',
-        artist: 'Artist',
-        coverInfo: { status: 'external', uri: 'file:///external.jpg' },
-      }),
-    ).toBe(false);
-    expect(
-      hasRemovableCover({
-        id: 's5-cover',
-        title: 'External app cover',
-        artist: 'Artist',
-        cover: 'file:///app-cover.jpg',
-        coverInfo: { status: 'external', uri: 'file:///app-cover.jpg' },
-      }),
-    ).toBe(false);
-    expect(
-      hasRemovableCover({
-        id: 's5-pending',
-        title: 'Pending replacement preview',
-        artist: 'Artist',
-        cover: 'file:///picked-cover.jpg',
-        coverInfo: {
-          status: 'external',
-          uri: 'file:///picked-cover.jpg',
-          pendingEmbeddedArtworkRefresh: true,
-        },
-      }),
-    ).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's5-failed',
-        title: 'Failed replacement preview',
-        artist: 'Artist',
-        cover: 'file:///picked-cover.jpg',
-        coverInfo: {
-          status: 'external',
-          uri: 'file:///picked-cover.jpg',
-          pendingEmbeddedArtworkRefresh: false,
-          embeddedArtworkRefreshFailed: true,
-        },
-      }),
-    ).toBe(true);
-    expect(
-      hasRemovableCover({
-        id: 's6',
-        title: 'No cover',
-        artist: 'Artist',
-        coverInfo: { status: 'none' },
-      }),
-    ).toBe(false);
-    expect(
-      hasRemovableCover({
-        id: 's7',
-        title: 'Unknown cover',
-        artist: 'Artist',
-        coverInfo: { status: 'unknown' },
-      }),
-    ).toBe(false);
-    expect(
-      hasRemovableCover({
-        id: 's8',
-        title: 'Unknown app cover',
-        artist: 'Artist',
-        cover: 'file:///unknown-cover.jpg',
-        coverInfo: { status: 'unknown' },
-      }),
-    ).toBe(false);
+    expect(hasRemovableCover({ id: 's2', title: 'Embedded with URI', artist: 'Artist', coverInfo: { status: 'embedded', uri: 'file:///embedded.jpg' } })).toBe(true);
+    expect(hasRemovableCover({ id: 's3', title: 'Cached with URI', artist: 'Artist', coverInfo: { status: 'cached', uri: 'file:///cached.jpg' } })).toBe(true);
+    expect(hasRemovableCover({ id: 's4', title: 'Embedded without URI', artist: 'Artist', coverInfo: { status: 'embedded' } })).toBe(true);
+    expect(hasRemovableCover({ id: 's5', title: 'External only', artist: 'Artist', coverInfo: { status: 'external', uri: 'file:///external.jpg' } })).toBe(false);
+    expect(hasRemovableCover({ id: 's5-cover', title: 'External app cover', artist: 'Artist', cover: 'file:///app-cover.jpg', coverInfo: { status: 'external', uri: 'file:///app-cover.jpg' } })).toBe(false);
+    expect(hasRemovableCover({
+      id: 's5-pending',
+      title: 'Pending replacement preview',
+      artist: 'Artist',
+      cover: 'file:///picked-cover.jpg',
+      coverInfo: { status: 'external', uri: 'file:///picked-cover.jpg', pendingEmbeddedArtworkRefresh: true },
+    })).toBe(true);
+    expect(hasRemovableCover({
+      id: 's5-failed',
+      title: 'Failed replacement preview',
+      artist: 'Artist',
+      cover: 'file:///picked-cover.jpg',
+      coverInfo: { status: 'external', uri: 'file:///picked-cover.jpg', pendingEmbeddedArtworkRefresh: false, embeddedArtworkRefreshFailed: true },
+    })).toBe(true);
+    expect(hasRemovableCover({ id: 's6', title: 'No cover', artist: 'Artist', coverInfo: { status: 'none' } })).toBe(false);
+    expect(hasRemovableCover({ id: 's7', title: 'Unknown cover', artist: 'Artist', coverInfo: { status: 'unknown' } })).toBe(false);
+    expect(hasRemovableCover({ id: 's8', title: 'Unknown app cover', artist: 'Artist', cover: 'file:///unknown-cover.jpg', coverInfo: { status: 'unknown' } })).toBe(false);
   });
 
   test('maps status messages', () => {
@@ -238,9 +170,9 @@ describe('tagEditorHelpers', () => {
   });
 
   test('explains protected Android content URIs with an actionable copy hint', () => {
-    expect(blockingReasonMessage(['MissingWritePermission'])).toContain('Schreibzugriff eingeschränkt');
-    expect(safetyNotice({ id: 's3', title: 'Protected', artist: 'Artist', uri: 'content://music/song.mp3' })).toContain('System-Dateiauswahldialog');
-    expect(ERROR_MESSAGES.MissingWritePermission).toContain('Android-Medien- oder SAF-Quellen');
+    expect(blockingReasonMessage(['MissingWritePermission'])).toContain('SAF file selection');
+    expect(safetyNotice({ id: 's3', title: 'Protected', artist: 'Artist', uri: 'content://music/song.mp3' })).toContain('SAF file selection');
+    expect(ERROR_MESSAGES.MissingWritePermission).toContain('Android content sources');
   });
 
   test('explains unsupported tag write layouts separately from platform replace support', () => {
