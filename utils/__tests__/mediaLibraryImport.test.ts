@@ -233,7 +233,7 @@ describe('mediaLibraryImport', () => {
   const mediaAsset = (
     id: string,
     filename: string,
-    duration: number,
+    duration?: number,
     uri = `file:///music/${filename}`,
     mimeType?: string,
     mediaType?: 'audio' | 'photo' | 'video' | 'unknown',
@@ -251,6 +251,52 @@ describe('mediaLibraryImport', () => {
     hasNextPage: false,
     endCursor: undefined,
   })) as any;
+
+  test('enrichMediaLibraryAssets uses native duration when MediaLibrary duration is zero', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValueOnce({
+      durationMs: 245000,
+      sizeBytes: 9_800_000,
+    });
+
+    const result = await mediaImport.enrichMediaLibraryAssets([
+      mediaAsset('native-duration-zero', 'native-zero.mp3', 0, 'file:///music/native-zero.mp3', 'audio/mpeg') as any,
+    ], 0, { loadNativeCover: false, readId3Tags: false });
+
+    expect(result.songs[0].duration).toBe(245000);
+    expect(result.songs[0].fileInfo?.size).toBe(9_800_000);
+    expect(result.songs[0].audioInfo?.bitrate).toBe(320);
+  });
+
+  test('enrichMediaLibraryAssets uses native duration when MediaLibrary duration is missing', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValueOnce({ durationMs: 245000 });
+
+    const result = await mediaImport.enrichMediaLibraryAssets([
+      mediaAsset('native-duration-missing', 'native-missing.mp3', undefined, 'file:///music/native-missing.mp3', 'audio/mpeg') as any,
+    ], 0, { loadNativeCover: false, readId3Tags: false });
+
+    expect(result.songs[0].duration).toBe(245000);
+  });
+
+  test('enrichMediaLibraryAssets keeps positive MediaLibrary duration over native duration', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValueOnce({ durationMs: 245000 });
+
+    const result = await mediaImport.enrichMediaLibraryAssets([
+      mediaAsset('media-duration', 'media-duration.mp3', 120, 'file:///music/media-duration.mp3', 'audio/mpeg') as any,
+    ], 0, { loadNativeCover: false, readId3Tags: false });
+
+    expect(result.songs[0].duration).toBe(120000);
+  });
+
+  test('extractAudioInfo failures do not abort MediaLibrary import', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockRejectedValueOnce(new Error('native failed'));
+
+    const result = await mediaImport.enrichMediaLibraryAssets([
+      mediaAsset('native-error', 'native-error.mp3', 120, 'file:///music/native-error.mp3', 'audio/mpeg') as any,
+    ], 0, { loadNativeCover: false, readId3Tags: false });
+
+    expect(result.songs).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+  });
 
   test('scanAudioAssetsFromMediaLibrary uses the default 45-second filter and stable skipped reasons', async () => {
     const short = mediaAsset('short', 'short-click.mp3', 3);
@@ -827,7 +873,6 @@ describe('mediaLibraryImport', () => {
       undefined,
     );
   });
-
 
   test('scanFromSafFolders enriches SAF songs with native audio info', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce(['content://dir/song.mp3']);

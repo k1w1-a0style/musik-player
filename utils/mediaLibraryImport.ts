@@ -173,7 +173,19 @@ export const deriveFolderNameFromUri = (uri: string): string => deriveSafDisplay
 
 const filenameFromUri = (uri: string): string => deriveSafDisplayName(uri) || uri;
 
-const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => typeof existing === 'number' && existing > 0 ? existing : undefined;
+const isPositiveFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const preferPositiveNumber = (incoming?: unknown, fallback?: unknown): number | undefined => {
+  if (isPositiveFiniteNumber(incoming)) return incoming;
+  if (isPositiveFiniteNumber(fallback)) return fallback;
+  return undefined;
+};
+
+const durationSecondsToMs = (durationSeconds?: unknown): number | undefined =>
+  isPositiveFiniteNumber(durationSeconds) ? durationSeconds * 1000 : undefined;
+
+const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => preferPositiveNumber(existing);
 
 const getNativeAudioInfo = async (uri: string): Promise<AudioInfoResult | null> => {
   try {
@@ -186,13 +198,13 @@ const getNativeAudioInfo = async (uri: string): Promise<AudioInfoResult | null> 
 const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoResult | null): BuildSongSource => ({
   ...source,
   filename: source.filename ?? audioInfo?.displayName,
-  durationMs: source.durationMs ?? audioInfo?.durationMs,
+  durationMs: preferPositiveNumber(source.durationMs, audioInfo?.durationMs),
   mimeType: source.mimeType ?? audioInfo?.mimeType,
   audioMimeType: audioInfo?.mimeType,
-  size: source.size ?? audioInfo?.sizeBytes,
-  bitrateBps: audioInfo?.bitrateBps,
-  sampleRateHz: audioInfo?.sampleRateHz,
-  channels: audioInfo?.channels,
+  size: preferPositiveNumber(source.size, audioInfo?.sizeBytes),
+  bitrateBps: preferPositiveNumber(source.bitrateBps, audioInfo?.bitrateBps),
+  sampleRateHz: preferPositiveNumber(source.sampleRateHz, audioInfo?.sampleRateHz),
+  channels: preferPositiveNumber(source.channels, audioInfo?.channels),
 });
 
 const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> => {
@@ -572,7 +584,7 @@ export const enrichMediaLibraryAssets = async (
           id: asset.id,
           uri: asset.uri,
           filename: asset.filename,
-          durationMs: (asset.duration ?? 0) * 1000,
+          durationMs: durationSecondsToMs(asset.duration),
           mimeType: (asset as { mimeType?: string }).mimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
