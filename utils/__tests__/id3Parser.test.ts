@@ -183,12 +183,24 @@ describe('parseId3Buffer (v2.3)', () => {
     expect(tags.genre).toBe('Electronic');
   });
 
-  test('normalizes ID3 genre codes from TCON', () => {
+  test('normalizes safe ID3 genre codes from TCON', () => {
     expect(parseId3Buffer(buildId3v23([buildTextFrame('TCON', '(3)')])).genre).toBe('Dance');
+    expect(normalizeId3Genre('(3)')).toBe('Dance');
+    expect(normalizeId3Genre('3')).toBe('Dance');
     expect(normalizeId3Genre('Dance')).toBe('Dance');
     expect(normalizeId3Genre('(3)Dance')).toBe('Dance');
+    expect(normalizeId3Genre('(3) Dance')).toBe('Dance');
+    expect(normalizeId3Genre('(3)House')).toBe('Dance; House');
     expect(normalizeId3Genre('(999)')).toBe('999');
     expect(normalizeId3Genre('   ')).toBeUndefined();
+  });
+
+  test('preserves free-form genres that contain numbers', () => {
+    expect(normalizeId3Genre('Top 40')).toBe('Top 40');
+    expect(normalizeId3Genre('80s Pop')).toBe('80s Pop');
+    expect(normalizeId3Genre('2-Step')).toBe('2-Step');
+    expect(normalizeId3Genre('Drum & Bass 2024')).toBe('Drum & Bass 2024');
+    expect(normalizeId3Genre('Genre 3')).toBe('Genre 3');
   });
 
   test('returns empty object for missing ID3 header', () => {

@@ -62,19 +62,30 @@ export const normalizeId3Genre = (value?: string): string | undefined => {
       parts.push(cleaned);
     }
   };
-  const pattern = /\((\d+)\)([^()]*)|\b(\d+)\b/g;
-  let matched = false;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(raw)) !== null) {
-    matched = true;
-    const code = Number(match[1] ?? match[3]);
+  const addCode = (codeText: string): string | undefined => {
+    const code = Number(codeText);
     const mapped = Number.isInteger(code) ? ID3V1_GENRES[code] : undefined;
-    if (mapped) addPart(mapped);
-    else if (match[1]) addPart(match[1]);
-    const suffix = match[2]?.trim();
-    if (suffix && (!mapped || suffix.toLocaleLowerCase('de-DE') !== mapped.toLocaleLowerCase('de-DE'))) addPart(suffix);
+    addPart(mapped ?? codeText);
+    return mapped;
+  };
+
+  const wholeNumericMatch = raw.match(/^\d+$/u);
+  if (wholeNumericMatch) {
+    addCode(wholeNumericMatch[0]);
+    return parts.join('; ') || undefined;
   }
-  if (!matched) addPart(raw);
+
+  const parenthesizedCodeMatch = raw.match(/^\((\d+)\)(.*)$/u);
+  if (parenthesizedCodeMatch) {
+    const mapped = addCode(parenthesizedCodeMatch[1]);
+    const suffix = parenthesizedCodeMatch[2]?.trim();
+    if (suffix && (!mapped || suffix.toLocaleLowerCase('de-DE') !== mapped.toLocaleLowerCase('de-DE'))) {
+      addPart(suffix);
+    }
+    return parts.join('; ') || undefined;
+  }
+
+  addPart(raw);
   return parts.join('; ') || undefined;
 };
 
