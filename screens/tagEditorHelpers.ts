@@ -12,15 +12,13 @@ import { normalizeEditableTags } from '../utils/tagValidation';
 export type FormState = Record<keyof EditableTrackTags, string>;
 
 const SAF_READ_ONLY_MESSAGE =
-  'Bei Android-Medien- oder SAF-Quellen kann der Schreibzugriff eingeschränkt sein. Falls Speichern fehlschlägt, wähle die Datei erneut über den System-Dateiauswahldialog aus.';
+  'Android content sources may need a fresh SAF file selection before saving.';
 const ID3V22_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
+  'Diese MP3 nutzt ID3v2.2. Bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen; bitte extern nach ID3v2.3 konvertieren oder die Datei unverändert lassen.';
-const TAG_LAYOUT_UNSUPPORTED_MESSAGE =
-  'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
-const FILE_REPLACE_UNSUPPORTED_MESSAGE =
-  'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
+  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen.';
+const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
+const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
 let embeddedArtworkRevision = 0;
 
@@ -36,6 +34,7 @@ export const resetEmbeddedArtworkRevisionForTests = (): void => {
 export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
   { key: 'title', label: 'Titel' },
   { key: 'artist', label: 'Künstler' },
+  { key: 'albumArtist', label: 'Album-Künstler' },
   { key: 'album', label: 'Album' },
   { key: 'year', label: 'Jahr' },
   { key: 'genre', label: 'Genre' },
@@ -46,14 +45,13 @@ export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
 
 export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   MissingWritePermission: SAF_READ_ONLY_MESSAGE,
-  UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
+  UnsupportedUri: 'URI ist nicht schreibbar.',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
   WriteNotImplemented: TAG_LAYOUT_UNSUPPORTED_MESSAGE,
   WriteNotImplementedV22: ID3V22_UNSUPPORTED_MESSAGE,
   WriteNotImplementedV24: ID3V24_UNSUPPORTED_MESSAGE,
   InvalidTagData: 'Ungültige Metadaten. Bitte Eingaben prüfen.',
-  FileTooLarge:
-    'Datei ist für sicheres In-App-Tag-Schreiben zu groß. Bitte extern bearbeiten oder kleinere Dateien nutzen.',
+  FileTooLarge: 'Datei ist für sicheres In-App-Tag-Schreiben zu groß.',
   BackupFailed: 'Backup konnte nicht erstellt werden.',
   TempWriteFailed: 'Temporäre Datei konnte nicht geschrieben werden.',
   VerificationFailed: 'Verifikation der temporären Datei fehlgeschlagen.',
@@ -81,6 +79,7 @@ export const COVER_PICK_ERROR_MESSAGES = {
 export const toInitialForm = (song: Song): FormState => ({
   title: song.title ?? '',
   artist: song.artist ?? '',
+  albumArtist: song.albumArtist ?? '',
   album: song.album ?? '',
   year: song.year ?? '',
   genre: song.genre ?? '',
@@ -109,38 +108,25 @@ export const buildDraftFromDirtyFields = (
   };
 };
 
-export const capabilityReason = (reason?: string): string =>
-  reason ?? 'Schreiben ist für diesen Titel nicht verfügbar.';
+export const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Titel nicht verfügbar.';
 
 export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
   if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;
-  if (reasons.includes('FileTooLarge'))
-    return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
+  if (reasons.includes('FileTooLarge')) return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
   if (reasons.includes('WriteNotImplementedV22')) return ID3V22_UNSUPPORTED_MESSAGE;
   if (reasons.includes('WriteNotImplementedV24')) return ID3V24_UNSUPPORTED_MESSAGE;
   if (reasons.includes('WriteNotImplemented')) return FILE_REPLACE_UNSUPPORTED_MESSAGE;
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
-  if (reasons.includes('UnsupportedUri'))
-    return 'URI ist nicht schreibbar (remote/unknown).';
+  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar.';
   return undefined;
 };
 
 export const safetyNotice = (song: Song): string | undefined => {
   const uri = song.fileInfo?.uri ?? song.uri;
-  const container = (
-    song.fileInfo?.extension ??
-    song.fileInfo?.container ??
-    ''
-  ).toLowerCase();
-  if (uri?.startsWith('content://')) {
-    return SAF_READ_ONLY_MESSAGE;
-  }
-  if (container === 'm4a' || container === 'mp4') {
-    return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben. Manche Dateien bleiben bewusst blockiert.';
-  }
-  if (uri?.startsWith('file://')) {
-    return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung; der finale Replace ist geschützt, aber nicht OS-atomar.';
-  }
+  const container = (song.fileInfo?.extension ?? song.fileInfo?.container ?? '').toLowerCase();
+  if (uri?.startsWith('content://')) return SAF_READ_ONLY_MESSAGE;
+  if (container === 'm4a' || container === 'mp4') return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben.';
+  if (uri?.startsWith('file://')) return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung.';
   return undefined;
 };
 
@@ -173,6 +159,9 @@ const applyEditableTagPatch = (
     case 'artist':
       metadataPatch.artist = value;
       break;
+    case 'albumArtist':
+      metadataPatch.albumArtist = value;
+      break;
     case 'album':
       metadataPatch.album = value;
       break;
@@ -200,7 +189,6 @@ export const buildMetadataPatchFromDraft = (
 ): Partial<Song> => {
   const normalizedTags = normalizeEditableTags(draft.tags);
   const metadataPatch: Partial<Song> = {};
-
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
     applyEditableTagPatch(metadataPatch, field.key, normalizedTags[field.key]);
@@ -212,8 +200,6 @@ export const buildMetadataPatchFromDraft = (
   }
 
   if (draft.cover) {
-    // Keep the freshly picked artwork visible as an external/pending preview,
-    // but do not treat that picker URI as the stable embedded artwork result.
     const previewUri = replacementCover?.uri;
     metadataPatch.cover = previewUri;
     metadataPatch.coverInfo = {
@@ -229,18 +215,11 @@ export const buildMetadataPatchFromDraft = (
   return metadataPatch;
 };
 
-const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> =
-  new Set(['embedded', 'cached']);
+const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> = new Set(['embedded', 'cached']);
 
 export const hasRemovableCover = (song: Song): boolean => {
   const hasArtwork = Boolean(song.cover || song.coverInfo?.uri);
-  if (hasArtwork && (
-    song.coverInfo?.pendingEmbeddedArtworkRefresh === true
-    || song.coverInfo?.embeddedArtworkRefreshFailed === true
-  )) {
-    return true;
-  }
-
+  if (hasArtwork && (song.coverInfo?.pendingEmbeddedArtworkRefresh === true || song.coverInfo?.embeddedArtworkRefreshFailed === true)) return true;
   const status = song.coverInfo?.status;
   if (status) return REMOVABLE_COVER_STATUSES.has(status);
   return Boolean(song.cover);
