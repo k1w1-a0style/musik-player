@@ -48,7 +48,7 @@ false
 ]
 ```
 
-`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert. Android 13+ nutzt `READ_MEDIA_AUDIO`; ältere Android-Versionen werden über `expo-media-library`/Systemdialoge gelesen. `WRITE_EXTERNAL_STORAGE` wird nicht blind deklariert, weil Tag-Schreiben nur für app-writable `file://`-URIs freigegeben ist und `content://`/SAF bewusst read-only bleibt.
+`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert. Android 13+ nutzt `READ_MEDIA_AUDIO`; ältere Android-Versionen werden über `expo-media-library`/Systemdialoge gelesen. `WRITE_EXTERNAL_STORAGE` wird nicht blind deklariert: lokale Tag-Updates laufen über app-writable lokale Dateien, SAF-MP3-Texttag-Updates laufen über die native SAF-Route mit bestehender Berechtigung, und nicht unterstützte SAF-Grenzen bleiben nicht verfügbar.
 
 ## Generiertes Android Manifest prüfen
 
@@ -80,8 +80,11 @@ Der `preview`-Build ist in `eas.json` als APK ohne Credentials konfiguriert und 
 - Import mit MP3 ID3v2.2/v2.3/v2.4 prüfen
 - Embedded Cover prüfen
 - Tag Editor mit kleiner lokaler Datei testen
-- Tag Editor mit `content://`/SAF-Datei prüfen: muss read-only bleiben
-- Tag Editor mit sehr großer Datei prüfen: muss vor dem Schreiben blockieren
+- Tag Editor mit SAF-MP3-Datei und bestehender Berechtigung testen
+- SAF-Cover-Updates, SAF-MP4/M4A-Updates und nicht unterstützte Layouts müssen sichtbar nicht verfügbar bleiben
+- AlbumArtist-Anzeige, Gruppierung und Speichern prüfen
+- AudioInfo-Backfill für bestehende Titel prüfen
+- Tag Editor mit sehr großer Datei prüfen: muss vor dem Speichern blockieren
 - Equalizer öffnen: Status darf geräteabhängig/experimentell anzeigen
 - NowPlaying prüfen: kein Visualizer-Prompt und keine FFT-Anzeige
 
