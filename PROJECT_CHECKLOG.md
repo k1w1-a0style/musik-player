@@ -58,6 +58,22 @@ Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
 - [x] Keine i18n-Struktur eingeführt; App bleibt dauerhaft Deutsch-only.
 - [x] Keine Builds/APKs erstellt.
 
+## Post-V6.6 Cover-/Metadata-/SAF-Fixes (2026-06-20)
+
+Status: Automatisierte PR-Kette #210 bis #215 ist gemerged; echter Android-Dev-Build/Smoke bleibt separat.
+
+- [x] PR #210: SAF-Import-Metadaten und progressives Embedded-Cover-Backfill stabilisiert.
+- [x] PR #211: Native `extractAudioInfo(uri)` ergänzt und für SAF/content-Import genutzt.
+- [x] PR #212: `albumArtist` über ID3 `TPE2`/`TP2` und Genre-Normalisierung ergänzt.
+- [x] PR #213: Sicherer Android-SAF/content-TagWriter für MP3-Texttags ergänzt; Schreibpfad mit persisted Permission, Provider-Flags, Byte-Verifikation und Rollback abgesichert.
+- [x] PR #214: `albumArtist` im Tag Editor editierbar gemacht; MP3 schreibt `TPE2`, MP4/M4A schreibt `aART`.
+- [x] PR #215: AudioInfo-Backfill für bereits importierte Songs ergänzt; bestehende positive Werte werden nicht überschrieben.
+- [x] Alle zugehörigen GitHub-CI-Gates grün: Typecheck, Tests/Coverage, Lint, Expo Config Gate und Android Manifest Permission Gate.
+- [x] Keine Dependency-/Expo-/TrackPlayer-/NewArch-Änderung vorgenommen.
+- [x] Keine APK gebaut und kein EAS Build ausgeführt.
+- [ ] Neuer Android Development Build erforderlich, damit native Änderungen aus PR #211 und PR #213 real auf Gerät verfügbar sind.
+- [ ] Echter Android-Smoke für Import, SAF/content-MP3-Texttag-Write, AlbumArtist, AudioInfo-Backfill und Cover-Backfill bleibt offen.
+
 ## Bewusst separate Themen
 
 - i18n: keine Migration; App ist dauerhaft Deutsch-only.
@@ -66,10 +82,11 @@ Status: Code-/Test-/Review-Fixes sind abgeschlossen, sobald CI grün ist.
 - V6.6 Android Dev-APK Smoke: offen/manuell; bleibt lokaler manueller Schritt nach Merge der V6.6-Fixes und ist nicht als smoke-final markiert.
 - Vollständiger finaler Gesamttest: am 2026-06-12 im V6.6-Final-PR erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
+- SAF/content-Tag-Writes: aktuell nur für unterstützte MP3-Texttags mit nativer SAF-Schreibroute freigegeben; Cover-Writes, MP4/M4A-SAF-Writes und unsichere/unsupported Layouts bleiben bewusst blockiert.
 
 ## Finale Validierung vor Release oder codex→main-Handoff
 
-Automatisierte Gates (finaler V6.6-Lauf am 2026-06-12 erfolgreich):
+Automatisierte Gates (letzter gemergter PR-Lauf am 2026-06-20 erfolgreich):
 
 - [x] `npm run typecheck`
 - [x] `npm run lint:ci`
@@ -85,8 +102,10 @@ Optionale/manuelle Android-Smokes nach Build, SDK-/FileSystem-Änderungen oder N
 - [ ] MediaLibrary-Import.
 - [ ] SAF-Ordnerimport inklusive Timeout-/Abort-Verhalten.
 - [ ] Playback im Vordergrund, Hintergrund, Lockscreen und Notification.
-- [ ] Tag Edit/Cover Replace/Remove nur für unterstützte writable `file://` Titel.
-- [ ] `content://`/SAF bleibt read-only für Tag-/Cover-Writes.
+- [ ] Tag Edit/Cover Replace/Remove für unterstützte writable `file://` Titel.
+- [ ] SAF/content-MP3-Texttag-Write mit bestehender persisted Permission; Cover-Writes und unsupported Layouts müssen sichtbar blockiert bleiben.
+- [ ] AlbumArtist-Anzeige, Gruppierung und Tag-Editor-Speichern.
+- [ ] AudioInfo-Backfill für bereits importierte Titel ohne Dauer/Bitrate/SampleRate/Channels.
 - [ ] Cover cache cleanup inklusive Orphan-Enumeration.
 
 ## Android-Smoke-Fix Cover-Backfill / Metadata Refresh (2026-06-16)
