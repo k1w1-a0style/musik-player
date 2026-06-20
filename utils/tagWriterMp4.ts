@@ -27,6 +27,7 @@ const MP4_TYPES = {
   covr: atomType(0x63, 0x6f, 0x76, 0x72),
   cnam: atomType(0xa9, 0x6e, 0x61, 0x6d),
   cART: atomType(0xa9, 0x41, 0x52, 0x54),
+  aART: atomType(0x61, 0x41, 0x52, 0x54),
   calb: atomType(0xa9, 0x61, 0x6c, 0x62),
   cday: atomType(0xa9, 0x64, 0x61, 0x79),
   cgen: atomType(0xa9, 0x67, 0x65, 0x6e),
@@ -138,6 +139,7 @@ export const applyMp4TagEditToBuffer = (
   const map: Array<{ key: keyof TagEditDraft['tags']; type: Uint8Array }> = [
     { key: 'title', type: MP4_TYPES.cnam },
     { key: 'artist', type: MP4_TYPES.cART },
+    { key: 'albumArtist', type: MP4_TYPES.aART },
     { key: 'album', type: MP4_TYPES.calb },
     { key: 'year', type: MP4_TYPES.cday },
     { key: 'genre', type: MP4_TYPES.cgen },
@@ -210,4 +212,3 @@ export const applyMp4TagEditToBuffer = (
   );
   return concatBytes(rebuiltTop);
 };
-
