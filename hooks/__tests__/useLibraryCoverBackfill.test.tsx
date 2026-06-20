@@ -335,6 +335,52 @@ describe('useLibraryCoverBackfill', () => {
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
   });
 
+
+  test('keeps one progressive protection alive across multiple flush batches until all uris are owned', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async (uri: string) => ({ uri: `${uri}.jpg` }));
+    const applySongMetadataPatches = jest.fn();
+    const initialSongs = ['a', 'b', 'c', 'd', 'e'].map(id => song(id));
+
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
+      { initialProps: { value: initialSongs } },
+    );
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledTimes(2));
+    expect(applySongMetadataPatches).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      a: expect.objectContaining({ cover: 'file:///a.mp3.jpg' }),
+      b: expect.objectContaining({ cover: 'file:///b.mp3.jpg' }),
+      c: expect.objectContaining({ cover: 'file:///c.mp3.jpg' }),
+      d: expect.objectContaining({ cover: 'file:///d.mp3.jpg' }),
+    }));
+    expect(applySongMetadataPatches).toHaveBeenNthCalledWith(2, {
+      e: { cover: 'file:///e.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///e.mp3.jpg', embeddedArtworkChecked: true } },
+    });
+
+    rerender({
+      value: [
+        song('a', { cover: 'file:///a.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///a.mp3.jpg', embeddedArtworkChecked: true } }),
+        song('b', { cover: 'file:///b.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///b.mp3.jpg', embeddedArtworkChecked: true } }),
+        song('c', { cover: 'file:///c.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///c.mp3.jpg', embeddedArtworkChecked: true } }),
+        song('d', { cover: 'file:///d.mp3.jpg', coverInfo: { status: 'cached', uri: 'file:///d.mp3.jpg', embeddedArtworkChecked: true } }),
+        song('e'),
+      ],
+    });
+    await flush();
+
+    expect(mockRelease).not.toHaveBeenCalled();
+
+    rerender({
+      value: ['a', 'b', 'c', 'd', 'e'].map(id => song(id, {
+        cover: `file:///${id}.mp3.jpg`,
+        coverInfo: { status: 'cached', uri: `file:///${id}.mp3.jpg`, embeddedArtworkChecked: true },
+      })),
+    });
+
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+    expect(applySongMetadataPatches).toHaveBeenCalledTimes(2);
+  });
+
   test('releases pending cover protection on unmount if snapshot never owns the uri', async () => {
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cover-a.jpg' });
     const applySongMetadataPatches = jest.fn();

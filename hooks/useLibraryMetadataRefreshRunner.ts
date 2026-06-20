@@ -9,11 +9,13 @@ import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunn
 
 
 const METADATA_REFRESH_CHUNK_SIZE = 25;
+const METADATA_REFRESH_ID3_CONCURRENCY = 2;
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 
 interface MetadataRefreshProcessingItem {
   song: Song;
   originalIndex: number;
+  processingPosition: number;
 }
 
 const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMetadataRefreshResult => ({
@@ -26,6 +28,7 @@ const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMe
   processed: 0,
   total,
   completed: false,
+  processedIndexes: [],
 });
 
 const mergeMetadataRefreshResult = (
@@ -50,6 +53,10 @@ const mergeMetadataRefreshResult = (
     timedOut: chunkResult.timedOut || current.timedOut || undefined,
     aborted: chunkResult.aborted || current.aborted || undefined,
     lastProcessedSongId: chunkResult.lastProcessedSongId ?? current.lastProcessedSongId,
+    processedIndexes: Array.from(new Set([
+      ...(current.processedIndexes ?? []),
+      ...((chunkResult.processedIndexes ?? []).map(index => chunkItems[index]?.processingPosition).filter((index): index is number => typeof index === 'number')),
+    ])).sort((a, b) => a - b),
   };
 };
 
@@ -74,12 +81,13 @@ const mergeProcessedSongIntoRefreshResult = (
     timedOut: current.timedOut,
     aborted: current.aborted,
     lastProcessedSongId: processedSong.song.id,
+    processedIndexes: Array.from(new Set([...(current.processedIndexes ?? []), processedSong.index])).sort((a, b) => a - b),
   };
 };
 
 const buildMetadataRefreshProcessingItems = (songs: Song[], startIndex: number): MetadataRefreshProcessingItem[] => [
-  ...songs.slice(startIndex).map((song, offset) => ({ song, originalIndex: startIndex + offset })),
-  ...songs.slice(0, startIndex).map((song, originalIndex) => ({ song, originalIndex })),
+  ...songs.slice(startIndex).map((song, offset) => ({ song, originalIndex: startIndex + offset, processingPosition: offset })),
+  ...songs.slice(0, startIndex).map((song, originalIndex) => ({ song, originalIndex, processingPosition: songs.length - startIndex + originalIndex })),
 ];
 
 const advanceResumeIndex = (startIndex: number, processed: number, total: number): number =>
@@ -88,13 +96,21 @@ const advanceResumeIndex = (startIndex: number, processed: number, total: number
 const didCompleteRefreshCycle = (startIndex: number, processed: number, total: number): boolean =>
   total <= 0 || (processed > 0 && advanceResumeIndex(startIndex, processed, total) === 0);
 
+const countContiguousProcessed = (processedIndexes: number[] | undefined): number => {
+  const processed = new Set(processedIndexes ?? []);
+  let contiguous = 0;
+  while (processed.has(contiguous)) contiguous += 1;
+  return contiguous;
+};
+
 const completeOrResumePartialResult = (
   result: SongMetadataRefreshResult,
   startIndex: number,
   total: number,
 ): MetadataRefreshSongsResult => {
-  const nextResumeIndex = advanceResumeIndex(startIndex, result.processed, total);
-  if (didCompleteRefreshCycle(startIndex, result.processed, total)) {
+  const contiguousProcessed = countContiguousProcessed(result.processedIndexes);
+  const nextResumeIndex = advanceResumeIndex(startIndex, contiguousProcessed, total);
+  if (didCompleteRefreshCycle(startIndex, contiguousProcessed, total)) {
     return { ...result, completed: true, timedOut: undefined, nextResumeIndex: 0 };
   }
 
@@ -126,7 +142,7 @@ export const useLibraryMetadataRefreshRunner = ({
     const startIndex = resumeIndexRef.current < songs.length ? resumeIndexRef.current : 0;
     const processingItems = buildMetadataRefreshProcessingItems(songs, startIndex);
     let result = emptyMetadataRefreshResult(songs, songs.length);
-    setImportStatus(refreshCopy.readingStatus);
+    setImportStatus(startIndex > 0 ? `${refreshCopy.readingStatus} (Fortsetzen bei ${startIndex + 1}/${songs.length})` : refreshCopy.readingStatus);
 
     for (let chunkStart = 0; chunkStart < processingItems.length; chunkStart += METADATA_REFRESH_CHUNK_SIZE) {
       ensureCurrentRefresh(generation);
@@ -140,7 +156,8 @@ export const useLibraryMetadataRefreshRunner = ({
           signal => refreshSongsFromId3Impl(chunk, {
             signal,
             includeCover: false,
-            onProgress: processed => setImportStatus(`Metadaten ${result.processed + processed}/${songs.length}`),
+            concurrency: METADATA_REFRESH_ID3_CONCURRENCY,
+            onProgress: processed => setImportStatus(`Metadaten ${Math.min(songs.length, startIndex + result.processed + processed)}/${songs.length}`),
             onSongProcessed: processedSong => {
               currentChunkPartial = mergeProcessedSongIntoRefreshResult(currentChunkPartial, processedSong);
             },

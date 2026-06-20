@@ -141,6 +141,16 @@ test('skips failed pending previews with visible artwork to avoid erasing previe
   }))).toBe(false);
 });
 
+
+test('calls onSongProcessed for each completed candidate patch', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async (uri: string) => ({ uri: `${uri}.jpg` }));
+  const onSongProcessed = jest.fn();
+
+  await backfillEmbeddedSongCovers([song('a')], { onSongProcessed });
+
+  expect(onSongProcessed).toHaveBeenCalledWith(expect.objectContaining({ id: 'a', cover: 'file:///a.mp3.jpg' }), 0);
+});
+
 test('per-song extraction failures do not abort the whole backfill', async () => {
   (SystemAudio.extractEmbeddedArtwork as jest.Mock)
     .mockRejectedValueOnce(new Error('bad'))

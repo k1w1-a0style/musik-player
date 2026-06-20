@@ -13,6 +13,7 @@ interface UseLibraryCoverBackfillOptions {
 interface PendingCoverProtection {
   uris: Set<string>;
   release: () => void;
+  completed: boolean;
 }
 
 interface SafeBackfillPatchInput {
@@ -21,6 +22,9 @@ interface SafeBackfillPatchInput {
   currentSongs: Song[];
   candidateKeys: Set<string>;
 }
+
+const PROGRESSIVE_COVER_PATCH_BATCH_SIZE = 4;
+const PROGRESSIVE_COVER_PATCH_FLUSH_MS = 750;
 
 export const buildCoverBackfillAttemptKey = (song: Song): string =>
   [
@@ -43,6 +47,14 @@ const getPatchCoverUris = (patchesBySongId: SongMetadataPatchesById): Set<string
   });
   return uris;
 };
+
+const releaseOwnedPendingProtections = (pendingProtections: PendingCoverProtection[], songs: Song[]): PendingCoverProtection[] =>
+  pendingProtections.filter(pending => {
+    const ownsAllUris = Array.from(pending.uris).every(uri => songSnapshotContainsUri(songs, uri));
+    if (!pending.completed || !ownsAllUris) return true;
+    pending.release();
+    return false;
+  });
 
 const createIdempotentProtectionRelease = (protection: CoverCacheProtection): (() => void) => {
   let protectionReleased = false;
@@ -97,12 +109,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
 
   useEffect(() => {
     if (pendingProtectionsRef.current.length === 0) return;
-    pendingProtectionsRef.current = pendingProtectionsRef.current.filter(pending => {
-      const ownsAllUris = Array.from(pending.uris).every(uri => songSnapshotContainsUri(songs, uri));
-      if (!ownsAllUris) return true;
-      pending.release();
-      return false;
-    });
+    pendingProtectionsRef.current = releaseOwnedPendingProtections(pendingProtectionsRef.current, songs);
   }, [songs]);
 
   useEffect(() => () => {
@@ -121,23 +128,82 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     const protection = createCoverCacheProtection();
     const releaseProtection = createIdempotentProtectionRelease(protection);
     const candidateKeys = new Set(candidates.map(buildCoverBackfillAttemptKey));
+    const pendingPatches: SongMetadataPatchesById = {};
+    const flushedSongIds = new Set<string>();
+    let lastFlushAt = Date.now();
+    let protectionHandedToPending = false;
+    let runPendingProtection: PendingCoverProtection | undefined;
+
+    const ensureRunPendingProtection = (): PendingCoverProtection => {
+      if (runPendingProtection) return runPendingProtection;
+      protectionHandedToPending = true;
+      runPendingProtection = { uris: new Set<string>(), release: releaseProtection, completed: false };
+      pendingProtectionsRef.current.push(runPendingProtection);
+      return runPendingProtection;
+    };
+
+    const markRunProtectionComplete = (): void => {
+      if (!runPendingProtection) return;
+      runPendingProtection.completed = true;
+      pendingProtectionsRef.current = releaseOwnedPendingProtections(pendingProtectionsRef.current, latestSongsRef.current);
+    };
+
+    const flushProgressivePatches = (): void => {
+      if (!mountedRef.current || generationRef.current !== generation || controller.signal.aborted) return;
+      const patchIds = Object.keys(pendingPatches);
+      if (patchIds.length === 0) return;
+      const patches = { ...pendingPatches };
+      patchIds.forEach(songId => {
+        delete pendingPatches[songId];
+        flushedSongIds.add(songId);
+      });
+      const protectedUris = getPatchCoverUris(patches);
+      applySongMetadataPatches(patches);
+      if (protectedUris.size > 0) {
+        const pendingProtection = ensureRunPendingProtection();
+        protectedUris.forEach(uri => pendingProtection.uris.add(uri));
+      }
+      lastFlushAt = Date.now();
+    };
+
+    const queueProgressivePatch = (patchedSong: Song, index: number): void => {
+      if (!mountedRef.current || generationRef.current !== generation || controller.signal.aborted) return;
+      const originalSong = songs[index];
+      if (!originalSong || flushedSongIds.has(originalSong.id)) return;
+      const patches = buildSafeBackfillPatches({
+        originalSongs: [originalSong],
+        resultSongs: [patchedSong],
+        currentSongs: latestSongsRef.current,
+        candidateKeys,
+      });
+      const patch = patches[originalSong.id];
+      if (!patch) return;
+      pendingPatches[originalSong.id] = patch;
+      attemptedRef.current.add(buildCoverBackfillAttemptKey(originalSong));
+      const shouldFlushBySize = Object.keys(pendingPatches).length >= PROGRESSIVE_COVER_PATCH_BATCH_SIZE;
+      const shouldFlushByTime = Date.now() - lastFlushAt >= PROGRESSIVE_COVER_PATCH_FLUSH_MS;
+      if (shouldFlushBySize || shouldFlushByTime) flushProgressivePatches();
+    };
 
     void backfillEmbeddedSongCovers(songs, {
-      concurrency: 1,
+      concurrency: 2,
       batchSize: 6,
       signal: controller.signal,
       coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildCoverBackfillAttemptKey(song)),
+      onSongProcessed: queueProgressivePatch,
     }).then(result => {
       if (
         !mountedRef.current
         || (!result.aborted && controller.signal.aborted)
         || result.attempted === 0
       ) {
-        releaseProtection();
+        markRunProtectionComplete();
+        if (!protectionHandedToPending) releaseProtection();
         return;
       }
 
+      flushProgressivePatches();
       const patchesBySongId = buildSafeBackfillPatches({
         originalSongs: songs,
         resultSongs: result.songs,
@@ -148,13 +214,20 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
         const originalSong = songs.find(song => song.id === songId);
         if (originalSong) attemptedRef.current.add(buildCoverBackfillAttemptKey(originalSong));
       });
+      Object.keys(patchesBySongId).forEach(songId => {
+        if (flushedSongIds.has(songId)) delete patchesBySongId[songId];
+      });
       const hasPatches = Object.keys(patchesBySongId).length > 0;
       const protectedUris = getPatchCoverUris(patchesBySongId);
       if (hasPatches) {
         applySongMetadataPatches(patchesBySongId);
       }
-      if (hasPatches && protectedUris.size > 0) pendingProtectionsRef.current.push({ uris: protectedUris, release: releaseProtection });
-      else releaseProtection();
+      if (hasPatches && protectedUris.size > 0) {
+        const pendingProtection = ensureRunPendingProtection();
+        protectedUris.forEach(uri => pendingProtection.uris.add(uri));
+      }
+      markRunProtectionComplete();
+      if (!protectionHandedToPending) releaseProtection();
     }).catch(error => {
       releaseProtection();
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);

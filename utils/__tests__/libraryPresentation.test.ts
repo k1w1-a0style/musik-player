@@ -20,6 +20,11 @@ const song = (patch: Partial<Song>): Song => ({
   cover: patch.cover,
   duration: patch.duration,
   fileInfo: patch.fileInfo,
+  audioInfo: patch.audioInfo,
+  coverInfo: patch.coverInfo,
+  year: patch.year,
+  trackNumber: patch.trackNumber,
+  discNumber: patch.discNumber,
 });
 
 test('cleans SAF/content labels to readable names', () => {
@@ -68,6 +73,60 @@ test('mergeSongs dedupes by normalized uri variants and imported song wins', () 
   });
 
   expect(mergeSongs([existing], [imported])).toEqual([{ ...existing, ...imported }]);
+});
+
+
+test('mergeSongs preserves rich metadata when SAF re-import provides placeholders', () => {
+  const existing = song({
+    id: 'old',
+    title: 'Track',
+    artist: 'Artist',
+    uri: 'content://tree/music/track.mp3',
+    cover: 'file:///covers/track.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///covers/track.jpg', embeddedArtworkChecked: true },
+    duration: 123,
+    album: 'Album',
+    albumArtist: 'Album Artist',
+    genre: 'Rock',
+    year: '2024',
+    trackNumber: '2',
+    discNumber: '1',
+    fileInfo: { uri: 'content://tree/music/track.mp3', filename: 'track.mp3', size: 456, source: 'saf' },
+    audioInfo: { bitrate: 320000, sampleRate: 44100, channels: 2 },
+  });
+  const imported = song({
+    id: 'new',
+    title: 'Track',
+    artist: 'Artist',
+    uri: 'content://tree/music/track.mp3?fresh=1',
+    cover: undefined,
+    coverInfo: { status: 'unknown' },
+    duration: undefined,
+    album: '',
+    albumArtist: '',
+    genre: '',
+    year: '',
+    trackNumber: '',
+    discNumber: '',
+    fileInfo: { uri: 'content://tree/music/track.mp3?fresh=1', filename: 'track-renamed.mp3', size: undefined, source: 'saf', importedAt: 10 },
+    audioInfo: { bitrate: undefined, sampleRate: undefined, channels: undefined },
+  });
+
+  expect(mergeSongs([existing], [imported])[0]).toMatchObject({
+    id: 'new',
+    uri: 'content://tree/music/track.mp3?fresh=1',
+    cover: 'file:///covers/track.jpg',
+    coverInfo: existing.coverInfo,
+    duration: 123,
+    album: 'Album',
+    albumArtist: 'Album Artist',
+    genre: 'Rock',
+    year: '2024',
+    trackNumber: '2',
+    discNumber: '1',
+    fileInfo: { uri: 'content://tree/music/track.mp3?fresh=1', filename: 'track-renamed.mp3', size: 456, source: 'saf', importedAt: 10 },
+    audioInfo: { bitrate: 320000, sampleRate: 44100, channels: 2 },
+  });
 });
 
 test('mergeSongs dedupes by id when uri is missing', () => {
