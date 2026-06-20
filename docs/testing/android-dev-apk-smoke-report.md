@@ -16,7 +16,7 @@
 
 - Frischer codex-Stand gezogen
 - Keine lokalen uncommitted changes
-- Dev-APK wurde nach N-25 Native-Fix neu gebaut
+- Dev-APK wurde nach den Native-Fixes für AudioInfo und SAF-TagWriter neu gebaut
 - Dev-APK auf echtem Android-Gerät installiert
 - App-Daten optional sauber zurückgesetzt oder Ausgangszustand dokumentiert
 - Testmusik mit mindestens 3 lokalen Titeln vorhanden
@@ -25,6 +25,7 @@
 - Optional ein großes Cover / große Audiodatei für Stabilitätstest
 - SAF-/content:// Quelle verfügbar
 - file:// lokale Quelle verfügbar
+- SAF/content-MP3-Testdatei mit bestehender persisted Permission verfügbar
 
 ## Build-/Config-Prüfung
 
@@ -57,6 +58,9 @@ Checkliste:
 - [ ] Library bleibt nach App-Neustart erhalten
 - [ ] Favoriten persistieren
 - [ ] Playlists persistieren
+- [ ] AlbumArtist-Anzeige und Album-Gruppierung funktionieren
+- [ ] AudioInfo-Backfill ergänzt bestehende Titel ohne Dauer/Bitrate/SampleRate/Channels
+- [ ] AudioInfo-Backfill überschreibt vorhandene positive Werte nicht
 
 ## Playback / TrackPlayer V4
 
@@ -94,7 +98,7 @@ Checkliste:
 - [ ] EQ deaktivieren funktioniert
 - [ ] Playback bleibt nach EQ-Änderungen stabil
 
-## Cover / Palette / N-25 Native Bitmap Decode
+## Cover / Palette / Native Bitmap Decode
 
 - [ ] Cover wird angezeigt
 - [ ] Titel ohne Cover bleibt stabil
@@ -105,15 +109,18 @@ Checkliste:
 - [ ] Embedded Artwork Cache funktioniert
 - [ ] App-Neustart nach Cover-Cache bleibt stabil
 
-## Tag-/Cover-Write-Flows
+## Tag-/Cover-/Metadata-Flows
 
 - [ ] Tag-Bearbeitung für lokale file:// Datei funktioniert
 - [ ] Cover ersetzen für lokale file:// Datei funktioniert
 - [ ] Cover entfernen für lokale file:// Datei funktioniert
-- [ ] content:// bleibt read-only
-- [ ] SAF/content:// Write-Versuch wird sauber blockiert
-- [ ] Backup/Temp/Verify/Rollback-Verhalten zeigt keine kaputte Datei
+- [ ] SAF/content-MP3-Texttag-Speichern funktioniert mit bestehender persisted Permission und unterstütztem Layout
+- [ ] SAF/content-Cover-Speichern bleibt sichtbar nicht verfügbar
+- [ ] MP4/M4A-SAF-Speichern bleibt sichtbar nicht verfügbar
+- [ ] Unsupported Layouts bleiben sichtbar nicht verfügbar
+- [ ] Backup/Temp/Verify/Rollback-Verhalten zeigt keine beschädigte Datei
 - [ ] Datei bleibt nach Tag/Cover-Write abspielbar
+- [ ] AlbumArtist kann im Tag Editor gespeichert und nach Refresh wieder gelesen werden
 
 ## Storage / Hydration
 
@@ -145,9 +152,10 @@ Bestanden nur, wenn:
 - keine Crashs
 - Playback im Vordergrund stabil
 - Background/Notification/Lockscreen geprüft
-- N-25 Cover/Palette Smoke geprüft
+- Cover/Palette Smoke geprüft
 - file:// Tag/Cover-Write geprüft
-- content:// read-only geprüft
+- SAF/content-MP3-Texttag-Speichern und nicht verfügbare SAF-Grenzen geprüft
+- AlbumArtist und AudioInfo-Backfill geprüft
 - keine unerwarteten Permissions
 - keine Datenverlust-Anzeichen
 
@@ -157,4 +165,4 @@ Blockiert, wenn:
 - falsche Commit-SHA getestet wurde
 - Gerätetest nicht durchgeführt wurde
 - Background/Notification/Lockscreen nicht geprüft wurde
-- N-25 Native-Smoke nicht geprüft wurde
+- Native-Smoke für AudioInfo, Cover/Palette und SAF-TagWriter nicht geprüft wurde
