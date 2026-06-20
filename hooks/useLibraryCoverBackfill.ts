@@ -13,6 +13,7 @@ interface UseLibraryCoverBackfillOptions {
 interface PendingCoverProtection {
   uris: Set<string>;
   release: () => void;
+  completed: boolean;
 }
 
 interface SafeBackfillPatchInput {
@@ -46,6 +47,14 @@ const getPatchCoverUris = (patchesBySongId: SongMetadataPatchesById): Set<string
   });
   return uris;
 };
+
+const releaseOwnedPendingProtections = (pendingProtections: PendingCoverProtection[], songs: Song[]): PendingCoverProtection[] =>
+  pendingProtections.filter(pending => {
+    const ownsAllUris = Array.from(pending.uris).every(uri => songSnapshotContainsUri(songs, uri));
+    if (!pending.completed || !ownsAllUris) return true;
+    pending.release();
+    return false;
+  });
 
 const createIdempotentProtectionRelease = (protection: CoverCacheProtection): (() => void) => {
   let protectionReleased = false;
@@ -100,12 +109,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
 
   useEffect(() => {
     if (pendingProtectionsRef.current.length === 0) return;
-    pendingProtectionsRef.current = pendingProtectionsRef.current.filter(pending => {
-      const ownsAllUris = Array.from(pending.uris).every(uri => songSnapshotContainsUri(songs, uri));
-      if (!ownsAllUris) return true;
-      pending.release();
-      return false;
-    });
+    pendingProtectionsRef.current = releaseOwnedPendingProtections(pendingProtectionsRef.current, songs);
   }, [songs]);
 
   useEffect(() => () => {
@@ -128,6 +132,21 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     const flushedSongIds = new Set<string>();
     let lastFlushAt = Date.now();
     let protectionHandedToPending = false;
+    let runPendingProtection: PendingCoverProtection | undefined;
+
+    const ensureRunPendingProtection = (): PendingCoverProtection => {
+      if (runPendingProtection) return runPendingProtection;
+      protectionHandedToPending = true;
+      runPendingProtection = { uris: new Set<string>(), release: releaseProtection, completed: false };
+      pendingProtectionsRef.current.push(runPendingProtection);
+      return runPendingProtection;
+    };
+
+    const markRunProtectionComplete = (): void => {
+      if (!runPendingProtection) return;
+      runPendingProtection.completed = true;
+      pendingProtectionsRef.current = releaseOwnedPendingProtections(pendingProtectionsRef.current, latestSongsRef.current);
+    };
 
     const flushProgressivePatches = (): void => {
       if (!mountedRef.current || generationRef.current !== generation || controller.signal.aborted) return;
@@ -141,8 +160,8 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
       const protectedUris = getPatchCoverUris(patches);
       applySongMetadataPatches(patches);
       if (protectedUris.size > 0) {
-        protectionHandedToPending = true;
-        pendingProtectionsRef.current.push({ uris: protectedUris, release: releaseProtection });
+        const pendingProtection = ensureRunPendingProtection();
+        protectedUris.forEach(uri => pendingProtection.uris.add(uri));
       }
       lastFlushAt = Date.now();
     };
@@ -179,6 +198,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
         || (!result.aborted && controller.signal.aborted)
         || result.attempted === 0
       ) {
+        markRunProtectionComplete();
         if (!protectionHandedToPending) releaseProtection();
         return;
       }
@@ -203,9 +223,11 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
         applySongMetadataPatches(patchesBySongId);
       }
       if (hasPatches && protectedUris.size > 0) {
-        protectionHandedToPending = true;
-        pendingProtectionsRef.current.push({ uris: protectedUris, release: releaseProtection });
-      } else if (!protectionHandedToPending) releaseProtection();
+        const pendingProtection = ensureRunPendingProtection();
+        protectedUris.forEach(uri => pendingProtection.uris.add(uri));
+      }
+      markRunProtectionComplete();
+      if (!protectionHandedToPending) releaseProtection();
     }).catch(error => {
       releaseProtection();
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);

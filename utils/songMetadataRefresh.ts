@@ -15,6 +15,7 @@ export interface SongMetadataRefreshResult {
   timedOut?: boolean;
   aborted?: boolean;
   lastProcessedSongId?: string;
+  processedIndexes?: number[];
 }
 
 export class MetadataRefreshPartialError extends Error {
@@ -257,6 +258,9 @@ export const refreshSongsFromId3 = async (
     }
     const isTimedOut = reason instanceof Error && reason.name === 'TimeoutError';
     const isAborted = Boolean(reason) && !isTimedOut;
+    const processedIndexes = outcomes
+      .map((outcome, index) => outcome ? index : -1)
+      .filter(index => index >= 0);
     return {
       songs: refreshed,
       updated,
@@ -270,6 +274,7 @@ export const refreshSongsFromId3 = async (
       timedOut: isTimedOut || undefined,
       aborted: isAborted || undefined,
       lastProcessedSongId,
+      processedIndexes,
     };
   };
 

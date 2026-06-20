@@ -15,6 +15,7 @@ const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(
 interface MetadataRefreshProcessingItem {
   song: Song;
   originalIndex: number;
+  processingPosition: number;
 }
 
 const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMetadataRefreshResult => ({
@@ -27,6 +28,7 @@ const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMe
   processed: 0,
   total,
   completed: false,
+  processedIndexes: [],
 });
 
 const mergeMetadataRefreshResult = (
@@ -51,6 +53,10 @@ const mergeMetadataRefreshResult = (
     timedOut: chunkResult.timedOut || current.timedOut || undefined,
     aborted: chunkResult.aborted || current.aborted || undefined,
     lastProcessedSongId: chunkResult.lastProcessedSongId ?? current.lastProcessedSongId,
+    processedIndexes: Array.from(new Set([
+      ...(current.processedIndexes ?? []),
+      ...((chunkResult.processedIndexes ?? []).map(index => chunkItems[index]?.processingPosition).filter((index): index is number => typeof index === 'number')),
+    ])).sort((a, b) => a - b),
   };
 };
 
@@ -75,12 +81,13 @@ const mergeProcessedSongIntoRefreshResult = (
     timedOut: current.timedOut,
     aborted: current.aborted,
     lastProcessedSongId: processedSong.song.id,
+    processedIndexes: Array.from(new Set([...(current.processedIndexes ?? []), processedSong.index])).sort((a, b) => a - b),
   };
 };
 
 const buildMetadataRefreshProcessingItems = (songs: Song[], startIndex: number): MetadataRefreshProcessingItem[] => [
-  ...songs.slice(startIndex).map((song, offset) => ({ song, originalIndex: startIndex + offset })),
-  ...songs.slice(0, startIndex).map((song, originalIndex) => ({ song, originalIndex })),
+  ...songs.slice(startIndex).map((song, offset) => ({ song, originalIndex: startIndex + offset, processingPosition: offset })),
+  ...songs.slice(0, startIndex).map((song, originalIndex) => ({ song, originalIndex, processingPosition: songs.length - startIndex + originalIndex })),
 ];
 
 const advanceResumeIndex = (startIndex: number, processed: number, total: number): number =>
@@ -89,13 +96,21 @@ const advanceResumeIndex = (startIndex: number, processed: number, total: number
 const didCompleteRefreshCycle = (startIndex: number, processed: number, total: number): boolean =>
   total <= 0 || (processed > 0 && advanceResumeIndex(startIndex, processed, total) === 0);
 
+const countContiguousProcessed = (processedIndexes: number[] | undefined): number => {
+  const processed = new Set(processedIndexes ?? []);
+  let contiguous = 0;
+  while (processed.has(contiguous)) contiguous += 1;
+  return contiguous;
+};
+
 const completeOrResumePartialResult = (
   result: SongMetadataRefreshResult,
   startIndex: number,
   total: number,
 ): MetadataRefreshSongsResult => {
-  const nextResumeIndex = advanceResumeIndex(startIndex, result.processed, total);
-  if (didCompleteRefreshCycle(startIndex, result.processed, total)) {
+  const contiguousProcessed = countContiguousProcessed(result.processedIndexes);
+  const nextResumeIndex = advanceResumeIndex(startIndex, contiguousProcessed, total);
+  if (didCompleteRefreshCycle(startIndex, contiguousProcessed, total)) {
     return { ...result, completed: true, timedOut: undefined, nextResumeIndex: 0 };
   }
 
