@@ -460,6 +460,7 @@ test('draft builder utility respects dirty fields/removeCover', () => {
   const form = {
     title: 'a',
     artist: 'b',
+    albumArtist: '',
     album: '',
     year: '',
     genre: '',

@@ -170,9 +170,9 @@ describe('tagEditorHelpers', () => {
   });
 
   test('explains protected Android content URIs with an actionable copy hint', () => {
-    expect(blockingReasonMessage(['MissingWritePermission'])).toContain('SAF file selection');
-    expect(safetyNotice({ id: 's3', title: 'Protected', artist: 'Artist', uri: 'content://music/song.mp3' })).toContain('SAF file selection');
-    expect(ERROR_MESSAGES.MissingWritePermission).toContain('Android content sources');
+    expect(blockingReasonMessage(['MissingWritePermission'])).toContain('Schreibzugriff eingeschränkt');
+    expect(safetyNotice({ id: 's3', title: 'Protected', artist: 'Artist', uri: 'content://music/song.mp3' })).toContain('Schreibzugriff eingeschränkt');
+    expect(ERROR_MESSAGES.MissingWritePermission).toContain('Android-Medien- oder SAF-Quellen');
   });
 
   test('explains unsupported tag write layouts separately from platform replace support', () => {

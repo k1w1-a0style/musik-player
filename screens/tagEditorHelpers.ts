@@ -12,11 +12,11 @@ import { normalizeEditableTags } from '../utils/tagValidation';
 export type FormState = Record<keyof EditableTrackTags, string>;
 
 const SAF_READ_ONLY_MESSAGE =
-  'Android content sources may need a fresh SAF file selection before saving.';
+  'Bei Android-Medien- oder SAF-Quellen kann der Schreibzugriff eingeschränkt sein. Falls Speichern fehlschlägt, wähle die Datei erneut über den System-Dateiauswahldialog aus.';
 const ID3V22_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.2. Bitte extern nach ID3v2.3 konvertieren.';
+  'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen.';
+  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen; bitte extern nach ID3v2.3 konvertieren oder die Datei unverändert lassen.';
 const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
@@ -45,13 +45,13 @@ export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
 
 export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   MissingWritePermission: SAF_READ_ONLY_MESSAGE,
-  UnsupportedUri: 'URI ist nicht schreibbar.',
+  UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
   UnsupportedFormat: 'Format wird aktuell nicht unterstützt.',
   WriteNotImplemented: TAG_LAYOUT_UNSUPPORTED_MESSAGE,
   WriteNotImplementedV22: ID3V22_UNSUPPORTED_MESSAGE,
   WriteNotImplementedV24: ID3V24_UNSUPPORTED_MESSAGE,
   InvalidTagData: 'Ungültige Metadaten. Bitte Eingaben prüfen.',
-  FileTooLarge: 'Datei ist für sicheres In-App-Tag-Schreiben zu groß.',
+  FileTooLarge: 'Datei ist für sicheres In-App-Tag-Schreiben zu groß. Bitte extern bearbeiten oder kleinere Dateien nutzen.',
   BackupFailed: 'Backup konnte nicht erstellt werden.',
   TempWriteFailed: 'Temporäre Datei konnte nicht geschrieben werden.',
   VerificationFailed: 'Verifikation der temporären Datei fehlgeschlagen.',
@@ -117,7 +117,7 @@ export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | u
   if (reasons.includes('WriteNotImplementedV24')) return ID3V24_UNSUPPORTED_MESSAGE;
   if (reasons.includes('WriteNotImplemented')) return FILE_REPLACE_UNSUPPORTED_MESSAGE;
   if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
-  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar.';
+  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';
   return undefined;
 };
 
@@ -125,8 +125,8 @@ export const safetyNotice = (song: Song): string | undefined => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const container = (song.fileInfo?.extension ?? song.fileInfo?.container ?? '').toLowerCase();
   if (uri?.startsWith('content://')) return SAF_READ_ONLY_MESSAGE;
-  if (container === 'm4a' || container === 'mp4') return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben.';
-  if (uri?.startsWith('file://')) return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung.';
+  if (container === 'm4a' || container === 'mp4') return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben. Manche Dateien bleiben bewusst blockiert.';
+  if (uri?.startsWith('file://')) return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung; der finale Replace ist geschützt, aber nicht OS-atomar.';
   return undefined;
 };
 
