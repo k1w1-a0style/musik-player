@@ -1,6 +1,6 @@
 import * as MediaLibrary from 'expo-media-library';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
-import SystemAudio from 'expo-system-audio';
+import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename } from './musicParser';
@@ -71,6 +71,10 @@ interface BuildSongSource {
   mimeType?: string;
   source: 'media-library' | 'saf';
   size?: number;
+  bitrateBps?: number;
+  sampleRateHz?: number;
+  channels?: number;
+  audioMimeType?: string;
 }
 
 interface BuildSongOptions {
@@ -169,7 +173,39 @@ export const deriveFolderNameFromUri = (uri: string): string => deriveSafDisplay
 
 const filenameFromUri = (uri: string): string => deriveSafDisplayName(uri) || uri;
 
-const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => typeof existing === 'number' && existing > 0 ? existing : undefined;
+const isPositiveFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const preferPositiveNumber = (incoming?: unknown, fallback?: unknown): number | undefined => {
+  if (isPositiveFiniteNumber(incoming)) return incoming;
+  if (isPositiveFiniteNumber(fallback)) return fallback;
+  return undefined;
+};
+
+const durationSecondsToMs = (durationSeconds?: unknown): number | undefined =>
+  isPositiveFiniteNumber(durationSeconds) ? durationSeconds * 1000 : undefined;
+
+const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => preferPositiveNumber(existing);
+
+const getNativeAudioInfo = async (uri: string): Promise<AudioInfoResult | null> => {
+  try {
+    return await SystemAudio.extractAudioInfo(uri);
+  } catch {
+    return null;
+  }
+};
+
+const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoResult | null): BuildSongSource => ({
+  ...source,
+  filename: source.filename ?? audioInfo?.displayName,
+  durationMs: preferPositiveNumber(source.durationMs, audioInfo?.durationMs),
+  mimeType: source.mimeType ?? audioInfo?.mimeType,
+  audioMimeType: audioInfo?.mimeType,
+  size: preferPositiveNumber(source.size, audioInfo?.sizeBytes),
+  bitrateBps: preferPositiveNumber(source.bitrateBps, audioInfo?.bitrateBps),
+  sampleRateHz: preferPositiveNumber(source.sampleRateHz, audioInfo?.sampleRateHz),
+  channels: preferPositiveNumber(source.channels, audioInfo?.channels),
+});
 
 const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> => {
   try {
@@ -236,8 +272,10 @@ export const buildSongFromImportSource = async (
       importedAt,
     },
     audioInfo: {
-      codec: extension,
-      bitrate: bitrateFromSizeAndDuration(size, source.durationMs),
+      codec: source.audioMimeType ?? extension,
+      bitrate: source.bitrateBps && source.bitrateBps > 0 ? Math.round(source.bitrateBps / 1000) : bitrateFromSizeAndDuration(size, source.durationMs),
+      sampleRate: source.sampleRateHz,
+      channels: source.channels,
     },
     coverInfo: { status: coverStatus, uri: cover, embeddedArtworkChecked: loadNativeCover },
   };
@@ -540,15 +578,17 @@ export const enrichMediaLibraryAssets = async (
       try {
         const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal);
         throwIfAborted(signal);
-        songs.push(await buildSongFromImportSource({
+        const audioInfo = await getNativeAudioInfo(asset.uri);
+        throwIfAborted(signal);
+        songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({
           id: asset.id,
           uri: asset.uri,
           filename: asset.filename,
-          durationMs: (asset.duration ?? 0) * 1000,
+          durationMs: durationSecondsToMs(asset.duration),
           mimeType: (asset as { mimeType?: string }).mimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
-        }, tags, { loadNativeCover }));
+        }, audioInfo), tags, { loadNativeCover }));
         throwIfAborted(signal);
       } catch {
         errors.push(asset.uri);
@@ -613,12 +653,16 @@ export const scanFromSafFolders = async (
         try {
           const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
           throwIfAborted(signal);
-          songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, tags, { loadNativeCover }));
+          const audioInfo = await getNativeAudioInfo(uri);
+          throwIfAborted(signal);
+          songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo), tags, { loadNativeCover }));
           throwIfAborted(signal);
         } catch {
           throwIfAborted(signal);
           recordImportError(uri);
-          songs.push(await buildSongFromImportSource({ id: uri, uri, source: 'saf' }, {}, { loadNativeCover }));
+          const audioInfo = await getNativeAudioInfo(uri);
+          throwIfAborted(signal);
+          songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo), {}, { loadNativeCover }));
           throwIfAborted(signal);
         }
       }

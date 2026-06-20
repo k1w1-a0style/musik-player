@@ -2,7 +2,10 @@ package expo.modules.systemaudio
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
+import android.provider.OpenableColumns
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.util.Base64
@@ -85,6 +88,10 @@ class SystemAudioModule : Module() {
       result["lightMuted"] = palette.lightMutedSwatch?.rgb?.let(::hex)
       result["darkMuted"] = palette.darkMutedSwatch?.rgb?.let(::hex)
       result
+    }
+
+    AsyncFunction("extractAudioInfo") { uri: String ->
+      extractAudioInfo(uri)
     }
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
@@ -230,6 +237,122 @@ class SystemAudioModule : Module() {
     }
     return ctx.contentResolver.openInputStream(uri)?.use { stream ->
       BitmapFactory.decodeStream(stream, null, opts)
+    }
+  }
+
+  private fun extractAudioInfo(uri: String): Map<String, Any?>? {
+    val result = mutableMapOf<String, Any?>()
+    readOpenableInfo(uri)?.let { info ->
+      info.sizeBytes?.let { result["sizeBytes"] = it }
+      info.displayName?.let { result["displayName"] = it }
+    }
+    fileSizeForUri(uri)?.let { result.putIfAbsent("sizeBytes", it) }
+    mimeTypeForUri(uri)?.let { result["mimeType"] = it }
+    readRetrieverInfo(uri)?.let { info ->
+      info.durationMs?.let { result["durationMs"] = it }
+      info.bitrateBps?.let { result["bitrateBps"] = it }
+    }
+    readExtractorInfo(uri)?.let { info ->
+      info.sampleRateHz?.let { result["sampleRateHz"] = it }
+      info.channels?.let { result["channels"] = it }
+      info.mimeType?.let { result.putIfAbsent("mimeType", it) }
+    }
+    return result.ifEmpty { null }
+  }
+
+  private data class OpenableInfo(val sizeBytes: Long?, val displayName: String?)
+  private data class RetrieverInfo(val durationMs: Long?, val bitrateBps: Long?)
+  private data class ExtractorInfo(val sampleRateHz: Int?, val channels: Int?, val mimeType: String?)
+
+  private fun readOpenableInfo(uri: String): OpenableInfo? {
+    val parsed = Uri.parse(uri)
+    if (parsed.scheme != "content") return null
+    val ctx = appContext.reactContext ?: return null
+    return try {
+      ctx.contentResolver.query(parsed, arrayOf(OpenableColumns.SIZE, OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (!cursor.moveToFirst()) return@use null
+        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex).takeIf { it > 0 } else null
+        val name = if (nameIndex >= 0 && !cursor.isNull(nameIndex)) cursor.getString(nameIndex)?.takeIf { it.isNotBlank() } else null
+        OpenableInfo(size, name)
+      }
+    } catch (e: Throwable) {
+      Log.d(TAG, "openable info unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      null
+    }
+  }
+
+  private fun fileSizeForUri(uri: String): Long? {
+    return try {
+      val parsed = Uri.parse(uri)
+      val path = if (parsed.scheme == "file") parsed.path else if (parsed.scheme.isNullOrBlank()) uri else null
+      path?.let { File(it) }?.takeIf { it.isFile }?.length()?.takeIf { it > 0 }
+    } catch (_: Throwable) { null }
+  }
+
+  private fun mimeTypeForUri(uri: String): String? {
+    val parsed = Uri.parse(uri)
+    if (parsed.scheme != "content") return null
+    val ctx = appContext.reactContext ?: return null
+    return try { ctx.contentResolver.getType(parsed)?.takeIf { it.isNotBlank() } } catch (_: Throwable) { null }
+  }
+
+  private fun configureDataSource(retriever: MediaMetadataRetriever, uri: String): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    val parsed = Uri.parse(uri)
+    return try {
+      when {
+        parsed.scheme == "content" -> retriever.setDataSource(ctx, parsed)
+        parsed.scheme == "file" -> retriever.setDataSource(parsed.path ?: return false)
+        uri.startsWith("http://") || uri.startsWith("https://") -> return false
+        else -> retriever.setDataSource(uri)
+      }
+      true
+    } catch (e: Throwable) {
+      Log.d(TAG, "metadata retriever unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      false
+    }
+  }
+
+  private fun readRetrieverInfo(uri: String): RetrieverInfo? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+      if (!configureDataSource(retriever, uri)) return null
+      val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.takeIf { it > 0 }
+      val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.takeIf { it > 0 }
+      RetrieverInfo(duration, bitrate)
+    } finally {
+      try { retriever.release() } catch (_: Throwable) {}
+    }
+  }
+
+  private fun readExtractorInfo(uri: String): ExtractorInfo? {
+    val ctx = appContext.reactContext ?: return null
+    val extractor = MediaExtractor()
+    return try {
+      val parsed = Uri.parse(uri)
+      when {
+        parsed.scheme == "content" -> extractor.setDataSource(ctx, parsed, null)
+        parsed.scheme == "file" -> extractor.setDataSource(parsed.path ?: return null)
+        uri.startsWith("http://") || uri.startsWith("https://") -> return null
+        else -> extractor.setDataSource(uri)
+      }
+      for (i in 0 until extractor.trackCount) {
+        val format = extractor.getTrackFormat(i)
+        val mime = if (format.containsKey(MediaFormat.KEY_MIME)) format.getString(MediaFormat.KEY_MIME) else null
+        if (mime?.startsWith("audio/") == true) {
+          val sampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE).takeIf { it > 0 } else null
+          val channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT).takeIf { it > 0 } else null
+          return ExtractorInfo(sampleRate, channels, mime)
+        }
+      }
+      null
+    } catch (e: Throwable) {
+      Log.d(TAG, "media extractor unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      null
+    } finally {
+      try { extractor.release() } catch (_: Throwable) {}
     }
   }
 

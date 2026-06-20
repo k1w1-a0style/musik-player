@@ -28,6 +28,16 @@ export interface EmbeddedArtworkResult {
   mimeType: string;
 }
 
+export interface AudioInfoResult {
+  durationMs?: number;
+  bitrateBps?: number;
+  sizeBytes?: number;
+  sampleRateHz?: number;
+  channels?: number;
+  mimeType?: string;
+  displayName?: string;
+}
+
 declare class ExpoSystemAudioModule extends NativeModule {
   eqInit(): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
@@ -35,6 +45,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   eqRelease(): void;
   extractPalette(uri: string): Promise<PaletteResult | null>;
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
+  extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
 }
 
 const native: ExpoSystemAudioModule | null = (() => {
@@ -74,6 +85,10 @@ export const SystemAudio = {
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
     return native ? native.extractEmbeddedArtwork(uri) : null;
+  },
+
+  async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
+    return native ? native.extractAudioInfo(uri) : null;
   },
 };
 
