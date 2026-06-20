@@ -1,4 +1,4 @@
-import { parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
+import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -149,12 +149,15 @@ describe('parseId3Buffer (v2.2)', () => {
     });
   });
 
-  test('TPE2-equivalent TP2 fills artist only when TP1 is missing', () => {
-    expect(parseId3Buffer(buildId3v22([buildTextFrameV22('TP2', 'Album Artist')])).artist).toBe('Album Artist');
-    expect(parseId3Buffer(buildId3v22([
+  test('TP1 maps to artist and TP2 maps to albumArtist without overwriting artist', () => {
+    const tags = parseId3Buffer(buildId3v22([
       buildTextFrameV22('TP1', 'Lead Artist'),
       buildTextFrameV22('TP2', 'Album Artist'),
-    ])).artist).toBe('Lead Artist');
+    ]));
+
+    expect(tags.artist).toBe('Lead Artist');
+    expect(tags.albumArtist).toBe('Album Artist');
+    expect(parseId3Buffer(buildId3v22([buildTextFrameV22('TP2', 'Album Artist')])).artist).toBeUndefined();
   });
 
   test('still parses v2.2 PIC cover frames', () => {
@@ -178,6 +181,14 @@ describe('parseId3Buffer (v2.3)', () => {
     expect(tags.album).toBe('Random Access Memories');
     expect(tags.year).toBe('2013');
     expect(tags.genre).toBe('Electronic');
+  });
+
+  test('normalizes ID3 genre codes from TCON', () => {
+    expect(parseId3Buffer(buildId3v23([buildTextFrame('TCON', '(3)')])).genre).toBe('Dance');
+    expect(normalizeId3Genre('Dance')).toBe('Dance');
+    expect(normalizeId3Genre('(3)Dance')).toBe('Dance');
+    expect(normalizeId3Genre('(999)')).toBe('999');
+    expect(normalizeId3Genre('   ')).toBeUndefined();
   });
 
   test('returns empty object for missing ID3 header', () => {
@@ -209,17 +220,21 @@ describe('parseId3Buffer (v2.3)', () => {
     expect(() => parseId3Buffer(buildId3v23(frames))).not.toThrow();
   });
 
-  test('TPE2 fills artist if TPE1 is missing', () => {
-    const buf = buildId3v23([buildTextFrame('TPE2', 'Various Artists')]);
-    expect(parseId3Buffer(buf).artist).toBe('Various Artists');
-  });
-
-  test('TPE1 takes priority over TPE2', () => {
+  test('TPE1 maps to artist and TPE2 maps to albumArtist', () => {
     const buf = buildId3v23([
       buildTextFrame('TPE1', 'Lead Artist'),
       buildTextFrame('TPE2', 'Album Artist'),
     ]);
-    expect(parseId3Buffer(buf).artist).toBe('Lead Artist');
+    const tags = parseId3Buffer(buf);
+
+    expect(tags.artist).toBe('Lead Artist');
+    expect(tags.albumArtist).toBe('Album Artist');
+  });
+
+  test('TPE2 does not overwrite artist when TPE1 is missing', () => {
+    const tags = parseId3Buffer(buildId3v23([buildTextFrame('TPE2', 'Various Artists')]));
+    expect(tags.artist).toBeUndefined();
+    expect(tags.albumArtist).toBe('Various Artists');
   });
 
   test('parses TRCK/TPOS and COMM', () => {

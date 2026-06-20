@@ -111,6 +111,7 @@ export const buildId3SongPatch = (song: Song, tags: Id3Tags): Partial<Song> => {
   const patch: Partial<Song> = {};
   assignChanged(patch, song, 'title', tags.title);
   assignChanged(patch, song, 'artist', tags.artist);
+  assignChanged(patch, song, 'albumArtist', tags.albumArtist);
   assignChanged(patch, song, 'album', tags.album);
   assignChanged(patch, song, 'year', tags.year);
   assignChanged(patch, song, 'genre', tags.genre);

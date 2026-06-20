@@ -252,6 +252,7 @@ export const buildSongFromImportSource = async (
     id: source.id,
     title: tags.title || fallback.title || filename.replace(/\.[^.]+$/, ''),
     artist: tags.artist || fallback.artist || 'Unbekannt',
+    albumArtist: tags.albumArtist,
     album: tags.album,
     duration: source.durationMs,
     year: tags.year,
