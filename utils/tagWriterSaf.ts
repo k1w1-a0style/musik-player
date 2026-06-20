@@ -69,8 +69,16 @@ export const writeTagsToSafContentUri = async (
         verified: false,
       });
     }
-    if (!SystemAudio.isAvailable || !SystemAudio.readAudioFileBase64 || !SystemAudio.writeAudioTags) {
-      return toResult(await SystemAudio.writeAudioTags(uri, { changedFields, failedFields: changedFields }));
+    if (!SystemAudio.hasNativeTagWriter) {
+      return toResult({
+        success: false,
+        uri,
+        changedFields: [],
+        failedFields: changedFields,
+        errorCode: 'WriteNotImplemented',
+        message: 'Native SAF audio tag writer is unavailable. A new Development Build/APK is required.',
+        verified: false,
+      });
     }
 
     try {

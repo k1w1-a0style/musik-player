@@ -75,6 +75,8 @@ export const validateWritePreconditions = (
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
     errors.push('FileTooLarge');
+  if (uriType === 'content' && (draft.cover || draft.removeCover))
+    errors.push('WriteNotImplemented');
   if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
     errors.push('WriteNotImplemented');
 
@@ -103,6 +105,8 @@ export const createTagWriteOperationPlan = (
   if (containerWarn) warnings.push(containerWarn);
   if (draft.removeCover && draft.cover)
     warnings.push('removeCover=true takes precedence over cover payload.');
+  if (uriType === 'content' && (draft.cover || draft.removeCover))
+    warnings.push('SAF/content:// cover artwork writes are not supported in this release; save is blocked before writing.');
   const knownFileSize = getKnownFileSize(song);
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes) {
     warnings.push(

@@ -1168,6 +1168,7 @@ describe('writeTagsToFile SAF/content native route', () => {
     const original = u8(1, 2, 3);
     const native = {
       isAvailable: true,
+      hasNativeTagWriter: true,
       readAudioFileBase64: jest.fn().mockResolvedValue(Buffer.from(original).toString('base64')),
       writeAudioTags: jest.fn(async (uri: string, request: { rewrittenAudioBase64: string; changedFields: string[] }) => ({
         success: true,
@@ -1187,7 +1188,7 @@ describe('writeTagsToFile SAF/content native route', () => {
   });
 
   test('file:// keeps using existing adapter path instead of native SAF writer', async () => {
-    const native = { isAvailable: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
+    const native = { isAvailable: true, hasNativeTagWriter: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
     const { writeTagsToFile: write } = loadWithNative(native);
     const uri = 'file:///a.mp3';
     const files = new Map<string, Uint8Array>([[uri, u8(1, 2, 3)]]);
@@ -1206,7 +1207,7 @@ describe('writeTagsToFile SAF/content native route', () => {
   });
 
   test('native unavailable returns unsupported result without crashing', async () => {
-    const native = { isAvailable: false, writeAudioTags: jest.fn(async (uri: string) => ({ success: false, uri, changedFields: [], failedFields: ['title'], errorCode: 'WriteNotImplemented', message: 'missing native', verified: false })) };
+    const native = { isAvailable: false, hasNativeTagWriter: false, writeAudioTags: jest.fn(async (uri: string) => ({ success: false, uri, changedFields: [], failedFields: ['title'], errorCode: 'WriteNotImplemented', message: 'missing native', verified: false })) };
     const { writeTagsToFile: write } = loadWithNative(native);
     const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
     expect(result.status).toBe('writeFailed');
@@ -1222,6 +1223,7 @@ describe('writeTagsToFile SAF/content native route', () => {
     for (const [errorCode, status] of cases) {
       const native = {
         isAvailable: true,
+        hasNativeTagWriter: true,
         readAudioFileBase64: jest.fn().mockResolvedValue(Buffer.from(u8(1, 2, 3)).toString('base64')),
         writeAudioTags: jest.fn(async (uri: string) => ({ success: false, uri, changedFields: [], failedFields: ['title'], errorCode, message: errorCode, verified: false })),
       };
@@ -1233,8 +1235,29 @@ describe('writeTagsToFile SAF/content native route', () => {
     }
   });
 
+
+  test('old development build without native SAF methods returns WriteNotImplemented before reading', async () => {
+    const native = { isAvailable: true, hasNativeTagWriter: false, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
+    expect(result.status).toBe('writeFailed');
+    expect(result.errorCode).toBe('WriteNotImplemented');
+    expect(result.errorMessage).toMatch(/Development Build\/APK/i);
+    expect(native.readAudioFileBase64).not.toHaveBeenCalled();
+  });
+
+  test('native reader returning null remains an UnsupportedUri provider/read failure when SAF writer exists', async () => {
+    const native = { isAvailable: true, hasNativeTagWriter: true, readAudioFileBase64: jest.fn().mockResolvedValue(null), writeAudioTags: jest.fn() };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
+    expect(result.status).toBe('unsupportedUri');
+    expect(result.errorCode).toBe('UnsupportedUri');
+    expect(native.readAudioFileBase64).toHaveBeenCalled();
+    expect(native.writeAudioTags).not.toHaveBeenCalled();
+  });
+
   test('content:// m4a is rejected before native read to avoid unsafe formats', async () => {
-    const native = { isAvailable: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
+    const native = { isAvailable: true, hasNativeTagWriter: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
     const { writeTagsToFile: write } = loadWithNative(native);
     const result = await write(song({ uri: 'content://media/a.m4a', fileInfo: { extension: 'm4a' } }), { songId: '1', tags: { title: 'X' } });
     expect(result).toMatchObject({ status: 'unsupportedUri', errorCode: 'UnsupportedFormat' });

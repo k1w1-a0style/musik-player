@@ -88,8 +88,14 @@ const native: ExpoSystemAudioModule | null = (() => {
  * Public API. Gracefully degrades to a no-op implementation when the
  * native module is unavailable (e.g. running in Expo Go or in Jest).
  */
+const hasNativeTagWriter =
+  native !== null &&
+  typeof native.readAudioFileBase64 === 'function' &&
+  typeof native.writeAudioTags === 'function';
+
 export const SystemAudio = {
   isAvailable: native !== null,
+  hasNativeTagWriter,
 
   async eqInit(): Promise<EqInitResult | null> {
     return native ? native.eqInit() : null;

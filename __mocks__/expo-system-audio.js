@@ -6,6 +6,7 @@
 
 const SystemAudio = {
   isAvailable: false,
+  hasNativeTagWriter: false,
   eqInit: jest.fn().mockResolvedValue(null),
   eqSetEnabled: jest.fn().mockReturnValue(false),
   eqSetBandLevel: jest.fn().mockReturnValue(false),

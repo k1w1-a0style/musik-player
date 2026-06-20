@@ -70,6 +70,36 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.estimatedRisk).toBe('high');
   });
 
+
+
+  test('content:// mp3 cover payload is blocked before save while text-only remains allowed', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
+      'android',
+    );
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(plan.warnings.join(' ')).toMatch(/cover artwork writes are not supported/i);
+  });
+
+  test('content:// mp3 removeCover is blocked before save', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' }, removeCover: true },
+      'android',
+    );
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+  });
+
+  test('file:// cover edit is not blocked by the SAF cover rule', () => {
+    const plan = createTagWriteOperationPlan(
+      song({ uri: 'file:///media/a.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
+      'android',
+    );
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
+  });
+
   test('assertSafeWriteAllowed returns primary blocking reason', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), {
       songId: '1',
