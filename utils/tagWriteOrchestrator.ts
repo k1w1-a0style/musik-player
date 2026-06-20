@@ -44,7 +44,7 @@ const getPrimaryBlockingReasonFromList = (
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
   if (container === 'mp3' || container === 'm4a' || container === 'mp4')
-    return 'MP3/MP4 writes use a guarded file:// backup + temp + byte verification flow; content:// remains read-only until SAF write support exists.';
+    return 'MP3 file:// writes use guarded backup + temp + byte verification; content:// MP3 writes use the native SAF guarded rewrite flow. MP4/M4A content:// writes remain unsupported.';
   return undefined;
 };
 
@@ -75,7 +75,6 @@ export const validateWritePreconditions = (
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
     errors.push('FileTooLarge');
-  if (uriType === 'content') errors.push('MissingWritePermission');
   if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
     errors.push('WriteNotImplemented');
 
@@ -112,7 +111,9 @@ export const createTagWriteOperationPlan = (
   }
   if (uriType === 'content')
     warnings.push(
-      'SAF providers are treated as read-only because direct replace semantics are not safe yet.',
+      container === 'mp3'
+        ? 'SAF/content:// MP3 writes require native ContentResolver permission checks, temp verification, provider replace, and post-write verification.'
+        : 'SAF/content:// writing is only enabled for MP3 in this release; other containers are rejected before mutation.',
     );
   if (uriType === 'file')
     warnings.push(
@@ -145,7 +146,7 @@ export const createTagWriteOperationPlan = (
     requiresBackup: uriType === 'file' || uriType === 'content',
     requiresTempFile: uriType === 'file' || uriType === 'content',
     supportsAtomicReplace: false,
-    supportsRollback: uriType === 'file',
+    supportsRollback: uriType === 'file' || (uriType === 'content' && container === 'mp3'),
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',
     estimatedRisk: getRiskLevel(uriType),

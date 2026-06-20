@@ -4,6 +4,8 @@ import { createTagWriteOperationPlan } from './tagWriteOrchestrator';
 import type { TagFileWriteAdapter } from './tagFileWriteAdapter';
 import { writeTagsToFileOrThrow } from './tagWriterFileReplace';
 import { resolveWritableTagUri } from './tagWriterPayload';
+import { getUriType } from './tagEditCapability';
+import { writeTagsToSafContentUri } from './tagWriterSaf';
 import { TagWriterError, tagWriterWarn } from './tagWriterError';
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
@@ -45,6 +47,9 @@ export const writeTagsToFile = async (
   draft: TagEditDraft,
   options?: { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: number },
 ): Promise<WriteTagsResult> => {
+  const rawUri = song.fileInfo?.uri ?? song.uri;
+  if (getUriType(rawUri) === 'content') return writeTagsToSafContentUri(song, draft, options);
+
   const writableUri = resolveWritableTagUri(song);
   if (!writableUri.ok) {
     const error = new TagWriterError(writableUri.reason, writableUri.message);

@@ -606,8 +606,8 @@ describe('tagWriter mp3 id3v2.3', () => {
       },
     );
     expect(result).toMatchObject({
-      status: 'permissionDenied',
-      errorCode: 'MissingWritePermission',
+      status: 'writeFailed',
+      errorCode: 'WriteNotImplemented',
     });
   });
 });
@@ -715,13 +715,13 @@ describe('writeTagsToFile safe file writes', () => {
     return result;
   };
 
-  test('content uri remains blocked', async () => {
+  test('content uri without native writer returns controlled WriteNotImplemented', async () => {
     await expectWriteFailure(
       writeTagsToFile(song({ uri: 'content://a', fileInfo: { extension: 'mp3' } }), {
         songId: '1',
         tags: { title: 'X' },
       }),
-      'MissingWritePermission',
+      'WriteNotImplemented',
     );
   });
 
@@ -1149,5 +1149,95 @@ describe('writeTagsToFile safe file writes', () => {
     );
     expect(result.status).toBe('written');
     expect(result.warnings.join(' ')).toMatch(/temp cleanup failed/i);
+  });
+});
+
+describe('writeTagsToFile SAF/content native route', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
+
+  const loadWithNative = (native: Record<string, unknown>) => {
+    jest.doMock('expo-system-audio', () => ({ __esModule: true, default: native, SystemAudio: native }));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../tagWriter') as typeof import('../tagWriter');
+  };
+
+  test('routes content:// mp3 through native SAF writer and returns written only after verified success', async () => {
+    const original = u8(1, 2, 3);
+    const native = {
+      isAvailable: true,
+      readAudioFileBase64: jest.fn().mockResolvedValue(Buffer.from(original).toString('base64')),
+      writeAudioTags: jest.fn(async (uri: string, request: { rewrittenAudioBase64: string; changedFields: string[] }) => ({
+        success: true,
+        uri,
+        changedFields: request.changedFields,
+        failedFields: [],
+        verified: true,
+        bytesBefore: original.length,
+        bytesAfter: Buffer.from(request.rewrittenAudioBase64, 'base64').length,
+      })),
+    };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
+    expect(result.status).toBe('written');
+    expect(native.readAudioFileBase64).toHaveBeenCalledWith('content://media/a.mp3', expect.any(Number));
+    expect(native.writeAudioTags).toHaveBeenCalledWith('content://media/a.mp3', expect.objectContaining({ container: 'mp3', changedFields: ['title'] }));
+  });
+
+  test('file:// keeps using existing adapter path instead of native SAF writer', async () => {
+    const native = { isAvailable: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const uri = 'file:///a.mp3';
+    const files = new Map<string, Uint8Array>([[uri, u8(1, 2, 3)]]);
+    const adapter: TagFileWriteAdapter = {
+      canReplaceExistingFile: async () => true,
+      getInfo: async target => ({ exists: files.has(target), size: files.get(target)?.length }),
+      readBytes: async target => files.get(target) ?? u8(),
+      writeBytes: async (target, bytes) => { files.set(target, bytes); },
+      copyFile: async (from, to) => { files.set(to, files.get(from) ?? u8()); },
+      moveOrReplaceFile: async (from, to) => { files.set(to, files.get(from) ?? u8()); },
+      deleteFile: async target => { files.delete(target); },
+    };
+    const result = await write(song({ uri, fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } }, { adapter });
+    expect(result.status).toBe('written');
+    expect(native.writeAudioTags).not.toHaveBeenCalled();
+  });
+
+  test('native unavailable returns unsupported result without crashing', async () => {
+    const native = { isAvailable: false, writeAudioTags: jest.fn(async (uri: string) => ({ success: false, uri, changedFields: [], failedFields: ['title'], errorCode: 'WriteNotImplemented', message: 'missing native', verified: false })) };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
+    expect(result.status).toBe('writeFailed');
+    expect(result.errorCode).toBe('WriteNotImplemented');
+  });
+
+  test('failed, unsupported, permission, and verification native writes do not report written', async () => {
+    const cases = [
+      ['MissingWritePermission', 'permissionDenied'],
+      ['UnsupportedFormat', 'unsupportedUri'],
+      ['VerificationFailed', 'writeFailed'],
+    ] as const;
+    for (const [errorCode, status] of cases) {
+      const native = {
+        isAvailable: true,
+        readAudioFileBase64: jest.fn().mockResolvedValue(Buffer.from(u8(1, 2, 3)).toString('base64')),
+        writeAudioTags: jest.fn(async (uri: string) => ({ success: false, uri, changedFields: [], failedFields: ['title'], errorCode, message: errorCode, verified: false })),
+      };
+      const { writeTagsToFile: write } = loadWithNative(native);
+      const result = await write(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), { songId: '1', tags: { title: 'X' } });
+      expect(result.status).toBe(status);
+      jest.dontMock('expo-system-audio');
+      jest.resetModules();
+    }
+  });
+
+  test('content:// m4a is rejected before native read to avoid unsafe formats', async () => {
+    const native = { isAvailable: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(song({ uri: 'content://media/a.m4a', fileInfo: { extension: 'm4a' } }), { songId: '1', tags: { title: 'X' } });
+    expect(result).toMatchObject({ status: 'unsupportedUri', errorCode: 'UnsupportedFormat' });
+    expect(native.readAudioFileBase64).not.toHaveBeenCalled();
   });
 });

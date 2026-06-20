@@ -63,10 +63,10 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).toContain('WriteNotImplemented');
   });
 
-  test('content:// mp3 shows SAF warning and blocks with MissingWritePermission', () => {
-    const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), draft);
+  test('content:// mp3 shows SAF warning and is plannable for native verification flow', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
     expect(plan.warnings.join(' ')).toMatch(/SAF/i);
-    expect(plan.blockingReasons).toContain('MissingWritePermission');
+    expect(plan.blockingReasons).not.toContain('MissingWritePermission');
     expect(plan.estimatedRisk).toBe('high');
   });
 
@@ -116,15 +116,15 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
   });
 
-  test('writeTagsToFile with content uri returns controlled permissionDenied result', async () => {
+  test('writeTagsToFile with content uri returns controlled native-unavailable result', async () => {
     const result = await writeTagsToFile(
       song({ uri: 'content://x.mp3', fileInfo: { extension: 'mp3' } }),
-      { songId: '1', tags: {} },
+      { songId: '1', tags: { title: 'X' } },
     );
 
     expect(result).toMatchObject({
-      status: 'permissionDenied',
-      errorCode: 'MissingWritePermission',
+      status: 'writeFailed',
+      errorCode: 'WriteNotImplemented',
     });
   });
 });

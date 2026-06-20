@@ -53,10 +53,12 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   if (uriType === 'content') {
     return {
       canRead: true,
-      canWrite: false,
+      canWrite: container === 'mp3' && platform === 'android',
       uriType,
       supportedContainer: container,
-      reason: 'SAF/content:// Schreiben ist noch nicht unterstützt. Der Titel kann angezeigt, aber nicht direkt bearbeitet werden.',
+      reason: container === 'mp3' && platform === 'android'
+        ? 'SAF/content:// MP3-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz unterstützt.'
+        : 'SAF/content:// Schreiben ist für dieses Format noch nicht unterstützt.',
     };
   }
 

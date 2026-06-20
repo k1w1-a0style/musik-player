@@ -10,6 +10,11 @@ describe('expo-system-audio wrapper', () => {
     const { SystemAudio } = require('../index');
 
     await expect(SystemAudio.extractAudioInfo('content://song.mp3')).resolves.toBeNull();
+    await expect(SystemAudio.writeAudioTags('content://song.mp3', { changedFields: ['title'] })).resolves.toMatchObject({
+      success: false,
+      errorCode: 'WriteNotImplemented',
+      verified: false,
+    });
     expect(SystemAudio.isAvailable).toBe(false);
   });
 });
