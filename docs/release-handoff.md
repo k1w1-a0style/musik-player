@@ -63,8 +63,11 @@ Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/
 - [ ] Warteschlange bleibt nach Library-Änderungen stabil.
 - [ ] Hydration nach App-Neustart bleibt stabil.
 - [ ] Favoriten und Playlists persistieren.
+- [ ] AlbumArtist-Anzeige, Gruppierung und Tag-Editor-Speichern funktionieren.
+- [ ] AudioInfo-Backfill ergänzt bestehende Titel ohne Dauer/Bitrate/SampleRate/Channels, ohne vorhandene positive Werte zu überschreiben.
 - [ ] Tag-Bearbeitung für unterstützte lokale `file://`-Titel funktioniert.
-- [ ] `content://`-Titel bleiben für Tag-/Cover-Writes read-only.
+- [ ] SAF/content-MP3-Texttag-Write funktioniert nur mit bestehender persisted Permission und unterstütztem Layout.
+- [ ] SAF/content-Cover-Writes, MP4/M4A-SAF-Writes und unsupported Layouts bleiben sichtbar blockiert.
 - [ ] Empty URI wird vor Tag-/Cover-Writes blockiert.
 - [ ] Große Dateien werden vor Write-Versuchen blockiert.
 - [ ] Cover ersetzen/entfernen funktioniert nur für unterstützte schreibbare Titel.
@@ -88,7 +91,7 @@ Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-a
 - [ ] Notification-Steuerung funktioniert.
 - [ ] EQ-Modul initialisiert ohne Crash.
 - [ ] Palette/Cover-Extraktion funktioniert ohne Crash.
-- [ ] SAF/content:// bleibt read-only für Tag-/Cover-Writes.
+- [ ] SAF/content-MP3-Texttag-Write und die blockierten SAF-Write-Grenzen bleiben unverändert stabil.
 - [ ] Tag-Bearbeitung für lokale file://-Titel funktioniert.
 - [ ] Keine regressiven Permission-Änderungen im Android-Manifest.
 
@@ -133,7 +136,7 @@ Ein Merge nach `main` ist blockiert, solange einer dieser Punkte zutrifft:
 - Fehlender oder roter CI-Run auf dem letzten `codex`-Commit.
 - Fehlende oder fehlgeschlagene lokale Gates: Install, Lint, Typecheck, Tests oder Coverage.
 - Coverage wurde abgesenkt und nicht nachvollziehbar begründet.
-- Android-Smoke-Test fehlt oder zeigt Regressionen, insbesondere nach einer künftigen New-Architecture-Aktivierung, bei Empty-URI-Blocking, External-Cover-Remove-Blocking oder Cover-cache-cleanup inklusive `readDirectoryAsync`.
+- Android-Smoke-Test fehlt oder zeigt Regressionen, insbesondere nach Native-/SDK-/FileSystem-Änderungen, bei Empty-URI-Blocking, SAF/content-Write-Grenzen, External-Cover-Remove-Blocking oder Cover-cache-cleanup inklusive `readDirectoryAsync`.
 - EAS-/Expo-Konfiguration ist unklar, widersprüchlich oder nicht reproduzierbar.
 - Neue oder unerwartete Mikrofon-/Foto-/Video-Permissions erscheinen in Expo Config oder generiertem Android-Manifest.
 - Eine destructive migration ist offen, ungeklärt oder nicht rollback-fähig dokumentiert.
