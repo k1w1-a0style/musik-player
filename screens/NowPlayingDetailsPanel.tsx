@@ -27,7 +27,7 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
 
   return (
     <View style={styles.detailsPage} testID="now-playing-details-panel">
-      <View style={[styles.swipeHintRow, { borderColor: accentMuted }]}> 
+      <View style={[styles.swipeHintRow, { borderColor: accentMuted }]}>
         <Text style={styles.swipeHintEyebrow}>NACH OBEN GEWISCHT</Text>
         <Text style={[styles.swipeHintTitle, { color: readableAccent }]}>Warteschlange & Details</Text>
       </View>
