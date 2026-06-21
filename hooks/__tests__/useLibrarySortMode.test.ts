@@ -9,7 +9,7 @@ jest.mock('../../utils/storage', () => ({
   },
 }));
 
-const mockedStorage = storage as jest.Mocked<Pick<typeof storage, 'getLibrarySortMode' | 'setLibrarySortMode'>>;
+const mockedStorage = storage as unknown as jest.Mocked<Pick<typeof storage, 'getLibrarySortMode' | 'setLibrarySortMode'>>;
 
 describe('useLibrarySortMode', () => {
   beforeEach(() => {

@@ -67,6 +67,8 @@ export const useLibraryComponentProps = ({
   songsForActiveList,
   sortMode,
   onCycleSortMode,
+  songViewMode,
+  onCycleSongViewMode,
   toggleSearch,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
@@ -116,6 +118,8 @@ export const useLibraryComponentProps = ({
     songsForActiveList,
     sortMode,
     onCycleSortMode,
+    songViewMode,
+    onCycleSongViewMode,
   }), [
     activeFolders,
     activeTab,
@@ -139,6 +143,8 @@ export const useLibraryComponentProps = ({
     songsForActiveList,
     sortMode,
     onCycleSortMode,
+    songViewMode,
+    onCycleSongViewMode,
   ]);
 
   const menuModalProps = useMemo(() => buildLibraryMenuModalProps({

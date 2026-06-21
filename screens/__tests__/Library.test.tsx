@@ -54,6 +54,8 @@ jest.mock('../../utils/storage', () => ({
   storage: {
     getLibrarySortMode: jest.fn().mockResolvedValue('alphabet'),
     setLibrarySortMode: jest.fn().mockResolvedValue(undefined),
+    getLibrarySongViewMode: jest.fn().mockResolvedValue('list'),
+    setLibrarySongViewMode: jest.fn().mockResolvedValue(undefined),
   },
 }));
 

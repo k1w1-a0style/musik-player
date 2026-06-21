@@ -58,6 +58,8 @@ const baseProps: LibraryScreenContentProps = {
     songsForActiveList: [],
     sortMode: 'alphabet',
     onCycleSortMode: fn,
+    songViewMode: 'list',
+    onCycleSongViewMode: fn,
   },
   tabsProps: {
     activeTab: 'tracks' as const,

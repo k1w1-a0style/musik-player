@@ -4,6 +4,7 @@ import type { ScanFolder } from '../types/ScanFolder';
 import type { Playlist, RepeatMode, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 import { DEFAULT_LIBRARY_SORT_MODE, isLibrarySortMode, type LibrarySortMode } from './librarySort';
+import { DEFAULT_LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode, type LibrarySongViewMode } from './libraryViewMode';
 
 const PREFIX = '@musikplayer:';
 const MIN_EQ_GAIN = -12;
@@ -22,6 +23,7 @@ export const StorageKeys = {
   SCAN_FOLDERS: 'scanFolders',
   FAVORITE_SONG_IDS: 'favoriteSongIds',
   LIBRARY_SORT_MODE: 'librarySortMode',
+  LIBRARY_SONG_VIEW_MODE: 'librarySongViewMode',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
@@ -40,6 +42,7 @@ type StorageValueByKey = {
   [StorageKeys.SCAN_FOLDERS]: ScanFolder[];
   [StorageKeys.FAVORITE_SONG_IDS]: string[];
   [StorageKeys.LIBRARY_SORT_MODE]: LibrarySortMode;
+  [StorageKeys.LIBRARY_SONG_VIEW_MODE]: LibrarySongViewMode;
 };
 
 interface StorageApi {
@@ -71,6 +74,8 @@ interface StorageApi {
   setFavoriteSongIds(songIds: string[]): Promise<void>;
   getLibrarySortMode(): Promise<LibrarySortMode>;
   setLibrarySortMode(mode: LibrarySortMode): Promise<void>;
+  getLibrarySongViewMode(): Promise<LibrarySongViewMode>;
+  setLibrarySongViewMode(mode: LibrarySongViewMode): Promise<void>;
 }
 
 const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
@@ -289,6 +294,10 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
       return normalizeLegacyVolumeForStorage(value);
     case StorageKeys.REPEAT_MODE:
       return isRepeatMode(value) ? value : null;
+    case StorageKeys.LIBRARY_SORT_MODE:
+      return isLibrarySortMode(value) ? value : null;
+    case StorageKeys.LIBRARY_SONG_VIEW_MODE:
+      return isLibrarySongViewMode(value) ? value : null;
     default:
       return value;
   }
@@ -299,6 +308,7 @@ const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
   StorageKeys.EQ_PRESET,
   StorageKeys.REPEAT_MODE,
   StorageKeys.LIBRARY_SORT_MODE,
+  StorageKeys.LIBRARY_SONG_VIEW_MODE,
 ]);
 
 const supportsRawStringValue = (key: string): boolean => RAW_STRING_STORAGE_KEYS.has(key);
@@ -489,6 +499,14 @@ export const storage: StorageApi = {
   },
   async setLibrarySortMode(mode: LibrarySortMode) {
     await setJsonItem(StorageKeys.LIBRARY_SORT_MODE, isLibrarySortMode(mode) ? mode : DEFAULT_LIBRARY_SORT_MODE);
+  },
+  async getLibrarySongViewMode(): Promise<LibrarySongViewMode> {
+    const value = await getItem(StorageKeys.LIBRARY_SONG_VIEW_MODE);
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.LIBRARY_SONG_VIEW_MODE, value);
+    return isLibrarySongViewMode(parsed) ? parsed : DEFAULT_LIBRARY_SONG_VIEW_MODE;
+  },
+  async setLibrarySongViewMode(mode: LibrarySongViewMode) {
+    await setJsonItem(StorageKeys.LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode(mode) ? mode : DEFAULT_LIBRARY_SONG_VIEW_MODE);
   },
 };
 

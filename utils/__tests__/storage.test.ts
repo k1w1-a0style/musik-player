@@ -1905,4 +1905,14 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.LIBRARY_SORT_MODE), JSON.stringify('bogus'));
     await expect(storage.getLibrarySortMode()).resolves.toBe('alphabet');
   });
+
+  test('persists and reads the library song view mode with a safe default', async () => {
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('list');
+
+    await storage.setLibrarySongViewMode('gridSmall');
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('gridSmall');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.LIBRARY_SONG_VIEW_MODE), JSON.stringify('bogus'));
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('list');
+  });
 });

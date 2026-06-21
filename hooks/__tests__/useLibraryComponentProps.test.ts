@@ -43,6 +43,8 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   songsForActiveList: [],
   sortMode: 'alphabet',
   onCycleSortMode: fn,
+  songViewMode: 'list',
+  onCycleSongViewMode: fn,
   toggleSearch: fn,
 };
 

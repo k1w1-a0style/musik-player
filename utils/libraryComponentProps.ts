@@ -7,6 +7,7 @@ import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle'
 import type { LibraryTabsProps } from '../components/LibraryTabs';
 import type { LibraryTopBarProps } from '../components/LibraryTopBar';
 import type { LibrarySortMode } from './librarySort';
+import type { LibrarySongViewMode } from './libraryViewMode';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
@@ -60,6 +61,8 @@ export interface LibraryTabContentPropsBuilderOptions {
   songsForActiveList: Song[];
   sortMode: LibrarySortMode;
   onCycleSortMode: () => void;
+  songViewMode: LibrarySongViewMode;
+  onCycleSongViewMode: () => void;
 }
 
 export interface LibraryMenuModalPropsBuilderOptions {
@@ -125,6 +128,8 @@ export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuild
   songsForActiveList: options.songsForActiveList,
   sortMode: options.sortMode,
   onCycleSortMode: options.onCycleSortMode,
+  songViewMode: options.songViewMode,
+  onCycleSongViewMode: options.onCycleSongViewMode,
 });
 
 export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilderOptions): LibraryMenuModalProps => ({

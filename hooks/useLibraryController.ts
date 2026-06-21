@@ -7,6 +7,7 @@ import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
 import { useLibraryControllerState } from './useLibraryControllerState';
 import { useLibraryControllerViewModel } from './useLibraryControllerViewModel';
 import { useLibrarySortMode } from './useLibrarySortMode';
+import { useLibrarySongViewMode } from './useLibrarySongViewMode';
 import { sortLibrarySongs } from '../utils/librarySort';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
@@ -50,6 +51,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
   } = useLibraryControllerState();
 
   const { sortMode, cycleSortMode } = useLibrarySortMode();
+  const { viewMode, cycleViewMode } = useLibrarySongViewMode();
   const sortedSongs = useMemo(() => sortLibrarySongs(songs, sortMode), [songs, sortMode]);
 
   const {
@@ -120,6 +122,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     removeFolder,
     setAlbumViewMode,
     songsForActiveList,
+    songViewMode: viewMode,
   });
 
   return useLibraryControllerProps({
@@ -162,6 +165,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songsForActiveList,
     sortMode,
     onCycleSortMode: cycleSortMode,
+    songViewMode: viewMode,
+    onCycleSongViewMode: cycleViewMode,
     toggleSearch,
   });
 };

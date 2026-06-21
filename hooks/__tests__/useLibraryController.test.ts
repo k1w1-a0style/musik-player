@@ -137,6 +137,8 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     songsForActiveList: [],
     sortMode: 'alphabet',
     onCycleSortMode: fn,
+    songViewMode: 'list',
+    onCycleSongViewMode: fn,
   },
   tabsProps: {
     activeTab: 'tracks',
@@ -241,6 +243,10 @@ jest.mock('../useLibrarySortMode', () => ({
   useLibrarySortMode: jest.fn(() => ({ sortMode: 'alphabet', setSortMode: jest.fn(), cycleSortMode: jest.fn() })),
 }));
 
+jest.mock('../useLibrarySongViewMode', () => ({
+  useLibrarySongViewMode: jest.fn(() => ({ viewMode: 'list', setViewMode: jest.fn(), cycleViewMode: jest.fn() })),
+}));
+
 test('returns library screen props from composed hooks', () => {
   const { result } = renderHook(() => useLibraryController());
 
@@ -317,6 +323,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     playPlaylist: mockMusicContext.playPlaylist,
     playSong: mockMusicContext.playSong,
     removeFolder: mockScanFolderActions.removeFolder,
+    songViewMode: 'list',
   });
   expect(useLibraryPlaybackActions).toHaveBeenCalledWith({
     handleSongPress: mockRenderers.handleSongPress,

@@ -5,7 +5,9 @@ import LibraryListShell from './LibraryListShell';
 import LibraryPlaybackActions from './LibraryPlaybackActions';
 import LibrarySectionHeader from './LibrarySectionHeader';
 import LibrarySortControl from './LibrarySortControl';
+import LibrarySongViewControl from './LibrarySongViewControl';
 import type { LibrarySortMode } from '../utils/librarySort';
+import { getLibrarySongViewColumns, type LibrarySongViewMode } from '../utils/libraryViewMode';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { theme } from '../theme';
@@ -49,6 +51,8 @@ export interface LibraryTabContentProps {
   songsForActiveList: Song[];
   sortMode: LibrarySortMode;
   onCycleSortMode: () => void;
+  songViewMode: LibrarySongViewMode;
+  onCycleSongViewMode: () => void;
 }
 
 const groupKeyExtractor = (item: LibraryGroupItem | LibraryPlaylistItem): string => item.id;
@@ -83,6 +87,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   songsForActiveList,
   sortMode,
   onCycleSortMode,
+  songViewMode,
+  onCycleSongViewMode,
 }) => {
   if (activeTab === 'folders') {
     return (
@@ -187,6 +193,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   return (
     <LibraryListShell testID={`library-${activeTab}-shell`}>
       <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
+        <LibrarySongViewControl mode={songViewMode} onCycle={onCycleSongViewMode} />
         <LibrarySortControl mode={sortMode} onCycle={onCycleSortMode} />
         <LibraryPlaybackActions
           disabled={songsForActiveList.length === 0}
@@ -196,9 +203,11 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         />
       </LibrarySectionHeader>
       <FlatList
-        key={`library-${activeTab}-songs-list`}
+        key={`library-${activeTab}-songs-${songViewMode}`}
         data={songsForActiveList}
         keyExtractor={songKeyExtractor}
+        numColumns={getLibrarySongViewColumns(songViewMode)}
+        columnWrapperStyle={getLibrarySongViewColumns(songViewMode) > 1 ? styles.songGridColumn : undefined}
         contentContainerStyle={styles.listContent}
         renderItem={renderSongItem}
         removeClippedSubviews={shouldRemoveClippedSubviews}
@@ -206,7 +215,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         initialNumToRender={SONG_INITIAL_RENDER_COUNT}
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={80}
-        getItemLayout={getSongItemLayout}
+        getItemLayout={songViewMode === 'list' ? getSongItemLayout : undefined}
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
       />
     </LibraryListShell>
@@ -218,6 +227,7 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
+  songGridColumn: { gap: 12, paddingHorizontal: 12 },
   empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
 });
 

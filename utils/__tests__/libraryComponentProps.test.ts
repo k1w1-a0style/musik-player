@@ -91,6 +91,8 @@ test('buildLibraryTabContentProps returns tab content props', () => {
     songsForActiveList: [],
     sortMode: 'alphabet',
     onCycleSortMode: fn,
+    songViewMode: 'list',
+    onCycleSongViewMode: fn,
   };
 
   const props = buildLibraryTabContentProps(options);
@@ -150,6 +152,8 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
     songsForActiveList: [song],
     sortMode: 'year',
     onCycleSortMode: fn,
+    songViewMode: 'gridLarge',
+    onCycleSongViewMode: fn,
   });
 
   expect(props.albumGroups).toEqual([group]);
