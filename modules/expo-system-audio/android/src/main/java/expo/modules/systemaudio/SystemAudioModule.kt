@@ -99,6 +99,10 @@ class SystemAudioModule : Module() {
       extractAudioInfo(uri)
     }
 
+    AsyncFunction("extractMetadataFast") { uri: String ->
+      extractFastMetadata(uri)
+    }
+
 
 
     AsyncFunction("readAudioFileBase64") { uri: String, maxBytes: Long? ->
@@ -468,6 +472,37 @@ class SystemAudioModule : Module() {
       info.mimeType?.let { result.putIfAbsent("mimeType", it) }
     }
     return result.ifEmpty { null }
+  }
+
+  /**
+   * Native Fast-Path: read the standard tag fields via MediaMetadataRetriever.
+   * Marked pending Android device validation – the implementation is built so
+   * callers can JS-ID3 fall back per missing field.
+   */
+  private fun extractFastMetadata(uri: String): Map<String, Any?>? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+      if (!configureDataSource(retriever, uri)) return null
+      val result = mutableMapOf<String, Any?>()
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }?.let { result["title"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() }?.let { result["artist"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() }?.let { result["album"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)?.takeIf { it.isNotBlank() }?.let { result["albumArtist"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.takeIf { it.isNotBlank() }?.let { result["year"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.takeIf { it.isNotBlank() }?.let { result["trackNumber"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)?.takeIf { it.isNotBlank() }?.let { result["discNumber"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)?.takeIf { it.isNotBlank() }?.let { result["genre"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)?.takeIf { it.isNotBlank() }?.let { result["composer"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.takeIf { it > 0 }?.let { result["durationMs"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.takeIf { it > 0 }?.let { result["bitrateBps"] = it }
+      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.takeIf { it.isNotBlank() }?.let { result["mimeType"] = it }
+      result.ifEmpty { null }
+    } catch (e: Throwable) {
+      Log.d(TAG, "fast metadata unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      null
+    } finally {
+      try { retriever.release() } catch (_: Throwable) {}
+    }
   }
 
   private data class OpenableInfo(val sizeBytes: Long?, val displayName: String?)

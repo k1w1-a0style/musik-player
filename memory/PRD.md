@@ -91,13 +91,19 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - `screens/NowPlayingPlaybackSection.tsx`: `onSeekPreview` verdrahtet.
 - Tests: `utils/__tests__/seekController.test.ts` (last-value-wins, clamping, error-swallow), Scrub-Math-Tests in `ProgressBar.test.ts`. typecheck + lint:ci grün; 1658/1660 jest grün (2 vorbestehende androidApkInspector-Fails wegen fehlendem aapt/apksigner im Container).
 
-### Phase 2 – Metadaten-Refresh stabilisieren ✓ (2026-06-21)
+### Phase 2 – Metadaten-Refresh stabilisieren ✓ (2026-06-21, abgeschlossen 2026-06-22)
 - `utils/songMetadataRefresh.ts`: **Per-Track-Timeout** (Default 12s, Option `perTrackTimeoutMs`) isoliert langsame/defekte Dateien via `withTimeout`; ein voller 83-Track-Lauf wird `completed` statt Teilscan „67/83". Slow/broken file → `failed` + Grund. Neu: `errorDetails: {uri, reason}[]` (Fehlerliste).
 - `utils/libraryOperationTimeouts.ts`: getrenntes `MANUAL_METADATA_REFRESH_SOFT_BUDGET_MS` (5min, kein hartes Truncating mehr) + `MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS`; Import-Flow-90s unverändert.
 - `utils/metadataRefreshActivity.ts` (neu): globaler Aktiv-Flag + `useMetadataRefreshActive` (useSyncExternalStore). Manueller Refresh klammert mit begin/end; Cover- & AudioInfo-Backfill pausieren während des Refresh und laufen danach weiter.
 - `useLibraryMetadataRefreshRunner.ts`: Merges propagieren `errorDetails`. `useLibraryMetadataRefreshActions.ts`: Soft-Budget als Default, loggt Per-Track-Fehlerliste.
-- Tests: per-track Timeout + Fehlergrund (`songMetadataRefresh.test.ts`), Activity-Store (`metadataRefreshActivity.test.ts`). typecheck + lint:ci grün; 1663 jest pass (2 vorbestehende androidApkInspector env-Fails).
-- **DEFERRED (nativ, hier nicht testbar)**: Native Fast-Path (MediaMetadataRetriever in `SystemAudioModule.kt`) + erweiterte Resume-Persistenz + Progress-UI (x/y, updated/skipped/failed, Abbrechen/Fortsetzen) → benötigt Android-Build.
+- **Restplan abgearbeitet (2026-06-22)**:
+  - `utils/metadataRefreshOperation.ts` (neu): persistenter Operation-State (operationId, status, total, resumeIndex, processedIndexes, counters, errorDetails, lastProcessedSongId, startedAt/updatedAt) via `useSyncExternalStore` – nicht mehr nur `useRef`. Statusmaschine `idle → running → cancelling → cancelled/resumable/partial → completed/failed`.
+  - `useLibraryMetadataRefreshLifecycle.cancelRefresh()` und Action `cancelRefresh`/`resumeMetadataRefresh` durch Controller verdrahtet.
+  - `LibraryImportStatus`: Abbrechen-Button sichtbar während `running`, Fortsetzen-Button bei `resumable/cancelled`, Live-Zähler (x/y · aktualisiert · übersprungen · fehlgeschlagen) + kompakte Fehlerliste mit „… und N weitere".
+  - `LibraryMenuModal`: Eintrag wird dynamisch zu „Metadaten-Update fortsetzen", wenn `canResumeRefresh`.
+  - Native Fast-Path: TS-Interface `SystemAudio.extractMetadataFast(uri)`, Kotlin-Implementierung in `SystemAudioModule.kt` (MediaMetadataRetriever für title/artist/album/albumArtist/year/track/disc/genre/composer/duration/bitrate/mime), Jest-Mock + `mergeFastMetadataIntoId3Tags` Helper. JS-ID3 bleibt Fallback pro Feld. Pending Android device validation.
+- Tests: per-track Timeout + Fehlergrund (`songMetadataRefresh.test.ts`), Activity-Store (`metadataRefreshActivity.test.ts`), Operation-Store (`metadataRefreshOperation.test.ts`), Cancel/Resume/Counters/Fehlerliste-UI (`LibraryImportStatus.test.tsx`), Menü-Fortsetzen-Label (`LibraryMenuModal.test.tsx`), Cancel-Lifecycle (`useLibraryMetadataRefreshLifecycle.test.tsx`), Fast-Path/Merge/Fallback (`songMetadataRefreshFastPath.test.ts`). typecheck + lint:ci grün; 1707 jest pass (2 vorbestehende androidApkInspector env-Fails).
+- 📱 **Pending**: Native `extractMetadataFast` braucht Development-APK für echte On-Device-Verifikation.
 
 ### Phase 3 – Bottom-Navigation entfernen ✓ (2026-06-21)
 - Bottom-Tab-Navigator (`TabsShell`) entfernt → neuer schlanker `navigation/MainShell.tsx` rendert die Bibliothek direkt als Hauptscreen + MiniPlayer-Overlay. `RootNavigator` nutzt MainShell; `Equalizer` ist jetzt ein Stack-Screen (Header mit Zurück).
@@ -114,13 +120,12 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - Tests: Sortlogik, Hook-Persistenz, Control, Storage-Round-Trip; Literale aktualisiert. typecheck + lint:ci grün; 1679 jest pass (2 vorbestehende env-Fails).
 - **OFFEN (Phase 4b)**: 4 Ansichts-Modi (große/kleine Cover-Raster, Liste, Banner) + Persistenz der Albumansicht.
 
-### Phase 4b – 4 Song-Ansichtsmodi + Persistenz ✓ (2026-06-21)
+### Phase 4b – 4 Song-Ansichtsmodi + Persistenz ✓ (2026-06-21, 4b-Rest abgeschlossen 2026-06-22)
 - `utils/libraryViewMode.ts` (neu): 4 Modi `list`/`gridLarge`/`gridSmall`/`banner` → Spaltenzahl (1/2/3/1) + SongCard-Variante (row/tile/tile/banner), Cycler, Labels, Guard.
 - `hooks/useLibrarySongViewMode.ts` (neu): State + AsyncStorage-Persistenz (`librarySongViewMode`-Key in `storage.ts` mit Validierung/Default).
 - `components/SongCard.tsx`: neue Varianten `row`/`tile`/`banner` (memo um `variant` erweitert). `LibraryTabContent` setzt `numColumns` + Relayout-`key` je Modus, `getItemLayout` nur für Liste.
 - `components/LibrarySongViewControl.tsx` (neu): Pille im Tracks/Favoriten-Header. `songViewMode` durch die Renderer-Kette (`useLibraryControllerRenderers`→`useLibraryRenderers`→`useLibrarySongRenderer`) und Component-Props verdrahtet.
-- Tests: View-Mode-Util, Hook-Persistenz, Control, Storage-Round-Trip; Literale/Mocks aktualisiert. typecheck + lint:ci grün; 1688 jest pass (2 vorbestehende env-Fails).
-- **OPTIONAL/OFFEN**: Persistenz der Albumansicht (`albumViewMode`) weiterhin nicht persistiert (klein, später).
+- **4b-Rest (2026-06-22)**: `albumViewMode` wird ebenfalls persistiert – `useLibraryScreenState` lädt asynchron via `storage.getAlbumViewMode()`, schreibt bei Änderung mit Hydration-Guard zurück. Validierung/Default (`grid`) und Storage-Round-Trip durch `storage.test.ts` und `Library.test.tsx` abgedeckt. typecheck + lint:ci grün; 1707 jest pass (2 vorbestehende env-Fails).
 
 ### Offene Phasen (Reihenfolge laut Plan)
 - **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).

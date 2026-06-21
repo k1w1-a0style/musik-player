@@ -9,6 +9,10 @@ import { useLibraryControllerViewModel } from './useLibraryControllerViewModel';
 import { useLibrarySortMode } from './useLibrarySortMode';
 import { useLibrarySongViewMode } from './useLibrarySongViewMode';
 import { sortLibrarySongs } from '../utils/librarySort';
+import {
+  canResumeMetadataRefresh,
+  useMetadataRefreshOperation,
+} from '../utils/metadataRefreshOperation';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
@@ -82,6 +86,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     openEqualizer,
     openTrackInfo,
     refreshMetadataFromFiles,
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
     removeFolder,
     showScanFolders,
     toggleSearch,
@@ -100,6 +106,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   useLibraryCoverBackfill({ songs, applySongMetadataPatches });
   useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });
+
+  const refreshOperation = useMetadataRefreshOperation();
+  const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);
 
   const {
     getSongItemLayout,
@@ -150,6 +159,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     playlistItems,
     query,
     refreshMetadataFromFiles,
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
+    refreshHasResumable,
     renderAlbumTile,
     renderFolderItem,
     renderGroupItem,

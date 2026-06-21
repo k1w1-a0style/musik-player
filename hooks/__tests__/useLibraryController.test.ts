@@ -60,6 +60,9 @@ const mockMenuActions: UseLibraryMenuActionsResult = {
 
 const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
   refreshMetadataFromFiles: asyncFn,
+  cancelRefresh: jest.fn(() => false),
+  resumeMetadataRefresh: asyncFn,
+  isRefreshActive: jest.fn(() => false),
 };
 
 const mockNavigationActions: UseLibraryNavigationActionsResult = {

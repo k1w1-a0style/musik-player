@@ -9,6 +9,7 @@ export interface LibraryMenuModalProps {
   isReady: boolean;
   hasSongs: boolean;
   activeFolders: number;
+  canResumeRefresh?: boolean;
   onClose: () => void;
   onImport: () => void;
   onRefreshMetadata: () => void;
@@ -24,6 +25,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   isReady,
   hasSongs,
   activeFolders,
+  canResumeRefresh,
   onClose,
   onImport,
   onRefreshMetadata,
@@ -41,7 +43,11 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
     >
       <View style={styles.menuCard} testID="library-menu-card">
         <LibraryMenuItem label="Importieren / Rescan" onPress={onImport} disabled={loading || !isReady} />
-        <LibraryMenuItem label="Metadaten aktualisieren" onPress={onRefreshMetadata} disabled={loading || !isReady || !hasSongs} />
+        <LibraryMenuItem
+          label={canResumeRefresh ? 'Metadaten-Update fortsetzen' : 'Metadaten aktualisieren'}
+          onPress={onRefreshMetadata}
+          disabled={loading || !isReady || !hasSongs}
+        />
         <LibraryMenuItem label="Ordner hinzufügen" onPress={onAddFolder} />
         <LibraryMenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={onShowFolders} muted />
         <LibraryMenuItem label="Equalizer" onPress={onOpenEqualizer} />

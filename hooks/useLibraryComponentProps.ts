@@ -52,6 +52,9 @@ export const useLibraryComponentProps = ({
   playlistItems,
   query,
   refreshMetadataFromFiles,
+  cancelMetadataRefresh,
+  resumeMetadataRefresh,
+  refreshHasResumable,
   renderAlbumTile,
   renderFolderItem,
   renderGroupItem,
@@ -88,12 +91,15 @@ export const useLibraryComponentProps = ({
 
   const importStatusProps = useMemo(() => buildLibraryImportStatusProps({
     importStatus,
-  }), [importStatus]);
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
+  }), [importStatus, cancelMetadataRefresh, resumeMetadataRefresh]);
 
   const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
     loading,
     searchOpen,
-  }), [loading, searchOpen]);
+    refreshHasResumable,
+  }), [loading, searchOpen, refreshHasResumable]);
 
   const tabContentProps = useMemo(() => buildLibraryTabContentProps({
     activeTab,
@@ -160,6 +166,7 @@ export const useLibraryComponentProps = ({
     refreshMetadataFromFiles,
     showScanFolders,
     songsCount,
+    canResumeRefresh: refreshHasResumable,
   }), [
     activeFolders,
     closeMenu,
@@ -173,6 +180,7 @@ export const useLibraryComponentProps = ({
     refreshMetadataFromFiles,
     showScanFolders,
     songsCount,
+    refreshHasResumable,
   ]);
 
   return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, ...visibilityProps };

@@ -31,11 +31,14 @@ export interface LibrarySearchBarPropsBuilderOptions {
 
 export interface LibraryImportStatusPropsBuilderOptions {
   importStatus: string | null;
+  cancelMetadataRefresh?: () => void;
+  resumeMetadataRefresh?: () => void;
 }
 
 export interface LibraryScreenVisibilityPropsBuilderOptions {
   loading: boolean;
   searchOpen: boolean;
+  refreshHasResumable?: boolean;
 }
 
 export interface LibraryTabContentPropsBuilderOptions {
@@ -78,6 +81,7 @@ export interface LibraryMenuModalPropsBuilderOptions {
   refreshMetadataFromFiles: () => void;
   showScanFolders: () => void;
   songsCount: number;
+  canResumeRefresh?: boolean;
 }
 
 export const buildLibraryTopBarProps = ({ openMenu, toggleSearch }: LibraryTopBarPropsBuilderOptions): LibraryTopBarProps => ({
@@ -96,12 +100,14 @@ export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBar
   value: query,
 });
 
-export const buildLibraryImportStatusProps = ({ importStatus }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
+export const buildLibraryImportStatusProps = ({ importStatus, cancelMetadataRefresh, resumeMetadataRefresh }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
   status: importStatus,
+  onCancelRefresh: cancelMetadataRefresh,
+  onResumeRefresh: resumeMetadataRefresh,
 });
 
-export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen }: LibraryScreenVisibilityPropsBuilderOptions): LibraryScreenVisibilityProps => ({
-  showImportStatus: loading,
+export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen, refreshHasResumable }: LibraryScreenVisibilityPropsBuilderOptions): LibraryScreenVisibilityProps => ({
+  showImportStatus: loading || Boolean(refreshHasResumable),
   showSearchBar: searchOpen,
 });
 
@@ -138,6 +144,7 @@ export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilder
   isReady: options.isReady,
   hasSongs: options.songsCount > 0,
   activeFolders: options.activeFolders,
+  canResumeRefresh: Boolean(options.canResumeRefresh),
   onClose: options.closeMenu,
   onImport: options.importFromDevice,
   onRefreshMetadata: options.refreshMetadataFromFiles,

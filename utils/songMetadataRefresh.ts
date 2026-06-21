@@ -2,6 +2,7 @@ import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
 import { MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS } from './libraryOperationTimeouts';
+import SystemAudio, { type FastMetadataResult } from '../modules/expo-system-audio';
 
 export interface SongMetadataRefreshError {
   uri: string;
@@ -52,9 +53,50 @@ interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover
   signal?: AbortSignal;
   onProgress?: (processed: number, total: number) => void;
   onSongProcessed?: (partial: SongMetadataRefreshProcessedSong) => void;
+  /** Optional override for the native fast-path; defaults to `SystemAudio.extractMetadataFast`. */
+  extractMetadataFast?: (uri: string) => Promise<FastMetadataResult | null>;
+  /** Skip the native fast-path entirely (used in tests). */
+  disableNativeFastPath?: boolean;
 }
 
+const NATIVE_TO_ID3_FIELD_MAP: Record<keyof FastMetadataResult, keyof Id3Tags | undefined> = {
+  title: 'title',
+  artist: 'artist',
+  album: 'album',
+  albumArtist: 'albumArtist',
+  year: 'year',
+  trackNumber: 'trackNumber',
+  discNumber: 'discNumber',
+  genre: 'genre',
+  composer: undefined,
+  durationMs: undefined,
+  bitrateBps: undefined,
+  mimeType: undefined,
+};
+
 const hasText = (value?: string): value is string => Boolean(value?.trim());
+
+/**
+ * Merge native + JS-ID3 tag results. Native fields win when present; otherwise
+ * the JS-ID3 parser fills the field. Native values that look insecure (empty
+ * strings, "0" durations, etc.) are skipped via `hasText`.
+ */
+export const mergeFastMetadataIntoId3Tags = (
+  nativeResult: FastMetadataResult | null | undefined,
+  id3Tags: Id3Tags,
+): Id3Tags => {
+  if (!nativeResult) return id3Tags;
+  const merged: Id3Tags = { ...id3Tags };
+  (Object.keys(NATIVE_TO_ID3_FIELD_MAP) as (keyof FastMetadataResult)[]).forEach(nativeKey => {
+    const id3Key = NATIVE_TO_ID3_FIELD_MAP[nativeKey];
+    if (!id3Key) return;
+    const value = nativeResult[nativeKey];
+    if (typeof value === 'string' && hasText(value)) {
+      merged[id3Key] = value.trim();
+    }
+  });
+  return merged;
+};
 
 const safeDecode = (value: string): string => {
   try {
@@ -225,12 +267,29 @@ export const refreshSongsFromId3 = async (
       signal: parseSignal,
     });
 
+    const fastPath = options?.extractMetadataFast
+      ?? (options?.disableNativeFastPath ? undefined : (uri => SystemAudio.extractMetadataFast(uri)));
+
+    const runParse = async (parseSignal?: AbortSignal): Promise<Id3Tags> => {
+      let nativeResult: FastMetadataResult | null = null;
+      if (fastPath) {
+        try {
+          nativeResult = await fastPath(uri);
+        } catch {
+          nativeResult = null;
+        }
+        throwIfAborted(parseSignal);
+      }
+      const id3Tags = await parseId3FromUri(uri, buildOptions(parseSignal));
+      return mergeFastMetadataIntoId3Tags(nativeResult, id3Tags);
+    };
+
     if (perTrackTimeoutMs <= 0) {
-      return parseId3FromUri(uri, buildOptions(signal));
+      return runParse(signal);
     }
 
     return withTimeout(
-      trackSignal => parseId3FromUri(uri, buildOptions(trackSignal)),
+      trackSignal => runParse(trackSignal),
       perTrackTimeoutMs,
       `Metadaten-Timeout nach ${Math.round(perTrackTimeoutMs / 1000)}s`,
       { signal },

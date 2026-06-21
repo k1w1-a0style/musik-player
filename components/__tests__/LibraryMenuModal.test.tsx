@@ -8,6 +8,7 @@ const defaultProps = {
   isReady: true,
   hasSongs: true,
   activeFolders: 2,
+  canResumeRefresh: false,
   onClose: jest.fn(),
   onImport: jest.fn(),
   onRefreshMetadata: jest.fn(),
@@ -65,6 +66,12 @@ test('disables metadata action without songs', () => {
   const { getByTestId } = renderMenu({ hasSongs: false });
 
   expect(getByTestId('library-menu-item-metadaten-aktualisieren').props.accessibilityState.disabled).toBe(true);
+});
+
+test('renders Fortsetzen label when refresh is resumable', () => {
+  const { getByText, queryByText } = renderMenu({ canResumeRefresh: true });
+  expect(getByText('Metadaten-Update fortsetzen')).toBeTruthy();
+  expect(queryByText('Metadaten aktualisieren')).toBeNull();
 });
 
 test('calls onClose when backdrop is pressed', () => {

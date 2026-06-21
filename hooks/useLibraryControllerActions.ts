@@ -33,6 +33,8 @@ export interface UseLibraryControllerActionsResult {
   openEqualizer: () => void;
   openTrackInfo: (song: Song) => void;
   refreshMetadataFromFiles: () => Promise<void>;
+  cancelMetadataRefresh: () => boolean;
+  resumeMetadataRefresh: () => Promise<void>;
   removeFolder: (folder: ScanFolder) => Promise<void>;
   showScanFolders: () => void;
   toggleSearch: () => void;
@@ -94,7 +96,7 @@ export const useLibraryControllerActions = ({
     songs,
   });
 
-  const { refreshMetadataFromFiles } = useLibraryMetadataRefreshActions({
+  const { refreshMetadataFromFiles, cancelRefresh, resumeMetadataRefresh } = useLibraryMetadataRefreshActions({
     setImportStatus,
     setLoading,
     setMenuOpen,
@@ -113,6 +115,8 @@ export const useLibraryControllerActions = ({
     openEqualizer,
     openTrackInfo,
     refreshMetadataFromFiles,
+    cancelMetadataRefresh: cancelRefresh,
+    resumeMetadataRefresh,
     removeFolder,
     showScanFolders,
     toggleSearch,

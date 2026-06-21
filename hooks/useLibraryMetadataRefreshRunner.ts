@@ -6,6 +6,11 @@ import { metadataRefreshProgressStatus } from '../utils/libraryImportMessages';
 import { isTimeoutError } from '../utils/withTimeout';
 import { isMetadataRefreshPartialError } from '../utils/songMetadataRefresh';
 import type { refreshSongsFromId3, SongMetadataRefreshProcessedSong, SongMetadataRefreshResult } from '../utils/songMetadataRefresh';
+import {
+  beginMetadataRefreshOperation,
+  getMetadataRefreshOperationState,
+  updateMetadataRefreshProgress,
+} from '../utils/metadataRefreshOperation';
 import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunner } from './libraryMetadataRefreshActionTypes';
 
 
@@ -145,7 +150,14 @@ export const useLibraryMetadataRefreshRunner = ({
   const runMetadataRefresh = useCallback(async (generation: MetadataRefreshGeneration): Promise<MetadataRefreshSongsResult> => {
     const refreshCopy = getMetadataRefreshFlowCopy();
     const startedAt = Date.now();
+    // Source of truth for resumeIndex is the operation store; the local ref stays
+    // in sync so existing tests that only seed the ref keep working.
+    const storedResume = getMetadataRefreshOperationState().resumeIndex;
+    if (storedResume > 0 && resumeIndexRef.current === 0) {
+      resumeIndexRef.current = storedResume;
+    }
     const startIndex = resumeIndexRef.current < songs.length ? resumeIndexRef.current : 0;
+    beginMetadataRefreshOperation(songs.length, startIndex);
     const processingItems = buildMetadataRefreshProcessingItems(songs, startIndex);
     let result = emptyMetadataRefreshResult(songs, songs.length);
     setImportStatus(startIndex > 0 ? `${refreshCopy.readingStatus} (Fortsetzen bei ${startIndex + 1}/${songs.length})` : refreshCopy.readingStatus);
@@ -165,13 +177,25 @@ export const useLibraryMetadataRefreshRunner = ({
             concurrency: METADATA_REFRESH_ID3_CONCURRENCY,
             onProgress: processed => {
               const processedTotal = Math.min(songs.length, startIndex + result.processed + processed);
+              const updatedTotal = result.updated + currentChunkPartial.updated;
+              const skippedTotal = result.skipped + currentChunkPartial.skipped;
+              const failedTotal = result.failed + currentChunkPartial.failed;
               setImportStatus(metadataRefreshProgressStatus({
                 processed: processedTotal,
                 total: songs.length,
-                updated: result.updated + currentChunkPartial.updated,
-                skipped: result.skipped + currentChunkPartial.skipped,
-                failed: result.failed + currentChunkPartial.failed,
+                updated: updatedTotal,
+                skipped: skippedTotal,
+                failed: failedTotal,
               }));
+              updateMetadataRefreshProgress({
+                processed: processedTotal,
+                total: songs.length,
+                updated: updatedTotal,
+                skipped: skippedTotal,
+                failed: failedTotal,
+                errorDetails: [...(result.errorDetails ?? []), ...(currentChunkPartial.errorDetails ?? [])],
+                lastProcessedSongId: currentChunkPartial.lastProcessedSongId ?? result.lastProcessedSongId,
+              });
             },
             onSongProcessed: processedSong => {
               currentChunkPartial = mergeProcessedSongIntoRefreshResult(currentChunkPartial, processedSong);
@@ -213,10 +237,12 @@ export const useLibraryMetadataRefreshRunner = ({
   const commitMetadataRefreshProgress = useCallback((result: MetadataRefreshSongsResult): void => {
     if (result.completed) {
       resumeIndexRef.current = 0;
+      updateMetadataRefreshProgress({ resumeIndex: 0 });
       return;
     }
     if (typeof result.nextResumeIndex === 'number') {
       resumeIndexRef.current = result.nextResumeIndex;
+      updateMetadataRefreshProgress({ resumeIndex: result.nextResumeIndex });
     }
   }, []);
 

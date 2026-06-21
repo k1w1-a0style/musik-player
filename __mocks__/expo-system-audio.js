@@ -7,6 +7,7 @@
 const SystemAudio = {
   isAvailable: false,
   hasNativeTagWriter: false,
+  hasNativeMetadataFastPath: false,
   eqInit: jest.fn().mockResolvedValue(null),
   eqSetEnabled: jest.fn().mockReturnValue(false),
   eqSetBandLevel: jest.fn().mockReturnValue(false),
@@ -14,6 +15,7 @@ const SystemAudio = {
   extractPalette: jest.fn(() => new Promise(() => {})),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   extractAudioInfo: jest.fn().mockResolvedValue(null),
+  extractMetadataFast: jest.fn().mockResolvedValue(null),
   readAudioFileBase64: jest.fn().mockResolvedValue(null),
   writeAudioTags: jest.fn(async (uri, request = {}) => ({
     success: false,
