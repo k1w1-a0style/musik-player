@@ -21,7 +21,7 @@ export interface PlaybackQueueActionsArgs {
 export interface PlaybackQueueActions {
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   toggleShuffle: () => Promise<void>;
-  reorderQueue: (fromIndex: number, toIndex: number) => Promise<boolean>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
 }
 
 export { persistRequestedSongId } from './playbackQueueActionHelpers';
