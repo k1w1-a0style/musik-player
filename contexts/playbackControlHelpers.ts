@@ -2,6 +2,7 @@ import TrackPlayer, { State } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { requestLatestSeek } from '../utils/seekController';
 
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
@@ -34,7 +35,9 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(normalizeSeekSeconds(millis)));
+  // Seeking runs on a dedicated lane that coalesces rapid scrub updates and is
+  // not serialized behind native queue rebuilds or metadata jobs.
+  await requestLatestSeek(millis);
 };
 
 export const skipToNextSafely = async (): Promise<void> => {

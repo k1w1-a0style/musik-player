@@ -22,6 +22,7 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
       currentPosition={position}
       duration={duration}
       onSeek={onSeek}
+      onSeekPreview={onSeek}
       accent={progressAccent}
       accentDark={progressAccentDark}
     />

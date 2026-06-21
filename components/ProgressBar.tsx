@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, GestureResponderEvent, LayoutChangeEvent, Pressable, type AccessibilityActionEvent } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, LayoutChangeEvent, PanResponder, type AccessibilityActionEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../theme';
 
@@ -7,6 +7,8 @@ interface ProgressBarProps {
   currentPosition: number;
   duration: number;
   onSeek: (position: number) => void;
+  onSeekStart?: () => void;
+  onSeekPreview?: (position: number) => void;
   accent?: string;
   accentDark?: string;
 }
@@ -19,7 +21,23 @@ export const clampPlaybackProgressValues = (currentPosition: number, duration: n
   return { currentPosition: clampedPosition, duration: safeDuration, progress };
 };
 
+export const clampRatio = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+};
+
+export const resolveDragRatio = (startRatio: number, dx: number, width: number): number => {
+  if (!Number.isFinite(width) || width <= 0) return clampRatio(startRatio);
+  return clampRatio(startRatio + dx / width);
+};
+
+export const ratioToMillis = (ratio: number, duration: number): number => {
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  return clampRatio(ratio) * safeDuration;
+};
+
 const SEEK_STEP_MS = 10_000;
+const LIVE_SEEK_THROTTLE_MS = 80;
 
 const formatTime = (millis: number): string => {
   if (!isFinite(millis) || millis < 0) return '0:00';
@@ -29,22 +47,76 @@ const formatTime = (millis: number): string => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek, accent, accentDark }) => {
-  const [barWidth, setBarWidth] = useState(0);
+const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek, onSeekStart, onSeekPreview, accent, accentDark }) => {
+  const [dragRatio, setDragRatio] = useState<number | null>(null);
+
   const playbackProgress = clampPlaybackProgressValues(currentPosition, duration);
   const { progress } = playbackProgress;
   const { currentPosition: safeCurrentPosition, duration: safeDuration } = playbackProgress;
 
+  // Refs keep the once-created PanResponder reading the latest values without
+  // rebuilding the responder on every render.
+  const barWidthRef = useRef(0);
+  const durationRef = useRef(safeDuration);
+  const startRatioRef = useRef(0);
+  const latestRatioRef = useRef(0);
+  const lastLiveSeekRef = useRef(0);
+  const onSeekRef = useRef(onSeek);
+  const onSeekStartRef = useRef(onSeekStart);
+  const onSeekPreviewRef = useRef(onSeekPreview);
+
+  durationRef.current = safeDuration;
+  onSeekRef.current = onSeek;
+  onSeekStartRef.current = onSeekStart;
+  onSeekPreviewRef.current = onSeekPreview;
+
+  const isDragging = dragRatio !== null;
+  // While dragging, the local optimistic ratio wins so the 500ms progress
+  // polling cannot rubber-band the thumb back.
+  const displayProgress = isDragging ? clampRatio(dragRatio as number) * 100 : progress;
+  const displayPositionMillis = isDragging ? clampRatio(dragRatio as number) * safeDuration : safeCurrentPosition;
+
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    setBarWidth(e.nativeEvent.layout.width);
+    barWidthRef.current = e.nativeEvent.layout.width;
   }, []);
 
-  const handlePress = useCallback((event: GestureResponderEvent) => {
-    if (barWidth <= 0 || playbackProgress.duration <= 0) return;
-    const { locationX } = event.nativeEvent;
-    const ratio = Math.max(0, Math.min(1, locationX / barWidth));
-    onSeek(ratio * playbackProgress.duration);
-  }, [barWidth, onSeek, playbackProgress.duration]);
+  const finishSeek = useCallback(() => {
+    if (durationRef.current > 0) {
+      const target = latestRatioRef.current * durationRef.current;
+      onSeekRef.current(target);
+    }
+    setDragRatio(null);
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (event) => {
+        if (barWidthRef.current <= 0 || durationRef.current <= 0) return;
+        const ratio = clampRatio(event.nativeEvent.locationX / barWidthRef.current);
+        startRatioRef.current = ratio;
+        latestRatioRef.current = ratio;
+        lastLiveSeekRef.current = 0;
+        setDragRatio(ratio);
+        onSeekStartRef.current?.();
+      },
+      onPanResponderMove: (_event, gesture) => {
+        if (barWidthRef.current <= 0 || durationRef.current <= 0) return;
+        const ratio = resolveDragRatio(startRatioRef.current, gesture.dx, barWidthRef.current);
+        latestRatioRef.current = ratio;
+        setDragRatio(ratio);
+        const now = Date.now();
+        if (now - lastLiveSeekRef.current >= LIVE_SEEK_THROTTLE_MS) {
+          lastLiveSeekRef.current = now;
+          onSeekPreviewRef.current?.(ratio * durationRef.current);
+        }
+      },
+      onPanResponderRelease: finishSeek,
+      onPanResponderTerminate: finishSeek,
+    }),
+  ).current;
 
   const handleAccessibilityAction = useCallback((event: AccessibilityActionEvent) => {
     if (safeDuration <= 0) return;
@@ -59,31 +131,31 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
 
   return (
     <View style={styles.container}>
-      <Pressable
+      <View
         testID="progress-bar"
         accessibilityRole="adjustable"
         accessibilityLabel="Wiedergabe-Fortschritt"
-        accessibilityValue={{ now: Math.round(progress), min: 0, max: 100 }}
+        accessibilityValue={{ now: Math.round(displayProgress), min: 0, max: 100 }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         accessibilityHint="Nach oben oder unten wischen zum Vor- oder Zurückspulen"
         onAccessibilityAction={handleAccessibilityAction}
         style={styles.progressBarContainer}
         onLayout={handleLayout}
-        onPress={handlePress}
+        {...panResponder.panHandlers}
       >
         <View style={styles.progressBarBackground}>
           <LinearGradient
             colors={[accent ?? theme.palette.primary, accentDark ?? theme.palette.primaryDark]}
-            style={[styles.progressBarFill, { width: `${progress}%` }]}
+            style={[styles.progressBarFill, { width: `${displayProgress}%` }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           />
-          <View style={[styles.thumb, { left: `${progress}%` }]} />
+          <View style={[styles.thumb, isDragging && styles.thumbActive, { left: `${displayProgress}%` }]} />
         </View>
-      </Pressable>
+      </View>
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatTime(playbackProgress.currentPosition)}</Text>
-        <Text style={styles.time}>{formatTime(playbackProgress.duration)}</Text>
+        <Text style={styles.time}>{formatTime(displayPositionMillis)}</Text>
+        <Text style={styles.time}>{formatTime(safeDuration)}</Text>
       </View>
     </View>
   );
@@ -91,12 +163,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, marginVertical: theme.spacing.sm, width: '100%' },
-  progressBarContainer: { paddingVertical: 12 },
+  progressBarContainer: { paddingVertical: 14 },
   progressBarBackground: { height: 4, backgroundColor: theme.palette.border, borderRadius: 2 },
   progressBarFill: { height: '100%', borderRadius: 2 },
   thumb: {
     position: 'absolute', top: -5, width: 14, height: 14, borderRadius: 7,
     backgroundColor: theme.palette.primary, marginLeft: -7,
+  },
+  thumbActive: {
+    top: -8, width: 20, height: 20, borderRadius: 10, marginLeft: -10,
   },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.xs },
   time: { color: theme.palette.text.secondary, fontSize: 11, fontFamily: theme.fonts.body, letterSpacing: 0.5 },
