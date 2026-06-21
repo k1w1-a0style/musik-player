@@ -34,12 +34,12 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
       <NowPlayingQueuePreviewRow
         id={item.id}
         index={index}
+        queueLength={queue.length}
+        rowHeight={QUEUE_ROW_HEIGHT}
         title={normalizeLibraryText(item.title) || 'Unbekannter Titel'}
         artist={displayArtist(item)}
         isCurrent={!!item.id && item.id === currentSongId}
         canShift={canShiftQueue && index > 0}
-        canShiftUp={canShiftQueue && index > 1}
-        canShiftDown={canShiftQueue && index > 0 && index < queue.length - 1}
         onPress={onPlayQueueItem}
         onShift={onQueueShift}
       />
@@ -55,12 +55,13 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         <Text style={styles.queueEyebrow}>WARTESCHLANGE</Text>
         <Text style={styles.queueCount}>{queue.length} Titel</Text>
       </View>
-      {canShiftQueue ? <Text style={styles.queueHint}>Reihenfolge per Halten und Pfeilen bearbeiten.</Text> : null}
+      {canShiftQueue ? <Text style={styles.queueHint}>Reihenfolge per langem Drücken und Ziehen bearbeiten.</Text> : null}
       <FlatList
         data={queue}
         keyExtractor={buildSongKey}
         renderItem={renderQueueItem}
         nestedScrollEnabled
+        scrollEnabled={!canShiftQueue || queue.length > 4}
         showsVerticalScrollIndicator={queue.length > 3}
         getItemLayout={getQueueItemLayout}
         style={styles.queueList}
