@@ -27,12 +27,13 @@ export const useNowPlayingScreenState = () => {
     setVolume,
     palette,
     playSong,
+    reorderQueue,
     saveQueueAsPlaylist,
   } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
   const menuState = useNowPlayingMenu(currentSong?.id);
-  const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
+  const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong, reorderQueue });
   const presentation = useNowPlayingPresentation({
     currentSong,
     palette,
