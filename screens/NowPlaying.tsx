@@ -81,8 +81,8 @@ const NowPlayingScreenInner: React.FC = () => {
       foregroundOnAccent={foregroundOnAccent}
       listHeight={layoutMetrics.detailPageListHeight}
       onPlayQueueItem={playQueueItemById}
-      onMoveQueueItem={moveQueueItem}
-      canReorderQueue={canReorderQueue}
+      onQueueShift={moveQueueItem}
+      canShiftQueue={canReorderQueue}
     />
   ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, moveQueueItem, playQueueItemById, queue]);
 
