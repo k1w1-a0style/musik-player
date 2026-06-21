@@ -1915,4 +1915,14 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.LIBRARY_SONG_VIEW_MODE), JSON.stringify('bogus'));
     await expect(storage.getLibrarySongViewMode()).resolves.toBe('list');
   });
+
+  test('persists and reads the album view mode with a safe default', async () => {
+    await expect(storage.getAlbumViewMode()).resolves.toBe('grid');
+
+    await storage.setAlbumViewMode('list');
+    await expect(storage.getAlbumViewMode()).resolves.toBe('list');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.ALBUM_VIEW_MODE), JSON.stringify('bogus'));
+    await expect(storage.getAlbumViewMode()).resolves.toBe('grid');
+  });
 });

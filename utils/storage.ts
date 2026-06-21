@@ -5,6 +5,8 @@ import type { Playlist, RepeatMode, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 import { DEFAULT_LIBRARY_SORT_MODE, isLibrarySortMode, type LibrarySortMode } from './librarySort';
 import { DEFAULT_LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode, type LibrarySongViewMode } from './libraryViewMode';
+import { DEFAULT_LIBRARY_ALBUM_VIEW_MODE, isLibraryAlbumViewMode } from './libraryViewMode';
+import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 
 const PREFIX = '@musikplayer:';
 const MIN_EQ_GAIN = -12;
@@ -24,6 +26,7 @@ export const StorageKeys = {
   FAVORITE_SONG_IDS: 'favoriteSongIds',
   LIBRARY_SORT_MODE: 'librarySortMode',
   LIBRARY_SONG_VIEW_MODE: 'librarySongViewMode',
+  ALBUM_VIEW_MODE: 'albumViewMode',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
@@ -43,6 +46,7 @@ type StorageValueByKey = {
   [StorageKeys.FAVORITE_SONG_IDS]: string[];
   [StorageKeys.LIBRARY_SORT_MODE]: LibrarySortMode;
   [StorageKeys.LIBRARY_SONG_VIEW_MODE]: LibrarySongViewMode;
+  [StorageKeys.ALBUM_VIEW_MODE]: LibraryAlbumViewMode;
 };
 
 interface StorageApi {
@@ -76,6 +80,8 @@ interface StorageApi {
   setLibrarySortMode(mode: LibrarySortMode): Promise<void>;
   getLibrarySongViewMode(): Promise<LibrarySongViewMode>;
   setLibrarySongViewMode(mode: LibrarySongViewMode): Promise<void>;
+  getAlbumViewMode(): Promise<LibraryAlbumViewMode>;
+  setAlbumViewMode(mode: LibraryAlbumViewMode): Promise<void>;
 }
 
 const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
@@ -298,6 +304,8 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
       return isLibrarySortMode(value) ? value : null;
     case StorageKeys.LIBRARY_SONG_VIEW_MODE:
       return isLibrarySongViewMode(value) ? value : null;
+    case StorageKeys.ALBUM_VIEW_MODE:
+      return isLibraryAlbumViewMode(value) ? value : null;
     default:
       return value;
   }
@@ -309,6 +317,7 @@ const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
   StorageKeys.REPEAT_MODE,
   StorageKeys.LIBRARY_SORT_MODE,
   StorageKeys.LIBRARY_SONG_VIEW_MODE,
+  StorageKeys.ALBUM_VIEW_MODE,
 ]);
 
 const supportsRawStringValue = (key: string): boolean => RAW_STRING_STORAGE_KEYS.has(key);
@@ -507,6 +516,14 @@ export const storage: StorageApi = {
   },
   async setLibrarySongViewMode(mode: LibrarySongViewMode) {
     await setJsonItem(StorageKeys.LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode(mode) ? mode : DEFAULT_LIBRARY_SONG_VIEW_MODE);
+  },
+  async getAlbumViewMode(): Promise<LibraryAlbumViewMode> {
+    const value = await getItem(StorageKeys.ALBUM_VIEW_MODE);
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.ALBUM_VIEW_MODE, value);
+    return isLibraryAlbumViewMode(parsed) ? parsed : DEFAULT_LIBRARY_ALBUM_VIEW_MODE;
+  },
+  async setAlbumViewMode(mode: LibraryAlbumViewMode) {
+    await setJsonItem(StorageKeys.ALBUM_VIEW_MODE, isLibraryAlbumViewMode(mode) ? mode : DEFAULT_LIBRARY_ALBUM_VIEW_MODE);
   },
 };
 

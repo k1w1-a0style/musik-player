@@ -1,3 +1,6 @@
+import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+
+
 export type LibrarySongViewMode = 'list' | 'gridLarge' | 'gridSmall' | 'banner';
 
 export type LibrarySongCardVariant = 'row' | 'tile' | 'banner';
@@ -40,3 +43,9 @@ export const getNextLibrarySongViewMode = (mode: LibrarySongViewMode): LibrarySo
   const index = LIBRARY_SONG_VIEW_MODES.indexOf(mode);
   return LIBRARY_SONG_VIEW_MODES[(index + 1) % LIBRARY_SONG_VIEW_MODES.length];
 };
+
+// Album list view ('grid' | 'list') – type owned by the toggle component.
+export const DEFAULT_LIBRARY_ALBUM_VIEW_MODE: LibraryAlbumViewMode = 'grid';
+
+export const isLibraryAlbumViewMode = (value: unknown): value is LibraryAlbumViewMode =>
+  value === 'grid' || value === 'list';
