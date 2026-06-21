@@ -58,9 +58,12 @@ export interface AudioTagWriteResult {
   bytesAfter?: number;
 }
 
+export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';
+
 export interface AudioInfoResult {
   durationMs?: number;
   bitrateBps?: number;
+  bitrateMode?: NativeBitrateMode;
   sizeBytes?: number;
   sampleRateHz?: number;
   channels?: number;
