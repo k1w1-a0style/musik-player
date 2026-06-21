@@ -114,8 +114,15 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - Tests: Sortlogik, Hook-Persistenz, Control, Storage-Round-Trip; Literale aktualisiert. typecheck + lint:ci grün; 1679 jest pass (2 vorbestehende env-Fails).
 - **OFFEN (Phase 4b)**: 4 Ansichts-Modi (große/kleine Cover-Raster, Liste, Banner) + Persistenz der Albumansicht.
 
+### Phase 4b – 4 Song-Ansichtsmodi + Persistenz ✓ (2026-06-21)
+- `utils/libraryViewMode.ts` (neu): 4 Modi `list`/`gridLarge`/`gridSmall`/`banner` → Spaltenzahl (1/2/3/1) + SongCard-Variante (row/tile/tile/banner), Cycler, Labels, Guard.
+- `hooks/useLibrarySongViewMode.ts` (neu): State + AsyncStorage-Persistenz (`librarySongViewMode`-Key in `storage.ts` mit Validierung/Default).
+- `components/SongCard.tsx`: neue Varianten `row`/`tile`/`banner` (memo um `variant` erweitert). `LibraryTabContent` setzt `numColumns` + Relayout-`key` je Modus, `getItemLayout` nur für Liste.
+- `components/LibrarySongViewControl.tsx` (neu): Pille im Tracks/Favoriten-Header. `songViewMode` durch die Renderer-Kette (`useLibraryControllerRenderers`→`useLibraryRenderers`→`useLibrarySongRenderer`) und Component-Props verdrahtet.
+- Tests: View-Mode-Util, Hook-Persistenz, Control, Storage-Round-Trip; Literale/Mocks aktualisiert. typecheck + lint:ci grün; 1688 jest pass (2 vorbestehende env-Fails).
+- **OPTIONAL/OFFEN**: Persistenz der Albumansicht (`albumViewMode`) weiterhin nicht persistiert (klein, später).
+
 ### Offene Phasen (Reihenfolge laut Plan)
-- **P1 Phase 4**: 4 Library-Ansichten + 3 Sortiermodi mit Persistenz.
 - **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
 - **P2 Phase 6**: Waveform (Datenmodell, Cache, SVG, native Peak-Extraktion als BG-Job).
 - **P2 Phase 7**: TrackInfo erweitern (CBR/VBR, Cover-Dimensionen/Bytes).
