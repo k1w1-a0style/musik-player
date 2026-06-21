@@ -9,7 +9,7 @@ const queue: Song[] = [
   { id: 's3', title: 'Three', artist: 'C' },
 ];
 
-test('renders queue order controls for upcoming tracks', () => {
+test('renders drag handles for upcoming tracks only', () => {
   const onPlayQueueItem = jest.fn();
   const onQueueShift = jest.fn();
   const { getByTestId, queryByTestId } = render(
@@ -23,12 +23,10 @@ test('renders queue order controls for upcoming tracks', () => {
     />,
   );
 
-  expect(queryByTestId('queue-shift-controls-s1')).toBeNull();
-  expect(getByTestId('queue-shift-controls-s2')).toBeTruthy();
+  expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
+  expect(getByTestId('queue-drag-handle-s2')).toBeTruthy();
+  expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
 
-  fireEvent.press(getByTestId('queue-shift-down-s2'));
-  expect(onQueueShift).toHaveBeenCalledWith(1, 2);
-
-  fireEvent.press(getByTestId('queue-shift-up-s3'));
-  expect(onQueueShift).toHaveBeenCalledWith(2, 1);
+  fireEvent.press(getByTestId('queue-row-s2'));
+  expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
 });
