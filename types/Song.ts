@@ -9,10 +9,13 @@ export interface SongFileInfo {
   importedAt?: number;
 }
 
+export type BitrateMode = 'cbr' | 'vbr' | 'unknown';
+
 export interface SongAudioInfo {
   codec?: string;
   durationMs?: number;
   bitrate?: number;
+  bitrateMode?: BitrateMode;
   sampleRate?: number;
   channels?: number;
 }
@@ -20,6 +23,10 @@ export interface SongAudioInfo {
 export interface SongCoverInfo {
   status?: 'none' | 'embedded' | 'cached' | 'external' | 'unknown';
   uri?: string;
+  mimeType?: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
   embeddedArtworkChecked?: boolean;
   /** Monotonic in-app revision used to retry embedded-cover extraction after tag cover writes. */
   embeddedArtworkRevision?: number;
