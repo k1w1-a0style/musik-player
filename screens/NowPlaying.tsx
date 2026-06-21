@@ -36,6 +36,8 @@ const NowPlayingScreenInner: React.FC = () => {
     saveCurrentQueueAsPlaylist,
     queue,
     playQueueItemById,
+    moveQueueItem,
+    canReorderQueue,
     accent,
     accentMuted,
     gradientColors,
@@ -79,8 +81,10 @@ const NowPlayingScreenInner: React.FC = () => {
       foregroundOnAccent={foregroundOnAccent}
       listHeight={layoutMetrics.detailPageListHeight}
       onPlayQueueItem={playQueueItemById}
+      onMoveQueueItem={moveQueueItem}
+      canReorderQueue={canReorderQueue}
     />
-  ), [accentMuted, albumTitle, currentSong, foregroundOnAccent, playQueueItemById, queue]);
+  ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, moveQueueItem, playQueueItemById, queue]);
 
   return (
     <>
