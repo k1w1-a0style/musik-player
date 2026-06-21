@@ -36,9 +36,11 @@ const isNativeAudioInfoUri = (uri?: string): uri is string =>
 const bitrateKbpsFromNative = (bitrateBps?: number): number | undefined =>
   isPositiveFiniteNumber(bitrateBps) ? Math.round(bitrateBps / 1000) : undefined;
 
+const hasUsableAudioDuration = (song: Song): boolean =>
+  isPositiveFiniteNumber(song.duration) || isPositiveFiniteNumber(song.audioInfo?.durationMs);
+
 const hasUsableAudioInfo = (song: Song): boolean =>
-  isPositiveFiniteNumber(song.duration)
-  && isPositiveFiniteNumber(song.audioInfo?.durationMs)
+  hasUsableAudioDuration(song)
   && isPositiveFiniteNumber(song.audioInfo?.bitrate)
   && isPositiveFiniteNumber(song.audioInfo?.sampleRate)
   && isPositiveFiniteNumber(song.audioInfo?.channels)
