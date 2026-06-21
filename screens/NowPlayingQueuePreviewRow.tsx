@@ -5,26 +5,26 @@ import { theme } from '../theme';
 
 interface NowPlayingQueuePreviewRowProps {
   id: string;
-  index: number;
+  index?: number;
   title: string;
   artist: string;
   isCurrent: boolean;
-  canShift: boolean;
-  canShiftUp: boolean;
-  canShiftDown: boolean;
+  canShift?: boolean;
+  canShiftUp?: boolean;
+  canShiftDown?: boolean;
   onPress: (songId: string) => void;
-  onShift: (fromIndex: number, toIndex: number) => void;
+  onShift?: (fromIndex: number, toIndex: number) => void;
 }
 
 const NowPlayingQueuePreviewRow = React.memo(({
   id,
-  index,
+  index = 0,
   title,
   artist,
   isCurrent,
-  canShift,
-  canShiftUp,
-  canShiftDown,
+  canShift = false,
+  canShiftUp = false,
+  canShiftDown = false,
   onPress,
   onShift,
 }: NowPlayingQueuePreviewRowProps) => {
@@ -33,12 +33,13 @@ const NowPlayingQueuePreviewRow = React.memo(({
   const handleLongPress = React.useCallback(() => {
     if (canShift) setShiftMode(value => !value);
   }, [canShift]);
-  const shiftUp = React.useCallback(() => onShift(index, index - 1), [index, onShift]);
-  const shiftDown = React.useCallback(() => onShift(index, index + 1), [index, onShift]);
+  const shiftUp = React.useCallback(() => onShift?.(index, index - 1), [index, onShift]);
+  const shiftDown = React.useCallback(() => onShift?.(index, index + 1), [index, onShift]);
   const trimmedArtist = artist.trim();
   const accessibilityLabel = trimmedArtist
     ? `${title} von ${trimmedArtist} abspielen`
     : `${title} abspielen`;
+  const showShiftControls = canShift && onShift;
 
   return (
     <Pressable
@@ -55,7 +56,7 @@ const NowPlayingQueuePreviewRow = React.memo(({
         <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
         <Text style={styles.queueArtist} numberOfLines={1}>{artist}</Text>
       </View>
-      {canShift ? (
+      {showShiftControls ? (
         <View style={styles.shiftControls} testID={`queue-shift-controls-${id}`}>
           <GripVertical color={theme.palette.text.muted} size={14} />
           <Pressable testID={`queue-shift-up-${id}`} accessibilityRole="button" accessibilityLabel={`${title} nach oben`} disabled={!canShiftUp} onPress={shiftUp} hitSlop={6} style={[styles.shiftButton, !canShiftUp && styles.shiftButtonDisabled]}>
