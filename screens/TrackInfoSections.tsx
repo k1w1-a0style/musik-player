@@ -3,10 +3,15 @@ import { StyleSheet, Text } from 'react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
 import {
+  formatBitrate,
+  formatBitrateMode,
   formatBytes,
+  formatChannels,
+  formatCoverDimensions,
   formatCoverStatus,
   formatDuration,
   formatSampleRate,
+  getTrackInfoDurationMs,
   valueOrNA,
 } from './trackInfoHelpers';
 import TrackInfoRow from './TrackInfoRow';
@@ -29,12 +34,13 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
     <TrackInfoRow label="Titel" value={valueOrNA(song.title)} />
     <TrackInfoRow label="Künstler" value={valueOrNA(song.artist)} />
     <TrackInfoRow label="Album" value={valueOrNA(song.album)} />
+    <TrackInfoRow label="Album-Künstler" value={valueOrNA(song.albumArtist)} />
     <TrackInfoRow label="Jahr" value={valueOrNA(song.year)} />
     <TrackInfoRow label="Genre" value={valueOrNA(song.genre)} />
     <TrackInfoRow label="Tracknummer" value={valueOrNA(song.trackNumber)} />
     <TrackInfoRow label="Discnummer" value={valueOrNA(song.discNumber)} />
     <TrackInfoRow label="Kommentar" value={valueOrNA(song.comment)} long />
-    <TrackInfoRow label="Dauer" value={formatDuration(song.duration)} />
+    <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
 
     <Text style={styles.section}>Datei</Text>
     <TrackInfoRow label="Dateiname" value={valueOrNA(song.fileInfo?.filename)} />
@@ -48,13 +54,17 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
 
     <Text style={styles.section}>Audio-Technik</Text>
     <TrackInfoRow label="Codec" value={valueOrNA(song.audioInfo?.codec)} />
-    <TrackInfoRow label="Bitrate" value={song.audioInfo?.bitrate ? `${song.audioInfo.bitrate} kbps` : 'Nicht verfügbar'} />
+    <TrackInfoRow label="Bitrate" value={formatBitrate(song.audioInfo?.bitrate)} />
+    <TrackInfoRow label="Bitrate-Modus" value={formatBitrateMode(song.audioInfo?.bitrateMode)} />
     <TrackInfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />
-    <TrackInfoRow label="Kanäle" value={valueOrNA(song.audioInfo?.channels)} />
+    <TrackInfoRow label="Kanäle" value={formatChannels(song.audioInfo?.channels)} />
 
     <Text style={styles.section}>Cover</Text>
     <TrackInfoRow label="Cover vorhanden" value={coverUri ? 'Ja' : 'Nein'} />
     <TrackInfoRow label="Cover-Typ" value={formatCoverStatus(coverStatus)} />
+    <TrackInfoRow label="Cover-MIME-Type" value={valueOrNA(song.coverInfo?.mimeType)} />
+    <TrackInfoRow label="Cover-Dateigröße" value={formatBytes(song.coverInfo?.byteLength)} />
+    <TrackInfoRow label="Cover-Abmessungen" value={formatCoverDimensions(song.coverInfo?.width, song.coverInfo?.height)} />
     <TrackInfoRow label="Cover-URI" value={valueOrNA(coverUri)} long />
   </>
 );
