@@ -7,11 +7,13 @@ import { theme } from '../theme';
 import TrackInfoActions from './TrackInfoActions';
 import TrackInfoCover from './TrackInfoCover';
 import TrackInfoSections from './TrackInfoSections';
+import type { TrackInfoCoverDimensions } from './useTrackInfoCoverState';
 
 interface TrackInfoContentProps {
   song: Song;
   coverUri?: string;
   coverStatus: string;
+  coverDimensions?: TrackInfoCoverDimensions;
   importedAt: string;
   coverFailed: boolean;
   onCoverError: () => void;
@@ -23,6 +25,7 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
   song,
   coverUri,
   coverStatus,
+  coverDimensions,
   importedAt,
   coverFailed,
   onCoverError,
@@ -47,6 +50,7 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
           song={song}
           coverUri={coverUri}
           coverStatus={coverStatus}
+          coverDimensions={coverDimensions}
           importedAt={importedAt}
         />
       </ScrollView>
