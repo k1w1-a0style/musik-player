@@ -42,13 +42,13 @@ Reihenfolge folgt dem Deep-Scan-Arbeitsplan (Phasen 1–8).
 - ✅ 4 Song-Ansichtsmodi (Liste/großes Raster/kleines Raster/Banner) + Persistenz + Control
 - ✅ `albumViewMode` persistiert (Hydration-Guard in `useLibraryScreenState`, Storage-Round-Trip getestet, Default `grid` per `DEFAULT_LIBRARY_ALBUM_VIEW_MODE`).
 
-## Phase 5 – Now-Playing Redesign ⏳
-- ⏳ 2 vertikale Snap-Screens
-- ⏳ Dynamische Akzentfarbe aus Cover
-- ⏳ Hintergrund/Gradient aus Cover-Palette
-- ⏳ Kontrastschutz für Text/Buttons
-- ⏳ Fallback-Farben (kein Cover / keine Palette), keine harte Schwarz/Grün-Marke erzwingen
-- Hinweis: native Farbpalettenextraktion ist geräteabhängig → JS-Fallback (deterministisch aus Metadaten) vorsehen
+## Phase 5 – Now-Playing Redesign 🔄
+- ✅ 2 vertikale Snap-Screens (`NowPlayingSnapPager`): Page 1 Player (Cover/Title/Progress/Controls/Volume), Page 2 Details (Warteschlange + Metadaten-Karte). FlatList mit `pagingEnabled` + `snapToInterval`, vertikaler Page-Indicator rechts.
+- ✅ Dynamische Akzentfarbe aus Cover (`useNowPlayingPresentation` mergt nativ + JS-Fallback feldweise) + Hintergrund-Gradient aus Palette.
+- ✅ Deterministischer **JS-Fallback** (`utils/jsPaletteFallback.ts`, FNV-1a-Hash über `id|artist|album|title` → HSL-Palette, kontrollierte Sättigung/Helligkeit) – greift, wenn Native-Palette `null` ist (kein Cover/Native nicht verfügbar). Kein hartes Schwarz/Grün-Branding mehr.
+- ✅ Kontrastschutz (`pickReadableForeground` via Rec.601-Luminanz) für Text auf hellen Akzentfarben.
+- ✅ Fallback-Farben (kein Cover / keine Palette) – per Hash deterministisch.
+- 📱 Native dominante-Farb-Extraktion (`SystemAudio.extractPalette`, Kotlin) – schon vorhanden, JS-Fallback rendert in jeder Umgebung sauber.
 
 ## Phase 6 – Waveform ⏳
 - ⏳ Datenmodell + Cache, SVG-Rendering, native Peak-Extraktion (BG-Job)

@@ -128,7 +128,15 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - **4b-Rest (2026-06-22)**: `albumViewMode` wird ebenfalls persistiert – `useLibraryScreenState` lädt asynchron via `storage.getAlbumViewMode()`, schreibt bei Änderung mit Hydration-Guard zurück. Validierung/Default (`grid`) und Storage-Round-Trip durch `storage.test.ts` und `Library.test.tsx` abgedeckt. typecheck + lint:ci grün; 1707 jest pass (2 vorbestehende env-Fails).
 
 ### Offene Phasen (Reihenfolge laut Plan)
-- **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
 - **P2 Phase 6**: Waveform (Datenmodell, Cache, SVG, native Peak-Extraktion als BG-Job).
 - **P2 Phase 7**: TrackInfo erweitern (CBR/VBR, Cover-Dimensionen/Bytes).
 - **P2 Phase 8**: Queue Drag & Drop (echte Playback-Reihenfolge).
+
+### Phase 5 – Now-Playing Redesign ✓ (2026-06-22)
+- `screens/NowPlayingSnapPager.tsx` (neu): vertikaler Snap-Pager (FlatList `pagingEnabled` + `snapToInterval`) mit Player- und Details-Page, Page-Indicator rechts und `onPageChange`-Callback.
+- `screens/nowPlayingLayout.ts`: erweiterte Metriken (`snapPageHeight`, `detailPageListHeight`); Cover wächst auf ~`min(width-64, max(220, 0.42·height))`, da jede Snap-Page volle Höhe hat.
+- `screens/NowPlaying.tsx`: refactored auf zwei Snap-Pages. Page 1 = Cover/Title/Progress/Controls/Volume. Page 2 = Warteschlange + Metadaten-Karte. Header + Backdrop bleiben statisch über beiden Pages.
+- `utils/jsPaletteFallback.ts` (neu): deterministischer JS-Fallback (FNV-1a-Hash über `id|artist|album|title`, HSL mit kontrollierter S/L) für `dominant/vibrant/lightVibrant/darkVibrant/muted/lightMuted/darkMuted`. `mergeNativeAndFallbackPalette` mergt native Felder feldweise mit dem Fallback. `pickReadableForeground` wählt anhand der Rec.601-Luminanz `#FFFFFF` oder `#0A0B0C`.
+- `screens/useNowPlayingPresentation.ts`: nutzt den merge-fähigen JS-Fallback und exportiert `accent`, `accentDark`, `accentMuted`, `foregroundOnAccent`, `hasNativePalette` (für Kontrast/Branding-Switches der Pages).
+- Tests: `nowPlayingLayout.test.ts` (neue Metriken inkl. Snap-Höhe), `NowPlayingSnapPager.test.tsx` (Pages + Indicator + `onPageChange`), `jsPaletteFallback.test.ts` (Hash/Palette/Merge/Foreground), `useNowPlayingPresentation.test.tsx` (Fallback-Pfad + `hasNativePalette`).
+- typecheck + lint:ci grün; 1724 jest pass (2 vorbestehende androidApkInspector env-Fails).

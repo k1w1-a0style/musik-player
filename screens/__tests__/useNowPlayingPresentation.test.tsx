@@ -51,4 +51,34 @@ describe('useNowPlayingPresentation', () => {
     expect(getByTestId('progress-accent').props.children).toBe('#222222');
     expect(getByTestId('progress-accent-dark').props.children).toBe('#444444');
   });
+
+  test('falls back to JS palette when native palette is null', () => {
+    const FallbackProbe = () => {
+      const presentation = useNowPlayingPresentation({ currentSong: song, palette: null });
+      return (
+        <>
+          <Text testID="accent">{presentation.accent}</Text>
+          <Text testID="has-native">{String(presentation.hasNativePalette)}</Text>
+          <Text testID="foreground">{presentation.foregroundOnAccent}</Text>
+        </>
+      );
+    };
+    const { getByTestId } = render(<FallbackProbe />);
+    expect(getByTestId('has-native').props.children).toBe('false');
+    // JS fallback returns a deterministic hex like "#xxxxxx" – not the brand green.
+    const accent = getByTestId('accent').props.children as string;
+    expect(accent).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(accent).not.toBe(theme.palette.accent);
+    // Foreground is one of the two safe contrast colors.
+    expect(['#FFFFFF', '#0A0B0C']).toContain(getByTestId('foreground').props.children);
+  });
+
+  test('hasNativePalette is true when palette is provided', () => {
+    const Probe = () => {
+      const presentation = useNowPlayingPresentation({ currentSong: song, palette: { dominant: '#111111' } });
+      return <Text testID="has-native">{String(presentation.hasNativePalette)}</Text>;
+    };
+    const { getByTestId } = render(<Probe />);
+    expect(getByTestId('has-native').props.children).toBe('true');
+  });
 });
