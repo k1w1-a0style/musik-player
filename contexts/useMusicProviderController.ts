@@ -1,4 +1,4 @@
-import { useMusicProviderContextCompositionFinal as useMusicProviderContextComposition } from './useMusicProviderContextCompositionFinal';
+import { useMusicProviderContextComposition } from './useMusicProviderContextComposition';
 import { useMusicProviderDomainActions } from './useMusicProviderDomainActions';
 import { useMusicProviderDomainEffects } from './useMusicProviderDomainEffects';
 import { useMusicProviderRuntime } from './useMusicProviderRuntime';
