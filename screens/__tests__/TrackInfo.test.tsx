@@ -112,9 +112,9 @@ describe('TrackInfo', () => {
 
   test('shows not available mime when missing', () => {
     mockRouteSongId = '2';
-    const { getByText } = render(<TrackInfo />);
+    const { getAllByText, getByText } = render(<TrackInfo />);
 
-    expect(getByText(/MIME-Type: Nicht verfügbar/)).toBeTruthy();
+    expect(getAllByText(/MIME-Type: Nicht verfügbar/).length).toBe(2);
     expect(getByText(/Bitrate-Modus: Nicht verfügbar/)).toBeTruthy();
     expect(getByText(/Cover-Abmessungen: Nicht verfügbar/)).toBeTruthy();
   });
