@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import NowPlayingQueueCardFinal from '../NowPlayingQueueCardFinal';
+import NowPlayingQueueCard from '../NowPlayingQueueCard';
 import type { Song } from '../../types/Song';
 
 const queue: Song[] = [
@@ -13,7 +13,7 @@ test('renders queue order controls for upcoming tracks', () => {
   const onPlayQueueItem = jest.fn();
   const onQueueShift = jest.fn();
   const { getByTestId, queryByTestId } = render(
-    <NowPlayingQueueCardFinal
+    <NowPlayingQueueCard
       queue={queue}
       currentSongId="s1"
       maxHeight={240}
