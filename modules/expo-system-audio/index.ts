@@ -26,6 +26,9 @@ export interface PaletteResult {
 export interface EmbeddedArtworkResult {
   uri: string;
   mimeType: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface AudioTagWriteRequest {
@@ -113,7 +116,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
-  extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null>;
+  extractWaveformPeaks?(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null>;
 }
 
 const native: ExpoSystemAudioModule | null = (() => {
@@ -144,7 +147,8 @@ const hasNativeTagWriter =
 const hasNativeMetadataFastPath =
   native !== null && typeof native.extractMetadataFast === 'function';
 
-const hasNativeWaveformExtraction = waveformNative !== null;
+const hasNativeWaveformExtraction =
+  waveformNative !== null && typeof waveformNative.extractWaveformPeaks === 'function';
 
 export const SystemAudio = {
   isAvailable: native !== null,
@@ -196,7 +200,7 @@ export const SystemAudio = {
   },
 
   async extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null> {
-    if (!waveformNative) return null;
+    if (!waveformNative?.extractWaveformPeaks) return null;
     try {
       return await waveformNative.extractWaveformPeaks(uri, pointCount);
     } catch {
