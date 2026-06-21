@@ -66,6 +66,15 @@ export interface AudioInfoResult {
 }
 
 /**
+ * Native waveform result. `points` are normalized 0..1 envelope values and are
+ * downsampled natively so rendering never has to inspect audio bytes.
+ */
+export interface WaveformPeaksResult {
+  points: number[];
+  durationMs?: number;
+}
+
+/**
  * Native Fast-Path metadata read powered by Android's MediaMetadataRetriever.
  * Returns the standard tag fields that MediaMetadataRetriever can decode
  * reliably for content://, file:// and SAF-backed URIs. Missing/insecure fields
@@ -103,9 +112,21 @@ declare class ExpoSystemAudioModule extends NativeModule {
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
 }
 
+declare class ExpoSystemAudioWaveformModule extends NativeModule {
+  extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null>;
+}
+
 const native: ExpoSystemAudioModule | null = (() => {
   try {
     return requireNativeModule<ExpoSystemAudioModule>('ExpoSystemAudio');
+  } catch {
+    return null;
+  }
+})();
+
+const waveformNative: ExpoSystemAudioWaveformModule | null = (() => {
+  try {
+    return requireNativeModule<ExpoSystemAudioWaveformModule>('ExpoSystemAudioWaveform');
   } catch {
     return null;
   }
@@ -123,10 +144,13 @@ const hasNativeTagWriter =
 const hasNativeMetadataFastPath =
   native !== null && typeof native.extractMetadataFast === 'function';
 
+const hasNativeWaveformExtraction = waveformNative !== null;
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
   hasNativeMetadataFastPath,
+  hasNativeWaveformExtraction,
 
   async eqInit(): Promise<EqInitResult | null> {
     return native ? native.eqInit() : null;
@@ -166,6 +190,15 @@ export const SystemAudio = {
     if (!native?.extractMetadataFast) return null;
     try {
       return await native.extractMetadataFast(uri);
+    } catch {
+      return null;
+    }
+  },
+
+  async extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null> {
+    if (!waveformNative) return null;
+    try {
+      return await waveformNative.extractWaveformPeaks(uri, pointCount);
     } catch {
       return null;
     }
