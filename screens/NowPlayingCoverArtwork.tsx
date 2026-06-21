@@ -24,7 +24,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
   return (
-    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent }]}> 
+    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent }]}>
       {artworkUri && !coverFailed ? (
         <Image
           source={{ uri: artworkUri }}
