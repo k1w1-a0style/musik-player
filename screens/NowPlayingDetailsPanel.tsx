@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import NowPlayingQueueCardFinal from './NowPlayingQueueCardFinal';
+import NowPlayingQueueCard from './NowPlayingQueueCard';
 
 interface NowPlayingDetailsPanelProps {
   queue: Song[];
@@ -36,7 +36,7 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
         <Text style={[styles.swipeHintTitle, { color: readableAccent }]}>Warteschlange & Details</Text>
       </View>
 
-      <NowPlayingQueueCardFinal
+      <NowPlayingQueueCard
         queue={queue}
         currentSongId={currentSong?.id}
         maxHeight={listHeight}
