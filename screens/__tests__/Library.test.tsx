@@ -51,6 +51,10 @@ jest.mock('../../utils/storage', () => ({
   updateScanFolder: (id: string, patch: any) => mockUpdateScanFolder(id, patch),
   removeScanFolder: (id: string) => mockRemoveScanFolder(id),
   addScanFolder: (folder: any) => mockAddScanFolder(folder),
+  storage: {
+    getLibrarySortMode: jest.fn().mockResolvedValue('alphabet'),
+    setLibrarySortMode: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 
 jest.mock('../../utils/mediaLibraryImport', () => ({

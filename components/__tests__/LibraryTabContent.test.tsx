@@ -22,6 +22,8 @@ const baseProps = {
   scanFolders: [],
   songKeyExtractor: (item: { id: string }) => item.id,
   songsForActiveList: [],
+  sortMode: 'alphabet' as const,
+  onCycleSortMode: jest.fn(),
 };
 
 test('renders folders tab shell and empty message', () => {

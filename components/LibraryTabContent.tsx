@@ -4,6 +4,8 @@ import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from './LibraryAlbu
 import LibraryListShell from './LibraryListShell';
 import LibraryPlaybackActions from './LibraryPlaybackActions';
 import LibrarySectionHeader from './LibrarySectionHeader';
+import LibrarySortControl from './LibrarySortControl';
+import type { LibrarySortMode } from '../utils/librarySort';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { theme } from '../theme';
@@ -45,6 +47,8 @@ export interface LibraryTabContentProps {
   scanFolders: ScanFolder[];
   songKeyExtractor: (item: Song) => string;
   songsForActiveList: Song[];
+  sortMode: LibrarySortMode;
+  onCycleSortMode: () => void;
 }
 
 const groupKeyExtractor = (item: LibraryGroupItem | LibraryPlaylistItem): string => item.id;
@@ -77,6 +81,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   scanFolders,
   songKeyExtractor,
   songsForActiveList,
+  sortMode,
+  onCycleSortMode,
 }) => {
   if (activeTab === 'folders') {
     return (
@@ -181,6 +187,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   return (
     <LibraryListShell testID={`library-${activeTab}-shell`}>
       <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
+        <LibrarySortControl mode={sortMode} onCycle={onCycleSortMode} />
         <LibraryPlaybackActions
           disabled={songsForActiveList.length === 0}
           showFavoriteIcon={activeTab === 'favorites'}

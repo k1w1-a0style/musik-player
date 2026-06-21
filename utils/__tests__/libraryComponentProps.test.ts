@@ -89,6 +89,8 @@ test('buildLibraryTabContentProps returns tab content props', () => {
     scanFolders: [],
     songKeyExtractor: item => item.id,
     songsForActiveList: [],
+    sortMode: 'alphabet',
+    onCycleSortMode: fn,
   };
 
   const props = buildLibraryTabContentProps(options);
@@ -146,6 +148,8 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
     scanFolders: [folder],
     songKeyExtractor,
     songsForActiveList: [song],
+    sortMode: 'year',
+    onCycleSortMode: fn,
   });
 
   expect(props.albumGroups).toEqual([group]);

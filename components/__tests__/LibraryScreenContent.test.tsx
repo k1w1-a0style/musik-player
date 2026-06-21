@@ -56,6 +56,8 @@ const baseProps: LibraryScreenContentProps = {
     scanFolders: [],
     songKeyExtractor: (item: { id: string }) => item.id,
     songsForActiveList: [],
+    sortMode: 'alphabet',
+    onCycleSortMode: fn,
   },
   tabsProps: {
     activeTab: 'tracks' as const,

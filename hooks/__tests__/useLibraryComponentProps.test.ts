@@ -41,6 +41,8 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   songKeyExtractor: (item: { id: string }) => item.id,
   songsCount: 2,
   songsForActiveList: [],
+  sortMode: 'alphabet',
+  onCycleSortMode: fn,
   toggleSearch: fn,
 };
 

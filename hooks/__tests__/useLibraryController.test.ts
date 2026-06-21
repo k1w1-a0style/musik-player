@@ -135,6 +135,8 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     scanFolders: [],
     songKeyExtractor: item => item.id,
     songsForActiveList: [],
+    sortMode: 'alphabet',
+    onCycleSortMode: fn,
   },
   tabsProps: {
     activeTab: 'tracks',
@@ -233,6 +235,10 @@ jest.mock('../useLibraryStoredState', () => ({
 
 jest.mock('../useLibraryViewState', () => ({
   useLibraryViewState: jest.fn(() => mockViewState),
+}));
+
+jest.mock('../useLibrarySortMode', () => ({
+  useLibrarySortMode: jest.fn(() => ({ sortMode: 'alphabet', setSortMode: jest.fn(), cycleSortMode: jest.fn() })),
 }));
 
 test('returns library screen props from composed hooks', () => {

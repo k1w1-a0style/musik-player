@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
 import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
 import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
@@ -5,6 +6,8 @@ import { useLibraryControllerProps } from './useLibraryControllerProps';
 import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
 import { useLibraryControllerState } from './useLibraryControllerState';
 import { useLibraryControllerViewModel } from './useLibraryControllerViewModel';
+import { useLibrarySortMode } from './useLibrarySortMode';
+import { sortLibrarySongs } from '../utils/librarySort';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
@@ -46,6 +49,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     },
   } = useLibraryControllerState();
 
+  const { sortMode, cycleSortMode } = useLibrarySortMode();
+  const sortedSongs = useMemo(() => sortLibrarySongs(songs, sortMode), [songs, sortMode]);
+
   const {
     activeFolders,
     albumGroups,
@@ -62,7 +68,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     playlists,
     query,
     scanFolders,
-    songs,
+    songs: sortedSongs,
   });
 
   const {
@@ -154,6 +160,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songKeyExtractor,
     songsCount,
     songsForActiveList,
+    sortMode,
+    onCycleSortMode: cycleSortMode,
     toggleSearch,
   });
 };

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { Playlist, RepeatMode, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
+import { DEFAULT_LIBRARY_SORT_MODE, isLibrarySortMode, type LibrarySortMode } from './librarySort';
 
 const PREFIX = '@musikplayer:';
 const MIN_EQ_GAIN = -12;
@@ -20,6 +21,7 @@ export const StorageKeys = {
   SHUFFLE: 'shuffle',
   SCAN_FOLDERS: 'scanFolders',
   FAVORITE_SONG_IDS: 'favoriteSongIds',
+  LIBRARY_SORT_MODE: 'librarySortMode',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
@@ -37,6 +39,7 @@ type StorageValueByKey = {
   [StorageKeys.SHUFFLE]: boolean;
   [StorageKeys.SCAN_FOLDERS]: ScanFolder[];
   [StorageKeys.FAVORITE_SONG_IDS]: string[];
+  [StorageKeys.LIBRARY_SORT_MODE]: LibrarySortMode;
 };
 
 interface StorageApi {
@@ -66,6 +69,8 @@ interface StorageApi {
   setScanFolders(folders: unknown[]): Promise<void>;
   getFavoriteSongIds(): Promise<string[]>;
   setFavoriteSongIds(songIds: string[]): Promise<void>;
+  getLibrarySortMode(): Promise<LibrarySortMode>;
+  setLibrarySortMode(mode: LibrarySortMode): Promise<void>;
 }
 
 const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
@@ -293,6 +298,7 @@ const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
   StorageKeys.CURRENT_SONG_ID,
   StorageKeys.EQ_PRESET,
   StorageKeys.REPEAT_MODE,
+  StorageKeys.LIBRARY_SORT_MODE,
 ]);
 
 const supportsRawStringValue = (key: string): boolean => RAW_STRING_STORAGE_KEYS.has(key);
@@ -475,6 +481,14 @@ export const storage: StorageApi = {
   },
   async setFavoriteSongIds(songIds: string[]) {
     await setJsonItem(StorageKeys.FAVORITE_SONG_IDS, normalizeFavoriteSongIds(songIds));
+  },
+  async getLibrarySortMode(): Promise<LibrarySortMode> {
+    const value = await getItem(StorageKeys.LIBRARY_SORT_MODE);
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.LIBRARY_SORT_MODE, value);
+    return isLibrarySortMode(parsed) ? parsed : DEFAULT_LIBRARY_SORT_MODE;
+  },
+  async setLibrarySortMode(mode: LibrarySortMode) {
+    await setJsonItem(StorageKeys.LIBRARY_SORT_MODE, isLibrarySortMode(mode) ? mode : DEFAULT_LIBRARY_SORT_MODE);
   },
 };
 
