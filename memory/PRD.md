@@ -106,6 +106,14 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - Entfernt: `navigation/TabsShell.tsx` (+ Test), `APP_TAB_ROUTES`, `AppTabParamList`. Cover-/Playlists-Tab-Screens bleiben als Dateien (ungenutzt), Cover-Funktionen später integrieren.
 - Tests: neuer `MainShell.test.tsx` (Library als Hauptscreen, MiniPlayer-Offset, Fehlergrenze), `openEqualizer`-Navigationstest, Menü-/Props-Builder-Tests erweitert. typecheck + lint:ci grün; 1665 jest pass (2 vorbestehende androidApkInspector env-Fails).
 
+### Phase 4a – Bibliothek-Sortierung (3 Modi) + Persistenz ✓ (2026-06-21)
+- `utils/librarySort.ts` (neu): 3 stabile, nicht-mutierende Sortiermodi — `alphabet` (Titel, dann Interpret), `trackNumber` (führende Zahl, fehlende zuletzt), `year` (aufsteigend, fehlende zuletzt). Plus `getNextLibrarySortMode`, Labels, Guard.
+- `hooks/useLibrarySortMode.ts` (neu): State + AsyncStorage-Persistenz (`librarySortMode`-Key in `storage.ts` mit Validierung/Default) + `cycleSortMode`.
+- `components/LibrarySortControl.tsx` (neu): Pille im Tracks/Favoriten-Header, zykliert Sortierung; Sortierung wird auf `songs` vor dem ViewModel angewandt (greift damit auch für die Wiedergabe-Reihenfolge).
+- Verdrahtet durch Controller → `useLibraryComponentProps` → `buildLibraryTabContentProps` → `LibraryTabContent`.
+- Tests: Sortlogik, Hook-Persistenz, Control, Storage-Round-Trip; Literale aktualisiert. typecheck + lint:ci grün; 1679 jest pass (2 vorbestehende env-Fails).
+- **OFFEN (Phase 4b)**: 4 Ansichts-Modi (große/kleine Cover-Raster, Liste, Banner) + Persistenz der Albumansicht.
+
 ### Offene Phasen (Reihenfolge laut Plan)
 - **P1 Phase 4**: 4 Library-Ansichten + 3 Sortiermodi mit Persistenz.
 - **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
