@@ -44,3 +44,14 @@ export const metadataRefreshSummary = (updated: number, skipped: number, failed:
 
 export const metadataRefreshPartialSummary = (processed: number, total: number): string =>
   `${processed} von ${total} Titeln wurden geprüft. Starte die Aktualisierung erneut, um fortzufahren.`;
+
+export interface MetadataRefreshProgress {
+  processed: number;
+  total: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+}
+
+export const metadataRefreshProgressStatus = ({ processed, total, updated, skipped, failed }: MetadataRefreshProgress): string =>
+  `Metadaten ${processed}/${total} · ${updated} aktualisiert · ${skipped} übersprungen · ${failed} fehlgeschlagen`;

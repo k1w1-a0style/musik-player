@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import { getMetadataRefreshFlowCopy } from '../utils/libraryImportFlow';
+import { metadataRefreshProgressStatus } from '../utils/libraryImportMessages';
 import { isTimeoutError } from '../utils/withTimeout';
 import { isMetadataRefreshPartialError } from '../utils/songMetadataRefresh';
 import type { refreshSongsFromId3, SongMetadataRefreshProcessedSong, SongMetadataRefreshResult } from '../utils/songMetadataRefresh';
@@ -162,7 +163,16 @@ export const useLibraryMetadataRefreshRunner = ({
             signal,
             includeCover: false,
             concurrency: METADATA_REFRESH_ID3_CONCURRENCY,
-            onProgress: processed => setImportStatus(`Metadaten ${Math.min(songs.length, startIndex + result.processed + processed)}/${songs.length}`),
+            onProgress: processed => {
+              const processedTotal = Math.min(songs.length, startIndex + result.processed + processed);
+              setImportStatus(metadataRefreshProgressStatus({
+                processed: processedTotal,
+                total: songs.length,
+                updated: result.updated + currentChunkPartial.updated,
+                skipped: result.skipped + currentChunkPartial.skipped,
+                failed: result.failed + currentChunkPartial.failed,
+              }));
+            },
             onSongProcessed: processedSong => {
               currentChunkPartial = mergeProcessedSongIntoRefreshResult(currentChunkPartial, processedSong);
             },

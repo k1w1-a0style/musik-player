@@ -2,6 +2,7 @@ import {
   libraryImportMessages,
   mediaCandidatesFoundStatus,
   metadataRefreshSummary,
+  metadataRefreshProgressStatus,
   scanFoldersReadingStatus,
   tracksFoundStatus,
   tracksSavingStatus,
@@ -30,4 +31,9 @@ test('formats scan and import status messages', () => {
 
 test('formats metadata refresh summary', () => {
   expect(metadataRefreshSummary(1, 2, 3)).toBe('1 Titel aktualisiert. 2 übersprungen. 3 fehlgeschlagen.');
+});
+
+test('formats live metadata refresh progress with running counters', () => {
+  expect(metadataRefreshProgressStatus({ processed: 67, total: 83, updated: 60, skipped: 5, failed: 2 }))
+    .toBe('Metadaten 67/83 · 60 aktualisiert · 5 übersprungen · 2 fehlgeschlagen');
 });
