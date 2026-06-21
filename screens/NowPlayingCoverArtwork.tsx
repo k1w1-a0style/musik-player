@@ -24,16 +24,17 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
   return (
-    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent }]}>
+    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent }]}> 
       {artworkUri && !coverFailed ? (
         <Image
           source={{ uri: artworkUri }}
           style={styles.coverImage}
           onError={() => setCoverFailed(true)}
           resizeMode="cover"
+          testID="now-playing-cover-image"
         />
       ) : (
-        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
+        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]} testID="now-playing-cover-fallback">
           <Disc3 color={theme.palette.primary} size={Math.floor(coverSize * 0.55)} />
         </View>
       )}
