@@ -1,6 +1,12 @@
 import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
-import { throwIfAborted } from './withTimeout';
+import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
+import { MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS } from './libraryOperationTimeouts';
+
+export interface SongMetadataRefreshError {
+  uri: string;
+  reason: string;
+}
 
 export interface SongMetadataRefreshResult {
   songs: Song[];
@@ -8,6 +14,7 @@ export interface SongMetadataRefreshResult {
   skipped: number;
   failed: number;
   errors: string[];
+  errorDetails?: SongMetadataRefreshError[];
   patchesBySongId: Record<string, Partial<Song>>;
   processed: number;
   total: number;
@@ -36,10 +43,12 @@ export interface SongMetadataRefreshProcessedSong {
   skippedDelta: number;
   failedDelta: number;
   errorUri?: string;
+  errorReason?: string;
 }
 
 interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
   concurrency?: number;
+  perTrackTimeoutMs?: number;
   signal?: AbortSignal;
   onProgress?: (processed: number, total: number) => void;
   onSongProcessed?: (partial: SongMetadataRefreshProcessedSong) => void;
@@ -164,11 +173,18 @@ interface SongRefreshOutcome {
   skippedDelta: number;
   failedDelta: number;
   errorUri?: string;
+  errorReason?: string;
 }
 
 const clampConcurrency = (value?: number): number => {
   if (!Number.isFinite(value)) return DEFAULT_CONCURRENCY;
   return Math.max(1, Math.min(MAX_CONCURRENCY, Math.floor(value as number)));
+};
+
+const normalizePerTrackTimeout = (value?: number): number => {
+  if (value === undefined) return MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS;
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return value;
 };
 
 export const refreshSongsFromId3 = async (
@@ -177,9 +193,11 @@ export const refreshSongsFromId3 = async (
 ): Promise<SongMetadataRefreshResult> => {
   const refreshed: Song[] = new Array(songs.length);
   const errors: string[] = [];
+  const errorDetails: SongMetadataRefreshError[] = [];
   const patchesBySongId: Record<string, Partial<Song>> = {};
   const outcomes: SongRefreshOutcome[] = new Array(songs.length);
   const concurrency = clampConcurrency(options?.concurrency);
+  const perTrackTimeoutMs = normalizePerTrackTimeout(options?.perTrackTimeoutMs);
   const signal = options?.signal;
   throwIfAborted(signal);
   let nextIndex = 0;
@@ -195,22 +213,37 @@ export const refreshSongsFromId3 = async (
     throwIfAborted(signal);
   };
 
+  const parseTagsForUri = async (uri: string): Promise<Id3Tags> => {
+    const buildOptions = (parseSignal?: AbortSignal): ParseId3Options => ({
+      ...MANUAL_METADATA_REFRESH_ID3_OPTIONS,
+      includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
+      maxHeadBytes: options?.maxHeadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxHeadBytes,
+      maxTailBytes: options?.maxTailBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes,
+      maxFrameScanBytes: options?.maxFrameScanBytes,
+      maxFrameOffsetBytes: options?.maxFrameOffsetBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameOffsetBytes,
+      maxFrameBodyReadBytes: options?.maxFrameBodyReadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameBodyReadBytes,
+      signal: parseSignal,
+    });
+
+    if (perTrackTimeoutMs <= 0) {
+      return parseId3FromUri(uri, buildOptions(signal));
+    }
+
+    return withTimeout(
+      trackSignal => parseId3FromUri(uri, buildOptions(trackSignal)),
+      perTrackTimeoutMs,
+      `Metadaten-Timeout nach ${Math.round(perTrackTimeoutMs / 1000)}s`,
+      { signal },
+    );
+  };
+
   const refreshOne = async (song: Song): Promise<SongRefreshOutcome> => {
     throwIfAborted(signal);
     const uri = resolveMetadataRefreshUri(song);
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
-      const tags = await parseId3FromUri(uri, {
-        ...MANUAL_METADATA_REFRESH_ID3_OPTIONS,
-        includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
-        maxHeadBytes: options?.maxHeadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxHeadBytes,
-        maxTailBytes: options?.maxTailBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes,
-        maxFrameScanBytes: options?.maxFrameScanBytes,
-        maxFrameOffsetBytes: options?.maxFrameOffsetBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameOffsetBytes,
-        maxFrameBodyReadBytes: options?.maxFrameBodyReadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameBodyReadBytes,
-        signal,
-      });
+      const tags = await parseTagsForUri(uri);
       throwIfAborted(signal);
       const patch = buildId3SongPatch(song, tags);
       const next = Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
@@ -221,9 +254,15 @@ export const refreshSongsFromId3 = async (
         skippedDelta: 0,
         failedDelta: 0,
       };
-    } catch {
+    } catch (error) {
+      // Re-throw whole-scan aborts so the runner can persist partial progress.
       throwIfAborted(signal);
-      return { song, updatedDelta: 0, skippedDelta: 0, failedDelta: 1, errorUri: uri };
+      const reason = isTimeoutError(error)
+        ? 'timeout'
+        : error instanceof Error && error.message
+          ? error.message
+          : 'unbekannt';
+      return { song, updatedDelta: 0, skippedDelta: 0, failedDelta: 1, errorUri: uri, errorReason: reason };
     }
   };
 
@@ -255,7 +294,10 @@ export const refreshSongsFromId3 = async (
       skipped += outcome.skippedDelta;
       failed += outcome.failedDelta;
       if (outcome.patch) patchesBySongId[outcome.song.id] = outcome.patch;
-      if (outcome.errorUri) errors.push(outcome.errorUri);
+      if (outcome.errorUri) {
+        errors.push(outcome.errorUri);
+        errorDetails.push({ uri: outcome.errorUri, reason: outcome.errorReason ?? 'unbekannt' });
+      }
     }
     const isTimedOut = reason instanceof Error && reason.name === 'TimeoutError';
     const isAborted = Boolean(reason) && !isTimedOut;
@@ -268,6 +310,7 @@ export const refreshSongsFromId3 = async (
       skipped,
       failed,
       errors,
+      errorDetails,
       patchesBySongId,
       processed,
       total: songs.length,

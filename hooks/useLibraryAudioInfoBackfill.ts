@@ -6,6 +6,7 @@ import {
   buildAudioInfoBackfillAttemptKey,
   needsAudioInfoBackfill,
 } from '../utils/songAudioInfoBackfill';
+import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 
 interface UseLibraryAudioInfoBackfillOptions {
   songs: Song[];
@@ -71,6 +72,7 @@ export const useLibraryAudioInfoBackfill = ({
   const attemptedRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
+  const metadataRefreshActive = useMetadataRefreshActive();
 
   latestSongsRef.current = songs;
 
@@ -79,6 +81,8 @@ export const useLibraryAudioInfoBackfill = ({
   }, []);
 
   useEffect(() => {
+    // Pause while a user-triggered manual metadata refresh runs exclusively.
+    if (metadataRefreshActive) return undefined;
     const candidates = songs.filter(song => {
       const key = buildAudioInfoBackfillAttemptKey(song);
       return needsAudioInfoBackfill(song) && !attemptedRef.current.has(key);
@@ -169,5 +173,5 @@ export const useLibraryAudioInfoBackfill = ({
     return () => {
       controller.abort();
     };
-  }, [songs, applySongMetadataPatches]);
+  }, [songs, applySongMetadataPatches, metadataRefreshActive]);
 };

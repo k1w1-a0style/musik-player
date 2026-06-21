@@ -24,6 +24,7 @@ const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMe
   skipped: 0,
   failed: 0,
   errors: [],
+  errorDetails: [],
   patchesBySongId: {},
   processed: 0,
   total,
@@ -46,6 +47,7 @@ const mergeMetadataRefreshResult = (
     skipped: current.skipped + chunkResult.skipped,
     failed: current.failed + chunkResult.failed,
     errors: [...(current.errors ?? []), ...(chunkResult.errors ?? [])],
+    errorDetails: [...(current.errorDetails ?? []), ...(chunkResult.errorDetails ?? [])],
     patchesBySongId: { ...(current.patchesBySongId ?? {}), ...(chunkResult.patchesBySongId ?? {}) },
     processed: current.processed + (chunkResult.processed ?? chunkResult.songs.length),
     total: current.total,
@@ -72,6 +74,9 @@ const mergeProcessedSongIntoRefreshResult = (
     skipped: current.skipped + processedSong.skippedDelta,
     failed: current.failed + processedSong.failedDelta,
     errors: processedSong.errorUri ? [...current.errors, processedSong.errorUri] : current.errors,
+    errorDetails: processedSong.errorUri
+      ? [...(current.errorDetails ?? []), { uri: processedSong.errorUri, reason: processedSong.errorReason ?? 'unbekannt' }]
+      : current.errorDetails,
     patchesBySongId: processedSong.patch
       ? { ...current.patchesBySongId, [processedSong.song.id]: processedSong.patch }
       : current.patchesBySongId,
