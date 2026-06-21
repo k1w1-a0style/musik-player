@@ -12,6 +12,8 @@ interface NowPlayingDetailsPanelProps {
   foregroundOnAccent: string;
   listHeight: number;
   onPlayQueueItem: (songId: string) => void;
+  onQueueShift: (fromIndex: number, toIndex: number) => void;
+  canShiftQueue: boolean;
 }
 
 const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
@@ -22,12 +24,14 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
   foregroundOnAccent,
   listHeight,
   onPlayQueueItem,
+  onQueueShift,
+  canShiftQueue,
 }) => {
   const readableAccent = foregroundOnAccent === '#FFFFFF' ? theme.palette.text.primary : foregroundOnAccent;
 
   return (
     <View style={styles.detailsPage} testID="now-playing-details-panel">
-      <View style={[styles.swipeHintRow, { borderColor: accentMuted }]}>
+      <View style={[styles.swipeHintRow, { borderColor: accentMuted }]}> 
         <Text style={styles.swipeHintEyebrow}>NACH OBEN GEWISCHT</Text>
         <Text style={[styles.swipeHintTitle, { color: readableAccent }]}>Warteschlange & Details</Text>
       </View>
@@ -37,6 +41,8 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
         currentSongId={currentSong?.id}
         maxHeight={listHeight}
         onPlayQueueItem={onPlayQueueItem}
+        onQueueShift={onQueueShift}
+        canShiftQueue={canShiftQueue}
       />
 
       <View style={[styles.detailsCard, { borderColor: accentMuted }]} testID="now-playing-details-card">
