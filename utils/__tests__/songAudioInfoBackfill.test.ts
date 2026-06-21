@@ -13,6 +13,7 @@ test('merges native audio info into TrackInfo fields', () => {
   const merged = mergeNativeAudioInfoIntoSong(baseSong, {
     durationMs: 245000,
     bitrateBps: 320000,
+    bitrateMode: 'cbr',
     sizeBytes: 1048576,
     sampleRateHz: 44100,
     channels: 2,
@@ -26,10 +27,20 @@ test('merges native audio info into TrackInfo fields', () => {
     codec: 'audio/mpeg',
     durationMs: 245000,
     bitrate: 320,
-    bitrateMode: 'unknown',
+    bitrateMode: 'cbr',
     sampleRate: 44100,
     channels: 2,
   });
+});
+
+test('falls back to unknown bitrate mode when native cannot classify it', () => {
+  const merged = mergeNativeAudioInfoIntoSong(baseSong, {
+    bitrateBps: 192000,
+    mimeType: 'audio/mpeg',
+  });
+
+  expect(merged.audioInfo?.bitrate).toBe(192);
+  expect(merged.audioInfo?.bitrateMode).toBe('unknown');
 });
 
 test('complete technical data does not need another backfill', () => {
