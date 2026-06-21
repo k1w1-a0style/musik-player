@@ -68,6 +68,7 @@ export interface LibraryMenuModalPropsBuilderOptions {
   menuOpen: boolean;
   onAddScanFolder: () => void;
   openSettings: () => void;
+  openEqualizer: () => void;
   refreshMetadataFromFiles: () => void;
   showScanFolders: () => void;
   songsCount: number;
@@ -133,4 +134,5 @@ export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilder
   onAddFolder: options.onAddScanFolder,
   onShowFolders: options.showScanFolders,
   onOpenSettings: options.openSettings,
+  onOpenEqualizer: options.openEqualizer,
 });

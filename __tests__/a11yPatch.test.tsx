@@ -88,6 +88,7 @@ describe('V6.6 accessibility patch', () => {
       onAddFolder: jest.fn(),
       onShowFolders: jest.fn(),
       onOpenSettings: jest.fn(),
+      onOpenEqualizer: jest.fn(),
     };
     const library = render(<LibraryMenuModal {...libraryProps} />);
 

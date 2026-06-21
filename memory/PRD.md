@@ -99,8 +99,14 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - Tests: per-track Timeout + Fehlergrund (`songMetadataRefresh.test.ts`), Activity-Store (`metadataRefreshActivity.test.ts`). typecheck + lint:ci grün; 1663 jest pass (2 vorbestehende androidApkInspector env-Fails).
 - **DEFERRED (nativ, hier nicht testbar)**: Native Fast-Path (MediaMetadataRetriever in `SystemAudioModule.kt`) + erweiterte Resume-Persistenz + Progress-UI (x/y, updated/skipped/failed, Abbrechen/Fortsetzen) → benötigt Android-Build.
 
+### Phase 3 – Bottom-Navigation entfernen ✓ (2026-06-21)
+- Bottom-Tab-Navigator (`TabsShell`) entfernt → neuer schlanker `navigation/MainShell.tsx` rendert die Bibliothek direkt als Hauptscreen + MiniPlayer-Overlay. `RootNavigator` nutzt MainShell; `Equalizer` ist jetzt ein Stack-Screen (Header mit Zurück).
+- Equalizer wandert ins 3-Punkte-Menü: neuer `openEqualizer` in `useLibraryNavigationActions`, komponiert in `useLibraryControllerActions` (schließt Menü + navigiert), durchgereicht bis `LibraryMenuModal` (neuer Eintrag „Equalizer"). Playlists bleiben als Library-Top-Tab (Leertext-Kopie korrigiert, kein Verweis mehr auf untere Bar).
+- `MiniPlayer`-Offset von Tabbar-Inset entkoppelt: `bottom: insets.bottom + 12` statt `72 + insets.bottom`.
+- Entfernt: `navigation/TabsShell.tsx` (+ Test), `APP_TAB_ROUTES`, `AppTabParamList`. Cover-/Playlists-Tab-Screens bleiben als Dateien (ungenutzt), Cover-Funktionen später integrieren.
+- Tests: neuer `MainShell.test.tsx` (Library als Hauptscreen, MiniPlayer-Offset, Fehlergrenze), `openEqualizer`-Navigationstest, Menü-/Props-Builder-Tests erweitert. typecheck + lint:ci grün; 1665 jest pass (2 vorbestehende androidApkInspector env-Fails).
+
 ### Offene Phasen (Reihenfolge laut Plan)
-- **P1 Phase 3**: Bottom-Navigation entfernen; Equalizer ins 3-Punkte-Menü; MiniPlayer-Insets.
 - **P1 Phase 4**: 4 Library-Ansichten + 3 Sortiermodi mit Persistenz.
 - **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
 - **P2 Phase 6**: Waveform (Datenmodell, Cache, SVG, native Peak-Extraktion als BG-Job).

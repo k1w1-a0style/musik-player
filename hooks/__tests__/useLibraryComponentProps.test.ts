@@ -24,6 +24,7 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   onToggleAlbumView: fn,
   openMenu: fn,
   openSettings: fn,
+  openEqualizer: fn,
   playlistItems: [],
   query: 'abc',
   refreshMetadataFromFiles: fn,

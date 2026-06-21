@@ -7,6 +7,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 
 export interface UseLibraryNavigationActionsResult {
   openTrackInfo: (song: Song) => void;
+  openEqualizer: () => void;
 }
 
 export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult => {
@@ -16,5 +17,9 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
     navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId: song.id });
   }, [navigation]);
 
-  return { openTrackInfo };
+  const openEqualizer = useCallback(() => {
+    navigation.navigate(APP_STACK_ROUTES.EQUALIZER);
+  }, [navigation]);
+
+  return { openTrackInfo, openEqualizer };
 };

@@ -170,6 +170,7 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
     menuOpen: true,
     onAddScanFolder: fn,
     openSettings: fn,
+    openEqualizer: fn,
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 5,
@@ -188,6 +189,7 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
   expect(props.onAddFolder).toBe(fn);
   expect(props.onShowFolders).toBe(fn);
   expect(props.onOpenSettings).toBe(fn);
+  expect(props.onOpenEqualizer).toBe(fn);
 });
 
 test('buildLibraryMenuModalProps marks empty library when song count is zero', () => {
@@ -201,6 +203,7 @@ test('buildLibraryMenuModalProps marks empty library when song count is zero', (
     menuOpen: false,
     onAddScanFolder: fn,
     openSettings: fn,
+    openEqualizer: fn,
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 0,

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
@@ -29,6 +30,7 @@ export interface UseLibraryControllerActionsResult {
   onAddScanFolder: () => Promise<void>;
   openMenu: () => void;
   openSettings: () => void;
+  openEqualizer: () => void;
   openTrackInfo: (song: Song) => void;
   refreshMetadataFromFiles: () => Promise<void>;
   removeFolder: (folder: ScanFolder) => Promise<void>;
@@ -48,8 +50,13 @@ export const useLibraryControllerActions = ({
   applySongMetadataPatches,
   songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
-  const { openTrackInfo } = useLibraryNavigationActions();
+  const { openTrackInfo, openEqualizer: navigateToEqualizer } = useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
+
+  const openEqualizer = useCallback(() => {
+    setMenuOpen(false);
+    navigateToEqualizer();
+  }, [navigateToEqualizer, setMenuOpen]);
 
   const {
     closeMenu,
@@ -103,6 +110,7 @@ export const useLibraryControllerActions = ({
     onAddScanFolder,
     openMenu,
     openSettings,
+    openEqualizer,
     openTrackInfo,
     refreshMetadataFromFiles,
     removeFolder,

@@ -15,6 +15,7 @@ export interface LibraryMenuModalProps {
   onAddFolder: () => void;
   onShowFolders: () => void;
   onOpenSettings: () => void;
+  onOpenEqualizer: () => void;
 }
 
 const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
@@ -29,6 +30,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   onAddFolder,
   onShowFolders,
   onOpenSettings,
+  onOpenEqualizer,
 }) => (
   <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
     <Pressable
@@ -42,6 +44,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
         <LibraryMenuItem label="Metadaten aktualisieren" onPress={onRefreshMetadata} disabled={loading || !isReady || !hasSongs} />
         <LibraryMenuItem label="Ordner hinzufügen" onPress={onAddFolder} />
         <LibraryMenuItem label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={onShowFolders} muted />
+        <LibraryMenuItem label="Equalizer" onPress={onOpenEqualizer} />
         <LibraryMenuItem label="Einstellungen" onPress={onOpenSettings} />
       </View>
     </Pressable>

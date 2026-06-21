@@ -18,7 +18,7 @@ export const countActiveScanFolders = (folders: ScanFolder[]): number =>
 export const getLibraryEmptyMessage = (activeTab: LibraryTab): string => {
   if (activeTab === 'folders') return 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.';
   if (activeTab === 'favorites') return 'Noch keine Favoriten markiert.';
-  if (activeTab === 'playlists') return 'Noch keine Playlists angelegt. Nutze den Playlists-Tab unten, um eine neue Liste zu erstellen.';
+  if (activeTab === 'playlists') return 'Noch keine Playlists angelegt. Öffne den Playlisten-Tab oben, um eine neue Liste zu erstellen.';
   if (activeTab === 'albums') return 'Keine Alben gefunden. Importiere neu, damit Tags/Cover aktualisiert werden.';
   if (activeTab === 'artists') return 'Keine Interpreten gefunden.';
   if (activeTab === 'genres') return 'Keine Genres gefunden.';

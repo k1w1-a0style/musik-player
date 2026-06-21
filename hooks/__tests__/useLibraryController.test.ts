@@ -64,6 +64,7 @@ const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
 
 const mockNavigationActions: UseLibraryNavigationActionsResult = {
   openTrackInfo: fn,
+  openEqualizer: fn,
 };
 
 const mockPlaybackActions: UseLibraryPlaybackActionsResult = {
@@ -104,6 +105,7 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     onAddFolder: fn,
     onShowFolders: fn,
     onOpenSettings: fn,
+    onOpenEqualizer: fn,
   },
   searchBarProps: {
     autoFocus: true,

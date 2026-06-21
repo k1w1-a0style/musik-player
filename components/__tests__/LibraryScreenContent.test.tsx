@@ -26,6 +26,7 @@ const baseProps: LibraryScreenContentProps = {
     onAddFolder: fn,
     onShowFolders: fn,
     onOpenSettings: fn,
+    onOpenEqualizer: fn,
   },
   searchBarProps: {
     autoFocus: true,

@@ -40,7 +40,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const showCover = !!artworkUri && !coverFailed;
 
   return (
-    <View style={[styles.wrap, { bottom: 72 + insets.bottom }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
         <View style={styles.thumb}>
           {showCover ? (
