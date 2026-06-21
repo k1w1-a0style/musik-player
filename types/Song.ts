@@ -11,6 +11,7 @@ export interface SongFileInfo {
 
 export interface SongAudioInfo {
   codec?: string;
+  durationMs?: number;
   bitrate?: number;
   sampleRate?: number;
   channels?: number;
