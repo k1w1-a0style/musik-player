@@ -8,6 +8,7 @@ interface NowPlayingPlaybackSectionProps {
   onSeek: (position: number) => Promise<void>;
   progressAccent: string;
   progressAccentDark: string;
+  foregroundOnAccent: string;
 }
 
 const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
@@ -16,6 +17,7 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
   onSeek,
   progressAccent,
   progressAccentDark,
+  foregroundOnAccent,
 }) => (
   <>
     <ProgressBar
@@ -26,7 +28,11 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
       accent={progressAccent}
       accentDark={progressAccentDark}
     />
-    <Controls />
+    <Controls
+      accentColor={progressAccent}
+      accentDarkColor={progressAccentDark}
+      onAccentColor={foregroundOnAccent}
+    />
   </>
 );
 
