@@ -111,7 +111,7 @@ export const mergeNativeAudioInfoIntoSong = (
     ...(isPositiveFiniteNumber(song.audioInfo?.bitrate) || !isPositiveFiniteNumber(audioInfo.bitrateBps)
       ? {}
       : { bitrate: incomingBitrate }),
-    ...(incomingBitrate && !song.audioInfo?.bitrateMode ? { bitrateMode: 'unknown' as const } : {}),
+    ...(incomingBitrate && !song.audioInfo?.bitrateMode ? { bitrateMode: audioInfo.bitrateMode ?? 'unknown' as const } : {}),
     ...(isPositiveFiniteNumber(song.audioInfo?.sampleRate) || !isPositiveFiniteNumber(audioInfo.sampleRateHz)
       ? {}
       : { sampleRate: audioInfo.sampleRateHz }),
