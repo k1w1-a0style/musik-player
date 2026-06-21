@@ -38,6 +38,7 @@ const bitrateKbpsFromNative = (bitrateBps?: number): number | undefined =>
 
 const hasUsableAudioInfo = (song: Song): boolean =>
   isPositiveFiniteNumber(song.duration)
+  && isPositiveFiniteNumber(song.audioInfo?.durationMs)
   && isPositiveFiniteNumber(song.audioInfo?.bitrate)
   && isPositiveFiniteNumber(song.audioInfo?.sampleRate)
   && isPositiveFiniteNumber(song.audioInfo?.channels)
@@ -57,14 +58,18 @@ export const buildAudioInfoBackfillAttemptKey = (song: Song): string =>
     song.fileInfo?.size ?? '',
     song.fileInfo?.mimeType ?? '',
     song.audioInfo?.codec ?? '',
+    song.audioInfo?.durationMs ?? '',
     song.audioInfo?.bitrate ?? '',
+    song.audioInfo?.bitrateMode ?? '',
     song.audioInfo?.sampleRate ?? '',
     song.audioInfo?.channels ?? '',
   ].join('|');
 
 const shallowEqualSongAudioInfo = (left?: SongAudioInfo, right?: SongAudioInfo): boolean =>
   left?.codec === right?.codec
+  && left?.durationMs === right?.durationMs
   && left?.bitrate === right?.bitrate
+  && left?.bitrateMode === right?.bitrateMode
   && left?.sampleRate === right?.sampleRate
   && left?.channels === right?.channels;
 
@@ -94,12 +99,17 @@ export const mergeNativeAudioInfoIntoSong = (
       : { size: audioInfo.sizeBytes }),
   };
 
+  const incomingBitrate = bitrateKbpsFromNative(audioInfo.bitrateBps);
   const nextAudioInfo: SongAudioInfo = {
     ...(song.audioInfo ?? {}),
     ...(song.audioInfo?.codec || !audioInfo.mimeType ? {} : { codec: audioInfo.mimeType }),
+    ...(isPositiveFiniteNumber(song.audioInfo?.durationMs) || !isPositiveFiniteNumber(audioInfo.durationMs)
+      ? {}
+      : { durationMs: audioInfo.durationMs }),
     ...(isPositiveFiniteNumber(song.audioInfo?.bitrate) || !isPositiveFiniteNumber(audioInfo.bitrateBps)
       ? {}
-      : { bitrate: bitrateKbpsFromNative(audioInfo.bitrateBps) }),
+      : { bitrate: incomingBitrate }),
+    ...(incomingBitrate && !song.audioInfo?.bitrateMode ? { bitrateMode: 'unknown' as const } : {}),
     ...(isPositiveFiniteNumber(song.audioInfo?.sampleRate) || !isPositiveFiniteNumber(audioInfo.sampleRateHz)
       ? {}
       : { sampleRate: audioInfo.sampleRateHz }),
