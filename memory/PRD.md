@@ -91,8 +91,15 @@ Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Ausw
 - `screens/NowPlayingPlaybackSection.tsx`: `onSeekPreview` verdrahtet.
 - Tests: `utils/__tests__/seekController.test.ts` (last-value-wins, clamping, error-swallow), Scrub-Math-Tests in `ProgressBar.test.ts`. typecheck + lint:ci grün; 1658/1660 jest grün (2 vorbestehende androidApkInspector-Fails wegen fehlendem aapt/apksigner im Container).
 
+### Phase 2 – Metadaten-Refresh stabilisieren ✓ (2026-06-21)
+- `utils/songMetadataRefresh.ts`: **Per-Track-Timeout** (Default 12s, Option `perTrackTimeoutMs`) isoliert langsame/defekte Dateien via `withTimeout`; ein voller 83-Track-Lauf wird `completed` statt Teilscan „67/83". Slow/broken file → `failed` + Grund. Neu: `errorDetails: {uri, reason}[]` (Fehlerliste).
+- `utils/libraryOperationTimeouts.ts`: getrenntes `MANUAL_METADATA_REFRESH_SOFT_BUDGET_MS` (5min, kein hartes Truncating mehr) + `MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS`; Import-Flow-90s unverändert.
+- `utils/metadataRefreshActivity.ts` (neu): globaler Aktiv-Flag + `useMetadataRefreshActive` (useSyncExternalStore). Manueller Refresh klammert mit begin/end; Cover- & AudioInfo-Backfill pausieren während des Refresh und laufen danach weiter.
+- `useLibraryMetadataRefreshRunner.ts`: Merges propagieren `errorDetails`. `useLibraryMetadataRefreshActions.ts`: Soft-Budget als Default, loggt Per-Track-Fehlerliste.
+- Tests: per-track Timeout + Fehlergrund (`songMetadataRefresh.test.ts`), Activity-Store (`metadataRefreshActivity.test.ts`). typecheck + lint:ci grün; 1663 jest pass (2 vorbestehende androidApkInspector env-Fails).
+- **DEFERRED (nativ, hier nicht testbar)**: Native Fast-Path (MediaMetadataRetriever in `SystemAudioModule.kt`) + erweiterte Resume-Persistenz + Progress-UI (x/y, updated/skipped/failed, Abbrechen/Fortsetzen) → benötigt Android-Build.
+
 ### Offene Phasen (Reihenfolge laut Plan)
-- **P0 Phase 2**: Metadaten-Refresh stabilisieren (globales 90s-Timeout → Soft-Budget/per-track-Timeout, Backfills pausieren, Native Fast-Path, Fehlerliste).
 - **P1 Phase 3**: Bottom-Navigation entfernen; Equalizer ins 3-Punkte-Menü; MiniPlayer-Insets.
 - **P1 Phase 4**: 4 Library-Ansichten + 3 Sortiermodi mit Persistenz.
 - **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
