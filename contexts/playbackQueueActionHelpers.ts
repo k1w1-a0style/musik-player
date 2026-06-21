@@ -1,11 +1,12 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
-import { isPlayableSong, type PlayableSong } from '../utils/playableSong';
+import { isPlayableSong, toPlayableSongs, type PlayableSong } from '../utils/playableSong';
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
 } from '../utils/playbackPlan';
+import { buildQueueReorderPlan } from '../utils/queueReorder';
 import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
@@ -25,6 +26,7 @@ interface ApplyPlaybackQueueStateArgs {
 }
 
 type ShuffleQueueActionResult = 'applied' | 'failed' | 'stale';
+type ReorderQueueActionResult = 'applied' | 'failed' | 'stale' | 'noop';
 
 export class NativeQueueReplacementStaleError extends Error {
   constructor() {
@@ -48,6 +50,15 @@ export interface RunPlaySongQueueActionArgs extends PlaybackQueueActionRefs {
 }
 
 export interface RunShuffleQueueActionArgs extends PlaybackQueueActionRefs {
+  currentSongId?: string;
+  shuffle: boolean;
+  shuffleRef?: MutableRefObject<boolean>;
+  setShuffle: Dispatch<SetStateAction<boolean>>;
+}
+
+export interface RunReorderQueueActionArgs extends PlaybackQueueActionRefs {
+  fromIndex: number;
+  toIndex: number;
   currentSongId?: string;
   shuffle: boolean;
   shuffleRef?: MutableRefObject<boolean>;
@@ -195,6 +206,91 @@ export const runPlaySongQueueAction = async ({
     selectedSong: requestedSong,
   });
   await persistRequestedSongId(requestedSong, songsRef.current);
+};
+
+export const runReorderQueueAction = async ({
+  fromIndex,
+  toIndex,
+  currentSongId,
+  shuffle,
+  shuffleRef,
+  setShuffle,
+  songsRef,
+  queueContextRef,
+  baseQueueContextRef,
+  nativeQueueRef,
+  setPlaybackQueue,
+  setCurrentSong,
+}: RunReorderQueueActionArgs): Promise<boolean> => {
+  const result = await runExclusiveNativeQueueReplacement<ReorderQueueActionResult>(async context => {
+    const { isCurrent } = context;
+    if (!isCurrent()) return 'stale';
+
+    const activeTrack = await TrackPlayer.getActiveTrack();
+    if (!isCurrent()) return 'stale';
+
+    const activeSongId = activeTrack?.id ?? currentSongId;
+    const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
+    const plan = buildQueueReorderPlan({ queue: currentQueue, fromIndex, toIndex, currentSongId: activeSongId });
+    if (!plan) return 'failed';
+    if (!plan.changed) return 'noop';
+
+    const previousQueue = queueContextRef.current.slice();
+    const previousBaseQueue = baseQueueContextRef.current.slice();
+    const previousShuffle = shuffleRef?.current ?? shuffle;
+    const previousNativeQueue = nativeQueueRef.current.slice();
+    const previousSelectedSong = activeSongId
+      ? currentQueue.find(song => normalizeSongId(song.id) === normalizeSongId(activeSongId))
+      : undefined;
+
+    const progress = await TrackPlayer.getProgress();
+    if (!isCurrent()) return 'stale';
+
+    applyPlaybackQueueState({
+      queueContextRef,
+      baseQueueContextRef,
+      setPlaybackQueue,
+      setCurrentSong,
+      orderedQueue: plan.queue,
+      baseQueue: plan.queue,
+      selectedSong: plan.selectedSong,
+    });
+    if (previousShuffle) {
+      if (shuffleRef) shuffleRef.current = false;
+      setShuffle(false);
+    }
+
+    try {
+      const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+        toPlayableSongs(plan.queue),
+        nativeQueueRef,
+        progress.position,
+        context,
+      );
+      if (!rebuilt || !isCurrent()) return 'stale';
+      return 'applied';
+    } catch (error) {
+      console.warn('[PlaybackQueue] Reorder failed; rolling back queue.', error);
+      applyPlaybackQueueState({
+        queueContextRef,
+        baseQueueContextRef,
+        setPlaybackQueue,
+        setCurrentSong,
+        orderedQueue: previousQueue,
+        baseQueue: previousBaseQueue,
+        selectedSong: previousSelectedSong,
+      });
+      if (shuffleRef) shuffleRef.current = previousShuffle;
+      setShuffle(previousShuffle);
+      nativeQueueRef.current = previousNativeQueue;
+      return 'failed';
+    }
+  }).catch(error => {
+    console.warn('[PlaybackQueue] Failed to reorder queue.', error);
+    return 'failed' as const;
+  });
+
+  return result === 'applied' || result === 'noop';
 };
 
 export const runShuffleQueueAction = async ({
