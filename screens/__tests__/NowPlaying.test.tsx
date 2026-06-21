@@ -61,6 +61,19 @@ jest.mock('../../contexts/PlaybackProgressContext', () => ({
   usePlaybackProgress: () => ({ position: 0, duration: 100 }),
 }));
 
+jest.mock('../../hooks/useSongWaveform', () => ({
+  useSongWaveform: () => ({
+    waveform: {
+      source: 'fallback',
+      sourceKey: 'test-waveform',
+      durationMs: 100,
+      points: [0.1, 0.4, 0.8],
+    },
+    sourceKey: 'test-waveform',
+    loadingNative: false,
+  }),
+}));
+
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
