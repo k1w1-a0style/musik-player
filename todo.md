@@ -42,13 +42,18 @@ Reihenfolge folgt dem Deep-Scan-Arbeitsplan (Phasen 1–8).
 - ✅ 4 Song-Ansichtsmodi (Liste/großes Raster/kleines Raster/Banner) + Persistenz + Control
 - ✅ `albumViewMode` persistiert (Hydration-Guard in `useLibraryScreenState`, Storage-Round-Trip getestet, Default `grid` per `DEFAULT_LIBRARY_ALBUM_VIEW_MODE`).
 
-## Phase 5 – Now-Playing Redesign 🔄
-- ✅ 2 vertikale Snap-Screens (`NowPlayingSnapPager`): Page 1 Player (Cover/Title/Progress/Controls/Volume), Page 2 Details (Warteschlange + Metadaten-Karte). FlatList mit `pagingEnabled` + `snapToInterval`, vertikaler Page-Indicator rechts.
+## Phase 5 – Now-Playing Redesign ✅
+- ✅ 2 vertikale Snap-Screens (`NowPlayingSnapPager`): Page 1 Player, Page 2 Warteschlange & Details.
+- ✅ Player/Details sind jetzt in eigene Panels gesplittet (`NowPlayingPlayerPanel`, `NowPlayingDetailsPanel`) statt langer Inline-Screen.
+- ✅ Queue ist aus dem ersten Screen entfernt und nur im zweiten Snap-Screen sichtbar.
 - ✅ Dynamische Akzentfarbe aus Cover (`useNowPlayingPresentation` mergt nativ + JS-Fallback feldweise) + Hintergrund-Gradient aus Palette.
+- ✅ Blurred-Cover-Backdrop (`NowPlayingBackdrop`) nutzt das aktuelle Cover zusätzlich zur Palette.
 - ✅ Deterministischer **JS-Fallback** (`utils/jsPaletteFallback.ts`, FNV-1a-Hash über `id|artist|album|title` → HSL-Palette, kontrollierte Sättigung/Helligkeit) – greift, wenn Native-Palette `null` ist (kein Cover/Native nicht verfügbar). Kein hartes Schwarz/Grün-Branding mehr.
-- ✅ Kontrastschutz (`pickReadableForeground` via Rec.601-Luminanz) für Text auf hellen Akzentfarben.
+- ✅ Kontrastschutz (`pickReadableForeground` via Rec.601-Luminanz) für Text/Buttons auf hellen Akzentfarben.
+- ✅ Controls werden mit Palette gestylt (`Controls` erhält `accentColor`, `accentDarkColor`, `onAccentColor`).
 - ✅ Fallback-Farben (kein Cover / keine Palette) – per Hash deterministisch.
-- 📱 Native dominante-Farb-Extraktion (`SystemAudio.extractPalette`, Kotlin) – schon vorhanden, JS-Fallback rendert in jeder Umgebung sauber.
+- 📱 Native dominante-Farb-Extraktion (`SystemAudio.extractPalette`, Kotlin) – schon vorhanden, JS-Fallback rendert in jeder Umgebung sauber. **Pending Android visual/device validation**.
+- ✅ Tests: SnapPager, JS-Palette, NowPlaying-Panel/Backdrop/Cover-Fallback.
 
 ## Phase 6 – Waveform ⏳
 - ⏳ Datenmodell + Cache, SVG-Rendering, native Peak-Extraktion (BG-Job)
@@ -63,5 +68,5 @@ Reihenfolge folgt dem Deep-Scan-Arbeitsplan (Phasen 1–8).
 
 ## Offen wegen fehlendem Android-Gerät/Dev-Build (📱)
 - Phase 2: nativer Metadaten-Fast-Path (Kotlin `extractMetadataFast`) – Code implementiert + Mock + JS-Fallback, **pending Android device validation** im Development APK.
-- Phase 5: native dominante-Farb-Extraktion (JS-Fallback wird trotzdem voll umgesetzt)
+- Phase 5: native dominante-Farb-Extraktion und visuelle Snap-/Backdrop-Abnahme – JS-Fallback wird trotzdem voll umgesetzt.
 - Allg.: androidApkInspector-Tests scheitern im Container (fehlende aapt/apksigner) – umgebungsbedingt, kein Code-Bug
