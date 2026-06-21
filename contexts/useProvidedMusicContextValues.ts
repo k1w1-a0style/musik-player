@@ -26,6 +26,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     setSongs,
     currentSong,
     playSong,
+    reorderQueue,
     isReady,
     isPlaying,
     updateSongMetadata,
@@ -102,6 +103,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         setVolume,
         palette,
         playSong,
+        reorderQueue,
         saveQueueAsPlaylist,
       }),
     [
@@ -113,6 +115,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       setVolume,
       palette,
       playSong,
+      reorderQueue,
       saveQueueAsPlaylist,
     ],
   );
