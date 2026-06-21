@@ -77,3 +77,25 @@ wurde mit JSC erfolgreich validiert.
 1. EAS-Login + `eas project:init` ausführen, dann `eas build -p android --profile preview` zum APK
 2. Bei Bedarf iOS aktivieren
 3. Optional: DSP-EQ via Custom Native Module
+
+---
+
+## Deep-Scan Arbeitsplan (PDF) – Umsetzung in Phasen
+
+Quelle: `k1w1_musikplayer_arbeitsplan_deepscan.pdf`. 9 Phasen (0–8). User-Auswahl: **Start mit Phase 1**, eigener Fix-Branch (`fix/phase1-seek-scrubbing`), nur Development-Build, Abnahme via typecheck + lint:ci + jest.
+
+### Phase 1 – Seek/Scrubbing-Performance ✓ (2026-06-21)
+- `components/ProgressBar.tsx`: Tap-basierte Bar → echtes Drag-Scrubbing via PanResponder; lokaler `dragRatio`-State (optimistic UI), kein Rubber-Band durch 500ms-Polling; Live-Preview throttled (80ms); vergrößerter Thumb beim Ziehen. Pure Helpers exportiert (`clampRatio`, `resolveDragRatio`, `ratioToMillis`).
+- `utils/seekController.ts` (neu): dedizierte Seek-Lane, coalesced rapid seeks (last value wins), nicht hinter Queue-Rebuilds/Metadata-Jobs serialisiert.
+- `contexts/playbackControlHelpers.ts`: `seekToMillis` läuft über die Seek-Lane statt über `runExclusiveNativePlaybackControl`.
+- `screens/NowPlayingPlaybackSection.tsx`: `onSeekPreview` verdrahtet.
+- Tests: `utils/__tests__/seekController.test.ts` (last-value-wins, clamping, error-swallow), Scrub-Math-Tests in `ProgressBar.test.ts`. typecheck + lint:ci grün; 1658/1660 jest grün (2 vorbestehende androidApkInspector-Fails wegen fehlendem aapt/apksigner im Container).
+
+### Offene Phasen (Reihenfolge laut Plan)
+- **P0 Phase 2**: Metadaten-Refresh stabilisieren (globales 90s-Timeout → Soft-Budget/per-track-Timeout, Backfills pausieren, Native Fast-Path, Fehlerliste).
+- **P1 Phase 3**: Bottom-Navigation entfernen; Equalizer ins 3-Punkte-Menü; MiniPlayer-Insets.
+- **P1 Phase 4**: 4 Library-Ansichten + 3 Sortiermodi mit Persistenz.
+- **P2 Phase 5**: Now-Playing Redesign (2 vertikale Snap-Screens, dynamische Cover-Palette).
+- **P2 Phase 6**: Waveform (Datenmodell, Cache, SVG, native Peak-Extraktion als BG-Job).
+- **P2 Phase 7**: TrackInfo erweitern (CBR/VBR, Cover-Dimensionen/Bytes).
+- **P2 Phase 8**: Queue Drag & Drop (echte Playback-Reihenfolge).
