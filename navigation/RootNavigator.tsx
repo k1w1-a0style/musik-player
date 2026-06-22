@@ -5,9 +5,10 @@ import type { AppStackParamList } from '../types/navigation';
 import NowPlaying from '../screens/NowPlaying';
 import TrackInfo from '../screens/TrackInfo';
 import TagEditor from '../screens/TagEditor';
+import Equalizer from '../screens/Equalizer';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { appNavigationTheme } from './appNavigationTheme';
-import TabsShell from './TabsShell';
+import MainShell from './MainShell';
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
@@ -16,7 +17,7 @@ const RootNavigator: React.FC = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name={APP_STACK_ROUTES.MAIN_TABS}>
         {({ navigation }) => (
-          <TabsShell openNowPlaying={() => navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING)} />
+          <MainShell openNowPlaying={() => navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING)} />
         )}
       </Stack.Screen>
       <Stack.Screen
@@ -28,6 +29,11 @@ const RootNavigator: React.FC = () => (
         name={APP_STACK_ROUTES.TAG_EDITOR}
         component={TagEditor}
         options={{ headerShown: true, title: 'Tags bearbeiten' }}
+      />
+      <Stack.Screen
+        name={APP_STACK_ROUTES.EQUALIZER}
+        component={Equalizer}
+        options={{ headerShown: true, title: 'Equalizer' }}
       />
       <Stack.Screen
         name={APP_STACK_ROUTES.NOW_PLAYING}

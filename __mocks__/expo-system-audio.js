@@ -1,12 +1,8 @@
-/**
- * Jest mock for the local Expo module `expo-system-audio`.
- * Returns a minimal in-memory stub so MusicContext flows can be tested
- * without a native runtime.
- */
-
 const SystemAudio = {
   isAvailable: false,
   hasNativeTagWriter: false,
+  hasNativeMetadataFastPath: false,
+  hasNativeWaveformExtraction: false,
   eqInit: jest.fn().mockResolvedValue(null),
   eqSetEnabled: jest.fn().mockReturnValue(false),
   eqSetBandLevel: jest.fn().mockReturnValue(false),
@@ -14,6 +10,8 @@ const SystemAudio = {
   extractPalette: jest.fn(() => new Promise(() => {})),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   extractAudioInfo: jest.fn().mockResolvedValue(null),
+  extractMetadataFast: jest.fn().mockResolvedValue(null),
+  extractWaveformPeaks: jest.fn().mockResolvedValue(null),
   readAudioFileBase64: jest.fn().mockResolvedValue(null),
   writeAudioTags: jest.fn(async (uri, request = {}) => ({
     success: false,

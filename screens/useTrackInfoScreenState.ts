@@ -5,22 +5,19 @@ import { useTrackInfoSong } from './useTrackInfoSong';
 
 export const useTrackInfoScreenState = () => {
   const { song, songsRef, setSongs } = useTrackInfoSong();
-  const { coverUri, coverStatus, coverFailed, setCoverFailed } = useTrackInfoCoverState(song);
+  const coverState = useTrackInfoCoverState(song);
   const { importedAt } = useTrackInfoDerivedState(song);
-  const { openTagEditor, removeFromLibrary } = useTrackInfoActions({
-    song,
-    songsRef,
-    setSongs,
-  });
+  const actions = useTrackInfoActions({ song, songsRef, setSongs });
 
   return {
     song,
-    coverUri,
-    coverStatus,
+    coverUri: coverState.coverUri,
+    coverStatus: coverState.coverStatus,
+    coverDimensions: coverState.coverDimensions,
     importedAt,
-    coverFailed,
-    setCoverFailed,
-    openTagEditor,
-    removeFromLibrary,
+    coverFailed: coverState.coverFailed,
+    setCoverFailed: coverState.setCoverFailed,
+    openTagEditor: actions.openTagEditor,
+    removeFromLibrary: actions.removeFromLibrary,
   };
 };

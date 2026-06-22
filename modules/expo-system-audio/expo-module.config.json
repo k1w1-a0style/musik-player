@@ -1,6 +1,9 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["expo.modules.systemaudio.SystemAudioModule"]
+    "modules": [
+      "expo.modules.systemaudio.SystemAudioModule",
+      "expo.modules.systemaudio.SystemAudioWaveformModule"
+    ]
   }
 }

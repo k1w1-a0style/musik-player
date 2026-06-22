@@ -17,6 +17,8 @@ interface NowPlayingQueueCardProps {
   currentSongId?: string;
   maxHeight: number;
   onPlayQueueItem: (songId: string) => void;
+  onQueueShift: (fromIndex: number, toIndex: number) => void;
+  canShiftQueue: boolean;
 }
 
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
@@ -24,33 +26,42 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   currentSongId,
   maxHeight,
   onPlayQueueItem,
+  onQueueShift,
+  canShiftQueue,
 }) => {
   const renderQueueItem = React.useCallback(
-    ({ item }: { item: Song }) => (
+    ({ item, index }: { item: Song; index: number }) => (
       <NowPlayingQueuePreviewRow
         id={item.id}
+        index={index}
+        queueLength={queue.length}
+        rowHeight={QUEUE_ROW_HEIGHT}
         title={normalizeLibraryText(item.title) || 'Unbekannter Titel'}
         artist={displayArtist(item)}
         isCurrent={!!item.id && item.id === currentSongId}
+        canShift={canShiftQueue && index > 0}
         onPress={onPlayQueueItem}
+        onShift={onQueueShift}
       />
     ),
-    [currentSongId, onPlayQueueItem],
+    [canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
   );
 
   if (queue.length <= 1) return null;
 
   return (
-    <View style={[styles.queueCard, { maxHeight }]}>
+    <View style={[styles.queueCard, { maxHeight }]}> 
       <View style={styles.queueHeaderRow}>
         <Text style={styles.queueEyebrow}>WARTESCHLANGE</Text>
         <Text style={styles.queueCount}>{queue.length} Titel</Text>
       </View>
+      {canShiftQueue ? <Text style={styles.queueHint}>Reihenfolge per langem Drücken und Ziehen bearbeiten.</Text> : null}
       <FlatList
         data={queue}
         keyExtractor={buildSongKey}
         renderItem={renderQueueItem}
         nestedScrollEnabled
+        scrollEnabled={!canShiftQueue || queue.length > 4}
         showsVerticalScrollIndicator={queue.length > 3}
         getItemLayout={getQueueItemLayout}
         style={styles.queueList}
@@ -64,6 +75,7 @@ const styles = StyleSheet.create({
   queueHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   queueEyebrow: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 11, letterSpacing: 1.4 },
   queueCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11 },
+  queueHint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 10, marginBottom: 6 },
   queueList: { maxHeight: QUEUE_ROW_HEIGHT * 4.4 },
 });
 

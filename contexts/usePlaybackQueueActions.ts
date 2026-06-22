@@ -2,6 +2,7 @@ import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStat
 import type { Song } from '../types/Song';
 import {
   runPlaySongQueueAction,
+  runReorderQueueAction,
   runShuffleQueueAction,
 } from './playbackQueueActionHelpers';
 
@@ -20,6 +21,7 @@ export interface PlaybackQueueActionsArgs {
 export interface PlaybackQueueActions {
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   toggleShuffle: () => Promise<void>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
 }
 
 export { persistRequestedSongId } from './playbackQueueActionHelpers';
@@ -83,5 +85,40 @@ export const usePlaybackQueueActions = ({
     songsRef,
   ]);
 
-  return { playSong, toggleShuffle };
+  const reorderQueue = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      let result = false;
+      await enqueueQueueAction(async () => {
+        result = await runReorderQueueAction({
+          fromIndex,
+          toIndex,
+          songsRef,
+          queueContextRef,
+          baseQueueContextRef,
+          nativeQueueRef,
+          setPlaybackQueue,
+          setCurrentSong,
+          currentSongId,
+          shuffle,
+          shuffleRef,
+          setShuffle,
+        });
+      });
+      return result;
+    },
+    [
+      baseQueueContextRef,
+      currentSongId,
+      enqueueQueueAction,
+      nativeQueueRef,
+      queueContextRef,
+      setCurrentSong,
+      setPlaybackQueue,
+      setShuffle,
+      shuffle,
+      songsRef,
+    ],
+  );
+
+  return { playSong, toggleShuffle, reorderQueue };
 };

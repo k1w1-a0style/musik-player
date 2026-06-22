@@ -34,6 +34,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'setVolume'
   | 'palette'
   | 'playSong'
+  | 'reorderQueue'
   | 'saveQueueAsPlaylist'
 >;
 
@@ -87,6 +88,7 @@ export const buildNowPlayingMusicContextValue = ({
   setVolume,
   palette,
   playSong,
+  reorderQueue,
   saveQueueAsPlaylist,
 }: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
   playbackQueue,
@@ -97,6 +99,7 @@ export const buildNowPlayingMusicContextValue = ({
   setVolume,
   palette,
   playSong,
+  reorderQueue,
   saveQueueAsPlaylist,
   canSkip: playbackQueue.length > 1,
 });

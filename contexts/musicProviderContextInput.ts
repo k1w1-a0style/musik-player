@@ -15,6 +15,7 @@ type PlaybackInput = Pick<
   | 'isPlaying'
   | 'isBuffering'
   | 'playSong'
+  | 'reorderQueue'
   | 'togglePlayPause'
   | 'stop'
   | 'seekTo'

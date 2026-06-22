@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, Text } from 'react-native';
+import { Alert, Image, Pressable, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useTrackInfoScreenState } from '../useTrackInfoScreenState';
 import { APP_STACK_ROUTES } from '../../types/routes';
@@ -42,6 +42,7 @@ const TrackInfoStateProbe = () => {
       <Text testID="state-keys">{Object.keys(state).sort().join(',')}</Text>
       <Text testID="cover-uri">{state.coverUri ?? 'none'}</Text>
       <Text testID="cover-status">{state.coverStatus}</Text>
+      <Text testID="cover-dimensions">{`${state.coverDimensions?.width ?? 'na'}x${state.coverDimensions?.height ?? 'na'}`}</Text>
       <Text testID="imported-at">{state.importedAt}</Text>
       <Text testID="cover-failed">{String(state.coverFailed)}</Text>
       <Pressable testID="fail-cover" onPress={() => state.setCoverFailed(true)} />
@@ -54,6 +55,9 @@ const TrackInfoStateProbe = () => {
 describe('useTrackInfoScreenState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(Image, 'getSize').mockImplementation((_uri, success) => {
+      success(500, 500);
+    });
     mockRouteSongId = 's1';
     mockSongs = initialSongs;
   });
@@ -185,7 +189,7 @@ describe('useTrackInfoScreenState', () => {
     const { getByTestId } = render(<TrackInfoStateProbe />);
 
     expect(getByTestId('state-keys').props.children).toBe(
-      'coverFailed,coverStatus,coverUri,importedAt,openTagEditor,removeFromLibrary,setCoverFailed,song',
+      'coverDimensions,coverFailed,coverStatus,coverUri,importedAt,openTagEditor,removeFromLibrary,setCoverFailed,song',
     );
   });
 });

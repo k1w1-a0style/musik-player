@@ -8,6 +8,7 @@ type ContextPlaybackInput = Pick<
   | 'isPlaying'
   | 'isBuffering'
   | 'playSong'
+  | 'reorderQueue'
   | 'togglePlayPause'
   | 'stop'
   | 'seekTo'
@@ -42,11 +43,12 @@ type EffectsEqualizerInput = Pick<
 
 export const buildMusicProviderContextPlaybackInput = (
   playback: PlaybackControls,
-  actions: Pick<MusicContextValue, 'playSong' | 'toggleShuffle'>,
+  actions: Pick<MusicContextValue, 'playSong' | 'reorderQueue' | 'toggleShuffle'>,
 ): ContextPlaybackInput => ({
   isPlaying: playback.isPlaying,
   isBuffering: playback.isBuffering,
   playSong: actions.playSong,
+  reorderQueue: actions.reorderQueue,
   togglePlayPause: playback.togglePlayPause,
   stop: playback.stop,
   seekTo: playback.seekTo,

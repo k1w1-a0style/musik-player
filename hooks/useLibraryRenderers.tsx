@@ -20,6 +20,7 @@ export const useLibraryRenderers = ({
   playPlaylist,
   playSong,
   removeFolder,
+  songViewMode,
 }: UseLibraryRenderersOptions): UseLibraryRenderersResult => {
   const songRenderers = useLibrarySongRenderer({
     currentSongId,
@@ -27,6 +28,7 @@ export const useLibraryRenderers = ({
     isPlaying,
     onOpenTrackInfo,
     playSong,
+    songViewMode,
   });
 
   const groupRenderers = useLibraryGroupRenderers({

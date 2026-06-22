@@ -3,6 +3,7 @@ import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import type { LibrarySongViewMode } from '../utils/libraryViewMode';
 
 export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
 export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
@@ -18,6 +19,7 @@ export interface UseLibraryRenderersOptions {
   playPlaylist: LibraryRendererPlayPlaylist;
   playSong: LibraryRendererPlaySong;
   removeFolder: LibraryRendererRemoveFolder;
+  songViewMode?: LibrarySongViewMode;
 }
 
 export interface UseLibraryRenderersResult {

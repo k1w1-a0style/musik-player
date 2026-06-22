@@ -8,6 +8,7 @@ const TrackInfo: React.FC = () => {
     song,
     coverUri,
     coverStatus,
+    coverDimensions,
     importedAt,
     coverFailed,
     setCoverFailed,
@@ -22,6 +23,7 @@ const TrackInfo: React.FC = () => {
       song={song}
       coverUri={coverUri}
       coverStatus={coverStatus}
+      coverDimensions={coverDimensions}
       importedAt={importedAt}
       coverFailed={coverFailed}
       onCoverError={() => setCoverFailed(true)}

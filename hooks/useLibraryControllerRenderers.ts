@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
+import type { LibrarySongViewMode } from '../utils/libraryViewMode';
 import { useLibraryPlaybackActions } from './useLibraryPlaybackActions';
 import { useLibraryRenderers, type UseLibraryRenderersResult } from './useLibraryRenderers';
 
@@ -15,6 +16,7 @@ export interface UseLibraryControllerRenderersOptions {
   removeFolder: (folder: ScanFolder) => void | Promise<void>;
   setAlbumViewMode: Dispatch<SetStateAction<LibraryAlbumViewMode>>;
   songsForActiveList: Song[];
+  songViewMode?: LibrarySongViewMode;
 }
 
 export interface UseLibraryControllerRenderersResult extends UseLibraryRenderersResult {
@@ -33,6 +35,7 @@ export const useLibraryControllerRenderers = ({
   removeFolder,
   setAlbumViewMode,
   songsForActiveList,
+  songViewMode,
 }: UseLibraryControllerRenderersOptions): UseLibraryControllerRenderersResult => {
   const renderers = useLibraryRenderers({
     currentSongId,
@@ -42,6 +45,7 @@ export const useLibraryControllerRenderers = ({
     playPlaylist,
     playSong,
     removeFolder,
+    songViewMode,
   });
 
   const playbackActions = useLibraryPlaybackActions({

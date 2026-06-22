@@ -6,6 +6,8 @@ import type { LibraryTabContentProps } from '../components/LibraryTabContent';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { LibraryTabsProps } from '../components/LibraryTabs';
 import type { LibraryTopBarProps } from '../components/LibraryTopBar';
+import type { LibrarySortMode } from './librarySort';
+import type { LibrarySongViewMode } from './libraryViewMode';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryTab } from './libraryTabs';
@@ -29,11 +31,14 @@ export interface LibrarySearchBarPropsBuilderOptions {
 
 export interface LibraryImportStatusPropsBuilderOptions {
   importStatus: string | null;
+  cancelMetadataRefresh?: () => void;
+  resumeMetadataRefresh?: () => void;
 }
 
 export interface LibraryScreenVisibilityPropsBuilderOptions {
   loading: boolean;
   searchOpen: boolean;
+  refreshHasResumable?: boolean;
 }
 
 export interface LibraryTabContentPropsBuilderOptions {
@@ -57,6 +62,10 @@ export interface LibraryTabContentPropsBuilderOptions {
   scanFolders: ScanFolder[];
   songKeyExtractor: (item: Song) => string;
   songsForActiveList: Song[];
+  sortMode: LibrarySortMode;
+  onCycleSortMode: () => void;
+  songViewMode: LibrarySongViewMode;
+  onCycleSongViewMode: () => void;
 }
 
 export interface LibraryMenuModalPropsBuilderOptions {
@@ -68,9 +77,11 @@ export interface LibraryMenuModalPropsBuilderOptions {
   menuOpen: boolean;
   onAddScanFolder: () => void;
   openSettings: () => void;
+  openEqualizer: () => void;
   refreshMetadataFromFiles: () => void;
   showScanFolders: () => void;
   songsCount: number;
+  canResumeRefresh?: boolean;
 }
 
 export const buildLibraryTopBarProps = ({ openMenu, toggleSearch }: LibraryTopBarPropsBuilderOptions): LibraryTopBarProps => ({
@@ -89,12 +100,14 @@ export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBar
   value: query,
 });
 
-export const buildLibraryImportStatusProps = ({ importStatus }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
+export const buildLibraryImportStatusProps = ({ importStatus, cancelMetadataRefresh, resumeMetadataRefresh }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
   status: importStatus,
+  onCancelRefresh: cancelMetadataRefresh,
+  onResumeRefresh: resumeMetadataRefresh,
 });
 
-export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen }: LibraryScreenVisibilityPropsBuilderOptions): LibraryScreenVisibilityProps => ({
-  showImportStatus: loading,
+export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen, refreshHasResumable }: LibraryScreenVisibilityPropsBuilderOptions): LibraryScreenVisibilityProps => ({
+  showImportStatus: loading || Boolean(refreshHasResumable),
   showSearchBar: searchOpen,
 });
 
@@ -119,6 +132,10 @@ export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuild
   scanFolders: options.scanFolders,
   songKeyExtractor: options.songKeyExtractor,
   songsForActiveList: options.songsForActiveList,
+  sortMode: options.sortMode,
+  onCycleSortMode: options.onCycleSortMode,
+  songViewMode: options.songViewMode,
+  onCycleSongViewMode: options.onCycleSongViewMode,
 });
 
 export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilderOptions): LibraryMenuModalProps => ({
@@ -127,10 +144,12 @@ export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilder
   isReady: options.isReady,
   hasSongs: options.songsCount > 0,
   activeFolders: options.activeFolders,
+  canResumeRefresh: Boolean(options.canResumeRefresh),
   onClose: options.closeMenu,
   onImport: options.importFromDevice,
   onRefreshMetadata: options.refreshMetadataFromFiles,
   onAddFolder: options.onAddScanFolder,
   onShowFolders: options.showScanFolders,
   onOpenSettings: options.openSettings,
+  onOpenEqualizer: options.openEqualizer,
 });

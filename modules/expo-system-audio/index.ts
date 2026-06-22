@@ -26,6 +26,9 @@ export interface PaletteResult {
 export interface EmbeddedArtworkResult {
   uri: string;
   mimeType: string;
+  byteLength?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface AudioTagWriteRequest {
@@ -55,14 +58,51 @@ export interface AudioTagWriteResult {
   bytesAfter?: number;
 }
 
+export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';
+
 export interface AudioInfoResult {
   durationMs?: number;
   bitrateBps?: number;
+  bitrateMode?: NativeBitrateMode;
   sizeBytes?: number;
   sampleRateHz?: number;
   channels?: number;
   mimeType?: string;
   displayName?: string;
+}
+
+/**
+ * Native waveform result. `points` are normalized 0..1 envelope values and are
+ * downsampled natively so rendering never has to inspect audio bytes.
+ */
+export interface WaveformPeaksResult {
+  points: number[];
+  durationMs?: number;
+}
+
+/**
+ * Native Fast-Path metadata read powered by Android's MediaMetadataRetriever.
+ * Returns the standard tag fields that MediaMetadataRetriever can decode
+ * reliably for content://, file:// and SAF-backed URIs. Missing/insecure fields
+ * stay undefined so callers can fall back to the JS-ID3 parser per field.
+ *
+ * Status: implemented on Android and exposed through the TS interface; the
+ * actual on-device behaviour stays "pending Android device validation" until a
+ * Development APK exercises it on a real device.
+ */
+export interface FastMetadataResult {
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArtist?: string;
+  year?: string;
+  trackNumber?: string;
+  discNumber?: string;
+  genre?: string;
+  composer?: string;
+  durationMs?: number;
+  bitrateBps?: number;
+  mimeType?: string;
 }
 
 declare class ExpoSystemAudioModule extends NativeModule {
@@ -73,13 +113,26 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractPalette(uri: string): Promise<PaletteResult | null>;
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
+  extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
+}
+
+declare class ExpoSystemAudioWaveformModule extends NativeModule {
+  extractWaveformPeaks?(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null>;
 }
 
 const native: ExpoSystemAudioModule | null = (() => {
   try {
     return requireNativeModule<ExpoSystemAudioModule>('ExpoSystemAudio');
+  } catch {
+    return null;
+  }
+})();
+
+const waveformNative: ExpoSystemAudioWaveformModule | null = (() => {
+  try {
+    return requireNativeModule<ExpoSystemAudioWaveformModule>('ExpoSystemAudioWaveform');
   } catch {
     return null;
   }
@@ -94,9 +147,17 @@ const hasNativeTagWriter =
   typeof native.readAudioFileBase64 === 'function' &&
   typeof native.writeAudioTags === 'function';
 
+const hasNativeMetadataFastPath =
+  native !== null && typeof native.extractMetadataFast === 'function';
+
+const hasNativeWaveformExtraction =
+  waveformNative !== null && typeof waveformNative.extractWaveformPeaks === 'function';
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
+  hasNativeMetadataFastPath,
+  hasNativeWaveformExtraction,
 
   async eqInit(): Promise<EqInitResult | null> {
     return native ? native.eqInit() : null;
@@ -124,6 +185,30 @@ export const SystemAudio = {
 
   async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
     return native ? native.extractAudioInfo(uri) : null;
+  },
+
+  /**
+   * Native Fast-Path: prefers MediaMetadataRetriever-decoded fields. Returns
+   * `null` when the native module or the optional fast-path function is
+   * unavailable so callers can fall back to the JS-ID3 parser. Marked as
+   * pending Android device validation until exercised in a Development APK.
+   */
+  async extractMetadataFast(uri: string): Promise<FastMetadataResult | null> {
+    if (!native?.extractMetadataFast) return null;
+    try {
+      return await native.extractMetadataFast(uri);
+    } catch {
+      return null;
+    }
+  },
+
+  async extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null> {
+    if (!waveformNative?.extractWaveformPeaks) return null;
+    try {
+      return await waveformNative.extractWaveformPeaks(uri, pointCount);
+    } catch {
+      return null;
+    }
   },
 
   async readAudioFileBase64(uri: string, maxBytes?: number): Promise<string | null> {

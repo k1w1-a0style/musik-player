@@ -31,9 +31,10 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
           style={styles.coverImage}
           onError={() => setCoverFailed(true)}
           resizeMode="cover"
+          testID="now-playing-cover-image"
         />
       ) : (
-        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}>
+        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]} testID="now-playing-cover-fallback">
           <Disc3 color={theme.palette.primary} size={Math.floor(coverSize * 0.55)} />
         </View>
       )}

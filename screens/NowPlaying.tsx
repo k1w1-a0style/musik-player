@@ -1,16 +1,14 @@
-import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import React, { useCallback } from 'react';
+import { StyleSheet, Dimensions } from 'react-native';
 import { theme } from '../theme';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
-import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
-import NowPlayingCoverArtwork from './NowPlayingCoverArtwork';
 import NowPlayingHeader from './NowPlayingHeader';
 import NowPlayingMenuModal from './NowPlayingMenuModal';
-import NowPlayingPlaybackSection from './NowPlayingPlaybackSection';
-import NowPlayingQueueCard from './NowPlayingQueueCard';
-import NowPlayingTitleRow from './NowPlayingTitleRow';
+import NowPlayingSnapPager from './NowPlayingSnapPager';
+import NowPlayingPlayerPanel from './NowPlayingPlayerPanel';
+import NowPlayingDetailsPanel from './NowPlayingDetailsPanel';
 import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 
@@ -38,53 +36,72 @@ const NowPlayingScreenInner: React.FC = () => {
     saveCurrentQueueAsPlaylist,
     queue,
     playQueueItemById,
+    moveQueueItem,
+    canReorderQueue,
     accent,
+    accentMuted,
     gradientColors,
     albumTitle,
     artworkUri,
     progressAccent,
     progressAccentDark,
+    foregroundOnAccent,
   } = useNowPlayingScreenState();
+
+  const renderPlayerPage = useCallback(() => (
+    <NowPlayingPlayerPanel
+      currentSong={currentSong}
+      artworkUri={artworkUri}
+      isPlaying={isPlaying}
+      accent={accent}
+      coverAreaHeight={layoutMetrics.coverAreaHeight}
+      coverSize={layoutMetrics.coverSize}
+      favorite={favorite}
+      favoritePending={favoritePending}
+      onToggleFavorite={toggleFavorite}
+      position={position}
+      duration={duration}
+      onSeek={seekTo}
+      progressAccent={progressAccent}
+      progressAccentDark={progressAccentDark}
+      foregroundOnAccent={foregroundOnAccent}
+      volume={volume}
+      onVolumeChange={setVolume}
+      bottomInset={bottomInset}
+      onOpenTrackInfo={openTrackInfo}
+    />
+  ), [accent, artworkUri, bottomInset, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, toggleFavorite, volume]);
+
+  const renderDetailsPage = useCallback(() => (
+    <NowPlayingDetailsPanel
+      queue={queue}
+      currentSong={currentSong}
+      albumTitle={albumTitle}
+      accentMuted={accentMuted}
+      foregroundOnAccent={foregroundOnAccent}
+      listHeight={layoutMetrics.detailPageListHeight}
+      onPlayQueueItem={playQueueItemById}
+      onQueueShift={moveQueueItem}
+      canShiftQueue={canReorderQueue}
+    />
+  ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, moveQueueItem, playQueueItemById, queue]);
 
   return (
     <>
-      <NowPlayingBackdrop gradientColors={gradientColors} accent={accent} glowLeft={layoutMetrics.glowLeft} />
+      <NowPlayingBackdrop
+        gradientColors={gradientColors}
+        accent={accent}
+        glowLeft={layoutMetrics.glowLeft}
+        artworkUri={artworkUri}
+      />
 
       <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
 
-      <View style={[styles.coverArea, { height: layoutMetrics.coverAreaHeight }]}>
-        <NowPlayingCoverArtwork
-          song={currentSong}
-          artworkUri={artworkUri}
-          isPlaying={isPlaying}
-          accent={accent}
-          coverSize={layoutMetrics.coverSize}
-        />
-      </View>
-
-      <NowPlayingTitleRow
-        currentSong={currentSong}
-        favorite={favorite}
-        favoritePending={favoritePending}
-        onToggleFavorite={toggleFavorite}
+      <NowPlayingSnapPager
+        pageHeight={layoutMetrics.snapPageHeight}
+        renderPlayerPage={renderPlayerPage}
+        renderDetailsPage={renderDetailsPage}
       />
-
-      <NowPlayingPlaybackSection
-        position={position}
-        duration={duration}
-        onSeek={seekTo}
-        progressAccent={progressAccent}
-        progressAccentDark={progressAccentDark}
-      />
-
-      <NowPlayingQueueCard
-        queue={queue}
-        currentSongId={currentSong?.id}
-        maxHeight={layoutMetrics.queueCardMaxHeight}
-        onPlayQueueItem={playQueueItemById}
-      />
-
-      <NowPlayingBottomControlsRow volume={volume} onVolumeChange={setVolume} bottomInset={bottomInset} onOpenTrackInfo={openTrackInfo} />
 
       <NowPlayingMenuModal
         visible={menuOpen}
@@ -113,7 +130,6 @@ const NowPlaying: React.FC = () => (
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
-  coverArea: { alignItems: 'center', justifyContent: 'center', marginTop: 0 },
 });
 
 export default NowPlaying;

@@ -13,6 +13,7 @@ export interface MusicContextValue {
   isPlaying: boolean;
   isBuffering: boolean;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
   togglePlayPause: () => Promise<void>;
   stop: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
@@ -75,6 +76,7 @@ export interface NowPlayingMusicContextValue {
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   canSkip: boolean;
 }

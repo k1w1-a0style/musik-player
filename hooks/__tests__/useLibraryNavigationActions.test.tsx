@@ -33,3 +33,15 @@ test('openTrackInfo navigates to track info with song id', () => {
 
   expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 'track-1' });
 });
+
+test('openEqualizer navigates to the equalizer screen', () => {
+  const navigate = jest.fn();
+  mockedUseNavigation.mockReturnValue({ navigate } as never);
+  const { result } = renderHook(() => useLibraryNavigationActions());
+
+  act(() => {
+    result.current.openEqualizer();
+  });
+
+  expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.EQUALIZER);
+});

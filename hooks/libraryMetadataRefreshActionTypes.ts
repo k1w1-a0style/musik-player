@@ -31,4 +31,7 @@ export interface UseLibraryMetadataRefreshActionsOptions {
 
 export interface UseLibraryMetadataRefreshActionsResult {
   refreshMetadataFromFiles: () => Promise<void>;
+  cancelRefresh: () => boolean;
+  resumeMetadataRefresh: () => Promise<void>;
+  isRefreshActive: () => boolean;
 }

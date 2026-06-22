@@ -48,9 +48,13 @@ export const useLibraryComponentProps = ({
   onToggleAlbumView,
   openMenu,
   openSettings,
+  openEqualizer,
   playlistItems,
   query,
   refreshMetadataFromFiles,
+  cancelMetadataRefresh,
+  resumeMetadataRefresh,
+  refreshHasResumable,
   renderAlbumTile,
   renderFolderItem,
   renderGroupItem,
@@ -64,6 +68,10 @@ export const useLibraryComponentProps = ({
   songKeyExtractor,
   songsCount,
   songsForActiveList,
+  sortMode,
+  onCycleSortMode,
+  songViewMode,
+  onCycleSongViewMode,
   toggleSearch,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
@@ -83,12 +91,15 @@ export const useLibraryComponentProps = ({
 
   const importStatusProps = useMemo(() => buildLibraryImportStatusProps({
     importStatus,
-  }), [importStatus]);
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
+  }), [importStatus, cancelMetadataRefresh, resumeMetadataRefresh]);
 
   const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
     loading,
     searchOpen,
-  }), [loading, searchOpen]);
+    refreshHasResumable,
+  }), [loading, searchOpen, refreshHasResumable]);
 
   const tabContentProps = useMemo(() => buildLibraryTabContentProps({
     activeTab,
@@ -111,6 +122,10 @@ export const useLibraryComponentProps = ({
     scanFolders,
     songKeyExtractor,
     songsForActiveList,
+    sortMode,
+    onCycleSortMode,
+    songViewMode,
+    onCycleSongViewMode,
   }), [
     activeFolders,
     activeTab,
@@ -132,6 +147,10 @@ export const useLibraryComponentProps = ({
     scanFolders,
     songKeyExtractor,
     songsForActiveList,
+    sortMode,
+    onCycleSortMode,
+    songViewMode,
+    onCycleSongViewMode,
   ]);
 
   const menuModalProps = useMemo(() => buildLibraryMenuModalProps({
@@ -143,9 +162,11 @@ export const useLibraryComponentProps = ({
     menuOpen,
     onAddScanFolder,
     openSettings,
+    openEqualizer,
     refreshMetadataFromFiles,
     showScanFolders,
     songsCount,
+    canResumeRefresh: refreshHasResumable,
   }), [
     activeFolders,
     closeMenu,
@@ -155,9 +176,11 @@ export const useLibraryComponentProps = ({
     menuOpen,
     onAddScanFolder,
     openSettings,
+    openEqualizer,
     refreshMetadataFromFiles,
     showScanFolders,
     songsCount,
+    refreshHasResumable,
   ]);
 
   return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, ...visibilityProps };

@@ -1,4 +1,4 @@
-import type { Song } from '../types/Song';
+import type { BitrateMode, Song } from '../types/Song';
 
 export const formatDuration = (ms?: number): string => {
   if (!ms || ms <= 0) return 'Nicht verfügbar';
@@ -29,6 +29,29 @@ export const formatSampleRate = (value?: number): string => {
   return `${value} Hz`;
 };
 
+export const formatChannels = (value?: number): string => {
+  if (!value || value <= 0) return 'Nicht verfügbar';
+  if (value === 1) return '1 Kanal (Mono)';
+  if (value === 2) return '2 Kanäle (Stereo)';
+  return `${value} Kanäle`;
+};
+
+export const formatBitrate = (value?: number): string =>
+  value && value > 0 ? `${value} kbps` : 'Nicht verfügbar';
+
+export const formatBitrateMode = (mode?: BitrateMode): string => {
+  switch (mode) {
+    case 'cbr':
+      return 'CBR';
+    case 'vbr':
+      return 'VBR';
+    case 'unknown':
+      return 'Unbekannt';
+    default:
+      return 'Nicht verfügbar';
+  }
+};
+
 export const formatCoverStatus = (status?: string): string => {
   switch (status) {
     case 'cached':
@@ -44,6 +67,11 @@ export const formatCoverStatus = (status?: string): string => {
   }
 };
 
+export const formatCoverDimensions = (width?: number, height?: number): string => {
+  if (!width || !height || width <= 0 || height <= 0) return 'Nicht verfügbar';
+  return `${width} × ${height} px`;
+};
+
 export const valueOrNA = (value?: string | number): string =>
   value === undefined || value === null || value === '' ? 'Nicht verfügbar' : String(value);
 
@@ -52,6 +80,9 @@ export const getTrackInfoCoverUri = (song: Song): string | undefined =>
 
 export const getTrackInfoCoverStatus = (song: Song, coverUri?: string): string =>
   song.coverInfo?.status ?? (coverUri ? 'unknown' : 'none');
+
+export const getTrackInfoDurationMs = (song: Song): number | undefined =>
+  song.duration ?? song.audioInfo?.durationMs;
 
 export const formatImportedAt = (value?: string | number): string =>
   value ? new Date(value).toLocaleString('de-DE') : 'Nicht verfügbar';

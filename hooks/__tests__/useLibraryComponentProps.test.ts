@@ -24,6 +24,7 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   onToggleAlbumView: fn,
   openMenu: fn,
   openSettings: fn,
+  openEqualizer: fn,
   playlistItems: [],
   query: 'abc',
   refreshMetadataFromFiles: fn,
@@ -40,6 +41,10 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   songKeyExtractor: (item: { id: string }) => item.id,
   songsCount: 2,
   songsForActiveList: [],
+  sortMode: 'alphabet',
+  onCycleSortMode: fn,
+  songViewMode: 'list',
+  onCycleSongViewMode: fn,
   toggleSearch: fn,
 };
 

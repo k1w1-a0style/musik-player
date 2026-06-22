@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
 import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
 import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
@@ -5,6 +6,13 @@ import { useLibraryControllerProps } from './useLibraryControllerProps';
 import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
 import { useLibraryControllerState } from './useLibraryControllerState';
 import { useLibraryControllerViewModel } from './useLibraryControllerViewModel';
+import { useLibrarySortMode } from './useLibrarySortMode';
+import { useLibrarySongViewMode } from './useLibrarySongViewMode';
+import { sortLibrarySongs } from '../utils/librarySort';
+import {
+  canResumeMetadataRefresh,
+  useMetadataRefreshOperation,
+} from '../utils/metadataRefreshOperation';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
@@ -46,6 +54,10 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     },
   } = useLibraryControllerState();
 
+  const { sortMode, cycleSortMode } = useLibrarySortMode();
+  const { viewMode, cycleViewMode } = useLibrarySongViewMode();
+  const sortedSongs = useMemo(() => sortLibrarySongs(songs, sortMode), [songs, sortMode]);
+
   const {
     activeFolders,
     albumGroups,
@@ -62,7 +74,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     playlists,
     query,
     scanFolders,
-    songs,
+    songs: sortedSongs,
   });
 
   const {
@@ -71,8 +83,11 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     onAddScanFolder,
     openMenu,
     openSettings,
+    openEqualizer,
     openTrackInfo,
     refreshMetadataFromFiles,
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
     removeFolder,
     showScanFolders,
     toggleSearch,
@@ -91,6 +106,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   useLibraryCoverBackfill({ songs, applySongMetadataPatches });
   useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });
+
+  const refreshOperation = useMetadataRefreshOperation();
+  const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);
 
   const {
     getSongItemLayout,
@@ -113,6 +131,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     removeFolder,
     setAlbumViewMode,
     songsForActiveList,
+    songViewMode: viewMode,
   });
 
   return useLibraryControllerProps({
@@ -136,9 +155,13 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     onToggleAlbumView: toggleAlbumView,
     openMenu,
     openSettings,
+    openEqualizer,
     playlistItems,
     query,
     refreshMetadataFromFiles,
+    cancelMetadataRefresh,
+    resumeMetadataRefresh,
+    refreshHasResumable,
     renderAlbumTile,
     renderFolderItem,
     renderGroupItem,
@@ -152,6 +175,10 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songKeyExtractor,
     songsCount,
     songsForActiveList,
+    sortMode,
+    onCycleSortMode: cycleSortMode,
+    songViewMode: viewMode,
+    onCycleSongViewMode: cycleViewMode,
     toggleSearch,
   });
 };

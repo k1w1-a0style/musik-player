@@ -398,3 +398,40 @@ test('buildId3SongPatch includes albumArtist and ignores blank incoming albumArt
   expect(buildId3SongPatch(baseSong, { albumArtist: ' Various Artists ' })).toEqual({ albumArtist: 'Various Artists' });
   expect(buildId3SongPatch({ ...baseSong, albumArtist: 'Existing' }, { albumArtist: '   ' })).toEqual({});
 });
+
+test('isolates a stuck track with a per-track timeout and completes the rest', async () => {
+  const songs: Song[] = [
+    { ...baseSong, id: 's1', uri: 'file:///fast1.mp3' },
+    { ...baseSong, id: 's2', uri: 'file:///stuck.mp3' },
+    { ...baseSong, id: 's3', uri: 'file:///fast3.mp3' },
+  ];
+  (parseId3FromUri as jest.Mock).mockImplementation((uri: string) => {
+    if (uri.includes('stuck')) {
+      // Never settles; the per-track timeout must win and mark this track failed.
+      return new Promise(() => undefined);
+    }
+    return Promise.resolve({ title: `Fresh ${uri}` });
+  });
+
+  const result = await refreshSongsFromId3(songs, { concurrency: 1, perTrackTimeoutMs: 20 });
+
+  expect(result.completed).toBe(true);
+  expect(result.processed).toBe(3);
+  expect(result.updated).toBe(2);
+  expect(result.failed).toBe(1);
+  expect(result.skipped).toBe(0);
+  expect(result.errors).toEqual(['file:///stuck.mp3']);
+  expect(result.errorDetails).toEqual([{ uri: 'file:///stuck.mp3', reason: 'timeout' }]);
+  expect(result.songs.map(refreshedSong => refreshedSong.id)).toEqual(['s1', 's2', 's3']);
+  expect(result.songs[1]).toBe(songs[1]);
+});
+
+test('records the concrete error reason when a track read throws', async () => {
+  (parseId3FromUri as jest.Mock).mockRejectedValue(new Error('corrupt header'));
+
+  const result = await refreshSongsFromId3([baseSong], { perTrackTimeoutMs: 0 });
+
+  expect(result.failed).toBe(1);
+  expect(result.errors).toEqual(['file:///song.mp3']);
+  expect(result.errorDetails).toEqual([{ uri: 'file:///song.mp3', reason: 'corrupt header' }]);
+});

@@ -1,5 +1,9 @@
 import {
+  formatBitrate,
+  formatBitrateMode,
   formatBytes,
+  formatChannels,
+  formatCoverDimensions,
   formatCoverStatus,
   formatDuration,
   formatSampleRate,
@@ -25,6 +29,24 @@ describe('TrackInfo formatters', () => {
     expect(formatSampleRate(0)).toBe('Nicht verfügbar');
     expect(formatSampleRate(960)).toBe('960 Hz');
     expect(formatSampleRate(44100)).toBe('44.1 kHz');
+  });
+
+  test('formats bitrate and bitrate mode', () => {
+    expect(formatBitrate(undefined)).toBe('Nicht verfügbar');
+    expect(formatBitrate(320)).toBe('320 kbps');
+    expect(formatBitrateMode('cbr')).toBe('CBR');
+    expect(formatBitrateMode('vbr')).toBe('VBR');
+    expect(formatBitrateMode('unknown')).toBe('Unbekannt');
+    expect(formatBitrateMode(undefined)).toBe('Nicht verfügbar');
+  });
+
+  test('formats channels and cover dimensions', () => {
+    expect(formatChannels(undefined)).toBe('Nicht verfügbar');
+    expect(formatChannels(1)).toBe('1 Kanal (Mono)');
+    expect(formatChannels(2)).toBe('2 Kanäle (Stereo)');
+    expect(formatChannels(6)).toBe('6 Kanäle');
+    expect(formatCoverDimensions(undefined, 600)).toBe('Nicht verfügbar');
+    expect(formatCoverDimensions(800, 600)).toBe('800 × 600 px');
   });
 
   test('formatCoverStatus maps internal states', () => {

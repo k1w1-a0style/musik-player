@@ -28,6 +28,7 @@ interface PressScaleProps {
   size?: number;
   primary?: boolean;
   accentColor?: string;
+  accentDarkColor?: string;
 }
 
 const PressScale: React.FC<PressScaleProps> = ({
@@ -39,6 +40,7 @@ const PressScale: React.FC<PressScaleProps> = ({
   size = 48,
   primary,
   accentColor,
+  accentDarkColor,
 }) => (
   <Pressable
     testID={testID}
@@ -54,9 +56,10 @@ const PressScale: React.FC<PressScaleProps> = ({
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: primary ? theme.palette.primary : theme.palette.surfaceElevated,
-        borderColor: primary ? theme.palette.primaryDark : accentColor ?? theme.palette.border,
+        backgroundColor: primary ? accentColor ?? theme.palette.primary : theme.palette.surfaceElevated,
+        borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : accentColor ?? theme.palette.border,
         borderWidth: accentColor ? 1.5 : 1,
+        shadowColor: primary ? accentColor ?? theme.palette.primary : theme.palette.backgroundDeep,
       },
       disabled && styles.disabled,
       primary && styles.primaryGlow,
@@ -66,7 +69,17 @@ const PressScale: React.FC<PressScaleProps> = ({
   </Pressable>
 );
 
-const Controls: React.FC = () => {
+interface ControlsProps {
+  accentColor?: string;
+  accentDarkColor?: string;
+  onAccentColor?: string;
+}
+
+const Controls: React.FC<ControlsProps> = ({
+  accentColor = theme.palette.primary,
+  accentDarkColor = theme.palette.primaryDark,
+  onAccentColor = theme.palette.text.onPrimary,
+}) => {
   const {
     isPlaying,
     isBuffering,
@@ -82,13 +95,13 @@ const Controls: React.FC = () => {
   } = useMusicContext();
 
   const repeatIcon = useMemo(() => {
-    const color = repeatMode === 'off' ? theme.palette.text.muted : theme.palette.primary;
+    const color = repeatMode === 'off' ? theme.palette.text.muted : accentColor;
     return repeatMode === 'one'
       ? <Repeat1 color={color} size={18} />
       : <Repeat color={color} size={18} />;
-  }, [repeatMode]);
+  }, [accentColor, repeatMode]);
 
-  const shuffleColor = shuffle ? theme.palette.primary : theme.palette.text.muted;
+  const shuffleColor = shuffle ? accentColor : theme.palette.text.muted;
   const canSkipNext = !!currentSong && playbackQueue.length > 1;
   const canSkipPrevious = !!currentSong;
 
@@ -99,7 +112,8 @@ const Controls: React.FC = () => {
         accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
         onPress={toggleShuffle}
         size={38}
-        accentColor={shuffle ? theme.palette.primary : theme.palette.border}
+        accentColor={shuffle ? accentColor : theme.palette.border}
+        accentDarkColor={accentDarkColor}
       >
         <Shuffle color={shuffleColor} size={18} />
       </PressScale>
@@ -121,11 +135,13 @@ const Controls: React.FC = () => {
         disabled={!currentSong || isBuffering}
         size={62}
         primary
+        accentColor={accentColor}
+        accentDarkColor={accentDarkColor}
       >
         {isPlaying ? (
-          <Pause color={theme.palette.text.onPrimary} size={27} fill={theme.palette.text.onPrimary} />
+          <Pause color={onAccentColor} size={27} fill={onAccentColor} />
         ) : (
-          <Play color={theme.palette.text.onPrimary} size={27} fill={theme.palette.text.onPrimary} />
+          <Play color={onAccentColor} size={27} fill={onAccentColor} />
         )}
       </PressScale>
 
@@ -144,7 +160,8 @@ const Controls: React.FC = () => {
         accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
         onPress={cycleRepeatMode}
         size={38}
-        accentColor={repeatMode !== 'off' ? theme.palette.primary : theme.palette.border}
+        accentColor={repeatMode !== 'off' ? accentColor : theme.palette.border}
+        accentDarkColor={accentDarkColor}
       >
         {repeatIcon}
       </PressScale>
@@ -166,7 +183,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryGlow: {
-    shadowColor: theme.palette.primary,
     shadowOpacity: 0.28,
     shadowRadius: 14,
     elevation: 8,

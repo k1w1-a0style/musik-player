@@ -12,6 +12,7 @@ const mockSongs = [
     title: 'Song',
     artist: 'Artist',
     album: 'Album',
+    albumArtist: 'Album Artist',
     duration: 245000,
     trackNumber: '3/12',
     discNumber: '1/2',
@@ -24,10 +25,21 @@ const mockSongs = [
       size: 1048576,
       mimeType: 'audio/mpeg',
     },
-    audioInfo: {},
+    audioInfo: {
+      codec: 'audio/mpeg',
+      durationMs: 245000,
+      bitrate: 320,
+      bitrateMode: 'vbr' as const,
+      sampleRate: 44100,
+      channels: 2,
+    },
     coverInfo: {
-      status: 'cached',
+      status: 'cached' as const,
       uri: 'file:///cover.jpg',
+      mimeType: 'image/jpeg',
+      byteLength: 2048,
+      width: 800,
+      height: 600,
     },
   },
   {
@@ -70,18 +82,26 @@ describe('TrackInfo', () => {
     const { getByText } = render(<TrackInfo />);
 
     expect(getByText(/Titel: Song/)).toBeTruthy();
+    expect(getByText(/Album-Künstler: Album Artist/)).toBeTruthy();
     expect(getByText(/Dateiname: song.mp3/)).toBeTruthy();
     expect(getByText(/Tracknummer: 3\/12/)).toBeTruthy();
     expect(getByText(/Discnummer: 1\/2/)).toBeTruthy();
     expect(getByText(/Kommentar: Kommentar/)).toBeTruthy();
   });
 
-  test('shows non-available for missing technical data and formats values', () => {
+  test('shows extended audio and cover technical data', () => {
     const { getByText } = render(<TrackInfo />);
 
     expect(getByText(/Dauer: 4:05/)).toBeTruthy();
     expect(getByText(/Dateigröße: 1.00 MB/)).toBeTruthy();
-    expect(getByText(/Codec: Nicht verfügbar/)).toBeTruthy();
+    expect(getByText(/Codec: audio\/mpeg/)).toBeTruthy();
+    expect(getByText(/Bitrate: 320 kbps/)).toBeTruthy();
+    expect(getByText(/Bitrate-Modus: VBR/)).toBeTruthy();
+    expect(getByText(/Sample Rate: 44.1 kHz/)).toBeTruthy();
+    expect(getByText(/Kanäle: 2 Kanäle \(Stereo\)/)).toBeTruthy();
+    expect(getByText(/Cover-MIME-Type: image\/jpeg/)).toBeTruthy();
+    expect(getByText(/Cover-Dateigröße: 2.00 KB/)).toBeTruthy();
+    expect(getByText(/Cover-Abmessungen: 800 × 600 px/)).toBeTruthy();
   });
 
   test('shows mime type when available', () => {
@@ -92,9 +112,11 @@ describe('TrackInfo', () => {
 
   test('shows not available mime when missing', () => {
     mockRouteSongId = '2';
-    const { getByText } = render(<TrackInfo />);
+    const { getAllByText, getByText } = render(<TrackInfo />);
 
-    expect(getByText(/MIME-Type: Nicht verfügbar/)).toBeTruthy();
+    expect(getAllByText(/MIME-Type: Nicht verfügbar/).length).toBe(2);
+    expect(getByText(/Bitrate-Modus: Nicht verfügbar/)).toBeTruthy();
+    expect(getByText(/Cover-Abmessungen: Nicht verfügbar/)).toBeTruthy();
   });
 
   test('cover fallback on image error', () => {
@@ -104,7 +126,6 @@ describe('TrackInfo', () => {
 
     expect(getByText(/Cover-Typ: Gecachtes Cover/)).toBeTruthy();
   });
-
 
   test('navigates to tag editor', () => {
     const { getByLabelText, getByText } = render(<TrackInfo />);

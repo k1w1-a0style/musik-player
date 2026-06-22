@@ -26,6 +26,7 @@ const baseProps: LibraryScreenContentProps = {
     onAddFolder: fn,
     onShowFolders: fn,
     onOpenSettings: fn,
+    onOpenEqualizer: fn,
   },
   searchBarProps: {
     autoFocus: true,
@@ -55,6 +56,10 @@ const baseProps: LibraryScreenContentProps = {
     scanFolders: [],
     songKeyExtractor: (item: { id: string }) => item.id,
     songsForActiveList: [],
+    sortMode: 'alphabet',
+    onCycleSortMode: fn,
+    songViewMode: 'list',
+    onCycleSongViewMode: fn,
   },
   tabsProps: {
     activeTab: 'tracks' as const,

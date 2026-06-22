@@ -1,5 +1,4 @@
 import React from 'react';
-import { Image } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
 
@@ -62,6 +61,19 @@ jest.mock('../../contexts/PlaybackProgressContext', () => ({
   usePlaybackProgress: () => ({ position: 0, duration: 100 }),
 }));
 
+jest.mock('../../hooks/useSongWaveform', () => ({
+  useSongWaveform: () => ({
+    waveform: {
+      source: 'fallback',
+      sourceKey: 'test-waveform',
+      durationMs: 100,
+      points: [0.1, 0.4, 0.8],
+    },
+    sourceKey: 'test-waveform',
+    loadingNative: false,
+  }),
+}));
+
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
@@ -73,6 +85,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('../../components/Controls', () => () => null);
 jest.mock('../../components/ProgressBar', () => () => null);
+jest.mock('../../components/WaveformScrubber', () => () => null);
 jest.mock('../../components/VolumeSlider', () => () => null);
 jest.mock('../../components/GlassCard', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
 jest.mock('../../components/Screen', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
@@ -107,11 +120,20 @@ describe('NowPlaying cover fallback', () => {
     view.unmount();
   });
 
-  test('hides broken cover image after error', () => {
-    const { UNSAFE_getByType, UNSAFE_queryByType } = render(<NowPlaying />);
-    const img = UNSAFE_getByType(Image);
-    fireEvent(img, 'error');
-    expect(UNSAFE_queryByType(Image)).toBeNull();
+  test('renders split snap panels and blurred cover backdrop for phase 5', () => {
+    const { getByTestId } = render(<NowPlaying />);
+    expect(getByTestId('now-playing-snap-pager')).toBeTruthy();
+    expect(getByTestId('now-playing-player-panel')).toBeTruthy();
+    expect(getByTestId('now-playing-details-panel')).toBeTruthy();
+    expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
+  });
+
+  test('hides broken primary cover image after error while keeping the backdrop separate', () => {
+    const { getByTestId, queryByTestId } = render(<NowPlaying />);
+    fireEvent(getByTestId('now-playing-cover-image'), 'error');
+    expect(queryByTestId('now-playing-cover-image')).toBeNull();
+    expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
+    expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
   });
 
   test('favorite button shows correct label and checked state when track is already a favorite', async () => {

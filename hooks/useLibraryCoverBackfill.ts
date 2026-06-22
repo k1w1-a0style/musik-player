@@ -4,6 +4,7 @@ import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../utils/songCoverBackfill';
 import { createCoverCacheProtection, type CoverCacheProtection } from '../utils/coverCacheCleanup';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
@@ -104,6 +105,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   const pendingProtectionsRef = useRef<PendingCoverProtection[]>([]);
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
+  const metadataRefreshActive = useMetadataRefreshActive();
 
   latestSongsRef.current = songs;
 
@@ -119,6 +121,8 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   }, []);
 
   useEffect(() => {
+    // Pause while a user-triggered manual metadata refresh runs exclusively.
+    if (metadataRefreshActive) return undefined;
     const candidates = songs.filter(song => needsEmbeddedCoverBackfill(song) && !attemptedRef.current.has(buildCoverBackfillAttemptKey(song)));
     if (candidates.length === 0) return undefined;
 
@@ -236,5 +240,5 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
     return () => {
       controller.abort();
     };
-  }, [songs, applySongMetadataPatches]);
+  }, [songs, applySongMetadataPatches, metadataRefreshActive]);
 };

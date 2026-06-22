@@ -1,6 +1,32 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import ProgressBar, { clampPlaybackProgressValues } from '../ProgressBar';
+import ProgressBar, { clampPlaybackProgressValues, clampRatio, resolveDragRatio, ratioToMillis } from '../ProgressBar';
+
+describe('ProgressBar drag-scrub math', () => {
+  test('clampRatio keeps values within 0..1 and guards invalid input', () => {
+    expect(clampRatio(-0.5)).toBe(0);
+    expect(clampRatio(0.42)).toBe(0.42);
+    expect(clampRatio(1.5)).toBe(1);
+    expect(clampRatio(Number.NaN)).toBe(0);
+  });
+
+  test('resolveDragRatio offsets the start ratio by the horizontal drag distance', () => {
+    expect(resolveDragRatio(0.25, 100, 200)).toBeCloseTo(0.75);
+    expect(resolveDragRatio(0.8, 100, 200)).toBe(1);
+    expect(resolveDragRatio(0.2, -100, 200)).toBeCloseTo(0);
+  });
+
+  test('resolveDragRatio falls back to the clamped start ratio for invalid widths', () => {
+    expect(resolveDragRatio(0.5, 50, 0)).toBe(0.5);
+    expect(resolveDragRatio(1.5, 50, Number.NaN)).toBe(1);
+  });
+
+  test('ratioToMillis maps a ratio onto the track duration', () => {
+    expect(ratioToMillis(0.5, 60_000)).toBe(30_000);
+    expect(ratioToMillis(1.2, 60_000)).toBe(60_000);
+    expect(ratioToMillis(0.5, Number.NaN)).toBe(0);
+  });
+});
 
 describe('ProgressBar playback value guards', () => {
   test('clamps invalid position and duration values to stable display values', () => {

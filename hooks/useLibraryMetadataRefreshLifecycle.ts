@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { OperationAbortError, throwIfAborted } from '../utils/withTimeout';
+import { markMetadataRefreshCancelling } from '../utils/metadataRefreshOperation';
 import type { MetadataRefreshGeneration } from './libraryMetadataRefreshActionTypes';
 
 interface UseLibraryMetadataRefreshLifecycleOptions {
@@ -12,6 +13,8 @@ interface UseLibraryMetadataRefreshLifecycleResult {
   isCurrentRefresh: (generation: MetadataRefreshGeneration) => boolean;
   ensureCurrentRefresh: (generation: MetadataRefreshGeneration) => void;
   finishRefresh: (generation: MetadataRefreshGeneration) => void;
+  cancelRefresh: () => boolean;
+  isRefreshActive: () => boolean;
 }
 
 export const useLibraryMetadataRefreshLifecycle = ({
@@ -48,5 +51,17 @@ export const useLibraryMetadataRefreshLifecycle = ({
     setImportStatus(null);
   }, [setImportStatus, setLoading]);
 
-  return { startRefresh, isCurrentRefresh, ensureCurrentRefresh, finishRefresh };
+  // Visible cancel button: aborts the active controller cleanly so the runner
+  // returns its partial progress and the operation store advances to "cancelled".
+  const cancelRefresh = useCallback((): boolean => {
+    const active = activeRefreshRef.current;
+    if (!active || active.controller.signal.aborted) return false;
+    markMetadataRefreshCancelling();
+    active.controller.abort(new OperationAbortError('Metadata refresh cancelled by user'));
+    return true;
+  }, []);
+
+  const isRefreshActive = useCallback((): boolean => activeRefreshRef.current !== null, []);
+
+  return { startRefresh, isCurrentRefresh, ensureCurrentRefresh, finishRefresh, cancelRefresh, isRefreshActive };
 };

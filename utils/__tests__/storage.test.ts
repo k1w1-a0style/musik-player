@@ -1890,4 +1890,39 @@ describe('storage', () => {
     await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing']);
     await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
   });
+
+  test('persists and reads the library sort mode with a safe default', async () => {
+    await expect(storage.getLibrarySortMode()).resolves.toBe('alphabet');
+
+    await storage.setLibrarySortMode('year');
+    await expect(storage.getLibrarySortMode()).resolves.toBe('year');
+
+    await storage.setLibrarySortMode('trackNumber');
+    await expect(storage.getLibrarySortMode()).resolves.toBe('trackNumber');
+  });
+
+  test('falls back to the default sort mode for invalid stored values', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.LIBRARY_SORT_MODE), JSON.stringify('bogus'));
+    await expect(storage.getLibrarySortMode()).resolves.toBe('alphabet');
+  });
+
+  test('persists and reads the library song view mode with a safe default', async () => {
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('list');
+
+    await storage.setLibrarySongViewMode('gridSmall');
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('gridSmall');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.LIBRARY_SONG_VIEW_MODE), JSON.stringify('bogus'));
+    await expect(storage.getLibrarySongViewMode()).resolves.toBe('list');
+  });
+
+  test('persists and reads the album view mode with a safe default', async () => {
+    await expect(storage.getAlbumViewMode()).resolves.toBe('grid');
+
+    await storage.setAlbumViewMode('list');
+    await expect(storage.getAlbumViewMode()).resolves.toBe('list');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.ALBUM_VIEW_MODE), JSON.stringify('bogus'));
+    await expect(storage.getAlbumViewMode()).resolves.toBe('grid');
+  });
 });
