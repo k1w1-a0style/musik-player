@@ -4,6 +4,14 @@ import type { Song } from '../types/Song';
 import { asPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
+interface NativeTrackSnapshot {
+  id?: string | number;
+}
+
+interface TrackPlayerQueueReader {
+  getQueue?: () => Promise<NativeTrackSnapshot[]>;
+}
+
 const safeDecode = (value: string): string => {
   try {
     return decodeURIComponent(value);
@@ -120,6 +128,12 @@ export const patchSongRefs = (
   });
 };
 
+const getNativeQueueSnapshot = async (): Promise<NativeTrackSnapshot[] | null> => {
+  const reader = TrackPlayer as typeof TrackPlayer & TrackPlayerQueueReader;
+  if (typeof reader.getQueue !== 'function') return null;
+  return reader.getQueue();
+};
+
 export const updateNativeMetadataForSong = (
   songId: string,
   nativeQueueRef: MutableRefObject<Song[]>,
@@ -144,10 +158,10 @@ export const updateNativeMetadataForSong = (
 
   void (async () => {
     try {
-      const nativeQueue = await TrackPlayer.getQueue();
-      const nativeTrack = nativeQueue[queueIndex];
+      const nativeQueue = await getNativeQueueSnapshot();
+      const nativeTrack = nativeQueue?.[queueIndex];
       const nativeTrackId = normalizeSongIdForLibrary(String(nativeTrack?.id ?? ''));
-      if (!nativeTrack || nativeTrackId !== targetSongId) {
+      if (nativeQueue && (!nativeTrack || nativeTrackId !== targetSongId)) {
         console.warn('[TrackPlayer] Skipping stale native metadata update.', {
           songId: targetSongId,
           queueIndex,
