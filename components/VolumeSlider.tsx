@@ -13,13 +13,20 @@ import { theme } from '../theme';
 interface Props {
   volume: number;
   onVolumeChange: (v: number) => void;
+  accentColor?: string;
+  inactiveColor?: string;
 }
 
 const clampVolume = (value: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
 const ACCESSIBILITY_VOLUME_STEP = 0.1;
 
-const VolumeSlider: React.FC<Props> = ({ volume, onVolumeChange }) => {
+const VolumeSlider: React.FC<Props> = ({
+  volume,
+  onVolumeChange,
+  accentColor = theme.palette.primary,
+  inactiveColor = theme.palette.border,
+}) => {
   const [trackWidth, setTrackWidth] = useState(1);
 
   const applyFromTouch = useCallback((event: GestureResponderEvent) => {
@@ -52,7 +59,7 @@ const VolumeSlider: React.FC<Props> = ({ volume, onVolumeChange }) => {
         {volume <= 0.01 ? (
           <VolumeX color={theme.palette.text.muted} size={18} />
         ) : (
-          <Volume2 color={theme.palette.primary} size={18} />
+          <Volume2 color={accentColor} size={18} />
         )}
         <View
           testID="volume-slider"
@@ -68,9 +75,9 @@ const VolumeSlider: React.FC<Props> = ({ volume, onVolumeChange }) => {
           onResponderGrant={applyFromTouch}
           onResponderMove={applyFromTouch}
         >
-          <View style={styles.track}>
-            <View style={[styles.trackActive, { width: `${percent}%` }]} />
-            <View style={[styles.thumb, { left: `${percent}%` }]} />
+          <View style={[styles.track, { backgroundColor: inactiveColor }]}>
+            <View style={[styles.trackActive, { width: `${percent}%`, backgroundColor: accentColor }]} />
+            <View style={[styles.thumb, { left: `${percent}%`, backgroundColor: accentColor }]} />
           </View>
         </View>
         <Text style={styles.value}>{percent}%</Text>
@@ -97,13 +104,11 @@ const styles = StyleSheet.create({
   track: {
     height: 5,
     borderRadius: 999,
-    backgroundColor: theme.palette.border,
     overflow: 'visible',
   },
   trackActive: {
     height: 5,
     borderRadius: 999,
-    backgroundColor: theme.palette.primary,
   },
   thumb: {
     position: 'absolute',
@@ -112,7 +117,6 @@ const styles = StyleSheet.create({
     height: 19,
     marginLeft: -9.5,
     borderRadius: 10,
-    backgroundColor: theme.palette.primary,
   },
   value: {
     color: theme.palette.text.secondary,
