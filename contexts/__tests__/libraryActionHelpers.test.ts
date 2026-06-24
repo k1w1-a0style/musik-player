@@ -28,9 +28,12 @@ const song = (id: string, uri?: string, fileUri?: string): Song => ({
 
 const createSongRef = (current: Song[] = []) => ({ current });
 const flushPromises = async () => Promise.resolve();
+const mockedTrackPlayer = TrackPlayer as typeof TrackPlayer & {
+  getQueue: jest.Mock;
+};
 
 const mockNativeQueue = (ids: string[]) => {
-  (TrackPlayer.getQueue as jest.Mock).mockResolvedValueOnce(ids.map(id => ({ id })));
+  mockedTrackPlayer.getQueue.mockResolvedValueOnce(ids.map(id => ({ id })));
 };
 
 describe('libraryActionHelpers', () => {
