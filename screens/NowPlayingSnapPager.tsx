@@ -28,6 +28,8 @@ interface SnapPage {
   render: () => React.ReactNode;
 }
 
+const clampPageIndex = (index: number): number => Math.max(0, Math.min(PAGE_ORDER.length - 1, index));
+
 const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
   pageHeight,
   renderPlayerPage,
@@ -44,15 +46,16 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
     { id: 'details', render: renderDetailsPage },
   ]), [renderPlayerPage, renderDetailsPage]);
 
+  const snapOffsets = useMemo(() => PAGE_ORDER.map((_, index) => index * pageHeight), [pageHeight]);
+
   const getItemLayout = useCallback((_: ArrayLike<SnapPage> | null | undefined, index: number) => ({
     length: pageHeight,
     offset: pageHeight * index,
     index,
   }), [pageHeight]);
 
-  const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / Math.max(1, pageHeight));
+  const setPageFromOffset = useCallback((offsetY: number) => {
+    const index = clampPageIndex(Math.round(offsetY / Math.max(1, pageHeight)));
     const nextPage = PAGE_ORDER[index] ?? 'player';
     if (nextPage !== activePage) {
       setActivePage(nextPage);
@@ -60,11 +63,20 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
     }
   }, [activePage, onPageChange, pageHeight]);
 
+  const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    setPageFromOffset(event.nativeEvent.contentOffset.y);
+  }, [setPageFromOffset]);
+
+  const handleScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = clampPageIndex(Math.round(event.nativeEvent.contentOffset.y / Math.max(1, pageHeight)));
+    listRef.current?.scrollToOffset({ offset: index * pageHeight, animated: true });
+  }, [pageHeight]);
+
   const goToPage = useCallback((target: NowPlayingPageId) => {
     const index = PAGE_ORDER.indexOf(target);
     if (index < 0) return;
-    listRef.current?.scrollToIndex({ index, animated: true });
-  }, []);
+    listRef.current?.scrollToOffset({ offset: index * pageHeight, animated: true });
+  }, [pageHeight]);
 
   const renderItem = useCallback<ListRenderItem<SnapPage>>(({ item }) => (
     <View style={{ height: pageHeight, width: '100%' }} testID={`now-playing-page-${item.id}`}>
@@ -81,11 +93,15 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         pagingEnabled
-        snapToInterval={pageHeight}
+        snapToOffsets={snapOffsets}
         snapToAlignment="start"
         decelerationRate="fast"
+        disableIntervalMomentum
+        bounces={false}
+        overScrollMode="never"
         getItemLayout={getItemLayout}
         onMomentumScrollEnd={handleMomentumScrollEnd}
+        onScrollEndDrag={handleScrollEndDrag}
         initialScrollIndex={PAGE_ORDER.indexOf(initialPage)}
       />
       <View pointerEvents="box-none" style={styles.indicatorWrap} testID="now-playing-snap-indicator">
