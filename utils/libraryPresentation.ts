@@ -60,10 +60,7 @@ export const getDisplayArtistName = (value?: string | null): string => normalize
 
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
 
-export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
-  const albumKey = normalizeAlbumName(song.album);
-  return `album:${albumKey}`;
-};
+export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => `album:${normalizeAlbumName(song.album)}`;
 
 const normalizedSongUriKey = (song: Song): string | null => {
   const rawUri = song.fileInfo?.uri ?? song.uri;
@@ -129,7 +126,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
     genre: preferText(incomingSong.genre, previousSong.genre),
     year: preferText(incomingSong.year, previousSong.year),
     trackNumber: preferText(incomingSong.trackNumber, previousSong.trackNumber),
-    discNumber: preferText(incomingSong.discNumber, previousSong.disNumber),
+    discNumber: preferText(incomingSong.discNumber, previousSong.discNumber),
     duration: preferNumber(incomingSong.duration, previousSong.duration),
     fileInfo: {
       ...previousSong.fileInfo,
@@ -207,24 +204,6 @@ export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[]
   return Array.from(new Set(byKey.values())).sort(byTitle);
 };
 
-export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
-  const grouped = new Map<string, Song[]>();
-  const titles = new Map<string, string>();
-  for (const song of songs) {
-    const key = kind === 'album' ? buildAlbumKey(song) : kind === 'artist' ? buildArtistKey(song.artist) : `genre:${normalizeLibraryKeyPart(displayGenre(song), UNKNOWN_GENRE_KEY)}`;
-    const title = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
-    titles.set(key, titles.get(key) ?? title);
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.push(song);
-    } else {
-      grouped.set(key, [song]);
-    }
-  }
-
-  return groupsFromMap(kind, grouped, titles);
-};
-
 const buildAlbumArtistSummary = (sortedSongs: Song[]): string => {
   const artists = Array.from(new Set(sortedSongs.map(displayArtist).filter(artist => artist !== UNKNOWN_ARTIST_LABEL)));
   if (artists.length === 0) return UNKNOWN_ARTIST_LABEL;
@@ -252,6 +231,21 @@ const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, tit
       };
     })
     .sort(byGroupTitle);
+
+export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
+  const grouped = new Map<string, Song[]>();
+  const titles = new Map<string, string>();
+  for (const song of songs) {
+    const key = kind === 'album' ? buildAlbumKey(song) : kind === 'artist' ? buildArtistKey(song.artist) : `genre:${normalizeLibraryKeyPart(displayGenre(song), UNKNOWN_GENRE_KEY)}`;
+    const title = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
+    titles.set(key, titles.get(key) ?? title);
+    const existing = grouped.get(key);
+    if (existing) existing.push(song);
+    else grouped.set(key, [song]);
+  }
+
+  return groupsFromMap(kind, grouped, titles);
+};
 
 export const buildLibraryGroups = (songs: Song[]): {
   albumGroups: LibraryGroupItem[];
