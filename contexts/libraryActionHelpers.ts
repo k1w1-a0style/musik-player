@@ -20,6 +20,8 @@ const safeDecode = (value: string): string => {
   }
 };
 
+const normalizePathSeparators = (value: string): string => value.replaceAll(String.fromCharCode(92), '/');
+
 export const normalizeSongIdForLibrary = (songId?: string): string | undefined => {
   const trimmed = songId?.trim();
   return trimmed || undefined;
@@ -29,7 +31,7 @@ export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) return undefined;
   const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
-  return safeDecode(withoutQuery).replace(/\/g, '/').replace(/\/+$/, '') || undefined;
+  return normalizePathSeparators(safeDecode(withoutQuery)).replace(/\/+$/, '') || undefined;
 };
 
 const normalizeValidSongIds = (validSongIds: Set<string>): Set<string> => {
