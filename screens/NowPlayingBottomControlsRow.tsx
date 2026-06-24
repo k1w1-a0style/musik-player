@@ -10,6 +10,7 @@ interface NowPlayingBottomControlsRowProps {
   onVolumeChange: (value: number) => Promise<void>;
   bottomInset: number;
   onOpenTrackInfo: () => void;
+  accentColor: string;
 }
 
 const NowPlayingBottomControlsRow = React.memo(({
@@ -17,11 +18,12 @@ const NowPlayingBottomControlsRow = React.memo(({
   onVolumeChange,
   bottomInset,
   onOpenTrackInfo,
+  accentColor,
 }: NowPlayingBottomControlsRowProps) => (
   <View style={[styles.bottomRow, { paddingBottom: Math.max(28, bottomInset + 24) }]}>
     <View style={styles.bottomSpacer} />
     <GlassCard style={styles.glassRow} intensity={theme.blur.medium}>
-      <VolumeSlider volume={volume} onVolumeChange={onVolumeChange} />
+      <VolumeSlider volume={volume} onVolumeChange={onVolumeChange} accentColor={accentColor} />
     </GlassCard>
     <Pressable onPress={onOpenTrackInfo} style={styles.bottomBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Titelinformationen öffnen">
       <Disc3 color={theme.palette.text.muted} size={20} />
