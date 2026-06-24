@@ -27,7 +27,7 @@ interface SongWithOptionalAlbumArtist extends Pick<Song, 'album' | 'artist' | 'f
 
 const basename = (value?: string): string => {
   if (!value) return '';
-  const cleaned = value.replace(/\\/g, '/').replace(/\/+$/, '');
+  const cleaned = value.replace(/\/g, '/').replace(/\/+$/, '');
   return cleaned.split('/').filter(Boolean).pop() ?? cleaned;
 };
 
@@ -58,14 +58,11 @@ export const getDisplayAlbumName = (value?: string | null): string => normalizeL
 
 export const getDisplayArtistName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ARTIST_LABEL;
 
-const getAlbumArtistSource = (song: SongWithOptionalAlbumArtist): string | undefined => song.albumArtist ?? song.artist;
-
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
 
 export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
   const albumKey = normalizeAlbumName(song.album);
-  const artistKey = normalizeArtistName(getAlbumArtistSource(song));
-  return `album:${artistKey}:${albumKey}`;
+  return `album:${albumKey}`;
 };
 
 const normalizedSongUriKey = (song: Song): string | null => {
@@ -74,7 +71,7 @@ const normalizedSongUriKey = (song: Song): string | null => {
   const normalized = decodeUriSafely(rawUri)
     .trim()
     .toLowerCase()
-    .replace(/\\/g, '/')
+    .replace(/\/g, '/')
     .replace(/^file:\/\/+/i, '')
     .replace(/^content:\/\/+/i, '')
     .replace(/\?.*$/, '')
@@ -102,7 +99,7 @@ export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' 
     const normalizedUri = decodeUriSafely(rawUri)
       .trim()
       .toLocaleLowerCase('de-DE')
-      .replace(/\\/g, '/')
+      .replace(/\/g, '/')
       .replace(/\?.*$/, '')
       .replace(/#+.*$/, '');
     if (normalizedUri) return `song-uri:${normalizedUri}`;
@@ -113,7 +110,6 @@ export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' 
   const durationKey = Number.isFinite(song.duration) ? String(song.duration) : 'unknown-duration';
   return `song-meta:${artistKey}:${titleKey}:${durationKey}`;
 };
-
 
 const hasNonEmptyText = (value?: string | null): value is string => Boolean(value?.trim());
 const hasUsableNumber = (value?: number | null): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -133,7 +129,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
     genre: preferText(incomingSong.genre, previousSong.genre),
     year: preferText(incomingSong.year, previousSong.year),
     trackNumber: preferText(incomingSong.trackNumber, previousSong.trackNumber),
-    discNumber: preferText(incomingSong.discNumber, previousSong.discNumber),
+    discNumber: preferText(incomingSong.discNumber, previousSong.disNumber),
     duration: preferNumber(incomingSong.duration, previousSong.duration),
     fileInfo: {
       ...previousSong.fileInfo,
@@ -229,11 +225,17 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
   return groupsFromMap(kind, grouped, titles);
 };
 
+const buildAlbumArtistSummary = (sortedSongs: Song[]): string => {
+  const artists = Array.from(new Set(sortedSongs.map(displayArtist).filter(artist => artist !== UNKNOWN_ARTIST_LABEL)));
+  if (artists.length === 0) return UNKNOWN_ARTIST_LABEL;
+  if (artists.length <= 2) return artists.join(', ');
+  return `${artists.slice(0, 2).join(', ')} + ${artists.length - 2}`;
+};
+
 const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string => {
   const trackCount = `${sortedSongs.length} Titel`;
   if (kind !== 'album') return trackCount;
-  const artist = displayArtist(sortedSongs[0]);
-  return `${artist} • ${trackCount}`;
+  return `${buildAlbumArtistSummary(sortedSongs)} • ${trackCount}`;
 };
 
 const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, titles: Map<string, string>): LibraryGroupItem[] =>
