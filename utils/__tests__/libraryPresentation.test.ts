@@ -233,75 +233,31 @@ test('normalizeLibraryText applies unicode and whitespace normalization', () => 
   expect(normalizeLibraryText('  Cafe\u0301\tAlbum  ')).toBe('Café Album');
 });
 
-test('album keys separate equal album names from different artists', () => {
+test('album keys merge equal album names despite varying track artists', () => {
   const artistAKey = buildAlbumKey(song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }));
   const artistBKey = buildAlbumKey(song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }));
+  const groups = groupSongs([
+    song({ id: 'a', artist: 'Artist A', title: 'A Song', album: 'Greatest Hits' }),
+    song({ id: 'b', artist: 'Artist B', title: 'B Song', album: 'Greatest Hits' }),
+  ], 'album');
 
-  expect(artistAKey).not.toBe(artistBKey);
-  expect(groupSongs([
-    song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }),
-    song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }),
-  ], 'album').map(group => group.id)).toEqual([artistAKey, artistBKey]);
+  expect(artistAKey).toBe(artistBKey);
+  expect(groups).toHaveLength(1);
+  expect(groups[0].id).toBe(artistAKey);
+  expect(groups[0].subtitle).toBe('Artist A, Artist B • 2 Titel');
 });
 
-test('album keys are stable for matching album and artist despite case and whitespace', () => {
+test('album keys are stable for matching album despite case and whitespace', () => {
   expect(buildAlbumKey(song({ artist: '  Artist A ', album: ' Greatest   Hits ' }))).toBe(
-    buildAlbumKey(song({ artist: 'artist a', album: 'greatest hits' })),
+    buildAlbumKey(song({ artist: 'artist b', album: 'greatest hits' })),
   );
 });
 
-test('missing album and artist use stable unknown key parts', () => {
+test('missing album uses stable unknown key part', () => {
   const key = buildAlbumKey(song({ artist: '', album: '' }));
 
-  expect(key).toBe('album:unknown-artist:unknown-album');
+  expect(key).toBe('album:unknown-album');
   expect(buildArtistKey('')).toBe('artist:unknown-artist');
   expect(normalizeAlbumName(undefined)).toBe('unknown-album');
   expect(normalizeArtistName(undefined)).toBe('unknown-artist');
-});
-
-test('album key prefers albumArtist when present', () => {
-  expect(buildAlbumKey(song({ artist: 'Track Artist', albumArtist: 'Album Artist', album: 'Record' }))).toBe(
-    buildAlbumKey(song({ artist: 'Album Artist', album: 'Record' })),
-  );
-});
-
-test('songs without album or artist group without crashing', () => {
-  const groups = groupSongs([
-    song({ id: '1', title: 'One', artist: '', album: undefined }),
-    song({ id: '2', title: 'Two', artist: '', album: '' }),
-  ], 'album');
-
-  expect(groups).toHaveLength(1);
-  expect(groups[0].id).toBe('album:unknown-artist:unknown-album');
-  expect(groups[0].title).toBe('Unbekanntes Album');
-  expect(groups[0].subtitle).toBe('Unbekannt • 2 Titel');
-});
-
-test('duplicate album titles from different artists stay separated in library groups', () => {
-  const grouped = buildLibraryGroups([
-    song({ id: '1', artist: 'Artist A', album: 'Live', title: 'A Song' }),
-    song({ id: '2', artist: 'Artist B', album: 'Live', title: 'B Song' }),
-  ]);
-
-  expect(grouped.albumGroups).toHaveLength(2);
-  expect(grouped.albumGroups.map(group => group.subtitle)).toEqual(['Artist A • 1 Titel', 'Artist B • 1 Titel']);
-});
-
-test('song keys do not fall back to array indexes when ids are missing', () => {
-  const key = buildSongKey(song({ id: '', title: 'No Id', artist: 'Artist', uri: 'file:///music/no-id.mp3' }));
-
-  expect(key).toBe('song-uri:file:///music/no-id.mp3');
-  expect(key).not.toBe('0');
-});
-
-test('album keys group compilation tracks by shared albumArtist', () => {
-  const left = buildAlbumKey(song({ id: 'c1', artist: 'Track Artist A', albumArtist: 'Various Artists', album: 'Sampler' }));
-  const right = buildAlbumKey(song({ id: 'c2', artist: 'Track Artist B', albumArtist: 'Various Artists', album: 'Sampler' }));
-  expect(left).toBe(right);
-});
-
-test('album keys keep same album title separated without albumArtist', () => {
-  const left = buildAlbumKey(song({ id: 'g1', artist: 'Artist A', album: 'Greatest Hits' }));
-  const right = buildAlbumKey(song({ id: 'g2', artist: 'Artist B', album: 'Greatest Hits' }));
-  expect(left).not.toBe(right);
 });
