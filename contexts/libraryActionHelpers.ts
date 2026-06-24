@@ -21,7 +21,7 @@ export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) return undefined;
   const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
-  return safeDecode(withoutQuery).replace(/\\/g, '/').replace(/\/+$/, '') || undefined;
+  return safeDecode(withoutQuery).replace(/\/g, '/').replace(/\/+$/, '') || undefined;
 };
 
 const normalizeValidSongIds = (validSongIds: Set<string>): Set<string> => {
@@ -98,7 +98,6 @@ export const syncSongRefsToLibrary = (
   });
 };
 
-
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song => {
   const targetSongId = normalizeSongIdForLibrary(songId);
   const currentSongId = normalizeSongIdForLibrary(song.id);
@@ -142,13 +141,28 @@ export const updateNativeMetadataForSong = (
     });
     return;
   }
-  void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong)).catch(
-    error => {
+
+  void (async () => {
+    try {
+      const nativeQueue = await TrackPlayer.getQueue();
+      const nativeTrack = nativeQueue[queueIndex];
+      const nativeTrackId = normalizeSongIdForLibrary(String(nativeTrack?.id ?? ''));
+      if (!nativeTrack || nativeTrackId !== targetSongId) {
+        console.warn('[TrackPlayer] Skipping stale native metadata update.', {
+          songId: targetSongId,
+          queueIndex,
+          nativeQueueLength: nativeQueue.length,
+          nativeTrackId,
+        });
+        return;
+      }
+      await TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong));
+    } catch (error) {
       console.warn('[TrackPlayer] Failed to update native track metadata.', {
         songId: targetSongId,
         queueIndex,
         error,
       });
-    },
-  );
+    }
+  })();
 };
