@@ -1,4 +1,4 @@
-export const WAVEFORM_VERSION = 1;
+export const WAVEFORM_VERSION = 2;
 export const DEFAULT_WAVEFORM_POINT_COUNT = 72;
 
 export type WaveformSource = 'fallback' | 'native';
