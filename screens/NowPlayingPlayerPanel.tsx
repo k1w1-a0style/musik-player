@@ -50,7 +50,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onOpenTrackInfo,
 }) => (
   <View style={styles.playerPage} testID="now-playing-player-panel">
-    <View style={[styles.coverArea, { height: coverAreaHeight }]}>
+    <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
         song={currentSong}
         artworkUri={artworkUri}
@@ -82,6 +82,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
       onVolumeChange={onVolumeChange}
       bottomInset={bottomInset}
       onOpenTrackInfo={onOpenTrackInfo}
+      accentColor={progressAccent}
     />
   </View>
 );

@@ -55,28 +55,28 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         <Text style={styles.queueEyebrow}>WARTESCHLANGE</Text>
         <Text style={styles.queueCount}>{queue.length} Titel</Text>
       </View>
-      {canShiftQueue ? <Text style={styles.queueHint}>Reihenfolge per langem Drücken und Ziehen bearbeiten.</Text> : null}
       <FlatList
         data={queue}
         keyExtractor={buildSongKey}
         renderItem={renderQueueItem}
         nestedScrollEnabled
-        scrollEnabled={!canShiftQueue || queue.length > 4}
-        showsVerticalScrollIndicator={queue.length > 3}
+        scrollEnabled
+        showsVerticalScrollIndicator={queue.length > 8}
         getItemLayout={getQueueItemLayout}
         style={styles.queueList}
+        contentContainerStyle={styles.queueListContent}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  queueCard: { marginHorizontal: 16, marginTop: 4, padding: 12, borderRadius: theme.radii.card, backgroundColor: theme.palette.surfaceGlass, borderWidth: 1, borderColor: theme.palette.border },
+  queueCard: { flex: 1, marginHorizontal: 16, marginTop: 4, padding: 12, borderRadius: theme.radii.card, backgroundColor: theme.palette.surfaceGlass, borderWidth: 1, borderColor: theme.palette.border },
   queueHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   queueEyebrow: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 11, letterSpacing: 1.4 },
   queueCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11 },
-  queueHint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 10, marginBottom: 6 },
-  queueList: { maxHeight: QUEUE_ROW_HEIGHT * 4.4 },
+  queueList: { flex: 1 },
+  queueListContent: { paddingBottom: 10 },
 });
 
 export default NowPlayingQueueCard;

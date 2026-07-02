@@ -221,6 +221,8 @@ describe('useLibraryActions', () => {
   });
 
   test('cover metadata updates propagate to library, current song, queues, refs, and native metadata without reordering', async () => {
+    (TrackPlayer.getQueue as jest.Mock).mockResolvedValue([songs[0], songs[1]]);
+
     const { getByTestId } = render(
       <LibraryProbe
         initialSongs={songs}
@@ -245,7 +247,7 @@ describe('useLibraryActions', () => {
     expect(getByTestId('base-queue-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
     expect(getByTestId('native-ref').props.children).toBe('s1,s2');
     expect(getByTestId('native-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({ artwork: 'file:///cover-s1.jpg' }));
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(TrackPlayer.add).not.toHaveBeenCalled();
@@ -253,6 +255,8 @@ describe('useLibraryActions', () => {
 
 
   test('bulk cover metadata patches once and only updates native metadata for affected queued songs', async () => {
+    (TrackPlayer.getQueue as jest.Mock).mockResolvedValue([songs[0], songs[1]]);
+
     const { getByTestId } = render(
       <LibraryProbe
         initialSongs={songs}
@@ -278,7 +282,7 @@ describe('useLibraryActions', () => {
     expect(getByTestId('native-ref-covers').props.children).toBe('file:///cover-s1.jpg,');
     expect(getByTestId('songs-commits').props.children).toBe(1);
     expect(getByTestId('playback-queue-commits').props.children).toBe(1);
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({ artwork: 'file:///cover-s1.jpg' }));
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(TrackPlayer.add).not.toHaveBeenCalled();

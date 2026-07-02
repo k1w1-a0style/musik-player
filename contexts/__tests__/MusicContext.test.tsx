@@ -313,7 +313,7 @@ describe('MusicContext', () => {
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
     fireEvent.press(getByTestId('metadata-s2'));
     await waitFor(() => expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited'));
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalled();
+    await waitFor(() => expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalled());
   });
 
   test('updateSongMetadata preserves rich tag fields', async () => {

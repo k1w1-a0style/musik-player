@@ -22,12 +22,13 @@ export const buildNowPlayingLayoutMetrics = ({
   // so smaller phones don't crop it and tablets keep proportions.
   const coverSize = Math.min(width - 64, Math.max(220, Math.floor(height * 0.42)));
   const snapPageHeight = Math.max(480, height);
+  const detailPageListHeight = Math.max(420, Math.floor(height * 0.78));
   return {
     coverSize,
     coverAreaHeight: coverSize + 24,
-    queueCardMaxHeight: Math.min(360, Math.max(220, Math.floor(height * 0.5))),
+    queueCardMaxHeight: detailPageListHeight,
     glowLeft: width / 2 - 130,
     snapPageHeight,
-    detailPageListHeight: Math.max(320, Math.floor(height * 0.62)),
+    detailPageListHeight,
   };
 };

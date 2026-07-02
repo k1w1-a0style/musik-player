@@ -113,6 +113,7 @@ const TrackPlayer = {
       trigger(Event.PlaybackActiveTrackChanged, { track: queue[currentIdx] });
     }
   }),
+  getQueue: jest.fn(async () => queue),
   getActiveTrack: jest.fn(async () => queue[currentIdx]),
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),

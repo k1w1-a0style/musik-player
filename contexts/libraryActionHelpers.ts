@@ -4,6 +4,14 @@ import type { Song } from '../types/Song';
 import { asPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
+interface NativeTrackSnapshot {
+  id?: string | number;
+}
+
+interface TrackPlayerQueueReader {
+  getQueue?: () => Promise<NativeTrackSnapshot[]>;
+}
+
 const safeDecode = (value: string): string => {
   try {
     return decodeURIComponent(value);
@@ -11,6 +19,8 @@ const safeDecode = (value: string): string => {
     return value;
   }
 };
+
+const normalizePathSeparators = (value: string): string => value.split(String.fromCharCode(92)).join('/');
 
 export const normalizeSongIdForLibrary = (songId?: string): string | undefined => {
   const trimmed = songId?.trim();
@@ -21,7 +31,7 @@ export const normalizeSongUriForLibraryDedupe = (song: Song): string | undefined
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) return undefined;
   const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
-  return safeDecode(withoutQuery).replace(/\\/g, '/').replace(/\/+$/, '') || undefined;
+  return normalizePathSeparators(safeDecode(withoutQuery)).replace(/\/+$/, '') || undefined;
 };
 
 const normalizeValidSongIds = (validSongIds: Set<string>): Set<string> => {
@@ -98,7 +108,6 @@ export const syncSongRefsToLibrary = (
   });
 };
 
-
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song => {
   const targetSongId = normalizeSongIdForLibrary(songId);
   const currentSongId = normalizeSongIdForLibrary(song.id);
@@ -119,6 +128,12 @@ export const patchSongRefs = (
   refs.forEach(ref => {
     ref.current = ref.current.map(patchSong);
   });
+};
+
+const getNativeQueueSnapshot = async (): Promise<NativeTrackSnapshot[] | null> => {
+  const reader = TrackPlayer as unknown as TrackPlayerQueueReader;
+  if (typeof reader.getQueue !== 'function') return null;
+  return reader.getQueue();
 };
 
 export const updateNativeMetadataForSong = (
@@ -142,13 +157,28 @@ export const updateNativeMetadataForSong = (
     });
     return;
   }
-  void TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong)).catch(
-    error => {
+
+  void (async () => {
+    try {
+      const nativeQueue = await getNativeQueueSnapshot();
+      const nativeTrack = nativeQueue?.[queueIndex];
+      const nativeTrackId = normalizeSongIdForLibrary(String(nativeTrack?.id ?? ''));
+      if (nativeQueue && (!nativeTrack || nativeTrackId !== targetSongId)) {
+        console.warn('[TrackPlayer] Skipping stale native metadata update.', {
+          songId: targetSongId,
+          queueIndex,
+          nativeQueueLength: nativeQueue.length,
+          nativeTrackId,
+        });
+        return;
+      }
+      await TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong));
+    } catch (error) {
       console.warn('[TrackPlayer] Failed to update native track metadata.', {
         songId: targetSongId,
         queueIndex,
         error,
       });
-    },
-  );
+    }
+  })();
 };

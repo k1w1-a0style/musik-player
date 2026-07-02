@@ -27,7 +27,7 @@ interface SongWithOptionalAlbumArtist extends Pick<Song, 'album' | 'artist' | 'f
 
 const basename = (value?: string): string => {
   if (!value) return '';
-  const cleaned = value.replace(/\\/g, '/').replace(/\/+$/, '');
+  const cleaned = value.replace(/\/+$/, '');
   return cleaned.split('/').filter(Boolean).pop() ?? cleaned;
 };
 
@@ -51,22 +51,11 @@ const normalizeLibraryKeyPart = (value: string, unknownKey: string): string => {
 };
 
 export const normalizeAlbumName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
-
 export const normalizeArtistName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
-
 export const getDisplayAlbumName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ALBUM_LABEL;
-
 export const getDisplayArtistName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ARTIST_LABEL;
-
-const getAlbumArtistSource = (song: SongWithOptionalAlbumArtist): string | undefined => song.albumArtist ?? song.artist;
-
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
-
-export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
-  const albumKey = normalizeAlbumName(song.album);
-  const artistKey = normalizeArtistName(getAlbumArtistSource(song));
-  return `album:${artistKey}:${albumKey}`;
-};
+export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => `album:${normalizeAlbumName(song.album)}`;
 
 const normalizedSongUriKey = (song: Song): string | null => {
   const rawUri = song.fileInfo?.uri ?? song.uri;
@@ -74,9 +63,7 @@ const normalizedSongUriKey = (song: Song): string | null => {
   const normalized = decodeUriSafely(rawUri)
     .trim()
     .toLowerCase()
-    .replace(/\\/g, '/')
-    .replace(/^file:\/\/+/i, '')
-    .replace(/^content:\/\/+/i, '')
+    .replace(/^[a-z]+:\/\/+/i, '')
     .replace(/\?.*$/, '')
     .replace(/#+.*$/, '')
     .replace(/\/+/g, '/')
@@ -96,35 +83,25 @@ const normalizedSongFingerprintKey = (song: Song): string | null => {
 export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' | 'fileInfo' | 'duration'>): string => {
   const id = normalizeLibraryText(song.id);
   if (id) return `song:${id}`;
-
   const rawUri = song.fileInfo?.uri ?? song.uri;
   if (rawUri) {
-    const normalizedUri = decodeUriSafely(rawUri)
-      .trim()
-      .toLocaleLowerCase('de-DE')
-      .replace(/\\/g, '/')
-      .replace(/\?.*$/, '')
-      .replace(/#+.*$/, '');
+    const normalizedUri = decodeUriSafely(rawUri).trim().toLocaleLowerCase('de-DE').replace(/\?.*$/, '').replace(/#+.*$/, '');
     if (normalizedUri) return `song-uri:${normalizedUri}`;
   }
-
   const titleKey = normalizeLibraryKeyPart(song.title, UNKNOWN_SONG_KEY);
   const artistKey = normalizeArtistName(song.artist);
   const durationKey = Number.isFinite(song.duration) ? String(song.duration) : 'unknown-duration';
   return `song-meta:${artistKey}:${titleKey}:${durationKey}`;
 };
 
-
 const hasNonEmptyText = (value?: string | null): value is string => Boolean(value?.trim());
 const hasUsableNumber = (value?: number | null): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 const hasUsableArtwork = (song?: Pick<Song, 'cover' | 'coverInfo'> | null): boolean => Boolean(getSongArtworkUri(song));
-
 const preferText = (incoming?: string, previous?: string): string | undefined => hasNonEmptyText(incoming) ? incoming : previous;
 const preferNumber = (incoming?: number, previous?: number): number | undefined => hasUsableNumber(incoming) ? incoming : previous;
 
 export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, incomingSong: Song): Song => {
   if (!previousSong) return incomingSong;
-
   const merged: Song = {
     ...previousSong,
     ...incomingSong,
@@ -152,54 +129,40 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
       channels: preferNumber(incomingSong.audioInfo?.channels, previousSong.audioInfo?.channels),
     },
   };
-
   if (!hasUsableArtwork(incomingSong) && hasUsableArtwork(previousSong)) {
     merged.cover = previousSong.cover;
     merged.coverInfo = previousSong.coverInfo;
   }
-
   if (!previousSong.fileInfo && !incomingSong.fileInfo) delete merged.fileInfo;
   if (!previousSong.audioInfo && !incomingSong.audioInfo) delete merged.audioInfo;
   return merged;
 };
 
-const mergeSongKeys = (song: Song): string[] => [
-  normalizedSongUriKey(song),
-  normalizedSongFingerprintKey(song),
-  song.id ? `id:${song.id}` : null,
-].filter((key): key is string => !!key);
-
+const mergeSongKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
 const safeTitle = (song: Pick<Song, 'title'>): string => normalizeLibraryText(song.title) || 'Unbekannter Titel';
-
 const byTitle = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
-
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 
-export const displayFolderName = (folder: ScanFolder): string =>
-  deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
+export const displayFolderName = (folder: ScanFolder): string => deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
 
 export const cleanPersonLikeLabel = (value?: string): string => {
   const raw = value?.trim();
   if (!raw) return '';
-  if (!raw.includes('primary:') && !raw.includes('content://')) return raw;
+  if (!raw.includes('primary:') && !raw.includes('://')) return raw;
   return stripExtension(basename(raw)) || raw;
 };
 
 export const displayArtist = (song: Pick<Song, 'artist'>): string => getDisplayArtistName(song.artist);
-
 export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlbumName(song.album);
-
 export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeLibraryText(cleanPersonLikeLabel(song.genre)) || UNKNOWN_GENRE_LABEL;
 
 export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
   const byKey = new Map<string, Song>();
-
   [...existingSongs, ...importedSongs].forEach(song => {
     const keys = mergeSongKeys(song);
     const canonicalKey = keys.find(key => byKey.has(key)) ?? keys[0] ?? buildSongKey(song);
     const previousSong = byKey.get(canonicalKey);
     const mergedSong = mergeSongPreservingRichMetadata(previousSong, song);
-
     if (previousSong) {
       byKey.forEach((value, key) => {
         if (value === previousSong) byKey.set(key, mergedSong);
@@ -207,9 +170,33 @@ export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[]
     }
     keys.forEach(key => byKey.set(key, mergedSong));
   });
-
   return Array.from(new Set(byKey.values())).sort(byTitle);
 };
+
+const buildAlbumArtistSummary = (sortedSongs: Song[]): string => {
+  const artists = Array.from(new Set(sortedSongs.map(displayArtist).filter(artist => artist !== UNKNOWN_ARTIST_LABEL)));
+  if (artists.length === 0) return UNKNOWN_ARTIST_LABEL;
+  if (artists.length <= 2) return artists.join(', ');
+  return `${artists.slice(0, 2).join(', ')} + ${artists.length - 2}`;
+};
+
+const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string => {
+  const trackCount = `${sortedSongs.length} Titel`;
+  return kind === 'album' ? `${buildAlbumArtistSummary(sortedSongs)} • ${trackCount}` : trackCount;
+};
+
+const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, titles: Map<string, string>): LibraryGroupItem[] =>
+  Array.from(grouped.entries()).map(([id, list]) => {
+    const sortedSongs = [...list].sort(byTitle);
+    const title = titles.get(id) ?? (kind === 'album' ? UNKNOWN_ALBUM_LABEL : kind === 'artist' ? UNKNOWN_ARTIST_LABEL : UNKNOWN_GENRE_LABEL);
+    return {
+      id,
+      title,
+      subtitle: buildGroupSubtitle(kind, sortedSongs),
+      cover: getSongArtworkUri(sortedSongs.find(song => !!getSongArtworkUri(song)) ?? sortedSongs[0]),
+      songs: sortedSongs,
+    };
+  }).sort(byGroupTitle);
 
 export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
   const grouped = new Map<string, Song[]>();
@@ -219,73 +206,37 @@ export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupI
     const title = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
     titles.set(key, titles.get(key) ?? title);
     const existing = grouped.get(key);
-    if (existing) {
-      existing.push(song);
-    } else {
-      grouped.set(key, [song]);
-    }
+    if (existing) existing.push(song);
+    else grouped.set(key, [song]);
   }
-
   return groupsFromMap(kind, grouped, titles);
 };
 
-const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string => {
-  const trackCount = `${sortedSongs.length} Titel`;
-  if (kind !== 'album') return trackCount;
-  const artist = displayArtist(sortedSongs[0]);
-  return `${artist} • ${trackCount}`;
-};
-
-const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, titles: Map<string, string>): LibraryGroupItem[] =>
-  Array.from(grouped.entries())
-    .map(([id, list]) => {
-      const sortedSongs = [...list].sort(byTitle);
-      const title = titles.get(id) ?? (kind === 'album' ? UNKNOWN_ALBUM_LABEL : kind === 'artist' ? UNKNOWN_ARTIST_LABEL : UNKNOWN_GENRE_LABEL);
-      return {
-        id,
-        title,
-        subtitle: buildGroupSubtitle(kind, sortedSongs),
-        cover: getSongArtworkUri(sortedSongs.find(song => !!getSongArtworkUri(song)) ?? sortedSongs[0]),
-        songs: sortedSongs,
-      };
-    })
-    .sort(byGroupTitle);
-
-export const buildLibraryGroups = (songs: Song[]): {
-  albumGroups: LibraryGroupItem[];
-  artistGroups: LibraryGroupItem[];
-  genreGroups: LibraryGroupItem[];
-} => {
+export const buildLibraryGroups = (songs: Song[]): { albumGroups: LibraryGroupItem[]; artistGroups: LibraryGroupItem[]; genreGroups: LibraryGroupItem[] } => {
   const albums = new Map<string, Song[]>();
   const artists = new Map<string, Song[]>();
   const genres = new Map<string, Song[]>();
   const albumTitles = new Map<string, string>();
   const artistTitles = new Map<string, string>();
   const genreTitles = new Map<string, string>();
-
   for (const song of songs) {
     const albumKey = buildAlbumKey(song);
     const artistKey = buildArtistKey(song.artist);
     const genreLabel = displayGenre(song);
     const genreKey = `genre:${normalizeLibraryKeyPart(genreLabel, UNKNOWN_GENRE_KEY)}`;
-
     albumTitles.set(albumKey, albumTitles.get(albumKey) ?? displayAlbum(song));
     artistTitles.set(artistKey, artistTitles.get(artistKey) ?? displayArtist(song));
     genreTitles.set(genreKey, genreTitles.get(genreKey) ?? genreLabel);
-
     const albumSongs = albums.get(albumKey);
     if (albumSongs) albumSongs.push(song);
     else albums.set(albumKey, [song]);
-
     const artistSongs = artists.get(artistKey);
     if (artistSongs) artistSongs.push(song);
     else artists.set(artistKey, [song]);
-
     const genreSongs = genres.get(genreKey);
     if (genreSongs) genreSongs.push(song);
     else genres.set(genreKey, [song]);
   }
-
   return {
     albumGroups: groupsFromMap('album', albums, albumTitles),
     artistGroups: groupsFromMap('artist', artists, artistTitles),

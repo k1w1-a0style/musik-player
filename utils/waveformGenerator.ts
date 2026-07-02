@@ -35,14 +35,25 @@ export const normalizeWaveformPoints = (points: readonly number[], targetCount =
   });
 };
 
+const nextSeed = (seed: number, salt: number): number => Math.imul(seed ^ salt, FNV_PRIME) >>> 0;
+
 const buildSyntheticPoints = (identity: string, count: number): number[] => {
-  let seed = hashWaveformIdentity(identity) || 1;
+  const identityHash = hashWaveformIdentity(identity) || 1;
+  let seed = identityHash;
+  const phaseA = (identityHash % 628) / 100;
+  const phaseB = ((identityHash >>> 8) % 628) / 100;
+  const tempoA = 0.19 + ((identityHash >>> 4) % 17) / 100;
+  const tempoB = 0.37 + ((identityHash >>> 12) % 23) / 100;
+
   return Array.from({ length: count }, (_, index) => {
-    seed = Math.imul(seed ^ (index + 0x9e3779b9), FNV_PRIME) >>> 0;
-    const noise = (seed % 1000) / 1000;
-    const wave = Math.abs(Math.sin((index + 1) * 0.57 + (seed % 31)));
-    const envelope = 0.36 + 0.44 * wave;
-    return clampWaveformPoint(0.12 + envelope * 0.68 + noise * 0.18);
+    seed = nextSeed(seed, index + 0x9e3779b9);
+    const noise = ((seed % 1000) / 1000) - 0.5;
+    const slow = 0.5 + 0.5 * Math.sin(index * tempoA + phaseA);
+    const fast = 0.5 + 0.5 * Math.sin(index * tempoB + phaseB);
+    const transient = ((seed >>> 11) % 13 === 0) ? 0.32 : 0;
+    const valley = ((seed >>> 17) % 11 === 0) ? -0.22 : 0;
+    const value = 0.10 + slow * 0.34 + fast * 0.22 + noise * 0.20 + transient + valley;
+    return clampWaveformPoint(value);
   });
 };
 
@@ -52,7 +63,7 @@ export const getWaveformSourceKey = (song: Song | null | undefined): string => {
   const size = song.fileInfo?.size ?? 0;
   const importedAt = song.fileInfo?.importedAt ?? 0;
   const duration = song.duration ?? song.audioInfo?.durationMs ?? 0;
-  const identity = [song.id, uri, size, importedAt, duration].join('|');
+  const identity = [song.id, uri, size, importedAt, duration, WAVEFORM_VERSION].join('|');
   return hashWaveformIdentity(identity || 'no-song').toString(36);
 };
 

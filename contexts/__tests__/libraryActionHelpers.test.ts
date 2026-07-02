@@ -27,6 +27,18 @@ const song = (id: string, uri?: string, fileUri?: string): Song => ({
 });
 
 const createSongRef = (current: Song[] = []) => ({ current });
+const flushPromises = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+};
+const mockedTrackPlayer = TrackPlayer as unknown as {
+  getQueue: jest.Mock;
+};
+
+const mockNativeQueue = (ids: string[]) => {
+  mockedTrackPlayer.getQueue.mockResolvedValueOnce(ids.map(id => ({ id })));
+};
 
 describe('libraryActionHelpers', () => {
   beforeEach(() => {
@@ -117,11 +129,13 @@ describe('libraryActionHelpers', () => {
     expect(baseRef.current[0].title).toBe('Updated');
   });
 
-  test('updates native metadata for queued song by normalized id', () => {
+  test('updates native metadata for queued song by normalized id', async () => {
     const nativeQueueRef = createSongRef([{ ...songs[0], id: ' s1 ', title: 'Updated' }, songs[1]]);
     const baseQueueContextRef = createSongRef(songs.slice());
+    mockNativeQueue(['s1', 's2']);
 
     updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+    await flushPromises();
 
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(
       0,
@@ -155,9 +169,10 @@ describe('libraryActionHelpers', () => {
     (TrackPlayer.updateMetadataForTrack as jest.Mock).mockRejectedValueOnce(new Error('native update failed'));
     const nativeQueueRef = createSongRef([{ ...songs[0], title: 'Updated' }]);
     const baseQueueContextRef = createSongRef(songs.slice());
+    mockNativeQueue(['s1']);
 
     updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
-    await Promise.resolve();
+    await flushPromises();
 
     expect(warn).toHaveBeenCalledWith(
       '[TrackPlayer] Failed to update native track metadata.',
@@ -165,14 +180,32 @@ describe('libraryActionHelpers', () => {
     );
   });
 
-  test('updates native metadata with the queued index, artwork and stable track id', () => {
+  test('skips stale native metadata update when native queue no longer matches', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const nativeQueueRef = createSongRef([{ ...songs[0], title: 'Updated' }]);
+    const baseQueueContextRef = createSongRef(songs.slice());
+    mockNativeQueue(['different']);
+
+    updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+    await flushPromises();
+
+    expect(TrackPlayer.updateMetadataForTrack).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[TrackPlayer] Skipping stale native metadata update.',
+      expect.objectContaining({ songId: 's1', queueIndex: 0, nativeQueueLength: 1, nativeTrackId: 'different' }),
+    );
+  });
+
+  test('updates native metadata with the queued index, artwork and stable track id', async () => {
     const nativeQueueRef = createSongRef([
       songs[0],
       { ...songs[1], title: 'Updated Two', cover: ' file:///updated-art.jpg ' },
     ]);
     const baseQueueContextRef = createSongRef(songs.slice());
+    mockNativeQueue(['s1', 's2']);
 
     updateNativeMetadataForSong('s2', nativeQueueRef, baseQueueContextRef);
+    await flushPromises();
 
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(1, expect.objectContaining({
       id: 's2',
@@ -181,11 +214,13 @@ describe('libraryActionHelpers', () => {
     }));
   });
 
-  test('metadata update allows missing artwork and keeps normalized id stable after tag changes', () => {
+  test('metadata update allows missing artwork and keeps normalized id stable after tag changes', async () => {
     const nativeQueueRef = createSongRef([{ ...songs[0], id: ' s1 ', title: 'Retagged One', album: 'New Album', cover: undefined }]);
     const baseQueueContextRef = createSongRef(songs.slice());
+    mockNativeQueue(['s1']);
 
     updateNativeMetadataForSong('s1', nativeQueueRef, baseQueueContextRef);
+    await flushPromises();
 
     expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({
       id: 's1',
@@ -194,5 +229,4 @@ describe('libraryActionHelpers', () => {
       artwork: undefined,
     }));
   });
-
 });
