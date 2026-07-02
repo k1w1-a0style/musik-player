@@ -8,26 +8,35 @@ interface NowPlayingLayoutMetrics {
   coverAreaHeight: number;
   queueCardMaxHeight: number;
   glowLeft: number;
-  /** Height of a single snap page – ideally equal to the screen content height. */
+  /** Height of a single snap page, based on the measured available content area. */
   snapPageHeight: number;
   /** Height of the queue page list area inside the second snap page. */
   detailPageListHeight: number;
 }
 
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
 export const buildNowPlayingLayoutMetrics = ({
   width,
   height,
 }: NowPlayingScreenSize): NowPlayingLayoutMetrics => {
-  // Bigger primary cover when we have the whole snap page to ourselves – clamp
-  // so smaller phones don't crop it and tablets keep proportions.
-  const coverSize = Math.min(width - 64, Math.max(220, Math.floor(height * 0.42)));
-  const snapPageHeight = Math.max(480, height);
-  const detailPageListHeight = Math.max(420, Math.floor(height * 0.78));
+  const safeWidth = Math.max(1, width);
+  const availableHeight = Math.max(1, height);
+  const horizontalGutter = safeWidth < 340 ? 48 : 64;
+  const maxCoverByWidth = Math.max(148, safeWidth - horizontalGutter);
+  const maxCoverByHeight = Math.floor(availableHeight * (availableHeight < 620 ? 0.34 : 0.4));
+  const minCover = availableHeight < 560 ? 156 : 196;
+  const effectiveMinCover = Math.min(minCover, maxCoverByWidth);
+  const coverSize = Math.floor(clamp(maxCoverByHeight, effectiveMinCover, maxCoverByWidth));
+  const coverAreaHeight = coverSize + (availableHeight < 560 ? 12 : 18);
+  const snapPageHeight = availableHeight;
+  const detailPageListHeight = Math.max(240, Math.floor(availableHeight - 84));
+
   return {
     coverSize,
-    coverAreaHeight: coverSize + 24,
+    coverAreaHeight,
     queueCardMaxHeight: detailPageListHeight,
-    glowLeft: width / 2 - 130,
+    glowLeft: safeWidth / 2 - 130,
     snapPageHeight,
     detailPageListHeight,
   };

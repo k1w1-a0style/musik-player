@@ -88,7 +88,7 @@ const VolumeSlider: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: 2,
   },
   row: {
     flexDirection: 'row',
@@ -98,25 +98,25 @@ const styles = StyleSheet.create({
   sliderHitbox: {
     flex: 1,
     minWidth: 128,
-    height: 42,
+    height: 38,
     justifyContent: 'center',
   },
   track: {
-    height: 5,
+    height: 4,
     borderRadius: 999,
     overflow: 'visible',
   },
   trackActive: {
-    height: 5,
+    height: 4,
     borderRadius: 999,
   },
   thumb: {
     position: 'absolute',
-    top: -7,
-    width: 19,
-    height: 19,
-    marginLeft: -9.5,
-    borderRadius: 10,
+    top: -6,
+    width: 16,
+    height: 16,
+    marginLeft: -8,
+    borderRadius: 8,
   },
   value: {
     color: theme.palette.text.secondary,

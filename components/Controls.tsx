@@ -37,7 +37,7 @@ const PressScale: React.FC<PressScaleProps> = ({
   accessibilityLabel,
   onPress,
   disabled,
-  size = 48,
+  size = 44,
   primary,
   accentColor,
   accentDarkColor,
@@ -49,17 +49,17 @@ const PressScale: React.FC<PressScaleProps> = ({
     accessibilityState={{ disabled: !!disabled }}
     onPress={onPress}
     disabled={disabled}
-    hitSlop={8}
+    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
     style={[
       styles.button,
       {
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: primary ? accentColor ?? theme.palette.primary : theme.palette.surfaceElevated,
-        borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : accentColor ?? theme.palette.border,
-        borderWidth: accentColor ? 1.5 : 1,
-        shadowColor: primary ? accentColor ?? theme.palette.primary : theme.palette.backgroundDeep,
+        backgroundColor: primary ? accentColor ?? theme.palette.primary : 'rgba(255,255,255,0.06)',
+        borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : 'rgba(255,255,255,0.10)',
+        borderWidth: primary ? 1 : StyleSheet.hairlineWidth,
+        shadowColor: primary ? accentColor ?? theme.palette.primary : 'transparent',
       },
       disabled && styles.disabled,
       primary && styles.primaryGlow,
@@ -111,7 +111,7 @@ const Controls: React.FC<ControlsProps> = ({
         testID="controls-shuffle"
         accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
         onPress={toggleShuffle}
-        size={38}
+        size={36}
         accentColor={shuffle ? accentColor : theme.palette.border}
         accentDarkColor={accentDarkColor}
       >
@@ -123,9 +123,9 @@ const Controls: React.FC<ControlsProps> = ({
         accessibilityLabel="Vorheriger Titel"
         onPress={previous}
         disabled={!canSkipPrevious}
-        size={48}
+        size={44}
       >
-        <SkipBack color={theme.palette.text.primary} size={23} fill={theme.palette.text.primary} />
+        <SkipBack color={theme.palette.text.primary} size={21} fill={theme.palette.text.primary} />
       </PressScale>
 
       <PressScale
@@ -133,15 +133,15 @@ const Controls: React.FC<ControlsProps> = ({
         accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
         onPress={togglePlayPause}
         disabled={!currentSong || isBuffering}
-        size={62}
+        size={58}
         primary
         accentColor={accentColor}
         accentDarkColor={accentDarkColor}
       >
         {isPlaying ? (
-          <Pause color={onAccentColor} size={27} fill={onAccentColor} />
+          <Pause color={onAccentColor} size={25} fill={onAccentColor} />
         ) : (
-          <Play color={onAccentColor} size={27} fill={onAccentColor} />
+          <Play color={onAccentColor} size={25} fill={onAccentColor} />
         )}
       </PressScale>
 
@@ -150,16 +150,16 @@ const Controls: React.FC<ControlsProps> = ({
         accessibilityLabel="Nächster Titel"
         onPress={next}
         disabled={!canSkipNext}
-        size={48}
+        size={44}
       >
-        <SkipForward color={theme.palette.text.primary} size={23} fill={theme.palette.text.primary} />
+        <SkipForward color={theme.palette.text.primary} size={21} fill={theme.palette.text.primary} />
       </PressScale>
 
       <PressScale
         testID="controls-repeat"
         accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
         onPress={cycleRepeatMode}
-        size={38}
+        size={36}
         accentColor={repeatMode !== 'off' ? accentColor : theme.palette.border}
         accentDarkColor={accentDarkColor}
       >
@@ -174,8 +174,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
   button: {
@@ -183,9 +183,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryGlow: {
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 9,
+    elevation: 4,
   },
   disabled: { opacity: 0.35 },
 });
