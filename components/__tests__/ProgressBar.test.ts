@@ -1,5 +1,6 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { PanResponder } from 'react-native';
+import { act, render } from '@testing-library/react-native';
 import ProgressBar, { clampPlaybackProgressValues, clampRatio, resolveDragRatio, ratioToMillis } from '../ProgressBar';
 
 describe('ProgressBar drag-scrub math', () => {
@@ -130,5 +131,69 @@ describe('ProgressBar accessibility actions', () => {
     const { getByTestId } = renderProgressBar({ currentPosition: 20_000, duration: 60_000, onSeek: jest.fn() });
 
     expect(getByTestId('progress-bar').props.accessibilityLabel).toBe('Wiedergabe-Fortschritt');
+  });
+});
+
+describe('ProgressBar drag seek semantics', () => {
+  const layout = { nativeEvent: { layout: { width: 200 } } };
+
+  beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    jest.spyOn(PanResponder, 'create').mockImplementation((config) => ({ panHandlers: config }) as never);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('move preview and final release commit are separated', () => {
+    const onSeek = jest.fn();
+    const onSeekPreview = jest.fn();
+    const { getByTestId } = render(
+      React.createElement(ProgressBar, { currentPosition: 0, duration: 100_000, onSeek, onSeekPreview }),
+    );
+    const progressBar = getByTestId('progress-bar');
+
+    act(() => {
+      progressBar.props.onLayout(layout);
+      progressBar.props.onPanResponderGrant({ nativeEvent: { locationX: 20 } });
+      progressBar.props.onPanResponderMove({}, { dx: 80 });
+      progressBar.props.onPanResponderMove({}, { dx: 120 });
+    });
+
+    expect(onSeekPreview).toHaveBeenCalled();
+    expect(onSeek).not.toHaveBeenCalled();
+
+    act(() => {
+      progressBar.props.onPanResponderRelease();
+    });
+
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenCalledWith(70_000);
+  });
+
+  test('multiple moves do not emit multiple native commits', () => {
+    const onSeek = jest.fn();
+    const { getByTestId } = render(
+      React.createElement(ProgressBar, { currentPosition: 0, duration: 100_000, onSeek }),
+    );
+    const progressBar = getByTestId('progress-bar');
+
+    act(() => {
+      progressBar.props.onLayout(layout);
+      progressBar.props.onPanResponderGrant({ nativeEvent: { locationX: 40 } });
+      progressBar.props.onPanResponderMove({}, { dx: 20 });
+      progressBar.props.onPanResponderMove({}, { dx: 60 });
+      progressBar.props.onPanResponderMove({}, { dx: 100 });
+    });
+
+    expect(onSeek).not.toHaveBeenCalled();
+
+    act(() => {
+      progressBar.props.onPanResponderRelease();
+    });
+
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenCalledWith(70_000);
   });
 });

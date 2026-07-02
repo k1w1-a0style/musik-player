@@ -17,28 +17,34 @@ const defaultNativeSeek: NativeSeek = (seconds) => TrackPlayer.seekTo(seconds);
 
 let pendingTargetMillis: number | null = null;
 let draining = false;
+let drainPromise: Promise<void> | null = null;
 
 export const requestLatestSeek = async (
   millis: number,
   seek: NativeSeek = defaultNativeSeek,
 ): Promise<void> => {
   pendingTargetMillis = millis;
-  if (draining) return;
+  if (drainPromise) return drainPromise;
 
   draining = true;
-  try {
-    while (pendingTargetMillis !== null) {
-      const target = pendingTargetMillis;
-      pendingTargetMillis = null;
-      try {
-        await seek(toSafeSeconds(target));
-      } catch (error) {
-        console.warn('[Seek] native seek failed.', error);
+  drainPromise = (async () => {
+    try {
+      while (pendingTargetMillis !== null) {
+        const target = pendingTargetMillis;
+        pendingTargetMillis = null;
+        try {
+          await seek(toSafeSeconds(target));
+        } catch (error) {
+          console.warn('[Seek] native seek failed.', error);
+        }
       }
+    } finally {
+      draining = false;
+      drainPromise = null;
     }
-  } finally {
-    draining = false;
-  }
+  })();
+
+  return drainPromise;
 };
 
 export const isSeekDraining = (): boolean => draining;
@@ -46,4 +52,5 @@ export const isSeekDraining = (): boolean => draining;
 export const resetSeekControllerForTests = (): void => {
   pendingTargetMillis = null;
   draining = false;
+  drainPromise = null;
 };

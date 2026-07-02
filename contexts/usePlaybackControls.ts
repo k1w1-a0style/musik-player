@@ -1,4 +1,4 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import TrackPlayer, { State, usePlaybackState } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import {
@@ -29,13 +29,34 @@ export interface PlaybackControls {
 
 export { clampVolume, getNextRepeatMode } from './playbackControlHelpers';
 
+const SEEK_STATE_SETTLE_MS = 150;
+
 export const usePlaybackControls = (): PlaybackControls => {
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const [volume, setVolumeState] = useState(1);
+  const [isSeekPending, setIsSeekPending] = useState(false);
   const playback = usePlaybackState();
+  const settleSeekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekPlayingIntentRef = useRef(false);
+  const seekRequestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
 
-  const isPlaying = playback.state === State.Playing;
+  const rawIsPlaying = playback.state === State.Playing;
   const isBuffering = playback.state === State.Buffering || playback.state === State.Loading;
+
+  if (!isSeekPending) {
+    seekPlayingIntentRef.current = rawIsPlaying;
+  }
+
+  const shouldPinSeekIntent = isSeekPending && isBuffering;
+  const isPlaying = shouldPinSeekIntent ? seekPlayingIntentRef.current : rawIsPlaying;
+
+  useEffect(() => () => {
+    isMountedRef.current = false;
+    if (settleSeekTimeoutRef.current) {
+      clearTimeout(settleSeekTimeoutRef.current);
+    }
+  }, []);
 
   const togglePlayPause = useCallback(async () => {
     await toggleTrackPlayerPlayback();
@@ -46,8 +67,27 @@ export const usePlaybackControls = (): PlaybackControls => {
   }, []);
 
   const seekTo = useCallback(async (millis: number) => {
-    await seekToMillis(millis);
-  }, []);
+    const seekRequestId = seekRequestIdRef.current + 1;
+    seekRequestIdRef.current = seekRequestId;
+    seekPlayingIntentRef.current = isPlaying;
+    if (settleSeekTimeoutRef.current) {
+      clearTimeout(settleSeekTimeoutRef.current);
+      settleSeekTimeoutRef.current = null;
+    }
+    setIsSeekPending(true);
+    try {
+      await seekToMillis(millis);
+    } finally {
+      if (!isMountedRef.current || seekRequestId !== seekRequestIdRef.current) return;
+
+      settleSeekTimeoutRef.current = setTimeout(() => {
+        if (!isMountedRef.current || seekRequestId !== seekRequestIdRef.current) return;
+
+        settleSeekTimeoutRef.current = null;
+        setIsSeekPending(false);
+      }, SEEK_STATE_SETTLE_MS);
+    }
+  }, [isPlaying]);
 
   const next = useCallback(async () => {
     await skipToNextSafely();

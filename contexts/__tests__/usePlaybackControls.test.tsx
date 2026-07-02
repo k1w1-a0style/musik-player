@@ -7,9 +7,11 @@ import {
   getNextRepeatMode,
   usePlaybackControls,
 } from '../usePlaybackControls';
+import { resetSeekControllerForTests } from '../../utils/seekController';
 
 const PlaybackControlsProbe = () => {
   const {
+    isPlaying,
     repeatMode,
     cycleRepeatMode,
     volume,
@@ -23,6 +25,7 @@ const PlaybackControlsProbe = () => {
 
   return (
     <>
+      <Text testID="is-playing">{String(isPlaying)}</Text>
       <Text testID="repeat">{repeatMode}</Text>
       <Text testID="volume">{String(volume)}</Text>
       <Button testID="repeat-button" title="repeat" onPress={() => void cycleRepeatMode()} />
@@ -38,7 +41,12 @@ const PlaybackControlsProbe = () => {
 
 describe('usePlaybackControls', () => {
   beforeEach(() => {
+    resetSeekControllerForTests();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   test('clamps volume values', () => {
@@ -85,6 +93,238 @@ describe('usePlaybackControls', () => {
     });
 
     expect(TrackPlayer.pause).toHaveBeenCalled();
+  });
+
+  test('keeps visible playing intent while seek-pending playback state buffers', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Playing });
+    let resolveSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Buffering });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      resolveSeek();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  test('keeps visible paused intent while seek-pending playback state loads', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Paused });
+    let resolveSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('false');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Loading });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('false');
+
+    await act(async () => {
+      resolveSeek();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+
+  test('follows paused state during seek-pending instead of pinning playing intent', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Playing });
+    let resolveSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Paused });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('false');
+
+    await act(async () => {
+      resolveSeek();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+  });
+
+  test('follows stopped state during seek-pending instead of pinning playing intent', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Playing });
+    let resolveSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Stopped });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('false');
+
+    await act(async () => {
+      resolveSeek();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+  });
+
+  test('reflects pause toggled during seek-pending once raw state pauses', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Playing });
+    jest.spyOn(TrackPlayer, 'getPlaybackState').mockResolvedValueOnce({ state: State.Playing });
+    let resolveSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId('toggle'));
+    });
+
+    expect(TrackPlayer.pause).toHaveBeenCalled();
+
+    usePlaybackState.mockReturnValue({ state: State.Paused });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('false');
+
+    await act(async () => {
+      resolveSeek();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+  });
+
+
+  test('keeps seek pending until the latest rapid seek commit settles', async () => {
+    jest.useFakeTimers();
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValueOnce({ state: State.Playing });
+
+    let resolveFirstSeek: () => void = () => undefined;
+    let resolveSecondSeek: () => void = () => undefined;
+    (TrackPlayer.seekTo as jest.Mock)
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveFirstSeek = resolve;
+      }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveSecondSeek = resolve;
+      }));
+
+    const { getByTestId, rerender } = render(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      fireEvent.press(getByTestId('seek'));
+      fireEvent.press(getByTestId('seek'));
+      await Promise.resolve();
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Buffering });
+    rerender(<PlaybackControlsProbe />);
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      resolveFirstSeek();
+      await Promise.resolve();
+    });
+
+    expect(TrackPlayer.seekTo).toHaveBeenCalledTimes(2);
+
+    usePlaybackState.mockReturnValue({ state: State.Loading });
+    rerender(<PlaybackControlsProbe />);
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      resolveSecondSeek();
+      await Promise.resolve();
+    });
+
+    usePlaybackState.mockReturnValue({ state: State.Loading });
+    rerender(<PlaybackControlsProbe />);
+    expect(getByTestId('is-playing').props.children).toBe('true');
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+    rerender(<PlaybackControlsProbe />);
+
+    expect(getByTestId('is-playing').props.children).toBe('false');
   });
 
   test('calls transport controls', async () => {

@@ -55,6 +55,40 @@ describe('seekController', () => {
     expect(isSeekDraining()).toBe(false);
   });
 
+
+  test('requests made while draining await the active lane before settling', async () => {
+    const calls: number[] = [];
+    let resolveFirst: () => void = () => undefined;
+    const seek = jest.fn((seconds: number) => {
+      calls.push(seconds);
+      if (calls.length === 1) {
+        return new Promise<void>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve();
+    });
+
+    const first = requestLatestSeek(1000, seek);
+    const second = requestLatestSeek(9000, seek);
+    let secondSettled = false;
+    second.then(() => {
+      secondSettled = true;
+    });
+
+    await Promise.resolve();
+
+    expect(secondSettled).toBe(false);
+    expect(isSeekDraining()).toBe(true);
+
+    resolveFirst();
+    await Promise.all([first, second]);
+
+    expect(calls).toEqual([1, 9]);
+    expect(secondSettled).toBe(true);
+    expect(isSeekDraining()).toBe(false);
+  });
+
   test('swallows native seek errors and keeps the lane usable', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const seek = jest
