@@ -53,6 +53,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
     style={styles.playerPage}
     contentContainerStyle={styles.playerContent}
     bounces={false}
+    nestedScrollEnabled
     showsVerticalScrollIndicator={false}
     testID="now-playing-player-panel"
   >
