@@ -131,7 +131,7 @@ export const patchSongRefs = (
 };
 
 const getNativeQueueSnapshot = async (): Promise<NativeTrackSnapshot[] | null> => {
-  const reader = TrackPlayer as typeof TrackPlayer & TrackPlayerQueueReader;
+  const reader = TrackPlayer as unknown as TrackPlayerQueueReader;
   if (typeof reader.getQueue !== 'function') return null;
   return reader.getQueue();
 };
