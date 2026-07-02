@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { StyleSheet, Dimensions } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import { theme } from '../theme';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import Screen from '../components/Screen';
@@ -11,9 +11,6 @@ import NowPlayingPlayerPanel from './NowPlayingPlayerPanel';
 import NowPlayingDetailsPanel from './NowPlayingDetailsPanel';
 import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const layoutMetrics = buildNowPlayingLayoutMetrics({ width: SCREEN_W, height: SCREEN_H });
 
 const NowPlayingScreenInner: React.FC = () => {
   const {
@@ -48,6 +45,21 @@ const NowPlayingScreenInner: React.FC = () => {
     foregroundOnAccent,
   } = useNowPlayingScreenState();
 
+  const { width, height } = useWindowDimensions();
+  const [measuredPagerHeight, setMeasuredPagerHeight] = useState(0);
+  const availablePagerHeight = measuredPagerHeight > 0
+    ? measuredPagerHeight
+    : Math.max(1, height - bottomInset - 48 - theme.spacing.xs);
+  const layoutMetrics = useMemo(() => buildNowPlayingLayoutMetrics({
+    width,
+    height: availablePagerHeight,
+  }), [availablePagerHeight, width]);
+
+  const handlePagerLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.floor(event.nativeEvent.layout.height);
+    setMeasuredPagerHeight(current => (Math.abs(current - nextHeight) > 1 ? nextHeight : current));
+  }, []);
+
   const renderPlayerPage = useCallback(() => (
     <NowPlayingPlayerPanel
       currentSong={currentSong}
@@ -70,7 +82,7 @@ const NowPlayingScreenInner: React.FC = () => {
       bottomInset={bottomInset}
       onOpenTrackInfo={openTrackInfo}
     />
-  ), [accent, artworkUri, bottomInset, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, toggleFavorite, volume]);
+  ), [accent, artworkUri, bottomInset, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, toggleFavorite, volume]);
 
   const renderDetailsPage = useCallback(() => (
     <NowPlayingDetailsPanel
@@ -84,7 +96,7 @@ const NowPlayingScreenInner: React.FC = () => {
       onQueueShift={moveQueueItem}
       canShiftQueue={canReorderQueue}
     />
-  ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, moveQueueItem, playQueueItemById, queue]);
+  ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, layoutMetrics.detailPageListHeight, moveQueueItem, playQueueItemById, queue]);
 
   return (
     <>
@@ -97,11 +109,13 @@ const NowPlayingScreenInner: React.FC = () => {
 
       <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
 
-      <NowPlayingSnapPager
-        pageHeight={layoutMetrics.snapPageHeight}
-        renderPlayerPage={renderPlayerPage}
-        renderDetailsPage={renderDetailsPage}
-      />
+      <View style={styles.pagerSlot} onLayout={handlePagerLayout} testID="now-playing-pager-slot">
+        <NowPlayingSnapPager
+          pageHeight={layoutMetrics.snapPageHeight}
+          renderPlayerPage={renderPlayerPage}
+          renderDetailsPage={renderDetailsPage}
+        />
+      </View>
 
       <NowPlayingMenuModal
         visible={menuOpen}
@@ -130,6 +144,7 @@ const NowPlaying: React.FC = () => (
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: theme.spacing.xs, paddingBottom: 0 },
+  pagerSlot: { flex: 1, minHeight: 1 },
 });
 
 export default NowPlaying;

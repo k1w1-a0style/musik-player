@@ -87,4 +87,32 @@ describe('Controls', () => {
     expect(getByTestId('controls-repeat').props.accessibilityLabel).toBe(expectedLabel);
   });
 
+
+  test('renders all control buttons with labels and hit slop', () => {
+    const { getByTestId } = render(<Controls />);
+
+    [
+      ['controls-shuffle', 'Zufallswiedergabe an'],
+      ['controls-previous', 'Vorheriger Titel'],
+      ['controls-play-pause', 'Abspielen'],
+      ['controls-next', 'Nächster Titel'],
+      ['controls-repeat', 'Wiederholung aus'],
+    ].forEach(([testID, label]) => {
+      const button = getByTestId(testID);
+      expect(button.props.accessibilityRole).toBe('button');
+      expect(button.props.accessibilityLabel).toBe(label);
+      expect(button.props.hitSlop).toEqual({ top: 10, bottom: 10, left: 10, right: 10 });
+    });
+  });
+
+  test('disabled states remain exposed for unavailable actions', () => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ currentSong: null, playbackQueue: [], isBuffering: true }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-previous').props.accessibilityState?.disabled).toBe(true);
+    expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
+    expect(getByTestId('controls-play-pause').props.accessibilityState?.disabled).toBe(true);
+  });
+
 });

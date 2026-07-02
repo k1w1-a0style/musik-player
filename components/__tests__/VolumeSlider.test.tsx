@@ -51,4 +51,23 @@ describe('VolumeSlider', () => {
     expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.25);
     expect(onVolumeChange).toHaveBeenNthCalledWith(2, 1);
   });
+
+  test('keeps the slider visually inline without adding a card frame', () => {
+    const onVolumeChange = jest.fn();
+    const { getByTestId, queryByTestId } = render(<VolumeSlider volume={0.4} onVolumeChange={onVolumeChange} accentColor="#ff00aa" />);
+
+    expect(queryByTestId('glass-card')).toBeNull();
+    expect(getByTestId('volume-slider')).toBeTruthy();
+  });
+
+  test('passes the accent color to the active track and thumb', () => {
+    const onVolumeChange = jest.fn();
+    const { getByTestId } = render(<VolumeSlider volume={0.4} onVolumeChange={onVolumeChange} accentColor="#ff00aa" />);
+    const track = getByTestId('volume-slider').props.children;
+    const [activeTrack, thumb] = track.props.children;
+
+    expect(activeTrack.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+    expect(thumb.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+  });
+
 });

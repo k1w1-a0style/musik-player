@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
 import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
 import NowPlayingCoverArtwork from './NowPlayingCoverArtwork';
@@ -49,7 +49,13 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   bottomInset,
   onOpenTrackInfo,
 }) => (
-  <View style={styles.playerPage} testID="now-playing-player-panel">
+  <ScrollView
+    style={styles.playerPage}
+    contentContainerStyle={styles.playerContent}
+    bounces={false}
+    showsVerticalScrollIndicator={false}
+    testID="now-playing-player-panel"
+  >
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
         song={currentSong}
@@ -84,11 +90,12 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
       onOpenTrackInfo={onOpenTrackInfo}
       accentColor={progressAccent}
     />
-  </View>
+  </ScrollView>
 );
 
 const styles = StyleSheet.create({
   playerPage: { flex: 1 },
+  playerContent: { flexGrow: 1 },
   coverArea: { alignItems: 'center', justifyContent: 'center', marginTop: 0 },
 });
 
