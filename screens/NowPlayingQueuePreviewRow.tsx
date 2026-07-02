@@ -13,7 +13,6 @@ interface NowPlayingQueuePreviewRowProps {
   isCurrent: boolean;
   canShift?: boolean;
   accentColor?: string;
-  activeTextColor?: string;
   onPress: (songId: string) => void;
   onShift?: (fromIndex: number, toIndex: number) => void;
 }
@@ -30,7 +29,6 @@ const NowPlayingQueuePreviewRow = React.memo(({
   isCurrent,
   canShift = false,
   accentColor = theme.palette.primary,
-  activeTextColor = theme.palette.text.primary,
   onPress,
   onShift,
 }: NowPlayingQueuePreviewRowProps) => {
@@ -113,10 +111,10 @@ const NowPlayingQueuePreviewRow = React.memo(({
       accessibilityState={{ selected: isCurrent }}
       {...panResponder.panHandlers}
     >
-      <View style={[styles.queueAccent, isCurrent && { backgroundColor: accentColor }]} />
+      <View style={[styles.queueAccent, isCurrent && { backgroundColor: accentColor }]} testID={`queue-accent-bar-${id}`} />
       <View style={styles.queueTextWrap}>
         <Text
-          style={[styles.queueTitle, isCurrent && { color: activeTextColor, fontWeight: '700' }]}
+          style={[styles.queueTitle, isCurrent && styles.queueTitleActive]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -126,8 +124,10 @@ const NowPlayingQueuePreviewRow = React.memo(({
       </View>
       {isCurrent ? (
         <View style={[styles.playingBadge, { borderColor: accentColor }]} testID={`queue-active-indicator-${id}`}>
-          <Volume2 color={accentColor} size={14} />
-          <Text style={[styles.playingLabel, { color: activeTextColor }]} numberOfLines={1}>Aktiv</Text>
+          <View testID={`queue-active-icon-${id}`}>
+            <Volume2 color={accentColor} size={14} />
+          </View>
+          <Text style={styles.playingLabel} numberOfLines={1}>Aktiv</Text>
         </View>
       ) : null}
       {canDrag ? (
@@ -148,9 +148,10 @@ const styles = StyleSheet.create({
   queueAccent: { width: 3, height: 20, borderRadius: 3, backgroundColor: theme.palette.border },
   queueTextWrap: { flex: 1 },
   queueTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 12 },
+  queueTitleActive: { color: theme.palette.text.primary, fontWeight: '700' },
   queueArtist: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 1 },
   playingBadge: { minWidth: 54, maxWidth: 72, height: 26, borderRadius: 13, borderWidth: 1, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  playingLabel: { fontFamily: theme.fonts.heading, fontSize: 10 },
+  playingLabel: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 10 },
   dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: theme.palette.surfaceElevated },
 });
 

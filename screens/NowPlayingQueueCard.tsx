@@ -20,7 +20,6 @@ interface NowPlayingQueueCardProps {
   onQueueShift: (fromIndex: number, toIndex: number) => void;
   canShiftQueue: boolean;
   accentColor: string;
-  activeTextColor: string;
 }
 
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
@@ -31,7 +30,6 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   onQueueShift,
   canShiftQueue,
   accentColor,
-  activeTextColor,
 }) => {
   const renderQueueItem = React.useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -47,10 +45,9 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         onPress={onPlayQueueItem}
         onShift={onQueueShift}
         accentColor={accentColor}
-        activeTextColor={activeTextColor}
       />
     ),
-    [accentColor, activeTextColor, canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
+    [accentColor, canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
   );
 
   return (

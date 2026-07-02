@@ -20,7 +20,7 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
   currentSong,
   albumTitle: _albumTitle,
   accentMuted,
-  foregroundOnAccent,
+  foregroundOnAccent: _foregroundOnAccent,
   listHeight,
   onPlayQueueItem,
   onQueueShift,
@@ -36,7 +36,6 @@ const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
         onQueueShift={onQueueShift}
         canShiftQueue={canShiftQueue}
         accentColor={accentMuted}
-        activeTextColor={foregroundOnAccent}
       />
     </View>
   </View>

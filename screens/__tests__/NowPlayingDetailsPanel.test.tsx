@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingDetailsPanel from '../NowPlayingDetailsPanel';
 import type { Song } from '../../types/Song';
+import { theme } from '../../theme';
 
 const queue: Song[] = [
   { id: 's1', title: 'One', artist: 'A' },
@@ -49,6 +50,20 @@ describe('NowPlayingDetailsPanel queue track list', () => {
 
     fireEvent.press(getByTestId('queue-row-s2'));
     expect(props.onPlayQueueItem).toHaveBeenCalledWith('s2');
+  });
+
+  test('does not use foregroundOnAccent as active row text color on weakly tinted rows', () => {
+    const { getByTestId, getByText } = renderPanel({
+      accentMuted: '#F9E27D',
+      foregroundOnAccent: '#101820',
+    });
+
+    expect(JSON.stringify(getByTestId('queue-row-s1').props.style)).toContain('#F9E27D');
+    expect(JSON.stringify(getByTestId('queue-active-indicator-s1').props.style)).toContain('#F9E27D');
+    expect(JSON.stringify(getByText('One').props.style)).toContain(theme.palette.text.primary);
+    expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(theme.palette.text.primary);
+    expect(JSON.stringify(getByText('One').props.style)).not.toContain('#101820');
+    expect(JSON.stringify(getByText('Aktiv').props.style)).not.toContain('#101820');
   });
 
   test('renders a light empty state inside the list frame', () => {
