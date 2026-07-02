@@ -28,7 +28,7 @@ const song = (id: string, uri?: string, fileUri?: string): Song => ({
 
 const createSongRef = (current: Song[] = []) => ({ current });
 const flushPromises = async () => Promise.resolve();
-const mockedTrackPlayer = TrackPlayer as typeof TrackPlayer & {
+const mockedTrackPlayer = TrackPlayer as unknown as {
   getQueue: jest.Mock;
 };
 
