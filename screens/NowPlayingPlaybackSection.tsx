@@ -32,7 +32,6 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
         currentPosition={position}
         duration={duration}
         onSeek={onSeek}
-        onSeekPreview={onSeek}
         accent={progressAccent}
         restColor="rgba(255,255,255,0.22)"
       />
