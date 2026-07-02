@@ -20,6 +20,8 @@ test('renders drag handles for upcoming tracks only', () => {
       onPlayQueueItem={onPlayQueueItem}
       onQueueShift={onQueueShift}
       canShiftQueue
+      accentColor="#3366FF"
+      activeTextColor="#101820"
     />,
   );
 
