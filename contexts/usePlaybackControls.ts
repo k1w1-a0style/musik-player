@@ -48,7 +48,8 @@ export const usePlaybackControls = (): PlaybackControls => {
     seekPlayingIntentRef.current = rawIsPlaying;
   }
 
-  const isPlaying = isSeekPending ? seekPlayingIntentRef.current : rawIsPlaying;
+  const shouldPinSeekIntent = isSeekPending && isBuffering;
+  const isPlaying = shouldPinSeekIntent ? seekPlayingIntentRef.current : rawIsPlaying;
 
   useEffect(() => () => {
     isMountedRef.current = false;
