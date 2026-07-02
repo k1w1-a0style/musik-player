@@ -38,6 +38,8 @@ export const usePlaybackControls = (): PlaybackControls => {
   const playback = usePlaybackState();
   const settleSeekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekPlayingIntentRef = useRef(false);
+  const seekRequestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   const rawIsPlaying = playback.state === State.Playing;
   const isBuffering = playback.state === State.Buffering || playback.state === State.Loading;
@@ -49,6 +51,7 @@ export const usePlaybackControls = (): PlaybackControls => {
   const isPlaying = isSeekPending ? seekPlayingIntentRef.current : rawIsPlaying;
 
   useEffect(() => () => {
+    isMountedRef.current = false;
     if (settleSeekTimeoutRef.current) {
       clearTimeout(settleSeekTimeoutRef.current);
     }
@@ -63,6 +66,8 @@ export const usePlaybackControls = (): PlaybackControls => {
   }, []);
 
   const seekTo = useCallback(async (millis: number) => {
+    const seekRequestId = seekRequestIdRef.current + 1;
+    seekRequestIdRef.current = seekRequestId;
     seekPlayingIntentRef.current = isPlaying;
     if (settleSeekTimeoutRef.current) {
       clearTimeout(settleSeekTimeoutRef.current);
@@ -72,7 +77,11 @@ export const usePlaybackControls = (): PlaybackControls => {
     try {
       await seekToMillis(millis);
     } finally {
+      if (!isMountedRef.current || seekRequestId !== seekRequestIdRef.current) return;
+
       settleSeekTimeoutRef.current = setTimeout(() => {
+        if (!isMountedRef.current || seekRequestId !== seekRequestIdRef.current) return;
+
         settleSeekTimeoutRef.current = null;
         setIsSeekPending(false);
       }, SEEK_STATE_SETTLE_MS);
