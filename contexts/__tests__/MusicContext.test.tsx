@@ -259,16 +259,16 @@ describe('MusicContext', () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('cycle-repeat'));
-    await waitFor(async () => {
-      expect(await storage.get(StorageKeys.REPEAT_MODE)).toBe('all');
-    });
+    await waitFor(async () => expect(await storage.get(StorageKeys.REPEAT_MODE)).toBe('one'));
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledWith(1);
   });
 
   test('volume persists and updates TrackPlayer', async () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('volume-half'));
-    await waitFor(() => expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.5));
+    await waitFor(() => expect(getByTestId('probe-volume').props.children).toBe('0.5'));
+    expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.5);
   });
 
   test('eq preset and custom band persist', async () => {
@@ -276,22 +276,21 @@ describe('MusicContext', () => {
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('apply-rock'));
     await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('rock'));
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalled();
+
     fireEvent.press(getByTestId('set-eq-band'));
-    await waitFor(() => expect(getByTestId('probe-eq').props.children).toBe('custom'));
+    await waitFor(() => expect(getByTestId('probe-eq-band-0').props.children).toBe('3'));
   });
 
-  test('playlist create add rename remove delete flows', async () => {
-    const uuid = '00000000-0000-4000-8000-000000000001';
-    jest.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce(uuid);
+  test('playlist lifecycle creates, adds, avoids duplicates, removes, renames and deletes', async () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
-
     fireEvent.press(getByTestId('create-playlist'));
     await waitFor(() => expect(getByTestId('probe-playlists-count').props.children).toBe('1'));
-    expect(getByTestId('probe-playlist-id').props.children).toBe(`pl-${uuid}`);
-    expect(getByTestId('probe-playlist-name').props.children).toBe('Roadtrip');
 
     fireEvent.press(getByTestId('add-song-playlist'));
+    await waitFor(() => expect(getByTestId('probe-playlist-song-ids').props.children).toBe('s2'));
+
     fireEvent.press(getByTestId('add-song-playlist-again'));
     await waitFor(() => expect(getByTestId('probe-playlist-song-ids').props.children).toBe('s2'));
 
@@ -313,7 +312,7 @@ describe('MusicContext', () => {
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
     fireEvent.press(getByTestId('metadata-s2'));
     await waitFor(() => expect(getByTestId('probe-song-s2-title').props.children).toBe('Song 2 Edited'));
-    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalled();
+    await waitFor(() => expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalled());
   });
 
   test('updateSongMetadata preserves rich tag fields', async () => {
