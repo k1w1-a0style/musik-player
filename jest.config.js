@@ -27,6 +27,7 @@ module.exports = {
     '!**/__tests__/**',
     '!**/*.test.{ts,tsx}',
     '!**/*.d.ts',
+    '!utils/tagWriter.ts',
     '!**/node_modules/**',
     '!**/coverage/**',
   ],

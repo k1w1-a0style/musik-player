@@ -15,7 +15,7 @@ export const buildImmediateWaveform = (
   pointCount = DEFAULT_WAVEFORM_POINT_COUNT,
 ): SongWaveform => buildFallbackWaveform(song, durationMs, pointCount);
 
-const hasUsefulNativeShape = (points: readonly number[]): boolean => {
+export const hasUsefulNativeShape = (points: readonly number[]): boolean => {
   const finite = points.filter(point => Number.isFinite(point));
   if (finite.length < 8) return false;
   const min = Math.min(...finite);
