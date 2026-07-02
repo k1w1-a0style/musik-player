@@ -20,7 +20,7 @@ const safeDecode = (value: string): string => {
   }
 };
 
-const normalizePathSeparators = (value: string): string => value.replaceAll(String.fromCharCode(92), '/');
+const normalizePathSeparators = (value: string): string => value.split(String.fromCharCode(92)).join('/');
 
 export const normalizeSongIdForLibrary = (songId?: string): string | undefined => {
   const trimmed = songId?.trim();
