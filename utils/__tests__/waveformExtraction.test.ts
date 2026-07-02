@@ -36,7 +36,7 @@ describe('waveformExtraction', () => {
 
   afterEach(() => {
     jest.useRealTimers();
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('resolveWaveformUri', () => {
