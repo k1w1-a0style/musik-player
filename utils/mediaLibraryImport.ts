@@ -8,7 +8,8 @@ import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
 import { OperationAbortError, throwIfAborted } from './withTimeout';
-import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
+import { EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
+import { isSupportedAudioCandidate, normalizeAudioCandidateMimeType } from './audioImportCandidates';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -16,7 +17,7 @@ const MAX_IMPORT_PAGES = 1000;
 const ID3_CONCURRENT_READERS = 2;
 const SAF_ID3_CONCURRENT_READERS = 2;
 export const MAX_SAF_FILES = 5000;
-const MAX_SAF_DEPTH = 2;
+const MAX_SAF_DEPTH = 8;
 export const MAX_SAF_DIRECTORIES = 300;
 // Bound each speculative SAF child-directory read; Android providers can hang on
 // unknown entries. 4s is intentionally conservative enough for slower SAF
@@ -133,22 +134,19 @@ export const deriveExtension = (input?: string): string | undefined => {
 
 export const deriveMimeType = (rawMimeType: unknown, extension?: string): string | undefined => {
   if (typeof rawMimeType === 'string') {
-    const normalized = rawMimeType.trim().toLowerCase();
-    if (normalized.startsWith('audio/') && normalized.includes('/')) return normalized;
+    const normalized = normalizeAudioCandidateMimeType(rawMimeType);
+    if (normalized?.startsWith('audio/') && normalized.includes('/')) return normalized;
   }
   const normalizedExtension = extension?.trim().replace(/^\.+/, '').toLowerCase();
   return normalizedExtension ? EXTENSION_MIME_MAP[normalizedExtension] : undefined;
 };
 
-export const isAudioFileUri = (uri: string): boolean => {
-  const extension = deriveExtension(uri);
-  return extension ? AUDIO_EXTENSIONS.has(extension) : false;
-};
+export const isAudioFileUri = (uri: string): boolean => isSupportedAudioCandidate({ uri }).accepted;
 
 export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
   const extension = deriveExtension(uri);
   if (!extension) return true;
-  if (AUDIO_EXTENSIONS.has(extension)) return false;
+  if (isSupportedAudioCandidate({ uri }).accepted) return false;
   return !KNOWN_NON_AUDIO_EXTENSIONS.has(extension);
 };
 

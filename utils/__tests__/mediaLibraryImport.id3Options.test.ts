@@ -130,3 +130,35 @@ test('SAF import from default sources skips ID3 for faster initial import', asyn
   expect(result.songs[0].title).toBe('Fast Song');
   expect(result.songs[0].coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
 });
+
+test('SAF scan recursively keeps Huawei-like uppercase and encoded audio entries while skipping bad children', async () => {
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (uri: string) => {
+    if (uri === 'content://root') return ['content://root/Album', 'content://root/cover.JPG'];
+    if (uri === 'content://root/Album') return ['content://root/Album/HUAWEI%20TRACK.M4A', 'content://root/Album/Broken'];
+    if (uri === 'content://root/Album/Broken') throw new Error('provider failed to read child');
+    return [];
+  });
+
+  const result = await scanFromSafFolders(
+    [{ id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true }],
+    { readId3Tags: false },
+  );
+
+  expect(result.songs).toHaveLength(1);
+  expect(result.songs[0].title).toBe('HUAWEI TRACK');
+  expect(result.errors).toEqual(['content://root/Album/Broken']);
+});
+
+test('SAF scan returns useful folder diagnostics when provider root is unreadable', async () => {
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockRejectedValue(new Error('permission denied'));
+
+  const result = await scanFromSafFolders(
+    [{ id: 'f1', name: 'Huawei Music', uri: 'content://root', addedAt: 1, enabled: true }],
+    { readId3Tags: false },
+  );
+
+  expect(result.songs).toHaveLength(0);
+  expect(result.errors).toEqual(['content://root']);
+  expect(result.folderUpdates?.[0]).toMatchObject({ lastError: 'Nicht lesbar' });
+  expect(result.sourceSummary[0]).toMatchObject({ source: 'saf', imported: 0, errors: 1 });
+});

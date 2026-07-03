@@ -439,8 +439,9 @@ describe('mediaLibraryImport', () => {
 
   test('uses the shared audio-extension basis for SAF file detection', () => {
     for (const extension of AUDIO_EXTENSIONS) {
-      expect(mediaImport.isAudioFileUri(`content://root/shared-audio.${extension}`)).toBe(true);
-      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/shared-audio.${extension}`)).toBe(false);
+      const expectedSafFile = extension !== 'mp4';
+      expect(mediaImport.isAudioFileUri(`content://root/shared-audio.${extension}`)).toBe(expectedSafFile);
+      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/shared-audio.${extension}`)).toBe(!expectedSafFile);
       expect(mediaImport.deriveMimeType(undefined, extension)?.startsWith('audio/')).toBe(true);
     }
   });
@@ -574,7 +575,13 @@ describe('mediaLibraryImport', () => {
       if (uri === 'content://root') return ['content://root/l1'];
       if (uri === 'content://root/l1') return ['content://root/l1/l2'];
       if (uri === 'content://root/l1/l2') return ['content://root/l1/l2/l3'];
-      if (uri === 'content://root/l1/l2/l3') return ['content://root/l1/l2/l3/deep.mp3'];
+      if (uri === 'content://root/l1/l2/l3') return ['content://root/l1/l2/l3/l4'];
+      if (uri === 'content://root/l1/l2/l3/l4') return ['content://root/l1/l2/l3/l4/l5'];
+      if (uri === 'content://root/l1/l2/l3/l4/l5') return ['content://root/l1/l2/l3/l4/l5/l6'];
+      if (uri === 'content://root/l1/l2/l3/l4/l5/l6') return ['content://root/l1/l2/l3/l4/l5/l6/l7'];
+      if (uri === 'content://root/l1/l2/l3/l4/l5/l6/l7') return ['content://root/l1/l2/l3/l4/l5/l6/l7/l8'];
+      if (uri === 'content://root/l1/l2/l3/l4/l5/l6/l7/l8') return ['content://root/l1/l2/l3/l4/l5/l6/l7/l8/l9'];
+      if (uri === 'content://root/l1/l2/l3/l4/l5/l6/l7/l8/l9') return ['content://root/l1/l2/l3/l4/l5/l6/l7/l8/l9/deep.mp3'];
       return [];
     });
     const depthResult = await mediaImport.readAudioUrisFromSafDirectory(

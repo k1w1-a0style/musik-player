@@ -44,8 +44,9 @@ describe('audioImportFilter', () => {
 
   test('uses the shared audio-extension basis for import filtering', () => {
     for (const extension of AUDIO_EXTENSIONS) {
-      expectConsistentRejectReason(asset(`shared-audio.${extension}`, 180), null);
+      expectConsistentRejectReason(asset(`shared-audio.${extension}`, 180), extension === 'mp4' ? 'not-audio' : null);
     }
+    expectConsistentRejectReason(asset('shared-audio.mp4', 180, 'audio', 'audio/mp4'), null);
   });
 
   test('keeps known audio extensions accepted and known non-audio extensions skipped', () => {
