@@ -1,6 +1,7 @@
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { deriveFolderNameFromUri } from './mediaLibraryImport';
+import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist } from './musicParser';
 import { getSongArtworkUri } from './songArtwork';
 
 export type LibraryGroupKind = 'album' | 'artist' | 'genre';
@@ -41,9 +42,7 @@ const decodeUriSafely = (value: string): string => {
   }
 };
 
-const normalizeWhitespace = (value: string): string => value.replace(/\s+/gu, ' ').trim();
-
-export const normalizeLibraryText = (value?: string | null): string => normalizeWhitespace((value ?? '').normalize('NFKC'));
+export const normalizeLibraryText = (value?: string | null): string => normalizeMetadataText(value) ?? '';
 
 const normalizeLibraryKeyPart = (value: string, unknownKey: string): string => {
   const normalized = normalizeLibraryText(value).toLocaleLowerCase('de-DE');
@@ -52,8 +51,8 @@ const normalizeLibraryKeyPart = (value: string, unknownKey: string): string => {
 
 export const normalizeAlbumName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
 export const normalizeArtistName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
-export const getDisplayAlbumName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ALBUM_LABEL;
-export const getDisplayArtistName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ARTIST_LABEL;
+export const getDisplayAlbumName = (value?: string | null): string => resolveDisplayAlbum(cleanPersonLikeLabel(value ?? undefined));
+export const getDisplayArtistName = (value?: string | null): string => resolveDisplayArtist(cleanPersonLikeLabel(value ?? undefined));
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
 export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => `album:${normalizeAlbumName(song.album)}`;
 

@@ -11,7 +11,15 @@ import {
   formatCoverStatus,
   formatDuration,
   formatSampleRate,
+  getTrackInfoAlbum,
+  getTrackInfoAlbumArtist,
+  getTrackInfoArtist,
+  getTrackInfoCodec,
+  getTrackInfoContainer,
   getTrackInfoDurationMs,
+  getTrackInfoFilename,
+  getTrackInfoMimeType,
+  getTrackInfoTitle,
   valueOrNA,
 } from './trackInfoHelpers';
 import TrackInfoRow from './TrackInfoRow';
@@ -38,10 +46,10 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   return (
     <>
       <Text style={styles.section}>Basis</Text>
-      <TrackInfoRow label="Titel" value={valueOrNA(song.title)} />
-      <TrackInfoRow label="Künstler" value={valueOrNA(song.artist)} />
-      <TrackInfoRow label="Album" value={valueOrNA(song.album)} />
-      <TrackInfoRow label="Album-Künstler" value={valueOrNA(song.albumArtist)} />
+      <TrackInfoRow label="Titel" value={getTrackInfoTitle(song)} />
+      <TrackInfoRow label="Künstler" value={getTrackInfoArtist(song)} />
+      <TrackInfoRow label="Album" value={getTrackInfoAlbum(song)} />
+      <TrackInfoRow label="Album-Künstler" value={getTrackInfoAlbumArtist(song)} />
       <TrackInfoRow label="Jahr" value={valueOrNA(song.year)} />
       <TrackInfoRow label="Genre" value={valueOrNA(song.genre)} />
       <TrackInfoRow label="Tracknummer" value={valueOrNA(song.trackNumber)} />
@@ -50,17 +58,17 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
       <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
 
       <Text style={styles.section}>Datei</Text>
-      <TrackInfoRow label="Dateiname" value={valueOrNA(song.fileInfo?.filename)} />
+      <TrackInfoRow label="Dateiname" value={getTrackInfoFilename(song)} />
       <TrackInfoRow label="Dateiendung" value={valueOrNA(song.fileInfo?.extension)} />
-      <TrackInfoRow label="Container" value={valueOrNA(song.fileInfo?.container)} />
-      <TrackInfoRow label="MIME-Type" value={valueOrNA(song.fileInfo?.mimeType)} />
+      <TrackInfoRow label="Container" value={getTrackInfoContainer(song)} />
+      <TrackInfoRow label="MIME-Type" value={getTrackInfoMimeType(song)} />
       <TrackInfoRow label="Dateigröße" value={formatBytes(song.fileInfo?.size)} />
       <TrackInfoRow label="Import-Quelle" value={valueOrNA(song.fileInfo?.source)} />
       <TrackInfoRow label="Import-Zeitpunkt" value={importedAt} />
       <TrackInfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
 
       <Text style={styles.section}>Audio-Technik</Text>
-      <TrackInfoRow label="Codec" value={valueOrNA(song.audioInfo?.codec)} />
+      <TrackInfoRow label="Codec" value={getTrackInfoCodec(song)} />
       <TrackInfoRow label="Bitrate" value={formatBitrate(song.audioInfo?.bitrate)} />
       <TrackInfoRow label="Bitrate-Modus" value={formatBitrateMode(song.audioInfo?.bitrateMode)} />
       <TrackInfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />

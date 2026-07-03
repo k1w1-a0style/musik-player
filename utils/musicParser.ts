@@ -19,11 +19,53 @@ export interface ParsedFilename {
   artist?: string;
 }
 
+export const UNKNOWN_TITLE_LABEL = 'Unbekannter Titel';
+export const UNKNOWN_ARTIST_LABEL = 'Unbekannt';
+export const UNKNOWN_ALBUM_LABEL = 'Unbekanntes Album';
+
+const EMPTY_METADATA_VALUES = new Set(['unknown', 'null', 'undefined', '<unknown>']);
+
+export const decodeMetadataText = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+export const normalizeMetadataText = (value?: string | null): string | undefined => {
+  const normalized = (value ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
+  if (!normalized || EMPTY_METADATA_VALUES.has(normalized.toLocaleLowerCase('de-DE'))) return undefined;
+  return normalized;
+};
+
+export const stripAudioExtension = (value: string): string => value.replace(/\.(?:mp3|m4a|mp4|aac|flac|wav|ogg|opus|m4b)$/iu, '');
+
+const basename = (value: string): string => {
+  const withoutQuery = value.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  return withoutQuery.split('/').filter(Boolean).pop() ?? withoutQuery;
+};
+
+export const displayNameFromFilename = (filename?: string | null, uri?: string | null): string | undefined => {
+  const raw = normalizeMetadataText(filename) ?? normalizeMetadataText(uri);
+  if (!raw) return undefined;
+  return normalizeMetadataText(stripAudioExtension(decodeMetadataText(basename(raw))));
+};
+
 export const parseFilename = (filename: string): ParsedFilename => {
-  const clean = filename.replace(/\.[^.]+$/, '').trim();
-  const parts = clean.split(/\s*[-–]\s*/);
+  const clean = displayNameFromFilename(filename) ?? '';
+  const parts = clean.split(/\s*[-–]\s*/).map(part => normalizeMetadataText(part)).filter(Boolean) as string[];
   if (parts.length >= 2) {
     return { artist: parts[0], title: parts.slice(1).join(' - ') };
   }
   return { title: clean };
 };
+
+export const resolveDisplayTitle = (title?: string | null, filename?: string | null, uri?: string | null): string =>
+  normalizeMetadataText(title) ?? displayNameFromFilename(filename, uri) ?? UNKNOWN_TITLE_LABEL;
+
+export const resolveDisplayArtist = (artist?: string | null): string =>
+  normalizeMetadataText(artist) ?? UNKNOWN_ARTIST_LABEL;
+
+export const resolveDisplayAlbum = (album?: string | null): string =>
+  normalizeMetadataText(album) ?? UNKNOWN_ALBUM_LABEL;

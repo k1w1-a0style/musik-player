@@ -3,7 +3,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { parseFilename } from './musicParser';
+import { parseFilename, resolveDisplayArtist, resolveDisplayTitle, normalizeMetadataText } from './musicParser';
 import { parseId3FromUri, type Id3Tags } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
@@ -250,16 +250,16 @@ export const buildSongFromImportSource = async (
 
   return {
     id: source.id,
-    title: tags.title || fallback.title || filename.replace(/\.[^.]+$/, ''),
-    artist: tags.artist || fallback.artist || 'Unbekannt',
-    albumArtist: tags.albumArtist,
-    album: tags.album,
+    title: resolveDisplayTitle(tags.title ?? fallback.title, filename, source.uri),
+    artist: resolveDisplayArtist(tags.artist ?? fallback.artist),
+    albumArtist: normalizeMetadataText(tags.albumArtist),
+    album: normalizeMetadataText(tags.album),
     duration: source.durationMs,
-    year: tags.year,
-    genre: tags.genre,
-    trackNumber: tags.trackNumber,
-    discNumber: tags.discNumber,
-    comment: tags.comment,
+    year: normalizeMetadataText(tags.year),
+    genre: normalizeMetadataText(tags.genre),
+    trackNumber: normalizeMetadataText(tags.trackNumber),
+    discNumber: normalizeMetadataText(tags.discNumber),
+    comment: normalizeMetadataText(tags.comment),
     uri: source.uri,
     cover,
     fileInfo: {

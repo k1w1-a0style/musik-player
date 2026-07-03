@@ -51,3 +51,25 @@ test('complete technical data does not need another backfill', () => {
     audioInfo: { durationMs: 245000, bitrate: 320, sampleRate: 44100, channels: 2 },
   })).toBe(false);
 });
+
+test('native M4A audio info fills missing technical fields without replacing good metadata', () => {
+  const merged = mergeNativeAudioInfoIntoSong({
+    ...baseSong,
+    title: 'Existing',
+    artist: 'Artist',
+    uri: 'file:///song.m4a',
+    fileInfo: { uri: 'file:///song.m4a', extension: 'm4a' },
+  }, {
+    durationMs: 180000,
+    bitrateBps: 256000,
+    sizeBytes: 4096,
+    sampleRateHz: 48000,
+    channels: 2,
+    mimeType: 'audio/mp4',
+    displayName: 'Native Song.m4a',
+  });
+
+  expect(merged.title).toBe('Existing');
+  expect(merged.fileInfo).toMatchObject({ filename: 'Native Song.m4a', mimeType: 'audio/mp4', size: 4096 });
+  expect(merged.audioInfo).toMatchObject({ codec: 'audio/mp4', durationMs: 180000, bitrate: 256, sampleRate: 48000, channels: 2 });
+});
