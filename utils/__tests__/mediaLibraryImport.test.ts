@@ -441,7 +441,7 @@ describe('mediaLibraryImport', () => {
     for (const extension of AUDIO_EXTENSIONS) {
       const expectedSafFile = extension !== 'mp4';
       expect(mediaImport.isAudioFileUri(`content://root/shared-audio.${extension}`)).toBe(expectedSafFile);
-      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/shared-audio.${extension}`)).toBe(!expectedSafFile);
+      expect(mediaImport.shouldAttemptSafDirectoryRead(`content://root/shared-audio.${extension}`)).toBe(false);
       expect(mediaImport.deriveMimeType(undefined, extension)?.startsWith('audio/')).toBe(true);
     }
   });
@@ -472,10 +472,36 @@ describe('mediaLibraryImport', () => {
     expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/song.MP3?token=1')).toBe(
       false,
     );
+    expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/video.mp4')).toBe(
+      false,
+    );
     expect(mediaImport.shouldAttemptSafDirectoryRead('content://root/AC.DC')).toBe(true);
     expect(
       mediaImport.shouldAttemptSafDirectoryRead('content://root/unknown.entry'),
     ).toBe(true);
+  });
+
+
+  test('SAF scan does not probe rejected mp4 videos as directories but keeps extensionless folders traversable', async () => {
+    const read = jest.fn(async (uri: string) => {
+      if (uri === 'content://root') {
+        return [
+          'content://root/video.mp4',
+          'content://root/Music',
+        ];
+      }
+      if (uri === 'content://root/Music') {
+        return ['content://root/Music/song.ogg', 'content://root/Music/voice.opus'];
+      }
+      throw new Error('permission denied');
+    });
+
+    const result = await mediaImport.readAudioUrisFromSafDirectory('content://root', read);
+
+    expect(result.files).toEqual(['content://root/Music/song.ogg', 'content://root/Music/voice.opus']);
+    expect(result.errors).toEqual([]);
+    expect(read).not.toHaveBeenCalledWith('content://root/video.mp4');
+    expect(read).toHaveBeenCalledWith('content://root/Music');
   });
 
   test('child read failure is ignored for unknown entries and keeps root audio files', async () => {

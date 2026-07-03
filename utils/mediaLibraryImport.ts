@@ -146,7 +146,9 @@ export const isAudioFileUri = (uri: string): boolean => isSupportedAudioCandidat
 export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
   const extension = deriveExtension(uri);
   if (!extension) return true;
-  if (isSupportedAudioCandidate({ uri }).accepted) return false;
+  const audioDecision = isSupportedAudioCandidate({ uri });
+  if (audioDecision.accepted) return false;
+  if (audioDecision.reason === 'mp4-without-audio-mime') return false;
   return !KNOWN_NON_AUDIO_EXTENSIONS.has(extension);
 };
 

@@ -7,6 +7,9 @@ describe('isSupportedAudioCandidate', () => {
     ['audio/x-m4a', 'song', undefined],
     ['', 'song.mp3', undefined],
     ['', 'SONG.M4A', undefined],
+    ['application/ogg', 'track.ogg', undefined],
+    ['application/ogg', 'track.opus', undefined],
+    ['application/x-ogg', 'track.ogg', undefined],
     ['application/octet-stream', 'album.FLAC', undefined],
     [undefined, undefined, 'content://provider/tree/Music%2FTrack.mp3'],
     ['', 'My%20Song.M4A', undefined],
@@ -17,6 +20,7 @@ describe('isSupportedAudioCandidate', () => {
 
   test.each([
     ['application/octet-stream', 'cover.jpg', undefined],
+    ['image/jpeg', 'track.mp3', undefined],
     ['', 'cover.jpg', undefined],
     [undefined, undefined, 'content://provider/Music/cover.JPG'],
     [undefined, 'clip.mp4', undefined],
@@ -26,7 +30,7 @@ describe('isSupportedAudioCandidate', () => {
   });
 
   test('accepts .mp4 only with an audio MIME type to avoid video imports', () => {
-    expect(isSupportedAudioCandidate({ mimeType: 'audio/mp4', displayName: 'track.mp4' })).toMatchObject({ accepted: true });
+    expect(isSupportedAudioCandidate({ mimeType: 'audio/mp4', displayName: 'track.mp4' })).toMatchObject({ accepted: true, reason: 'mp4-audio-mime' });
     expect(isSupportedAudioCandidate({ mimeType: 'application/octet-stream', displayName: 'clip.mp4' })).toMatchObject({ accepted: false, reason: 'mp4-without-audio-mime' });
   });
 });

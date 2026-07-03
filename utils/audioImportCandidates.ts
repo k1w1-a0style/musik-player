@@ -1,6 +1,5 @@
 import { AUDIO_EXTENSIONS, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 
-const GENERIC_MIME_TYPES = new Set(['application/octet-stream', 'application/x-octet-stream', 'binary/octet-stream']);
 const EXPLICIT_NON_AUDIO_MIME_PREFIXES = ['image/', 'video/'];
 
 export interface AudioCandidateInput {
@@ -69,7 +68,7 @@ export const isSupportedAudioCandidate = (candidate: AudioCandidateInput): Audio
     return { accepted: false, reason: 'mp4-without-audio-mime', normalizedMimeType, extension };
   }
 
-  if (extension && AUDIO_EXTENSIONS.has(extension) && (!normalizedMimeType || GENERIC_MIME_TYPES.has(normalizedMimeType))) {
+  if (extension && AUDIO_EXTENSIONS.has(extension)) {
     return { accepted: true, reason: 'audio-extension', normalizedMimeType, extension };
   }
 
