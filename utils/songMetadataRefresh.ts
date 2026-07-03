@@ -200,7 +200,8 @@ const MAX_CONCURRENCY = 3;
 export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
   includeCover: false,
   maxHeadBytes: 256 * 1024,
-  maxTailBytes: 0,
+  // Bounded MP4/M4A tail read keeps manual refresh text-tag capable without cover backfill.
+  maxTailBytes: 512 * 1024,
   maxFrameOffsetBytes: 8 * 1024 * 1024,
   maxFrameBodyReadBytes: 512 * 1024,
 } as const;

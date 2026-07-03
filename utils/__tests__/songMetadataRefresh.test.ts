@@ -2,6 +2,7 @@ import { parseId3FromUri } from '../id3Parser';
 import {
   applyId3TagsToSong,
   buildId3SongPatch,
+  MANUAL_METADATA_REFRESH_ID3_OPTIONS,
   normalizeCoverReferenceForComparison,
   refreshSongsFromId3,
   resolveMetadataRefreshUri,
@@ -55,6 +56,15 @@ test('applies trimmed ID3 text fields without overwriting with blanks', () => {
   });
 });
 
+test('manual metadata refresh reads bounded MP4 tail text tags without cover parsing', () => {
+  expect(MANUAL_METADATA_REFRESH_ID3_OPTIONS).toMatchObject({
+    includeCover: false,
+    maxHeadBytes: 256 * 1024,
+    maxTailBytes: 512 * 1024,
+  });
+  expect(MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes).toBeGreaterThan(0);
+});
+
 test('updates changed text metadata from ID3 tags', async () => {
   (parseId3FromUri as jest.Mock).mockResolvedValue({
     title: ' New Title ',
@@ -69,7 +79,7 @@ test('updates changed text metadata from ID3 tags', async () => {
 
   const result = await refreshSongsFromId3([baseSong]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 0, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 512 * 1024, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
   expect(result.updated).toBe(1);
   expect(result.skipped).toBe(0);
   expect(result.failed).toBe(0);
