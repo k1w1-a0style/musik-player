@@ -768,12 +768,32 @@ const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
   TPA: 'discNumber',
 };
 
+const PARSER_PLACEHOLDER_TAG_VALUES = new Set(['unknown', 'undefined', 'null', '<unknown>']);
+
+const isUsableParsedTagValue = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.normalize('NFKC').replace(/\s+/gu, ' ').trim();
+  return normalized.length > 0 && !PARSER_PLACEHOLDER_TAG_VALUES.has(normalized.toLocaleLowerCase('en-US'));
+};
+
 const mergeId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => ({
   ...base,
   ...Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => typeof value === 'string' && value.length > 0),
+    Object.entries(patch).filter(([, value]) => isUsableParsedTagValue(value)),
   ),
 });
+
+const mergeMissingOrPlaceholderId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => {
+  const merged: Id3Tags = { ...base };
+  for (const [key, value] of Object.entries(patch) as Array<[keyof Id3Tags, string | undefined]>) {
+    // MP4 tail/head fallback tags should replace empty or parser-placeholder values,
+    // but must not overwrite already useful ID3/head metadata.
+    if (isUsableParsedTagValue(value) && !isUsableParsedTagValue(merged[key])) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
 
 const applyTextFrame = (tags: Id3Tags, id: string, frameBytes: Uint8Array): void => {
   if (id === 'COMM' || id === 'COM') {
@@ -893,7 +913,7 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
       const id3 = parseId3Buffer(bytes, { includeCover });
       if (!looksLikeMp4) return id3;
-      return mergeId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
+      return mergeMissingOrPlaceholderId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
     };
     const mergeMp4TailTags = async (currentTags: Id3Tags, size: number, readTail: (tailStart: number, tailReadLength: number) => Promise<Uint8Array>): Promise<Id3Tags> => {
       if (!looksLikeMp4 || size <= maxHeadBytes || maxTailBytes <= 0) return currentTags;
@@ -905,10 +925,7 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
         includeCover,
         trustedTopLevel: false,
       });
-      return {
-        ...tailTags,
-        ...currentTags,
-      };
+      return mergeMissingOrPlaceholderId3Tags(currentTags, tailTags);
     };
     try {
       const b64 = await readAsStringAsync(normalizedUri, {

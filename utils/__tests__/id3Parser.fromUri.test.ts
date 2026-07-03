@@ -205,6 +205,38 @@ describe('parseId3FromUri', () => {
     expect(tags.cover).toBeUndefined();
   });
 
+  test('tail MP4 text replaces placeholder ID3 head values but preserves useful head values', async () => {
+    const id3Head = buildId3([
+      id3TextFrame('TIT2', '   '),
+      id3TextFrame('TPE1', 'unknown'),
+      id3TextFrame('TALB', 'null'),
+      id3TextFrame('TPE2', 'Head Album Artist'),
+    ]);
+    const tailMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Tail Title'))),
+      ...atom('©ART', atom('data', mp4TextData('Tail Artist'))),
+      ...atom('©alb', atom('data', mp4TextData('Tail Album'))),
+      ...atom('aART', atom('data', mp4TextData('Worse Tail Album Artist'))),
+      ...atom('trkn', atom('data', mp4NumberData(7, 14))),
+      ...atom('disk', atom('data', mp4NumberData(2, 3))),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(id3Head);
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(tailMoov));
+
+    const tags = await parseId3FromUri('file:///music/placeholder-head.m4a', { includeCover: false });
+
+    expect(tags).toMatchObject({
+      title: 'Tail Title',
+      artist: 'Tail Artist',
+      album: 'Tail Album',
+      albumArtist: 'Head Album Artist',
+      trackNumber: '7/14',
+      discNumber: '2/3',
+    });
+    expect(tags.cover).toBeUndefined();
+  });
+
   test('tail read merges MP4 text metadata with includeCover false and keeps cover out', async () => {
     const headMoov = mp4Ilst([
       ...atom('©nam', atom('data', mp4TextData('Head Title'))),
