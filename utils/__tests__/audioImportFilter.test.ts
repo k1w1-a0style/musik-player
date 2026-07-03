@@ -94,12 +94,14 @@ describe('audioImportFilter', () => {
     expectConsistentRejectReason(asset('track.flac', 180, undefined, 'application/octet-stream'), null);
     expectConsistentRejectReason(asset('track.ogg', 180, undefined, 'application/ogg'), null);
     expectConsistentRejectReason(asset('track.opus', 180, undefined, 'application/ogg'), null);
+    expectConsistentRejectReason(asset('track.opus', 180, undefined, 'application/ogg; codecs=opus'), null);
   });
 
   test('rejects concrete non-audio mime types despite known audio extensions', () => {
     expectConsistentRejectReason(asset('fake.mp3', 180, undefined, 'application/pdf'), 'not-audio');
     expectConsistentRejectReason(asset('notes.flac', 180, undefined, 'text/plain'), 'not-audio');
     expectConsistentRejectReason(asset('data.ogg', 180, undefined, 'application/json'), 'not-audio');
+    expectConsistentRejectReason(asset('fake.mp3', 180, undefined, 'application/pdf; charset=utf-8'), 'not-audio');
   });
 
   test('accepts MediaLibrary audio identity without mime type or whitelisted extension', () => {

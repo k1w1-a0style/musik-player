@@ -29,7 +29,8 @@ const safeDecode = (value: string): string => {
 
 export const normalizeAudioCandidateMimeType = (mimeType?: string | null): string | undefined => {
   const normalized = mimeType?.trim().toLowerCase();
-  return normalized || undefined;
+  const baseMimeType = normalized?.split(';', 1)[0]?.trim();
+  return baseMimeType || undefined;
 };
 
 const classifyAudioCandidateMimeType = (normalizedMimeType?: string): AudioCandidateMimeClassification => {
