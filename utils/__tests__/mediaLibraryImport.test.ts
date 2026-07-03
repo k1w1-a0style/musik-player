@@ -1000,3 +1000,16 @@ test('buildSongFromImportSource sets albumArtist from ID3 tags', async () => {
   );
   expect(song.albumArtist).toBe('Various Artists');
 });
+
+test('buildSongFromImportSource lets placeholder tags fall through to parsed M4A filename', async () => {
+  const song = await mediaImport.buildSongFromImportSource(
+    { id: 'm4a-fallback', uri: 'file:///Artist%20-%20Title.m4a', filename: 'Artist%20-%20Title.m4a', source: 'saf' } as any,
+    { title: 'unknown', artist: '   ', albumArtist: '<unknown>', album: 'null' } as any,
+    { loadNativeCover: false },
+  );
+
+  expect(song.title).toBe('Title');
+  expect(song.artist).toBe('Artist');
+  expect(song.albumArtist).toBeUndefined();
+  expect(song.album).toBeUndefined();
+});

@@ -43,13 +43,20 @@ export const stripAudioExtension = (value: string): string => value.replace(/\.(
 
 const basename = (value: string): string => {
   const withoutQuery = value.replace(/[?#].*$/, '').replace(/\/+$/, '');
-  return withoutQuery.split('/').filter(Boolean).pop() ?? withoutQuery;
+  const rawBase = withoutQuery.split('/').filter(Boolean).pop() ?? withoutQuery;
+  const decoded = decodeMetadataText(rawBase);
+  return decoded.split('/').filter(Boolean).pop() ?? decoded;
+};
+
+export const displayFilename = (filename?: string | null, uri?: string | null): string | undefined => {
+  const raw = normalizeMetadataText(filename) ?? normalizeMetadataText(uri);
+  if (!raw) return undefined;
+  return normalizeMetadataText(basename(raw));
 };
 
 export const displayNameFromFilename = (filename?: string | null, uri?: string | null): string | undefined => {
-  const raw = normalizeMetadataText(filename) ?? normalizeMetadataText(uri);
-  if (!raw) return undefined;
-  return normalizeMetadataText(stripAudioExtension(decodeMetadataText(basename(raw))));
+  const display = displayFilename(filename, uri);
+  return display ? normalizeMetadataText(stripAudioExtension(display)) : undefined;
 };
 
 export const parseFilename = (filename: string): ParsedFilename => {

@@ -1,4 +1,5 @@
 import {
+  displayFilename,
   displayNameFromFilename,
   normalizeMetadataText,
   parseFilename,
@@ -15,8 +16,16 @@ describe('metadata fallback helpers', () => {
     expect(resolveDisplayArtist('   ')).toBe('Unbekannt');
   });
 
-  test('URL-encoded filenames are decoded and stripped', () => {
+  test('URL-encoded filenames are decoded and stripped for title fallback', () => {
     expect(displayNameFromFilename('My%20Song%20%28Live%29.m4a')).toBe('My Song (Live)');
+  });
+
+  test('display filename decodes but keeps extension', () => {
+    expect(displayFilename('My%20Song%20%28Live%29.m4a')).toBe('My Song (Live).m4a');
+  });
+
+  test('content URI fallback handles encoded path separators by taking the decoded basename', () => {
+    expect(displayNameFromFilename(undefined, 'content://tree/primary%3AMusic%2FArtist%20-%20Title.m4a')).toBe('Artist - Title');
   });
 
   test('mp3 and m4a filenames behave consistently', () => {
@@ -24,11 +33,12 @@ describe('metadata fallback helpers', () => {
     expect(displayNameFromFilename('Track Name.m4a')).toBe('Track Name');
   });
 
-  test('unknown-like metadata values are not accepted as display values', () => {
+  test('unknown-like metadata values do not block better fallbacks', () => {
     expect(normalizeMetadataText('unknown')).toBeUndefined();
     expect(normalizeMetadataText('undefined')).toBeUndefined();
     expect(normalizeMetadataText('null')).toBeUndefined();
-    expect(resolveDisplayTitle('unknown', 'Readable.mp4')).toBe('Readable');
+    expect(normalizeMetadataText('<unknown>')).toBeUndefined();
+    expect(resolveDisplayTitle('unknown', 'Artist - Title.m4a')).toBe('Artist - Title');
   });
 
   test('filename parser decodes M4A artist-title fallback', () => {

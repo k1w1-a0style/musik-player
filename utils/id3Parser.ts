@@ -584,7 +584,82 @@ const MP4_CONTAINER_ATOMS = new Set([
   'minf',
   'stbl',
 ]);
-const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data']);
+const MP4_TEXT_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+  '©nam': 'title',
+  '©ART': 'artist',
+  aART: 'albumArtist',
+  '©alb': 'album',
+  '©day': 'year',
+  '©gen': 'genre',
+  '©cmt': 'comment',
+};
+const MP4_NUMBER_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+  trkn: 'trackNumber',
+  disk: 'discNumber',
+};
+const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data', ...Object.keys(MP4_TEXT_ATOM_TAGS), ...Object.keys(MP4_NUMBER_ATOM_TAGS)]);
+
+
+const decodeMp4Utf8 = (bytes: Uint8Array): string => {
+  try {
+    return new TextDecoder('utf-8', { fatal: false }).decode(bytes).replace(/\0+$/g, '').trim();
+  } catch {
+    return readLatin1(bytes, 0, bytes.length).replace(/\0+$/g, '').trim();
+  }
+};
+
+const parseMp4DataPayloads = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  onPayload: (payload: Uint8Array) => void,
+): void => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) break;
+    const type = readLatin1(bytes, p + 4, p + 8);
+    if (size === 1) break;
+    if (type === 'data' && size >= 16) {
+      onPayload(bytes.subarray(p + 16, p + size));
+    }
+    p += size;
+  }
+};
+
+const parseMp4TextAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let value: string | undefined;
+  parseMp4DataPayloads(bytes, start, end, payload => {
+    if (value) return;
+    const text = decodeMp4Utf8(payload);
+    if (text) value = text;
+  });
+  return value;
+};
+
+const readU16 = (bytes: Uint8Array, offset: number): number =>
+  ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0);
+
+const parseMp4NumberAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let value: string | undefined;
+  parseMp4DataPayloads(bytes, start, end, payload => {
+    if (value || payload.length < 4) return;
+    const numbers: number[] = [];
+    for (let i = 0; i + 1 < payload.length; i += 2) {
+      const number = readU16(payload, i);
+      if (number > 0) numbers.push(number);
+      if (numbers.length >= 2) break;
+    }
+    if (numbers.length === 1) value = String(numbers[0]);
+    else if (numbers.length >= 2) value = `${numbers[0]}/${numbers[1]}`;
+  });
+  return value;
+};
+
+const assignMp4Tag = (tags: Id3Tags, key: keyof Id3Tags, value?: string): void => {
+  if (!value || tags[key]) return;
+  tags[key] = value;
+};
 
 const parseMp4CovrData = (
   bytes: Uint8Array,
@@ -609,14 +684,16 @@ const parseMp4CovrData = (
 
 const MP4_SKIP_PAYLOAD_ATOMS = new Set(['mdat', 'free', 'skip', 'wide', 'uuid']);
 
-const findMp4CoverAtom = (
+const findMp4Tags = (
   bytes: Uint8Array,
   start: number,
   end: number,
-  depth = 0,
-  trustedBoundary = false,
-): string | undefined => {
-  if (depth > 8) return undefined;
+  options: { includeCover: boolean; depth?: number; trustedBoundary?: boolean },
+): Id3Tags => {
+  const tags: Id3Tags = {};
+  const depth = options.depth ?? 0;
+  const trustedBoundary = options.trustedBoundary === true;
+  if (depth > 8) return tags;
   let p = start;
   while (p + 8 <= end) {
     const size = readU32(bytes, p);
@@ -643,23 +720,31 @@ const findMp4CoverAtom = (
     const headerSize = type === 'meta' ? 12 : 8;
     const bodyStart = Math.min(p + headerSize, p + size);
     const bodyEnd = p + size;
-    if (type === 'covr') {
-      const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
-      if (cover) return cover;
+    if (type === 'covr' && options.includeCover) {
+      assignMp4Tag(tags, 'cover', parseMp4CovrData(bytes, bodyStart, bodyEnd));
+    } else if (type in MP4_TEXT_ATOM_TAGS) {
+      assignMp4Tag(tags, MP4_TEXT_ATOM_TAGS[type], parseMp4TextAtom(bytes, bodyStart, bodyEnd));
+    } else if (type in MP4_NUMBER_ATOM_TAGS) {
+      assignMp4Tag(tags, MP4_NUMBER_ATOM_TAGS[type], parseMp4NumberAtom(bytes, bodyStart, bodyEnd));
     } else if (MP4_CONTAINER_ATOMS.has(type)) {
-      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1, true);
-      if (cover) return cover;
+      Object.assign(tags, mergeId3Tags(tags, findMp4Tags(bytes, bodyStart, bodyEnd, { includeCover: options.includeCover, depth: depth + 1, trustedBoundary: true })));
     }
     p += size;
   }
-  return undefined;
+  return tags;
 };
+
+export const parseMp4TagsFromBuffer = (
+  bytes: Uint8Array,
+  options: { includeCover?: boolean; trustedTopLevel?: boolean } = {},
+): Id3Tags =>
+  findMp4Tags(bytes, 0, bytes.length, { includeCover: options.includeCover !== false, trustedBoundary: options.trustedTopLevel === true });
 
 export const parseMp4CoverFromBuffer = (
   bytes: Uint8Array,
   options: { trustedTopLevel?: boolean } = {},
 ): string | undefined =>
-  findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
+  parseMp4TagsFromBuffer(bytes, { includeCover: true, trustedTopLevel: options.trustedTopLevel }).cover;
 
 const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
 
@@ -809,8 +894,7 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
       const id3 = parseId3Buffer(bytes, { includeCover });
       if (!includeCover || id3.cover) return id3;
       if (!looksLikeMp4) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
-      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+      return mergeId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
     };
     try {
       const b64 = await readAsStringAsync(normalizedUri, {
@@ -857,10 +941,12 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
           position: tailStart,
         });
         throwIfParseAborted(options.signal);
-        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), {
+        const tailTags = parseMp4TagsFromBuffer(base64ToBytes(tailB64), {
+          includeCover,
           trustedTopLevel: false,
         });
-        if (tailCover) return { ...id3, cover: tailCover };
+        id3 = mergeId3Tags(id3, tailTags);
+        if (id3.cover) return id3;
       } catch {
         throwIfParseAborted(options.signal);
         return id3;

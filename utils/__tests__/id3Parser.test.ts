@@ -1,4 +1,4 @@
-import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
+import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer, parseMp4TagsFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -440,6 +440,37 @@ describe('parseMp4CoverFromBuffer', () => {
 
     const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+
+
+  test('parses text metadata atoms in mp4 ilst tree', () => {
+    const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+    const numberData = (current: number, total: number): number[] => [0, 0, 0, 0, 0, 0, 0, 0, 0, current, 0, total, 0, 0];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', textData('MP4 Title'))),
+      ...atom('©ART', atom('data', textData('MP4 Artist'))),
+      ...atom('aART', atom('data', textData('Album Artist'))),
+      ...atom('©alb', atom('data', textData('MP4 Album'))),
+      ...atom('©day', atom('data', textData('2026'))),
+      ...atom('©gen', atom('data', textData('Pop'))),
+      ...atom('©cmt', atom('data', textData('Comment'))),
+      ...atom('trkn', atom('data', numberData(3, 12))),
+      ...atom('disk', atom('data', numberData(1, 2))),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    expect(parseMp4TagsFromBuffer(bytes, { includeCover: false })).toMatchObject({
+      title: 'MP4 Title',
+      artist: 'MP4 Artist',
+      albumArtist: 'Album Artist',
+      album: 'MP4 Album',
+      year: '2026',
+      genre: 'Pop',
+      comment: 'Comment',
+      trackNumber: '3/12',
+      discNumber: '1/2',
+    });
   });
 
   test('aligned trusted top-level scan skips large top-level atoms and still finds covr', () => {

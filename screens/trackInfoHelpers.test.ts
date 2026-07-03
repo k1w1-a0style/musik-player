@@ -45,10 +45,21 @@ describe('trackInfoHelpers metadata display', () => {
     expect(getTrackInfoCodec(song)).toBe('audio/mp4');
   });
 
+  test('encoded filenames and SAF URI segments are decoded for display', () => {
+    expect(getTrackInfoFilename({ ...baseSong, fileInfo: { filename: 'My%20Song%20%28Live%29.m4a' } })).toBe('My Song (Live).m4a');
+    expect(getTrackInfoFilename({ ...baseSong, fileInfo: { uri: 'content://tree/primary%3AMusic%2FMy%20Song.m4a' } })).toBe('My Song.m4a');
+    expect(getTrackInfoFilename({ ...baseSong, fileInfo: { filename: 'Normal Song.mp3' } })).toBe('Normal Song.mp3');
+  });
+
   test('audio/x-m4a is not treated as unknown', () => {
     const song: Song = { ...baseSong, fileInfo: { extension: 'm4a', mimeType: 'audio/x-m4a' } };
     expect(getTrackInfoMimeType(song)).toBe('audio/x-m4a');
     expect(getTrackInfoContainer(song)).toBe('MP4 Audio');
+  });
+
+  test('mp4 only displays as MP4 Audio with audio evidence', () => {
+    expect(getTrackInfoContainer({ ...baseSong, fileInfo: { extension: 'mp4', mimeType: 'audio/mp4' } })).toBe('MP4 Audio');
+    expect(getTrackInfoContainer({ ...baseSong, fileInfo: { extension: 'mp4' } })).toBe('MP4');
   });
 
   test('MP3 display stays explicit', () => {

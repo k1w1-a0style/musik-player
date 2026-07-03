@@ -241,6 +241,8 @@ export const buildSongFromImportSource = async (
   const filename = source.filename ?? filenameFromUri(source.uri);
   const extension = deriveExtension(filename) ?? deriveExtension(source.uri);
   const fallback = parseFilename(filename);
+  const tagTitle = normalizeMetadataText(tags.title);
+  const tagArtist = normalizeMetadataText(tags.artist);
   const cachedCover = await cacheBase64Cover(source.id, tags.cover);
   const parsedCover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
   const nativeCover = parsedCover || !loadNativeCover ? undefined : await getNativeEmbeddedCover(source.uri);
@@ -250,8 +252,8 @@ export const buildSongFromImportSource = async (
 
   return {
     id: source.id,
-    title: resolveDisplayTitle(tags.title ?? fallback.title, filename, source.uri),
-    artist: resolveDisplayArtist(tags.artist ?? fallback.artist),
+    title: resolveDisplayTitle(tagTitle ?? fallback.title, filename, source.uri),
+    artist: resolveDisplayArtist(tagArtist ?? fallback.artist),
     albumArtist: normalizeMetadataText(tags.albumArtist),
     album: normalizeMetadataText(tags.album),
     duration: source.durationMs,
