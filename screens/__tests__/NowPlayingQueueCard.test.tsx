@@ -66,3 +66,21 @@ test('uses row text contrast instead of foregroundOnAccent for active text while
   expect(getByText(longQueue[0].artist).props.numberOfLines).toBe(1);
   expect(getByText(longQueue[0].artist).props.ellipsizeMode).toBe('tail');
 });
+
+
+test('uses display title fallback for placeholder queue titles', () => {
+  const { getByText, queryByText } = render(
+    <NowPlayingQueueCard
+      queue={[{ id: 's1', title: 'unknown', artist: 'Artist', fileInfo: { filename: 'Artist - Song.mp4' } }]}
+      currentSongId="s1"
+      maxHeight={240}
+      onPlayQueueItem={jest.fn()}
+      onQueueShift={jest.fn()}
+      canShiftQueue
+      accentColor="#3366FF"
+    />,
+  );
+
+  expect(queryByText('unknown')).toBeNull();
+  expect(getByText('Artist - Song')).toBeTruthy();
+});

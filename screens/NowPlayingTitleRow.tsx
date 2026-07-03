@@ -3,8 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { displayArtist } from '../utils/libraryPresentation';
-import { resolveDisplayTitle } from '../utils/musicParser';
+import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 
 interface NowPlayingTitleRowProps {
   currentSong: Song | null;
@@ -19,9 +18,7 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
   favoritePending,
   onToggleFavorite,
 }) => {
-  const title = currentSong
-    ? resolveDisplayTitle(currentSong.title, currentSong.fileInfo?.filename, currentSong.fileInfo?.uri ?? currentSong.uri)
-    : 'Kein Titel ausgewählt';
+  const title = currentSong ? displayTitle(currentSong) : 'Kein Titel ausgewählt';
   const artist = currentSong ? displayArtist(currentSong) : 'Wähle einen Titel aus der Bibliothek';
 
   return (

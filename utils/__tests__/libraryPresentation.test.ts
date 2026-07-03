@@ -1,4 +1,4 @@
-import { buildAlbumKey, buildArtistKey, buildLibraryGroups, buildSongKey, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, groupSongs, mergeSongs, normalizeAlbumName, normalizeArtistName, normalizeLibraryText } from '../libraryPresentation';
+import { buildAlbumKey, buildArtistKey, buildLibraryGroups, buildSongKey, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, displayTitle, groupSongs, mergeSongs, normalizeAlbumName, normalizeArtistName, normalizeLibraryText } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 
 jest.mock('../mediaLibraryImport', () => ({
@@ -37,6 +37,8 @@ test('display helpers provide fallbacks', () => {
   expect(displayArtist(song({ artist: '' }))).toBe('Unbekannt');
   expect(displayAlbum(song({ album: undefined }))).toBe('Unbekanntes Album');
   expect(displayGenre(song({ genre: undefined }))).toBe('Unbekanntes Genre');
+  expect(displayTitle(song({ title: 'unknown', fileInfo: { filename: 'Artist - Song.m4a' } }))).toBe('Artist - Song');
+  expect(displayTitle(song({ title: 'null', fileInfo: { filename: 'My%20Song.webm' } }))).toBe('My Song');
 });
 
 test('displayFolderName prefers derived folder name', () => {

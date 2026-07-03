@@ -46,6 +46,14 @@ describe('libraryRendererHelpers', () => {
     });
   });
 
+  test('uses filename fallback for placeholder card title', () => {
+    expect(buildSongCardSong({
+      ...song,
+      title: 'unknown',
+      fileInfo: { filename: 'Artist - Song.webm' },
+    })).toMatchObject({ title: 'Artist - Song' });
+  });
+
   test('hides track info action for demo songs', () => {
     expect(shouldShowTrackInfoAction({ ...song, id: 'demo-1' })).toBe(false);
     expect(shouldShowTrackInfoAction(song)).toBe(true);

@@ -47,6 +47,16 @@ describe('librarySort', () => {
     expect(songs.map(song => song.id)).toEqual(['1', '2', '3']);
   });
 
+  test('sorts placeholder titles by display filename fallback', () => {
+    const songs = [
+      makeSong({ id: 'b', title: 'unknown', fileInfo: { filename: 'Bravo.webm' } }),
+      makeSong({ id: 'a', title: 'null', fileInfo: { filename: 'Alpha.m4a' } }),
+      makeSong({ id: 'c', title: 'Charlie' }),
+    ];
+
+    expect(sortLibrarySongs(songs, 'alphabet').map(song => song.id)).toEqual(['a', 'b', 'c']);
+  });
+
   test('sorts by leading track number with missing values last', () => {
     const songs = [
       makeSong({ id: 'a', title: 'A', trackNumber: '10' }),

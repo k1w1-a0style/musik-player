@@ -1,7 +1,7 @@
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { deriveFolderNameFromUri } from './mediaLibraryImport';
-import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist } from './musicParser';
+import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist, resolveDisplayTitle } from './musicParser';
 import { getSongArtworkUri } from './songArtwork';
 
 export type LibraryGroupKind = 'album' | 'artist' | 'genre';
@@ -138,7 +138,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
 };
 
 const mergeSongKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
-const safeTitle = (song: Pick<Song, 'title'>): string => normalizeLibraryText(song.title) || 'Unbekannter Titel';
+const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
 const byTitle = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 
@@ -151,6 +151,8 @@ export const cleanPersonLikeLabel = (value?: string): string => {
   return stripExtension(basename(raw)) || raw;
 };
 
+export const displayTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string =>
+  resolveDisplayTitle(song.title, song.fileInfo?.filename, song.fileInfo?.uri ?? song.uri);
 export const displayArtist = (song: Pick<Song, 'artist'>): string => getDisplayArtistName(song.artist);
 export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlbumName(song.album);
 export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeLibraryText(cleanPersonLikeLabel(song.genre)) || UNKNOWN_GENRE_LABEL;
