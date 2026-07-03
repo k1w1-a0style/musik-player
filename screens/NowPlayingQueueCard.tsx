@@ -19,6 +19,7 @@ interface NowPlayingQueueCardProps {
   onPlayQueueItem: (songId: string) => void;
   onQueueShift: (fromIndex: number, toIndex: number) => void;
   canShiftQueue: boolean;
+  accentColor: string;
 }
 
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
@@ -28,6 +29,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   onPlayQueueItem,
   onQueueShift,
   canShiftQueue,
+  accentColor,
 }) => {
   const renderQueueItem = React.useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -42,41 +44,42 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         canShift={canShiftQueue && index > 0}
         onPress={onPlayQueueItem}
         onShift={onQueueShift}
+        accentColor={accentColor}
       />
     ),
-    [canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
+    [accentColor, canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
   );
 
-  if (queue.length <= 1) return null;
-
   return (
-    <View style={[styles.queueCard, { maxHeight }]}> 
-      <View style={styles.queueHeaderRow}>
-        <Text style={styles.queueEyebrow}>WARTESCHLANGE</Text>
-        <Text style={styles.queueCount}>{queue.length} Titel</Text>
-      </View>
+    <View style={[styles.queueListFrame, { maxHeight }]} testID="now-playing-queue-list-frame">
       <FlatList
         data={queue}
         keyExtractor={buildSongKey}
         renderItem={renderQueueItem}
         nestedScrollEnabled
         scrollEnabled
-        showsVerticalScrollIndicator={queue.length > 8}
+        showsVerticalScrollIndicator
         getItemLayout={getQueueItemLayout}
         style={styles.queueList}
         contentContainerStyle={styles.queueListContent}
+        ListEmptyComponent={(
+          <View style={styles.emptyState} testID="queue-empty-state">
+            <Text style={styles.emptyTitle}>Keine Titel in der Warteschlange</Text>
+            <Text style={styles.emptyText}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
+          </View>
+        )}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  queueCard: { flex: 1, marginHorizontal: 16, marginTop: 4, padding: 12, borderRadius: theme.radii.card, backgroundColor: theme.palette.surfaceGlass, borderWidth: 1, borderColor: theme.palette.border },
-  queueHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  queueEyebrow: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 11, letterSpacing: 1.4 },
-  queueCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 11 },
+  queueListFrame: { flex: 1, minHeight: 0, marginHorizontal: 8 },
   queueList: { flex: 1 },
-  queueListContent: { paddingBottom: 10 },
+  queueListContent: { flexGrow: 1, paddingBottom: 16 },
+  emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  emptyTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, textAlign: 'center' },
+  emptyText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
 });
 
 export default NowPlayingQueueCard;

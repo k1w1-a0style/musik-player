@@ -1,6 +1,6 @@
 import React from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
-import { GripVertical } from 'lucide-react-native';
+import { GripVertical, Volume2 } from 'lucide-react-native';
 import { theme } from '../theme';
 
 interface NowPlayingQueuePreviewRowProps {
@@ -12,6 +12,7 @@ interface NowPlayingQueuePreviewRowProps {
   artist: string;
   isCurrent: boolean;
   canShift?: boolean;
+  accentColor?: string;
   onPress: (songId: string) => void;
   onShift?: (fromIndex: number, toIndex: number) => void;
 }
@@ -27,6 +28,7 @@ const NowPlayingQueuePreviewRow = React.memo(({
   artist,
   isCurrent,
   canShift = false,
+  accentColor = theme.palette.primary,
   onPress,
   onShift,
 }: NowPlayingQueuePreviewRowProps) => {
@@ -94,7 +96,7 @@ const NowPlayingQueuePreviewRow = React.memo(({
       testID={`queue-row-${id}`}
       style={({ pressed }) => [
         styles.queueItem,
-        isCurrent && styles.queueItemActive,
+        isCurrent && [styles.queueItemActive, { borderColor: accentColor, backgroundColor: `${accentColor}26` }],
         dragEnabled && styles.queueItemEditing,
         dragging && styles.queueItemDragging,
         dragging && { transform: [{ translateY: dragY }] },
@@ -109,11 +111,25 @@ const NowPlayingQueuePreviewRow = React.memo(({
       accessibilityState={{ selected: isCurrent }}
       {...panResponder.panHandlers}
     >
-      <View style={[styles.queueAccent, isCurrent && styles.queueAccentActive]} />
+      <View style={[styles.queueAccent, isCurrent && { backgroundColor: accentColor }]} testID={`queue-accent-bar-${id}`} />
       <View style={styles.queueTextWrap}>
-        <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>{title}</Text>
-        <Text style={styles.queueArtist} numberOfLines={1}>{artist}</Text>
+        <Text
+          style={[styles.queueTitle, isCurrent && styles.queueTitleActive]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {title}
+        </Text>
+        <Text style={styles.queueArtist} numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
       </View>
+      {isCurrent ? (
+        <View style={[styles.playingBadge, { borderColor: accentColor }]} testID={`queue-active-indicator-${id}`}>
+          <View testID={`queue-active-icon-${id}`}>
+            <Volume2 color={accentColor} size={14} />
+          </View>
+          <Text style={styles.playingLabel} numberOfLines={1}>Aktiv</Text>
+        </View>
+      ) : null}
       {canDrag ? (
         <View style={styles.dragHandle} testID={`queue-drag-handle-${id}`}>
           <GripVertical color={dragEnabled ? theme.palette.primary : theme.palette.text.muted} size={18} />
@@ -125,16 +141,17 @@ const NowPlayingQueuePreviewRow = React.memo(({
 
 const styles = StyleSheet.create({
   queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: theme.borderRadius.sm, paddingHorizontal: 8 },
-  queueItemActive: { backgroundColor: theme.palette.primaryGlow },
+  queueItemActive: { borderWidth: 1 },
   queueItemEditing: { borderWidth: 1, borderColor: theme.palette.primary },
   queueItemDragging: { zIndex: 20, elevation: 8, backgroundColor: theme.palette.surfaceElevated, opacity: 0.96 },
   queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 20, borderRadius: 3, backgroundColor: theme.palette.border },
-  queueAccentActive: { backgroundColor: theme.palette.primary },
   queueTextWrap: { flex: 1 },
   queueTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 12 },
-  queueTitleActive: { color: theme.palette.primary },
+  queueTitleActive: { color: theme.palette.text.primary, fontWeight: '700' },
   queueArtist: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 1 },
+  playingBadge: { minWidth: 54, maxWidth: 72, height: 26, borderRadius: 13, borderWidth: 1, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
+  playingLabel: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 10 },
   dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: theme.palette.surfaceElevated },
 });
 
