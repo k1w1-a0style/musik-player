@@ -892,9 +892,23 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
     const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(extensionProbeUri);
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
       const id3 = parseId3Buffer(bytes, { includeCover });
-      if (!includeCover || id3.cover) return id3;
       if (!looksLikeMp4) return id3;
       return mergeId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
+    };
+    const mergeMp4TailTags = async (currentTags: Id3Tags, size: number, readTail: (tailStart: number, tailReadLength: number) => Promise<Uint8Array>): Promise<Id3Tags> => {
+      if (!looksLikeMp4 || size <= maxHeadBytes || maxTailBytes <= 0) return currentTags;
+      const tailReadLength = Math.min(maxTailBytes, size);
+      const tailStart = Math.max(0, size - tailReadLength);
+      const tailBytes = await readTail(tailStart, tailReadLength);
+      throwIfParseAborted(options.signal);
+      const tailTags = parseMp4TagsFromBuffer(tailBytes, {
+        includeCover,
+        trustedTopLevel: false,
+      });
+      return {
+        ...tailTags,
+        ...currentTags,
+      };
     };
     try {
       const b64 = await readAsStringAsync(normalizedUri, {
@@ -926,32 +940,22 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
           console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
         }
       }
-      if (!includeCover || id3.cover || !looksLikeMp4) return id3;
+      if (!looksLikeMp4) return id3;
       try {
         const info = await getId3FileInfo(normalizedUri);
         if (!info.exists) return id3;
-        const size = info.size;
-        if (size <= maxHeadBytes) return id3;
-        if (maxTailBytes <= 0) return id3;
-        const tailReadLength = Math.min(maxTailBytes, size);
-        const tailStart = Math.max(0, size - tailReadLength);
-        const tailB64 = await readAsStringAsync(normalizedUri, {
-          encoding: encodingBase64,
-          length: tailReadLength,
-          position: tailStart,
+        return await mergeMp4TailTags(id3, info.size, async (tailStart, tailReadLength) => {
+          const tailB64 = await readAsStringAsync(normalizedUri, {
+            encoding: encodingBase64,
+            length: tailReadLength,
+            position: tailStart,
+          });
+          return base64ToBytes(tailB64);
         });
-        throwIfParseAborted(options.signal);
-        const tailTags = parseMp4TagsFromBuffer(base64ToBytes(tailB64), {
-          includeCover,
-          trustedTopLevel: false,
-        });
-        id3 = mergeId3Tags(id3, tailTags);
-        if (id3.cover) return id3;
       } catch {
         throwIfParseAborted(options.signal);
         return id3;
       }
-      return id3;
     } catch {
       throwIfParseAborted(options.signal);
       // fallback to File API when legacy path is unavailable
@@ -1002,6 +1006,12 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
               head[2] === 0x33
             ) {
               parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
+            }
+            if (looksLikeMp4) {
+              parsed = await mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
+                handle.offset = tailStart;
+                return handle.readBytes(tailReadLength);
+              });
             }
             return parsed;
           } finally {

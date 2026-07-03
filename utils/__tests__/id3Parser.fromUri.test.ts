@@ -48,6 +48,9 @@ describe('parseId3FromUri', () => {
   ];
   const b64 = (bytes: number[]): string =>
     Buffer.from(Uint8Array.from(bytes)).toString('base64');
+  const mp4TextData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+  const mp4NumberData = (current: number, total: number): number[] => [0, 0, 0, 0, 0, 0, 0, 0, 0, current, 0, total, 0, 0];
+  const mp4Ilst = (children: number[]): number[] => atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', children)])));
   const id3TextFrame = (id: string, text: string): number[] => {
     const body = [0x00, ...enc(text)];
     return [...enc(id), ...u32be(body.length), 0, 0, ...body];
@@ -174,6 +177,82 @@ describe('parseId3FromUri', () => {
     })).rejects.toThrow('stop scan');
   });
 
+
+
+  test('includeCover false reads MP4 text metadata without returning cover', async () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 1, 2];
+    const moov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('M4A Title'))),
+      ...atom('©ART', atom('data', mp4TextData('M4A Artist'))),
+      ...atom('aART', atom('data', mp4TextData('M4A Album Artist'))),
+      ...atom('©alb', atom('data', mp4TextData('M4A Album'))),
+      ...atom('trkn', atom('data', mp4NumberData(5, 13))),
+      ...atom('disk', atom('data', mp4NumberData(1, 2))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(moov));
+
+    const tags = await parseId3FromUri('file:///music/text-only.m4a', { includeCover: false });
+
+    expect(tags).toMatchObject({
+      title: 'M4A Title',
+      artist: 'M4A Artist',
+      albumArtist: 'M4A Album Artist',
+      album: 'M4A Album',
+      trackNumber: '5/13',
+      discNumber: '1/2',
+    });
+    expect(tags.cover).toBeUndefined();
+  });
+
+  test('tail read merges MP4 text metadata with includeCover false and keeps cover out', async () => {
+    const headMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Head Title'))),
+    ]);
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 1, 2];
+    const tailMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Worse Tail Title'))),
+      ...atom('©ART', atom('data', mp4TextData('Tail Artist'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(headMoov));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(tailMoov));
+
+    const tags = await parseId3FromUri('file:///music/tail-text.m4a', { includeCover: false });
+
+    expect(tags.title).toBe('Head Title');
+    expect(tags.artist).toBe('Tail Artist');
+    expect(tags.cover).toBeUndefined();
+    expect(mockReadAsStringAsync).toHaveBeenCalledTimes(2);
+  });
+
+  test('File.open fallback merges MP4 text metadata from bounded tail read', async () => {
+    mockReadAsStringAsync.mockRejectedValueOnce(new Error('legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    const headMoov = Uint8Array.from(mp4Ilst([...atom('©nam', atom('data', mp4TextData('Open Head Title')))]));
+    const tailMoov = Uint8Array.from(mp4Ilst([...atom('©ART', atom('data', mp4TextData('Open Tail Artist')))]));
+    let offset: number | null = 0;
+    const handle = {
+      get offset() {
+        return offset;
+      },
+      set offset(next: number | null) {
+        offset = next;
+      },
+      readBytes: jest.fn((length: number): Uint8Array => (offset ?? 0) === 0 ? headMoov : tailMoov.subarray(0, length)),
+      close: jest.fn(),
+    };
+    mockOpen.mockReturnValueOnce(handle);
+
+    const tags = await parseId3FromUri('file:///music/open-tail.m4a', { includeCover: false });
+
+    expect(tags.title).toBe('Open Head Title');
+    expect(tags.artist).toBe('Open Tail Artist');
+    expect(tags.cover).toBeUndefined();
+    expect(mockFileBytes).not.toHaveBeenCalled();
+  });
+
   test('uses mp4 parsing when URI has query params', async () => {
     const webp = [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50];
     const data = atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...webp]);
@@ -228,7 +307,7 @@ describe('parseId3FromUri', () => {
 
     const tags = await parseId3FromUri('file:///music/aligned-head.m4a');
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
-    expect(mockGetInfoAsync).not.toHaveBeenCalled();
+    expect(mockGetInfoAsync).toHaveBeenCalledWith('file:///music/aligned-head.m4a');
   });
 
   test('falls back to tail read for larger mp4 files', async () => {

@@ -1,3 +1,5 @@
+import { AUDIO_EXTENSIONS } from './audioExtensions';
+
 /**
  * Formatiert Millisekunden in M:SS.
  */
@@ -39,7 +41,12 @@ export const normalizeMetadataText = (value?: string | null): string | undefined
   return normalized;
 };
 
-export const stripAudioExtension = (value: string): string => value.replace(/\.(?:mp3|m4a|mp4|aac|flac|wav|ogg|opus|m4b)$/iu, '');
+export const stripAudioExtension = (value: string): string => {
+  const index = value.lastIndexOf('.');
+  if (index <= 0) return value;
+  const extension = value.slice(index + 1).toLocaleLowerCase('en-US');
+  return AUDIO_EXTENSIONS.has(extension) ? value.slice(0, index) : value;
+};
 
 const basename = (value: string): string => {
   const withoutQuery = value.replace(/[?#].*$/, '').replace(/\/+$/, '');

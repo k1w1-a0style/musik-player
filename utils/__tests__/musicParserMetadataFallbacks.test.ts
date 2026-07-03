@@ -28,9 +28,15 @@ describe('metadata fallback helpers', () => {
     expect(displayNameFromFilename(undefined, 'content://tree/primary%3AMusic%2FArtist%20-%20Title.m4a')).toBe('Artist - Title');
   });
 
-  test('mp3 and m4a filenames behave consistently', () => {
-    expect(displayNameFromFilename('Track Name.mp3')).toBe('Track Name');
-    expect(displayNameFromFilename('Track Name.m4a')).toBe('Track Name');
+  test('supported audio extensions are stripped consistently', () => {
+    for (const extension of ['mp3', 'm4a', 'mp4', 'aac', 'flac', 'wav', 'ogg', 'opus', 'webm']) {
+      expect(displayNameFromFilename(`Track Name.${extension}`)).toBe('Track Name');
+    }
+  });
+
+  test('webm artist-title filename fallback matches other audio files', () => {
+    expect(parseFilename('Artist - Song.webm')).toEqual({ artist: 'Artist', title: 'Song' });
+    expect(parseFilename('Song.webm')).toEqual({ title: 'Song' });
   });
 
   test('unknown-like metadata values do not block better fallbacks', () => {

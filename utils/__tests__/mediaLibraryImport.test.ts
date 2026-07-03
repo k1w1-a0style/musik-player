@@ -1013,3 +1013,15 @@ test('buildSongFromImportSource lets placeholder tags fall through to parsed M4A
   expect(song.albumArtist).toBeUndefined();
   expect(song.album).toBeUndefined();
 });
+
+
+test('buildSongFromImportSource strips webm extension in title fallback', async () => {
+  const song = await mediaImport.buildSongFromImportSource(
+    { id: 'webm-fallback', uri: 'file:///Artist%20-%20Song.webm', filename: 'Artist%20-%20Song.webm', source: 'saf' } as any,
+    { title: 'undefined', artist: 'null' } as any,
+    { loadNativeCover: false },
+  );
+
+  expect(song.title).toBe('Song');
+  expect(song.artist).toBe('Artist');
+});

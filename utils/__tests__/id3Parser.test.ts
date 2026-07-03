@@ -444,7 +444,7 @@ describe('parseMp4CoverFromBuffer', () => {
 
 
 
-  test('parses text metadata atoms in mp4 ilst tree', () => {
+  test('parses text metadata atoms in mp4 ilst tree without cover', () => {
     const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
     const numberData = (current: number, total: number): number[] => [0, 0, 0, 0, 0, 0, 0, 0, 0, current, 0, total, 0, 0];
     const ilst = atom('ilst', [
@@ -460,7 +460,9 @@ describe('parseMp4CoverFromBuffer', () => {
     ]);
     const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
 
-    expect(parseMp4TagsFromBuffer(bytes, { includeCover: false })).toMatchObject({
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags.cover).toBeUndefined();
+    expect(tags).toMatchObject({
       title: 'MP4 Title',
       artist: 'MP4 Artist',
       albumArtist: 'Album Artist',
@@ -471,6 +473,22 @@ describe('parseMp4CoverFromBuffer', () => {
       trackNumber: '3/12',
       discNumber: '1/2',
     });
+  });
+
+
+
+  test('parses mp4 text metadata and cover when cover is included', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', textData('Covered MP4 Title'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: true });
+    expect(tags.title).toBe('Covered MP4 Title');
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
   test('aligned trusted top-level scan skips large top-level atoms and still finds covr', () => {
