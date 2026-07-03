@@ -1,5 +1,7 @@
 import { AUDIO_EXTENSIONS, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 
+const GENERIC_MIME_TYPES = new Set(['application/octet-stream', 'application/x-octet-stream', 'binary/octet-stream']);
+const SUPPORTED_AUDIO_CONTAINER_MIME_TYPES = new Set(['application/ogg', 'application/x-ogg']);
 const EXPLICIT_NON_AUDIO_MIME_PREFIXES = ['image/', 'video/'];
 
 export interface AudioCandidateInput {
@@ -50,6 +52,10 @@ export const isSupportedAudioCandidate = (candidate: AudioCandidateInput): Audio
   const normalizedMimeType = normalizeAudioCandidateMimeType(candidate.mimeType);
   const extension = deriveAudioCandidateExtension(candidate);
   const mimeIsAudio = normalizedMimeType?.startsWith('audio/') === true;
+  const allowsExtensionFallback =
+    !normalizedMimeType ||
+    GENERIC_MIME_TYPES.has(normalizedMimeType) ||
+    SUPPORTED_AUDIO_CONTAINER_MIME_TYPES.has(normalizedMimeType);
 
   if (normalizedMimeType && EXPLICIT_NON_AUDIO_MIME_PREFIXES.some(prefix => normalizedMimeType.startsWith(prefix))) {
     return { accepted: false, reason: 'non-audio-mime', normalizedMimeType, extension };
@@ -68,8 +74,12 @@ export const isSupportedAudioCandidate = (candidate: AudioCandidateInput): Audio
     return { accepted: false, reason: 'mp4-without-audio-mime', normalizedMimeType, extension };
   }
 
-  if (extension && AUDIO_EXTENSIONS.has(extension)) {
+  if (extension && AUDIO_EXTENSIONS.has(extension) && allowsExtensionFallback) {
     return { accepted: true, reason: 'audio-extension', normalizedMimeType, extension };
+  }
+
+  if (normalizedMimeType && !allowsExtensionFallback) {
+    return { accepted: false, reason: 'non-audio-mime', normalizedMimeType, extension };
   }
 
   return { accepted: false, reason: 'missing-audio-identity', normalizedMimeType, extension };

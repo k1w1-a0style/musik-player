@@ -90,8 +90,16 @@ describe('audioImportFilter', () => {
     expectConsistentRejectReason(asset('notes.txt', 180), 'not-audio');
   });
 
-  test('keeps unknown mime types with known audio extensions acceptable', () => {
+  test('keeps generic and container mime types with known audio extensions acceptable', () => {
     expectConsistentRejectReason(asset('track.flac', 180, undefined, 'application/octet-stream'), null);
+    expectConsistentRejectReason(asset('track.ogg', 180, undefined, 'application/ogg'), null);
+    expectConsistentRejectReason(asset('track.opus', 180, undefined, 'application/ogg'), null);
+  });
+
+  test('rejects concrete non-audio mime types despite known audio extensions', () => {
+    expectConsistentRejectReason(asset('fake.mp3', 180, undefined, 'application/pdf'), 'not-audio');
+    expectConsistentRejectReason(asset('notes.flac', 180, undefined, 'text/plain'), 'not-audio');
+    expectConsistentRejectReason(asset('data.ogg', 180, undefined, 'application/json'), 'not-audio');
   });
 
   test('accepts MediaLibrary audio identity without mime type or whitelisted extension', () => {
