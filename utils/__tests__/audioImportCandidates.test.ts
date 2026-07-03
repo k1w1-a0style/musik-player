@@ -7,7 +7,17 @@ describe('isSupportedAudioCandidate', () => {
     ['audio/x-m4a', 'song', undefined],
     ['', 'song.mp3', undefined],
     ['', 'SONG.M4A', undefined],
-    ['application/octet-stream', 'album.FLAC', undefined],
+    ['application/ogg', 'track.ogg', undefined],
+    ['application/ogg', 'track.opus', undefined],
+    ['application/ogg; codecs=opus', 'track.ogg', undefined],
+    ['application/ogg; codecs=opus', 'track.opus', undefined],
+    ['application/x-ogg', 'track.ogg', undefined],
+    ['application/x-ogg; codecs=opus', 'track.ogg', undefined],
+    ['application/octet-stream', 'track.flac', undefined],
+    ['application/octet-stream; charset=binary', 'track.flac', undefined],
+    ['application/x-octet-stream', 'track.ogg', undefined],
+    ['binary/octet-stream', 'track.opus', undefined],
+    [undefined, 'track.mp3', undefined],
     [undefined, undefined, 'content://provider/tree/Music%2FTrack.mp3'],
     ['', 'My%20Song.M4A', undefined],
     [null, undefined, 'content://provider/document/primary%3AMusic%2FEncoded%20Song.FLAC?x=1'],
@@ -17,16 +27,28 @@ describe('isSupportedAudioCandidate', () => {
 
   test.each([
     ['application/octet-stream', 'cover.jpg', undefined],
+    ['image/jpeg', 'track.mp3', undefined],
+    ['application/pdf', 'fake.mp3', undefined],
+    ['text/plain', 'notes.flac', undefined],
+    ['application/json', 'data.ogg', undefined],
+    ['application/pdf; charset=utf-8', 'fake.mp3', undefined],
+    ['text/plain; charset=utf-8', 'notes.flac', undefined],
+    ['application/json; charset=utf-8', 'data.ogg', undefined],
+    ['image/jpeg; charset=binary', 'track.mp3', undefined],
     ['', 'cover.jpg', undefined],
     [undefined, undefined, 'content://provider/Music/cover.JPG'],
     [undefined, 'clip.mp4', undefined],
+    [null, 'clip.mp4', undefined],
     ['video/mp4', 'song.mp3', undefined],
+    ['video/mp4; codecs=avc1', 'track.mp3', undefined],
   ])('rejects non-audio mime=%p displayName=%p uri=%p', (mimeType, displayName, uri) => {
     expect(isSupportedAudioCandidate({ mimeType, displayName, uri }).accepted).toBe(false);
   });
 
   test('accepts .mp4 only with an audio MIME type to avoid video imports', () => {
-    expect(isSupportedAudioCandidate({ mimeType: 'audio/mp4', displayName: 'track.mp4' })).toMatchObject({ accepted: true });
+    expect(isSupportedAudioCandidate({ mimeType: 'audio/mp4', displayName: 'track.mp4' })).toMatchObject({ accepted: true, reason: 'mp4-audio-mime', normalizedMimeType: 'audio/mp4' });
+    expect(isSupportedAudioCandidate({ mimeType: 'audio/mp4; codecs=mp4a.40.2', displayName: 'track.mp4' })).toMatchObject({ accepted: true, reason: 'mp4-audio-mime', normalizedMimeType: 'audio/mp4' });
     expect(isSupportedAudioCandidate({ mimeType: 'application/octet-stream', displayName: 'clip.mp4' })).toMatchObject({ accepted: false, reason: 'mp4-without-audio-mime' });
+    expect(isSupportedAudioCandidate({ mimeType: 'application/octet-stream; charset=binary', displayName: 'clip.mp4' })).toMatchObject({ accepted: false, reason: 'mp4-without-audio-mime', normalizedMimeType: 'application/octet-stream' });
   });
 });
