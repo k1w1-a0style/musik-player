@@ -1,5 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
-import { AUDIO_EXTENSIONS } from './audioExtensions';
+import { isSupportedAudioCandidate } from './audioImportCandidates';
 
 export const MIN_MUSIC_DURATION_SECONDS = 45;
 
@@ -97,14 +97,6 @@ const filenameStem = (filename?: string | null, uri?: string | null): string => 
   return stripQueryAndFragment(base).replace(/\.[^.]+$/, '').trim();
 };
 
-const extensionFromAsset = (asset: AudioAssetLike): string => {
-  const normalizedFilename = normalize(asset.filename);
-  const fallback = pathSegments(asset.uri).pop() ?? '';
-  const base = stripQueryAndFragment(normalizedFilename || fallback);
-  const match = /\.([^.]+)$/.exec(base);
-  return match?.[1]?.trim() ?? '';
-};
-
 const blockedDirectorySegment = (asset: AudioAssetLike): string | undefined =>
   pathSegments(asset.uri).find(segment => BLOCKED_DIRECTORY_SEGMENTS.has(segment));
 
@@ -120,18 +112,13 @@ const hasExplicitNonAudioMediaType = (asset: AudioAssetLike): boolean => {
   return mediaType === 'photo' || mediaType === 'video' || mediaType === 'pairedvideo';
 };
 
-const hasAudioMimeType = (asset: AudioAssetLike): boolean => {
-  const mime = normalize(asset.mimeType);
-  return mime.startsWith('audio/');
-};
-
-const hasKnownAudioExtension = (asset: AudioAssetLike): boolean => AUDIO_EXTENSIONS.has(extensionFromAsset(asset));
+const hasAudioMimeType = (asset: AudioAssetLike): boolean => isSupportedAudioCandidate({ mimeType: asset.mimeType, displayName: asset.filename, uri: asset.uri }).accepted && normalize(asset.mimeType).startsWith('audio/');
 
 const hasSupportedAudioIdentity = (asset: AudioAssetLike): boolean => {
   // MediaLibrary uses 'unknown' when the platform cannot classify an asset, so MIME/extension
   // checks are still allowed for that value. Explicit photo/video classifications are authoritative.
   if (hasExplicitNonAudioMediaType(asset)) return false;
-  return hasAudioMediaType(asset) || hasAudioMimeType(asset) || hasKnownAudioExtension(asset);
+  return hasAudioMediaType(asset) || isSupportedAudioCandidate({ mimeType: asset.mimeType, displayName: asset.filename, uri: asset.uri }).accepted;
 };
 
 export const getAudioAssetRejectReason = (
