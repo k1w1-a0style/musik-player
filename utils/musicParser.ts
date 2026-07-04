@@ -92,7 +92,8 @@ const splitCompactArtistTitle = (clean: string): string[] | undefined => {
   if (!artist || !title) return [rawArtist, rawTitle];
   // Compact separators are ambiguous in ordinary hyphenated titles. Only treat them
   // as artist/title separators when both sides look substantial enough.
-  return artist.length >= 3 && title.length >= 3 ? [rawArtist, rawTitle] : undefined;
+  const shortKnownArtist = artist.length === 2 && /^[A-Z0-9]{2}$/.test(artist) && title.length >= 3;
+  return (artist.length >= 3 && title.length >= 3) || shortKnownArtist ? [rawArtist, rawTitle] : undefined;
 };
 
 export const parseFilename = (filename: string): ParsedFilename => {

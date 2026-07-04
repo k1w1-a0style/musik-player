@@ -99,7 +99,7 @@ export const getTrackInfoContainer = (song: Song): string => {
   const raw = normalizeMetadataText(song.fileInfo?.container) ?? normalizeMetadataText(song.fileInfo?.extension);
   if (!raw) return 'Nicht verfügbar';
   const lower = raw.toLocaleLowerCase('de-DE');
-  if (lower === 'm4a') return 'MP4 Audio';
+  if (lower === 'm4a' || lower === 'm4b') return 'MP4 Audio';
   if (lower === 'mp4') return hasMp4AudioEvidence(song) ? 'MP4 Audio' : 'MP4';
   if (lower === 'mp3') return 'MP3';
   if (lower === 'aac') return 'AAC';
@@ -109,13 +109,13 @@ export const getTrackInfoContainer = (song: Song): string => {
 export const getTrackInfoMimeType = (song: Song): string =>
   normalizeMetadataText(song.fileInfo?.mimeType)
   ?? normalizeMetadataText(song.audioInfo?.codec)
-  ?? ((song.fileInfo?.extension ?? '').toLowerCase() === 'm4a' ? 'audio/mp4' : undefined)
+  ?? (['m4a', 'm4b'].includes((song.fileInfo?.extension ?? '').toLowerCase()) ? 'audio/mp4' : undefined)
   ?? 'Nicht verfügbar';
 
 export const getTrackInfoCodec = (song: Song): string =>
   normalizeMetadataText(song.audioInfo?.codec)
   ?? normalizeMetadataText(song.fileInfo?.mimeType)
-  ?? ((song.fileInfo?.extension ?? '').toLowerCase() === 'm4a' ? 'AAC / MP4 Audio' : undefined)
+  ?? (['m4a', 'm4b'].includes((song.fileInfo?.extension ?? '').toLowerCase()) ? 'AAC / MP4 Audio' : undefined)
   ?? 'Nicht verfügbar';
 
 export const getTrackInfoCoverUri = (song: Song): string | undefined =>

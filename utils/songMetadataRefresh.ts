@@ -48,7 +48,7 @@ export interface SongMetadataRefreshProcessedSong {
   errorReason?: string;
 }
 
-interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
+interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes' | 'filename' | 'mimeType' | 'extension'> {
   concurrency?: number;
   perTrackTimeoutMs?: number;
   signal?: AbortSignal;
@@ -258,7 +258,7 @@ export const refreshSongsFromId3 = async (
     throwIfAborted(signal);
   };
 
-  const parseTagsForUri = async (uri: string): Promise<Id3Tags> => {
+  const parseTagsForSong = async (song: Song, uri: string): Promise<Id3Tags> => {
     const buildOptions = (parseSignal?: AbortSignal): ParseId3Options => ({
       ...MANUAL_METADATA_REFRESH_ID3_OPTIONS,
       includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
@@ -267,6 +267,9 @@ export const refreshSongsFromId3 = async (
       maxFrameScanBytes: options?.maxFrameScanBytes,
       maxFrameOffsetBytes: options?.maxFrameOffsetBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameOffsetBytes,
       maxFrameBodyReadBytes: options?.maxFrameBodyReadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameBodyReadBytes,
+      filename: options?.filename ?? song.fileInfo?.filename,
+      mimeType: options?.mimeType ?? song.fileInfo?.mimeType ?? song.audioInfo?.codec,
+      extension: options?.extension ?? song.fileInfo?.extension,
       signal: parseSignal,
     });
 
@@ -305,7 +308,7 @@ export const refreshSongsFromId3 = async (
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
-      const tags = await parseTagsForUri(uri);
+      const tags = await parseTagsForSong(song, uri);
       throwIfAborted(signal);
       const patch = buildId3SongPatch(song, tags);
       const next = Object.keys(patch).length > 0 ? { ...song, ...patch } : song;

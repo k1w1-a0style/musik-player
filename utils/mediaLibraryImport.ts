@@ -4,7 +4,7 @@ import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename, resolveDisplayArtist, resolveDisplayTitle, normalizeMetadataText } from './musicParser';
-import { parseId3FromUri, type Id3Tags } from './id3Parser';
+import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
 import { OperationAbortError, throwIfAborted } from './withTimeout';
@@ -216,10 +216,10 @@ const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> 
   }
 };
 
-const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal): Promise<Id3Tags> => {
+const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}): Promise<Id3Tags> => {
   if (!enabled) return {};
   try {
-    return await parseId3FromUri(uri, { signal });
+    return await parseId3FromUri(uri, { signal, ...hints });
   } catch {
     throwIfAborted(signal);
     return {};
@@ -579,7 +579,13 @@ export const enrichMediaLibraryAssets = async (
       const asset = queue.shift();
       if (!asset) break;
       try {
-        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal);
+        const assetMimeType = (asset as { mimeType?: string }).mimeType;
+        const assetExtension = deriveExtension(asset.filename ?? asset.uri);
+        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal, {
+          filename: asset.filename,
+          mimeType: assetMimeType,
+          extension: assetExtension,
+        });
         throwIfAborted(signal);
         const audioInfo = await getNativeAudioInfo(asset.uri);
         throwIfAborted(signal);
@@ -588,7 +594,7 @@ export const enrichMediaLibraryAssets = async (
           uri: asset.uri,
           filename: asset.filename,
           durationMs: durationSecondsToMs(asset.duration),
-          mimeType: (asset as { mimeType?: string }).mimeType,
+          mimeType: assetMimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
         }, audioInfo), tags, { loadNativeCover }));
@@ -654,7 +660,7 @@ export const scanFromSafFolders = async (
         const uri = queue.shift();
         if (!uri) return;
         try {
-          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
+          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal, { extension: deriveExtension(uri) });
           throwIfAborted(signal);
           const audioInfo = await getNativeAudioInfo(uri);
           throwIfAborted(signal);

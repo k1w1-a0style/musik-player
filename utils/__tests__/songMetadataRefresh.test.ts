@@ -66,6 +66,24 @@ test('manual metadata refresh reads bounded MP4 tail text tags without cover par
 });
 
 
+test('manual metadata refresh passes fileInfo hints for opaque MP4 content URIs', async () => {
+  const opaqueSong: Song = {
+    ...baseSong,
+    uri: 'content://media/external/audio/media/42',
+    fileInfo: { filename: 'Song.m4a', mimeType: 'audio/mp4', extension: 'm4a' },
+  };
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Opaque Embedded Title', artist: 'Opaque Embedded Artist' });
+
+  const result = await refreshSongsFromId3([opaqueSong]);
+
+  expect(parseId3FromUri).toHaveBeenCalledWith(
+    'content://media/external/audio/media/42',
+    expect.objectContaining({ filename: 'Song.m4a', mimeType: 'audio/mp4', extension: 'm4a', includeCover: false }),
+  );
+  expect(result.songs[0]).toMatchObject({ title: 'Opaque Embedded Title', artist: 'Opaque Embedded Artist' });
+});
+
+
 test('manual metadata refresh applies MP4 tail text tags instead of filename fallback without cover', async () => {
   const songWithFilenameFallback: Song = {
     ...baseSong,

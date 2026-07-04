@@ -228,6 +228,64 @@ describe('parseId3FromUri', () => {
     expect(tags.cover).toBeUndefined();
   });
 
+
+  test('extensionless content URI uses filename hint for bounded MP4 tail text parsing without cover', async () => {
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1])));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    const tailMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Opaque Filename Title'))),
+      ...atom('©ART', atom('data', mp4TextData('Opaque Filename Artist'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, 0xff, 0xd8, 0xff, 0xe0])),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(new Array(2048).fill(0x00).concat(tailMoov)));
+
+    const tags = await parseId3FromUri('content://media/external/audio/media/42', {
+      includeCover: false,
+      filename: 'Song.m4a',
+      maxHeadBytes: 256 * 1024,
+      maxTailBytes: 512 * 1024,
+    });
+
+    expect(tags).toMatchObject({ title: 'Opaque Filename Title', artist: 'Opaque Filename Artist' });
+    expect(tags.cover).toBeUndefined();
+    expect(mockGetInfoAsync).toHaveBeenCalledWith('content://media/external/audio/media/42');
+  });
+
+  test('extensionless content URI uses audio/mp4 mime hint for bounded MP4 tail text parsing', async () => {
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(atom('ftyp', [0x69, 0x73, 0x6f, 0x6d, 0, 0, 0, 1])));
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    const tailMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Opaque Mime Title'))),
+      ...atom('©ART', atom('data', mp4TextData('Opaque Mime Artist'))),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(new Array(2048).fill(0x00).concat(tailMoov)));
+
+    const tags = await parseId3FromUri('content://media/external/audio/media/42', {
+      includeCover: false,
+      mimeType: 'audio/mp4',
+      maxHeadBytes: 256 * 1024,
+      maxTailBytes: 512 * 1024,
+    });
+
+    expect(tags).toMatchObject({ title: 'Opaque Mime Title', artist: 'Opaque Mime Artist' });
+  });
+
+  test('extensionless content URI uses MP4 head evidence for text parsing', async () => {
+    const head = [
+      ...atom('ftyp', [0x4d, 0x34, 0x41, 0x20, 0, 0, 0, 1]),
+      ...mp4Ilst([
+        ...atom('©nam', atom('data', mp4TextData('Head Evidence Title'))),
+        ...atom('©ART', atom('data', mp4TextData('Head Evidence Artist'))),
+      ]),
+    ];
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(head));
+
+    const tags = await parseId3FromUri('content://media/external/audio/media/42', { includeCover: false });
+
+    expect(tags).toMatchObject({ title: 'Head Evidence Title', artist: 'Head Evidence Artist' });
+    expect(tags.cover).toBeUndefined();
+  });
+
   test('tail MP4 text replaces placeholder ID3 head values but preserves useful head values', async () => {
     const id3Head = buildId3([
       id3TextFrame('TIT2', '   '),
@@ -346,6 +404,19 @@ describe('parseId3FromUri', () => {
       'file:///music/track.m4a',
       expect.any(Object),
     );
+  });
+
+
+  test('uses mp4 parsing when URI has fragment params', async () => {
+    const moov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('Fragment Title'))),
+      ...atom('©ART', atom('data', mp4TextData('Fragment Artist'))),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(moov));
+
+    const tags = await parseId3FromUri('file:///music/track.m4a#fragment', { includeCover: false });
+    expect(tags).toMatchObject({ title: 'Fragment Title', artist: 'Fragment Artist' });
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith('file:///music/track.m4a', expect.any(Object));
   });
 
   test('keeps content URI query params when reading provider-backed files', async () => {

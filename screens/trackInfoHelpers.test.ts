@@ -57,6 +57,14 @@ describe('trackInfoHelpers metadata display', () => {
     expect(getTrackInfoContainer(song)).toBe('MP4 Audio');
   });
 
+
+  test('m4b extension gets MP4 audio track info fallbacks', () => {
+    const song: Song = { ...baseSong, fileInfo: { filename: 'Book.m4b', extension: 'm4b' }, audioInfo: {} };
+    expect(getTrackInfoContainer(song)).toBe('MP4 Audio');
+    expect(getTrackInfoMimeType(song)).toBe('audio/mp4');
+    expect(getTrackInfoCodec(song)).toBe('AAC / MP4 Audio');
+  });
+
   test('mp4 only displays as MP4 Audio with audio evidence', () => {
     expect(getTrackInfoContainer({ ...baseSong, fileInfo: { extension: 'mp4', mimeType: 'audio/mp4' } })).toBe('MP4 Audio');
     expect(getTrackInfoContainer({ ...baseSong, fileInfo: { extension: 'mp4' } })).toBe('MP4');
