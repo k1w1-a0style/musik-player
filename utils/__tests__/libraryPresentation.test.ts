@@ -37,8 +37,11 @@ test('display helpers provide fallbacks', () => {
   expect(displayArtist(song({ artist: '' }))).toBe('Unbekannt');
   expect(displayAlbum(song({ album: undefined }))).toBe('Unbekanntes Album');
   expect(displayGenre(song({ genre: undefined }))).toBe('Unbekanntes Genre');
-  expect(displayTitle(song({ title: 'unknown', fileInfo: { filename: 'Artist - Song.m4a' } }))).toBe('Song');
-  expect(displayTitle(song({ title: 'null', fileInfo: { filename: 'My%20Song.webm' } }))).toBe('My Song');
+  expect(displayTitle(song({ title: 'unknown', fileInfo: { filename: 'Artist - Real Song.m4a' } }))).toBe('Real Song');
+  expect(displayTitle(song({ title: 'null', fileInfo: { filename: 'Real Song.m4a' } }))).toBe('Real Song');
+  expect(displayTitle(song({ title: 'undefined', uri: 'content://root/Music%2FReal%20Song.mp3' }))).toBe('Real Song');
+  expect(displayTitle(song({ title: 'unknown', fileInfo: undefined, uri: undefined }))).toBe('Unbekannter Titel');
+  expect(displayArtist(song({ artist: 'unknown' }))).toBe('Unbekannt');
 });
 
 test('displayFolderName prefers derived folder name', () => {
@@ -231,8 +234,9 @@ test('groupSongs keeps cover selection and title sorting behavior', () => {
 });
 
 
-test('normalizeLibraryText applies unicode and whitespace normalization', () => {
+test('normalizeLibraryText applies unicode and whitespace normalization without metadata placeholder filtering', () => {
   expect(normalizeLibraryText('  Cafe\u0301\tAlbum  ')).toBe('Café Album');
+  expect(normalizeLibraryText('unknown')).toBe('unknown');
 });
 
 test('album keys merge equal album names despite varying track artists', () => {

@@ -26,19 +26,37 @@ describe('NowPlayingTitleRow metadata display fallbacks', () => {
     expect(getByText('Kein Titel ausgewählt')).toBeTruthy();
   });
 
-  test.each(['unknown', 'null', 'undefined', '<unknown>', '   '])(
+  test.each([
+    ['unknown', 'Artist - Real Song.m4a', 'Real Song'],
+    ['null', 'Real Song.m4a', 'Real Song'],
+    ['undefined', 'Artist - Real Song.webm', 'Real Song'],
+    ['<unknown>', 'Artist - Real Song.mp3', 'Real Song'],
+    ['   ', 'Artist - Real Song.m4b', 'Real Song'],
+  ])(
     'uses filename fallback instead of no-selection copy for placeholder title %p',
-    (title) => {
+    (title, filename, expectedTitle) => {
       const { getByText, queryByText } = renderRow({
         ...baseSong,
         title,
-        fileInfo: { filename: 'Artist - Song.m4a' },
+        fileInfo: { filename },
       });
 
       expect(queryByText('Kein Titel ausgewählt')).toBeNull();
-      expect(getByText('Song')).toBeTruthy();
+      expect(getByText(expectedTitle)).toBeTruthy();
     },
   );
+
+  test('uses unknown title fallback rather than no-selection copy when currentSong has no usable title source', () => {
+    const { getByText, queryByText } = renderRow({
+      ...baseSong,
+      title: 'unknown',
+      uri: undefined,
+      fileInfo: undefined,
+    });
+
+    expect(queryByText('Kein Titel ausgewählt')).toBeNull();
+    expect(getByText('Unbekannter Titel')).toBeTruthy();
+  });
 
   test('keeps a real title unchanged', () => {
     const { getByText } = renderRow({
