@@ -239,6 +239,49 @@ test('normalizeLibraryText applies unicode and whitespace normalization without 
   expect(normalizeLibraryText('unknown')).toBe('unknown');
 });
 
+
+test('placeholder artist values share the unknown artist group key and label', () => {
+  const groups = groupSongs([
+    song({ id: 'missing', artist: '', title: 'Missing Artist' }),
+    song({ id: 'unknown', artist: 'unknown', title: 'Unknown Artist' }),
+    song({ id: 'null', artist: 'null', title: 'Null Artist' }),
+    song({ id: 'undefined', artist: 'undefined', title: 'Undefined Artist' }),
+    song({ id: 'angle', artist: '<unknown>', title: 'Angle Artist' }),
+    song({ id: 'real', artist: 'Real Artist', title: 'Real Artist Song' }),
+  ], 'artist');
+
+  const unknownGroups = groups.filter(group => group.title === 'Unbekannt');
+  expect(unknownGroups).toHaveLength(1);
+  expect(unknownGroups[0].id).toBe('artist:unknown-artist');
+  expect(unknownGroups[0].songs.map(item => item.id).sort()).toEqual(['angle', 'missing', 'null', 'undefined', 'unknown']);
+  expect(groups.find(group => group.title === 'Real Artist')?.id).toBe('artist:real artist');
+  expect(buildArtistKey('unknown')).toBe(buildArtistKey(undefined));
+  expect(buildArtistKey('null')).toBe(buildArtistKey(undefined));
+  expect(buildArtistKey('undefined')).toBe(buildArtistKey(undefined));
+  expect(buildArtistKey('<unknown>')).toBe(buildArtistKey(undefined));
+});
+
+test('placeholder album values share the unknown album group key and label', () => {
+  const groups = groupSongs([
+    song({ id: 'missing', album: undefined, title: 'Missing Album' }),
+    song({ id: 'unknown', album: 'unknown', title: 'Unknown Album' }),
+    song({ id: 'null', album: 'null', title: 'Null Album' }),
+    song({ id: 'undefined', album: 'undefined', title: 'Undefined Album' }),
+    song({ id: 'angle', album: '<unknown>', title: 'Angle Album' }),
+    song({ id: 'real', album: 'Real Album', title: 'Real Album Song' }),
+  ], 'album');
+
+  const unknownGroups = groups.filter(group => group.title === 'Unbekanntes Album');
+  expect(unknownGroups).toHaveLength(1);
+  expect(unknownGroups[0].id).toBe('album:unknown-album');
+  expect(unknownGroups[0].songs.map(item => item.id).sort()).toEqual(['angle', 'missing', 'null', 'undefined', 'unknown']);
+  expect(groups.find(group => group.title === 'Real Album')?.id).toBe('album:real album');
+  expect(buildAlbumKey(song({ album: 'unknown' }))).toBe(buildAlbumKey(song({ album: undefined })));
+  expect(buildAlbumKey(song({ album: 'null' }))).toBe(buildAlbumKey(song({ album: undefined })));
+  expect(buildAlbumKey(song({ album: 'undefined' }))).toBe(buildAlbumKey(song({ album: undefined })));
+  expect(buildAlbumKey(song({ album: '<unknown>' }))).toBe(buildAlbumKey(song({ album: undefined })));
+});
+
 test('album keys merge equal album names despite varying track artists', () => {
   const artistAKey = buildAlbumKey(song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }));
   const artistBKey = buildAlbumKey(song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }));
@@ -265,5 +308,7 @@ test('missing album uses stable unknown key part', () => {
   expect(key).toBe('album:unknown-album');
   expect(buildArtistKey('')).toBe('artist:unknown-artist');
   expect(normalizeAlbumName(undefined)).toBe('unknown-album');
+  expect(normalizeAlbumName('unknown')).toBe('unknown-album');
   expect(normalizeArtistName(undefined)).toBe('unknown-artist');
+  expect(normalizeArtistName('unknown')).toBe('unknown-artist');
 });

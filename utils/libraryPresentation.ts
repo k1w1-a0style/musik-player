@@ -50,8 +50,13 @@ const normalizeLibraryKeyPart = (value: string, unknownKey: string): string => {
   return normalized || unknownKey;
 };
 
-export const normalizeAlbumName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
-export const normalizeArtistName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
+const normalizeMetadataKeyPart = (value: string, unknownKey: string): string => {
+  const normalized = normalizeMetadataText(value)?.toLocaleLowerCase('de-DE');
+  return normalized || unknownKey;
+};
+
+export const normalizeAlbumName = (value?: string | null): string => normalizeMetadataKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
+export const normalizeArtistName = (value?: string | null): string => normalizeMetadataKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
 export const getDisplayAlbumName = (value?: string | null): string => resolveDisplayAlbum(cleanPersonLikeLabel(value ?? undefined));
 export const getDisplayArtistName = (value?: string | null): string => resolveDisplayArtist(cleanPersonLikeLabel(value ?? undefined));
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
