@@ -37,7 +37,7 @@ test('display helpers provide fallbacks', () => {
   expect(displayArtist(song({ artist: '' }))).toBe('Unbekannt');
   expect(displayAlbum(song({ album: undefined }))).toBe('Unbekanntes Album');
   expect(displayGenre(song({ genre: undefined }))).toBe('Unbekanntes Genre');
-  expect(displayTitle(song({ title: 'unknown', fileInfo: { filename: 'Artist - Song.m4a' } }))).toBe('Artist - Song');
+  expect(displayTitle(song({ title: 'unknown', fileInfo: { filename: 'Artist - Song.m4a' } }))).toBe('Song');
   expect(displayTitle(song({ title: 'null', fileInfo: { filename: 'My%20Song.webm' } }))).toBe('My Song');
 });
 

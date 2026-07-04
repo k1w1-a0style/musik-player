@@ -27,7 +27,7 @@ describe('trackInfoHelpers metadata display', () => {
 
   test('uses clean fallbacks for missing title artist album and album artist', () => {
     const song: Song = { ...baseSong, title: 'unknown', artist: ' ', album: 'undefined', albumArtist: 'null' };
-    expect(getTrackInfoTitle(song)).toBe('Artist - Title');
+    expect(getTrackInfoTitle(song)).toBe('Title');
     expect(getTrackInfoArtist(song)).toBe('Unbekannt');
     expect(getTrackInfoAlbum(song)).toBe('Unbekanntes Album');
     expect(getTrackInfoAlbumArtist(song)).toBe('Unbekannt');

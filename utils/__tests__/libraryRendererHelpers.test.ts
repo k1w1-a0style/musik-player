@@ -51,7 +51,7 @@ describe('libraryRendererHelpers', () => {
       ...song,
       title: 'unknown',
       fileInfo: { filename: 'Artist - Song.webm' },
-    })).toMatchObject({ title: 'Artist - Song' });
+    })).toMatchObject({ title: 'Song' });
   });
 
   test('hides track info action for demo songs', () => {

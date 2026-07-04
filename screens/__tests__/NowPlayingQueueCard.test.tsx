@@ -82,5 +82,5 @@ test('uses display title fallback for placeholder queue titles', () => {
   );
 
   expect(queryByText('unknown')).toBeNull();
-  expect(getByText('Artist - Song')).toBeTruthy();
+  expect(getByText('Song')).toBeTruthy();
 });

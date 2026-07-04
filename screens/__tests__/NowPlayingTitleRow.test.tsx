@@ -36,7 +36,7 @@ describe('NowPlayingTitleRow metadata display fallbacks', () => {
       });
 
       expect(queryByText('Kein Titel ausgewählt')).toBeNull();
-      expect(getByText('Artist - Song')).toBeTruthy();
+      expect(getByText('Song')).toBeTruthy();
     },
   );
 

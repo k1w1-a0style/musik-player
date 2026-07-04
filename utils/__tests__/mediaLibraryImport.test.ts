@@ -1025,3 +1025,22 @@ test('buildSongFromImportSource strips webm extension in title fallback', async 
   expect(song.title).toBe('Song');
   expect(song.artist).toBe('Artist');
 });
+
+test('buildSongFromImportSource strips m4b extension and placeholder artist segment in title fallback', async () => {
+  const result = await mediaImport.buildSongFromImportSource(
+    {
+      id: 'm4b-fallback',
+      uri: 'file:///music/unknown%20-%20Real%20Book.m4b',
+      filename: 'unknown - Real Book.m4b',
+      durationMs: 180000,
+      source: 'saf',
+    } as any,
+    {},
+    { loadNativeCover: false },
+  );
+
+  expect(result.title).toBe('Real Book');
+  expect(result.artist).toBe('Unbekannt');
+  expect(result.fileInfo?.extension).toBe('m4b');
+  expect(result.fileInfo?.mimeType).toBe('audio/mp4');
+});

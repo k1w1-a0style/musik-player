@@ -1,4 +1,4 @@
-import { AUDIO_EXTENSIONS } from './audioExtensions';
+import { TITLE_FALLBACK_AUDIO_EXTENSIONS } from './audioExtensions';
 
 /**
  * Formatiert Millisekunden in M:SS.
@@ -45,7 +45,7 @@ export const stripAudioExtension = (value: string): string => {
   const index = value.lastIndexOf('.');
   if (index <= 0) return value;
   const extension = value.slice(index + 1).toLocaleLowerCase('en-US');
-  return AUDIO_EXTENSIONS.has(extension) ? value.slice(0, index) : value;
+  return TITLE_FALLBACK_AUDIO_EXTENSIONS.has(extension) ? value.slice(0, index) : value;
 };
 
 const basename = (value: string): string => {
@@ -68,15 +68,24 @@ export const displayNameFromFilename = (filename?: string | null, uri?: string |
 
 export const parseFilename = (filename: string): ParsedFilename => {
   const clean = displayNameFromFilename(filename) ?? '';
-  const parts = clean.split(/\s*[-–]\s*/).map(part => normalizeMetadataText(part)).filter(Boolean) as string[];
-  if (parts.length >= 2) {
-    return { artist: parts[0], title: parts.slice(1).join(' - ') };
+  const rawParts = clean.split(/\s+[-–]\s+/);
+  if (rawParts.length >= 2) {
+    const parts = rawParts.map(part => normalizeMetadataText(part));
+    const artist = parts[0];
+    const title = parts.slice(1).filter(Boolean).join(' - ');
+    if (title) return artist ? { artist, title } : { title };
+    if (artist) return { artist, title: UNKNOWN_TITLE_LABEL };
   }
-  return { title: clean };
+  return { title: normalizeMetadataText(clean) ?? UNKNOWN_TITLE_LABEL };
+};
+
+const displayTitleFromFilename = (filename?: string | null, uri?: string | null): string | undefined => {
+  const display = displayFilename(filename, uri);
+  return display ? parseFilename(display).title : undefined;
 };
 
 export const resolveDisplayTitle = (title?: string | null, filename?: string | null, uri?: string | null): string =>
-  normalizeMetadataText(title) ?? displayNameFromFilename(filename, uri) ?? UNKNOWN_TITLE_LABEL;
+  normalizeMetadataText(title) ?? displayTitleFromFilename(filename, uri) ?? UNKNOWN_TITLE_LABEL;
 
 export const resolveDisplayArtist = (artist?: string | null): string =>
   normalizeMetadataText(artist) ?? UNKNOWN_ARTIST_LABEL;
