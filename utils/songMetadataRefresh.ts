@@ -1,6 +1,7 @@
 import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
+import { normalizeMetadataText } from './musicParser';
 import { MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS } from './libraryOperationTimeouts';
 import SystemAudio, { type FastMetadataResult } from '../modules/expo-system-audio';
 
@@ -77,9 +78,9 @@ const NATIVE_TO_ID3_FIELD_MAP: Record<keyof FastMetadataResult, keyof Id3Tags | 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
 
 /**
- * Merge native + JS-ID3 tag results. Native fields win when present; otherwise
- * the JS-ID3 parser fills the field. Native values that look insecure (empty
- * strings, "0" durations, etc.) are skipped via `hasText`.
+ * Merge native + JS-ID3 tag results. Native fields win only when they contain
+ * usable metadata text; placeholder values such as "unknown" are ignored so
+ * better JS/MP4 tail tags are not overwritten by native fast-path noise.
  */
 export const mergeFastMetadataIntoId3Tags = (
   nativeResult: FastMetadataResult | null | undefined,
@@ -91,8 +92,9 @@ export const mergeFastMetadataIntoId3Tags = (
     const id3Key = NATIVE_TO_ID3_FIELD_MAP[nativeKey];
     if (!id3Key) return;
     const value = nativeResult[nativeKey];
-    if (typeof value === 'string' && hasText(value)) {
-      merged[id3Key] = value.trim();
+    if (typeof value === 'string') {
+      const normalized = normalizeMetadataText(value);
+      if (normalized) merged[id3Key] = normalized;
     }
   });
   return merged;

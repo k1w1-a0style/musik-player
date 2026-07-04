@@ -101,6 +101,44 @@ test('manual metadata refresh applies MP4 tail text tags instead of filename fal
   });
 });
 
+
+test('manual metadata refresh keeps parsed MP4 tail tags when native fast metadata is placeholder-only', async () => {
+  const m4bSong: Song = {
+    ...baseSong,
+    title: 'Filename Fallback',
+    artist: 'Filename Artist',
+    album: 'Filename Album',
+    uri: 'file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b',
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  };
+  const extractMetadataFast = jest.fn().mockResolvedValue({
+    title: 'unknown',
+    artist: 'undefined',
+    album: 'null',
+  });
+  (parseId3FromUri as jest.Mock).mockResolvedValue({
+    title: 'M4B Tail Title',
+    artist: 'M4B Tail Artist',
+    album: 'M4B Tail Album',
+  });
+
+  const result = await refreshSongsFromId3([m4bSong], { extractMetadataFast });
+
+  expect(extractMetadataFast).toHaveBeenCalledWith('file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b');
+  expect(parseId3FromUri).toHaveBeenCalledWith(
+    'file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b',
+    expect.objectContaining({ includeCover: false, maxTailBytes: 512 * 1024 }),
+  );
+  expect(result.songs[0]).toMatchObject({
+    title: 'M4B Tail Title',
+    artist: 'M4B Tail Artist',
+    album: 'M4B Tail Album',
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  });
+});
+
 test('updates changed text metadata from ID3 tags', async () => {
   (parseId3FromUri as jest.Mock).mockResolvedValue({
     title: ' New Title ',
