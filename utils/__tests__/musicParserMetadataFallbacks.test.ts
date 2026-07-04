@@ -24,6 +24,17 @@ describe('metadata fallback helpers', () => {
     expect(displayFilename('My%20Song%20%28Live%29.m4a')).toBe('My Song (Live).m4a');
   });
 
+  test('plain filenames keep hash and question mark characters', () => {
+    expect(resolveDisplayTitle('', 'Symphony #5.m4a')).toBe('Symphony #5');
+    expect(parseFilename('Artist - Track #2.mp3')).toEqual({ artist: 'Artist', title: 'Track #2' });
+    expect(resolveDisplayTitle('', 'Song ? Version.m4a')).toBe('Song ? Version');
+  });
+
+  test('URI query and fragment are stripped only for likely URI values', () => {
+    expect(resolveDisplayTitle('', undefined, 'file:///Music/Song.m4a?token=abc')).toBe('Song');
+    expect(resolveDisplayTitle('', undefined, 'file:///Music/Song.m4a#fragment')).toBe('Song');
+  });
+
   test('content URI fallback handles encoded path separators by taking the decoded basename', () => {
     expect(displayNameFromFilename(undefined, 'content://tree/primary%3AMusic%2FArtist%20-%20Title.m4a')).toBe('Artist - Title');
   });
@@ -49,10 +60,13 @@ describe('metadata fallback helpers', () => {
 
   test.each([
     ['unknown - Real Song.m4a', { title: 'Real Song' }],
+    ['unknown-Real Song.m4a', { title: 'Real Song' }],
     ['null - Real Song.mp3', { title: 'Real Song' }],
     ['undefined - Real Song.webm', { title: 'Real Song' }],
     ['<unknown> - Real Song.m4b', { title: 'Real Song' }],
     ['Real Artist - Real Song.m4a', { artist: 'Real Artist', title: 'Real Song' }],
+    ['Artist-Title.mp3', { artist: 'Artist', title: 'Title' }],
+    ['Artist–Title.m4a', { artist: 'Artist', title: 'Title' }],
     ['Real%20Artist%20–%20Real%20Song.m4a', { artist: 'Real Artist', title: 'Real Song' }],
     ['Artist - Album - Song.m4a', { artist: 'Artist', title: 'Album - Song' }],
   ])('drops placeholder filename segments in %s', (filename, expected) => {
@@ -63,6 +77,11 @@ describe('metadata fallback helpers', () => {
     expect(parseFilename('Real Artist - unknown.m4a')).toEqual({ artist: 'Real Artist', title: 'Unbekannter Titel' });
     expect(parseFilename('unknown.m4a')).toEqual({ title: 'Unbekannter Titel' });
     expect(resolveDisplayTitle('unknown', 'unknown - Real Song.m4a')).toBe('Real Song');
+  });
+
+  test('compact separators avoid short ordinary hyphenated title false positives', () => {
+    expect(parseFilename('AC-DC.m4a')).toEqual({ title: 'AC-DC' });
+    expect(parseFilename('Re-Entry.m4a')).toEqual({ title: 'Re-Entry' });
   });
 
   test('unknown-like metadata values do not block better fallbacks', () => {

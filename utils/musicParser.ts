@@ -48,8 +48,12 @@ export const stripAudioExtension = (value: string): string => {
   return TITLE_FALLBACK_AUDIO_EXTENSIONS.has(extension) ? value.slice(0, index) : value;
 };
 
+const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//iu;
+
+const isLikelyUri = (value: string): boolean => URI_SCHEME_PATTERN.test(value);
+
 const basename = (value: string): string => {
-  const withoutQuery = value.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  const withoutQuery = (isLikelyUri(value) ? value.replace(/[?#].*$/, '') : value).replace(/\/+$/, '');
   const rawBase = withoutQuery.split('/').filter(Boolean).pop() ?? withoutQuery;
   const decoded = decodeMetadataText(rawBase);
   return decoded.split('/').filter(Boolean).pop() ?? decoded;
@@ -66,16 +70,39 @@ export const displayNameFromFilename = (filename?: string | null, uri?: string |
   return display ? normalizeMetadataText(stripAudioExtension(display)) : undefined;
 };
 
+const parseFilenameParts = (rawParts: string[]): ParsedFilename | undefined => {
+  if (rawParts.length < 2) return undefined;
+  const parts = rawParts.map(part => normalizeMetadataText(part));
+  const artist = parts[0];
+  const title = parts.slice(1).filter(Boolean).join(' - ');
+  if (title) return artist ? { artist, title } : { title };
+  if (artist) return { artist, title: UNKNOWN_TITLE_LABEL };
+  return undefined;
+};
+
+const splitCompactArtistTitle = (clean: string): string[] | undefined => {
+  const match = clean.match(/^(.+?)[-–](.+)$/u);
+  if (!match) return undefined;
+  const [, rawArtist, rawTitle] = match;
+  const artist = normalizeMetadataText(rawArtist);
+  const title = normalizeMetadataText(rawTitle);
+  if (!title) return undefined;
+  if (!artist) return [rawArtist, rawTitle];
+  // Compact separators are ambiguous in ordinary hyphenated titles. Only treat them
+  // as artist/title separators when both sides look substantial enough.
+  return artist.length >= 3 && title.length >= 3 ? [rawArtist, rawTitle] : undefined;
+};
+
 export const parseFilename = (filename: string): ParsedFilename => {
   const clean = displayNameFromFilename(filename) ?? '';
-  const rawParts = clean.split(/\s+[-–]\s+/);
-  if (rawParts.length >= 2) {
-    const parts = rawParts.map(part => normalizeMetadataText(part));
-    const artist = parts[0];
-    const title = parts.slice(1).filter(Boolean).join(' - ');
-    if (title) return artist ? { artist, title } : { title };
-    if (artist) return { artist, title: UNKNOWN_TITLE_LABEL };
-  }
+  const spacedParts = clean.split(/\s+[-–]\s+/);
+  const spacedResult = parseFilenameParts(spacedParts);
+  if (spacedResult) return spacedResult;
+
+  const compactParts = splitCompactArtistTitle(clean);
+  const compactResult = compactParts ? parseFilenameParts(compactParts) : undefined;
+  if (compactResult) return compactResult;
+
   return { title: normalizeMetadataText(clean) ?? UNKNOWN_TITLE_LABEL };
 };
 
