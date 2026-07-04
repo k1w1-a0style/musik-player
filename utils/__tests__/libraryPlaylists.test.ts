@@ -7,6 +7,8 @@ const song = (patch: Partial<Song>): Song => ({
   artist: patch.artist ?? 'Artist',
   album: patch.album,
   genre: patch.genre,
+  uri: patch.uri,
+  fileInfo: patch.fileInfo,
 });
 
 const playlist = (patch: Partial<Playlist>): Playlist => ({
@@ -56,6 +58,24 @@ test('filters by playlist name and song metadata', () => {
   expect(buildLibraryPlaylistItems(playlists, songs, 'hard').map(item => item.id)).toEqual(['p1']);
   expect(buildLibraryPlaylistItems(playlists, songs, 'techno').map(item => item.id)).toEqual(['p1']);
   expect(buildLibraryPlaylistItems(playlists, songs, 'singer').map(item => item.id)).toEqual(['p2']);
+});
+
+
+test('filters by visible song title fallbacks inside playlists', () => {
+  const songs = [
+    song({ id: 's1', title: 'unknown', artist: 'Fallback Artist', album: 'Fallback Album', genre: 'Fallback Genre', fileInfo: { filename: 'Artist - Real Song.m4a' } }),
+    song({ id: 's2', title: 'Other', artist: 'Other Artist', album: 'Other Album', genre: 'Other Genre' }),
+  ];
+  const playlists = [
+    playlist({ id: 'p1', name: 'Fallback Mix', songIds: ['s1'] }),
+    playlist({ id: 'p2', name: 'Other Mix', songIds: ['s2'] }),
+  ];
+
+  expect(buildLibraryPlaylistItems(playlists, songs, 'real song').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'fallback mix').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'fallback artist').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'fallback album').map(item => item.id)).toEqual(['p1']);
+  expect(buildLibraryPlaylistItems(playlists, songs, 'fallback genre').map(item => item.id)).toEqual(['p1']);
 });
 
 test('filters with trimmed case-insensitive query', () => {

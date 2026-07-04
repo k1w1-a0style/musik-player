@@ -1,11 +1,5 @@
 import type { Song } from '../types/Song';
-import { displayAlbum, displayArtist, displayGenre } from './libraryPresentation';
-
-const searchableSongText = (song: Song): string =>
-  [song.title, displayArtist(song), displayAlbum(song), displayGenre(song)]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+import { searchableSongText } from './librarySearch';
 
 export const filterLibrarySongs = (songs: Song[], query: string): Song[] => {
   const q = query.trim().toLowerCase();

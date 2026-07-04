@@ -1,5 +1,5 @@
 import type { Playlist, Song } from '../types/Song';
-import { displayAlbum, displayArtist, displayGenre } from './libraryPresentation';
+import { searchableSongText } from './librarySearch';
 
 export type LibraryPlaylistItem = {
   id: string;
@@ -8,12 +8,6 @@ export type LibraryPlaylistItem = {
   validCount: number;
   totalCount: number;
 };
-
-const searchableSongText = (song: Song): string =>
-  [song.title, displayArtist(song), displayAlbum(song), displayGenre(song)]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
 
 export const buildLibraryPlaylistItems = (
   playlists: Playlist[],
