@@ -476,18 +476,61 @@ describe('parseMp4CoverFromBuffer', () => {
   });
 
 
+  test('decodes mp4 UTF-16 text data atoms by data type without cover', () => {
+    const utf16beData = (value: string): number[] => [
+      0, 0, 0, 2,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+        if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+        return acc;
+      }, []),
+    ];
+    const utf16leBomData = (value: string): number[] => [
+      0, 0, 0, 2,
+      0, 0, 0, 0,
+      0xff, 0xfe,
+      ...Array.from(Buffer.from(value, 'utf16le')),
+      0, 0,
+    ];
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', utf16beData('UTF16 Title'))),
+      ...atom('©ART', atom('data', utf16leBomData('UTF16 Artist'))),
+      ...atom('©alb', atom('data', utf16beData('UTF16 Album'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags).toMatchObject({
+      title: 'UTF16 Title',
+      artist: 'UTF16 Artist',
+      album: 'UTF16 Album',
+    });
+    expect(tags.title).not.toContain('\\0');
+    expect(tags.artist).not.toContain('�');
+    expect(tags.cover).toBeUndefined();
+  });
+
+
 
   test('parses mp4 text metadata and cover when cover is included', () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0];
     const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+    const utf16beData = (value: string): number[] => [0, 0, 0, 2, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+      if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+      return acc;
+    }, [])];
     const ilst = atom('ilst', [
       ...atom('©nam', atom('data', textData('Covered MP4 Title'))),
+      ...atom('©ART', atom('data', utf16beData('Covered UTF16 Artist'))),
       ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
     ]);
     const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
 
     const tags = parseMp4TagsFromBuffer(bytes, { includeCover: true });
     expect(tags.title).toBe('Covered MP4 Title');
+    expect(tags.artist).toBe('Covered UTF16 Artist');
     expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 

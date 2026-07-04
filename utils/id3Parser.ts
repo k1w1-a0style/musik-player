@@ -600,19 +600,50 @@ const MP4_NUMBER_ATOM_TAGS: Record<string, keyof Id3Tags> = {
 const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data', ...Object.keys(MP4_TEXT_ATOM_TAGS), ...Object.keys(MP4_NUMBER_ATOM_TAGS)]);
 
 
-const decodeMp4Utf8 = (bytes: Uint8Array): string => {
+const cleanMp4Text = (value: string): string | undefined => {
+  const cleaned = value.replace(/\0+$/g, '').trim();
+  if (!cleaned || cleaned.includes('�')) return undefined;
+  return cleaned;
+};
+
+const decodeMp4Utf8 = (bytes: Uint8Array): string | undefined => {
   try {
-    return new TextDecoder('utf-8', { fatal: false }).decode(bytes).replace(/\0+$/g, '').trim();
+    return cleanMp4Text(new TextDecoder('utf-8', { fatal: false }).decode(bytes));
   } catch {
-    return readLatin1(bytes, 0, bytes.length).replace(/\0+$/g, '').trim();
+    return cleanMp4Text(readLatin1(bytes, 0, bytes.length));
   }
+};
+
+const decodeMp4Utf16 = (bytes: Uint8Array): string | undefined => {
+  if (bytes.length < 2) return undefined;
+  let offset = 0;
+  let littleEndian = false;
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    offset = 2;
+  } else if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    offset = 2;
+    littleEndian = true;
+  }
+  const chars: string[] = [];
+  for (let i = offset; i + 1 < bytes.length; i += 2) {
+    const codeUnit = littleEndian
+      ? ((bytes[i + 1] ?? 0) << 8) | (bytes[i] ?? 0)
+      : ((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0);
+    chars.push(String.fromCharCode(codeUnit));
+  }
+  return cleanMp4Text(chars.join(''));
+};
+
+const decodeMp4TextPayload = (payload: Uint8Array, dataType: number): string | undefined => {
+  if (dataType === 2) return decodeMp4Utf16(payload);
+  return decodeMp4Utf8(payload);
 };
 
 const parseMp4DataPayloads = (
   bytes: Uint8Array,
   start: number,
   end: number,
-  onPayload: (payload: Uint8Array) => void,
+  onPayload: (payload: Uint8Array, dataType: number) => void,
 ): void => {
   let p = start;
   while (p + 8 <= end) {
@@ -621,7 +652,7 @@ const parseMp4DataPayloads = (
     const type = readLatin1(bytes, p + 4, p + 8);
     if (size === 1) break;
     if (type === 'data' && size >= 16) {
-      onPayload(bytes.subarray(p + 16, p + size));
+      onPayload(bytes.subarray(p + 16, p + size), readU32(bytes, p + 8));
     }
     p += size;
   }
@@ -629,9 +660,9 @@ const parseMp4DataPayloads = (
 
 const parseMp4TextAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
   let value: string | undefined;
-  parseMp4DataPayloads(bytes, start, end, payload => {
+  parseMp4DataPayloads(bytes, start, end, (payload, dataType) => {
     if (value) return;
-    const text = decodeMp4Utf8(payload);
+    const text = decodeMp4TextPayload(payload, dataType);
     if (text) value = text;
   });
   return value;
