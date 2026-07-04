@@ -80,14 +80,16 @@ const parseFilenameParts = (rawParts: string[]): ParsedFilename | undefined => {
   return undefined;
 };
 
+const allFilenamePartsArePlaceholders = (rawParts?: string[]): boolean =>
+  Boolean(rawParts && rawParts.length >= 2 && rawParts.every(part => !normalizeMetadataText(part)));
+
 const splitCompactArtistTitle = (clean: string): string[] | undefined => {
   const match = clean.match(/^(.+?)[-–](.+)$/u);
   if (!match) return undefined;
   const [, rawArtist, rawTitle] = match;
   const artist = normalizeMetadataText(rawArtist);
   const title = normalizeMetadataText(rawTitle);
-  if (!title) return undefined;
-  if (!artist) return [rawArtist, rawTitle];
+  if (!artist || !title) return [rawArtist, rawTitle];
   // Compact separators are ambiguous in ordinary hyphenated titles. Only treat them
   // as artist/title separators when both sides look substantial enough.
   return artist.length >= 3 && title.length >= 3 ? [rawArtist, rawTitle] : undefined;
@@ -98,10 +100,12 @@ export const parseFilename = (filename: string): ParsedFilename => {
   const spacedParts = clean.split(/\s+[-–]\s+/);
   const spacedResult = parseFilenameParts(spacedParts);
   if (spacedResult) return spacedResult;
+  if (allFilenamePartsArePlaceholders(spacedParts)) return { title: UNKNOWN_TITLE_LABEL };
 
   const compactParts = splitCompactArtistTitle(clean);
   const compactResult = compactParts ? parseFilenameParts(compactParts) : undefined;
   if (compactResult) return compactResult;
+  if (allFilenamePartsArePlaceholders(compactParts)) return { title: UNKNOWN_TITLE_LABEL };
 
   return { title: normalizeMetadataText(clean) ?? UNKNOWN_TITLE_LABEL };
 };

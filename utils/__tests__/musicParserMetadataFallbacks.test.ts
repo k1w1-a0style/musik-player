@@ -79,6 +79,16 @@ describe('metadata fallback helpers', () => {
     expect(resolveDisplayTitle('unknown', 'unknown - Real Song.m4a')).toBe('Real Song');
   });
 
+  test.each([
+    'unknown - unknown.m4a',
+    'null-null.mp3',
+    'undefined - unknown.flac',
+    '<unknown> - <unknown>.m4a',
+  ])('all-placeholder filename parts fall back to the project unknown title for %s', filename => {
+    expect(parseFilename(filename)).toEqual({ title: 'Unbekannter Titel' });
+    expect(resolveDisplayTitle('unknown', filename)).toBe('Unbekannter Titel');
+  });
+
   test('compact separators avoid short ordinary hyphenated title false positives', () => {
     expect(parseFilename('AC-DC.m4a')).toEqual({ title: 'AC-DC' });
     expect(parseFilename('Re-Entry.m4a')).toEqual({ title: 'Re-Entry' });
