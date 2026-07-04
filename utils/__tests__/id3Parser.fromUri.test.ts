@@ -205,6 +205,29 @@ describe('parseId3FromUri', () => {
     expect(tags.cover).toBeUndefined();
   });
 
+
+  test('includeCover false reads M4B MP4 text metadata without returning cover', async () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 1, 2];
+    const moov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('M4B Title'))),
+      ...atom('©ART', atom('data', mp4TextData('M4B Artist'))),
+      ...atom('aART', atom('data', mp4TextData('M4B Album Artist'))),
+      ...atom('©alb', atom('data', mp4TextData('M4B Album'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(moov));
+
+    const tags = await parseId3FromUri('file:///audiobooks/text-only.m4b', { includeCover: false });
+
+    expect(tags).toMatchObject({
+      title: 'M4B Title',
+      artist: 'M4B Artist',
+      albumArtist: 'M4B Album Artist',
+      album: 'M4B Album',
+    });
+    expect(tags.cover).toBeUndefined();
+  });
+
   test('tail MP4 text replaces placeholder ID3 head values but preserves useful head values', async () => {
     const id3Head = buildId3([
       id3TextFrame('TIT2', '   '),
@@ -255,6 +278,29 @@ describe('parseId3FromUri', () => {
 
     expect(tags.title).toBe('Head Title');
     expect(tags.artist).toBe('Tail Artist');
+    expect(tags.cover).toBeUndefined();
+    expect(mockReadAsStringAsync).toHaveBeenCalledTimes(2);
+  });
+
+
+  test('tail read merges M4B MP4 text metadata with includeCover false and keeps cover out', async () => {
+    const id3Head = buildId3([
+      id3TextFrame('TIT2', 'unknown'),
+    ]);
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0, 1, 2];
+    const tailMoov = mp4Ilst([
+      ...atom('©nam', atom('data', mp4TextData('M4B Tail Title'))),
+      ...atom('©ART', atom('data', mp4TextData('M4B Tail Artist'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    mockReadAsStringAsync.mockResolvedValueOnce(id3Head);
+    mockGetInfoAsync.mockResolvedValueOnce(existingFile(2 * 1024 * 1024));
+    mockReadAsStringAsync.mockResolvedValueOnce(b64(tailMoov));
+
+    const tags = await parseId3FromUri('file:///audiobooks/tail-text.m4b', { includeCover: false });
+
+    expect(tags.title).toBe('M4B Tail Title');
+    expect(tags.artist).toBe('M4B Tail Artist');
     expect(tags.cover).toBeUndefined();
     expect(mockReadAsStringAsync).toHaveBeenCalledTimes(2);
   });

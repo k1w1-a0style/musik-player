@@ -909,7 +909,7 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
     const normalizedUri = uri.startsWith('content://') ? uri : (uri.split('?')[0] ?? uri);
     const extensionProbeUri = uri.split('?')[0] ?? uri;
-    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(extensionProbeUri);
+    const looksLikeMp4 = /\.(m4a|m4b|mp4|aac)$/i.test(extensionProbeUri);
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
       const id3 = parseId3Buffer(bytes, { includeCover });
       if (!looksLikeMp4) return id3;
