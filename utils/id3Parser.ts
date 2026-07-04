@@ -602,7 +602,7 @@ const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data', ...Object.keys(MP4_TEXT
 
 const cleanMp4Text = (value: string): string | undefined => {
   const cleaned = value.replace(/\0+$/g, '').trim();
-  if (!cleaned || cleaned.includes('�')) return undefined;
+  if (!cleaned || cleaned.includes('�') || cleaned.includes('\0')) return undefined;
   return cleaned;
 };
 

@@ -514,6 +514,33 @@ describe('parseMp4CoverFromBuffer', () => {
 
 
 
+  test('uses safe UTF-8 fallback for unknown mp4 text data types without accepting NUL garbage', () => {
+    const unknownUtf8Data = (value: string): number[] => [
+      0, 0, 0, 99,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf8')),
+    ];
+    const unknownUtf16LikeData = (value: string): number[] => [
+      0, 0, 0, 99,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+        if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+        return acc;
+      }, []),
+    ];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', unknownUtf8Data('Fallback UTF8 Title'))),
+      ...atom('©ART', atom('data', unknownUtf16LikeData('Bad UTF16 Artist'))),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags.title).toBe('Fallback UTF8 Title');
+    expect(tags.artist).toBeUndefined();
+  });
+
+
+
   test('parses mp4 text metadata and cover when cover is included', () => {
     const jpeg = [0xff, 0xd8, 0xff, 0xe0];
     const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
