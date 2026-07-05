@@ -1,6 +1,7 @@
 import type { Song } from '../types/Song';
 import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
+import { normalizeMetadataText } from './musicParser';
 import { MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS } from './libraryOperationTimeouts';
 import SystemAudio, { type FastMetadataResult } from '../modules/expo-system-audio';
 
@@ -47,7 +48,7 @@ export interface SongMetadataRefreshProcessedSong {
   errorReason?: string;
 }
 
-interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> {
+interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover' | 'maxHeadBytes' | 'maxTailBytes' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes' | 'filename' | 'mimeType' | 'extension'> {
   concurrency?: number;
   perTrackTimeoutMs?: number;
   signal?: AbortSignal;
@@ -77,9 +78,9 @@ const NATIVE_TO_ID3_FIELD_MAP: Record<keyof FastMetadataResult, keyof Id3Tags | 
 const hasText = (value?: string): value is string => Boolean(value?.trim());
 
 /**
- * Merge native + JS-ID3 tag results. Native fields win when present; otherwise
- * the JS-ID3 parser fills the field. Native values that look insecure (empty
- * strings, "0" durations, etc.) are skipped via `hasText`.
+ * Merge native + JS-ID3 tag results. Native fields win only when they contain
+ * usable metadata text; placeholder values such as "unknown" are ignored so
+ * better JS/MP4 tail tags are not overwritten by native fast-path noise.
  */
 export const mergeFastMetadataIntoId3Tags = (
   nativeResult: FastMetadataResult | null | undefined,
@@ -91,8 +92,9 @@ export const mergeFastMetadataIntoId3Tags = (
     const id3Key = NATIVE_TO_ID3_FIELD_MAP[nativeKey];
     if (!id3Key) return;
     const value = nativeResult[nativeKey];
-    if (typeof value === 'string' && hasText(value)) {
-      merged[id3Key] = value.trim();
+    if (typeof value === 'string') {
+      const normalized = normalizeMetadataText(value);
+      if (normalized) merged[id3Key] = normalized;
     }
   });
   return merged;
@@ -200,7 +202,8 @@ const MAX_CONCURRENCY = 3;
 export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
   includeCover: false,
   maxHeadBytes: 256 * 1024,
-  maxTailBytes: 0,
+  // Bounded MP4/M4A tail read keeps manual refresh text-tag capable without cover backfill.
+  maxTailBytes: 512 * 1024,
   maxFrameOffsetBytes: 8 * 1024 * 1024,
   maxFrameBodyReadBytes: 512 * 1024,
 } as const;
@@ -255,7 +258,7 @@ export const refreshSongsFromId3 = async (
     throwIfAborted(signal);
   };
 
-  const parseTagsForUri = async (uri: string): Promise<Id3Tags> => {
+  const parseTagsForSong = async (song: Song, uri: string): Promise<Id3Tags> => {
     const buildOptions = (parseSignal?: AbortSignal): ParseId3Options => ({
       ...MANUAL_METADATA_REFRESH_ID3_OPTIONS,
       includeCover: options?.includeCover ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.includeCover,
@@ -264,6 +267,9 @@ export const refreshSongsFromId3 = async (
       maxFrameScanBytes: options?.maxFrameScanBytes,
       maxFrameOffsetBytes: options?.maxFrameOffsetBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameOffsetBytes,
       maxFrameBodyReadBytes: options?.maxFrameBodyReadBytes ?? MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxFrameBodyReadBytes,
+      filename: options?.filename ?? song.fileInfo?.filename,
+      mimeType: options?.mimeType ?? song.fileInfo?.mimeType ?? song.audioInfo?.codec,
+      extension: options?.extension ?? song.fileInfo?.extension,
       signal: parseSignal,
     });
 
@@ -302,7 +308,7 @@ export const refreshSongsFromId3 = async (
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
-      const tags = await parseTagsForUri(uri);
+      const tags = await parseTagsForSong(song, uri);
       throwIfAborted(signal);
       const patch = buildId3SongPatch(song, tags);
       const next = Object.keys(patch).length > 0 ? { ...song, ...patch } : song;

@@ -3,8 +3,8 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { parseFilename } from './musicParser';
-import { parseId3FromUri, type Id3Tags } from './id3Parser';
+import { parseFilename, resolveDisplayArtist, resolveDisplayTitle, normalizeMetadataText } from './musicParser';
+import { parseId3FromUri, type Id3Tags, type ParseId3Options } from './id3Parser';
 import { cacheBase64Cover, isBase64ImageDataUri } from './coverCache';
 import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOptions } from './audioImportFilter';
 import { OperationAbortError, throwIfAborted } from './withTimeout';
@@ -216,10 +216,10 @@ const getNativeEmbeddedCover = async (uri: string): Promise<string | undefined> 
   }
 };
 
-const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal): Promise<Id3Tags> => {
+const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}): Promise<Id3Tags> => {
   if (!enabled) return {};
   try {
-    return await parseId3FromUri(uri, { signal });
+    return await parseId3FromUri(uri, { signal, ...hints });
   } catch {
     throwIfAborted(signal);
     return {};
@@ -241,6 +241,8 @@ export const buildSongFromImportSource = async (
   const filename = source.filename ?? filenameFromUri(source.uri);
   const extension = deriveExtension(filename) ?? deriveExtension(source.uri);
   const fallback = parseFilename(filename);
+  const tagTitle = normalizeMetadataText(tags.title);
+  const tagArtist = normalizeMetadataText(tags.artist);
   const cachedCover = await cacheBase64Cover(source.id, tags.cover);
   const parsedCover = cachedCover ?? (tags.cover && !isBase64ImageDataUri(tags.cover) ? tags.cover : undefined);
   const nativeCover = parsedCover || !loadNativeCover ? undefined : await getNativeEmbeddedCover(source.uri);
@@ -250,16 +252,16 @@ export const buildSongFromImportSource = async (
 
   return {
     id: source.id,
-    title: tags.title || fallback.title || filename.replace(/\.[^.]+$/, ''),
-    artist: tags.artist || fallback.artist || 'Unbekannt',
-    albumArtist: tags.albumArtist,
-    album: tags.album,
+    title: resolveDisplayTitle(tagTitle ?? fallback.title, filename, source.uri),
+    artist: resolveDisplayArtist(tagArtist ?? fallback.artist),
+    albumArtist: normalizeMetadataText(tags.albumArtist),
+    album: normalizeMetadataText(tags.album),
     duration: source.durationMs,
-    year: tags.year,
-    genre: tags.genre,
-    trackNumber: tags.trackNumber,
-    discNumber: tags.discNumber,
-    comment: tags.comment,
+    year: normalizeMetadataText(tags.year),
+    genre: normalizeMetadataText(tags.genre),
+    trackNumber: normalizeMetadataText(tags.trackNumber),
+    discNumber: normalizeMetadataText(tags.discNumber),
+    comment: normalizeMetadataText(tags.comment),
     uri: source.uri,
     cover,
     fileInfo: {
@@ -577,7 +579,13 @@ export const enrichMediaLibraryAssets = async (
       const asset = queue.shift();
       if (!asset) break;
       try {
-        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal);
+        const assetMimeType = (asset as { mimeType?: string }).mimeType;
+        const assetExtension = deriveExtension(asset.filename ?? asset.uri);
+        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, signal, {
+          filename: asset.filename,
+          mimeType: assetMimeType,
+          extension: assetExtension,
+        });
         throwIfAborted(signal);
         const audioInfo = await getNativeAudioInfo(asset.uri);
         throwIfAborted(signal);
@@ -586,7 +594,7 @@ export const enrichMediaLibraryAssets = async (
           uri: asset.uri,
           filename: asset.filename,
           durationMs: durationSecondsToMs(asset.duration),
-          mimeType: (asset as { mimeType?: string }).mimeType,
+          mimeType: assetMimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
         }, audioInfo), tags, { loadNativeCover }));
@@ -652,7 +660,7 @@ export const scanFromSafFolders = async (
         const uri = queue.shift();
         if (!uri) return;
         try {
-          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal);
+          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal, { extension: deriveExtension(uri) });
           throwIfAborted(signal);
           const audioInfo = await getNativeAudioInfo(uri);
           throwIfAborted(signal);

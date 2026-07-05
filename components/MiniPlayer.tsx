@@ -4,7 +4,7 @@ import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { theme } from '../theme';
-import { displayArtist, normalizeLibraryText } from '../utils/libraryPresentation';
+import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
@@ -12,7 +12,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const insets = useSafeAreaInsets();
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
-  const displayTitle = normalizeLibraryText(currentSong?.title) || 'Unbekannter Titel';
+  const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const displayArtistName = currentSong ? displayArtist(currentSong) : '';
 
   useEffect(() => {
@@ -52,7 +52,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
         <View style={styles.textWrap}>
           <Text numberOfLines={1} style={styles.title}>
-            {displayTitle}
+            {displayTitleText}
           </Text>
           <Text numberOfLines={1} style={styles.artist}>
             {displayArtistName}

@@ -38,6 +38,21 @@ test('mergeFastMetadataIntoId3Tags keeps id3 fields when native is missing/blank
   expect(merged.artist).toBe('Fallback Artist');
 });
 
+test('mergeFastMetadataIntoId3Tags ignores native placeholder strings before overriding parsed tags', () => {
+  const parsedTags = {
+    title: 'Tail Title',
+    artist: 'Tail Artist',
+    album: 'Tail Album',
+  };
+
+  expect(mergeFastMetadataIntoId3Tags({ title: 'unknown' }, parsedTags).title).toBe('Tail Title');
+  expect(mergeFastMetadataIntoId3Tags({ title: 'undefined' }, parsedTags).title).toBe('Tail Title');
+  expect(mergeFastMetadataIntoId3Tags({ title: '<unknown>' }, parsedTags).title).toBe('Tail Title');
+  expect(mergeFastMetadataIntoId3Tags({ artist: 'unknown' }, parsedTags).artist).toBe('Tail Artist');
+  expect(mergeFastMetadataIntoId3Tags({ album: 'null' }, parsedTags).album).toBe('Tail Album');
+});
+
+
 test('refreshSongsFromId3 uses extractMetadataFast first and skips full ID3 fields it provides', async () => {
   const parseSpy = jest.spyOn(id3Parser, 'parseId3FromUri').mockResolvedValue({ album: 'JS Album' });
   const extractMetadataFast = jest.fn().mockResolvedValue({ title: 'Fast Title', artist: 'Fast Artist' });

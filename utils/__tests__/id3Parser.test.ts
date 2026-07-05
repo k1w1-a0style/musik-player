@@ -1,4 +1,4 @@
-import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer } from '../id3Parser';
+import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer, parseMp4TagsFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -440,6 +440,125 @@ describe('parseMp4CoverFromBuffer', () => {
 
     const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+
+
+  test('parses text metadata atoms in mp4 ilst tree without cover', () => {
+    const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+    const numberData = (current: number, total: number): number[] => [0, 0, 0, 0, 0, 0, 0, 0, 0, current, 0, total, 0, 0];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', textData('MP4 Title'))),
+      ...atom('©ART', atom('data', textData('MP4 Artist'))),
+      ...atom('aART', atom('data', textData('Album Artist'))),
+      ...atom('©alb', atom('data', textData('MP4 Album'))),
+      ...atom('©day', atom('data', textData('2026'))),
+      ...atom('©gen', atom('data', textData('Pop'))),
+      ...atom('©cmt', atom('data', textData('Comment'))),
+      ...atom('trkn', atom('data', numberData(3, 12))),
+      ...atom('disk', atom('data', numberData(1, 2))),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags.cover).toBeUndefined();
+    expect(tags).toMatchObject({
+      title: 'MP4 Title',
+      artist: 'MP4 Artist',
+      albumArtist: 'Album Artist',
+      album: 'MP4 Album',
+      year: '2026',
+      genre: 'Pop',
+      comment: 'Comment',
+      trackNumber: '3/12',
+      discNumber: '1/2',
+    });
+  });
+
+
+  test('decodes mp4 UTF-16 text data atoms by data type without cover', () => {
+    const utf16beData = (value: string): number[] => [
+      0, 0, 0, 2,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+        if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+        return acc;
+      }, []),
+    ];
+    const utf16leBomData = (value: string): number[] => [
+      0, 0, 0, 2,
+      0, 0, 0, 0,
+      0xff, 0xfe,
+      ...Array.from(Buffer.from(value, 'utf16le')),
+      0, 0,
+    ];
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', utf16beData('UTF16 Title'))),
+      ...atom('©ART', atom('data', utf16leBomData('UTF16 Artist'))),
+      ...atom('©alb', atom('data', utf16beData('UTF16 Album'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags).toMatchObject({
+      title: 'UTF16 Title',
+      artist: 'UTF16 Artist',
+      album: 'UTF16 Album',
+    });
+    expect(tags.title).not.toContain('\\0');
+    expect(tags.artist).not.toContain('�');
+    expect(tags.cover).toBeUndefined();
+  });
+
+
+
+  test('uses safe UTF-8 fallback for unknown mp4 text data types without accepting NUL garbage', () => {
+    const unknownUtf8Data = (value: string): number[] => [
+      0, 0, 0, 99,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf8')),
+    ];
+    const unknownUtf16LikeData = (value: string): number[] => [
+      0, 0, 0, 99,
+      0, 0, 0, 0,
+      ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+        if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+        return acc;
+      }, []),
+    ];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', unknownUtf8Data('Fallback UTF8 Title'))),
+      ...atom('©ART', atom('data', unknownUtf16LikeData('Bad UTF16 Artist'))),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: false });
+    expect(tags.title).toBe('Fallback UTF8 Title');
+    expect(tags.artist).toBeUndefined();
+  });
+
+
+
+  test('parses mp4 text metadata and cover when cover is included', () => {
+    const jpeg = [0xff, 0xd8, 0xff, 0xe0];
+    const textData = (value: string): number[] => [0, 0, 0, 1, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf8'))];
+    const utf16beData = (value: string): number[] => [0, 0, 0, 2, 0, 0, 0, 0, ...Array.from(Buffer.from(value, 'utf16le')).reduce<number[]>((acc, byte, index, arr) => {
+      if (index % 2 === 0) acc.push(arr[index + 1] ?? 0, byte);
+      return acc;
+    }, [])];
+    const ilst = atom('ilst', [
+      ...atom('©nam', atom('data', textData('Covered MP4 Title'))),
+      ...atom('©ART', atom('data', utf16beData('Covered UTF16 Artist'))),
+      ...atom('covr', atom('data', [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg])),
+    ]);
+    const bytes = new Uint8Array(atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...ilst]))));
+
+    const tags = parseMp4TagsFromBuffer(bytes, { includeCover: true });
+    expect(tags.title).toBe('Covered MP4 Title');
+    expect(tags.artist).toBe('Covered UTF16 Artist');
+    expect(tags.cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
   test('aligned trusted top-level scan skips large top-level atoms and still finds covr', () => {

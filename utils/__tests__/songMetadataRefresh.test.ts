@@ -2,6 +2,7 @@ import { parseId3FromUri } from '../id3Parser';
 import {
   applyId3TagsToSong,
   buildId3SongPatch,
+  MANUAL_METADATA_REFRESH_ID3_OPTIONS,
   normalizeCoverReferenceForComparison,
   refreshSongsFromId3,
   resolveMetadataRefreshUri,
@@ -55,6 +56,107 @@ test('applies trimmed ID3 text fields without overwriting with blanks', () => {
   });
 });
 
+test('manual metadata refresh reads bounded MP4 tail text tags without cover parsing', () => {
+  expect(MANUAL_METADATA_REFRESH_ID3_OPTIONS).toMatchObject({
+    includeCover: false,
+    maxHeadBytes: 256 * 1024,
+    maxTailBytes: 512 * 1024,
+  });
+  expect(MANUAL_METADATA_REFRESH_ID3_OPTIONS.maxTailBytes).toBeGreaterThan(0);
+});
+
+
+test('manual metadata refresh passes fileInfo hints for opaque MP4 content URIs', async () => {
+  const opaqueSong: Song = {
+    ...baseSong,
+    uri: 'content://media/external/audio/media/42',
+    fileInfo: { filename: 'Song.m4a', mimeType: 'audio/mp4', extension: 'm4a' },
+  };
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Opaque Embedded Title', artist: 'Opaque Embedded Artist' });
+
+  const result = await refreshSongsFromId3([opaqueSong]);
+
+  expect(parseId3FromUri).toHaveBeenCalledWith(
+    'content://media/external/audio/media/42',
+    expect.objectContaining({ filename: 'Song.m4a', mimeType: 'audio/mp4', extension: 'm4a', includeCover: false }),
+  );
+  expect(result.songs[0]).toMatchObject({ title: 'Opaque Embedded Title', artist: 'Opaque Embedded Artist' });
+});
+
+
+test('manual metadata refresh applies MP4 tail text tags instead of filename fallback without cover', async () => {
+  const songWithFilenameFallback: Song = {
+    ...baseSong,
+    title: 'unknown',
+    artist: 'unknown',
+    uri: 'file:///music/unknown%20-%20Filename%20Fallback.m4a',
+    fileInfo: { filename: 'unknown - Filename Fallback.m4a' },
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  };
+  (parseId3FromUri as jest.Mock).mockResolvedValue({
+    title: 'Embedded Tail Title',
+    artist: 'Embedded Tail Artist',
+    album: 'Embedded Tail Album',
+    trackNumber: '4/10',
+    discNumber: '1/1',
+  });
+
+  const result = await refreshSongsFromId3([songWithFilenameFallback]);
+
+  expect(parseId3FromUri).toHaveBeenCalledWith(
+    'file:///music/unknown%20-%20Filename%20Fallback.m4a',
+    expect.objectContaining({ includeCover: false, maxTailBytes: 512 * 1024 }),
+  );
+  expect(result.songs[0]).toMatchObject({
+    title: 'Embedded Tail Title',
+    artist: 'Embedded Tail Artist',
+    album: 'Embedded Tail Album',
+    trackNumber: '4/10',
+    discNumber: '1/1',
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  });
+});
+
+
+test('manual metadata refresh keeps parsed MP4 tail tags when native fast metadata is placeholder-only', async () => {
+  const m4bSong: Song = {
+    ...baseSong,
+    title: 'Filename Fallback',
+    artist: 'Filename Artist',
+    album: 'Filename Album',
+    uri: 'file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b',
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  };
+  const extractMetadataFast = jest.fn().mockResolvedValue({
+    title: 'unknown',
+    artist: 'undefined',
+    album: 'null',
+  });
+  (parseId3FromUri as jest.Mock).mockResolvedValue({
+    title: 'M4B Tail Title',
+    artist: 'M4B Tail Artist',
+    album: 'M4B Tail Album',
+  });
+
+  const result = await refreshSongsFromId3([m4bSong], { extractMetadataFast });
+
+  expect(extractMetadataFast).toHaveBeenCalledWith('file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b');
+  expect(parseId3FromUri).toHaveBeenCalledWith(
+    'file:///audiobooks/unknown%20-%20Filename%20Fallback.m4b',
+    expect.objectContaining({ includeCover: false, maxTailBytes: 512 * 1024 }),
+  );
+  expect(result.songs[0]).toMatchObject({
+    title: 'M4B Tail Title',
+    artist: 'M4B Tail Artist',
+    album: 'M4B Tail Album',
+    cover: 'file:///existing-cover.jpg',
+    coverInfo: { status: 'cached', uri: 'file:///existing-cover.jpg' },
+  });
+});
+
 test('updates changed text metadata from ID3 tags', async () => {
   (parseId3FromUri as jest.Mock).mockResolvedValue({
     title: ' New Title ',
@@ -69,7 +171,7 @@ test('updates changed text metadata from ID3 tags', async () => {
 
   const result = await refreshSongsFromId3([baseSong]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 0, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ includeCover: false, maxHeadBytes: 256 * 1024, maxTailBytes: 512 * 1024, maxFrameOffsetBytes: 8 * 1024 * 1024, maxFrameBodyReadBytes: 512 * 1024 }));
   expect(result.updated).toBe(1);
   expect(result.skipped).toBe(0);
   expect(result.failed).toBe(0);

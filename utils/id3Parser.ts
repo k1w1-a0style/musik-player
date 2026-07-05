@@ -102,10 +102,83 @@ export interface ParseId3Options {
   maxFrameScanBytes?: number;
   maxFrameOffsetBytes?: number;
   maxFrameBodyReadBytes?: number;
+  filename?: string;
+  mimeType?: string;
+  extension?: string;
 }
 
 const shouldIncludeCover = (options?: Pick<ParseId3Options, 'includeCover'>): boolean =>
   options?.includeCover !== false;
+
+
+const MP4_LIKE_EXTENSIONS = new Set(['m4a', 'm4b', 'mp4', 'aac']);
+const MP4_LIKE_MIME_TYPES = new Set([
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/m4a',
+  'audio/aac',
+  'audio/aacp',
+  'audio/x-aac',
+  'video/mp4',
+  'application/mp4',
+  'audio/x-m4b',
+]);
+const MP4_TOP_LEVEL_ATOMS = new Set(['ftyp', 'moov', 'mdat', 'free', 'skip', 'wide', 'uuid']);
+const MP4_BRAND_PATTERN = /^(?:isom|iso\d|mp4\d?|m4a |m4b |M4A |M4B |qt  |MSNV|3gp\d|3g2\d)$/;
+
+const stripUriQueryAndFragment = (value: string): string => value.split(/[?#]/)[0] ?? value;
+
+const normalizeMp4Extension = (value?: string): string | undefined => {
+  const normalized = value?.trim().replace(/^\.+/, '').toLowerCase();
+  return normalized || undefined;
+};
+
+const extensionFromPath = (value?: string): string | undefined => {
+  if (!value) return undefined;
+  const withoutQuery = stripUriQueryAndFragment(value).replace(/\\/g, '/');
+  const segment = withoutQuery.split('/').filter(Boolean).pop() ?? withoutQuery;
+  const dotIndex = segment.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex === segment.length - 1) return undefined;
+  return normalizeMp4Extension(segment.slice(dotIndex + 1));
+};
+
+const hasMp4LikeExtension = (value?: string): boolean => {
+  const extension = normalizeMp4Extension(value);
+  return Boolean(extension && MP4_LIKE_EXTENSIONS.has(extension));
+};
+
+const hasMp4LikeMimeType = (value?: string): boolean => {
+  const normalized = value?.split(';')[0]?.trim().toLowerCase();
+  return Boolean(normalized && (MP4_LIKE_MIME_TYPES.has(normalized) || normalized.endsWith('/mp4')));
+};
+
+const hasMp4LikeHints = (uri: string, options: ParseId3Options): boolean =>
+  hasMp4LikeExtension(extensionFromPath(uri))
+  || hasMp4LikeExtension(extensionFromPath(options.filename))
+  || hasMp4LikeExtension(options.extension)
+  || hasMp4LikeMimeType(options.mimeType);
+
+const readAtomType = (bytes: Uint8Array, offset: number): string => readLatin1(bytes, offset, offset + 4);
+
+const hasMp4HeadEvidence = (bytes: Uint8Array): boolean => {
+  const scanEnd = Math.min(bytes.length, 64 * 1024);
+  let offset = 0;
+  while (offset + 8 <= scanEnd) {
+    const size = readU32(bytes, offset);
+    const type = readAtomType(bytes, offset + 4);
+    if (size < 8 || offset + size > bytes.length || !MP4_TOP_LEVEL_ATOMS.has(type)) return false;
+    if (type === 'ftyp') {
+      if (size < 16) return false;
+      for (let brandOffset = offset + 8; brandOffset + 4 <= offset + size; brandOffset += 4) {
+        if (MP4_BRAND_PATTERN.test(readAtomType(bytes, brandOffset))) return true;
+      }
+      return false;
+    }
+    if (type === 'moov' || type === 'mdat') return true;
+    offset += size;
+  }
+  return false;
+};
 
 const throwIfParseAborted = (signal?: AbortSignal): void => {
   if (!signal?.aborted) return;
@@ -584,7 +657,113 @@ const MP4_CONTAINER_ATOMS = new Set([
   'minf',
   'stbl',
 ]);
-const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data']);
+const MP4_TEXT_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+  '©nam': 'title',
+  '©ART': 'artist',
+  aART: 'albumArtist',
+  '©alb': 'album',
+  '©day': 'year',
+  '©gen': 'genre',
+  '©cmt': 'comment',
+};
+const MP4_NUMBER_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+  trkn: 'trackNumber',
+  disk: 'discNumber',
+};
+const MP4_RELEVANT_LEAF_ATOMS = new Set(['covr', 'data', ...Object.keys(MP4_TEXT_ATOM_TAGS), ...Object.keys(MP4_NUMBER_ATOM_TAGS)]);
+
+
+const cleanMp4Text = (value: string): string | undefined => {
+  const cleaned = value.replace(/\0+$/g, '').trim();
+  if (!cleaned || cleaned.includes('�') || cleaned.includes('\0')) return undefined;
+  return cleaned;
+};
+
+const decodeMp4Utf8 = (bytes: Uint8Array): string | undefined => {
+  try {
+    return cleanMp4Text(new TextDecoder('utf-8', { fatal: false }).decode(bytes));
+  } catch {
+    return cleanMp4Text(readLatin1(bytes, 0, bytes.length));
+  }
+};
+
+const decodeMp4Utf16 = (bytes: Uint8Array): string | undefined => {
+  if (bytes.length < 2) return undefined;
+  let offset = 0;
+  let littleEndian = false;
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    offset = 2;
+  } else if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    offset = 2;
+    littleEndian = true;
+  }
+  const chars: string[] = [];
+  for (let i = offset; i + 1 < bytes.length; i += 2) {
+    const codeUnit = littleEndian
+      ? ((bytes[i + 1] ?? 0) << 8) | (bytes[i] ?? 0)
+      : ((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0);
+    chars.push(String.fromCharCode(codeUnit));
+  }
+  return cleanMp4Text(chars.join(''));
+};
+
+const decodeMp4TextPayload = (payload: Uint8Array, dataType: number): string | undefined => {
+  if (dataType === 2) return decodeMp4Utf16(payload);
+  return decodeMp4Utf8(payload);
+};
+
+const parseMp4DataPayloads = (
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  onPayload: (payload: Uint8Array, dataType: number) => void,
+): void => {
+  let p = start;
+  while (p + 8 <= end) {
+    const size = readU32(bytes, p);
+    if (size < 8 || p + size > end) break;
+    const type = readLatin1(bytes, p + 4, p + 8);
+    if (size === 1) break;
+    if (type === 'data' && size >= 16) {
+      onPayload(bytes.subarray(p + 16, p + size), readU32(bytes, p + 8));
+    }
+    p += size;
+  }
+};
+
+const parseMp4TextAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let value: string | undefined;
+  parseMp4DataPayloads(bytes, start, end, (payload, dataType) => {
+    if (value) return;
+    const text = decodeMp4TextPayload(payload, dataType);
+    if (text) value = text;
+  });
+  return value;
+};
+
+const readU16 = (bytes: Uint8Array, offset: number): number =>
+  ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0);
+
+const parseMp4NumberAtom = (bytes: Uint8Array, start: number, end: number): string | undefined => {
+  let value: string | undefined;
+  parseMp4DataPayloads(bytes, start, end, payload => {
+    if (value || payload.length < 4) return;
+    const numbers: number[] = [];
+    for (let i = 0; i + 1 < payload.length; i += 2) {
+      const number = readU16(payload, i);
+      if (number > 0) numbers.push(number);
+      if (numbers.length >= 2) break;
+    }
+    if (numbers.length === 1) value = String(numbers[0]);
+    else if (numbers.length >= 2) value = `${numbers[0]}/${numbers[1]}`;
+  });
+  return value;
+};
+
+const assignMp4Tag = (tags: Id3Tags, key: keyof Id3Tags, value?: string): void => {
+  if (!value || tags[key]) return;
+  tags[key] = value;
+};
 
 const parseMp4CovrData = (
   bytes: Uint8Array,
@@ -609,14 +788,16 @@ const parseMp4CovrData = (
 
 const MP4_SKIP_PAYLOAD_ATOMS = new Set(['mdat', 'free', 'skip', 'wide', 'uuid']);
 
-const findMp4CoverAtom = (
+const findMp4Tags = (
   bytes: Uint8Array,
   start: number,
   end: number,
-  depth = 0,
-  trustedBoundary = false,
-): string | undefined => {
-  if (depth > 8) return undefined;
+  options: { includeCover: boolean; depth?: number; trustedBoundary?: boolean },
+): Id3Tags => {
+  const tags: Id3Tags = {};
+  const depth = options.depth ?? 0;
+  const trustedBoundary = options.trustedBoundary === true;
+  if (depth > 8) return tags;
   let p = start;
   while (p + 8 <= end) {
     const size = readU32(bytes, p);
@@ -643,23 +824,31 @@ const findMp4CoverAtom = (
     const headerSize = type === 'meta' ? 12 : 8;
     const bodyStart = Math.min(p + headerSize, p + size);
     const bodyEnd = p + size;
-    if (type === 'covr') {
-      const cover = parseMp4CovrData(bytes, bodyStart, bodyEnd);
-      if (cover) return cover;
+    if (type === 'covr' && options.includeCover) {
+      assignMp4Tag(tags, 'cover', parseMp4CovrData(bytes, bodyStart, bodyEnd));
+    } else if (type in MP4_TEXT_ATOM_TAGS) {
+      assignMp4Tag(tags, MP4_TEXT_ATOM_TAGS[type], parseMp4TextAtom(bytes, bodyStart, bodyEnd));
+    } else if (type in MP4_NUMBER_ATOM_TAGS) {
+      assignMp4Tag(tags, MP4_NUMBER_ATOM_TAGS[type], parseMp4NumberAtom(bytes, bodyStart, bodyEnd));
     } else if (MP4_CONTAINER_ATOMS.has(type)) {
-      const cover = findMp4CoverAtom(bytes, bodyStart, bodyEnd, depth + 1, true);
-      if (cover) return cover;
+      Object.assign(tags, mergeId3Tags(tags, findMp4Tags(bytes, bodyStart, bodyEnd, { includeCover: options.includeCover, depth: depth + 1, trustedBoundary: true })));
     }
     p += size;
   }
-  return undefined;
+  return tags;
 };
+
+export const parseMp4TagsFromBuffer = (
+  bytes: Uint8Array,
+  options: { includeCover?: boolean; trustedTopLevel?: boolean } = {},
+): Id3Tags =>
+  findMp4Tags(bytes, 0, bytes.length, { includeCover: options.includeCover !== false, trustedBoundary: options.trustedTopLevel === true });
 
 export const parseMp4CoverFromBuffer = (
   bytes: Uint8Array,
   options: { trustedTopLevel?: boolean } = {},
 ): string | undefined =>
-  findMp4CoverAtom(bytes, 0, bytes.length, 0, options.trustedTopLevel === true);
+  parseMp4TagsFromBuffer(bytes, { includeCover: true, trustedTopLevel: options.trustedTopLevel }).cover;
 
 const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
 
@@ -683,12 +872,32 @@ const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
   TPA: 'discNumber',
 };
 
+const PARSER_PLACEHOLDER_TAG_VALUES = new Set(['unknown', 'undefined', 'null', '<unknown>']);
+
+const isUsableParsedTagValue = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.normalize('NFKC').replace(/\s+/gu, ' ').trim();
+  return normalized.length > 0 && !PARSER_PLACEHOLDER_TAG_VALUES.has(normalized.toLocaleLowerCase('en-US'));
+};
+
 const mergeId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => ({
   ...base,
   ...Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => typeof value === 'string' && value.length > 0),
+    Object.entries(patch).filter(([, value]) => isUsableParsedTagValue(value)),
   ),
 });
+
+const mergeMissingOrPlaceholderId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => {
+  const merged: Id3Tags = { ...base };
+  for (const [key, value] of Object.entries(patch) as Array<[keyof Id3Tags, string | undefined]>) {
+    // MP4 tail/head fallback tags should replace empty or parser-placeholder values,
+    // but must not overwrite already useful ID3/head metadata.
+    if (isUsableParsedTagValue(value) && !isUsableParsedTagValue(merged[key])) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
 
 const applyTextFrame = (tags: Id3Tags, id: string, frameBytes: Uint8Array): void => {
   if (id === 'COMM' || id === 'COM') {
@@ -802,15 +1011,27 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
       ID3_FRAME_SCAN_LIMIT,
     );
     const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
-    const normalizedUri = uri.startsWith('content://') ? uri : (uri.split('?')[0] ?? uri);
-    const extensionProbeUri = uri.split('?')[0] ?? uri;
-    const looksLikeMp4 = /\.(m4a|mp4|aac)$/i.test(extensionProbeUri);
+    const normalizedUri = uri.startsWith('content://') ? uri : stripUriQueryAndFragment(uri);
+    const mp4LikeHints = hasMp4LikeHints(uri, options);
+    let detectedMp4Like = mp4LikeHints;
     const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
       const id3 = parseId3Buffer(bytes, { includeCover });
-      if (!includeCover || id3.cover) return id3;
-      if (!looksLikeMp4) return id3;
-      const mp4Cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
-      return mp4Cover ? { ...id3, cover: mp4Cover } : id3;
+      const looksLikeMp4 = detectedMp4Like || hasMp4HeadEvidence(bytes);
+      detectedMp4Like = looksLikeMp4;
+      if (!detectedMp4Like) return id3;
+      return mergeMissingOrPlaceholderId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
+    };
+    const mergeMp4TailTags = async (currentTags: Id3Tags, size: number, readTail: (tailStart: number, tailReadLength: number) => Promise<Uint8Array>): Promise<Id3Tags> => {
+      if (!detectedMp4Like || size <= maxHeadBytes || maxTailBytes <= 0) return currentTags;
+      const tailReadLength = Math.min(maxTailBytes, size);
+      const tailStart = Math.max(0, size - tailReadLength);
+      const tailBytes = await readTail(tailStart, tailReadLength);
+      throwIfParseAborted(options.signal);
+      const tailTags = parseMp4TagsFromBuffer(tailBytes, {
+        includeCover,
+        trustedTopLevel: false,
+      });
+      return mergeMissingOrPlaceholderId3Tags(currentTags, tailTags);
     };
     try {
       const b64 = await readAsStringAsync(normalizedUri, {
@@ -842,30 +1063,22 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
           console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
         }
       }
-      if (!includeCover || id3.cover || !looksLikeMp4) return id3;
+      if (!detectedMp4Like) return id3;
       try {
         const info = await getId3FileInfo(normalizedUri);
         if (!info.exists) return id3;
-        const size = info.size;
-        if (size <= maxHeadBytes) return id3;
-        if (maxTailBytes <= 0) return id3;
-        const tailReadLength = Math.min(maxTailBytes, size);
-        const tailStart = Math.max(0, size - tailReadLength);
-        const tailB64 = await readAsStringAsync(normalizedUri, {
-          encoding: encodingBase64,
-          length: tailReadLength,
-          position: tailStart,
+        return await mergeMp4TailTags(id3, info.size, async (tailStart, tailReadLength) => {
+          const tailB64 = await readAsStringAsync(normalizedUri, {
+            encoding: encodingBase64,
+            length: tailReadLength,
+            position: tailStart,
+          });
+          return base64ToBytes(tailB64);
         });
-        throwIfParseAborted(options.signal);
-        const tailCover = parseMp4CoverFromBuffer(base64ToBytes(tailB64), {
-          trustedTopLevel: false,
-        });
-        if (tailCover) return { ...id3, cover: tailCover };
       } catch {
         throwIfParseAborted(options.signal);
         return id3;
       }
-      return id3;
     } catch {
       throwIfParseAborted(options.signal);
       // fallback to File API when legacy path is unavailable
@@ -916,6 +1129,12 @@ export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}
               head[2] === 0x33
             ) {
               parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
+            }
+            if (detectedMp4Like) {
+              parsed = await mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
+                handle.offset = tailStart;
+                return handle.readBytes(tailReadLength);
+              });
             }
             return parsed;
           } finally {

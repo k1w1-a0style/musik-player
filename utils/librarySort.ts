@@ -1,5 +1,5 @@
 import type { Song } from '../types/Song';
-import { displayArtist, normalizeLibraryText } from './libraryPresentation';
+import { displayArtist, displayTitle } from './libraryPresentation';
 
 export type LibrarySortMode = 'alphabet' | 'trackNumber' | 'year';
 
@@ -41,8 +41,8 @@ const compareNumberNullsLast = (left: number | null, right: number | null): numb
 };
 
 const compareByMode = (left: Song, right: Song, mode: LibrarySortMode): number => {
-  const leftTitle = normalizeLibraryText(left.title);
-  const rightTitle = normalizeLibraryText(right.title);
+  const leftTitle = displayTitle(left);
+  const rightTitle = displayTitle(right);
 
   if (mode === 'trackNumber') {
     return compareNumberNullsLast(parseLeadingInt(left.trackNumber), parseLeadingInt(right.trackNumber))

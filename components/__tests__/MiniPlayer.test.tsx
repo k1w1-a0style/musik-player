@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer from '../MiniPlayer';
 
 type MiniCtx = {
-  currentSong: { id: string; title: string; artist: string; cover?: string } | null;
+  currentSong: { id: string; title: string; artist: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
   isPlaying: boolean;
   togglePlayPause: jest.Mock<Promise<void>, []>;
   next: jest.Mock<Promise<void>, []>;
@@ -136,6 +136,17 @@ describe('MiniPlayer', () => {
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
 
     expect(getByTestId('mini-player-next').props.accessibilityLabel).toBe('Nächster Titel');
+  });
+
+  test('uses display title fallback for placeholder current song title', () => {
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({
+      currentSong: { id: 's1', title: '<unknown>', artist: 'Artist', fileInfo: { filename: 'My%20Song.m4a' } },
+    }));
+
+    const { getByText, queryByText } = render(<MiniPlayer onOpen={jest.fn()} />);
+
+    expect(queryByText('<unknown>')).toBeNull();
+    expect(getByText('My Song')).toBeTruthy();
   });
 
   test('renders null without current song', () => {

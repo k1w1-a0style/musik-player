@@ -1000,3 +1000,47 @@ test('buildSongFromImportSource sets albumArtist from ID3 tags', async () => {
   );
   expect(song.albumArtist).toBe('Various Artists');
 });
+
+test('buildSongFromImportSource lets placeholder tags fall through to parsed M4A filename', async () => {
+  const song = await mediaImport.buildSongFromImportSource(
+    { id: 'm4a-fallback', uri: 'file:///Artist%20-%20Title.m4a', filename: 'Artist%20-%20Title.m4a', source: 'saf' } as any,
+    { title: 'unknown', artist: '   ', albumArtist: '<unknown>', album: 'null' } as any,
+    { loadNativeCover: false },
+  );
+
+  expect(song.title).toBe('Title');
+  expect(song.artist).toBe('Artist');
+  expect(song.albumArtist).toBeUndefined();
+  expect(song.album).toBeUndefined();
+});
+
+
+test('buildSongFromImportSource strips webm extension in title fallback', async () => {
+  const song = await mediaImport.buildSongFromImportSource(
+    { id: 'webm-fallback', uri: 'file:///Artist%20-%20Song.webm', filename: 'Artist%20-%20Song.webm', source: 'saf' } as any,
+    { title: 'undefined', artist: 'null' } as any,
+    { loadNativeCover: false },
+  );
+
+  expect(song.title).toBe('Song');
+  expect(song.artist).toBe('Artist');
+});
+
+test('buildSongFromImportSource strips m4b extension and placeholder artist segment in title fallback', async () => {
+  const result = await mediaImport.buildSongFromImportSource(
+    {
+      id: 'm4b-fallback',
+      uri: 'file:///music/unknown%20-%20Real%20Book.m4b',
+      filename: 'unknown - Real Book.m4b',
+      durationMs: 180000,
+      source: 'saf',
+    } as any,
+    {},
+    { loadNativeCover: false },
+  );
+
+  expect(result.title).toBe('Real Book');
+  expect(result.artist).toBe('Unbekannt');
+  expect(result.fileInfo?.extension).toBe('m4b');
+  expect(result.fileInfo?.mimeType).toBe('audio/mp4');
+});

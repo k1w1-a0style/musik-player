@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import { isDemoSong } from './libraryDemoSongs';
-import { buildSongKey, displayAlbum, displayArtist, normalizeLibraryText } from './libraryPresentation';
+import { buildSongKey, displayAlbum, displayArtist, displayTitle, normalizeLibraryText } from './libraryPresentation';
 
 export const SONG_ROW_HEIGHT = 62;
 
@@ -16,7 +16,7 @@ export const getLibrarySongItemLayout = (
 export const buildSongCardSong = (song: Song): Song => ({
   ...song,
   id: normalizeLibraryText(song.id),
-  title: normalizeLibraryText(song.title) || 'Unbekannter Titel',
+  title: displayTitle(song),
   artist: displayArtist(song),
   album: displayAlbum(song),
 });

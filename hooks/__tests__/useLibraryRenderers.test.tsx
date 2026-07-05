@@ -187,7 +187,7 @@ test('renderSongItem renders SongCard with buildSongCardSong and forwards presse
 
   expect(mockSongCardProps[0].song).toEqual(buildSongCardSong(rawSong));
 
-  fireEvent.press(screen.getByText('Unbekannter Titel'));
+  fireEvent.press(screen.getByText('raw-id'));
 
   expect(playSong).toHaveBeenCalledWith(buildSongCardSong(rawSong), defaultFilteredSongs);
 });

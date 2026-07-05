@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { theme } from '../theme';
-import { buildSongKey, displayArtist, normalizeLibraryText } from '../utils/libraryPresentation';
+import { buildSongKey, displayArtist, displayTitle } from '../utils/libraryPresentation';
 import NowPlayingQueuePreviewRow from './NowPlayingQueuePreviewRow';
 
 const QUEUE_ROW_HEIGHT = 44;
@@ -38,7 +38,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         index={index}
         queueLength={queue.length}
         rowHeight={QUEUE_ROW_HEIGHT}
-        title={normalizeLibraryText(item.title) || 'Unbekannter Titel'}
+        title={displayTitle(item)}
         artist={displayArtist(item)}
         isCurrent={!!item.id && item.id === currentSongId}
         canShift={canShiftQueue && index > 0}

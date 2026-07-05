@@ -1,6 +1,7 @@
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { deriveFolderNameFromUri } from './mediaLibraryImport';
+import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist, resolveDisplayTitle } from './musicParser';
 import { getSongArtworkUri } from './songArtwork';
 
 export type LibraryGroupKind = 'album' | 'artist' | 'genre';
@@ -41,19 +42,23 @@ const decodeUriSafely = (value: string): string => {
   }
 };
 
-const normalizeWhitespace = (value: string): string => value.replace(/\s+/gu, ' ').trim();
-
-export const normalizeLibraryText = (value?: string | null): string => normalizeWhitespace((value ?? '').normalize('NFKC'));
+export const normalizeLibraryText = (value?: string | null): string =>
+  (value ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
 
 const normalizeLibraryKeyPart = (value: string, unknownKey: string): string => {
   const normalized = normalizeLibraryText(value).toLocaleLowerCase('de-DE');
   return normalized || unknownKey;
 };
 
-export const normalizeAlbumName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
-export const normalizeArtistName = (value?: string | null): string => normalizeLibraryKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
-export const getDisplayAlbumName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ALBUM_LABEL;
-export const getDisplayArtistName = (value?: string | null): string => normalizeLibraryText(cleanPersonLikeLabel(value ?? undefined)) || UNKNOWN_ARTIST_LABEL;
+const normalizeMetadataKeyPart = (value: string, unknownKey: string): string => {
+  const normalized = normalizeMetadataText(value)?.toLocaleLowerCase('de-DE');
+  return normalized || unknownKey;
+};
+
+export const normalizeAlbumName = (value?: string | null): string => normalizeMetadataKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ALBUM_KEY);
+export const normalizeArtistName = (value?: string | null): string => normalizeMetadataKeyPart(cleanPersonLikeLabel(value ?? undefined), UNKNOWN_ARTIST_KEY);
+export const getDisplayAlbumName = (value?: string | null): string => resolveDisplayAlbum(cleanPersonLikeLabel(value ?? undefined));
+export const getDisplayArtistName = (value?: string | null): string => resolveDisplayArtist(cleanPersonLikeLabel(value ?? undefined));
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
 export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => `album:${normalizeAlbumName(song.album)}`;
 
@@ -139,7 +144,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
 };
 
 const mergeSongKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
-const safeTitle = (song: Pick<Song, 'title'>): string => normalizeLibraryText(song.title) || 'Unbekannter Titel';
+const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
 const byTitle = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 
@@ -152,9 +157,11 @@ export const cleanPersonLikeLabel = (value?: string): string => {
   return stripExtension(basename(raw)) || raw;
 };
 
+export const displayTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string =>
+  resolveDisplayTitle(song.title, song.fileInfo?.filename, song.fileInfo?.uri ?? song.uri);
 export const displayArtist = (song: Pick<Song, 'artist'>): string => getDisplayArtistName(song.artist);
 export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlbumName(song.album);
-export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeLibraryText(cleanPersonLikeLabel(song.genre)) || UNKNOWN_GENRE_LABEL;
+export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeMetadataText(cleanPersonLikeLabel(song.genre)) ?? UNKNOWN_GENRE_LABEL;
 
 export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
   const byKey = new Map<string, Song>();
