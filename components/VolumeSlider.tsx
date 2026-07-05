@@ -1,12 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   type AccessibilityActionEvent,
-  type LayoutChangeEvent,
-  type GestureResponderEvent,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Volume2, VolumeX } from 'lucide-react-native';
 import { theme } from '../theme';
 
@@ -20,66 +19,81 @@ interface Props {
 const clampVolume = (value: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
 const ACCESSIBILITY_VOLUME_STEP = 0.1;
+const SLIDER_STEP = 0.01;
 
 const VolumeSlider: React.FC<Props> = ({
   volume,
   onVolumeChange,
   accentColor = theme.palette.primary,
-  inactiveColor = theme.palette.border,
+  inactiveColor = 'rgba(255,255,255,0.18)',
 }) => {
-  const [trackWidth, setTrackWidth] = useState(1);
+  const [displayVolume, setDisplayVolume] = useState(() => clampVolume(volume));
+  const [isSliding, setIsSliding] = useState(false);
 
-  const applyFromTouch = useCallback((event: GestureResponderEvent) => {
-    const x = event.nativeEvent.locationX;
-    const next = clampVolume(x / Math.max(1, trackWidth));
+  useEffect(() => {
+    if (!isSliding) setDisplayVolume(clampVolume(volume));
+  }, [isSliding, volume]);
+
+  const commitVolume = useCallback((value: number) => {
+    const next = clampVolume(value);
+    setDisplayVolume(next);
     onVolumeChange(next);
-  }, [onVolumeChange, trackWidth]);
+  }, [onVolumeChange]);
 
-  const onTrackLayout = useCallback((event: LayoutChangeEvent) => {
-    setTrackWidth(Math.max(1, event.nativeEvent.layout.width));
+  const handleValueChange = useCallback((value: number) => {
+    commitVolume(value);
+  }, [commitVolume]);
+
+  const handleSlidingStart = useCallback(() => {
+    setIsSliding(true);
   }, []);
+
+  const handleSlidingComplete = useCallback((value: number) => {
+    commitVolume(value);
+    setIsSliding(false);
+  }, [commitVolume]);
 
   const handleAccessibilityAction = useCallback(
     (event: AccessibilityActionEvent) => {
-      const currentVolume = clampVolume(volume);
+      const currentVolume = clampVolume(displayVolume);
       if (event.nativeEvent.actionName === 'increment') {
-        onVolumeChange(clampVolume(currentVolume + ACCESSIBILITY_VOLUME_STEP));
+        commitVolume(clampVolume(currentVolume + ACCESSIBILITY_VOLUME_STEP));
       } else if (event.nativeEvent.actionName === 'decrement') {
-        onVolumeChange(clampVolume(currentVolume - ACCESSIBILITY_VOLUME_STEP));
+        commitVolume(clampVolume(currentVolume - ACCESSIBILITY_VOLUME_STEP));
       }
     },
-    [onVolumeChange, volume],
+    [commitVolume, displayVolume],
   );
 
-  const percent = Math.round(clampVolume(volume) * 100);
+  const percent = Math.round(clampVolume(displayVolume) * 100);
 
   return (
     <View style={styles.container} testID="modern-controls">
       <View style={styles.row}>
-        {volume <= 0.01 ? (
+        {displayVolume <= 0.01 ? (
           <VolumeX color={theme.palette.text.muted} size={18} />
         ) : (
           <Volume2 color={accentColor} size={18} />
         )}
-        <View
+        <Slider
           testID="volume-slider"
           accessibilityRole="adjustable"
           accessibilityLabel="Lautstärke"
           accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
           accessibilityValue={{ min: 0, max: 100, now: percent }}
           onAccessibilityAction={handleAccessibilityAction}
-          style={styles.sliderHitbox}
-          onLayout={onTrackLayout}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={applyFromTouch}
-          onResponderMove={applyFromTouch}
-        >
-          <View style={[styles.track, { backgroundColor: inactiveColor }]}>
-            <View style={[styles.trackActive, { width: `${percent}%`, backgroundColor: accentColor }]} />
-            <View style={[styles.thumb, { left: `${percent}%`, backgroundColor: accentColor }]} />
-          </View>
-        </View>
+          style={styles.slider}
+          minimumValue={0}
+          maximumValue={1}
+          step={SLIDER_STEP}
+          value={displayVolume}
+          onSlidingStart={handleSlidingStart}
+          onValueChange={handleValueChange}
+          onSlidingComplete={handleSlidingComplete}
+          minimumTrackTintColor={accentColor}
+          maximumTrackTintColor={inactiveColor}
+          thumbTintColor={accentColor}
+        />
         <Text style={styles.value}>{percent}%</Text>
       </View>
     </View>
@@ -95,28 +109,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
-  sliderHitbox: {
+  slider: {
     flex: 1,
     minWidth: 128,
     height: 38,
-    justifyContent: 'center',
-  },
-  track: {
-    height: 4,
-    borderRadius: 999,
-    overflow: 'visible',
-  },
-  trackActive: {
-    height: 4,
-    borderRadius: 999,
-  },
-  thumb: {
-    position: 'absolute',
-    top: -6,
-    width: 16,
-    height: 16,
-    marginLeft: -8,
-    borderRadius: 8,
   },
   value: {
     color: theme.palette.text.secondary,
