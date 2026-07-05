@@ -86,7 +86,7 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
 };
 
 const styles = StyleSheet.create({
-  section: { color: theme.palette.primary, fontFamily: theme.fonts.heading, marginTop: 8 },
+  section: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
 });
 
 export default TrackInfoSections;
