@@ -27,6 +27,7 @@ interface PressScaleProps {
   disabled?: boolean;
   size?: number;
   primary?: boolean;
+  active?: boolean;
   accentColor?: string;
   accentDarkColor?: string;
 }
@@ -39,6 +40,7 @@ const PressScale: React.FC<PressScaleProps> = ({
   disabled,
   size = 44,
   primary,
+  active,
   accentColor,
   accentDarkColor,
 }) => (
@@ -50,17 +52,23 @@ const PressScale: React.FC<PressScaleProps> = ({
     onPress={onPress}
     disabled={disabled}
     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-    style={[
+    style={({ pressed }) => [
       styles.button,
+      primary ? styles.primaryButton : styles.secondaryButton,
       {
         width: size,
         height: size,
-        borderRadius: size / 2,
-        backgroundColor: primary ? accentColor ?? theme.palette.primary : 'rgba(255,255,255,0.06)',
-        borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : 'rgba(255,255,255,0.10)',
+        borderRadius: primary ? 22 : size / 2,
+        backgroundColor: primary ? accentColor ?? theme.palette.primary : active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.055)',
+        borderColor: primary
+          ? accentDarkColor ?? theme.palette.primaryDark
+          : active
+            ? accentColor ?? theme.palette.primary
+            : 'rgba(255,255,255,0.11)',
         borderWidth: primary ? 1 : StyleSheet.hairlineWidth,
         shadowColor: primary ? accentColor ?? theme.palette.primary : 'transparent',
       },
+      pressed && styles.pressed,
       disabled && styles.disabled,
       primary && styles.primaryGlow,
     ]}
@@ -107,64 +115,68 @@ const Controls: React.FC<ControlsProps> = ({
 
   return (
     <View style={styles.container} testID="controls">
-      <PressScale
-        testID="controls-shuffle"
-        accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
-        onPress={toggleShuffle}
-        size={36}
-        accentColor={shuffle ? accentColor : theme.palette.border}
-        accentDarkColor={accentDarkColor}
-      >
-        <Shuffle color={shuffleColor} size={18} />
-      </PressScale>
+      <View style={styles.controlRail}>
+        <PressScale
+          testID="controls-shuffle"
+          accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
+          onPress={toggleShuffle}
+          size={38}
+          active={shuffle}
+          accentColor={accentColor}
+          accentDarkColor={accentDarkColor}
+        >
+          <Shuffle color={shuffleColor} size={18} />
+        </PressScale>
 
-      <PressScale
-        testID="controls-previous"
-        accessibilityLabel="Vorheriger Titel"
-        onPress={previous}
-        disabled={!canSkipPrevious}
-        size={44}
-      >
-        <SkipBack color={theme.palette.text.primary} size={21} fill={theme.palette.text.primary} />
-      </PressScale>
+        <PressScale
+          testID="controls-previous"
+          accessibilityLabel="Vorheriger Titel"
+          onPress={previous}
+          disabled={!canSkipPrevious}
+          size={48}
+        >
+          <SkipBack color={theme.palette.text.primary} size={22} fill={theme.palette.text.primary} />
+        </PressScale>
 
-      <PressScale
-        testID="controls-play-pause"
-        accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-        onPress={togglePlayPause}
-        disabled={!currentSong || isBuffering}
-        size={58}
-        primary
-        accentColor={accentColor}
-        accentDarkColor={accentDarkColor}
-      >
-        {isPlaying ? (
-          <Pause color={onAccentColor} size={25} fill={onAccentColor} />
-        ) : (
-          <Play color={onAccentColor} size={25} fill={onAccentColor} />
-        )}
-      </PressScale>
+        <PressScale
+          testID="controls-play-pause"
+          accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
+          onPress={togglePlayPause}
+          disabled={!currentSong || isBuffering}
+          size={64}
+          primary
+          accentColor={accentColor}
+          accentDarkColor={accentDarkColor}
+        >
+          {isPlaying ? (
+            <Pause color={onAccentColor} size={27} fill={onAccentColor} />
+          ) : (
+            <Play color={onAccentColor} size={27} fill={onAccentColor} />
+          )}
+        </PressScale>
 
-      <PressScale
-        testID="controls-next"
-        accessibilityLabel="Nächster Titel"
-        onPress={next}
-        disabled={!canSkipNext}
-        size={44}
-      >
-        <SkipForward color={theme.palette.text.primary} size={21} fill={theme.palette.text.primary} />
-      </PressScale>
+        <PressScale
+          testID="controls-next"
+          accessibilityLabel="Nächster Titel"
+          onPress={next}
+          disabled={!canSkipNext}
+          size={48}
+        >
+          <SkipForward color={theme.palette.text.primary} size={22} fill={theme.palette.text.primary} />
+        </PressScale>
 
-      <PressScale
-        testID="controls-repeat"
-        accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
-        onPress={cycleRepeatMode}
-        size={36}
-        accentColor={repeatMode !== 'off' ? accentColor : theme.palette.border}
-        accentDarkColor={accentDarkColor}
-      >
-        {repeatIcon}
-      </PressScale>
+        <PressScale
+          testID="controls-repeat"
+          accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
+          onPress={cycleRepeatMode}
+          size={38}
+          active={repeatMode !== 'off'}
+          accentColor={accentColor}
+          accentDarkColor={accentDarkColor}
+        >
+          {repeatIcon}
+        </PressScale>
+      </View>
     </View>
   );
 };
@@ -173,20 +185,39 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
+  },
+  controlRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.09)',
   },
   button: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryGlow: {
-    shadowOpacity: 0.18,
-    shadowRadius: 9,
-    elevation: 4,
+  secondaryButton: {
+    overflow: 'hidden',
   },
+  primaryButton: {
+    overflow: 'hidden',
+  },
+  primaryGlow: {
+    shadowOpacity: 0.26,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 7,
+  },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   disabled: { opacity: 0.35 },
 });
 
