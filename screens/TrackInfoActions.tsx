@@ -38,8 +38,16 @@ const TrackInfoActions: React.FC<TrackInfoActionsProps> = ({
 
 const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 2 },
-  editButton: { backgroundColor: theme.palette.primary, borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' },
-  editButtonText: { color: theme.palette.text.onPrimary, fontFamily: theme.fonts.heading, fontSize: 13 },
+  editButton: {
+    backgroundColor: theme.palette.surfaceElevated,
+    borderRadius: theme.radii.input,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  editButtonText: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 13 },
   removeButton: { borderRadius: theme.radii.input, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start', borderWidth: 1, borderColor: dangerColor },
   removeButtonText: { color: dangerColor, fontFamily: theme.fonts.heading, fontSize: 13 },
   hint: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, marginBottom: 4 },
