@@ -2,13 +2,10 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import VolumeSlider from '../VolumeSlider';
 
-jest.mock('@react-native-community/slider', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return function MockSlider(props: Record<string, unknown>) {
-    return React.createElement(View, props);
-  };
-});
+jest.mock('@react-native-community/slider', () => ({
+  __esModule: true,
+  default: 'Slider',
+}));
 
 describe('VolumeSlider', () => {
   test('exposes adjustable volume semantics and accessibility value', () => {
