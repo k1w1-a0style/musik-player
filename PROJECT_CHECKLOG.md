@@ -1,5 +1,38 @@
 # Project Checklog
 
+## DeepScan Performance / Palette / Waveform / Runtime (2026-07-05)
+
+Fortsetzung des unterbrochenen Deep-Scan- und Fix-Durchlaufs. Der vorherige (unterbrochene) Commit `d7b3f62` hatte bereits Performance-, Palette- und Hydration-Punkte inklusive Tests umgesetzt; dieser Durchlauf hat den Waveform-Traceability-Teil ergänzt und validiert.
+
+### Bereits vor diesem Lauf erledigt (Commit `d7b3f62`)
+- [x] VirtualizedList/FlatList-Performance: `useLibrarySongRenderer` hält `onPressSong`/`onInfoSong` reference-stabil über Refs; `renderSongItem` ändert sich nur bei `currentSongId`/`isPlaying`/`variant`/`onOpenTrackInfo`. `SongCard` bleibt via `React.memo`-Feldvergleich stabil. Playback-Progress lebt im separaten `PlaybackProgressContext` und rendert die Library nicht neu. `getItemLayout` wird nur im `list`-Modus gesetzt (Grid/Banner bekommen keinen falschen Layout-Estimator). Abgesichert durch `hooks/__tests__/useLibrarySongRenderer.performance.test.tsx`.
+- [x] Cover-Palette/Accent-Fallback: `useAlbumPalette` cleared die native Palette synchron beim Artwork-Wechsel und bricht die alte Extraktion per `AbortController` ab (kein stale Grün/Orange). `mergeNativeAndFallbackPalette` lässt native Felder gewinnen und füllt Lücken deterministisch aus dem FNV-Hash-Fallback. Abgesichert durch `useAlbumPalette.test.tsx`, `albumPaletteHelpers.test.ts`, `jsPaletteFallback.test.ts`.
+- [x] Hydration-Warnung: `logEmptyPlayableQueueHydration` loggt bei leerer Library / Erststart nur `console.info` mit Counts; nur bei vorhandener Library ohne spielbare URIs bleibt die `console.warn`. Kontext enthält `restoredQueueCount`, `librarySongCount`, `playableQueueCount`, `nativeQueueAction`, `reason`. Abgesichert durch `musicHydrationEmptyQueueLog.test.ts`, `musicHydrationNativeQueue.test.ts`.
+
+### In diesem Lauf ergänzt
+- [x] MP3/M4A Waveform-Nachvollziehbarkeit: neuer reiner Helper `utils/waveformDecision.ts` klassifiziert Container (`mp3`/`m4a`/`mp4`/…) und die Native-Entscheidung (`no-uri`, `no-native-extractor`, `native-empty`, `native-unusable-shape`, `native-source-key-changed`, `native-error`, `native-accepted`). MP3 und M4A durchlaufen dieselbe `hasUsefulNativeShape`-Gate und dieselbe `normalizeWaveformPoints`-Normalisierung; ein flaches/degeneriertes natives Envelope wird unabhängig vom Container abgelehnt.
+- [x] `extractNativeWaveform` meldet die Entscheidung über einen optionalen `onDecision`-Callback (Rückgabewert und Seeking-/Preview-Semantik unverändert).
+- [x] `useSongWaveform` loggt nur in `__DEV__` und nur bei tatsächlich versuchten, dann verworfenen Native-Pfaden (`isNativeWaveformRejectionNoteworthy`) eine kompakte, kontextreiche Zeile – kein Spam bei Fallback-only-Geräten oder Normalzuständen.
+- [x] Tests ergänzt: `utils/__tests__/waveformDecision.test.ts` (Container-/Entscheidungs-Klassifikation) und Erweiterung von `utils/__tests__/waveformExtraction.test.ts` (onDecision-Gründe für mp3/m4a inkl. accept/flat/empty/error).
+
+### Nur geprüft/dokumentiert (kein Eingriff)
+- [x] npm Deprecated: `npm install --dry-run` gegen die gepinnte `package-lock.json` liefert keine Deprecation-Warnungen; keine Dependency-Version geändert. `package-lock.json` wurde nach dem lokalen Install auf den Repo-Stand zurückgesetzt (npm 10.x hatte nur Metadaten wie `dev`→`devOptional`/`libc` normalisiert, keine Versionen).
+- [x] New Architecture bleibt `newArchEnabled=false` (siehe `app.json`, `AGENTS.md`, `docs/architecture/new-architecture-compatibility-audit.md`) – nicht aktiviert, solange `react-native-track-player@4.1.2` gepinnt ist.
+- [x] Runtime-Warnungen im Scope geprüft: bestehende `console.warn`-Aufrufe in Library-/Palette-/Waveform-/Hydration-Pfaden decken echte Fehlerzustände ab; kein Warn-Spam für Normalzustände identifiziert.
+
+### Validierung (dieser Lauf)
+- [x] `npm run typecheck -- --pretty false` – grün.
+- [x] `npm run lint:ci` – grün.
+- [x] Ziel-Suiten grün: performance (6), library (456), palette (22), waveform (53), hydration (72), queue (62), metadata (92), trackInfo (41).
+- [x] `npx jest --runInBand` gesamt: 1945 grün. 2 rote nur in `__tests__/androidApkInspector.test.ts`, weil in dieser Umgebung `aapt`/`apksigner` fehlen (Umgebungslimitierung, außerhalb des Scopes, schon vor diesem Lauf rot).
+- [x] `git diff --check` sauber.
+
+### Follow-up / Not fixed (bewusst offen, größere/fremde Themen)
+- `__tests__/androidApkInspector.test.ts`: benötigt echte Android-Build-Tools (`aapt`/`apksigner`); nur in einer Android-fähigen Umgebung/CI grün. Nicht Teil dieses Scopes.
+- Optionale Waveform-Telemetrie könnte perspektivisch als sichtbares Debug-Overlay im NowPlaying auftauchen – bewusst nicht umgesetzt (keine Now-Playing-Layout-Änderung im Scope).
+- Kein EAS Build ausgeführt. Kein Android/APK Build ausgeführt. Android/Samsung/Huawei-Smoke bleibt offen.
+
+
 ## DeepScan-Status
 
 Abgedeckte Review-Phasen aus den letzten DeepScan-PRs:
