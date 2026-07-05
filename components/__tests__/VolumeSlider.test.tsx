@@ -2,6 +2,14 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import VolumeSlider from '../VolumeSlider';
 
+jest.mock('@react-native-community/slider', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return function MockSlider(props: Record<string, unknown>) {
+    return React.createElement(View, props);
+  };
+});
+
 describe('VolumeSlider', () => {
   test('exposes adjustable volume semantics and accessibility value', () => {
     const onVolumeChange = jest.fn();
@@ -39,17 +47,17 @@ describe('VolumeSlider', () => {
     expect(onVolumeChange).toHaveBeenLastCalledWith(0);
   });
 
-  test('keeps touch based volume changes working', () => {
+  test('uses native slider callbacks for smooth volume changes', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.25} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
 
-    fireEvent(slider, 'layout', { nativeEvent: { layout: { width: 200 } } });
-    fireEvent(slider, 'responderGrant', { nativeEvent: { locationX: 50 } });
-    fireEvent(slider, 'responderMove', { nativeEvent: { locationX: 300 } });
+    fireEvent(slider, 'slidingStart', 0.25);
+    fireEvent(slider, 'valueChange', 0.58);
+    fireEvent(slider, 'slidingComplete', 0.6);
 
-    expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.25);
-    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 1);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.58);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.6);
   });
 
   test('keeps the slider visually inline without adding a card frame', () => {
@@ -60,14 +68,13 @@ describe('VolumeSlider', () => {
     expect(getByTestId('volume-slider')).toBeTruthy();
   });
 
-  test('passes the accent color to the active track and thumb', () => {
+  test('passes the accent color to the native slider track and thumb', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.4} onVolumeChange={onVolumeChange} accentColor="#ff00aa" />);
-    const track = getByTestId('volume-slider').props.children;
-    const [activeTrack, thumb] = track.props.children;
+    const slider = getByTestId('volume-slider');
 
-    expect(activeTrack.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
-    expect(thumb.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+    expect(slider.props.minimumTrackTintColor).toBe('#ff00aa');
+    expect(slider.props.thumbTintColor).toBe('#ff00aa');
   });
 
 });
