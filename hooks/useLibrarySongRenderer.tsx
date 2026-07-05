@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import SongCard from '../components/SongCard';
 import type { Song } from '../types/Song';
 import {
@@ -43,9 +43,21 @@ export const useLibrarySongRenderer = ({
   playSong,
   songViewMode = DEFAULT_LIBRARY_SONG_VIEW_MODE,
 }: UseLibrarySongRendererOptions): UseLibrarySongRendererResult => {
-  const handleSongPress = useCallback((song: Song, queue: Song[] = filteredSongs) => {
-    void playSong(song, queue);
-  }, [filteredSongs, playSong]);
+  // Keep the latest filteredSongs / playSong / onOpenTrackInfo in refs so the
+  // row-level callbacks passed into <SongCard/> remain reference-stable across
+  // renders. Without this every filter/search/favorite tick would rebuild the
+  // press handlers and defeat SongCard's React.memo, causing every visible row
+  // to re-render even when only playback progress or currentSongId changed.
+  const filteredSongsRef = useRef(filteredSongs);
+  filteredSongsRef.current = filteredSongs;
+  const playSongRef = useRef(playSong);
+  playSongRef.current = playSong;
+
+  const handleSongPress = useCallback<LibraryRendererHandleSongPress>((song, queue) => {
+    // Reading refs at press-time avoids stale closures when the filtered list
+    // changes between the row render and the actual tap (e.g. active search).
+    void playSongRef.current(song, queue ?? filteredSongsRef.current);
+  }, []);
 
   const songKeyExtractor = useCallback(getLibrarySongKey, []);
 
@@ -53,16 +65,18 @@ export const useLibrarySongRenderer = ({
 
   const variant = getLibrarySongCardVariant(songViewMode);
 
+  // Only currentSongId / isPlaying / variant force renderSongItem to change,
+  // which is exactly the surface SongCard's memo compares on.
   const renderSongItem = useCallback(({ item }: { item: Song }) => (
     <SongCard
       song={buildSongCardSong(item)}
       isCurrent={currentSongId === item.id}
       isPlaying={currentSongId === item.id && isPlaying}
       variant={variant}
-      onPressSong={song => handleSongPress(song, filteredSongs)}
+      onPressSong={handleSongPress}
       onInfoSong={shouldShowTrackInfoAction(item) ? onOpenTrackInfo : undefined}
     />
-  ), [currentSongId, filteredSongs, handleSongPress, isPlaying, onOpenTrackInfo, variant]);
+  ), [currentSongId, handleSongPress, isPlaying, onOpenTrackInfo, variant]);
 
   return {
     getSongItemLayout,
