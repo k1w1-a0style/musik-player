@@ -20,7 +20,7 @@ describe('VolumeSlider', () => {
     expect(getByTestId('volume-slider').props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
   });
 
-  test('increments and decrements volume through accessibility actions', () => {
+  test('increments and decrements volume sequentially through accessibility actions', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.5} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
@@ -29,7 +29,7 @@ describe('VolumeSlider', () => {
     fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
 
     expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.6);
-    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.4);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.5);
   });
 
   test('keeps accessibility changes between 0 and 100 percent', () => {
