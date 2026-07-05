@@ -28,7 +28,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
   const removeDisabled = !canWrite || !hasCover || saving || hasReplacementCover;
   const pickDisabled = !canWrite || saving;
   const previewUri = replacementCover?.uri ?? (!removeCover ? currentCoverUri : undefined);
-  const shouldShowPreview = Boolean(hasCover || hasReplacementCover || removeCover);
+  const shouldShowPreview = Boolean(previewUri || hasReplacementCover || removeCover);
   const previewTitle = hasReplacementCover
     ? 'Ausgewähltes neues Cover'
     : removeCover
