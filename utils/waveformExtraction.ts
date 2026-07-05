@@ -3,6 +3,11 @@ import type { Song } from '../types/Song';
 import { withTimeout } from './withTimeout';
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceKey } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type SongWaveform } from './waveformTypes';
+import {
+  classifyWaveformContainer,
+  type NativeWaveformDecision,
+  type WaveformSourceDiagnostics,
+} from './waveformDecision';
 
 export const WAVEFORM_EXTRACTION_TIMEOUT_MS = 8_000;
 
@@ -31,16 +36,36 @@ export const hasUsefulNativeShape = (points: readonly number[]): boolean => {
 export const extractNativeWaveform = async (
   song: Song | null | undefined,
   durationMs: number,
-  options?: { pointCount?: number; signal?: AbortSignal },
+  options?: {
+    pointCount?: number;
+    signal?: AbortSignal;
+    onDecision?: (diagnostics: WaveformSourceDiagnostics) => void;
+  },
 ): Promise<SongWaveform | null> => {
   const uri = resolveWaveformUri(song);
   const sourceKey = getWaveformSourceKey(song);
   const pointCount = options?.pointCount ?? DEFAULT_WAVEFORM_POINT_COUNT;
+  const container = classifyWaveformContainer(uri);
+  const report = (decision: NativeWaveformDecision, nativePointCount: number): void => {
+    options?.onDecision?.({
+      container,
+      decision,
+      source: decision === 'native-accepted' ? 'native' : 'fallback',
+      nativePointCount,
+    });
+  };
   const extractor = (SystemAudio as typeof SystemAudio & {
     extractWaveformPeaks?: (uri: string, pointCount?: number) => Promise<{ points: number[]; durationMs?: number } | null>;
   }).extractWaveformPeaks;
 
-  if (!uri || !extractor) return null;
+  if (!uri) {
+    report('no-uri', 0);
+    return null;
+  }
+  if (!extractor) {
+    report('no-native-extractor', 0);
+    return null;
+  }
 
   try {
     const result = await withTimeout(
@@ -49,10 +74,27 @@ export const extractNativeWaveform = async (
       'Waveform extraction timed out',
       { signal: options?.signal },
     );
-    if (!result?.points?.length || !hasUsefulNativeShape(result.points)) return null;
+    const points = result?.points ?? [];
+    if (!result || points.length === 0) {
+      report('native-empty', 0);
+      return null;
+    }
+    // MP3 and M4A run through the exact same useful-shape gate and
+    // normalization; a flat/degenerate native envelope is rejected regardless
+    // of container so the deterministic fallback wins consistently.
+    if (!hasUsefulNativeShape(points)) {
+      report('native-unusable-shape', points.length);
+      return null;
+    }
     const waveform = buildNativeWaveform(song, result, durationMs, pointCount);
-    return waveform.sourceKey === sourceKey ? waveform : null;
+    if (waveform.sourceKey !== sourceKey) {
+      report('native-source-key-changed', points.length);
+      return null;
+    }
+    report('native-accepted', points.length);
+    return waveform;
   } catch {
+    report('native-error', 0);
     return null;
   }
 };

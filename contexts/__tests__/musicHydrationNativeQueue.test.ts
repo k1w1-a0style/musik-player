@@ -72,11 +72,12 @@ describe('musicHydrationNativeQueue', () => {
     expect(nativeQueueRef.current).toEqual([]);
   });
 
-  test('resets but does not add or play when hydration produces an empty native queue', async () => {
+  test('resets but does not add or play when hydration produces an empty native queue on first launch', async () => {
     const plan = createHydrationPlan({ ...stored, songs: [], currentSongId: null }, []);
     const nativeQueueRef = createSongRef();
     nativeQueueRef.current = songs.slice();
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
 
     await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
 
@@ -84,7 +85,50 @@ describe('musicHydrationNativeQueue', () => {
     expect(TrackPlayer.add).not.toHaveBeenCalled();
     expect(TrackPlayer.play).not.toHaveBeenCalled();
     expect(nativeQueueRef.current).toEqual([]);
-    expect(warn).toHaveBeenCalledWith('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+    // Legitimate empty state (no library songs) must not surface as a warning.
+    expect(warn).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      '[PlaybackQueue] Hydration produced no playable songs (empty library / first launch).',
+      expect.objectContaining({
+        restoredQueueCount: 0,
+        librarySongCount: 0,
+        playableQueueCount: 0,
+        reason: 'empty-library',
+      }),
+    );
+    info.mockRestore();
+    warn.mockRestore();
+  });
+
+  test('warns with counts when library has entries but none are playable', async () => {
+    const unplayableSongs: Song[] = [
+      { id: 'no-uri', title: 'No URI', artist: 'A' },
+      { id: 'blank-uri', title: 'Blank', artist: 'B', uri: '   ' },
+    ];
+    const plan = createHydrationPlan(
+      { ...stored, songs: unplayableSongs, currentSongId: null },
+      unplayableSongs,
+    );
+    const nativeQueueRef = createSongRef();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
+
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.add).not.toHaveBeenCalled();
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(info).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[PlaybackQueue] Hydration produced no playable songs for native queue.',
+      expect.objectContaining({
+        librarySongCount: 2,
+        playableQueueCount: 0,
+        reason: 'no-playable-uris',
+      }),
+    );
+    info.mockRestore();
+    warn.mockRestore();
   });
 
 });

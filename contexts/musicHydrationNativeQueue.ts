@@ -4,6 +4,10 @@ import type { Song } from '../types/Song';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import type { HydrationPlan } from './musicHydrationPlan';
+import {
+  buildEmptyPlayableQueueHydrationContext,
+  isEmptyPlayableQueueLegitimate,
+} from './musicHydrationEmptyQueueLog';
 
 export interface ApplyHydratedNativeQueueArgs {
   plan: HydrationPlan;
@@ -47,7 +51,7 @@ export const applyHydratedNativeQueue = async ({
       }
 
       if (plan.playableQueue.length === 0) {
-        console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.');
+        logEmptyPlayableQueueHydration(plan);
         return true;
       }
 
@@ -70,4 +74,22 @@ export const resetNativeQueueAfterHydrationFailure = async (): Promise<void> => 
   } catch (resetError) {
     console.warn('[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.', resetError);
   }
+};
+
+/**
+ * Emit a contextualized log when hydration produced no playable songs.
+ *
+ * A pristine first launch or an intentionally emptied library is legitimate
+ * and must not look like an error: only a debug-level info log with counts is
+ * emitted. When we do have library songs but none are playable (missing URIs
+ * on all rows) we keep the loud warning because that indicates a real problem.
+ */
+const logEmptyPlayableQueueHydration = (plan: HydrationPlan): void => {
+  const context = buildEmptyPlayableQueueHydrationContext(plan);
+  if (isEmptyPlayableQueueLegitimate(plan)) {
+    // eslint-disable-next-line no-console
+    console.info('[PlaybackQueue] Hydration produced no playable songs (empty library / first launch).', context);
+    return;
+  }
+  console.warn('[PlaybackQueue] Hydration produced no playable songs for native queue.', context);
 };
