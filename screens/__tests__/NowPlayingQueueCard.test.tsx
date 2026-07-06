@@ -84,3 +84,22 @@ test('uses display title fallback for placeholder queue titles', () => {
   expect(queryByText('unknown')).toBeNull();
   expect(getByText('Song')).toBeTruthy();
 });
+
+
+test('does not expose drag handles before the current track', () => {
+  const { getByTestId, queryByTestId } = render(
+    <NowPlayingQueueCard
+      queue={queue}
+      currentSongId="s2"
+      maxHeight={240}
+      onPlayQueueItem={jest.fn()}
+      onQueueShift={jest.fn()}
+      canShiftQueue
+      accentColor="#33B5FF"
+    />,
+  );
+
+  expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
+  expect(queryByTestId('queue-drag-handle-s2')).toBeNull();
+  expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
+});

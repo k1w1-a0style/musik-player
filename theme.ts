@@ -4,21 +4,21 @@ const monoFontFamily = Platform.OS === 'android' ? 'monospace' : 'Menlo';
 
 export const theme = {
   palette: {
-    background: '#080808',
-    backgroundDeep: '#030303',
-    surface: '#111214',
-    surfaceElevated: '#18191B',
-    surfaceGlass: 'rgba(18, 19, 21, 0.76)',
-    card: '#111214',
-    cardElevated: '#191A1D',
+    background: '#08090B',
+    backgroundDeep: '#030406',
+    surface: '#111318',
+    surfaceElevated: '#191B21',
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    card: '#111318',
+    cardElevated: '#1A1D24',
     border: 'rgba(255, 255, 255, 0.075)',
-    borderStrong: 'rgba(110, 255, 130, 0.36)',
-    primary: '#6EFF82',
-    primaryDark: '#33C85D',
-    primaryGlow: 'rgba(110, 255, 130, 0.16)',
-    accent: '#5FE070',
-    accentGlow: 'rgba(95, 224, 112, 0.12)',
-    success: '#63F08A',
+    borderStrong: 'rgba(210, 218, 230, 0.28)',
+    primary: '#D8DEE8',
+    primaryDark: '#87909E',
+    primaryGlow: 'rgba(216, 222, 232, 0.12)',
+    accent: '#BFC7D4',
+    accentGlow: 'rgba(191, 199, 212, 0.10)',
+    success: '#D8DEE8',
     error: '#FF6F8A',
     warning: '#FFCA77',
     text: {
@@ -29,10 +29,10 @@ export const theme = {
     },
   },
   gradients: {
-    background: ['#030303', '#080808', '#0D0E0E'] as const,
-    accent: ['#2A5A35', '#4FA95F', '#6EFF82'] as const,
+    background: ['#030406', '#08090B', '#0D1014'] as const,
+    accent: ['#363C46', '#7D8795', '#D8DEE8'] as const,
     glass: ['rgba(255,255,255,0.045)', 'rgba(255,255,255,0.008)'] as const,
-    nowPlaying: ['#030303', '#080808', '#0E0F0F'] as const,
+    nowPlaying: ['#030406', '#08090B', '#0D1014'] as const,
     nowPlayingBackdrop: (_accent: string, accentDark: string) =>
       [accentDark, theme.palette.backgroundDeep, theme.palette.background] as const,
   },
@@ -50,7 +50,7 @@ export const theme = {
     caps: { fontSize: 10, lineHeight: 13, letterSpacing: 1.4 },
   },
   shadows: {
-    glow: { shadowColor: '#6EFF82', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 9 },
+    glow: { shadowColor: '#D8DEE8', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 9 },
     card: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.38, shadowRadius: 11, elevation: 4 },
   },
 } as const;

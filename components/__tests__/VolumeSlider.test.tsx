@@ -2,11 +2,6 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import VolumeSlider from '../VolumeSlider';
 
-jest.mock('@react-native-community/slider', () => ({
-  __esModule: true,
-  default: 'Slider',
-}));
-
 describe('VolumeSlider', () => {
   test('exposes adjustable volume semantics and accessibility value', () => {
     const onVolumeChange = jest.fn();
@@ -20,7 +15,7 @@ describe('VolumeSlider', () => {
     expect(getByTestId('volume-slider').props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
   });
 
-  test('increments and decrements volume sequentially through accessibility actions', () => {
+  test('increments and decrements volume through accessibility actions', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.5} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
@@ -29,7 +24,7 @@ describe('VolumeSlider', () => {
     fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
 
     expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.6);
-    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.5);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.4);
   });
 
   test('keeps accessibility changes between 0 and 100 percent', () => {
@@ -44,17 +39,17 @@ describe('VolumeSlider', () => {
     expect(onVolumeChange).toHaveBeenLastCalledWith(0);
   });
 
-  test('uses native slider callbacks for smooth volume changes', () => {
+  test('uses stable touch based volume changes from absolute page coordinates', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.25} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
 
-    fireEvent(slider, 'slidingStart', 0.25);
-    fireEvent(slider, 'valueChange', 0.58);
-    fireEvent(slider, 'slidingComplete', 0.6);
+    fireEvent(slider, 'layout', { nativeEvent: { layout: { width: 200 } } });
+    fireEvent(slider, 'responderGrant', { nativeEvent: { pageX: 50 } });
+    fireEvent(slider, 'responderMove', { nativeEvent: { pageX: 240 } });
 
-    expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.58);
-    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.6);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.25);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 1);
   });
 
   test('keeps the slider visually inline without adding a card frame', () => {
@@ -65,13 +60,11 @@ describe('VolumeSlider', () => {
     expect(getByTestId('volume-slider')).toBeTruthy();
   });
 
-  test('passes the accent color to the native slider track and thumb', () => {
+  test('passes the accent color to the active track and thumb', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.4} onVolumeChange={onVolumeChange} accentColor="#ff00aa" />);
-    const slider = getByTestId('volume-slider');
 
-    expect(slider.props.minimumTrackTintColor).toBe('#ff00aa');
-    expect(slider.props.thumbTintColor).toBe('#ff00aa');
+    expect(getByTestId('volume-track-active').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+    expect(getByTestId('volume-thumb').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
   });
-
 });
