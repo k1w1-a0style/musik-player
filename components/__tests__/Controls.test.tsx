@@ -4,8 +4,33 @@ import Controls from '../Controls';
 
 const mockUseMusicContext = jest.fn();
 
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    primary: '#D8DEE8',
+    primaryDark: '#87909E',
+    text: {
+      primary: '#F4F5F7',
+      muted: 'rgba(244, 245, 247, 0.42)',
+      onPrimary: '#07090C',
+    },
+  },
+};
+
 jest.mock('../../contexts/MusicContext', () => ({
   useMusicContext: () => mockUseMusicContext(),
+}));
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
 }));
 
 const song = {
@@ -52,7 +77,6 @@ describe('Controls', () => {
     expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
   });
 
-
   test.each([
     [true, 'Pausieren'],
     [false, 'Abspielen'],
@@ -87,7 +111,6 @@ describe('Controls', () => {
     expect(getByTestId('controls-repeat').props.accessibilityLabel).toBe(expectedLabel);
   });
 
-
   test('renders all control buttons with labels and hit slop', () => {
     const { getByTestId } = render(<Controls />);
 
@@ -115,4 +138,15 @@ describe('Controls', () => {
     expect(getByTestId('controls-play-pause').props.accessibilityState?.disabled).toBe(true);
   });
 
+  test('uses app theme chrome when accent props are omitted', () => {
+    const { getByTestId } = render(<Controls />);
+
+    const previousStyle = JSON.stringify(getByTestId('controls-previous').props.style);
+    const playStyle = JSON.stringify(getByTestId('controls-play-pause').props.style);
+
+    expect(previousStyle).toContain(mockAppTheme.palette.surfaceGlass);
+    expect(previousStyle).toContain(mockAppTheme.palette.border);
+    expect(playStyle).toContain(mockAppTheme.palette.primary);
+    expect(playStyle).toContain(mockAppTheme.palette.primaryDark);
+  });
 });
