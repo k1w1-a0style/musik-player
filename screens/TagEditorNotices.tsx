@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { getTagEditorWarningBoxColors } from '../utils/appThemeOverlays';
 import { theme as staticTheme } from '../theme';
 
 interface TagEditorNoticesProps {
@@ -15,13 +16,8 @@ const TagEditorNotices: React.FC<TagEditorNoticesProps> = ({
   safetyMessage,
 }) => {
   const { theme } = useAppTheme();
-  const warningBoxStyle = [
-    styles.warningBox,
-    {
-      backgroundColor: theme.appearance === 'light' ? 'rgba(200, 58, 89, 0.10)' : 'rgba(255, 111, 138, 0.12)',
-      borderColor: theme.appearance === 'light' ? 'rgba(200, 58, 89, 0.34)' : 'rgba(255, 111, 138, 0.40)',
-    },
-  ];
+  const warningBoxColors = getTagEditorWarningBoxColors(theme.appearance);
+  const warningBoxStyle = [styles.warningBox, warningBoxColors];
   const infoBoxStyle = [
     styles.infoBox,
     {

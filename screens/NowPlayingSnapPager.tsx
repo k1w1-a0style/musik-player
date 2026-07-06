@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { getNowPlayingSnapPagerInactiveDotColor } from '../utils/appThemeOverlays';
 
 export type NowPlayingPageId = 'player' | 'details';
 
@@ -39,7 +40,7 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
   testID = 'now-playing-snap-pager',
 }) => {
   const { theme } = useAppTheme();
-  const inactiveDotColor = theme.appearance === 'light' ? 'rgba(16,19,25,0.24)' : 'rgba(255,255,255,0.25)';
+  const inactiveDotColor = getNowPlayingSnapPagerInactiveDotColor(theme.appearance);
   const listRef = useRef<FlatList<SnapPage>>(null);
   const lastResnappedPosition = useRef<{ page: NowPlayingPageId; pageHeight: number } | null>(null);
   const [activePage, setActivePage] = useState<NowPlayingPageId>(initialPage);

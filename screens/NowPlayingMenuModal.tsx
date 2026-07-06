@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { getNowPlayingMenuBackdropColor } from '../utils/appThemeOverlays';
 import NowPlayingMenuItem from './NowPlayingMenuItem';
 
 interface NowPlayingMenuModalProps {
@@ -27,7 +28,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
       <Pressable
         style={[
           styles.menuBackdrop,
-          { backgroundColor: appearance === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.22)' },
+          { backgroundColor: getNowPlayingMenuBackdropColor(appearance) },
         ]}
         onPress={onClose}
         accessible={false}

@@ -1,8 +1,11 @@
 import React from 'react';
 import Controls from '../components/Controls';
 import WaveformScrubber from '../components/WaveformScrubber';
+import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import { useSongWaveform } from '../hooks/useSongWaveform';
 import type { Song } from '../types/Song';
+import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
+import { getNowPlayingWaveformRestColor } from '../utils/appThemeOverlays';
 
 interface NowPlayingPlaybackSectionProps {
   currentSong: Song | null;
@@ -24,6 +27,8 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
   foregroundOnAccent,
 }) => {
   const { waveform } = useSongWaveform({ song: currentSong, durationMs: duration });
+  const appTheme = useOptionalAppTheme();
+  const waveformRestColor = getNowPlayingWaveformRestColor(appTheme?.appearance ?? DEFAULT_APP_APPEARANCE);
 
   return (
     <>
@@ -33,7 +38,7 @@ const NowPlayingPlaybackSection: React.FC<NowPlayingPlaybackSectionProps> = ({
         duration={duration}
         onSeek={onSeek}
         accent={progressAccent}
-        restColor="rgba(255,255,255,0.22)"
+        restColor={waveformRestColor}
       />
       <Controls
         accentColor={progressAccent}

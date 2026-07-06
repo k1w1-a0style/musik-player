@@ -1,16 +1,24 @@
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useOptionalAppTheme } from '../contexts/AppThemeContext';
+import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
+import { getLibraryListShellBackgroundColor } from '../utils/appThemeOverlays';
 
 interface LibraryListShellProps {
   children: ReactNode;
   testID?: string;
 }
 
-const LibraryListShell: React.FC<LibraryListShellProps> = ({ children, testID = 'library-list-shell' }) => (
-  <View style={styles.listShell} testID={testID}>
-    {children}
-  </View>
-);
+const LibraryListShell: React.FC<LibraryListShellProps> = ({ children, testID = 'library-list-shell' }) => {
+  const appTheme = useOptionalAppTheme();
+  const backgroundColor = getLibraryListShellBackgroundColor(appTheme?.appearance ?? DEFAULT_APP_APPEARANCE);
+
+  return (
+    <View style={[styles.listShell, { backgroundColor }]} testID={testID}>
+      {children}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   listShell: {
@@ -21,7 +29,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.055)',
   },
 });
 

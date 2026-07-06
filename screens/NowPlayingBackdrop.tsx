@@ -4,6 +4,7 @@ import type { ColorValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
 import { theme as staticTheme } from '../theme';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
@@ -15,17 +16,6 @@ interface NowPlayingBackdropProps {
   artworkUri?: string;
 }
 
-const darkOverlayColors: GradientColors = [
-  'rgba(5,6,10,0.0)',
-  'rgba(5,6,10,0.55)',
-  'rgba(5,6,10,0.95)',
-];
-
-const lightOverlayColors: GradientColors = [
-  'rgba(244,245,247,0.0)',
-  'rgba(244,245,247,0.44)',
-  'rgba(244,245,247,0.86)',
-];
 
 const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   gradientColors,
@@ -34,7 +24,7 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   artworkUri,
 }) => {
   const { theme } = useAppTheme();
-  const overlayColors = theme.appearance === 'light' ? lightOverlayColors : darkOverlayColors;
+  const overlayColors = getNowPlayingBackdropOverlayColors(theme.appearance);
 
   return (
     <>
