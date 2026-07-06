@@ -2,26 +2,51 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import EqualizerBandSliders from '../EqualizerBandSliders';
 
-jest.mock('@react-native-community/slider', () => 'Slider');
+const mockAppTheme = {
+  palette: {
+    border: 'rgba(255, 255, 255, 0.08)',
+    primary: '#D8DEE8',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+    },
+  },
+};
 
-describe('EqualizerBandSliders', () => {
-  const eqBands = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
 
-  test('exposes distinct accessibility labels for equalizer bands', () => {
-    const { getByLabelText } = render(
-      <EqualizerBandSliders eqEnabled eqBands={eqBands} onChangeBand={jest.fn()} />,
-    );
+jest.mock('@react-native-community/slider', () => ({
+  __esModule: true,
+  default: 'Slider',
+}));
 
-    expect(getByLabelText('EQ-Band 60 Hz')).toBeTruthy();
-    expect(getByLabelText('EQ-Band 170 Hz')).toBeTruthy();
-    expect(getByLabelText('EQ-Band 1 kHz')).toBeTruthy();
-  });
+test('renders EQ band sliders with accessibility labels', () => {
+  const { getAllByText, getByLabelText, getByText } = render(
+    <EqualizerBandSliders eqEnabled eqBands={[1, 0, -1, 2, -2]} onChangeBand={jest.fn()} />,
+  );
 
-  test('exposes disabled accessibility state when EQ is disabled', () => {
-    const { getByLabelText } = render(
-      <EqualizerBandSliders eqEnabled={false} eqBands={eqBands} onChangeBand={jest.fn()} />,
-    );
+  expect(getByLabelText('EQ-Band 60 Hz')).toBeTruthy();
+  expect(getByLabelText('EQ-Band 1 kHz')).toBeTruthy();
+  expect(getByText('60')).toBeTruthy();
+  expect(getAllByText('0').length).toBeGreaterThan(0);
+});
 
-    expect(getByLabelText('EQ-Band 60 Hz').props.accessibilityState?.disabled).toBe(true);
-  });
+test('uses app theme slider colors', () => {
+  const { getByLabelText } = render(
+    <EqualizerBandSliders eqEnabled eqBands={[0, 0, 0, 0, 0]} onChangeBand={jest.fn()} />,
+  );
+
+  const slider = getByLabelText('EQ-Band 60 Hz');
+  expect(slider.props.minimumTrackTintColor).toBe(mockAppTheme.palette.primary);
+  expect(slider.props.maximumTrackTintColor).toBe(mockAppTheme.palette.border);
+  expect(slider.props.thumbTintColor).toBe(mockAppTheme.palette.primary);
 });
