@@ -1,7 +1,8 @@
 import React from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 interface NowPlayingQueuePreviewRowProps {
   id: string;
@@ -28,10 +29,12 @@ const NowPlayingQueuePreviewRow = React.memo(({
   artist,
   isCurrent,
   canShift = false,
-  accentColor = theme.palette.primary,
+  accentColor,
   onPress,
   onShift,
 }: NowPlayingQueuePreviewRowProps) => {
+  const { theme } = useAppTheme();
+  const resolvedAccentColor = accentColor ?? theme.palette.primary;
   const [dragEnabled, setDragEnabled] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const [dragY, setDragY] = React.useState(0);
@@ -96,9 +99,9 @@ const NowPlayingQueuePreviewRow = React.memo(({
       testID={`queue-row-${id}`}
       style={({ pressed }) => [
         styles.queueItem,
-        isCurrent && [styles.queueItemActive, { borderColor: accentColor, backgroundColor: `${accentColor}18` }],
-        dragEnabled && [styles.queueItemEditing, { borderColor: accentColor }],
-        dragging && styles.queueItemDragging,
+        isCurrent && [styles.queueItemActive, { borderColor: resolvedAccentColor, backgroundColor: `${resolvedAccentColor}18` }],
+        dragEnabled && [styles.queueItemEditing, { borderColor: resolvedAccentColor }],
+        dragging && [styles.queueItemDragging, { backgroundColor: theme.palette.surfaceElevated }],
         dragging && { transform: [{ translateY: dragY }] },
         pressed && !dragging && styles.queueItemPressed,
       ]}
@@ -111,28 +114,28 @@ const NowPlayingQueuePreviewRow = React.memo(({
       accessibilityState={{ selected: isCurrent }}
       {...panResponder.panHandlers}
     >
-      <View style={[styles.queueAccent, isCurrent && { backgroundColor: accentColor }]} testID={`queue-accent-bar-${id}`} />
+      <View style={[styles.queueAccent, { backgroundColor: theme.palette.border }, isCurrent && { backgroundColor: resolvedAccentColor }]} testID={`queue-accent-bar-${id}`} />
       <View style={styles.queueTextWrap}>
         <Text
-          style={[styles.queueTitle, isCurrent && styles.queueTitleActive]}
+          style={[styles.queueTitle, { color: theme.palette.text.primary }, isCurrent && styles.queueTitleActive]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
           {title}
         </Text>
-        <Text style={styles.queueArtist} numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
+        <Text style={[styles.queueArtist, { color: theme.palette.text.secondary }]} numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
       </View>
       {isCurrent ? (
-        <View style={[styles.playingBadge, { borderColor: accentColor }]} testID={`queue-active-indicator-${id}`}>
+        <View style={[styles.playingBadge, { borderColor: resolvedAccentColor }]} testID={`queue-active-indicator-${id}`}>
           <View testID={`queue-active-icon-${id}`}>
-            <Volume2 color={accentColor} size={14} />
+            <Volume2 color={resolvedAccentColor} size={14} />
           </View>
-          <Text style={styles.playingLabel} numberOfLines={1}>Aktiv</Text>
+          <Text style={[styles.playingLabel, { color: theme.palette.text.primary }]} numberOfLines={1}>Aktiv</Text>
         </View>
       ) : null}
       {canDrag ? (
-        <View style={styles.dragHandle} testID={`queue-drag-handle-${id}`}>
-          <GripVertical color={dragEnabled ? accentColor : theme.palette.text.muted} size={18} />
+        <View style={[styles.dragHandle, { backgroundColor: theme.palette.surfaceElevated }]} testID={`queue-drag-handle-${id}`}>
+          <GripVertical color={dragEnabled ? resolvedAccentColor : theme.palette.text.muted} size={18} />
         </View>
       ) : null}
     </Pressable>
@@ -140,19 +143,19 @@ const NowPlayingQueuePreviewRow = React.memo(({
 });
 
 const styles = StyleSheet.create({
-  queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: theme.borderRadius.sm, paddingHorizontal: 8 },
+  queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: staticTheme.borderRadius.sm, paddingHorizontal: 8 },
   queueItemActive: { borderWidth: 1 },
   queueItemEditing: { borderWidth: 1 },
-  queueItemDragging: { zIndex: 20, elevation: 8, backgroundColor: theme.palette.surfaceElevated, opacity: 0.96 },
+  queueItemDragging: { zIndex: 20, elevation: 8, opacity: 0.96 },
   queueItemPressed: { opacity: 0.72 },
-  queueAccent: { width: 3, height: 20, borderRadius: 3, backgroundColor: theme.palette.border },
+  queueAccent: { width: 3, height: 20, borderRadius: 3 },
   queueTextWrap: { flex: 1 },
-  queueTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 12 },
-  queueTitleActive: { color: theme.palette.text.primary, fontWeight: '700' },
-  queueArtist: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 1 },
+  queueTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 12 },
+  queueTitleActive: { fontWeight: '700' },
+  queueArtist: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 1 },
   playingBadge: { minWidth: 54, maxWidth: 72, height: 26, borderRadius: 13, borderWidth: 1, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  playingLabel: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 10 },
-  dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: theme.palette.surfaceElevated },
+  playingLabel: { fontFamily: staticTheme.fonts.heading, fontSize: 10 },
+  dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
 });
 
 export default NowPlayingQueuePreviewRow;

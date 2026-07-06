@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface NowPlayingCoverArtworkProps {
   song?: Song | null;
@@ -19,12 +19,13 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   accent,
   coverSize,
 }) => {
+  const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = React.useState(false);
 
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
   return (
-    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent }]}>
+    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent, backgroundColor: theme.palette.surface }]}>
       {artworkUri && !coverFailed ? (
         <Image
           source={{ uri: artworkUri }}
@@ -43,7 +44,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
 };
 
 const styles = StyleSheet.create({
-  coverCard: { borderRadius: 22, overflow: 'hidden', backgroundColor: theme.palette.surface, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 10 },
+  coverCard: { borderRadius: 22, overflow: 'hidden', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 10 },
   coverImage: { width: '100%', height: '100%' },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },

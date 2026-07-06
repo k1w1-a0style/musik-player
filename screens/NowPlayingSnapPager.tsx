@@ -8,7 +8,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 export type NowPlayingPageId = 'player' | 'details';
 
@@ -38,6 +38,8 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
   onPageChange,
   testID = 'now-playing-snap-pager',
 }) => {
+  const { theme } = useAppTheme();
+  const inactiveDotColor = theme.appearance === 'light' ? 'rgba(16,19,25,0.24)' : 'rgba(255,255,255,0.25)';
   const listRef = useRef<FlatList<SnapPage>>(null);
   const lastResnappedPosition = useRef<{ page: NowPlayingPageId; pageHeight: number } | null>(null);
   const [activePage, setActivePage] = useState<NowPlayingPageId>(initialPage);
@@ -131,7 +133,8 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
             onPress={() => goToPage(id)}
             style={({ pressed }) => [
               styles.dot,
-              id === activePage && styles.dotActive,
+              { backgroundColor: inactiveDotColor },
+              id === activePage && [styles.dotActive, { backgroundColor: theme.palette.text.primary }],
               pressed && styles.dotPressed,
             ]}
             testID={`now-playing-snap-indicator-${id}`}
@@ -156,13 +159,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+
   },
   dotActive: {
     width: 6,
     height: 18,
     borderRadius: 3,
-    backgroundColor: theme.palette.text.primary,
+
   },
   dotPressed: { opacity: 0.55 },
 });
