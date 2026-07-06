@@ -3,7 +3,8 @@ import { Image, StyleSheet, View } from 'react-native';
 import type { ColorValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -14,15 +15,56 @@ interface NowPlayingBackdropProps {
   artworkUri?: string;
 }
 
-const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({ gradientColors, accent, glowLeft, artworkUri }) => (
-  <>
-    {artworkUri ? <Image source={{ uri: artworkUri }} resizeMode="cover" blurRadius={28} style={styles.coverBackdrop} testID="now-playing-cover-backdrop" /> : null}
-    <LinearGradient pointerEvents="none" colors={gradientColors} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
-    <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent, left: glowLeft }]} />
-    <BlurView pointerEvents="none" intensity={theme.blur.medium} tint="dark" style={StyleSheet.absoluteFill} />
-    <LinearGradient colors={['rgba(5,6,10,0.0)', 'rgba(5,6,10,0.55)', 'rgba(5,6,10,0.95)']} style={StyleSheet.absoluteFill} pointerEvents="none" />
-  </>
-);
+const darkOverlayColors: GradientColors = [
+  'rgba(5,6,10,0.0)',
+  'rgba(5,6,10,0.55)',
+  'rgba(5,6,10,0.95)',
+];
+
+const lightOverlayColors: GradientColors = [
+  'rgba(244,245,247,0.0)',
+  'rgba(244,245,247,0.44)',
+  'rgba(244,245,247,0.86)',
+];
+
+const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
+  gradientColors,
+  accent,
+  glowLeft,
+  artworkUri,
+}) => {
+  const { theme } = useAppTheme();
+  const overlayColors = theme.appearance === 'light' ? lightOverlayColors : darkOverlayColors;
+
+  return (
+    <>
+      {artworkUri ? (
+        <Image
+          source={{ uri: artworkUri }}
+          resizeMode="cover"
+          blurRadius={28}
+          style={styles.coverBackdrop}
+          testID="now-playing-cover-backdrop"
+        />
+      ) : null}
+      <LinearGradient
+        pointerEvents="none"
+        colors={gradientColors}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent, left: glowLeft }]} />
+      <BlurView
+        pointerEvents="none"
+        intensity={staticTheme.blur.medium}
+        tint={theme.appearance === 'light' ? 'light' : 'dark'}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient colors={overlayColors} style={StyleSheet.absoluteFill} pointerEvents="none" />
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   coverBackdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.18, transform: [{ scale: 1.08 }] },

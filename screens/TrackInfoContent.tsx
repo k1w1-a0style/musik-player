@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import type { Song } from '../types/Song';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import TrackInfoActions from './TrackInfoActions';
 import TrackInfoCover from './TrackInfoCover';
 import TrackInfoSections from './TrackInfoSections';
@@ -31,37 +32,41 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
   onCoverError,
   onOpenTagEditor,
   onRemoveFromLibrary,
-}) => (
-  <AppBackground>
-    <Screen contentStyle={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <TrackInfoCover
-          coverUri={coverUri}
-          coverFailed={coverFailed}
-          onCoverError={onCoverError}
-        />
+}) => {
+  const { theme } = useAppTheme();
 
-        <Text style={styles.header}>Titelinfo</Text>
-        <TrackInfoActions
-          onOpenTagEditor={onOpenTagEditor}
-          onRemoveFromLibrary={onRemoveFromLibrary}
-        />
-        <TrackInfoSections
-          song={song}
-          coverUri={coverUri}
-          coverStatus={coverStatus}
-          coverDimensions={coverDimensions}
-          importedAt={importedAt}
-        />
-      </ScrollView>
-    </Screen>
-  </AppBackground>
-);
+  return (
+    <AppBackground>
+      <Screen contentStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <TrackInfoCover
+            coverUri={coverUri}
+            coverFailed={coverFailed}
+            onCoverError={onCoverError}
+          />
+
+          <Text style={[styles.header, { color: theme.palette.text.primary }]}>Titelinfo</Text>
+          <TrackInfoActions
+            onOpenTagEditor={onOpenTagEditor}
+            onRemoveFromLibrary={onRemoveFromLibrary}
+          />
+          <TrackInfoSections
+            song={song}
+            coverUri={coverUri}
+            coverStatus={coverStatus}
+            coverDimensions={coverDimensions}
+            importedAt={importedAt}
+          />
+        </ScrollView>
+      </Screen>
+    </AppBackground>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: theme.spacing.md, paddingBottom: 120, gap: 6 },
-  header: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 24, marginBottom: 4 },
+  content: { padding: staticTheme.spacing.md, paddingBottom: 120, gap: 6 },
+  header: { fontFamily: staticTheme.fonts.heading, fontSize: 24, marginBottom: 4 },
 });
 
 export default TrackInfoContent;
