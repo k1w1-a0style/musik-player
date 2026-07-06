@@ -6,7 +6,7 @@ import {
   getNowPlayingSnapPagerInactiveDotColor,
   getNowPlayingWaveformRestColor,
   getTagEditorWarningBoxColors,
-} from './appThemeOverlays';
+} from '../appThemeOverlays';
 
 describe('appThemeOverlays', () => {
   test('returns Now Playing backdrop overlay gradients per appearance', () => {

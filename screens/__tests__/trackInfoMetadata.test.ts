@@ -8,8 +8,8 @@ import {
   getTrackInfoMimeType,
   getTrackInfoTitle,
   valueOrNA,
-} from './trackInfoHelpers';
-import type { Song } from '../types/Song';
+} from '../trackInfoHelpers';
+import type { Song } from '../../types/Song';
 
 const baseSong: Song = {
   id: 's1',
