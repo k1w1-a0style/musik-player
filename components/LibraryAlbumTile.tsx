@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { theme as staticTheme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 
 interface LibraryAlbumTileProps {
@@ -12,6 +13,7 @@ export const getAlbumTileFallbackLetter = (title: string): string =>
   title.trim().slice(0, 1).toUpperCase() || '?';
 
 const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => {
+  const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
 
   useEffect(() => {
@@ -36,15 +38,28 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
       onPress={handlePress}
       testID={`library-album-tile-${album.id}`}
     >
-      <View style={styles.albumArt}>
+      <View
+        style={[
+          styles.albumArt,
+          {
+            backgroundColor: theme.palette.surfaceGlass,
+            borderColor: theme.palette.border,
+          },
+        ]}
+        testID={`library-album-art-${album.id}`}
+      >
         {showCover ? (
           <Image source={{ uri: album.cover }} style={styles.albumImage} testID={`library-album-cover-${album.id}`} onError={handleCoverError} />
         ) : (
-          <Text style={styles.albumLetter}>{getAlbumTileFallbackLetter(album.title)}</Text>
+          <Text style={[styles.albumLetter, { color: theme.palette.primary }]}>{getAlbumTileFallbackLetter(album.title)}</Text>
         )}
       </View>
-      <Text style={styles.albumTitle} numberOfLines={2}>{album.title}</Text>
-      <Text style={styles.albumSubtitle}>{album.subtitle}</Text>
+      <Text style={[styles.albumTitle, { color: theme.palette.text.primary }]} numberOfLines={2}>
+        {album.title}
+      </Text>
+      <Text style={[styles.albumSubtitle, { color: theme.palette.text.secondary }]}>
+        {album.subtitle}
+      </Text>
     </Pressable>
   );
 };
@@ -53,11 +68,18 @@ const LibraryAlbumTile = memo(LibraryAlbumTileComponent);
 
 const styles = StyleSheet.create({
   albumTile: { width: '48%', height: 184, marginBottom: 14 },
-  albumArt: { aspectRatio: 1, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  albumArt: {
+    aspectRatio: 1,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   albumImage: { width: '100%', height: '100%' },
-  albumLetter: { color: theme.palette.primary, fontFamily: theme.fonts.heading, fontSize: 34 },
-  albumTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
-  albumSubtitle: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 11, marginTop: 2 },
+  albumLetter: { fontFamily: staticTheme.fonts.heading, fontSize: 34 },
+  albumTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
+  albumSubtitle: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 2 },
   pressed: { opacity: 0.72 },
 });
 

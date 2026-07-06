@@ -3,6 +3,29 @@ import { fireEvent, render } from '@testing-library/react-native';
 import LibraryAlbumTile, { getAlbumTileFallbackLetter } from '../LibraryAlbumTile';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    primary: '#D8DEE8',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 const album = (patch: Partial<LibraryGroupItem> = {}): LibraryGroupItem => ({
   id: patch.id ?? 'a1',
   title: patch.title ?? 'Warehouse Dreams',
@@ -46,4 +69,14 @@ test('calls onPress with album', () => {
   fireEvent.press(getByTestId('library-album-tile-press-me'));
 
   expect(onPress).toHaveBeenCalledWith(item);
+});
+
+test('uses app theme album chrome and text colors', () => {
+  const { getByTestId, getByText } = render(<LibraryAlbumTile album={album()} onPress={jest.fn()} />);
+
+  expect(JSON.stringify(getByTestId('library-album-art-a1').props.style)).toContain(mockAppTheme.palette.surfaceGlass);
+  expect(JSON.stringify(getByTestId('library-album-art-a1').props.style)).toContain(mockAppTheme.palette.border);
+  expect(JSON.stringify(getByText('W').props.style)).toContain(mockAppTheme.palette.primary);
+  expect(JSON.stringify(getByText('Warehouse Dreams').props.style)).toContain(mockAppTheme.palette.text.primary);
+  expect(JSON.stringify(getByText('DJ Kiwi • 12 Titel').props.style)).toContain(mockAppTheme.palette.text.secondary);
 });
