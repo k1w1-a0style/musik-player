@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import type { ColorValue } from 'react-native';
 import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
-import { theme } from '../theme';
+import { useOptionalAppTheme } from '../contexts/AppThemeContext';
+import { getAppTheme } from '../utils/appTheme';
+import { theme as staticTheme } from '../theme';
 import { displayAlbum } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { mergeNativeAndFallbackPalette, pickReadableForeground } from '../utils/jsPaletteFallback';
@@ -31,23 +33,25 @@ export const useNowPlayingPresentation = ({
   currentSong,
   palette,
 }: UseNowPlayingPresentationArgs): NowPlayingPresentationState => {
+  const appTheme = useOptionalAppTheme()?.theme ?? getAppTheme();
+
   // Native palette wins per-field, JS fallback fills the gaps so the gradient
   // is never the hard black/green brand color and stays deterministic per song.
   const effectivePalette = useMemo(
     () => mergeNativeAndFallbackPalette(palette, currentSong),
     [palette, currentSong],
   );
-  const accent = effectivePalette.vibrant ?? effectivePalette.dominant ?? theme.palette.accent;
-  const accentDark = effectivePalette.darkVibrant ?? effectivePalette.darkMuted ?? theme.palette.backgroundDeep;
-  const accentMuted = effectivePalette.muted ?? effectivePalette.darkMuted ?? theme.palette.surface;
+  const accent = effectivePalette.vibrant ?? effectivePalette.dominant ?? appTheme.palette.accent;
+  const accentDark = effectivePalette.darkVibrant ?? effectivePalette.darkMuted ?? appTheme.palette.backgroundDeep;
+  const accentMuted = effectivePalette.muted ?? effectivePalette.darkMuted ?? appTheme.palette.surface;
   const gradientColors = useMemo<GradientColors>(
-    () => theme.gradients.nowPlayingBackdrop(accent, accentDark),
+    () => staticTheme.gradients.nowPlayingBackdrop(accent, accentDark),
     [accent, accentDark],
   );
   const albumTitle = currentSong ? displayAlbum(currentSong) : 'Aus deiner Bibliothek';
   const artworkUri = getSongArtworkUri(currentSong);
-  const progressAccent = effectivePalette.vibrant ?? theme.palette.primary;
-  const progressAccentDark = effectivePalette.lightVibrant ?? theme.palette.primaryDark;
+  const progressAccent = effectivePalette.vibrant ?? appTheme.palette.primary;
+  const progressAccentDark = effectivePalette.lightVibrant ?? appTheme.palette.primaryDark;
   const foregroundOnAccent = pickReadableForeground(accent);
 
   return {

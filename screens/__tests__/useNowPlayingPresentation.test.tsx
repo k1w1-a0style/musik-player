@@ -4,6 +4,41 @@ import { render } from '@testing-library/react-native';
 import { useNowPlayingPresentation } from '../useNowPlayingPresentation';
 import type { Song } from '../../types/Song';
 import { theme } from '../../theme';
+const mockAppTheme = {
+  appearance: 'dark',
+  skin: 'graphite',
+  isHydrated: true,
+  setAppearance: () => undefined,
+  setSkin: () => undefined,
+  theme: {
+    palette: {
+      background: '#08090B',
+      backgroundDeep: '#030406',
+      surface: '#111318',
+      surfaceElevated: '#191B21',
+      border: 'rgba(255, 255, 255, 0.08)',
+      borderStrong: 'rgba(210, 218, 230, 0.28)',
+      primary: '#D8DEE8',
+      primaryDark: '#87909E',
+      accent: '#BFC7D4',
+      text: {
+        primary: '#F4F5F3',
+        secondary: 'rgba(244, 245, 247, 0.70)',
+        muted: 'rgba(244, 245, 247, 0.42)',
+        onPrimary: '#07090C',
+      },
+    },
+    gradients: {
+      background: ['#030406', '#08090B', '#0D1014'],
+      nowPlaying: ['#030406', '#08090B', '#0D1014'],
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => mockAppTheme,
+  useOptionalAppTheme: () => mockAppTheme,
+}));
 
 const song: Song = {
   id: 's1',

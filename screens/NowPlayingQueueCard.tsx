@@ -1,7 +1,8 @@
 import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import { buildSongKey, displayArtist, displayTitle } from '../utils/libraryPresentation';
 import NowPlayingQueuePreviewRow from './NowPlayingQueuePreviewRow';
 
@@ -31,6 +32,8 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   canShiftQueue,
   accentColor,
 }) => {
+  const { theme } = useAppTheme();
+
   const currentIndex = React.useMemo(
     () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
     [currentSongId, queue],
@@ -69,8 +72,8 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         contentContainerStyle={styles.queueListContent}
         ListEmptyComponent={(
           <View style={styles.emptyState} testID="queue-empty-state">
-            <Text style={styles.emptyTitle}>Keine Titel in der Warteschlange</Text>
-            <Text style={styles.emptyText}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
+            <Text style={[styles.emptyTitle, { color: theme.palette.text.primary }]}>Keine Titel in der Warteschlange</Text>
+            <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
           </View>
         )}
       />
@@ -83,8 +86,8 @@ const styles = StyleSheet.create({
   queueList: { flex: 1 },
   queueListContent: { flexGrow: 1, paddingBottom: 16 },
   emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  emptyTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, textAlign: 'center' },
-  emptyText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  emptyTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 14, textAlign: 'center' },
+  emptyText: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
 });
 
 export default NowPlayingQueueCard;
