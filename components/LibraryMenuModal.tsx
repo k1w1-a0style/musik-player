@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
 import LibraryMenuItem from './LibraryMenuItem';
 
 export interface LibraryMenuModalProps {
@@ -39,7 +40,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable
-        style={[styles.menuBackdrop, { backgroundColor: appearance === 'light' ? 'rgba(0,0,0,0.14)' : 'rgba(0,0,0,0.22)' }]}
+        style={[styles.menuBackdrop, { backgroundColor: getLibraryMenuBackdropColor(appearance) }]}
         onPress={onClose}
         accessible={false}
         testID="library-menu-backdrop"
