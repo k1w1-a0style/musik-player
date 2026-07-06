@@ -1,7 +1,8 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
-import { theme } from '../theme';
 
 interface TagEditorCoverControlsProps {
   canWrite: boolean;
@@ -24,6 +25,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
   onToggleRemoveCover,
   onPickCover,
 }) => {
+  const { theme } = useAppTheme();
   const hasReplacementCover = Boolean(replacementCover);
   const removeDisabled = !canWrite || !hasCover || saving || hasReplacementCover;
   const pickDisabled = !canWrite || saving;
@@ -43,18 +45,37 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
   return (
     <>
       {shouldShowPreview && (
-        <View testID="cover-preview" style={styles.coverPreviewWrap}>
-          <View style={styles.coverPreviewFrame}>
+        <View
+          testID="cover-preview"
+          style={[
+            styles.coverPreviewWrap,
+            {
+              backgroundColor: theme.palette.surface,
+              borderColor: theme.palette.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.coverPreviewFrame,
+              {
+                backgroundColor: theme.palette.surfaceElevated,
+                borderColor: theme.palette.borderStrong,
+              },
+            ]}
+          >
             {previewUri ? (
               <Image source={{ uri: previewUri }} style={styles.coverPreview} testID="cover-preview-image" />
             ) : (
               <View style={styles.coverPreviewPlaceholder} testID="cover-preview-placeholder">
-                <Text style={styles.coverPreviewPlaceholderText}>Kein Cover</Text>
+                <Text style={[styles.coverPreviewPlaceholderText, { color: theme.palette.text.muted }]}>
+                  Kein Cover
+                </Text>
               </View>
             )}
           </View>
-          <Text style={styles.previewTitle}>{previewTitle}</Text>
-          <Text style={styles.helperText}>{previewDescription}</Text>
+          <Text style={[styles.previewTitle, { color: theme.palette.text.primary }]}>{previewTitle}</Text>
+          <Text style={[styles.helperText, { color: theme.palette.text.secondary }]}>{previewDescription}</Text>
         </View>
       )}
 
@@ -63,11 +84,20 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
         accessibilityRole="switch"
         accessibilityLabel="Cover entfernen"
         accessibilityState={{ checked: removeCover, disabled: removeDisabled }}
-        style={[styles.toggle, hasReplacementCover && styles.disabledButton]}
+        style={[
+          styles.toggle,
+          {
+            backgroundColor: theme.palette.surfaceElevated,
+            borderColor: theme.palette.border,
+          },
+          hasReplacementCover && styles.disabledButton,
+        ]}
         disabled={removeDisabled}
         onPress={onToggleRemoveCover}
       >
-        <Text style={styles.toggleText}>Cover entfernen: {removeCover ? 'Ja' : 'Nein'}</Text>
+        <Text style={[styles.toggleText, { color: theme.palette.text.primary }]}>
+          Cover entfernen: {removeCover ? 'Ja' : 'Nein'}
+        </Text>
       </Pressable>
 
       <Pressable
@@ -82,15 +112,19 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
         disabled={pickDisabled}
         style={({ pressed }) => [
           styles.toggle,
+          {
+            backgroundColor: theme.palette.surfaceElevated,
+            borderColor: theme.palette.border,
+          },
           pressed && styles.pressed,
           pickDisabled && styles.disabledButton,
         ]}
         onPress={onPickCover}
       >
-        <Text style={styles.toggleText}>
+        <Text style={[styles.toggleText, { color: theme.palette.text.primary }]}>
           Cover auswählen: {hasReplacementCover ? 'Ausgewählt' : 'JPG/PNG'}
         </Text>
-        <Text style={styles.helperText}>
+        <Text style={[styles.helperText, { color: theme.palette.text.secondary }]}>
           Maximal 5 MB. Ein neues Cover ersetzt ein bestehendes Cover beim Speichern.
         </Text>
       </Pressable>
@@ -101,19 +135,15 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
 const styles = StyleSheet.create({
   toggle: {
     padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surfaceElevated,
+    borderRadius: staticTheme.radii.input,
     borderWidth: 1,
-    borderColor: theme.palette.border,
   },
-  toggleText: { color: theme.palette.text.primary },
-  helperText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  toggleText: {},
+  helperText: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
   coverPreviewWrap: {
     padding: 14,
-    borderRadius: theme.radii.card,
-    backgroundColor: theme.palette.surface,
+    borderRadius: staticTheme.radii.card,
     borderWidth: 1,
-    borderColor: theme.palette.border,
     alignItems: 'center',
     gap: 8,
   },
@@ -122,14 +152,12 @@ const styles = StyleSheet.create({
     height: 156,
     borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: theme.palette.surfaceElevated,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
   },
   coverPreview: { width: '100%', height: '100%' },
   coverPreviewPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  coverPreviewPlaceholderText: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12, textAlign: 'center' },
-  previewTitle: { color: theme.palette.text.primary, fontFamily: theme.fonts.heading, fontSize: 14, textAlign: 'center' },
+  coverPreviewPlaceholderText: { fontFamily: staticTheme.fonts.body, fontSize: 12, textAlign: 'center' },
+  previewTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 14, textAlign: 'center' },
   disabledButton: { opacity: 0.5 },
   pressed: { opacity: 0.72 },
 });

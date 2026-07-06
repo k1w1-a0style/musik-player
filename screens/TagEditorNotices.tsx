@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 interface TagEditorNoticesProps {
   capabilityMessage?: string;
@@ -12,43 +13,57 @@ const TagEditorNotices: React.FC<TagEditorNoticesProps> = ({
   capabilityMessage,
   blockedReasonMessage,
   safetyMessage,
-}) => (
-  <>
-    {!!capabilityMessage && (
-      <View style={styles.warningBox}>
-        <Text style={styles.warning}>{capabilityMessage}</Text>
-      </View>
-    )}
-    {!!blockedReasonMessage && (
-      <View style={styles.warningBox}>
-        <Text style={styles.warning}>{blockedReasonMessage}</Text>
-      </View>
-    )}
-    {!!safetyMessage && (
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>{safetyMessage}</Text>
-      </View>
-    )}
-  </>
-);
+}) => {
+  const { theme } = useAppTheme();
+  const warningBoxStyle = [
+    styles.warningBox,
+    {
+      backgroundColor: theme.appearance === 'light' ? 'rgba(200, 58, 89, 0.10)' : 'rgba(255, 111, 138, 0.12)',
+      borderColor: theme.appearance === 'light' ? 'rgba(200, 58, 89, 0.34)' : 'rgba(255, 111, 138, 0.40)',
+    },
+  ];
+  const infoBoxStyle = [
+    styles.infoBox,
+    {
+      backgroundColor: theme.palette.surfaceGlass,
+      borderColor: theme.palette.border,
+    },
+  ];
+
+  return (
+    <>
+      {!!capabilityMessage && (
+        <View style={warningBoxStyle}>
+          <Text style={[styles.warning, { color: theme.palette.error }]}>{capabilityMessage}</Text>
+        </View>
+      )}
+      {!!blockedReasonMessage && (
+        <View style={warningBoxStyle}>
+          <Text style={[styles.warning, { color: theme.palette.error }]}>{blockedReasonMessage}</Text>
+        </View>
+      )}
+      {!!safetyMessage && (
+        <View style={infoBoxStyle}>
+          <Text style={[styles.infoText, { color: theme.palette.text.secondary }]}>{safetyMessage}</Text>
+        </View>
+      )}
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   warningBox: {
-    backgroundColor: 'rgba(255, 111, 138, 0.12)',
-    borderColor: 'rgba(255, 111, 138, 0.4)',
     borderWidth: 1,
-    borderRadius: theme.radii.input,
+    borderRadius: staticTheme.radii.input,
     padding: 10,
   },
-  warning: { color: theme.palette.error, fontFamily: theme.fonts.body },
+  warning: { fontFamily: staticTheme.fonts.body },
   infoBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: theme.palette.border,
     borderWidth: 1,
-    borderRadius: theme.radii.input,
+    borderRadius: staticTheme.radii.input,
     padding: 10,
   },
-  infoText: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
+  infoText: { fontFamily: staticTheme.fonts.body },
 });
 
 export default TagEditorNotices;
