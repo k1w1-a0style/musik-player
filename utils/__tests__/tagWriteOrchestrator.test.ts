@@ -76,8 +76,14 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(assertSafeWriteAllowed(plan)).toBeNull();
   });
 
-  test('tag edit capability only marks Android SAF MP3 content sources writable', () => {
+  test('tag edit capability marks Android SAF MP3 content sources writable', () => {
+    const safUriWithoutSource = song({
+      uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3',
+      fileInfo: { extension: 'mp3' },
+    });
+
     expect(getTagEditCapability(safMp3Song(), 'android').canWrite).toBe(true);
+    expect(getTagEditCapability(safUriWithoutSource, 'android').canWrite).toBe(true);
     expect(getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android').canWrite).toBe(false);
     expect(getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android').canWrite).toBe(false);
     expect(getTagEditCapability(safMp3Song(), 'ios').canWrite).toBe(false);

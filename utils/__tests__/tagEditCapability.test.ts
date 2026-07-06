@@ -29,13 +29,26 @@ describe('tagEditCapability', () => {
     expect(cap.uriType).toBe('remote');
   });
 
-  test('android file/content mp3 are readable and only file is writable', () => {
+  test('android file and SAF content mp3 are readable and writable', () => {
     const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'android');
-    const contentCap = getTagEditCapability(song({ uri: 'content://music/1', fileInfo: { extension: 'mp3' } }));
+    const safContentCap = getTagEditCapability(song({
+      uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3',
+      fileInfo: { extension: 'mp3' },
+    }), 'android');
+    const mediaContentCap = getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android');
+
     expect(fileCap.canRead).toBe(true);
     expect(fileCap.canWrite).toBe(true);
-    expect(contentCap.canRead).toBe(true);
-    expect(contentCap.canWrite).toBe(false);
+    expect(safContentCap.canRead).toBe(true);
+    expect(safContentCap.canWrite).toBe(true);
+    expect(mediaContentCap.canRead).toBe(true);
+    expect(mediaContentCap.canWrite).toBe(false);
+  });
+
+  test('infers supported container from URI, filename and mime type when extension is missing', () => {
+    expect(isSupportedTagEditContainer(song({ uri: 'file:///music/a.mp3' }))).toBe(true);
+    expect(isSupportedTagEditContainer(song({ fileInfo: { filename: 'Artist - Track.m4a' }, uri: 'file:///fallback' }))).toBe(true);
+    expect(isSupportedTagEditContainer(song({ fileInfo: { mimeType: 'audio/mpeg' }, uri: 'content://media/1' }))).toBe(true);
   });
 
   test('platform-gated file capability (ios/web blocked)', () => {
@@ -51,8 +64,6 @@ describe('tagEditCapability', () => {
     expect(isFileWriteSupportedOnPlatform('android')).toBe(true);
     expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
-
-
 
   test('content:// m4a/mp4 stay read-only', () => {
     const m4a = getTagEditCapability(song({ uri: 'content://music/a.m4a', fileInfo: { extension: 'm4a' } }));

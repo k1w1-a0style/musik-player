@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(20, 22, 24, 0.96)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(115, 230, 210, 0.9)',
+    borderColor: theme.palette.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
