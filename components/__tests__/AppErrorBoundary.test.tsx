@@ -2,6 +2,34 @@ import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import AppErrorBoundary from '../AppErrorBoundary';
+const mockAppTheme = {
+  palette: {
+    background: '#08090B',
+    surfaceElevated: '#191B21',
+    borderStrong: 'rgba(210, 218, 230, 0.28)',
+    primary: '#D8DEE8',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+      onPrimary: '#07090C',
+    },
+  },
+};
+
+const mockAppThemeContextValue = {
+  appearance: 'dark',
+  skin: 'graphite',
+  isHydrated: true,
+  setAppearance: () => undefined,
+  setSkin: () => undefined,
+  theme: mockAppTheme,
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => mockAppThemeContextValue,
+  useOptionalAppTheme: () => mockAppThemeContextValue,
+}));
 
 const AlwaysCrash: React.FC = () => {
   throw new Error('boom');

@@ -11,7 +11,7 @@ import {
 } from '../utils/appTheme';
 import { storage } from '../utils/storage';
 
-interface AppThemeContextValue {
+export interface AppThemeContextValue {
   appearance: AppAppearance;
   skin: AppThemeSkin;
   theme: AppTheme;
@@ -74,6 +74,8 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;
 };
+
+export const useOptionalAppTheme = (): AppThemeContextValue | null => useContext(AppThemeContext);
 
 export const useAppTheme = (): AppThemeContextValue => {
   const value = useContext(AppThemeContext);

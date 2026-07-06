@@ -1,6 +1,31 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
 import WaveformScrubber from '../WaveformScrubber';
+const mockAppTheme = {
+  palette: {
+    background: '#08090B',
+    surfaceElevated: '#191B21',
+    borderStrong: 'rgba(210, 218, 230, 0.28)',
+    primary: '#D8DEE8',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+      onPrimary: '#07090C',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: () => undefined,
+    setSkin: () => undefined,
+    theme: mockAppTheme,
+  }),
+}));
 
 const waveform = {
   version: 1,

@@ -8,7 +8,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { Volume2, VolumeX } from 'lucide-react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 interface Props {
   volume: number;
@@ -24,9 +25,12 @@ const ACCESSIBILITY_VOLUME_STEP = 0.1;
 const VolumeSlider: React.FC<Props> = ({
   volume,
   onVolumeChange,
-  accentColor = theme.palette.primary,
-  inactiveColor = 'rgba(255,255,255,0.18)',
+  accentColor,
+  inactiveColor,
 }) => {
+  const { theme } = useAppTheme();
+  const resolvedAccentColor = accentColor ?? theme.palette.primary;
+  const resolvedInactiveColor = inactiveColor ?? theme.palette.borderStrong;
   const trackRef = useRef<View>(null);
   const trackFrameRef = useRef({ x: 0, width: 1 });
   const [trackWidth, setTrackWidth] = useState(1);
@@ -86,7 +90,7 @@ const VolumeSlider: React.FC<Props> = ({
         {volume <= 0.01 ? (
           <VolumeX color={theme.palette.text.muted} size={18} />
         ) : (
-          <Volume2 color={accentColor} size={18} />
+          <Volume2 color={resolvedAccentColor} size={18} />
         )}
         <View
           ref={trackRef}
@@ -106,12 +110,12 @@ const VolumeSlider: React.FC<Props> = ({
           onResponderMove={applyFromTouch}
           onResponderTerminationRequest={() => false}
         >
-          <View testID="volume-track" style={[styles.track, { backgroundColor: inactiveColor }]}>
-            <View testID="volume-track-active" style={[styles.trackActive, { width: `${percent}%`, backgroundColor: accentColor }]} />
-            <View testID="volume-thumb" style={[styles.thumb, { left: `${percent}%`, backgroundColor: accentColor }]} />
+          <View testID="volume-track" style={[styles.track, { backgroundColor: resolvedInactiveColor }]}>
+            <View testID="volume-track-active" style={[styles.trackActive, { width: `${percent}%`, backgroundColor: resolvedAccentColor }]} />
+            <View testID="volume-thumb" style={[styles.thumb, { left: `${percent}%`, backgroundColor: resolvedAccentColor }]} />
           </View>
         </View>
-        <Text style={styles.value}>{percent}%</Text>
+        <Text style={[styles.value, { color: theme.palette.text.secondary }]}>{percent}%</Text>
       </View>
     </View>
   );
@@ -124,7 +128,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: staticTheme.spacing.sm,
   },
   sliderHitbox: {
     flex: 1,
@@ -150,11 +154,10 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   value: {
-    color: theme.palette.text.secondary,
     fontSize: 11,
     minWidth: 40,
     textAlign: 'right',
-    fontFamily: theme.fonts.mono,
+    fontFamily: staticTheme.fonts.mono,
   },
 });
 

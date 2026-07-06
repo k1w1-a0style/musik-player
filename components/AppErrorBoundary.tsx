@@ -1,6 +1,8 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { theme } from '../theme';
+import * as AppThemeContext from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
+import { getAppTheme, type AppTheme } from '../utils/appTheme';
 
 type AppErrorBoundaryVariant = 'full' | 'compact';
 
@@ -13,6 +15,10 @@ interface AppErrorBoundaryProps {
   variant?: AppErrorBoundaryVariant;
 }
 
+interface AppErrorBoundaryInnerProps extends AppErrorBoundaryProps {
+  appTheme: AppTheme;
+}
+
 interface AppErrorBoundaryState {
   hasError: boolean;
   resetKey: number;
@@ -20,8 +26,10 @@ interface AppErrorBoundaryState {
 
 const DEFAULT_FALLBACK_MESSAGE = 'Etwas ist schiefgelaufen.';
 const DEFAULT_LOG_PREFIX = 'AppErrorBoundary caught an error';
+const DEFAULT_APP_THEME = getAppTheme();
+const maybeUseOptionalAppTheme = AppThemeContext.useOptionalAppTheme;
 
-export default class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
+class AppErrorBoundaryInner extends React.Component<AppErrorBoundaryInnerProps, AppErrorBoundaryState> {
   state: AppErrorBoundaryState = {
     hasError: false,
     resetKey: 0,
@@ -40,24 +48,41 @@ export default class AppErrorBoundary extends React.Component<AppErrorBoundaryPr
   };
 
   render(): ReactNode {
+    const appTheme = this.props.appTheme;
+
     if (this.state.hasError) {
       return (
         <View
           style={[
-            this.props.variant === 'compact' ? styles.compactContainer : styles.container,
+            this.props.variant === 'compact'
+              ? [
+                  styles.compactContainer,
+                  {
+                    backgroundColor: appTheme.palette.surfaceElevated,
+                    borderColor: appTheme.palette.borderStrong,
+                  },
+                ]
+              : [
+                  styles.container,
+                  {
+                    backgroundColor: appTheme.palette.background,
+                  },
+                ],
             this.props.fallbackContainerStyle,
           ]}
           testID={this.props.testID ?? 'app-error-boundary-fallback'}
         >
-          <Text style={styles.text}>{this.props.fallbackMessage ?? DEFAULT_FALLBACK_MESSAGE}</Text>
+          <Text style={[styles.text, { color: appTheme.palette.text.primary }]}>
+            {this.props.fallbackMessage ?? DEFAULT_FALLBACK_MESSAGE}
+          </Text>
           <Pressable
             onPress={this.handleReset}
-            style={styles.button}
+            style={[styles.button, { backgroundColor: appTheme.palette.primary }]}
             testID="app-error-boundary-reset"
             accessibilityRole="button"
             accessibilityLabel="Neu versuchen"
           >
-            <Text style={styles.buttonText}>Neu versuchen</Text>
+            <Text style={[styles.buttonText, { color: appTheme.palette.text.onPrimary }]}>Neu versuchen</Text>
           </Pressable>
         </View>
       );
@@ -67,10 +92,15 @@ export default class AppErrorBoundary extends React.Component<AppErrorBoundaryPr
   }
 }
 
+const AppErrorBoundary: React.FC<AppErrorBoundaryProps> = props => {
+  const appThemeValue = typeof maybeUseOptionalAppTheme === 'function' ? maybeUseOptionalAppTheme() : null;
+
+  return <AppErrorBoundaryInner {...props} appTheme={appThemeValue?.theme ?? DEFAULT_APP_THEME} />;
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.palette.background,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -84,9 +114,7 @@ const styles = StyleSheet.create({
     zIndex: 50,
     minHeight: 58,
     borderRadius: 20,
-    backgroundColor: 'rgba(20, 22, 24, 0.96)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
@@ -94,19 +122,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   text: {
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.body,
+    fontFamily: staticTheme.fonts.body,
     fontSize: 16,
   },
   button: {
-    backgroundColor: theme.palette.primary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
   buttonText: {
-    color: theme.palette.background,
-    fontFamily: theme.fonts.body,
+    fontFamily: staticTheme.fonts.body,
     fontSize: 14,
   },
 });
+
+export default AppErrorBoundary;
