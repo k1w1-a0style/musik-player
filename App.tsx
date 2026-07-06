@@ -1,6 +1,5 @@
 import 'react-native-gesture-handler';
 import React from 'react';
-import { StatusBar } from 'react-native';
 import { useFonts } from '@expo-google-fonts/bricolage-grotesque';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -8,7 +7,7 @@ import AppLoading from './components/AppLoading';
 import AppProviders from './components/AppProviders';
 import { appFonts } from './appFonts';
 import RootNavigator from './navigation/RootNavigator';
-import { theme } from './theme';
+import ThemedStatusBar from './components/ThemedStatusBar';
 
 export const AppContent = (): React.ReactElement => {
   const [fontsLoaded] = useFonts(appFonts);
@@ -17,7 +16,7 @@ export const AppContent = (): React.ReactElement => {
 
   return (
     <AppProviders>
-      <StatusBar barStyle="light-content" backgroundColor={theme.palette.background} />
+      <ThemedStatusBar />
       <RootNavigator />
     </AppProviders>
   );

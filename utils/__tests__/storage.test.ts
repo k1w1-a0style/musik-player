@@ -142,6 +142,20 @@ describe('storage', () => {
     });
   });
 
+  test('persists app appearance and theme skin with safe fallbacks', async () => {
+    await storage.setAppAppearance('light');
+    await storage.setAppThemeSkin('neon-cover');
+
+    await expect(storage.getAppAppearance()).resolves.toBe('light');
+    await expect(storage.getAppThemeSkin()).resolves.toBe('neon-cover');
+
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.APP_APPEARANCE), JSON.stringify('kaputt'));
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.APP_THEME_SKIN), JSON.stringify('green-goblin'));
+
+    await expect(storage.getAppAppearance()).resolves.toBe('dark');
+    await expect(storage.getAppThemeSkin()).resolves.toBe('graphite');
+  });
+
   test('storage.get returns [] for non-array songs JSON payloads', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify({ songs: [] }));
 

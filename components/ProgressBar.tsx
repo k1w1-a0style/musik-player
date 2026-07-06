@@ -1,7 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent, PanResponder, type AccessibilityActionEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../theme';
+import { theme as staticTheme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface ProgressBarProps {
   currentPosition: number;
@@ -48,6 +49,7 @@ const formatTime = (millis: number): string => {
 };
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, onSeek, onSeekStart, onSeekPreview, accent, accentDark }) => {
+  const { theme } = useAppTheme();
   const [dragRatio, setDragRatio] = useState<number | null>(null);
 
   const playbackProgress = clampPlaybackProgressValues(currentPosition, duration);
@@ -143,38 +145,52 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
         onLayout={handleLayout}
         {...panResponder.panHandlers}
       >
-        <View style={styles.progressBarBackground}>
+        <View
+          testID="progress-bar-track"
+          style={[styles.progressBarBackground, { backgroundColor: theme.palette.border }]}
+        >
           <LinearGradient
+            testID="progress-bar-fill"
             colors={[accent ?? theme.palette.primary, accentDark ?? theme.palette.primaryDark]}
             style={[styles.progressBarFill, { width: `${displayProgress}%` }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           />
-          <View style={[styles.thumb, isDragging && styles.thumbActive, { left: `${displayProgress}%` }]} />
+          <View
+            testID="progress-bar-thumb"
+            style={[
+              styles.thumb,
+              isDragging && styles.thumbActive,
+              {
+                backgroundColor: accent ?? theme.palette.primary,
+                left: `${displayProgress}%`,
+              },
+            ]}
+          />
         </View>
       </View>
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatTime(displayPositionMillis)}</Text>
-        <Text style={styles.time}>{formatTime(safeDuration)}</Text>
+        <Text style={[styles.time, { color: theme.palette.text.secondary }]}>{formatTime(displayPositionMillis)}</Text>
+        <Text style={[styles.time, { color: theme.palette.text.secondary }]}>{formatTime(safeDuration)}</Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: theme.spacing.md, marginVertical: theme.spacing.sm, width: '100%' },
+  container: { paddingHorizontal: staticTheme.spacing.md, marginVertical: staticTheme.spacing.sm, width: '100%' },
   progressBarContainer: { paddingVertical: 14 },
-  progressBarBackground: { height: 4, backgroundColor: theme.palette.border, borderRadius: 2 },
+  progressBarBackground: { height: 4, borderRadius: 2 },
   progressBarFill: { height: '100%', borderRadius: 2 },
   thumb: {
     position: 'absolute', top: -5, width: 14, height: 14, borderRadius: 7,
-    backgroundColor: theme.palette.primary, marginLeft: -7,
+    marginLeft: -7,
   },
   thumbActive: {
     top: -8, width: 20, height: 20, borderRadius: 10, marginLeft: -10,
   },
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.xs },
-  time: { color: theme.palette.text.secondary, fontSize: 11, fontFamily: theme.fonts.body, letterSpacing: 0.5 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: staticTheme.spacing.xs },
+  time: { fontSize: 11, fontFamily: staticTheme.fonts.body, letterSpacing: 0.5 },
 });
 
 export default ProgressBar;

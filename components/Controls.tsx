@@ -10,7 +10,8 @@ import {
   SkipForward,
 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import type { RepeatMode } from '../types/Song';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
@@ -41,33 +42,37 @@ const PressScale: React.FC<PressScaleProps> = ({
   primary,
   accentColor,
   accentDarkColor,
-}) => (
-  <Pressable
-    testID={testID}
-    accessibilityRole="button"
-    accessibilityLabel={accessibilityLabel}
-    accessibilityState={{ disabled: !!disabled }}
-    onPress={onPress}
-    disabled={disabled}
-    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-    style={[
-      styles.button,
-      {
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: primary ? accentColor ?? theme.palette.primary : 'rgba(255,255,255,0.06)',
-        borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : 'rgba(255,255,255,0.10)',
-        borderWidth: primary ? 1 : StyleSheet.hairlineWidth,
-        shadowColor: primary ? accentColor ?? theme.palette.primary : 'transparent',
-      },
-      disabled && styles.disabled,
-      primary && styles.primaryGlow,
-    ]}
-  >
-    {children}
-  </Pressable>
-);
+}) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: !!disabled }}
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      style={[
+        styles.button,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: primary ? accentColor ?? theme.palette.primary : theme.palette.surfaceGlass,
+          borderColor: primary ? accentDarkColor ?? theme.palette.primaryDark : theme.palette.border,
+          borderWidth: primary ? 1 : StyleSheet.hairlineWidth,
+          shadowColor: primary ? accentColor ?? theme.palette.primary : 'transparent',
+        },
+        disabled && styles.disabled,
+        primary && styles.primaryGlow,
+      ]}
+    >
+      {children}
+    </Pressable>
+  );
+};
 
 interface ControlsProps {
   accentColor?: string;
@@ -76,10 +81,15 @@ interface ControlsProps {
 }
 
 const Controls: React.FC<ControlsProps> = ({
-  accentColor = theme.palette.primary,
-  accentDarkColor = theme.palette.primaryDark,
-  onAccentColor = theme.palette.text.onPrimary,
+  accentColor,
+  accentDarkColor,
+  onAccentColor,
 }) => {
+  const { theme } = useAppTheme();
+  const resolvedAccentColor = accentColor ?? theme.palette.primary;
+  const resolvedAccentDarkColor = accentDarkColor ?? theme.palette.primaryDark;
+  const resolvedOnAccentColor = onAccentColor ?? theme.palette.text.onPrimary;
+
   const {
     isPlaying,
     isBuffering,
@@ -95,13 +105,13 @@ const Controls: React.FC<ControlsProps> = ({
   } = useMusicContext();
 
   const repeatIcon = useMemo(() => {
-    const color = repeatMode === 'off' ? theme.palette.text.muted : accentColor;
+    const color = repeatMode === 'off' ? theme.palette.text.muted : resolvedAccentColor;
     return repeatMode === 'one'
       ? <Repeat1 color={color} size={18} />
       : <Repeat color={color} size={18} />;
-  }, [accentColor, repeatMode]);
+  }, [repeatMode, resolvedAccentColor, theme.palette.text.muted]);
 
-  const shuffleColor = shuffle ? accentColor : theme.palette.text.muted;
+  const shuffleColor = shuffle ? resolvedAccentColor : theme.palette.text.muted;
   const canSkipNext = !!currentSong && playbackQueue.length > 1;
   const canSkipPrevious = !!currentSong;
 
@@ -112,8 +122,8 @@ const Controls: React.FC<ControlsProps> = ({
         accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
         onPress={toggleShuffle}
         size={36}
-        accentColor={shuffle ? accentColor : theme.palette.border}
-        accentDarkColor={accentDarkColor}
+        accentColor={shuffle ? resolvedAccentColor : theme.palette.border}
+        accentDarkColor={resolvedAccentDarkColor}
       >
         <Shuffle color={shuffleColor} size={18} />
       </PressScale>
@@ -135,13 +145,13 @@ const Controls: React.FC<ControlsProps> = ({
         disabled={!currentSong || isBuffering}
         size={58}
         primary
-        accentColor={accentColor}
-        accentDarkColor={accentDarkColor}
+        accentColor={resolvedAccentColor}
+        accentDarkColor={resolvedAccentDarkColor}
       >
         {isPlaying ? (
-          <Pause color={onAccentColor} size={25} fill={onAccentColor} />
+          <Pause color={resolvedOnAccentColor} size={25} fill={resolvedOnAccentColor} />
         ) : (
-          <Play color={onAccentColor} size={25} fill={onAccentColor} />
+          <Play color={resolvedOnAccentColor} size={25} fill={resolvedOnAccentColor} />
         )}
       </PressScale>
 
@@ -160,8 +170,8 @@ const Controls: React.FC<ControlsProps> = ({
         accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
         onPress={cycleRepeatMode}
         size={36}
-        accentColor={repeatMode !== 'off' ? accentColor : theme.palette.border}
-        accentDarkColor={accentDarkColor}
+        accentColor={repeatMode !== 'off' ? resolvedAccentColor : theme.palette.border}
+        accentDarkColor={resolvedAccentDarkColor}
       >
         {repeatIcon}
       </PressScale>
@@ -174,9 +184,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
+    paddingVertical: staticTheme.spacing.xs,
+    paddingHorizontal: staticTheme.spacing.sm,
+    gap: staticTheme.spacing.xs,
   },
   button: {
     alignItems: 'center',

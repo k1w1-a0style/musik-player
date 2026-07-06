@@ -2,6 +2,28 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryPlaybackActions from '../LibraryPlaybackActions';
 
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    primary: '#D8DEE8',
+    text: {
+      primary: '#F4F5F7',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 test('renders favorite indicator when requested', () => {
   const { getByTestId } = render(<LibraryPlaybackActions disabled={false} showFavoriteIcon onShuffle={jest.fn()} onPlay={jest.fn()} />);
 
@@ -32,4 +54,16 @@ test('disables shuffle and play buttons', () => {
 
   expect(onShuffle).not.toHaveBeenCalled();
   expect(onPlay).not.toHaveBeenCalled();
+});
+
+test('uses app theme chrome for action buttons', () => {
+  const { getByTestId } = render(<LibraryPlaybackActions disabled={false} onShuffle={jest.fn()} onPlay={jest.fn()} />);
+
+  const shuffleStyle = JSON.stringify(getByTestId('library-shuffle-button').props.style);
+  const playStyle = JSON.stringify(getByTestId('library-play-button').props.style);
+
+  expect(shuffleStyle).toContain(mockAppTheme.palette.surfaceGlass);
+  expect(shuffleStyle).toContain(mockAppTheme.palette.border);
+  expect(playStyle).toContain(mockAppTheme.palette.surfaceGlass);
+  expect(playStyle).toContain(mockAppTheme.palette.border);
 });

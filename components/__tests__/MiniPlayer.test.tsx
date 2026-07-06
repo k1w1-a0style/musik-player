@@ -23,6 +23,30 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
 }));
 
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    surfaceElevated: '#191B21',
+    borderStrong: 'rgba(210, 218, 230, 0.28)',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
   currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
   isPlaying: false,
@@ -147,6 +171,15 @@ describe('MiniPlayer', () => {
 
     expect(queryByText('<unknown>')).toBeNull();
     expect(getByText('My Song')).toBeTruthy();
+  });
+
+  test('uses app theme chrome instead of the old hard-coded turquoise border', () => {
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+    const styleText = JSON.stringify(getByTestId('mini-player-open').props.style);
+
+    expect(styleText).toContain(mockAppTheme.palette.borderStrong);
+    expect(styleText).toContain(mockAppTheme.palette.surfaceGlass);
+    expect(styleText).not.toContain('rgba(115, 230, 210, 0.9)');
   });
 
   test('renders null without current song', () => {

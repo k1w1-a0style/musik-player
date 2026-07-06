@@ -7,6 +7,7 @@ import { DEFAULT_LIBRARY_SORT_MODE, isLibrarySortMode, type LibrarySortMode } fr
 import { DEFAULT_LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode, type LibrarySongViewMode } from './libraryViewMode';
 import { DEFAULT_LIBRARY_ALBUM_VIEW_MODE, isLibraryAlbumViewMode } from './libraryViewMode';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import { DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN, isAppAppearance, isAppThemeSkin, type AppAppearance, type AppThemeSkin } from './appTheme';
 
 const PREFIX = '@musikplayer:';
 const MIN_EQ_GAIN = -12;
@@ -27,6 +28,8 @@ export const StorageKeys = {
   LIBRARY_SORT_MODE: 'librarySortMode',
   LIBRARY_SONG_VIEW_MODE: 'librarySongViewMode',
   ALBUM_VIEW_MODE: 'albumViewMode',
+  APP_APPEARANCE: 'appAppearance',
+  APP_THEME_SKIN: 'appThemeSkin',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
@@ -47,6 +50,8 @@ type StorageValueByKey = {
   [StorageKeys.LIBRARY_SORT_MODE]: LibrarySortMode;
   [StorageKeys.LIBRARY_SONG_VIEW_MODE]: LibrarySongViewMode;
   [StorageKeys.ALBUM_VIEW_MODE]: LibraryAlbumViewMode;
+  [StorageKeys.APP_APPEARANCE]: AppAppearance;
+  [StorageKeys.APP_THEME_SKIN]: AppThemeSkin;
 };
 
 interface StorageApi {
@@ -82,6 +87,10 @@ interface StorageApi {
   setLibrarySongViewMode(mode: LibrarySongViewMode): Promise<void>;
   getAlbumViewMode(): Promise<LibraryAlbumViewMode>;
   setAlbumViewMode(mode: LibraryAlbumViewMode): Promise<void>;
+  getAppAppearance(): Promise<AppAppearance>;
+  setAppAppearance(appearance: AppAppearance): Promise<void>;
+  getAppThemeSkin(): Promise<AppThemeSkin>;
+  setAppThemeSkin(skin: AppThemeSkin): Promise<void>;
 }
 
 const STORAGE_KEY_VALUES: ReadonlySet<string> = new Set(Object.values(StorageKeys));
@@ -306,6 +315,10 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
       return isLibrarySongViewMode(value) ? value : null;
     case StorageKeys.ALBUM_VIEW_MODE:
       return isLibraryAlbumViewMode(value) ? value : null;
+    case StorageKeys.APP_APPEARANCE:
+      return isAppAppearance(value) ? value : null;
+    case StorageKeys.APP_THEME_SKIN:
+      return isAppThemeSkin(value) ? value : null;
     default:
       return value;
   }
@@ -318,6 +331,8 @@ const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
   StorageKeys.LIBRARY_SORT_MODE,
   StorageKeys.LIBRARY_SONG_VIEW_MODE,
   StorageKeys.ALBUM_VIEW_MODE,
+  StorageKeys.APP_APPEARANCE,
+  StorageKeys.APP_THEME_SKIN,
 ]);
 
 const supportsRawStringValue = (key: string): boolean => RAW_STRING_STORAGE_KEYS.has(key);
@@ -524,6 +539,22 @@ export const storage: StorageApi = {
   },
   async setAlbumViewMode(mode: LibraryAlbumViewMode) {
     await setJsonItem(StorageKeys.ALBUM_VIEW_MODE, isLibraryAlbumViewMode(mode) ? mode : DEFAULT_LIBRARY_ALBUM_VIEW_MODE);
+  },
+  async getAppAppearance(): Promise<AppAppearance> {
+    const value = await getItem(StorageKeys.APP_APPEARANCE);
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.APP_APPEARANCE, value);
+    return isAppAppearance(parsed) ? parsed : DEFAULT_APP_APPEARANCE;
+  },
+  async setAppAppearance(appearance: AppAppearance) {
+    await setJsonItem(StorageKeys.APP_APPEARANCE, isAppAppearance(appearance) ? appearance : DEFAULT_APP_APPEARANCE);
+  },
+  async getAppThemeSkin(): Promise<AppThemeSkin> {
+    const value = await getItem(StorageKeys.APP_THEME_SKIN);
+    const parsed = value == null ? null : parseStoredValue(StorageKeys.APP_THEME_SKIN, value);
+    return isAppThemeSkin(parsed) ? parsed : DEFAULT_APP_THEME_SKIN;
+  },
+  async setAppThemeSkin(skin: AppThemeSkin) {
+    await setJsonItem(StorageKeys.APP_THEME_SKIN, isAppThemeSkin(skin) ? skin : DEFAULT_APP_THEME_SKIN);
   },
 };
 

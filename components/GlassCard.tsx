@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../theme';
+import { theme as staticTheme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -17,16 +18,40 @@ const GlassCard: React.FC<GlassCardProps> = ({
   children,
   style,
   intensity = 40,
-  tint = 'dark',
+  tint,
   glow = false,
   testID,
 }) => {
+  const { appearance, theme } = useAppTheme();
+  const resolvedTint = tint ?? (appearance === 'light' ? 'light' : 'dark');
+  const glassGradient = [theme.palette.surfaceGlass, theme.palette.primaryGlow] as const;
+  const glowStyle = glow
+    ? {
+        shadowColor: theme.palette.primary,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.22,
+        shadowRadius: 18,
+        elevation: 9,
+      }
+    : null;
+
   return (
-    <View style={[styles.wrapper, glow && styles.glow, style]} testID={testID}>
-      <BlurView pointerEvents="none" intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        styles.wrapper,
+        {
+          borderColor: theme.palette.border,
+          backgroundColor: theme.palette.surfaceGlass,
+        },
+        glowStyle,
+        style,
+      ]}
+      testID={testID}
+    >
+      <BlurView pointerEvents="none" intensity={intensity} tint={resolvedTint} style={StyleSheet.absoluteFill} />
       <LinearGradient
         pointerEvents="none"
-        colors={theme.gradients.glass}
+        colors={glassGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -38,15 +63,12 @@ const GlassCard: React.FC<GlassCardProps> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: staticTheme.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.surfaceGlass,
   },
-  glow: theme.shadows.glow,
   content: {
-    padding: theme.spacing.md,
+    padding: staticTheme.spacing.md,
   },
 });
 
