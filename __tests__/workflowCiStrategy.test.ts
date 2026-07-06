@@ -56,6 +56,14 @@ describe('GitHub workflow CI strategy', () => {
     expect(ciWorkflow).toContain('npm run check:android-permissions');
     expect(ciWorkflow).not.toContain('continue-on-error: true');
   });
+
+  it('keeps main CI triggers limited to active protected branches', () => {
+    const ciWorkflow = readWorkflow('ci.yml');
+
+    expect(ciWorkflow).toContain('pull_request:\n    branches: [main, codex]');
+    expect(ciWorkflow).toContain('push:\n    branches: [main, codex]');
+    expect(ciWorkflow).not.toContain('Emergent');
+  });
   it('fails closed when an EAS APK download does not produce an artifact', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
 
