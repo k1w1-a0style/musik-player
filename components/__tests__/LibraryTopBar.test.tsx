@@ -1,4 +1,29 @@
 import React from 'react';
+
+const mockAppTheme = {
+  palette: {
+    backgroundDeep: '#030406',
+    surfaceElevated: '#191B21',
+    border: 'rgba(255, 255, 255, 0.08)',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryTopBar from '../LibraryTopBar';
 
@@ -30,4 +55,10 @@ test('calls onOpenMenu when menu button is pressed', () => {
   fireEvent.press(getByTestId('library-open-menu'));
 
   expect(onOpenMenu).toHaveBeenCalledTimes(1);
+});
+
+
+test('uses app theme text color', () => {
+  const { getByText } = render(<LibraryTopBar onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
+  expect(JSON.stringify(getByText('K1W1 Music').props.style)).toContain(mockAppTheme.palette.text.primary);
 });
