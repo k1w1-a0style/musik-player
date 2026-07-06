@@ -1,25 +1,31 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { theme } from '../theme';
+import { theme as staticTheme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface NowPlayingMenuItemProps {
   label: string;
   onPress: () => void;
 }
 
-const NowPlayingMenuItem: React.FC<NowPlayingMenuItemProps> = ({ label, onPress }) => (
-  <Pressable
-    accessibilityRole="button"
-    onPress={onPress}
-    style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
-  >
-    <Text style={styles.menuText}>{label}</Text>
-  </Pressable>
-);
+const NowPlayingMenuItem: React.FC<NowPlayingMenuItemProps> = ({ label, onPress }) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+    >
+      <Text style={[styles.menuText, { color: theme.palette.text.primary }]}>{label}</Text>
+    </Pressable>
+  );
+};
 
 const styles = StyleSheet.create({
   menuItem: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 18 },
-  menuText: { color: theme.palette.text.primary, fontFamily: theme.fonts.body, fontSize: 16 },
+  menuText: { fontFamily: staticTheme.fonts.body, fontSize: 16 },
   pressed: { opacity: 0.72 },
 });
 
