@@ -10,7 +10,8 @@ import type { LibrarySortMode } from '../utils/librarySort';
 import { getLibrarySongViewColumns, type LibrarySongViewMode } from '../utils/libraryViewMode';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import type { LibraryTab } from '../utils/libraryTabs';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
@@ -90,6 +91,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   songViewMode,
   onCycleSongViewMode,
 }) => {
+  const { theme } = useAppTheme();
+
   if (activeTab === 'folders') {
     return (
       <LibraryListShell testID="library-folders-shell">
@@ -103,7 +106,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
-          ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+          ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
     );
@@ -113,7 +116,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
     return (
       <LibraryListShell testID="library-albums-shell">
         <LibrarySectionHeader title="Alben">
-          <Text style={styles.folderCount}>{albumGroups.length}</Text>
+          <Text style={[styles.folderCount, { color: theme.palette.text.muted }]}>{albumGroups.length}</Text>
           <LibraryAlbumViewToggle mode={albumViewMode} onToggle={onToggleAlbumView} />
         </LibrarySectionHeader>
         {albumViewMode === 'grid' ? (
@@ -128,7 +131,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
             initialNumToRender={8}
             windowSize={GROUP_WINDOW_SIZE}
             removeClippedSubviews={shouldRemoveClippedSubviews}
-            ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+            ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
           />
         ) : (
           <FlatList
@@ -141,7 +144,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
             initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
             windowSize={GROUP_WINDOW_SIZE}
             removeClippedSubviews={shouldRemoveClippedSubviews}
-            ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+            ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
           />
         )}
       </LibraryListShell>
@@ -164,7 +167,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
-          ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+          ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
     );
@@ -184,7 +187,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
-          ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+          ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
         />
       </LibraryListShell>
     );
@@ -216,19 +219,19 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={80}
         getItemLayout={songViewMode === 'list' ? getSongItemLayout : undefined}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+        ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}>{emptyMessage}</Text>}
       />
     </LibraryListShell>
   );
 };
 
 const styles = StyleSheet.create({
-  folderCount: { color: theme.palette.text.muted, fontFamily: theme.fonts.body, fontSize: 12 },
+  folderCount: { fontFamily: staticTheme.fonts.body, fontSize: 12 },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
   songGridColumn: { gap: 12, paddingHorizontal: 12 },
-  empty: { color: theme.palette.text.muted, textAlign: 'center', marginTop: 30, fontFamily: theme.fonts.body },
+  empty: { textAlign: 'center', marginTop: 30, fontFamily: staticTheme.fonts.body },
 });
 
 export default LibraryTabContent;
