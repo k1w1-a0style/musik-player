@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import type { SongWaveform } from '../utils/waveformTypes';
 
 interface WaveformScrubberProps {
@@ -42,9 +43,11 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
   onSeek,
   onSeekPreview,
   accent,
-  restColor = 'rgba(255,255,255,0.24)',
+  restColor,
   height = 58,
 }) => {
+  const { theme } = useAppTheme();
+  const resolvedRestColor = restColor ?? theme.palette.borderStrong;
   const widthRef = useRef(0);
   const latestRatioRef = useRef(0);
   const lastPreviewAtRef = useRef(0);
@@ -119,25 +122,25 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
                 width={bars.barWidth}
                 height={barHeight}
                 rx={1.5}
-                fill={barRatio <= displayRatio ? accent : restColor}
+                fill={barRatio <= displayRatio ? accent : resolvedRestColor}
               />
             );
           })}
         </Svg>
       </View>
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatTime(displayPosition)}</Text>
-        <Text style={styles.time}>{formatTime(safeDuration)}</Text>
+        <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(displayPosition)}</Text>
+        <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(safeDuration)}</Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: { paddingHorizontal: theme.spacing.md, marginVertical: theme.spacing.sm, width: '100%' },
+  root: { paddingHorizontal: staticTheme.spacing.md, marginVertical: staticTheme.spacing.sm, width: '100%' },
   waveformSurface: { justifyContent: 'center', overflow: 'hidden', paddingVertical: 4 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  time: { color: theme.palette.text.muted, fontSize: 11, fontFamily: theme.fonts.body },
+  time: { fontSize: 11, fontFamily: staticTheme.fonts.body },
 });
 
 export default WaveformScrubber;
