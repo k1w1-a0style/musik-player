@@ -4,7 +4,8 @@ import type { EditableTrackTags, TagEditCapability } from '../types/TagEdit';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import TagEditorActions from './TagEditorActions';
 import TagEditorCoverControls from './TagEditorCoverControls';
 import TagEditorFields from './TagEditorFields';
@@ -49,52 +50,55 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
   onToggleRemoveCover,
   onConfirmSave,
   onBack,
-}) => (
-  <AppBackground>
-    <Screen contentStyle={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Tag Editor</Text>
-        <TagEditorNotices
-          capabilityMessage={capabilityMessage}
-          blockedReasonMessage={blockedReasonMessage}
-          safetyMessage={safetyMessage}
-        />
+}) => {
+  const { theme } = useAppTheme();
 
-        <TagEditorFields
-          form={form}
-          editable={capability.canWrite && !saving}
-          onChangeField={onChangeField}
-        />
+  return (
+    <AppBackground>
+      <Screen contentStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={[styles.header, { color: theme.palette.text.primary }]}>Tag Editor</Text>
+          <TagEditorNotices
+            capabilityMessage={capabilityMessage}
+            blockedReasonMessage={blockedReasonMessage}
+            safetyMessage={safetyMessage}
+          />
 
-        <TagEditorCoverControls
-          canWrite={capability.canWrite}
-          saving={saving}
-          hasCover={hasCover}
-          currentCoverUri={currentCoverUri}
-          removeCover={removeCover}
-          replacementCover={replacementCover}
-          onToggleRemoveCover={onToggleRemoveCover}
-          onPickCover={onPickCover}
-        />
+          <TagEditorFields
+            form={form}
+            editable={capability.canWrite && !saving}
+            onChangeField={onChangeField}
+          />
 
-        <TagEditorActions
-          canSave={canSave}
-          saving={saving}
-          status={status}
-          onConfirmSave={onConfirmSave}
-          onBack={onBack}
-        />
-      </ScrollView>
-    </Screen>
-  </AppBackground>
-);
+          <TagEditorCoverControls
+            canWrite={capability.canWrite}
+            saving={saving}
+            hasCover={hasCover}
+            currentCoverUri={currentCoverUri}
+            removeCover={removeCover}
+            replacementCover={replacementCover}
+            onToggleRemoveCover={onToggleRemoveCover}
+            onPickCover={onPickCover}
+          />
+
+          <TagEditorActions
+            canSave={canSave}
+            saving={saving}
+            status={status}
+            onConfirmSave={onConfirmSave}
+            onBack={onBack}
+          />
+        </ScrollView>
+      </Screen>
+    </AppBackground>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: theme.spacing.md, gap: 10 },
+  content: { padding: staticTheme.spacing.md, gap: 10 },
   header: {
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
+    fontFamily: staticTheme.fonts.heading,
     fontSize: 22,
   },
 });

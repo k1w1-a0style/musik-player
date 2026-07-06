@@ -2,6 +2,55 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import TagEditor, { buildDraftFromDirtyFields, hasRemovableCover } from '../TagEditor';
+const mockAppThemeContextValue = {
+  appearance: 'dark',
+  skin: 'graphite',
+  isHydrated: true,
+  setAppearance: jest.fn(),
+  setSkin: jest.fn(),
+  theme: {
+    id: 'graphite-dark',
+    appearance: 'dark',
+    skin: 'graphite',
+    label: 'Graphite Dark',
+    navigationDark: true,
+    statusBarStyle: 'light-content',
+    palette: {
+      background: '#08090B',
+      backgroundDeep: '#030406',
+      surface: '#111318',
+      surfaceElevated: '#191B21',
+      surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+      card: '#111318',
+      cardElevated: '#1A1D24',
+      border: 'rgba(255, 255, 255, 0.08)',
+      borderStrong: 'rgba(210, 218, 230, 0.28)',
+      primary: '#D8DEE8',
+      primaryDark: '#87909E',
+      primaryGlow: 'rgba(216, 222, 232, 0.12)',
+      accent: '#BFC7D4',
+      accentGlow: 'rgba(191, 199, 212, 0.10)',
+      success: '#D8DEE8',
+      error: '#FF6F8A',
+      warning: '#FFCA77',
+      text: {
+        primary: '#F4F5F7',
+        secondary: 'rgba(244, 245, 247, 0.70)',
+        muted: 'rgba(244, 245, 247, 0.42)',
+        onPrimary: '#07090C',
+      },
+    },
+    gradients: {
+      background: ['#030406', '#08090B', '#0D1014'],
+      nowPlaying: ['#030406', '#08090B', '#0D1014'],
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => mockAppThemeContextValue,
+  useOptionalAppTheme: () => mockAppThemeContextValue,
+}));
 
 const mockWriteTagsToFile = jest.fn();
 const mockUpdateSongMetadata = jest.fn();

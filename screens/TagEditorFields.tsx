@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import type { EditableTrackTags } from '../types/TagEdit';
-import { theme } from '../theme';
 import { FIELDS, type FormState } from './tagEditorHelpers';
 
 interface TagEditorFieldsProps {
@@ -14,38 +15,47 @@ const TagEditorFields: React.FC<TagEditorFieldsProps> = ({
   form,
   editable,
   onChangeField,
-}) => (
-  <>
-    {FIELDS.map(field => (
-      <View key={field.key} style={styles.fieldWrap}>
-        <Text style={styles.label}>{field.label}</Text>
-        <TextInput
-          testID={`input-${field.key}`}
-          accessibilityLabel={field.label}
-          accessibilityState={{ disabled: !editable }}
-          placeholder="Nicht verfügbar"
-          placeholderTextColor={theme.palette.text.muted}
-          value={form[field.key]}
-          editable={editable}
-          onChangeText={value => onChangeField(field.key, value)}
-          style={[styles.input, !editable && styles.inputReadOnly]}
-        />
-      </View>
-    ))}
-  </>
-);
+}) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <>
+      {FIELDS.map(field => (
+        <View key={field.key} style={styles.fieldWrap}>
+          <Text style={[styles.label, { color: theme.palette.text.secondary }]}>{field.label}</Text>
+          <TextInput
+            testID={`input-${field.key}`}
+            accessibilityLabel={field.label}
+            accessibilityState={{ disabled: !editable }}
+            placeholder="Nicht verfügbar"
+            placeholderTextColor={theme.palette.text.muted}
+            value={form[field.key]}
+            editable={editable}
+            onChangeText={value => onChangeField(field.key, value)}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.palette.surface,
+                borderColor: theme.palette.border,
+                color: theme.palette.text.primary,
+              },
+              !editable && styles.inputReadOnly,
+            ]}
+          />
+        </View>
+      ))}
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   fieldWrap: { gap: 4 },
-  label: { color: theme.palette.text.secondary, fontFamily: theme.fonts.body },
+  label: { fontFamily: staticTheme.fonts.body },
   input: {
     borderWidth: 1,
-    borderColor: theme.palette.border,
-    borderRadius: theme.radii.input,
+    borderRadius: staticTheme.radii.input,
     padding: 10,
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.body,
-    backgroundColor: theme.palette.surface,
+    fontFamily: staticTheme.fonts.body,
   },
   inputReadOnly: { opacity: 0.8 },
 });

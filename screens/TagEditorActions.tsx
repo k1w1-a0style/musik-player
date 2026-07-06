@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 interface TagEditorActionsProps {
   canSave: boolean;
@@ -16,67 +17,80 @@ const TagEditorActions: React.FC<TagEditorActionsProps> = ({
   status,
   onConfirmSave,
   onBack,
-}) => (
-  <>
-    <Pressable
-      testID="save-button"
-      accessibilityRole="button"
-      accessibilityLabel={saving ? 'Speichern läuft' : 'Metadaten speichern'}
-      accessibilityState={{ disabled: !canSave }}
-      style={[styles.saveButton, !canSave && styles.disabledButton]}
-      disabled={!canSave}
-      onPress={() =>
-        Alert.alert('Bestätigung', 'Metadaten wirklich in Datei schreiben?', [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Speichern',
-            onPress: onConfirmSave,
-          },
-        ])
-      }
-    >
-      <Text style={styles.saveText}>{saving ? 'Speichern…' : 'Speichern'}</Text>
-    </Pressable>
+}) => {
+  const { theme } = useAppTheme();
 
-    <Pressable
-      style={styles.backButton}
-      onPress={onBack}
-      accessibilityRole="button"
-      accessibilityLabel="Zurück"
-    >
-      <Text style={styles.backText}>Zurück</Text>
-    </Pressable>
-    {status && <Text style={styles.status}>{status}</Text>}
-  </>
-);
+  return (
+    <>
+      <Pressable
+        testID="save-button"
+        accessibilityRole="button"
+        accessibilityLabel={saving ? 'Speichern läuft' : 'Metadaten speichern'}
+        accessibilityState={{ disabled: !canSave }}
+        style={[
+          styles.saveButton,
+          {
+            backgroundColor: theme.palette.surfaceElevated,
+            borderColor: theme.palette.borderStrong,
+          },
+          !canSave && styles.disabledButton,
+        ]}
+        disabled={!canSave}
+        onPress={() =>
+          Alert.alert('Bestätigung', 'Metadaten wirklich in Datei schreiben?', [
+            { text: 'Abbrechen', style: 'cancel' },
+            {
+              text: 'Speichern',
+              onPress: onConfirmSave,
+            },
+          ])
+        }
+      >
+        <Text style={[styles.saveText, { color: theme.palette.text.primary }]}>
+          {saving ? 'Speichern…' : 'Speichern'}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={[
+          styles.backButton,
+          {
+            backgroundColor: theme.palette.surfaceGlass,
+            borderColor: theme.palette.border,
+          },
+        ]}
+        onPress={onBack}
+        accessibilityRole="button"
+        accessibilityLabel="Zurück"
+      >
+        <Text style={[styles.backText, { color: theme.palette.text.secondary }]}>Zurück</Text>
+      </Pressable>
+      {status && <Text style={[styles.status, { color: theme.palette.text.secondary }]}>{status}</Text>}
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   saveButton: {
     padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surfaceElevated,
+    borderRadius: staticTheme.radii.input,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
   },
   backButton: {
     padding: 12,
-    borderRadius: theme.radii.input,
-    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderRadius: staticTheme.radii.input,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
   },
   disabledButton: { opacity: 0.48 },
   saveText: {
-    color: theme.palette.text.primary,
     textAlign: 'center',
-    fontFamily: theme.fonts.heading,
+    fontFamily: staticTheme.fonts.heading,
   },
   backText: {
-    color: theme.palette.text.secondary,
     textAlign: 'center',
-    fontFamily: theme.fonts.heading,
+    fontFamily: staticTheme.fonts.heading,
   },
-  status: { color: theme.palette.text.secondary },
+  status: { fontFamily: staticTheme.fonts.body },
 });
 
 export default TagEditorActions;
