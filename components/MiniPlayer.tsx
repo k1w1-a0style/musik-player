@@ -3,13 +3,15 @@ import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } 
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
-import { theme } from '../theme';
+import { theme as staticTheme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
+  const { theme: appTheme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
@@ -41,20 +43,20 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
-      <Pressable onPress={onOpen} style={styles.container} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
-        <View style={styles.thumb}>
+      <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: appTheme.palette.borderStrong }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
+        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated }]}>
           {showCover ? (
             <Image source={{ uri: artworkUri }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
           ) : (
-            <Disc3 color={theme.palette.text.muted} size={18} />
+            <Disc3 color={appTheme.palette.text.muted} size={18} />
           )}
         </View>
 
         <View style={styles.textWrap}>
-          <Text numberOfLines={1} style={styles.title}>
+          <Text numberOfLines={1} style={[styles.title, { color: appTheme.palette.text.primary }]}>
             {displayTitleText}
           </Text>
-          <Text numberOfLines={1} style={styles.artist}>
+          <Text numberOfLines={1} style={[styles.artist, { color: appTheme.palette.text.secondary }]}>
             {displayArtistName}
           </Text>
         </View>
@@ -68,13 +70,13 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
             onPress={handlePrevious}
             style={!canSkipPrevious && styles.disabled}
           >
-            <SkipBack color={theme.palette.text.primary} size={18} />
+            <SkipBack color={appTheme.palette.text.primary} size={18} />
           </Pressable>
           <Pressable testID="mini-player-play-pause" accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={handleTogglePlayPause} style={styles.playBtn}>
             {isPlaying ? (
-              <Pause color={theme.palette.text.primary} size={19} />
+              <Pause color={appTheme.palette.text.primary} size={19} />
             ) : (
-              <Play color={theme.palette.text.primary} size={19} />
+              <Play color={appTheme.palette.text.primary} size={19} />
             )}
           </Pressable>
           <Pressable
@@ -85,10 +87,10 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
             onPress={handleNext}
             style={!canSkipNext && styles.disabled}
           >
-            <SkipForward color={theme.palette.text.primary} size={18} />
+            <SkipForward color={appTheme.palette.text.primary} size={18} />
           </Pressable>
           <Pressable testID="mini-player-queue" accessibilityRole="button" accessibilityLabel="Warteschlange öffnen" onPress={(event) => { event.stopPropagation(); onOpen(); }}>
-            <ListMusic color={theme.palette.text.primary} size={19} opacity={0.85} />
+            <ListMusic color={appTheme.palette.text.primary} size={19} opacity={0.85} />
           </Pressable>
         </View>
       </Pressable>
@@ -108,9 +110,7 @@ const styles = StyleSheet.create({
   container: {
     height: 58,
     borderRadius: 20,
-    backgroundColor: 'rgba(20, 22, 24, 0.96)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(115, 230, 210, 0.9)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
@@ -123,18 +123,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: theme.palette.surfaceElevated,
   },
   thumbImage: { width: '100%', height: '100%' },
   textWrap: { flex: 1, minWidth: 0 },
   title: {
-    color: theme.palette.text.primary,
-    fontFamily: theme.fonts.heading,
+    fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
   artist: {
-    color: theme.palette.text.secondary,
-    fontFamily: theme.fonts.body,
+    fontFamily: staticTheme.fonts.body,
     fontSize: 11,
   },
   right: {
