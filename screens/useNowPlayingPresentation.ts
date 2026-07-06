@@ -4,7 +4,6 @@ import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import { getAppTheme } from '../utils/appTheme';
-import { theme as staticTheme } from '../theme';
 import { displayAlbum } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { mergeNativeAndFallbackPalette, pickReadableForeground } from '../utils/jsPaletteFallback';
@@ -45,8 +44,8 @@ export const useNowPlayingPresentation = ({
   const accentDark = effectivePalette.darkVibrant ?? effectivePalette.darkMuted ?? appTheme.palette.backgroundDeep;
   const accentMuted = effectivePalette.muted ?? effectivePalette.darkMuted ?? appTheme.palette.surface;
   const gradientColors = useMemo<GradientColors>(
-    () => staticTheme.gradients.nowPlayingBackdrop(accent, accentDark),
-    [accent, accentDark],
+    () => [accentDark, appTheme.palette.backgroundDeep, appTheme.palette.background] as const,
+    [accentDark, appTheme.palette.backgroundDeep, appTheme.palette.background],
   );
   const albumTitle = currentSong ? displayAlbum(currentSong) : 'Aus deiner Bibliothek';
   const artworkUri = getSongArtworkUri(currentSong);
