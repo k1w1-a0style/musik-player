@@ -44,7 +44,7 @@ const TagEditorActions: React.FC<TagEditorActionsProps> = ({
       accessibilityRole="button"
       accessibilityLabel="Zurück"
     >
-      <Text style={styles.saveText}>Zurück</Text>
+      <Text style={styles.backText}>Zurück</Text>
     </Pressable>
     {status && <Text style={styles.status}>{status}</Text>}
   </>
@@ -54,16 +54,25 @@ const styles = StyleSheet.create({
   saveButton: {
     padding: 12,
     borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: theme.palette.surfaceElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
   },
   backButton: {
     padding: 12,
     borderRadius: theme.radii.input,
-    backgroundColor: theme.palette.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
   },
-  disabledButton: { opacity: 0.5 },
+  disabledButton: { opacity: 0.48 },
   saveText: {
     color: theme.palette.text.primary,
+    textAlign: 'center',
+    fontFamily: theme.fonts.heading,
+  },
+  backText: {
+    color: theme.palette.text.secondary,
     textAlign: 'center',
     fontFamily: theme.fonts.heading,
   },

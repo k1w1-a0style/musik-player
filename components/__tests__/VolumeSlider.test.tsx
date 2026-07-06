@@ -39,14 +39,14 @@ describe('VolumeSlider', () => {
     expect(onVolumeChange).toHaveBeenLastCalledWith(0);
   });
 
-  test('keeps touch based volume changes working', () => {
+  test('uses stable touch based volume changes from absolute page coordinates', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.25} onVolumeChange={onVolumeChange} />);
     const slider = getByTestId('volume-slider');
 
     fireEvent(slider, 'layout', { nativeEvent: { layout: { width: 200 } } });
-    fireEvent(slider, 'responderGrant', { nativeEvent: { locationX: 50 } });
-    fireEvent(slider, 'responderMove', { nativeEvent: { locationX: 300 } });
+    fireEvent(slider, 'responderGrant', { nativeEvent: { pageX: 50 } });
+    fireEvent(slider, 'responderMove', { nativeEvent: { pageX: 240 } });
 
     expect(onVolumeChange).toHaveBeenNthCalledWith(1, 0.25);
     expect(onVolumeChange).toHaveBeenNthCalledWith(2, 1);
@@ -63,11 +63,8 @@ describe('VolumeSlider', () => {
   test('passes the accent color to the active track and thumb', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.4} onVolumeChange={onVolumeChange} accentColor="#ff00aa" />);
-    const track = getByTestId('volume-slider').props.children;
-    const [activeTrack, thumb] = track.props.children;
 
-    expect(activeTrack.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
-    expect(thumb.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+    expect(getByTestId('volume-track-active').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
+    expect(getByTestId('volume-thumb').props.style).toEqual(expect.arrayContaining([expect.objectContaining({ backgroundColor: '#ff00aa' })]));
   });
-
 });

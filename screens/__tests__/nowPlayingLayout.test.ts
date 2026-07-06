@@ -3,8 +3,8 @@ import { buildNowPlayingLayoutMetrics } from '../nowPlayingLayout';
 describe('buildNowPlayingLayoutMetrics', () => {
   test('builds layout metrics from measured content dimensions', () => {
     expect(buildNowPlayingLayoutMetrics({ width: 400, height: 704 })).toEqual({
-      coverSize: 281,
-      coverAreaHeight: 299,
+      coverSize: 302,
+      coverAreaHeight: 322,
       queueCardMaxHeight: 620,
       glowLeft: 70,
       snapPageHeight: 704,
@@ -35,13 +35,13 @@ describe('buildNowPlayingLayoutMetrics', () => {
     const narrow = buildNowPlayingLayoutMetrics({ width: 220, height: 900 });
 
     expect(narrow.coverSize).toBe(172);
-    expect(narrow.coverAreaHeight).toBe(190);
+    expect(narrow.coverAreaHeight).toBe(192);
   });
 
   test('expands queue height for large measured content areas', () => {
     const large = buildNowPlayingLayoutMetrics({ width: 700, height: 1100 });
 
-    expect(large.coverSize).toBe(440);
+    expect(large.coverSize).toBe(473);
     expect(large.queueCardMaxHeight).toBe(1016);
     expect(large.snapPageHeight).toBe(1100);
     expect(large.detailPageListHeight).toBe(1016);

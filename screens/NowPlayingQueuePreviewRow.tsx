@@ -96,8 +96,8 @@ const NowPlayingQueuePreviewRow = React.memo(({
       testID={`queue-row-${id}`}
       style={({ pressed }) => [
         styles.queueItem,
-        isCurrent && [styles.queueItemActive, { borderColor: accentColor, backgroundColor: `${accentColor}26` }],
-        dragEnabled && styles.queueItemEditing,
+        isCurrent && [styles.queueItemActive, { borderColor: accentColor, backgroundColor: `${accentColor}18` }],
+        dragEnabled && [styles.queueItemEditing, { borderColor: accentColor }],
         dragging && styles.queueItemDragging,
         dragging && { transform: [{ translateY: dragY }] },
         pressed && !dragging && styles.queueItemPressed,
@@ -132,7 +132,7 @@ const NowPlayingQueuePreviewRow = React.memo(({
       ) : null}
       {canDrag ? (
         <View style={styles.dragHandle} testID={`queue-drag-handle-${id}`}>
-          <GripVertical color={dragEnabled ? theme.palette.primary : theme.palette.text.muted} size={18} />
+          <GripVertical color={dragEnabled ? accentColor : theme.palette.text.muted} size={18} />
         </View>
       ) : null}
     </Pressable>
@@ -142,7 +142,7 @@ const NowPlayingQueuePreviewRow = React.memo(({
 const styles = StyleSheet.create({
   queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: theme.borderRadius.sm, paddingHorizontal: 8 },
   queueItemActive: { borderWidth: 1 },
-  queueItemEditing: { borderWidth: 1, borderColor: theme.palette.primary },
+  queueItemEditing: { borderWidth: 1 },
   queueItemDragging: { zIndex: 20, elevation: 8, backgroundColor: theme.palette.surfaceElevated, opacity: 0.96 },
   queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 20, borderRadius: 3, backgroundColor: theme.palette.border },

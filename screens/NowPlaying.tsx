@@ -36,7 +36,6 @@ const NowPlayingScreenInner: React.FC = () => {
     moveQueueItem,
     canReorderQueue,
     accent,
-    accentMuted,
     gradientColors,
     albumTitle,
     artworkUri,
@@ -89,14 +88,14 @@ const NowPlayingScreenInner: React.FC = () => {
       queue={queue}
       currentSong={currentSong}
       albumTitle={albumTitle}
-      accentMuted={accentMuted}
+      accentMuted={progressAccent}
       foregroundOnAccent={foregroundOnAccent}
       listHeight={layoutMetrics.detailPageListHeight}
       onPlayQueueItem={playQueueItemById}
       onQueueShift={moveQueueItem}
       canShiftQueue={canReorderQueue}
     />
-  ), [accentMuted, albumTitle, canReorderQueue, currentSong, foregroundOnAccent, layoutMetrics.detailPageListHeight, moveQueueItem, playQueueItemById, queue]);
+  ), [albumTitle, canReorderQueue, currentSong, foregroundOnAccent, layoutMetrics.detailPageListHeight, moveQueueItem, playQueueItemById, progressAccent, queue]);
 
   return (
     <>

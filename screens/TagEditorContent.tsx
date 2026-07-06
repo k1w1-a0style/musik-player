@@ -16,6 +16,7 @@ interface TagEditorContentProps {
   saving: boolean;
   removeCover: boolean;
   replacementCover: PickedTagCover | null;
+  currentCoverUri?: string;
   status: string | null;
   capability: TagEditCapability;
   hasCover: boolean;
@@ -35,6 +36,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
   saving,
   removeCover,
   replacementCover,
+  currentCoverUri,
   status,
   capability,
   hasCover,
@@ -68,6 +70,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
           canWrite={capability.canWrite}
           saving={saving}
           hasCover={hasCover}
+          currentCoverUri={currentCoverUri}
           removeCover={removeCover}
           replacementCover={replacementCover}
           onToggleRemoveCover={onToggleRemoveCover}

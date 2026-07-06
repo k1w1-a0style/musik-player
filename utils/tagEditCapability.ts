@@ -5,6 +5,36 @@ import { getDefaultReplaceSupportForPlatform } from './tagFileWriteAdapter';
 
 const REMOTE_RE = /^https?:\/\//i;
 
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeContainerCandidate = (value?: string): string | undefined => {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  const decoded = safeDecode(raw).toLowerCase().split(/[?#]/)[0] ?? '';
+  const direct = decoded.replace(/^audio\//, '');
+  if (direct === 'mp3' || direct === 'mpeg') return 'mp3';
+  if (direct === 'm4a' || direct === 'mp4') return direct;
+
+  const match = decoded.match(/\.([a-z0-9]+)$/i);
+  const ext = match?.[1]?.toLowerCase();
+  if (ext === 'mp3' || ext === 'mpeg') return 'mp3';
+  if (ext === 'm4a' || ext === 'mp4') return ext;
+  return undefined;
+};
+
+const looksLikeSafContentUri = (uri?: string): boolean => {
+  const normalized = uri?.toLowerCase() ?? '';
+  return normalized.includes('com.android.externalstorage.documents')
+    || normalized.includes('/tree/')
+    || normalized.includes('/document/');
+};
+
 export const getUriType = (uri?: string): TagEditUriType => {
   if (uri === undefined) return 'unknown';
   const trimmed = uri.trim();
@@ -17,11 +47,22 @@ export const getUriType = (uri?: string): TagEditUriType => {
 };
 
 export const getSupportedContainer = (song: Song): TagEditableContainer => {
-  const ext = song.fileInfo?.extension ?? song.fileInfo?.container;
-  const normalized = ext?.toLowerCase();
-  if (normalized === 'mp3') return 'mp3';
-  if (normalized === 'm4a') return 'm4a';
-  if (normalized === 'mp4') return 'mp4';
+  const candidates = [
+    song.fileInfo?.extension,
+    song.fileInfo?.container,
+    song.fileInfo?.mimeType,
+    song.fileInfo?.filename,
+    song.fileInfo?.uri,
+    song.uri,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeContainerCandidate(candidate);
+    if (normalized === 'mp3') return 'mp3';
+    if (normalized === 'm4a') return 'm4a';
+    if (normalized === 'mp4') return 'mp4';
+  }
+
   return 'unsupported';
 };
 
@@ -29,7 +70,8 @@ export const isSupportedTagEditContainer = (song: Song): boolean => getSupported
 
 export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
 
-export const isSafWritableContentSource = (song: Song): boolean => song.fileInfo?.source === 'saf';
+export const isSafWritableContentSource = (song: Song): boolean =>
+  song.fileInfo?.source === 'saf' || looksLikeSafContentUri(song.fileInfo?.uri ?? song.uri);
 
 export const getTagEditCapability = (song: Song, platform: string = Platform.OS): TagEditCapability => {
   const uri = song.fileInfo?.uri ?? song.uri;
@@ -56,7 +98,7 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
     const isAndroidSafMp3 = platform === 'android' && container === 'mp3' && isSafWritableContentSource(song);
     let reason: string;
     if (isAndroidSafMp3) {
-      reason = 'SAF/content:// MP3-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz unterstützt.';
+      reason = 'SAF/content:// MP3-Texttag-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz versucht.';
     } else if (container !== 'mp3') {
       reason = 'SAF/content:// Schreiben ist für dieses Format noch nicht unterstützt.';
     } else if (platform !== 'android') {

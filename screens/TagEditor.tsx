@@ -35,6 +35,7 @@ const TagEditorScreenInner: React.FC = () => {
       saving={saving}
       removeCover={removeCover}
       replacementCover={replacementCover}
+      currentCoverUri={song.coverInfo?.uri ?? song.cover}
       status={status}
       capability={capability}
       hasCover={hasCover}

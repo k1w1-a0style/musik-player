@@ -31,6 +31,11 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   canShiftQueue,
   accentColor,
 }) => {
+  const currentIndex = React.useMemo(
+    () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
+    [currentSongId, queue],
+  );
+
   const renderQueueItem = React.useCallback(
     ({ item, index }: { item: Song; index: number }) => (
       <NowPlayingQueuePreviewRow
@@ -41,13 +46,13 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
         title={displayTitle(item)}
         artist={displayArtist(item)}
         isCurrent={!!item.id && item.id === currentSongId}
-        canShift={canShiftQueue && index > 0}
+        canShift={canShiftQueue && (currentIndex < 0 || index > currentIndex)}
         onPress={onPlayQueueItem}
         onShift={onQueueShift}
         accentColor={accentColor}
       />
     ),
-    [accentColor, canShiftQueue, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
+    [accentColor, canShiftQueue, currentIndex, currentSongId, onPlayQueueItem, onQueueShift, queue.length],
   );
 
   return (

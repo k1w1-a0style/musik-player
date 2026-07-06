@@ -81,7 +81,6 @@ jest.mock('../../utils/tagWriter', () => {
   };
 });
 
-const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
 const gifBase64 = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]).toString('base64');
 const jpgBytes = [0xff, 0xd8, 0xff, 0x00];
 const jpgBase64 = Buffer.from(jpgBytes).toString('base64');
@@ -127,6 +126,14 @@ test('cover controls expose German accessibility labels before picking a cover',
   );
 });
 
+test('cover editor shows the current cover before a replacement is picked', () => {
+  const { getByTestId, getByText } = render(<TagEditor />);
+
+  expect(getByTestId('cover-preview')).toBeTruthy();
+  expect(getByTestId('cover-preview-image').props.source).toEqual({ uri: 'file:///old-cover.jpg' });
+  expect(getByText('Aktuelles Cover')).toBeTruthy();
+});
+
 test('cancelled cover picker shows a status and keeps save disabled', async () => {
   mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: [] });
   const { getByTestId, getByText } = render(<TagEditor />);
@@ -165,6 +172,8 @@ test('valid picked cover enables save and writes cover draft', async () => {
   await waitFor(() => expect(getByText('Neues Cover ausgewählt. Speichern schreibt es in die Datei.')).toBeTruthy());
   expect(getByTestId('pick-cover').props.accessibilityLabel).toBe('Cover ausgewählt — tippen zum Ändern');
   expect(getByTestId('cover-preview')).toBeTruthy();
+  expect(getByTestId('cover-preview-image').props.source).toEqual({ uri: 'file:///new-cover.jpg' });
+  expect(getByText('Ausgewähltes neues Cover')).toBeTruthy();
   expect(getByTestId('remove-cover').props.accessibilityState.disabled).toBe(true);
   expect(getByTestId('save-button').props.accessibilityState.disabled).toBe(false);
 

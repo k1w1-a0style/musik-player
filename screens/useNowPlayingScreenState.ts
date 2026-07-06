@@ -59,7 +59,7 @@ export const useNowPlayingScreenState = () => {
     bottomInset: insets.bottom,
     saveCurrentQueueAsPlaylist,
     moveQueueItem: queueShift,
-    canReorderQueue: queueState.queue.length > 2 && !!reorderQueue,
+    canReorderQueue: queueState.queue.length > 1 && !!reorderQueue,
     ...favoriteState,
     ...menuState,
     ...queueState,

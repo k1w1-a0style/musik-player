@@ -24,11 +24,12 @@ export const buildNowPlayingLayoutMetrics = ({
   const availableHeight = Math.max(1, height);
   const horizontalGutter = safeWidth < 340 ? 48 : 64;
   const maxCoverByWidth = Math.max(148, safeWidth - horizontalGutter);
-  const maxCoverByHeight = Math.floor(availableHeight * (availableHeight < 620 ? 0.34 : 0.4));
+  const coverHeightRatio = availableHeight < 560 ? 0.34 : availableHeight < 620 ? 0.39 : 0.43;
+  const maxCoverByHeight = Math.floor(availableHeight * coverHeightRatio);
   const minCover = availableHeight < 560 ? 156 : 196;
   const effectiveMinCover = Math.min(minCover, maxCoverByWidth);
   const coverSize = Math.floor(clamp(maxCoverByHeight, effectiveMinCover, maxCoverByWidth));
-  const coverAreaHeight = coverSize + (availableHeight < 560 ? 12 : 18);
+  const coverAreaHeight = coverSize + (availableHeight < 560 ? 12 : 20);
   const snapPageHeight = availableHeight;
   const detailPageListHeight = Math.max(240, Math.floor(availableHeight - 84));
 
