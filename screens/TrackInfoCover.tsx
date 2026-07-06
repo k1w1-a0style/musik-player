@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface TrackInfoCoverProps {
   coverUri?: string;
@@ -13,15 +13,19 @@ const TrackInfoCover: React.FC<TrackInfoCoverProps> = ({
   coverUri,
   coverFailed,
   onCoverError,
-}) => (
-  <View style={styles.coverWrap}>
-    {coverUri && !coverFailed ? (
-      <Image source={{ uri: coverUri }} style={styles.cover} onError={onCoverError} />
-    ) : (
-      <Music2 color={theme.palette.text.muted} size={42} />
-    )}
-  </View>
-);
+}) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <View style={[styles.coverWrap, { backgroundColor: theme.palette.surfaceElevated }]}>
+      {coverUri && !coverFailed ? (
+        <Image source={{ uri: coverUri }} style={styles.cover} onError={onCoverError} />
+      ) : (
+        <Music2 color={theme.palette.text.muted} size={42} />
+      )}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   coverWrap: {
@@ -32,7 +36,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: theme.palette.surfaceElevated,
     marginBottom: 8,
   },
   cover: { width: '100%', height: '100%' },

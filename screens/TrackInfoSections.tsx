@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import type { Song } from '../types/Song';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 import {
   formatBitrate,
   formatBitrateMode,
@@ -40,12 +41,14 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   coverDimensions,
   importedAt,
 }) => {
+  const { theme } = useAppTheme();
   const coverWidth = coverDimensions?.width ?? song.coverInfo?.width;
   const coverHeight = coverDimensions?.height ?? song.coverInfo?.height;
+  const sectionStyle = [styles.section, { color: theme.palette.text.secondary }];
 
   return (
     <>
-      <Text style={styles.section}>Basis</Text>
+      <Text style={sectionStyle}>Basis</Text>
       <TrackInfoRow label="Titel" value={getTrackInfoTitle(song)} />
       <TrackInfoRow label="Künstler" value={getTrackInfoArtist(song)} />
       <TrackInfoRow label="Album" value={getTrackInfoAlbum(song)} />
@@ -57,7 +60,7 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
       <TrackInfoRow label="Kommentar" value={valueOrNA(song.comment)} long />
       <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
 
-      <Text style={styles.section}>Datei</Text>
+      <Text style={sectionStyle}>Datei</Text>
       <TrackInfoRow label="Dateiname" value={getTrackInfoFilename(song)} />
       <TrackInfoRow label="Dateiendung" value={valueOrNA(song.fileInfo?.extension)} />
       <TrackInfoRow label="Container" value={getTrackInfoContainer(song)} />
@@ -67,14 +70,14 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
       <TrackInfoRow label="Import-Zeitpunkt" value={importedAt} />
       <TrackInfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
 
-      <Text style={styles.section}>Audio-Technik</Text>
+      <Text style={sectionStyle}>Audio-Technik</Text>
       <TrackInfoRow label="Codec" value={getTrackInfoCodec(song)} />
       <TrackInfoRow label="Bitrate" value={formatBitrate(song.audioInfo?.bitrate)} />
       <TrackInfoRow label="Bitrate-Modus" value={formatBitrateMode(song.audioInfo?.bitrateMode)} />
       <TrackInfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />
       <TrackInfoRow label="Kanäle" value={formatChannels(song.audioInfo?.channels)} />
 
-      <Text style={styles.section}>Cover</Text>
+      <Text style={sectionStyle}>Cover</Text>
       <TrackInfoRow label="Cover vorhanden" value={coverUri ? 'Ja' : 'Nein'} />
       <TrackInfoRow label="Cover-Typ" value={formatCoverStatus(coverStatus)} />
       <TrackInfoRow label="Cover-MIME-Type" value={valueOrNA(song.coverInfo?.mimeType)} />
@@ -86,7 +89,7 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
 };
 
 const styles = StyleSheet.create({
-  section: { color: theme.palette.text.secondary, fontFamily: theme.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
+  section: { fontFamily: staticTheme.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
 });
 
 export default TrackInfoSections;
