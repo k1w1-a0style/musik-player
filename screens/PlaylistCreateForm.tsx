@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { theme as staticTheme } from '../theme';
 
 interface PlaylistCreateFormProps {
   value: string;
@@ -13,54 +14,65 @@ const PlaylistCreateForm: React.FC<PlaylistCreateFormProps> = ({
   value,
   onChangeText,
   onSubmit,
-}) => (
-  <View style={styles.inputContainer}>
-    <TextInput
-      testID="new-playlist-input"
-      style={styles.input}
-      placeholder="Neue Playlist erstellen…"
-      placeholderTextColor={theme.palette.text.muted}
-      value={value}
-      onChangeText={onChangeText}
-      onSubmitEditing={onSubmit}
-      returnKeyType="done"
-      accessibilityLabel="Name der neuen Playlist"
-    />
-    <Pressable
-      testID="create-playlist-button"
-      accessibilityRole="button"
-      accessibilityLabel="Playlist erstellen"
-      onPress={onSubmit}
-      style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
-    >
-      <Plus color={theme.palette.text.onPrimary} size={18} />
-    </Pressable>
-  </View>
-);
+}) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <View style={styles.inputContainer}>
+      <TextInput
+        testID="new-playlist-input"
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.palette.surface,
+            borderColor: theme.palette.border,
+            color: theme.palette.text.primary,
+          },
+        ]}
+        placeholder="Neue Playlist erstellen…"
+        placeholderTextColor={theme.palette.text.muted}
+        value={value}
+        onChangeText={onChangeText}
+        onSubmitEditing={onSubmit}
+        returnKeyType="done"
+        accessibilityLabel="Name der neuen Playlist"
+      />
+      <Pressable
+        testID="create-playlist-button"
+        accessibilityRole="button"
+        accessibilityLabel="Playlist erstellen"
+        onPress={onSubmit}
+        style={({ pressed }) => [
+          styles.addButton,
+          { backgroundColor: theme.palette.primary },
+          pressed && styles.pressed,
+        ]}
+      >
+        <Plus color={theme.palette.text.onPrimary} size={18} />
+      </Pressable>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: theme.spacing.lg,
+    marginBottom: staticTheme.spacing.lg,
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: staticTheme.spacing.sm,
   },
   input: {
     flex: 1,
-    backgroundColor: theme.palette.surface,
-    color: theme.palette.text.primary,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: staticTheme.spacing.md,
     paddingVertical: 12,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: staticTheme.borderRadius.md,
     borderWidth: 1,
-    borderColor: theme.palette.border,
-    fontFamily: theme.fonts.body,
+    fontFamily: staticTheme.fonts.body,
   },
   addButton: {
-    backgroundColor: theme.palette.primary,
     width: 44,
     height: 44,
-    borderRadius: theme.borderRadius.pill,
+    borderRadius: staticTheme.borderRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
