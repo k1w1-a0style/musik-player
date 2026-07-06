@@ -5,13 +5,13 @@ import { useLibraryMenuActions } from '../useLibraryMenuActions';
 
 const setMenuOpen = jest.fn();
 const setSearchOpen = jest.fn();
-const showAlert = jest.fn();
+const onOpenSettings = jest.fn();
 
 const LibraryMenuActionsProbe = () => {
   const actions = useLibraryMenuActions({
     setMenuOpen,
     setSearchOpen,
-    showAlert,
+    onOpenSettings,
   });
 
   return (
@@ -50,15 +50,12 @@ describe('useLibraryMenuActions', () => {
     expect(setMenuOpen).toHaveBeenNthCalledWith(2, false);
   });
 
-  test('closes menu and shows settings alert', () => {
+  test('closes menu and opens settings screen', () => {
     const { getByTestId } = render(<LibraryMenuActionsProbe />);
 
     fireEvent.press(getByTestId('open-settings'));
 
     expect(setMenuOpen).toHaveBeenCalledWith(false);
-    expect(showAlert).toHaveBeenCalledWith({
-      title: 'Einstellungen',
-      message: 'Theme- und App-Einstellungen kommen im nächsten Schritt.',
-    });
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });

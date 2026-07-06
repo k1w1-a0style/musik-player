@@ -4,4 +4,5 @@ export const APP_STACK_ROUTES = {
   TRACK_INFO: 'TrackInfo',
   TAG_EDITOR: 'TagEditor',
   EQUALIZER: 'Equalizer',
+  SETTINGS: 'Settings',
 } as const;

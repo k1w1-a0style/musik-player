@@ -52,7 +52,7 @@ export const useLibraryControllerActions = ({
   applySongMetadataPatches,
   songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
-  const { openTrackInfo, openEqualizer: navigateToEqualizer } = useLibraryNavigationActions();
+  const { openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } = useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
 
   const openEqualizer = useCallback(() => {
@@ -68,7 +68,7 @@ export const useLibraryControllerActions = ({
   } = useLibraryMenuActions({
     setMenuOpen,
     setSearchOpen,
-    showAlert,
+    onOpenSettings: navigateToSettings,
   });
 
   const {

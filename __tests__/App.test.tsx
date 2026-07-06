@@ -21,6 +21,13 @@ jest.mock('../components/AppLoading', () => ({
   },
 }));
 
+jest.mock('../components/ThemedStatusBar', () => ({
+  __esModule: true,
+  default: function MockThemedStatusBar() {
+    return <MockText testID="themed-status-bar">status bar</MockText>;
+  },
+}));
+
 jest.mock('../components/AppProviders', () => ({
   __esModule: true,
   default: function MockAppProviders({ children }: { children: React.ReactNode }) {
@@ -62,6 +69,7 @@ describe('App', () => {
     const { getByTestId } = render(<App />);
 
     expect(getByTestId('app-providers')).toBeTruthy();
+    expect(getByTestId('themed-status-bar')).toBeTruthy();
     expect(getByTestId('root-navigator')).toBeTruthy();
   });
 });
