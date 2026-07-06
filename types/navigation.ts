@@ -4,4 +4,5 @@ export type AppStackParamList = {
   TrackInfo: { songId: string };
   TagEditor: { songId: string };
   Equalizer: undefined;
+  Settings: undefined;
 };

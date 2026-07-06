@@ -68,6 +68,7 @@ const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
 const mockNavigationActions: UseLibraryNavigationActionsResult = {
   openTrackInfo: fn,
   openEqualizer: fn,
+  openSettings: fn,
 };
 
 const mockPlaybackActions: UseLibraryPlaybackActionsResult = {
@@ -289,7 +290,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
   expect(useLibraryMenuActions).toHaveBeenCalledWith({
     setMenuOpen: mockScreenState.setMenuOpen,
     setSearchOpen: mockScreenState.setSearchOpen,
-    showAlert: mockAlerts.showAlert,
+    onOpenSettings: mockNavigationActions.openSettings,
   });
   expect(useLibraryScanFolderActions).toHaveBeenCalledWith({
     scanFolders: [],

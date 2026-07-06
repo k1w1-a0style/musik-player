@@ -1,4 +1,29 @@
 import React from 'react';
+
+const mockAppTheme = {
+  palette: {
+    backgroundDeep: '#030406',
+    surfaceElevated: '#191B21',
+    border: 'rgba(255, 255, 255, 0.08)',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryMenuModal from '../LibraryMenuModal';
 
@@ -81,4 +106,13 @@ test('calls onClose when backdrop is pressed', () => {
   fireEvent.press(getByTestId('library-menu-backdrop'));
 
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+
+test('uses app theme chrome for the menu card', () => {
+  const { getByTestId } = renderMenu();
+  const styleText = JSON.stringify(getByTestId('library-menu-card').props.style);
+
+  expect(styleText).toContain(mockAppTheme.palette.surfaceElevated);
+  expect(styleText).toContain(mockAppTheme.palette.border);
 });

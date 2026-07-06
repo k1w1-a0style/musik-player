@@ -3,6 +3,31 @@ import { fireEvent, render } from '@testing-library/react-native';
 import LibraryPlaylistRow from '../LibraryPlaylistRow';
 import type { LibraryPlaylistItem } from '../../utils/libraryPlaylists';
 
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    primary: '#D8DEE8',
+    error: '#FF6F8A',
+    text: {
+      primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
+      muted: 'rgba(244, 245, 247, 0.42)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
+}));
+
 const playlist = (patch: Partial<LibraryPlaylistItem> = {}): LibraryPlaylistItem => ({
   id: patch.id ?? 'p1',
   name: patch.name ?? 'Mix',
@@ -48,4 +73,20 @@ test('disables play button for empty playlist', () => {
   fireEvent.press(button);
 
   expect(onPlay).not.toHaveBeenCalled();
+});
+
+test('uses app theme row chrome and text colors', () => {
+  const { getByTestId, getByText } = render(<LibraryPlaylistRow playlist={playlist()} onPlay={jest.fn()} />);
+
+  expect(JSON.stringify(getByTestId('library-playlist-p1').props.style)).toContain(mockAppTheme.palette.border);
+  expect(JSON.stringify(getByTestId('library-playlist-icon-p1').props.style)).toContain(mockAppTheme.palette.surfaceGlass);
+  expect(JSON.stringify(getByTestId('library-playlist-icon-p1').props.style)).toContain(mockAppTheme.palette.border);
+  expect(JSON.stringify(getByText('Mix').props.style)).toContain(mockAppTheme.palette.text.primary);
+  expect(JSON.stringify(getByText('2 Titel').props.style)).toContain(mockAppTheme.palette.text.secondary);
+});
+
+test('uses app theme warning color', () => {
+  const { getByText } = render(<LibraryPlaylistRow playlist={playlist({ validCount: 2, totalCount: 5 })} onPlay={jest.fn()} />);
+
+  expect(JSON.stringify(getByText('3 nicht mehr gefunden').props.style)).toContain(mockAppTheme.palette.error);
 });

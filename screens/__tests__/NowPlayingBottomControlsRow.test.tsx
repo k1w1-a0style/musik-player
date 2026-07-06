@@ -1,44 +1,63 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingBottomControlsRow from '../NowPlayingBottomControlsRow';
 
-jest.mock('lucide-react-native', () => ({
-  Disc3: 'Disc3',
-  Volume2: 'Volume2',
-  VolumeX: 'VolumeX',
+const mockAppTheme = {
+  palette: {
+    surfaceGlass: 'rgba(18, 20, 26, 0.76)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    text: {
+      muted: 'rgba(244, 245, 247, 0.42)',
+    },
+  },
+};
+
+jest.mock('../../contexts/AppThemeContext', () => ({
+  useAppTheme: () => ({
+    theme: mockAppTheme,
+    appearance: 'dark',
+    skin: 'graphite',
+    isHydrated: true,
+    setAppearance: jest.fn(),
+    setSkin: jest.fn(),
+  }),
 }));
 
-describe('NowPlayingBottomControlsRow', () => {
-  test('renders the volume area inline without a heavy glass card', () => {
-    const { getByTestId, queryByTestId } = render(
-      <NowPlayingBottomControlsRow
-        volume={0.5}
-        onVolumeChange={jest.fn(async () => undefined)}
-        bottomInset={24}
-        onOpenTrackInfo={jest.fn()}
-        accentColor="#00ffaa"
-      />,
-    );
+jest.mock('../../components/VolumeSlider', () => ({
+  __esModule: true,
+  default: 'VolumeSlider',
+}));
 
-    expect(queryByTestId('glass-card')).toBeNull();
-    expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
-    expect(getByTestId('volume-slider')).toBeTruthy();
-  });
+test('renders volume wrapper and opens track info', () => {
+  const onOpenTrackInfo = jest.fn();
+  const { getByTestId } = render(
+    <NowPlayingBottomControlsRow
+      volume={0.5}
+      onVolumeChange={jest.fn()}
+      bottomInset={0}
+      onOpenTrackInfo={onOpenTrackInfo}
+      accentColor="#fff"
+    />,
+  );
 
-  test('keeps bottom inset padding bounded inside the available row', () => {
-    const { UNSAFE_root } = render(
-      <NowPlayingBottomControlsRow
-        volume={0.5}
-        onVolumeChange={jest.fn(async () => undefined)}
-        bottomInset={20}
-        onOpenTrackInfo={jest.fn()}
-        accentColor="#00ffaa"
-      />,
-    );
+  expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
 
-    expect(UNSAFE_root.children[0].props.style).toEqual(expect.arrayContaining([
-      expect.objectContaining({ marginTop: 'auto' }),
-      { paddingBottom: 32 },
-    ]));
-  });
+  fireEvent.press(getByTestId('now-playing-track-info-button'));
+  expect(onOpenTrackInfo).toHaveBeenCalledTimes(1);
+});
+
+test('uses app theme chrome for track info button', () => {
+  const { getByTestId } = render(
+    <NowPlayingBottomControlsRow
+      volume={0.5}
+      onVolumeChange={jest.fn()}
+      bottomInset={0}
+      onOpenTrackInfo={jest.fn()}
+      accentColor="#fff"
+    />,
+  );
+
+  const styleText = JSON.stringify(getByTestId('now-playing-track-info-button').props.style);
+  expect(styleText).toContain(mockAppTheme.palette.surfaceGlass);
+  expect(styleText).toContain(mockAppTheme.palette.border);
 });

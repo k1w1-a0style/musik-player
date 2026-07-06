@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface AppBackgroundProps {
   children: React.ReactNode;
@@ -34,6 +34,7 @@ const Orb: React.FC<OrbProps> = ({ color, size, start, opacity }) => (
 );
 
 const AppBackground: React.FC<AppBackgroundProps> = ({ children, style, variant = 'default' }) => {
+  const { theme } = useAppTheme();
   const gradient = variant === 'nowPlaying' ? theme.gradients.nowPlaying : theme.gradients.background;
 
   return (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { theme } from '../theme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 import NowPlayingMenuItem from './NowPlayingMenuItem';
 
 interface NowPlayingMenuModalProps {
@@ -19,38 +19,54 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   onOpenTrackInfo,
   onToggleFavorite,
   onSaveQueueAsPlaylist,
-}) => (
-  <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-    <Pressable
-      style={styles.menuBackdrop}
-      onPress={onClose}
-      accessible={false}
-      testID="now-playing-menu-backdrop"
-    >
-      <View style={styles.menuCard}>
-        <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
-        <NowPlayingMenuItem
-          label="Warteschlange speichern"
-          onPress={() => {
-            onSaveQueueAsPlaylist();
-            onClose();
-          }}
-        />
-        <NowPlayingMenuItem
-          label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
-          onPress={() => {
-            onToggleFavorite();
-            onClose();
-          }}
-        />
-      </View>
-    </Pressable>
-  </Modal>
-);
+}) => {
+  const { appearance, theme } = useAppTheme();
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <Pressable
+        style={[
+          styles.menuBackdrop,
+          { backgroundColor: appearance === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.22)' },
+        ]}
+        onPress={onClose}
+        accessible={false}
+        testID="now-playing-menu-backdrop"
+      >
+        <View
+          style={[
+            styles.menuCard,
+            {
+              backgroundColor: theme.palette.surfaceElevated,
+              borderColor: theme.palette.border,
+            },
+          ]}
+          testID="now-playing-menu-card"
+        >
+          <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
+          <NowPlayingMenuItem
+            label="Warteschlange speichern"
+            onPress={() => {
+              onSaveQueueAsPlaylist();
+              onClose();
+            }}
+          />
+          <NowPlayingMenuItem
+            label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+            onPress={() => {
+              onToggleFavorite();
+              onClose();
+            }}
+          />
+        </View>
+      </Pressable>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
-  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22, backgroundColor: 'rgba(0,0,0,0.20)' },
-  menuCard: { width: 235, borderRadius: 20, backgroundColor: theme.palette.surfaceElevated, paddingVertical: 8, borderWidth: 1, borderColor: theme.palette.border },
+  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22 },
+  menuCard: { width: 235, borderRadius: 20, paddingVertical: 8, borderWidth: 1 },
 });
 
 export default NowPlayingMenuModal;

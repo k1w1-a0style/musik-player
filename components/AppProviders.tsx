@@ -1,5 +1,6 @@
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppThemeProvider } from '../contexts/AppThemeContext';
 import { MusicProvider } from '../contexts/MusicContext';
 import { PlaybackProgressProvider } from '../contexts/PlaybackProgressContext';
 
@@ -9,9 +10,11 @@ interface AppProvidersProps {
 
 const AppProviders: React.FC<AppProvidersProps> = ({ children }) => (
   <SafeAreaProvider>
-    <MusicProvider>
-      <PlaybackProgressProvider>{children}</PlaybackProgressProvider>
-    </MusicProvider>
+    <AppThemeProvider>
+      <MusicProvider>
+        <PlaybackProgressProvider>{children}</PlaybackProgressProvider>
+      </MusicProvider>
+    </AppThemeProvider>
   </SafeAreaProvider>
 );
 

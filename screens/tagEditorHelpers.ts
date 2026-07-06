@@ -18,7 +18,7 @@ const ID3V22_UNSUPPORTED_MESSAGE =
 const ID3V24_UNSUPPORTED_MESSAGE =
   'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen; bitte extern nach ID3v2.3 konvertieren oder die Datei unverändert lassen.';
 const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
-const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Diese Änderung kann für diese Datei oder Quelle noch nicht sicher geschrieben werden. Prüfe SAF-Berechtigung, Format und ob es sich um MP3-Texttags handelt.';
+const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
 let embeddedArtworkRevision = 0;
 

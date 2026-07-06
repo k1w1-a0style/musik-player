@@ -8,6 +8,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 export interface UseLibraryNavigationActionsResult {
   openTrackInfo: (song: Song) => void;
   openEqualizer: () => void;
+  openSettings: () => void;
 }
 
 export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult => {
@@ -21,5 +22,9 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
     navigation.navigate(APP_STACK_ROUTES.EQUALIZER);
   }, [navigation]);
 
-  return { openTrackInfo, openEqualizer };
+  const openSettings = useCallback(() => {
+    navigation.navigate(APP_STACK_ROUTES.SETTINGS);
+  }, [navigation]);
+
+  return { openTrackInfo, openEqualizer, openSettings };
 };
