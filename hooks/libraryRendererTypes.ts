@@ -7,6 +7,7 @@ import type { LibrarySongViewMode } from '../utils/libraryViewMode';
 
 export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
 export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
+export type LibraryRendererOpenPlaylistDetail = (playlistId: string) => unknown;
 export type LibraryRendererRemoveFolder = (folder: ScanFolder) => void | Promise<void>;
 export type LibraryRendererOpenTrackInfo = (song: Song) => void;
 export type LibraryRendererHandleSongPress = (song: Song, queue?: Song[]) => void;
@@ -15,6 +16,7 @@ export interface UseLibraryRenderersOptions {
   currentSongId: string | null;
   filteredSongs: Song[];
   isPlaying: boolean;
+  onOpenPlaylistDetail: LibraryRendererOpenPlaylistDetail;
   onOpenTrackInfo: LibraryRendererOpenTrackInfo;
   playPlaylist: LibraryRendererPlayPlaylist;
   playSong: LibraryRendererPlaySong;
