@@ -32,11 +32,11 @@ const LibraryTabs: React.FC<LibraryTabsProps> = ({ activeTab, onChangeTab }) => 
             style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}
             testID={`library-tab-${tab.key}`}
           >
-            <Text style={[styles.tabLabel, { color: active ? theme.palette.text.primary : theme.palette.text.secondary }]}>
+            <Text style={[styles.tabLabel, { color: active ? theme.palette.text.primary : theme.palette.text.secondary }]}> 
               {tab.label}
             </Text>
             <View
-              style={[styles.indicator, { backgroundColor: active ? theme.palette.primary : 'rgba(0,0,0,0)' }]}
+              style={[styles.indicator, { backgroundColor: theme.palette.primary, opacity: Number(active) }]}
               testID={`library-tab-indicator-${tab.key}`}
             />
           </Pressable>
