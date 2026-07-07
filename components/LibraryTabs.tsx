@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { theme as staticTheme } from '../theme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
@@ -32,9 +32,13 @@ const LibraryTabs: React.FC<LibraryTabsProps> = ({ activeTab, onChangeTab }) => 
             style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}
             testID={`library-tab-${tab.key}`}
           >
-            <Text style={[active ? styles.tabActive : styles.tabMuted, { color: active ? theme.palette.text.primary : theme.palette.text.secondary }]}>
+            <Text style={[styles.tabLabel, { color: active ? theme.palette.text.primary : theme.palette.text.secondary }]}> 
               {tab.label}
             </Text>
+            <View
+              style={[styles.indicator, { backgroundColor: theme.palette.primary, opacity: Number(active) }]}
+              testID={`library-tab-indicator-${tab.key}`}
+            />
           </Pressable>
         );
       })}
@@ -45,9 +49,9 @@ const LibraryTabs: React.FC<LibraryTabsProps> = ({ activeTab, onChangeTab }) => 
 const styles = StyleSheet.create({
   tabsScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 48, marginBottom: 8 },
   tabsRow: { alignItems: 'flex-end', gap: 15, paddingHorizontal: 20, paddingRight: 34 },
-  tabButton: { paddingVertical: 4 },
-  tabMuted: { fontFamily: staticTheme.fonts.body, fontSize: 14 },
-  tabActive: { fontFamily: staticTheme.fonts.body, fontSize: 23, letterSpacing: -0.8 },
+  tabButton: { paddingVertical: 4, alignItems: 'center' },
+  tabLabel: { fontFamily: staticTheme.fonts.body, fontSize: 16, letterSpacing: -0.3 },
+  indicator: { marginTop: 4, height: 2, width: 18, borderRadius: 1 },
   pressed: { opacity: 0.72 },
 });
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryMenuItem from '../LibraryMenuItem';
 
@@ -36,6 +37,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
   }),
 }));
 
+const TestIcon: React.FC<{ color?: string; size?: number }> = ({ color, size }) => (
+  <Text testID="test-menu-icon" style={{ color, fontSize: size }}>icon</Text>
+);
+
 test('renders label and calls onPress', () => {
   const onPress = jest.fn();
   const { getByText, getByTestId } = render(<LibraryMenuItem label="Importieren / Rescan" onPress={onPress} />);
@@ -62,4 +67,12 @@ test('applies muted text style', () => {
 
   const textStyle = getByText('Aktive Scan-Ordner: 1').props.style;
   expect(textStyle).toEqual(expect.arrayContaining([expect.objectContaining({ fontSize: 14 })]));
+});
+
+test('renders an optional icon slot with themed icon props', () => {
+  const { getByTestId } = render(<LibraryMenuItem label="Equalizer" onPress={jest.fn()} icon={TestIcon} />);
+
+  expect(getByTestId('library-menu-item-icon-equalizer')).toBeTruthy();
+  expect(JSON.stringify(getByTestId('test-menu-icon').props.style)).toContain('#F4F5F7');
+  expect(JSON.stringify(getByTestId('test-menu-icon').props.style)).toContain('18');
 });
