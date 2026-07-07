@@ -1,9 +1,14 @@
 import type { Song } from '../types/Song';
 import { displayArtist, displayTitle } from './libraryPresentation';
 
-export type LibrarySortMode = 'alphabet' | 'trackNumber' | 'year';
+export type LibrarySortMode = 'alphabet' | 'trackNumber' | 'year' | 'recentlyAdded';
 
-export const LIBRARY_SORT_MODES: readonly LibrarySortMode[] = ['alphabet', 'trackNumber', 'year'] as const;
+export const LIBRARY_SORT_MODES: readonly LibrarySortMode[] = [
+  'alphabet',
+  'trackNumber',
+  'year',
+  'recentlyAdded',
+] as const;
 
 export const DEFAULT_LIBRARY_SORT_MODE: LibrarySortMode = 'alphabet';
 
@@ -11,10 +16,11 @@ const LIBRARY_SORT_MODE_LABELS: Record<LibrarySortMode, string> = {
   alphabet: 'A–Z',
   trackNumber: 'Track',
   year: 'Jahr',
+  recentlyAdded: 'Neueste',
 };
 
 export const isLibrarySortMode = (value: unknown): value is LibrarySortMode =>
-  value === 'alphabet' || value === 'trackNumber' || value === 'year';
+  value === 'alphabet' || value === 'trackNumber' || value === 'year' || value === 'recentlyAdded';
 
 export const getLibrarySortModeLabel = (mode: LibrarySortMode): string => LIBRARY_SORT_MODE_LABELS[mode];
 
@@ -29,6 +35,9 @@ const parseLeadingInt = (value?: string): number | null => {
   return match ? Number.parseInt(match[0], 10) : null;
 };
 
+const parseFiniteTimestamp = (value?: number): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
 const compareText = (left: string, right: string): number =>
   left.localeCompare(right, 'de', { sensitivity: 'base', numeric: true });
 
@@ -38,6 +47,14 @@ const compareNumberNullsLast = (left: number | null, right: number | null): numb
   if (left === null) return 1;
   if (right === null) return -1;
   return left - right;
+};
+
+// Missing/invalid timestamps sort to the end; newer imports appear first.
+const compareTimestampDescNullsLast = (left: number | null, right: number | null): number => {
+  if (left === right) return 0;
+  if (left === null) return 1;
+  if (right === null) return -1;
+  return right - left;
 };
 
 const compareByMode = (left: Song, right: Song, mode: LibrarySortMode): number => {
@@ -52,6 +69,13 @@ const compareByMode = (left: Song, right: Song, mode: LibrarySortMode): number =
   if (mode === 'year') {
     return compareNumberNullsLast(parseLeadingInt(left.year), parseLeadingInt(right.year))
       || compareText(leftTitle, rightTitle);
+  }
+
+  if (mode === 'recentlyAdded') {
+    return compareTimestampDescNullsLast(
+      parseFiniteTimestamp(left.fileInfo?.importedAt),
+      parseFiniteTimestamp(right.fileInfo?.importedAt),
+    ) || compareText(leftTitle, rightTitle);
   }
 
   return compareText(leftTitle, rightTitle) || compareText(displayArtist(left), displayArtist(right));
