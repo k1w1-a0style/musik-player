@@ -43,11 +43,9 @@ const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onOpe
           <Text style={[styles.groupTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
             {playlist.name}
           </Text>
-          <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]}> 
-            {playlist.validCount} Titel
-          </Text>
+          <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]}>{playlist.validCount} Titel</Text>
           {playlist.validCount !== playlist.totalCount && (
-            <Text style={[styles.playlistWarning, { color: theme.palette.error }]}> 
+            <Text style={[styles.playlistWarning, { color: theme.palette.error }]}>
               {playlist.totalCount - playlist.validCount} nicht mehr gefunden
             </Text>
           )}
