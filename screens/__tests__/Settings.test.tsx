@@ -1,62 +1,25 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import Settings from '../Settings';
-import type { AppAppearance, AppTheme, AppThemeSkin } from '../../utils/appTheme';
+import {
+  APP_APPEARANCES,
+  APP_THEME_SKINS,
+  getAppTheme,
+  type AppAppearance,
+  type AppThemeSkin,
+} from '../../utils/appTheme';
 
 const mockSetAppearance = jest.fn();
 const mockSetSkin = jest.fn();
 let mockAppearance: AppAppearance = 'dark';
 let mockSkin: AppThemeSkin = 'graphite';
 
-const mockBuildTheme = (): AppTheme => {
-  const dark = mockAppearance === 'dark';
-  const skinLabel = mockSkin === 'neon-cover' ? 'Neon Cover' : mockSkin === 'minimal' ? 'Minimal' : 'Graphite';
-  const appearanceLabel = dark ? 'Dark' : 'Light';
-
-  return {
-    id: `${mockSkin}-${mockAppearance}`,
-    appearance: mockAppearance,
-    skin: mockSkin,
-    label: `${skinLabel} ${appearanceLabel}`,
-    navigationDark: dark,
-    statusBarStyle: dark ? 'light-content' : 'dark-content',
-    palette: {
-      background: dark ? '#08090B' : '#F4F5F7',
-      backgroundDeep: dark ? '#030406' : '#E8EAEE',
-      surface: dark ? '#111318' : '#FFFFFF',
-      surfaceElevated: dark ? '#191B21' : '#EEF1F5',
-      surfaceGlass: dark ? 'rgba(18, 20, 26, 0.76)' : 'rgba(255, 255, 255, 0.82)',
-      card: dark ? '#111318' : '#FFFFFF',
-      cardElevated: dark ? '#1A1D24' : '#F0F2F6',
-      border: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(12, 16, 22, 0.10)',
-      borderStrong: dark ? 'rgba(210, 218, 230, 0.28)' : 'rgba(12, 16, 22, 0.20)',
-      primary: dark ? '#D8DEE8' : '#232832',
-      primaryDark: dark ? '#87909E' : '#515B6A',
-      primaryGlow: dark ? 'rgba(216, 222, 232, 0.12)' : 'rgba(35, 40, 50, 0.10)',
-      accent: dark ? '#BFC7D4' : '#4F5B6B',
-      accentGlow: dark ? 'rgba(191, 199, 212, 0.10)' : 'rgba(79, 91, 107, 0.12)',
-      success: dark ? '#D8DEE8' : '#2E7D50',
-      error: dark ? '#FF6F8A' : '#C83A59',
-      warning: dark ? '#FFCA77' : '#A76519',
-      text: {
-        primary: dark ? '#F4F5F7' : '#101319',
-        secondary: dark ? 'rgba(244, 245, 247, 0.70)' : 'rgba(16, 19, 25, 0.68)',
-        muted: dark ? 'rgba(244, 245, 247, 0.42)' : 'rgba(16, 19, 25, 0.42)',
-        onPrimary: dark ? '#07090C' : '#FFFFFF',
-      },
-    },
-    gradients: {
-      background: dark ? ['#030406', '#08090B', '#0D1014'] : ['#E8EAEE', '#F4F5F7', '#FFFFFF'],
-      nowPlaying: dark ? ['#030406', '#08090B', '#0D1014'] : ['#E8EAEE', '#F4F5F7', '#FFFFFF'],
-    },
-  };
-};
-
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
     appearance: mockAppearance,
     skin: mockSkin,
-    theme: mockBuildTheme(),
+    theme: getAppTheme(mockAppearance, mockSkin),
     isHydrated: true,
     setAppearance: mockSetAppearance,
     setSkin: mockSetSkin,
@@ -77,8 +40,46 @@ describe('Settings', () => {
     expect(getByTestId('settings-screen')).toBeTruthy();
     expect(getByText('Hell / Dunkel')).toBeTruthy();
     expect(getByText('Oberfläche')).toBeTruthy();
-    expect(getByTestId('settings-appearance-dark').props.accessibilityState.selected).toBe(true);
-    expect(getByTestId('settings-skin-graphite').props.accessibilityState.selected).toBe(true);
+    for (const appearance of APP_APPEARANCES) {
+      expect(getByTestId(`settings-appearance-${appearance}`)).toBeTruthy();
+    }
+    for (const skin of APP_THEME_SKINS) {
+      expect(getByTestId(`settings-skin-${skin}`)).toBeTruthy();
+    }
+  });
+
+  test('marks the current appearance and skin controls as selected', () => {
+    mockAppearance = 'light';
+    mockSkin = 'minimal';
+
+    const { getByTestId } = render(<Settings />);
+
+    expect(getByTestId('settings-appearance-dark').props.accessibilityState.selected).toBe(false);
+    expect(getByTestId('settings-appearance-light').props.accessibilityState.selected).toBe(true);
+    expect(getByTestId('settings-skin-graphite').props.accessibilityState.selected).toBe(false);
+    expect(getByTestId('settings-skin-minimal').props.accessibilityState.selected).toBe(true);
+    expect(getByTestId('settings-skin-neon-cover').props.accessibilityState.selected).toBe(false);
+  });
+
+  test('styles selected and unselected controls from the active theme palette', () => {
+    mockAppearance = 'light';
+    mockSkin = 'neon-cover';
+    const activeTheme = getAppTheme(mockAppearance, mockSkin);
+
+    const { getByTestId } = render(<Settings />);
+    const selectedAppearanceStyle = StyleSheet.flatten(getByTestId('settings-appearance-light').props.style);
+    const unselectedAppearanceStyle = StyleSheet.flatten(getByTestId('settings-appearance-dark').props.style);
+    const selectedSkinStyle = StyleSheet.flatten(getByTestId('settings-skin-neon-cover').props.style);
+    const unselectedSkinStyle = StyleSheet.flatten(getByTestId('settings-skin-minimal').props.style);
+
+    expect(selectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surfaceElevated);
+    expect(selectedAppearanceStyle.borderColor).toBe(activeTheme.palette.primary);
+    expect(unselectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surface);
+    expect(unselectedAppearanceStyle.borderColor).toBe(activeTheme.palette.border);
+    expect(selectedSkinStyle.backgroundColor).toBe(activeTheme.palette.surfaceElevated);
+    expect(selectedSkinStyle.borderColor).toBe(activeTheme.palette.primary);
+    expect(unselectedSkinStyle.backgroundColor).toBe(activeTheme.palette.surface);
+    expect(unselectedSkinStyle.borderColor).toBe(activeTheme.palette.border);
   });
 
   test('changes appearance and skin through settings controls', () => {
@@ -99,5 +100,20 @@ describe('Settings', () => {
 
     expect(getByTestId('settings-theme-preview')).toBeTruthy();
     expect(getByText('Minimal Light')).toBeTruthy();
+  });
+
+  test('styles the screen and preview from the current theme values', () => {
+    mockAppearance = 'light';
+    mockSkin = 'neon-cover';
+    const activeTheme = getAppTheme(mockAppearance, mockSkin);
+
+    const { getByTestId, getByText } = render(<Settings />);
+    const screenStyle = StyleSheet.flatten(getByTestId('settings-screen').props.style);
+    const previewStyle = StyleSheet.flatten(getByTestId('settings-theme-preview').props.style);
+
+    expect(getByText(activeTheme.label)).toBeTruthy();
+    expect(screenStyle.backgroundColor).toBe(activeTheme.palette.background);
+    expect(previewStyle.backgroundColor).toBe(activeTheme.palette.surfaceGlass);
+    expect(previewStyle.borderColor).toBe(activeTheme.palette.borderStrong);
   });
 });
