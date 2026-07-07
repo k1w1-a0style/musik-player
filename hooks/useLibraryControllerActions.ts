@@ -31,6 +31,7 @@ export interface UseLibraryControllerActionsResult {
   openMenu: () => void;
   openSettings: () => void;
   openEqualizer: () => void;
+  openPlaylistDetail: (playlistId: string) => void;
   openTrackInfo: (song: Song) => void;
   refreshMetadataFromFiles: () => Promise<void>;
   cancelMetadataRefresh: () => boolean;
@@ -52,7 +53,12 @@ export const useLibraryControllerActions = ({
   applySongMetadataPatches,
   songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
-  const { openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } = useLibraryNavigationActions();
+  const {
+    openPlaylistDetail,
+    openTrackInfo,
+    openEqualizer: navigateToEqualizer,
+    openSettings: navigateToSettings,
+  } = useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
 
   const openEqualizer = useCallback(() => {
@@ -113,6 +119,7 @@ export const useLibraryControllerActions = ({
     openMenu,
     openSettings,
     openEqualizer,
+    openPlaylistDetail,
     openTrackInfo,
     refreshMetadataFromFiles,
     cancelMetadataRefresh: cancelRefresh,
