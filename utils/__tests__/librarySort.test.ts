@@ -18,21 +18,24 @@ const makeSong = (overrides: Partial<Song>): Song => ({
 describe('librarySort', () => {
   test('default mode and mode guards', () => {
     expect(DEFAULT_LIBRARY_SORT_MODE).toBe('alphabet');
-    expect(LIBRARY_SORT_MODES).toEqual(['alphabet', 'trackNumber', 'year']);
+    expect(LIBRARY_SORT_MODES).toEqual(['alphabet', 'trackNumber', 'year', 'recentlyAdded']);
     expect(isLibrarySortMode('year')).toBe(true);
+    expect(isLibrarySortMode('recentlyAdded')).toBe(true);
     expect(isLibrarySortMode('nope')).toBe(false);
   });
 
   test('cycles through the modes', () => {
     expect(getNextLibrarySortMode('alphabet')).toBe('trackNumber');
     expect(getNextLibrarySortMode('trackNumber')).toBe('year');
-    expect(getNextLibrarySortMode('year')).toBe('alphabet');
+    expect(getNextLibrarySortMode('year')).toBe('recentlyAdded');
+    expect(getNextLibrarySortMode('recentlyAdded')).toBe('alphabet');
   });
 
   test('exposes short labels', () => {
     expect(getLibrarySortModeLabel('alphabet')).toBe('A–Z');
     expect(getLibrarySortModeLabel('trackNumber')).toBe('Track');
     expect(getLibrarySortModeLabel('year')).toBe('Jahr');
+    expect(getLibrarySortModeLabel('recentlyAdded')).toBe('Neueste');
   });
 
   test('sorts alphabetically by title (case-insensitive) without mutating input', () => {
@@ -74,5 +77,23 @@ describe('librarySort', () => {
       makeSong({ id: 'c', title: 'C', year: '1998' }),
     ];
     expect(sortLibrarySongs(songs, 'year').map(song => song.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  test('sorts recently added songs newest first with missing values last', () => {
+    const songs = [
+      makeSong({ id: 'old', title: 'Old', fileInfo: { importedAt: 100 } }),
+      makeSong({ id: 'missing', title: 'Missing' }),
+      makeSong({ id: 'new', title: 'New', fileInfo: { importedAt: 300 } }),
+      makeSong({ id: 'invalid', title: 'Invalid', fileInfo: { importedAt: Number.NaN } }),
+      makeSong({ id: 'middle', title: 'Middle', fileInfo: { importedAt: 200 } }),
+    ];
+
+    expect(sortLibrarySongs(songs, 'recentlyAdded').map(song => song.id)).toEqual([
+      'new',
+      'middle',
+      'old',
+      'invalid',
+      'missing',
+    ]);
   });
 });
