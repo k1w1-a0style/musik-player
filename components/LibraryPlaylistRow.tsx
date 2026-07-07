@@ -7,10 +7,11 @@ import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 
 interface LibraryPlaylistRowProps {
   playlist: LibraryPlaylistItem;
+  onOpen: (playlistId: string) => void;
   onPlay: (playlistId: string) => void | Promise<void>;
 }
 
-const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onPlay }) => {
+const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onOpen, onPlay }) => {
   const { theme } = useAppTheme();
   const disabled = playlist.validCount === 0;
 
@@ -19,31 +20,39 @@ const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onPla
       style={[styles.playlistRow, { borderBottomColor: theme.palette.border }]}
       testID={`library-playlist-${playlist.id}`}
     >
-      <View
-        style={[
-          styles.groupIcon,
-          {
-            backgroundColor: theme.palette.surfaceGlass,
-            borderColor: theme.palette.border,
-          },
-        ]}
-        testID={`library-playlist-icon-${playlist.id}`}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Playlist ${playlist.name}`}
+        onPress={() => onOpen(playlist.id)}
+        style={({ pressed }) => [styles.openArea, pressed && styles.pressed]}
+        testID={`open-playlist-${playlist.id}`}
       >
-        <ListMusic color={theme.palette.primary} size={20} />
-      </View>
-      <View style={styles.groupTextWrap}>
-        <Text style={[styles.groupTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-          {playlist.name}
-        </Text>
-        <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]}>
-          {playlist.validCount} Titel
-        </Text>
-        {playlist.validCount !== playlist.totalCount && (
-          <Text style={[styles.playlistWarning, { color: theme.palette.error }]}>
-            {playlist.totalCount - playlist.validCount} nicht mehr gefunden
+        <View
+          style={[
+            styles.groupIcon,
+            {
+              backgroundColor: theme.palette.surfaceGlass,
+              borderColor: theme.palette.border,
+            },
+          ]}
+          testID={`library-playlist-icon-${playlist.id}`}
+        >
+          <ListMusic color={theme.palette.primary} size={20} />
+        </View>
+        <View style={styles.groupTextWrap}>
+          <Text style={[styles.groupTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
+            {playlist.name}
           </Text>
-        )}
-      </View>
+          <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]}> 
+            {playlist.validCount} Titel
+          </Text>
+          {playlist.validCount !== playlist.totalCount && (
+            <Text style={[styles.playlistWarning, { color: theme.palette.error }]}> 
+              {playlist.totalCount - playlist.validCount} nicht mehr gefunden
+            </Text>
+          )}
+        </View>
+      </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Playlist ${playlist.name} abspielen`}
@@ -74,6 +83,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  openArea: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   groupIcon: {
     width: 42,
