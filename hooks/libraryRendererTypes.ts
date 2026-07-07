@@ -16,7 +16,7 @@ export interface UseLibraryRenderersOptions {
   currentSongId: string | null;
   filteredSongs: Song[];
   isPlaying: boolean;
-  onOpenPlaylistDetail: LibraryRendererOpenPlaylistDetail;
+  onOpenPlaylistDetail?: LibraryRendererOpenPlaylistDetail;
   onOpenTrackInfo: LibraryRendererOpenTrackInfo;
   playPlaylist: LibraryRendererPlayPlaylist;
   playSong: LibraryRendererPlaySong;
