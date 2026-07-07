@@ -7,6 +7,7 @@ import TrackInfo from '../screens/TrackInfo';
 import TagEditor from '../screens/TagEditor';
 import Equalizer from '../screens/Equalizer';
 import Settings from '../screens/Settings';
+import PlaylistDetail from '../screens/PlaylistDetail';
 import { APP_STACK_ROUTES } from '../types/routes';
 import { createAppNavigationTheme } from './appNavigationTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -52,6 +53,11 @@ const RootNavigator: React.FC = () => {
         name={APP_STACK_ROUTES.SETTINGS}
         component={Settings}
         options={{ headerShown: true, title: 'Einstellungen' }}
+      />
+      <Stack.Screen
+        name={APP_STACK_ROUTES.PLAYLIST_DETAIL}
+        component={PlaylistDetail}
+        options={{ headerShown: true, title: 'Playlist' }}
       />
       <Stack.Screen
         name={APP_STACK_ROUTES.NOW_PLAYING}

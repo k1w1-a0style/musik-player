@@ -5,4 +5,5 @@ export const APP_STACK_ROUTES = {
   TAG_EDITOR: 'TagEditor',
   EQUALIZER: 'Equalizer',
   SETTINGS: 'Settings',
+  PLAYLIST_DETAIL: 'PlaylistDetail',
 } as const;

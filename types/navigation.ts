@@ -5,4 +5,5 @@ export type AppStackParamList = {
   TagEditor: { songId: string };
   Equalizer: undefined;
   Settings: undefined;
+  PlaylistDetail: { playlistId: string };
 };

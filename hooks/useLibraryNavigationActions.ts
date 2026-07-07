@@ -9,6 +9,7 @@ export interface UseLibraryNavigationActionsResult {
   openTrackInfo: (song: Song) => void;
   openEqualizer: () => void;
   openSettings: () => void;
+  openPlaylistDetail: (playlistId: string) => void;
 }
 
 export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult => {
@@ -26,5 +27,9 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
     navigation.navigate(APP_STACK_ROUTES.SETTINGS);
   }, [navigation]);
 
-  return { openTrackInfo, openEqualizer, openSettings };
+  const openPlaylistDetail = useCallback((playlistId: string) => {
+    navigation.navigate('PlaylistDetail', { playlistId });
+  }, [navigation]);
+
+  return { openTrackInfo, openEqualizer, openSettings, openPlaylistDetail };
 };

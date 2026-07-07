@@ -28,6 +28,7 @@ type MockLibraryAlbumTileProps = {
 
 type MockLibraryPlaylistRowProps = {
   playlist: LibraryPlaylistItem;
+  onOpen: (playlistId: string) => void;
   onPlay: (playlistId: string) => void;
 };
 
@@ -66,7 +67,12 @@ jest.mock('../../components/LibraryAlbumTile', () => (props: MockLibraryAlbumTil
 
 jest.mock('../../components/LibraryPlaylistRow', () => (props: MockLibraryPlaylistRowProps) => {
   mockPlaylistRowProps.push(props);
-  return mockReact.createElement(mockButton, { title: `playlist-${props.playlist.id}`, onPress: () => props.onPlay(props.playlist.id) });
+  return mockReact.createElement(
+    mockReact.Fragment,
+    null,
+    mockReact.createElement(mockButton, { title: `playlist-open-${props.playlist.id}`, onPress: () => props.onOpen(props.playlist.id) }),
+    mockReact.createElement(mockButton, { title: `playlist-play-${props.playlist.id}`, onPress: () => props.onPlay(props.playlist.id) }),
+  );
 });
 
 jest.mock('../../components/LibraryFolderRow', () => (props: MockLibraryFolderRowProps) => {
@@ -123,6 +129,7 @@ const HookHarness = ({
   folderItem = folder('folder-1'),
   groupItem = group('group-1', [song('group-song')]),
   isPlaying = true,
+  onOpenPlaylistDetail = jest.fn(),
   onOpenTrackInfo = jest.fn(),
   playlistItem = playlist('playlist-1'),
   playPlaylist = jest.fn(),
@@ -134,6 +141,7 @@ const HookHarness = ({
     currentSongId,
     filteredSongs,
     isPlaying,
+    onOpenPlaylistDetail,
     onOpenTrackInfo,
     playPlaylist,
     playSong,
@@ -260,11 +268,20 @@ test('renderAlbumTile does not play anything for an empty album', () => {
   expect(playSong).not.toHaveBeenCalled();
 });
 
+test('renderPlaylistItem opens the playlist detail from the row body', () => {
+  const onOpenPlaylistDetail = jest.fn();
+  const screen = render(<HookHarness onOpenPlaylistDetail={onOpenPlaylistDetail} playlistItem={playlist('playlist-to-open')} />);
+
+  fireEvent.press(screen.getByText('playlist-open-playlist-to-open'));
+
+  expect(onOpenPlaylistDetail).toHaveBeenCalledWith('playlist-to-open');
+});
+
 test('renderPlaylistItem calls playPlaylist with the playlist id', () => {
   const playPlaylist = jest.fn();
   const screen = render(<HookHarness playPlaylist={playPlaylist} playlistItem={playlist('playlist-to-play')} />);
 
-  fireEvent.press(screen.getByText('playlist-playlist-to-play'));
+  fireEvent.press(screen.getByText('playlist-play-playlist-to-play'));
 
   expect(playPlaylist).toHaveBeenCalledWith('playlist-to-play');
 });

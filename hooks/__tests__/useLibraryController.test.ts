@@ -69,6 +69,7 @@ const mockNavigationActions: UseLibraryNavigationActionsResult = {
   openTrackInfo: fn,
   openEqualizer: fn,
   openSettings: fn,
+  openPlaylistDetail: fn,
 };
 
 const mockPlaybackActions: UseLibraryPlaybackActionsResult = {
@@ -323,6 +324,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     currentSongId: null,
     filteredSongs: [],
     isPlaying: false,
+    onOpenPlaylistDetail: mockNavigationActions.openPlaylistDetail,
     onOpenTrackInfo: mockNavigationActions.openTrackInfo,
     playPlaylist: mockMusicContext.playPlaylist,
     playSong: mockMusicContext.playSong,

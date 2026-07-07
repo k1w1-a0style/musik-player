@@ -4,6 +4,7 @@ import { useLibrarySongRenderer } from './useLibrarySongRenderer';
 import type { UseLibraryRenderersOptions, UseLibraryRenderersResult } from './libraryRendererTypes';
 
 export type {
+  LibraryRendererOpenPlaylistDetail,
   LibraryRendererOpenTrackInfo,
   LibraryRendererPlayPlaylist,
   LibraryRendererPlaySong,
@@ -16,6 +17,7 @@ export const useLibraryRenderers = ({
   currentSongId,
   filteredSongs,
   isPlaying,
+  onOpenPlaylistDetail,
   onOpenTrackInfo,
   playPlaylist,
   playSong,
@@ -36,6 +38,7 @@ export const useLibraryRenderers = ({
   });
 
   const playlistFolderRenderers = useLibraryPlaylistFolderRenderers({
+    onOpenPlaylistDetail,
     playPlaylist,
     removeFolder,
   });

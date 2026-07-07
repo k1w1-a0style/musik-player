@@ -57,3 +57,15 @@ test('openSettings navigates to the settings screen', () => {
 
   expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.SETTINGS);
 });
+
+test('openPlaylistDetail navigates to playlist detail with playlist id', () => {
+  const navigate = jest.fn();
+  mockedUseNavigation.mockReturnValue({ navigate } as never);
+  const { result } = renderHook(() => useLibraryNavigationActions());
+
+  act(() => {
+    result.current.openPlaylistDetail('playlist-1');
+  });
+
+  expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.PLAYLIST_DETAIL, { playlistId: 'playlist-1' });
+});

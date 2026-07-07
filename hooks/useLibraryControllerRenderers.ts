@@ -10,6 +10,7 @@ export interface UseLibraryControllerRenderersOptions {
   currentSongId: string | null;
   filteredSongs: Song[];
   isPlaying: boolean;
+  onOpenPlaylistDetail: (playlistId: string) => void;
   onOpenTrackInfo: (song: Song) => void;
   playPlaylist: (playlistId: string) => unknown;
   playSong: (song: Song, queue?: Song[]) => unknown;
@@ -29,6 +30,7 @@ export const useLibraryControllerRenderers = ({
   currentSongId,
   filteredSongs,
   isPlaying,
+  onOpenPlaylistDetail,
   onOpenTrackInfo,
   playPlaylist,
   playSong,
@@ -41,6 +43,7 @@ export const useLibraryControllerRenderers = ({
     currentSongId,
     filteredSongs,
     isPlaying,
+    onOpenPlaylistDetail,
     onOpenTrackInfo,
     playPlaylist,
     playSong,
