@@ -116,3 +116,11 @@ test('uses app theme chrome for the menu card', () => {
   expect(styleText).toContain(mockAppTheme.palette.surfaceElevated);
   expect(styleText).toContain(mockAppTheme.palette.border);
 });
+
+test('renders menu icon slots and section divider', () => {
+  const { getByTestId } = renderMenu();
+
+  expect(getByTestId('library-menu-item-icon-importieren-rescan')).toBeTruthy();
+  expect(getByTestId('library-menu-item-icon-equalizer')).toBeTruthy();
+  expect(JSON.stringify(getByTestId('library-menu-section-divider').props.style)).toContain(mockAppTheme.palette.border);
+});
