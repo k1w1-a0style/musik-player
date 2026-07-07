@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme as staticTheme } from '../theme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
-type MenuIcon = React.ComponentType<{ color?: string; size?: number }>;
+type MenuIcon = React.ElementType<{ color?: string; size?: number }>;
 
 interface LibraryMenuItemProps {
   label: string;
