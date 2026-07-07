@@ -7,6 +7,7 @@ import {
   APP_THEME_SKINS,
   getAppTheme,
   type AppAppearance,
+  type AppTheme,
   type AppThemeSkin,
 } from '../../utils/appTheme';
 
@@ -14,12 +15,20 @@ const mockSetAppearance = jest.fn();
 const mockSetSkin = jest.fn();
 let mockAppearance: AppAppearance = 'dark';
 let mockSkin: AppThemeSkin = 'graphite';
+let mockTheme: AppTheme = getAppTheme(mockAppearance, mockSkin);
+
+const setMockTheme = (appearance: AppAppearance, skin: AppThemeSkin): AppTheme => {
+  mockAppearance = appearance;
+  mockSkin = skin;
+  mockTheme = getAppTheme(appearance, skin);
+  return mockTheme;
+};
 
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
     appearance: mockAppearance,
     skin: mockSkin,
-    theme: getAppTheme(mockAppearance, mockSkin),
+    theme: mockTheme,
     isHydrated: true,
     setAppearance: mockSetAppearance,
     setSkin: mockSetSkin,
@@ -30,8 +39,7 @@ describe('Settings', () => {
   beforeEach(() => {
     mockSetAppearance.mockClear();
     mockSetSkin.mockClear();
-    mockAppearance = 'dark';
-    mockSkin = 'graphite';
+    setMockTheme('dark', 'graphite');
   });
 
   test('renders appearance and skin controls', () => {
@@ -49,8 +57,7 @@ describe('Settings', () => {
   });
 
   test('marks the current appearance and skin controls as selected', () => {
-    mockAppearance = 'light';
-    mockSkin = 'minimal';
+    setMockTheme('light', 'minimal');
 
     const { getByTestId } = render(<Settings />);
 
@@ -62,9 +69,7 @@ describe('Settings', () => {
   });
 
   test('styles selected and unselected controls from the active theme palette', () => {
-    mockAppearance = 'light';
-    mockSkin = 'neon-cover';
-    const activeTheme = getAppTheme(mockAppearance, mockSkin);
+    const activeTheme = setMockTheme('light', 'neon-cover');
 
     const { getByTestId } = render(<Settings />);
     const selectedAppearanceStyle = StyleSheet.flatten(getByTestId('settings-appearance-light').props.style);
@@ -93,8 +98,7 @@ describe('Settings', () => {
   });
 
   test('shows a theme preview for the selected theme', () => {
-    mockAppearance = 'light';
-    mockSkin = 'minimal';
+    setMockTheme('light', 'minimal');
 
     const { getByTestId, getByText } = render(<Settings />);
 
@@ -103,9 +107,7 @@ describe('Settings', () => {
   });
 
   test('styles the screen and preview from the current theme values', () => {
-    mockAppearance = 'light';
-    mockSkin = 'neon-cover';
-    const activeTheme = getAppTheme(mockAppearance, mockSkin);
+    const activeTheme = setMockTheme('light', 'neon-cover');
 
     const { getByTestId, getByText } = render(<Settings />);
     const screenStyle = StyleSheet.flatten(getByTestId('settings-screen').props.style);
