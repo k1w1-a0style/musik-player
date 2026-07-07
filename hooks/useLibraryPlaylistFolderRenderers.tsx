@@ -11,7 +11,7 @@ import type {
 } from './libraryRendererTypes';
 
 interface UseLibraryPlaylistFolderRenderersOptions {
-  onOpenPlaylistDetail: LibraryRendererOpenPlaylistDetail;
+  onOpenPlaylistDetail?: LibraryRendererOpenPlaylistDetail;
   playPlaylist: LibraryRendererPlayPlaylist;
   removeFolder: LibraryRendererRemoveFolder;
 }
@@ -29,7 +29,7 @@ export const useLibraryPlaylistFolderRenderers = ({
   const renderPlaylistItem = useCallback(({ item }: { item: LibraryPlaylistItem }) => (
     <LibraryPlaylistRow
       playlist={item}
-      onOpen={playlistId => void onOpenPlaylistDetail(playlistId)}
+      onOpen={playlistId => void onOpenPlaylistDetail?.(playlistId)}
       onPlay={playlistId => void playPlaylist(playlistId)}
     />
   ), [onOpenPlaylistDetail, playPlaylist]);
