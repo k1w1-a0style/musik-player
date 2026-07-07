@@ -7,12 +7,15 @@ import { theme as staticTheme } from '../theme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import MiniPlayerProgress from './MiniPlayerProgress';
+import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
+  const progress = useMiniPlayerProgress();
   const artworkUri = getSongArtworkUri(currentSong);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const displayArtistName = currentSong ? displayArtist(currentSong) : '';
@@ -93,6 +96,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
             <ListMusic color={appTheme.palette.text.primary} size={19} opacity={0.85} />
           </Pressable>
         </View>
+        <MiniPlayerProgress progress={progress} />
       </Pressable>
     </View>
   );
@@ -115,6 +119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     gap: 10,
+    overflow: 'hidden',
   },
   thumb: {
     width: 42,
