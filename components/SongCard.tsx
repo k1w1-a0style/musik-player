@@ -6,6 +6,7 @@ import { theme as staticTheme } from '../theme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { buildSongKey } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 
 interface SongCardProps {
@@ -22,6 +23,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(song);
   const songTestId = song.id.trim() || buildSongKey(song);
+  const metadataLabel = getSongCardMetadataLabel(song);
 
   const selectedColors = useMemo(() => ({
     accent: theme.palette.primary,
@@ -114,6 +116,15 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         <Text style={[styles.tileArtist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
           {song.artist}
         </Text>
+        {metadataLabel ? (
+          <Text
+            style={[styles.tileMetadata, { color: theme.palette.text.muted }]}
+            numberOfLines={1}
+            testID={`song-card-meta-${songTestId}`}
+          >
+            {metadataLabel}
+          </Text>
+        ) : null}
       </Pressable>
     );
   }
@@ -156,6 +167,15 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         <Text style={[styles.artist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
           {song.artist}
         </Text>
+        {metadataLabel ? (
+          <Text
+            style={[styles.metadata, { color: theme.palette.text.muted }]}
+            numberOfLines={1}
+            testID={`song-card-meta-${songTestId}`}
+          >
+            {metadataLabel}
+          </Text>
+        ) : null}
       </View>
       {infoButton}
     </Pressable>
@@ -169,6 +189,12 @@ const SongCard = memo(
     && prev.song.title === next.song.title
     && prev.song.artist === next.song.artist
     && prev.song.album === next.song.album
+    && prev.song.duration === next.song.duration
+    && prev.song.audioInfo?.durationMs === next.song.audioInfo?.durationMs
+    && prev.song.audioInfo?.codec === next.song.audioInfo?.codec
+    && prev.song.fileInfo?.extension === next.song.fileInfo?.extension
+    && prev.song.fileInfo?.container === next.song.fileInfo?.container
+    && prev.song.fileInfo?.mimeType === next.song.fileInfo?.mimeType
     && getSongArtworkUri(prev.song) === getSongArtworkUri(next.song)
     && prev.isCurrent === next.isCurrent
     && prev.isPlaying === next.isPlaying
@@ -206,6 +232,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontFamily: staticTheme.fonts.body, letterSpacing: -0.1 },
   bannerTitle: { fontSize: 17, fontFamily: staticTheme.fonts.heading, letterSpacing: -0.2 },
   artist: { fontSize: 12, marginTop: 2, fontFamily: staticTheme.fonts.body },
+  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTheme.fonts.body, letterSpacing: 0.1 },
   infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
   tileInfoButton: {
     position: 'absolute',
@@ -220,6 +247,7 @@ const styles = StyleSheet.create({
   tileCurrent: { borderRadius: 12 },
   tileTitle: { fontSize: 13, fontFamily: staticTheme.fonts.body, letterSpacing: -0.1 },
   tileArtist: { fontSize: 11, fontFamily: staticTheme.fonts.body },
+  tileMetadata: { fontSize: 10, fontFamily: staticTheme.fonts.body, letterSpacing: 0.1 },
 });
 
 export default SongCard;
