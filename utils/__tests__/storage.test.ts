@@ -111,6 +111,8 @@ describe('storage', () => {
     const shuffle: boolean | null = await storage.get(StorageKeys.SHUFFLE);
     const scanFolders: ScanFolder[] | null = await storage.get(StorageKeys.SCAN_FOLDERS);
     const favoriteSongIds: string[] | null = await storage.get(StorageKeys.FAVORITE_SONG_IDS);
+    const legacySongFavoritesMigrationCompleted: boolean | null =
+      await storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED);
     const unknownValue: unknown | null = await storage.get('customKey');
 
     expect({
@@ -125,6 +127,7 @@ describe('storage', () => {
       shuffle,
       scanFolders,
       favoriteSongIds,
+      legacySongFavoritesMigrationCompleted,
       unknownValue,
     }).toEqual({
       songs: null,
@@ -138,6 +141,7 @@ describe('storage', () => {
       shuffle: null,
       scanFolders: null,
       favoriteSongIds: null,
+      legacySongFavoritesMigrationCompleted: null,
       unknownValue: null,
     });
   });
@@ -885,6 +889,63 @@ describe('storage', () => {
     ]);
 
     await expect(getFavoriteSongIds()).resolves.toEqual(['keep', 'add']);
+  });
+
+  test('marks legacy favorite migration complete and skips the songs blob on later runs', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 'legacy', title: 'Legacy Song', artist: 'Artist', favorite: true },
+    ]));
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['legacy']);
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBe(true);
+
+    const getItemSpy = jest.spyOn(AsyncStorage, 'getItem').mockClear();
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['legacy']);
+
+    expect(getItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS));
+    expect(getItemSpy).toHaveBeenCalledWith(storageTestKey(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED));
+    expect(getItemSpy).not.toHaveBeenCalledWith(storageTestKey(StorageKeys.SONGS));
+  });
+
+  test('marks legacy favorite migration complete when there are no legacy favorites', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 'plain', title: 'Plain Song', artist: 'Artist' },
+    ]));
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([]);
+
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBe(true);
+  });
+
+  test('marks legacy favorite migration complete when there is no stored songs blob', async () => {
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([]);
+
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBe(true);
+  });
+
+  test('does not mark legacy favorite migration complete when the songs blob is corrupt', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), '{broken-json');
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([]);
+
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBeNull();
+  });
+
+  test('does not mark legacy favorite migration complete when migrated favorite ids cannot be persisted', async () => {
+    await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
+      { id: 'legacy', title: 'Legacy Song', artist: 'Artist', favorite: true },
+    ]));
+    const setItemMock = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+    setItemMock.mockImplementationOnce(async key => {
+      if (key === storageTestKey(StorageKeys.FAVORITE_SONG_IDS)) {
+        throw new Error('favorite write failed');
+      }
+    });
+
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([]);
+
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBeNull();
   });
 
   test('serializes legacy favorite migration with normal favorite writes', async () => {
@@ -1843,7 +1904,12 @@ describe('storage', () => {
     setItemSpy.mockClear();
 
     await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['existing']);
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), expect.any(String));
+    expect(setItemSpy).toHaveBeenCalledWith(
+      storageTestKey(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED),
+      'true',
+    );
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBe(true);
     await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
   });
 
@@ -1859,7 +1925,12 @@ describe('storage', () => {
     setItemSpy.mockClear();
 
     await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['s1', 's2']);
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalledWith(storageTestKey(StorageKeys.FAVORITE_SONG_IDS), expect.any(String));
+    expect(setItemSpy).toHaveBeenCalledWith(
+      storageTestKey(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED),
+      'true',
+    );
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBe(true);
     await expect(getFavoriteSongIds()).resolves.toEqual(['s1', 's2']);
   });
 

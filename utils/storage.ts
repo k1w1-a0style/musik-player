@@ -25,6 +25,7 @@ export const StorageKeys = {
   SHUFFLE: 'shuffle',
   SCAN_FOLDERS: 'scanFolders',
   FAVORITE_SONG_IDS: 'favoriteSongIds',
+  LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED: 'legacySongFavoritesMigrationCompleted',
   LIBRARY_SORT_MODE: 'librarySortMode',
   LIBRARY_SONG_VIEW_MODE: 'librarySongViewMode',
   ALBUM_VIEW_MODE: 'albumViewMode',
@@ -47,6 +48,7 @@ type StorageValueByKey = {
   [StorageKeys.SHUFFLE]: boolean;
   [StorageKeys.SCAN_FOLDERS]: ScanFolder[];
   [StorageKeys.FAVORITE_SONG_IDS]: string[];
+  [StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED]: boolean;
   [StorageKeys.LIBRARY_SORT_MODE]: LibrarySortMode;
   [StorageKeys.LIBRARY_SONG_VIEW_MODE]: LibrarySongViewMode;
   [StorageKeys.ALBUM_VIEW_MODE]: LibraryAlbumViewMode;
@@ -296,6 +298,8 @@ const validateStoredValue = (key: string, value: unknown): unknown | null => {
         : [];
     case StorageKeys.FAVORITE_SONG_IDS:
       return normalizeFavoriteSongIds(value);
+    case StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED:
+      return normalizeLegacyBooleanForStorage(value);
     case StorageKeys.CURRENT_SONG_ID:
       return normalizeStorageSongId(value) ?? null;
     case StorageKeys.EQ_PRESET:
@@ -561,19 +565,50 @@ export const storage: StorageApi = {
 // Named aliases are kept for production dependency injection at library-startup boundaries.
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
 
+const getLegacySongFavoritesMigrationCompleted = async (): Promise<boolean> => {
+  const raw = await getItem(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED);
+  if (raw == null) return false;
+  return parseStoredValue(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED, raw) === true;
+};
+
+const markLegacySongFavoritesMigrationCompleted = async (): Promise<void> => {
+  await setJsonItem(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED, true);
+};
+
+const tryMarkLegacySongFavoritesMigrationCompleted = async (): Promise<void> => {
+  try {
+    await markLegacySongFavoritesMigrationCompleted();
+  } catch {
+    // A failed marker write should not block startup; the safe fallback is to retry next hydration.
+  }
+};
+
 export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> =>
   withFavoriteSongIdsMutationLock(async () => {
     const existingIds = await storage.getFavoriteSongIds().catch(() => []);
+    const migrationCompleted = await getLegacySongFavoritesMigrationCompleted().catch(() => false);
+    if (migrationCompleted) return existingIds;
+
     try {
       const rawSongs = await getItem(StorageKeys.SONGS);
-      if (!rawSongs) return existingIds;
+      if (!rawSongs) {
+        await tryMarkLegacySongFavoritesMigrationCompleted();
+        return existingIds;
+      }
+
       const parsedSongs = JSON.parse(rawSongs);
       const legacyIds = collectLegacyFavoriteSongIds(parsedSongs);
-      if (legacyIds.length === 0) return existingIds;
+      if (legacyIds.length === 0) {
+        await tryMarkLegacySongFavoritesMigrationCompleted();
+        return existingIds;
+      }
+
       const mergedIds = normalizeFavoriteSongIds([...existingIds, ...legacyIds]);
-      if (mergedIds.length === existingIds.length) return existingIds;
-      await storage.setFavoriteSongIds(mergedIds);
-      return mergedIds;
+      if (mergedIds.length > existingIds.length) {
+        await storage.setFavoriteSongIds(mergedIds);
+      }
+      await tryMarkLegacySongFavoritesMigrationCompleted();
+      return mergedIds.length > existingIds.length ? mergedIds : existingIds;
     } catch {
       return existingIds;
     }
