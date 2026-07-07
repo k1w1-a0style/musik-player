@@ -28,7 +28,7 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
   }, [navigation]);
 
   const openPlaylistDetail = useCallback((playlistId: string) => {
-    navigation.navigate(APP_STACK_ROUTES.PLAYLIST_DETAIL, { playlistId });
+    navigation.navigate('PlaylistDetail', { playlistId });
   }, [navigation]);
 
   return { openTrackInfo, openEqualizer, openSettings, openPlaylistDetail };
