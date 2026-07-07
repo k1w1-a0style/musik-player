@@ -20,9 +20,13 @@ jest.mock('../../contexts/MusicContext', () => ({
   useMiniPlayerMusicContext: () => mockUseMiniPlayerMusicContext(),
 }));
 
-jest.mock('../../hooks/useMiniPlayerProgress', () => ({
-  useMiniPlayerProgress: () => mockUseMiniPlayerProgress(),
-}));
+jest.mock('../../hooks/useMiniPlayerProgress', () => {
+  const actual = jest.requireActual('../../hooks/useMiniPlayerProgress');
+  return {
+    ...actual,
+    useMiniPlayerProgress: () => mockUseMiniPlayerProgress(),
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
