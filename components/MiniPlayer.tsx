@@ -47,7 +47,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: appTheme.palette.borderStrong }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
-        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated }]}> 
+        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated }]}>
           {showCover ? (
             <Image source={{ uri: artworkUri }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
           ) : (
@@ -56,10 +56,10 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         </View>
 
         <View style={styles.textWrap}>
-          <Text numberOfLines={1} style={[styles.title, { color: appTheme.palette.text.primary }]}> 
+          <Text numberOfLines={1} style={[styles.title, { color: appTheme.palette.text.primary }]}>
             {displayTitleText}
           </Text>
-          <Text numberOfLines={1} style={[styles.artist, { color: appTheme.palette.text.secondary }]}> 
+          <Text numberOfLines={1} style={[styles.artist, { color: appTheme.palette.text.secondary }]}>
             {displayArtistName}
           </Text>
         </View>
