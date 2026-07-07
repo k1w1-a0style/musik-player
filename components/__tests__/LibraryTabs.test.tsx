@@ -2,6 +2,7 @@ import React from 'react';
 
 const mockAppTheme = {
   palette: {
+    primary: '#7CFFCB',
     backgroundDeep: '#030406',
     surfaceElevated: '#191B21',
     border: 'rgba(255, 255, 255, 0.08)',
@@ -57,4 +58,11 @@ test('uses app theme colors for active and muted tabs', () => {
 
   expect(JSON.stringify(getByText('Titel').props.style)).toContain(mockAppTheme.palette.text.primary);
   expect(JSON.stringify(getByText('Alben').props.style)).toContain(mockAppTheme.palette.text.secondary);
+});
+
+test('renders a primary indicator for the active tab only', () => {
+  const { getByTestId } = render(<LibraryTabs activeTab="albums" onChangeTab={jest.fn()} />);
+
+  expect(JSON.stringify(getByTestId('library-tab-indicator-albums').props.style)).toContain(mockAppTheme.palette.primary);
+  expect(JSON.stringify(getByTestId('library-tab-indicator-tracks').props.style)).not.toContain(mockAppTheme.palette.primary);
 });
