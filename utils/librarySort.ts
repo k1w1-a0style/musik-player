@@ -20,7 +20,7 @@ const LIBRARY_SORT_MODE_LABELS: Record<LibrarySortMode, string> = {
 };
 
 export const isLibrarySortMode = (value: unknown): value is LibrarySortMode =>
-  value === 'alphabet' || value === 'trackNumber' || value === 'year' || value === 'recentlyAdded';
+  LIBRARY_SORT_MODES.includes(value as LibrarySortMode);
 
 export const getLibrarySortModeLabel = (mode: LibrarySortMode): string => LIBRARY_SORT_MODE_LABELS[mode];
 
