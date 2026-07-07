@@ -45,3 +45,15 @@ test('openEqualizer navigates to the equalizer screen', () => {
 
   expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.EQUALIZER);
 });
+
+test('openSettings navigates to the settings screen', () => {
+  const navigate = jest.fn();
+  mockedUseNavigation.mockReturnValue({ navigate } as never);
+  const { result } = renderHook(() => useLibraryNavigationActions());
+
+  act(() => {
+    result.current.openSettings();
+  });
+
+  expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.SETTINGS);
+});
