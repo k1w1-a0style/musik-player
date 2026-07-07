@@ -14,9 +14,14 @@ type MiniCtx = {
 };
 
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
+const mockUseMiniPlayerProgress = jest.fn<number, []>();
 
 jest.mock('../../contexts/MusicContext', () => ({
   useMiniPlayerMusicContext: () => mockUseMiniPlayerMusicContext(),
+}));
+
+jest.mock('../../hooks/useMiniPlayerProgress', () => ({
+  useMiniPlayerProgress: () => mockUseMiniPlayerProgress(),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -25,6 +30,8 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const mockAppTheme = {
   palette: {
+    primary: '#7CFFCB',
+    border: 'rgba(210, 218, 230, 0.18)',
     surfaceGlass: 'rgba(18, 20, 26, 0.76)',
     surfaceElevated: '#191B21',
     borderStrong: 'rgba(210, 218, 230, 0.28)',
@@ -62,6 +69,8 @@ describe('MiniPlayer', () => {
   beforeEach(() => {
     mockUseMiniPlayerMusicContext.mockReset();
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+    mockUseMiniPlayerProgress.mockReset();
+    mockUseMiniPlayerProgress.mockReturnValue(0.42);
   });
 
   test('falls back when cover image errors', () => {
@@ -142,6 +151,17 @@ describe('MiniPlayer', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  test('renders a themed playback progress line', () => {
+    mockUseMiniPlayerProgress.mockReturnValue(0.42);
+
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+    const fillStyle = JSON.stringify(getByTestId('mini-player-progress-fill').props.style);
+
+    expect(getByTestId('mini-player-progress')).toBeTruthy();
+    expect(fillStyle).toContain('42%');
+    expect(fillStyle).toContain(mockAppTheme.palette.primary);
+  });
+
   test('exposes disabled accessibility state for next', () => {
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ canSkipNext: false }));
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
@@ -180,6 +200,13 @@ describe('MiniPlayer', () => {
     expect(styleText).toContain(mockAppTheme.palette.borderStrong);
     expect(styleText).toContain(mockAppTheme.palette.surfaceGlass);
     expect(styleText).not.toContain('rgba(115, 230, 210, 0.9)');
+  });
+
+  test('clips the mini player progress to the rounded container', () => {
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+    const styleText = JSON.stringify(getByTestId('mini-player-open').props.style);
+
+    expect(styleText).toContain('hidden');
   });
 
   test('renders null without current song', () => {
