@@ -117,6 +117,43 @@ describe('SongCard', () => {
 
     expect(JSON.stringify(getByTestId('song-card-current').props.style)).toContain(mockAppTheme.palette.primaryGlow);
   });
+
+  test('shows compact duration and format metadata on row cards', () => {
+    const { getByTestId } = render(
+      <SongCard
+        song={{ id: 'meta-row', title: 'Meta Track', artist: 'Artist', duration: 185_000, fileInfo: { extension: 'mp3' } }}
+        onPressSong={jest.fn()}
+        isCurrent={false}
+        isPlaying={false}
+      />,
+    );
+
+    const metadata = getByTestId('song-card-meta-meta-row');
+    expect(metadata.props.children).toBe('3:05 • MP3');
+    expect(JSON.stringify(metadata.props.style)).toContain(mockAppTheme.palette.text.muted);
+  });
+
+  test('shows compact metadata on tile cards', () => {
+    const { getByTestId } = render(
+      <SongCard
+        song={{ id: 'meta-tile', title: 'Tile Track', artist: 'Artist', audioInfo: { durationMs: 62_000 }, fileInfo: { mimeType: 'audio/flac' } }}
+        onPressSong={jest.fn()}
+        isCurrent={false}
+        isPlaying={false}
+        variant="tile"
+      />,
+    );
+
+    expect(getByTestId('song-card-meta-meta-tile').props.children).toBe('1:02 • FLAC');
+  });
+
+  test('omits metadata row when no duration or format is available', () => {
+    const { queryByTestId } = render(
+      <SongCard song={{ id: 'plain', title: 'Plain Track', artist: 'Artist' }} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,
+    );
+
+    expect(queryByTestId('song-card-meta-plain')).toBeNull();
+  });
 });
 
 test('does not trigger native embedded-artwork extraction from rows', () => {
