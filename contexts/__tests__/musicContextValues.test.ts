@@ -112,11 +112,13 @@ describe('music context value builders', () => {
     });
   });
 
-  test('builds the now playing slice with canSkip flag', () => {
+  test('builds the now playing slice with skip actions and canSkip flag', () => {
     expect(buildNowPlayingMusicContextValue(baseValue)).toMatchObject({
       playbackQueue: baseValue.playbackQueue,
       currentSong: baseValue.currentSong,
       volume: 0.8,
+      next: baseValue.next,
+      previous: baseValue.previous,
       saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
       canSkip: true,
     });

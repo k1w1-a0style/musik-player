@@ -2,6 +2,14 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import NowPlayingPlayerPanel from '../NowPlayingPlayerPanel';
 
+type MockCoverProps = {
+  swipeEnabled?: boolean;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+};
+
+const mockCoverProps: MockCoverProps[] = [];
+
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
     appearance: 'dark',
@@ -38,7 +46,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 
 jest.mock('../NowPlayingCoverArtwork', () => ({
   __esModule: true,
-  default: () => null,
+  default: (props: MockCoverProps) => {
+    mockCoverProps.push(props);
+    return null;
+  },
 }));
 
 jest.mock('../NowPlayingTitleRow', () => ({
@@ -57,7 +68,7 @@ jest.mock('lucide-react-native', () => ({
   VolumeX: 'VolumeX',
 }));
 
-const renderPanel = () => render(
+const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayerPanel>> = {}) => render(
   <NowPlayingPlayerPanel
     currentSong={null}
     isPlaying={false}
@@ -77,10 +88,17 @@ const renderPanel = () => render(
     onVolumeChange={jest.fn(async () => undefined)}
     bottomInset={0}
     onOpenTrackInfo={jest.fn()}
+    controlsMode={props.controlsMode ?? 'buttons'}
+    onSwipeToNext={props.onSwipeToNext ?? jest.fn()}
+    onSwipeToPrevious={props.onSwipeToPrevious ?? jest.fn()}
   />,
 );
 
 describe('NowPlayingPlayerPanel', () => {
+  beforeEach(() => {
+    mockCoverProps.length = 0;
+  });
+
   test('renders the player ScrollView with Android nested scrolling enabled', () => {
     const { getByTestId } = renderPanel();
     const playerPanel = getByTestId('now-playing-player-panel');
@@ -96,5 +114,24 @@ describe('NowPlayingPlayerPanel', () => {
 
     expect(playerPanel.props.contentContainerStyle).toBeTruthy();
     expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
+  });
+
+  test('keeps cover swipe disabled while button mode is selected', () => {
+    renderPanel({ controlsMode: 'buttons' });
+
+    expect(mockCoverProps[0].swipeEnabled).toBe(false);
+  });
+
+  test('enables cover swipe and forwards swipe handlers in cover swipe mode', () => {
+    const onSwipeToNext = jest.fn();
+    const onSwipeToPrevious = jest.fn();
+
+    renderPanel({ controlsMode: 'coverSwipe', onSwipeToNext, onSwipeToPrevious });
+
+    expect(mockCoverProps[0].swipeEnabled).toBe(true);
+    mockCoverProps[0].onSwipeLeft?.();
+    mockCoverProps[0].onSwipeRight?.();
+    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
+    expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
   });
 });

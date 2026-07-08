@@ -35,6 +35,9 @@ const NowPlayingScreenInner: React.FC = () => {
     playQueueItemById,
     moveQueueItem,
     canReorderQueue,
+    controlsMode,
+    swipeToNext,
+    swipeToPrevious,
     accent,
     gradientColors,
     albumTitle,
@@ -80,8 +83,11 @@ const NowPlayingScreenInner: React.FC = () => {
       onVolumeChange={setVolume}
       bottomInset={bottomInset}
       onOpenTrackInfo={openTrackInfo}
+      controlsMode={controlsMode}
+      onSwipeToNext={swipeToNext}
+      onSwipeToPrevious={swipeToPrevious}
     />
-  ), [accent, artworkUri, bottomInset, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, toggleFavorite, volume]);
+  ), [accent, artworkUri, bottomInset, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, toggleFavorite, volume]);
 
   const renderDetailsPage = useCallback(() => (
     <NowPlayingDetailsPanel
