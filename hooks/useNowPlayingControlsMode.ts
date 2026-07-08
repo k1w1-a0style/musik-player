@@ -12,6 +12,11 @@ export interface UseNowPlayingControlsModeResult {
   setMode: (mode: NowPlayingControlsMode) => void;
 }
 
+const STORAGE_KEY = 'nowPlayingControlsMode';
+
+const normalizeStoredMode = (value: unknown): NowPlayingControlsMode =>
+  isNowPlayingControlsMode(value) ? value : DEFAULT_NOW_PLAYING_CONTROLS_MODE;
+
 export const useNowPlayingControlsMode = (): UseNowPlayingControlsModeResult => {
   const [mode, setModeState] = useState<NowPlayingControlsMode>(DEFAULT_NOW_PLAYING_CONTROLS_MODE);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -19,9 +24,9 @@ export const useNowPlayingControlsMode = (): UseNowPlayingControlsModeResult => 
   useEffect(() => {
     let active = true;
 
-    storage.getNowPlayingControlsMode()
+    storage.get(STORAGE_KEY)
       .then(storedMode => {
-        if (active) setModeState(storedMode);
+        if (active) setModeState(normalizeStoredMode(storedMode));
       })
       .catch(() => {
         if (active) setModeState(DEFAULT_NOW_PLAYING_CONTROLS_MODE);
@@ -36,9 +41,9 @@ export const useNowPlayingControlsMode = (): UseNowPlayingControlsModeResult => 
   }, []);
 
   const setMode = useCallback((nextMode: NowPlayingControlsMode) => {
-    const safeMode = isNowPlayingControlsMode(nextMode) ? nextMode : DEFAULT_NOW_PLAYING_CONTROLS_MODE;
+    const safeMode = normalizeStoredMode(nextMode);
     setModeState(safeMode);
-    void storage.setNowPlayingControlsMode(safeMode).catch(() => undefined);
+    void storage.set(STORAGE_KEY, safeMode).catch(() => undefined);
   }, []);
 
   return { mode, isHydrated, setMode };
