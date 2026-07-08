@@ -80,6 +80,14 @@ jest.mock('../../utils/storage', () => ({
   setFavoriteSongId: (songId: string, favorite: boolean) => mockSetFavoriteSongId(songId, favorite),
 }));
 
+jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
+  useNowPlayingControlsMode: () => ({
+    mode: 'buttons',
+    isHydrated: true,
+    setMode: jest.fn(),
+  }),
+}));
+
 const mockNowPlayingContext = {
   playbackQueue: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
   currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
@@ -89,6 +97,8 @@ const mockNowPlayingContext = {
   setVolume: jest.fn(async () => undefined),
   palette: null,
   playSong: jest.fn(async () => undefined),
+  next: jest.fn(async () => undefined),
+  previous: jest.fn(async () => undefined),
   saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
 };
 
@@ -149,6 +159,8 @@ describe('NowPlaying cover fallback', () => {
     mockSaveQueueAsPlaylist.mockClear();
     mockIsFavoriteSongId.mockClear();
     mockSetFavoriteSongId.mockClear();
+    mockNowPlayingContext.next.mockClear();
+    mockNowPlayingContext.previous.mockClear();
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
