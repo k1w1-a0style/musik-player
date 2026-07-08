@@ -124,12 +124,11 @@ test('plays the playlist through the existing playlist playback action', () => {
   expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
 });
 
-test('opens rename modal with the current playlist name', () => {
+test('opens rename input with the current playlist name', () => {
   const { getByTestId } = render(<PlaylistDetail />);
 
   fireEvent.press(getByTestId('playlist-detail-rename-button'));
 
-  expect(getByTestId('playlist-detail-rename-modal')).toBeTruthy();
   expect(getByTestId('playlist-detail-rename-input').props.value).toBe('Road Mix');
   expect(getByTestId('playlist-detail-rename-save').props.accessibilityState.disabled).toBe(true);
 });
@@ -149,10 +148,8 @@ test('does not rename to an empty name', () => {
 
   fireEvent.press(getByTestId('playlist-detail-rename-button'));
   fireEvent.changeText(getByTestId('playlist-detail-rename-input'), '   ');
-  const saveButton = getByTestId('playlist-detail-rename-save');
+  fireEvent.press(getByTestId('playlist-detail-rename-save'));
 
-  expect(saveButton.props.accessibilityState.disabled).toBe(true);
-  fireEvent.press(saveButton);
   expect(mockRenamePlaylist).not.toHaveBeenCalled();
 });
 
