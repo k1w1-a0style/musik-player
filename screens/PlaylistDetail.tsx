@@ -141,14 +141,12 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityState={{ disabled: playDisabled }}
                 disabled={playDisabled}
                 onPress={() => void playPlaylist(playlist.id)}
-                style={({ pressed }) => [
+                style={[
                   styles.playButton,
                   {
                     backgroundColor: theme.palette.primary,
                     borderColor: theme.palette.primaryDark,
                   },
-                  pressed && styles.pressed,
-                  playDisabled && styles.disabled,
                 ]}
                 testID="playlist-detail-play-button"
               >
@@ -159,13 +157,12 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} umbenennen`}
                 onPress={openRename}
-                style={({ pressed }) => [
+                style={[
                   styles.renameButton,
                   {
                     backgroundColor: theme.palette.surface,
                     borderColor: theme.palette.border,
                   },
-                  pressed && styles.pressed,
                 ]}
                 testID="playlist-detail-rename-button"
               >
@@ -176,13 +173,12 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} löschen`}
                 onPress={confirmDeletePlaylist}
-                style={({ pressed }) => [
+                style={[
                   styles.deleteButton,
                   {
                     backgroundColor: theme.palette.surface,
                     borderColor: theme.palette.error,
                   },
-                  pressed && styles.pressed,
                 ]}
                 testID="playlist-detail-delete-button"
               >
@@ -216,7 +212,6 @@ const PlaylistDetail: React.FC = () => {
             <Text style={[styles.modalTitle, { color: theme.palette.text.primary }]}>Playlist umbenennen</Text>
             <TextInput
               accessibilityLabel="Neuer Playlist-Name"
-              autoFocus
               value={draftName}
               onChangeText={setDraftName}
               placeholder="Playlist-Name"
@@ -237,10 +232,9 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Umbenennen abbrechen"
                 onPress={closeRename}
-                style={({ pressed }) => [
+                style={[
                   styles.modalButton,
                   { borderColor: theme.palette.border, backgroundColor: theme.palette.surface },
-                  pressed && styles.pressed,
                 ]}
                 testID="playlist-detail-rename-cancel"
               >
@@ -252,11 +246,9 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityState={{ disabled: renameDisabled }}
                 disabled={renameDisabled}
                 onPress={submitRename}
-                style={({ pressed }) => [
+                style={[
                   styles.modalButton,
                   { borderColor: theme.palette.primaryDark, backgroundColor: theme.palette.primary },
-                  pressed && styles.pressed,
-                  renameDisabled && styles.disabled,
                 ]}
                 testID="playlist-detail-rename-save"
               >
@@ -340,8 +332,6 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
-  pressed: { opacity: 0.74 },
-  disabled: { opacity: 0.45 },
   warning: {
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
