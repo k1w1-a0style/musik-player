@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { Animated, Image, PanResponder, StyleSheet, View } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -10,7 +10,14 @@ interface NowPlayingCoverArtworkProps {
   isPlaying: boolean;
   accent: string;
   coverSize: number;
+  swipeEnabled?: boolean;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
 }
+
+const SWIPE_THRESHOLD = 56;
+const SWIPE_OUT_DURATION_MS = 150;
+const SWIPE_RESET_DURATION_MS = 120;
 
 const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   song,
@@ -18,14 +25,77 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   isPlaying,
   accent,
   coverSize,
+  swipeEnabled = false,
+  onSwipeLeft,
+  onSwipeRight,
 }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = React.useState(false);
+  const translateX = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gestureState) => (
+      swipeEnabled
+      && Math.abs(gestureState.dx) > 12
+      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4
+    ),
+    onPanResponderMove: (_, gestureState) => {
+      translateX.setValue(gestureState.dx);
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      const targetHandler = gestureState.dx <= -SWIPE_THRESHOLD
+        ? onSwipeLeft
+        : gestureState.dx >= SWIPE_THRESHOLD
+          ? onSwipeRight
+          : undefined;
+
+      if (!targetHandler) {
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+
+      Animated.timing(translateX, {
+        toValue: gestureState.dx < 0 ? -coverSize : coverSize,
+        duration: SWIPE_OUT_DURATION_MS,
+        useNativeDriver: true,
+      }).start(() => {
+        targetHandler();
+        translateX.setValue(gestureState.dx < 0 ? coverSize : -coverSize);
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: SWIPE_RESET_DURATION_MS,
+          useNativeDriver: true,
+        }).start();
+      });
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    },
+  }), [coverSize, onSwipeLeft, onSwipeRight, swipeEnabled, translateX]);
+
   return (
-    <View style={[styles.coverCard, { width: coverSize, height: coverSize, shadowColor: accent, backgroundColor: theme.palette.surface }]}>
+    <Animated.View
+      {...(swipeEnabled ? panResponder.panHandlers : {})}
+      style={[
+        styles.coverCard,
+        {
+          width: coverSize,
+          height: coverSize,
+          shadowColor: accent,
+          backgroundColor: theme.palette.surface,
+          transform: [{ translateX }],
+        },
+      ]}
+      testID="now-playing-cover-card"
+    >
       {artworkUri && !coverFailed ? (
         <Image
           source={{ uri: artworkUri }}
@@ -39,7 +109,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
           <Disc3 color={theme.palette.primary} size={Math.floor(coverSize * 0.55)} />
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 };
 
