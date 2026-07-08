@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { Play } from 'lucide-react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
@@ -14,7 +15,7 @@ const playlistTrackLabel = (count: number): string => `${count} Titel`;
 const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
   const { theme } = useAppTheme();
-  const { playlists, songs } = useLibraryMusicContext();
+  const { playlists, playPlaylist, songs } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
 
   const playlist = useMemo(
@@ -32,6 +33,7 @@ const PlaylistDetail: React.FC = () => {
   }, [playlist, songs]);
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
+  const playDisabled = playlistSongs.length === 0;
 
   const renderSong: ListRenderItem<Song> = ({ item, index }) => (
     <View
@@ -74,11 +76,31 @@ const PlaylistDetail: React.FC = () => {
             <Text style={[styles.title, { color: theme.palette.text.primary }]} numberOfLines={2}>
               {playlist.name}
             </Text>
-            <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>
+            <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}> 
               {playlistTrackLabel(playlistSongs.length)}
             </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Playlist ${playlist.name} abspielen`}
+              accessibilityState={{ disabled: playDisabled }}
+              disabled={playDisabled}
+              onPress={() => void playPlaylist(playlist.id)}
+              style={({ pressed }) => [
+                styles.playButton,
+                {
+                  backgroundColor: theme.palette.primary,
+                  borderColor: theme.palette.primaryDark,
+                },
+                pressed && styles.pressed,
+                playDisabled && styles.disabled,
+              ]}
+              testID="playlist-detail-play-button"
+            >
+              <Play color={theme.palette.text.onPrimary} size={18} />
+              <Text style={[styles.playButtonText, { color: theme.palette.text.onPrimary }]}>Abspielen</Text>
+            </Pressable>
             {missingSongs > 0 && (
-              <Text style={[styles.warning, { color: theme.palette.error }]}>
+              <Text style={[styles.warning, { color: theme.palette.error }]}> 
                 {missingSongs} nicht mehr gefunden
               </Text>
             )}
@@ -119,6 +141,23 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.body,
     fontSize: 14,
   },
+  playButton: {
+    alignSelf: 'flex-start',
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    marginTop: staticTheme.spacing.sm,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
+  playButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
+  pressed: { opacity: 0.74 },
+  disabled: { opacity: 0.45 },
   warning: {
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
