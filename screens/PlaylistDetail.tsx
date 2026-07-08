@@ -76,9 +76,7 @@ const PlaylistDetail: React.FC = () => {
             <Text style={[styles.title, { color: theme.palette.text.primary }]} numberOfLines={2}>
               {playlist.name}
             </Text>
-            <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}> 
-              {playlistTrackLabel(playlistSongs.length)}
-            </Text>
+            <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{playlistTrackLabel(playlistSongs.length)}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Playlist ${playlist.name} abspielen`}
@@ -100,9 +98,7 @@ const PlaylistDetail: React.FC = () => {
               <Text style={[styles.playButtonText, { color: theme.palette.text.onPrimary }]}>Abspielen</Text>
             </Pressable>
             {missingSongs > 0 && (
-              <Text style={[styles.warning, { color: theme.palette.error }]}> 
-                {missingSongs} nicht mehr gefunden
-              </Text>
+              <Text style={[styles.warning, { color: theme.palette.error }]}>{missingSongs} nicht mehr gefunden</Text>
             )}
           </View>
         )}
