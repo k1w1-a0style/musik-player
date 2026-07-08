@@ -41,6 +41,7 @@ const mockMusicContext: MockLibraryMusicContext = {
   applySongMetadataPatches: fn,
   playlists: [],
   deletePlaylist: fn,
+  renamePlaylist: fn,
   playPlaylist: asyncFn,
 };
 
