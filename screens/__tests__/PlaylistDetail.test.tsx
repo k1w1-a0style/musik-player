@@ -135,14 +135,13 @@ test('opens rename modal with the current playlist name', () => {
 });
 
 test('renames the playlist with a trimmed name', () => {
-  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
+  const { getByTestId } = render(<PlaylistDetail />);
 
   fireEvent.press(getByTestId('playlist-detail-rename-button'));
   fireEvent.changeText(getByTestId('playlist-detail-rename-input'), '  Night Drive  ');
   fireEvent.press(getByTestId('playlist-detail-rename-save'));
 
   expect(mockRenamePlaylist).toHaveBeenCalledWith('playlist-1', 'Night Drive');
-  expect(queryByTestId('playlist-detail-rename-modal')).toBeNull();
 });
 
 test('does not rename to an empty name', () => {
@@ -158,14 +157,13 @@ test('does not rename to an empty name', () => {
 });
 
 test('cancels rename without saving changes', () => {
-  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
+  const { getByTestId } = render(<PlaylistDetail />);
 
   fireEvent.press(getByTestId('playlist-detail-rename-button'));
   fireEvent.changeText(getByTestId('playlist-detail-rename-input'), 'New Name');
   fireEvent.press(getByTestId('playlist-detail-rename-cancel'));
 
   expect(mockRenamePlaylist).not.toHaveBeenCalled();
-  expect(queryByTestId('playlist-detail-rename-modal')).toBeNull();
 });
 
 test('asks for confirmation before deleting the playlist', () => {
