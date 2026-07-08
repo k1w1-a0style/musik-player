@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
   APP_APPEARANCE_LABELS,
   APP_APPEARANCES,
@@ -9,10 +10,17 @@ import {
   type AppAppearance,
   type AppThemeSkin,
 } from '../utils/appTheme';
+import {
+  NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS,
+  NOW_PLAYING_CONTROLS_MODE_LABELS,
+  NOW_PLAYING_CONTROLS_MODES,
+  type NowPlayingControlsMode,
+} from '../utils/nowPlayingControlsMode';
 import { theme as staticTheme } from '../theme';
 
 const Settings: React.FC = () => {
   const { appearance, skin, theme, setAppearance, setSkin } = useAppTheme();
+  const { mode: nowPlayingControlsMode, setMode: setNowPlayingControlsMode } = useNowPlayingControlsMode();
 
   const renderAppearanceOption = (option: AppAppearance) => {
     const selected = option === appearance;
@@ -74,11 +82,39 @@ const Settings: React.FC = () => {
     );
   };
 
+  const renderNowPlayingControlsOption = (option: NowPlayingControlsMode) => {
+    const selected = option === nowPlayingControlsMode;
+    return (
+      <Pressable
+        key={option}
+        testID={`settings-now-playing-controls-${option}`}
+        accessibilityRole="button"
+        accessibilityLabel={`Player-Bedienung ${NOW_PLAYING_CONTROLS_MODE_LABELS[option]}`}
+        accessibilityState={{ selected }}
+        onPress={() => setNowPlayingControlsMode(option)}
+        style={[
+          styles.option,
+          {
+            backgroundColor: selected ? theme.palette.surfaceElevated : theme.palette.surface,
+            borderColor: selected ? theme.palette.primary : theme.palette.border,
+          },
+        ]}
+      >
+        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}>
+          {NOW_PLAYING_CONTROLS_MODE_LABELS[option]}
+        </Text>
+        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}>
+          {NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS[option]}
+        </Text>
+      </Pressable>
+    );
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: theme.palette.background }]} testID="settings-screen">
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.header, { color: theme.palette.text.primary }]}>Einstellungen</Text>
-        <Text style={[styles.description, { color: theme.palette.text.secondary }]}>
+        <Text style={[styles.description, { color: theme.palette.text.secondary }]}> 
           Wähle Darstellung und Oberfläche. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
         </Text>
 
@@ -90,6 +126,11 @@ const Settings: React.FC = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.palette.text.primary }]}>Oberfläche</Text>
           {APP_THEME_SKINS.map(renderSkinOption)}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.palette.text.primary }]}>Player-Bedienung</Text>
+          {NOW_PLAYING_CONTROLS_MODES.map(renderNowPlayingControlsOption)}
         </View>
 
         <View
@@ -108,7 +149,7 @@ const Settings: React.FC = () => {
             <View style={[styles.previewLine, { backgroundColor: theme.palette.borderStrong }]} />
             <View style={[styles.previewPill, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} />
           </View>
-          <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}>
+          <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}> 
             Die vollständige Migration alter Screens erfolgt schrittweise, damit keine UI-Baustelle explodiert.
           </Text>
         </View>
