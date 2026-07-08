@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
+import type { NowPlayingControlsMode } from '../utils/nowPlayingControlsMode';
 import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
 import NowPlayingCoverArtwork from './NowPlayingCoverArtwork';
 import NowPlayingPlaybackSection from './NowPlayingPlaybackSection';
@@ -26,6 +27,9 @@ interface NowPlayingPlayerPanelProps {
   onVolumeChange: (value: number) => Promise<void>;
   bottomInset: number;
   onOpenTrackInfo: () => void;
+  controlsMode: NowPlayingControlsMode;
+  onSwipeToNext: () => void;
+  onSwipeToPrevious: () => void;
 }
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
@@ -48,6 +52,9 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onVolumeChange,
   bottomInset,
   onOpenTrackInfo,
+  controlsMode,
+  onSwipeToNext,
+  onSwipeToPrevious,
 }) => (
   <ScrollView
     style={styles.playerPage}
@@ -57,13 +64,16 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
     showsVerticalScrollIndicator={false}
     testID="now-playing-player-panel"
   >
-    <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
+    <View style={[styles.coverArea, { height: coverAreaHeight }]}>
       <NowPlayingCoverArtwork
         song={currentSong}
         artworkUri={artworkUri}
         isPlaying={isPlaying}
         accent={accent}
         coverSize={coverSize}
+        swipeEnabled={controlsMode === 'coverSwipe'}
+        onSwipeLeft={onSwipeToNext}
+        onSwipeRight={onSwipeToPrevious}
       />
     </View>
 
