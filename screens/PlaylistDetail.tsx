@@ -1,6 +1,16 @@
-import React, { useMemo } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
-import { Trash2, Play } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ListRenderItem,
+} from 'react-native';
+import { Edit3, Trash2, Play } from 'lucide-react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -18,13 +28,19 @@ const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
   const navigation = useNavigation<PlaylistDetailNavigation>();
   const { theme } = useAppTheme();
-  const { playlists, deletePlaylist, playPlaylist, songs } = useLibraryMusicContext();
+  const { playlists, deletePlaylist, renamePlaylist, playPlaylist, songs } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [draftName, setDraftName] = useState('');
 
   const playlist = useMemo(
     () => playlists.find(item => item.id === playlistId),
     [playlistId, playlists],
   );
+
+  useEffect(() => {
+    if (!renameOpen && playlist) setDraftName(playlist.name);
+  }, [playlist, renameOpen]);
 
   const playlistSongs = useMemo(() => {
     if (!playlist) return [];
@@ -37,6 +53,25 @@ const PlaylistDetail: React.FC = () => {
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
+  const trimmedDraftName = draftName.trim();
+  const renameDisabled = !playlist || trimmedDraftName.length === 0 || trimmedDraftName === playlist.name;
+
+  const openRename = () => {
+    if (!playlist) return;
+    setDraftName(playlist.name);
+    setRenameOpen(true);
+  };
+
+  const closeRename = () => {
+    setRenameOpen(false);
+    if (playlist) setDraftName(playlist.name);
+  };
+
+  const submitRename = () => {
+    if (!playlist || renameDisabled) return;
+    renamePlaylist(playlist.id, trimmedDraftName);
+    setRenameOpen(false);
+  };
 
   const confirmDeletePlaylist = () => {
     if (!playlist) return;
@@ -122,6 +157,23 @@ const PlaylistDetail: React.FC = () => {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Playlist ${playlist.name} umbenennen`}
+                onPress={openRename}
+                style={({ pressed }) => [
+                  styles.renameButton,
+                  {
+                    backgroundColor: theme.palette.surface,
+                    borderColor: theme.palette.border,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                testID="playlist-detail-rename-button"
+              >
+                <Edit3 color={theme.palette.text.primary} size={17} />
+                <Text style={[styles.renameButtonText, { color: theme.palette.text.primary }]}>Umbenennen</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} löschen`}
                 onPress={confirmDeletePlaylist}
                 style={({ pressed }) => [
@@ -149,6 +201,71 @@ const PlaylistDetail: React.FC = () => {
           </Text>
         )}
       />
+
+      <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={closeRename}>
+        <View style={styles.modalBackdrop} testID="playlist-detail-rename-modal">
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: theme.palette.surfaceElevated,
+                borderColor: theme.palette.border,
+              },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.palette.text.primary }]}>Playlist umbenennen</Text>
+            <TextInput
+              accessibilityLabel="Neuer Playlist-Name"
+              autoFocus
+              value={draftName}
+              onChangeText={setDraftName}
+              placeholder="Playlist-Name"
+              placeholderTextColor={theme.palette.text.muted}
+              selectionColor={theme.palette.primary}
+              style={[
+                styles.renameInput,
+                {
+                  backgroundColor: theme.palette.surface,
+                  borderColor: theme.palette.borderStrong,
+                  color: theme.palette.text.primary,
+                },
+              ]}
+              testID="playlist-detail-rename-input"
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Umbenennen abbrechen"
+                onPress={closeRename}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { borderColor: theme.palette.border, backgroundColor: theme.palette.surface },
+                  pressed && styles.pressed,
+                ]}
+                testID="playlist-detail-rename-cancel"
+              >
+                <Text style={[styles.modalButtonText, { color: theme.palette.text.secondary }]}>Abbrechen</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Playlist speichern"
+                accessibilityState={{ disabled: renameDisabled }}
+                disabled={renameDisabled}
+                onPress={submitRename}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { borderColor: theme.palette.primaryDark, backgroundColor: theme.palette.primary },
+                  pressed && styles.pressed,
+                  renameDisabled && styles.disabled,
+                ]}
+                testID="playlist-detail-rename-save"
+              >
+                <Text style={[styles.modalButtonText, { color: theme.palette.text.onPrimary }]}>Speichern</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -193,6 +310,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: staticTheme.spacing.md,
   },
+  renameButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
   deleteButton: {
     minHeight: 42,
     flexDirection: 'row',
@@ -203,6 +329,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: staticTheme.spacing.md,
   },
   playButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
+  renameButtonText: {
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
@@ -245,6 +375,49 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
     marginTop: 2,
+  },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: staticTheme.spacing.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: staticTheme.radii.elevatedCard,
+    padding: staticTheme.spacing.md,
+    gap: staticTheme.spacing.md,
+  },
+  modalTitle: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 18,
+  },
+  renameInput: {
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: staticTheme.radii.card,
+    paddingHorizontal: staticTheme.spacing.md,
+    fontFamily: staticTheme.fonts.body,
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: staticTheme.spacing.sm,
+  },
+  modalButton: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
+  modalButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
   },
 });
 
