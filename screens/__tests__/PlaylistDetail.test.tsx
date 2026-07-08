@@ -9,16 +9,19 @@ let mockSongs: Song[] = [];
 let mockPlaylists: Playlist[] = [];
 const mockGoBack = jest.fn();
 const mockDeletePlaylist = jest.fn();
+const mockRenamePlaylist = jest.fn();
 const mockPlayPlaylist = jest.fn(async () => undefined);
 
 const mockAppTheme = {
   palette: {
     background: '#08090B',
     border: 'rgba(255, 255, 255, 0.08)',
+    borderStrong: 'rgba(210, 218, 230, 0.28)',
     error: '#FF6F8A',
     primary: '#D8DEE8',
     primaryDark: '#87909E',
     surface: '#111318',
+    surfaceElevated: '#191B21',
     text: {
       primary: '#F4F5F7',
       secondary: 'rgba(244, 245, 247, 0.70)',
@@ -48,12 +51,14 @@ jest.mock('../../contexts/MusicContext', () => ({
   useLibraryMusicContext: () => ({
     playlists: mockPlaylists,
     deletePlaylist: mockDeletePlaylist,
+    renamePlaylist: mockRenamePlaylist,
     playPlaylist: mockPlayPlaylist,
     songs: mockSongs,
   }),
 }));
 
 jest.mock('lucide-react-native', () => ({
+  Edit3: 'Edit3',
   Play: 'Play',
   Trash2: 'Trash2',
 }));
@@ -78,6 +83,7 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
   mockDeletePlaylist.mockClear();
+  mockRenamePlaylist.mockClear();
   mockGoBack.mockClear();
   mockPlayPlaylist.mockClear();
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -100,6 +106,7 @@ test('renders playlist name, valid song count, and contained songs in playlist o
   expect(getByText('Road Mix')).toBeTruthy();
   expect(getByText('2 Titel')).toBeTruthy();
   expect(getByTestId('playlist-detail-play-button')).toBeTruthy();
+  expect(getByTestId('playlist-detail-rename-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
@@ -115,6 +122,50 @@ test('plays the playlist through the existing playlist playback action', () => {
   fireEvent.press(getByTestId('playlist-detail-play-button'));
 
   expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
+});
+
+test('opens rename modal with the current playlist name', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-rename-button'));
+
+  expect(getByTestId('playlist-detail-rename-modal')).toBeTruthy();
+  expect(getByTestId('playlist-detail-rename-input').props.value).toBe('Road Mix');
+  expect(getByTestId('playlist-detail-rename-save').props.accessibilityState.disabled).toBe(true);
+});
+
+test('renames the playlist with a trimmed name', () => {
+  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-rename-button'));
+  fireEvent.changeText(getByTestId('playlist-detail-rename-input'), '  Night Drive  ');
+  fireEvent.press(getByTestId('playlist-detail-rename-save'));
+
+  expect(mockRenamePlaylist).toHaveBeenCalledWith('playlist-1', 'Night Drive');
+  expect(queryByTestId('playlist-detail-rename-modal')).toBeNull();
+});
+
+test('does not rename to an empty name', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-rename-button'));
+  fireEvent.changeText(getByTestId('playlist-detail-rename-input'), '   ');
+  const saveButton = getByTestId('playlist-detail-rename-save');
+
+  expect(saveButton.props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(saveButton);
+  expect(mockRenamePlaylist).not.toHaveBeenCalled();
+});
+
+test('cancels rename without saving changes', () => {
+  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-rename-button'));
+  fireEvent.changeText(getByTestId('playlist-detail-rename-input'), 'New Name');
+  fireEvent.press(getByTestId('playlist-detail-rename-cancel'));
+
+  expect(mockRenamePlaylist).not.toHaveBeenCalled();
+  expect(queryByTestId('playlist-detail-rename-modal')).toBeNull();
 });
 
 test('asks for confirmation before deleting the playlist', () => {
@@ -156,6 +207,7 @@ test('shows empty state for an empty playlist and disables play action', () => {
   expect(getByTestId('playlist-detail-empty')).toBeTruthy();
   expect(getByText('Diese Playlist ist noch leer.')).toBeTruthy();
   expect(playButton.props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-rename-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   fireEvent.press(playButton);
   expect(mockPlayPlaylist).not.toHaveBeenCalled();
@@ -170,6 +222,7 @@ test('shows missing song warning without rendering missing songs', () => {
   expect(getByText('2 Titel')).toBeTruthy();
   expect(getByText('1 nicht mehr gefunden')).toBeTruthy();
   expect(getByTestId('playlist-detail-play-button').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('playlist-detail-rename-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-c')).toBeTruthy();
@@ -185,5 +238,6 @@ test('shows not found state for an unknown playlist id', () => {
   expect(getByText('Playlist nicht gefunden')).toBeTruthy();
   expect(getByText('Diese Playlist existiert nicht mehr.')).toBeTruthy();
   expect(queryByTestId('playlist-detail-play-button')).toBeNull();
+  expect(queryByTestId('playlist-detail-rename-button')).toBeNull();
   expect(queryByTestId('playlist-detail-delete-button')).toBeNull();
 });
