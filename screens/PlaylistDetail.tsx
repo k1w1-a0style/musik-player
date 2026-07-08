@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
-import { Play } from 'lucide-react-native';
-import { useRoute, type RouteProp } from '@react-navigation/native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { Trash2, Play } from 'lucide-react-native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { theme as staticTheme } from '../theme';
@@ -9,13 +10,15 @@ import type { AppStackParamList } from '../types/navigation';
 import type { Song } from '../types/Song';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
+type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
 
 const playlistTrackLabel = (count: number): string => `${count} Titel`;
 
 const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
+  const navigation = useNavigation<PlaylistDetailNavigation>();
   const { theme } = useAppTheme();
-  const { playlists, playPlaylist, songs } = useLibraryMusicContext();
+  const { playlists, deletePlaylist, playPlaylist, songs } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
 
   const playlist = useMemo(
@@ -34,6 +37,25 @@ const PlaylistDetail: React.FC = () => {
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
+
+  const confirmDeletePlaylist = () => {
+    if (!playlist) return;
+    Alert.alert(
+      'Playlist löschen',
+      `„${playlist.name}“ wirklich löschen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: () => {
+            deletePlaylist(playlist.id);
+            navigation.goBack();
+          },
+        },
+      ],
+    );
+  };
 
   const renderSong: ListRenderItem<Song> = ({ item, index }) => (
     <View
@@ -77,26 +99,45 @@ const PlaylistDetail: React.FC = () => {
               {playlist.name}
             </Text>
             <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{playlistTrackLabel(playlistSongs.length)}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Playlist ${playlist.name} abspielen`}
-              accessibilityState={{ disabled: playDisabled }}
-              disabled={playDisabled}
-              onPress={() => void playPlaylist(playlist.id)}
-              style={({ pressed }) => [
-                styles.playButton,
-                {
-                  backgroundColor: theme.palette.primary,
-                  borderColor: theme.palette.primaryDark,
-                },
-                pressed && styles.pressed,
-                playDisabled && styles.disabled,
-              ]}
-              testID="playlist-detail-play-button"
-            >
-              <Play color={theme.palette.text.onPrimary} size={18} />
-              <Text style={[styles.playButtonText, { color: theme.palette.text.onPrimary }]}>Abspielen</Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Playlist ${playlist.name} abspielen`}
+                accessibilityState={{ disabled: playDisabled }}
+                disabled={playDisabled}
+                onPress={() => void playPlaylist(playlist.id)}
+                style={({ pressed }) => [
+                  styles.playButton,
+                  {
+                    backgroundColor: theme.palette.primary,
+                    borderColor: theme.palette.primaryDark,
+                  },
+                  pressed && styles.pressed,
+                  playDisabled && styles.disabled,
+                ]}
+                testID="playlist-detail-play-button"
+              >
+                <Play color={theme.palette.text.onPrimary} size={18} />
+                <Text style={[styles.playButtonText, { color: theme.palette.text.onPrimary }]}>Abspielen</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Playlist ${playlist.name} löschen`}
+                onPress={confirmDeletePlaylist}
+                style={({ pressed }) => [
+                  styles.deleteButton,
+                  {
+                    backgroundColor: theme.palette.surface,
+                    borderColor: theme.palette.error,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                testID="playlist-detail-delete-button"
+              >
+                <Trash2 color={theme.palette.error} size={17} />
+                <Text style={[styles.deleteButtonText, { color: theme.palette.error }]}>Löschen</Text>
+              </Pressable>
+            </View>
             {missingSongs > 0 && (
               <Text style={[styles.warning, { color: theme.palette.error }]}>{missingSongs} nicht mehr gefunden</Text>
             )}
@@ -137,18 +178,35 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.body,
     fontSize: 14,
   },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: staticTheme.spacing.sm,
+    marginTop: staticTheme.spacing.sm,
+  },
   playButton: {
-    alignSelf: 'flex-start',
     minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: staticTheme.spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 999,
-    marginTop: staticTheme.spacing.sm,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
+  deleteButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
     paddingHorizontal: staticTheme.spacing.md,
   },
   playButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
+  deleteButtonText: {
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },

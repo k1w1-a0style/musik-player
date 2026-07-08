@@ -64,6 +64,7 @@ describe('music context value builders', () => {
       updateSongMetadata: baseValue.updateSongMetadata,
       applySongMetadataPatches: baseValue.applySongMetadataPatches,
       playlists: baseValue.playlists,
+      deletePlaylist: baseValue.deletePlaylist,
       playPlaylist: baseValue.playPlaylist,
     });
   });

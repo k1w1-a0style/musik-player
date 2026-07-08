@@ -54,6 +54,7 @@ export interface LibraryMusicContextValue {
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   playlists: Playlist[];
+  deletePlaylist: (id: string) => void;
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 

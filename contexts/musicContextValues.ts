@@ -16,6 +16,7 @@ type LibraryMusicContextInput = Pick<
   | 'updateSongMetadata'
   | 'applySongMetadataPatches'
   | 'playlists'
+  | 'deletePlaylist'
   | 'playPlaylist'
 >;
 
@@ -50,6 +51,7 @@ export const buildLibraryMusicContextValue = ({
   updateSongMetadata,
   applySongMetadataPatches,
   playlists,
+  deletePlaylist,
   playPlaylist,
 }: LibraryMusicContextInput): LibraryMusicContextValue => ({
   songs,
@@ -61,6 +63,7 @@ export const buildLibraryMusicContextValue = ({
   updateSongMetadata,
   applySongMetadataPatches,
   playlists,
+  deletePlaylist,
   playPlaylist,
 });
 

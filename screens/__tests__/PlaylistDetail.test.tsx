@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import PlaylistDetail from '../PlaylistDetail';
 import type { Playlist, Song } from '../../types/Song';
@@ -6,6 +7,8 @@ import type { Playlist, Song } from '../../types/Song';
 let mockPlaylistId = 'playlist-1';
 let mockSongs: Song[] = [];
 let mockPlaylists: Playlist[] = [];
+const mockGoBack = jest.fn();
+const mockDeletePlaylist = jest.fn();
 const mockPlayPlaylist = jest.fn(async () => undefined);
 
 const mockAppTheme = {
@@ -15,6 +18,7 @@ const mockAppTheme = {
     error: '#FF6F8A',
     primary: '#D8DEE8',
     primaryDark: '#87909E',
+    surface: '#111318',
     text: {
       primary: '#F4F5F7',
       secondary: 'rgba(244, 245, 247, 0.70)',
@@ -25,6 +29,7 @@ const mockAppTheme = {
 };
 
 jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ goBack: mockGoBack }),
   useRoute: () => ({ params: { playlistId: mockPlaylistId } }),
 }));
 
@@ -42,6 +47,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 jest.mock('../../contexts/MusicContext', () => ({
   useLibraryMusicContext: () => ({
     playlists: mockPlaylists,
+    deletePlaylist: mockDeletePlaylist,
     playPlaylist: mockPlayPlaylist,
     songs: mockSongs,
   }),
@@ -49,6 +55,7 @@ jest.mock('../../contexts/MusicContext', () => ({
 
 jest.mock('lucide-react-native', () => ({
   Play: 'Play',
+  Trash2: 'Trash2',
 }));
 
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
@@ -70,13 +77,20 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
 
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
+  mockDeletePlaylist.mockClear();
+  mockGoBack.mockClear();
   mockPlayPlaylist.mockClear();
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockSongs = [
     song('song-a', { title: 'Alpha', artist: 'Artist A' }),
     song('song-b', { title: 'Beta', artist: 'Artist B' }),
     song('song-c', { title: 'Gamma', artist: 'Artist C' }),
   ];
   mockPlaylists = [playlist('playlist-1', ['song-b', 'song-a'], { name: 'Road Mix' })];
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 test('renders playlist name, valid song count, and contained songs in playlist order', () => {
@@ -86,6 +100,7 @@ test('renders playlist name, valid song count, and contained songs in playlist o
   expect(getByText('Road Mix')).toBeTruthy();
   expect(getByText('2 Titel')).toBeTruthy();
   expect(getByTestId('playlist-detail-play-button')).toBeTruthy();
+  expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
   expect(getByText('Beta')).toBeTruthy();
@@ -102,6 +117,34 @@ test('plays the playlist through the existing playlist playback action', () => {
   expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
 });
 
+test('asks for confirmation before deleting the playlist', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-delete-button'));
+
+  expect(Alert.alert).toHaveBeenCalledWith(
+    'Playlist löschen',
+    '„Road Mix“ wirklich löschen?',
+    expect.arrayContaining([
+      expect.objectContaining({ text: 'Abbrechen', style: 'cancel' }),
+      expect.objectContaining({ text: 'Löschen', style: 'destructive' }),
+    ]),
+  );
+  expect(mockDeletePlaylist).not.toHaveBeenCalled();
+  expect(mockGoBack).not.toHaveBeenCalled();
+});
+
+test('deletes the playlist and navigates back after confirmation', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-delete-button'));
+  const deleteAction = jest.mocked(Alert.alert).mock.calls[0][2]?.find(action => action.text === 'Löschen');
+  deleteAction?.onPress?.();
+
+  expect(mockDeletePlaylist).toHaveBeenCalledWith('playlist-1');
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+});
+
 test('shows empty state for an empty playlist and disables play action', () => {
   mockPlaylists = [playlist('playlist-1', [], { name: 'Empty Mix' })];
 
@@ -113,6 +156,7 @@ test('shows empty state for an empty playlist and disables play action', () => {
   expect(getByTestId('playlist-detail-empty')).toBeTruthy();
   expect(getByText('Diese Playlist ist noch leer.')).toBeTruthy();
   expect(playButton.props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   fireEvent.press(playButton);
   expect(mockPlayPlaylist).not.toHaveBeenCalled();
 });
@@ -126,6 +170,7 @@ test('shows missing song warning without rendering missing songs', () => {
   expect(getByText('2 Titel')).toBeTruthy();
   expect(getByText('1 nicht mehr gefunden')).toBeTruthy();
   expect(getByTestId('playlist-detail-play-button').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-c')).toBeTruthy();
   expect(queryByTestId('playlist-detail-song-missing-song')).toBeNull();
@@ -140,4 +185,5 @@ test('shows not found state for an unknown playlist id', () => {
   expect(getByText('Playlist nicht gefunden')).toBeTruthy();
   expect(getByText('Diese Playlist existiert nicht mehr.')).toBeTruthy();
   expect(queryByTestId('playlist-detail-play-button')).toBeNull();
+  expect(queryByTestId('playlist-detail-delete-button')).toBeNull();
 });
