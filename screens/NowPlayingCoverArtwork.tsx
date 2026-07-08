@@ -1,5 +1,5 @@
-import React, { useMemo, useRef } from 'react';
-import { Animated, Image, PanResponder, StyleSheet, View, type ViewStyle } from 'react-native';
+import React, { useCallback, useMemo, useRef } from 'react';
+import { Animated, Image, StyleSheet, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -16,8 +16,11 @@ interface NowPlayingCoverArtworkProps {
 }
 
 const SWIPE_THRESHOLD = 56;
+const MOVE_THRESHOLD = 12;
 const SWIPE_OUT_DURATION_MS = 150;
 const SWIPE_RESET_DURATION_MS = 120;
+
+const getPageX = (event: GestureResponderEvent): number => event.nativeEvent.pageX;
 
 const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   song,
@@ -32,54 +35,72 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = React.useState(false);
   const translateX = useRef(new Animated.Value(0)).current;
+  const startXRef = useRef(0);
 
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gestureState) => (
-      swipeEnabled
-      && Math.abs(gestureState.dx) > 12
-      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4
-    ),
-    onPanResponderMove: (_, gestureState) => {
-      translateX.setValue(gestureState.dx);
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      const targetHandler = gestureState.dx <= -SWIPE_THRESHOLD
-        ? onSwipeLeft
-        : gestureState.dx >= SWIPE_THRESHOLD
-          ? onSwipeRight
-          : undefined;
+  const resetCover = useCallback(() => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  }, [translateX]);
 
-      if (!targetHandler) {
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-        return;
-      }
+  const finishSwipe = useCallback((dx: number) => {
+    const targetHandler = dx <= -SWIPE_THRESHOLD
+      ? onSwipeLeft
+      : dx >= SWIPE_THRESHOLD
+        ? onSwipeRight
+        : undefined;
 
+    if (!targetHandler) {
+      resetCover();
+      return;
+    }
+
+    Animated.timing(translateX, {
+      toValue: dx < 0 ? -coverSize : coverSize,
+      duration: SWIPE_OUT_DURATION_MS,
+      useNativeDriver: true,
+    }).start(() => {
+      targetHandler();
+      translateX.setValue(dx < 0 ? coverSize : -coverSize);
       Animated.timing(translateX, {
-        toValue: gestureState.dx < 0 ? -coverSize : coverSize,
-        duration: SWIPE_OUT_DURATION_MS,
-        useNativeDriver: true,
-      }).start(() => {
-        targetHandler();
-        translateX.setValue(gestureState.dx < 0 ? coverSize : -coverSize);
-        Animated.timing(translateX, {
-          toValue: 0,
-          duration: SWIPE_RESET_DURATION_MS,
-          useNativeDriver: true,
-        }).start();
-      });
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(translateX, {
         toValue: 0,
+        duration: SWIPE_RESET_DURATION_MS,
         useNativeDriver: true,
       }).start();
-    },
-  }), [coverSize, onSwipeLeft, onSwipeRight, swipeEnabled, translateX]);
+    });
+  }, [coverSize, onSwipeLeft, onSwipeRight, resetCover, translateX]);
+
+  const handleResponderGrant = useCallback((event: GestureResponderEvent) => {
+    startXRef.current = getPageX(event);
+  }, []);
+
+  const handleResponderMove = useCallback((event: GestureResponderEvent) => {
+    if (!swipeEnabled) return;
+    translateX.setValue(getPageX(event) - startXRef.current);
+  }, [swipeEnabled, translateX]);
+
+  const handleResponderRelease = useCallback((event: GestureResponderEvent) => {
+    if (!swipeEnabled) return;
+    finishSwipe(getPageX(event) - startXRef.current);
+  }, [finishSwipe, swipeEnabled]);
+
+  const shouldSetResponder = useCallback((event: GestureResponderEvent) => (
+    swipeEnabled && Math.abs(getPageX(event) - startXRef.current) > MOVE_THRESHOLD
+  ), [swipeEnabled]);
+
+  const responderProps = swipeEnabled
+    ? {
+        onStartShouldSetResponder: () => true,
+        onMoveShouldSetResponder: shouldSetResponder,
+        onResponderGrant: handleResponderGrant,
+        onResponderMove: handleResponderMove,
+        onResponderRelease: handleResponderRelease,
+        onResponderTerminate: resetCover,
+      }
+    : {};
 
   const animatedCoverStyle = useMemo(
     () => ({ transform: [{ translateX }] }) as unknown as ViewStyle,
@@ -88,7 +109,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
 
   return (
     <Animated.View
-      {...(swipeEnabled ? panResponder.panHandlers : {})}
+      {...responderProps}
       style={[
         styles.coverCard,
         {
