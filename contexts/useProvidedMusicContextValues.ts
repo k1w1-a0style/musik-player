@@ -33,6 +33,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     applySongMetadataPatches,
     playlists,
     deletePlaylist,
+    renamePlaylist,
     playPlaylist,
     togglePlayPause,
     next,
@@ -58,6 +59,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         applySongMetadataPatches,
         playlists,
         deletePlaylist,
+        renamePlaylist,
         playPlaylist,
       }),
     [
@@ -71,6 +73,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       applySongMetadataPatches,
       playlists,
       deletePlaylist,
+      renamePlaylist,
       playPlaylist,
     ],
   );

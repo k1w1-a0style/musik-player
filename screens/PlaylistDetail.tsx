@@ -1,6 +1,15 @@
-import React, { useMemo } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
-import { Trash2, Play } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ListRenderItem,
+} from 'react-native';
+import { Edit3, Trash2, Play } from 'lucide-react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -18,13 +27,19 @@ const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
   const navigation = useNavigation<PlaylistDetailNavigation>();
   const { theme } = useAppTheme();
-  const { playlists, deletePlaylist, playPlaylist, songs } = useLibraryMusicContext();
+  const { playlists, deletePlaylist, renamePlaylist, playPlaylist, songs } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [draftName, setDraftName] = useState('');
 
   const playlist = useMemo(
     () => playlists.find(item => item.id === playlistId),
     [playlistId, playlists],
   );
+
+  useEffect(() => {
+    if (!renameOpen && playlist) setDraftName(playlist.name);
+  }, [playlist, renameOpen]);
 
   const playlistSongs = useMemo(() => {
     if (!playlist) return [];
@@ -37,6 +52,25 @@ const PlaylistDetail: React.FC = () => {
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
+  const trimmedDraftName = draftName.trim();
+  const renameDisabled = !playlist || trimmedDraftName.length === 0 || trimmedDraftName === playlist.name;
+
+  const openRename = () => {
+    if (!playlist) return;
+    setDraftName(playlist.name);
+    setRenameOpen(true);
+  };
+
+  const closeRename = () => {
+    setRenameOpen(false);
+    if (playlist) setDraftName(playlist.name);
+  };
+
+  const submitRename = () => {
+    if (!playlist || renameDisabled) return;
+    renamePlaylist(playlist.id, trimmedDraftName);
+    setRenameOpen(false);
+  };
 
   const confirmDeletePlaylist = () => {
     if (!playlist) return;
@@ -106,14 +140,12 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityState={{ disabled: playDisabled }}
                 disabled={playDisabled}
                 onPress={() => void playPlaylist(playlist.id)}
-                style={({ pressed }) => [
+                style={[
                   styles.playButton,
                   {
                     backgroundColor: theme.palette.primary,
                     borderColor: theme.palette.primaryDark,
                   },
-                  pressed && styles.pressed,
-                  playDisabled && styles.disabled,
                 ]}
                 testID="playlist-detail-play-button"
               >
@@ -122,15 +154,30 @@ const PlaylistDetail: React.FC = () => {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Playlist ${playlist.name} umbenennen`}
+                onPress={openRename}
+                style={[
+                  styles.renameButton,
+                  {
+                    backgroundColor: theme.palette.surface,
+                    borderColor: theme.palette.border,
+                  },
+                ]}
+                testID="playlist-detail-rename-button"
+              >
+                <Edit3 color={theme.palette.text.primary} size={17} />
+                <Text style={[styles.renameButtonText, { color: theme.palette.text.primary }]}>Umbenennen</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} löschen`}
                 onPress={confirmDeletePlaylist}
-                style={({ pressed }) => [
+                style={[
                   styles.deleteButton,
                   {
                     backgroundColor: theme.palette.surface,
                     borderColor: theme.palette.error,
                   },
-                  pressed && styles.pressed,
                 ]}
                 testID="playlist-detail-delete-button"
               >
@@ -138,6 +185,64 @@ const PlaylistDetail: React.FC = () => {
                 <Text style={[styles.deleteButtonText, { color: theme.palette.error }]}>Löschen</Text>
               </Pressable>
             </View>
+            {renameOpen && (
+              <View
+                style={[
+                  styles.renamePanel,
+                  {
+                    backgroundColor: theme.palette.surfaceElevated,
+                    borderColor: theme.palette.border,
+                  },
+                ]}
+                testID="playlist-detail-rename-panel"
+              >
+                <TextInput
+                  accessibilityLabel="Neuer Playlist-Name"
+                  value={draftName}
+                  onChangeText={setDraftName}
+                  placeholder="Playlist-Name"
+                  placeholderTextColor={theme.palette.text.muted}
+                  selectionColor={theme.palette.primary}
+                  style={[
+                    styles.renameInput,
+                    {
+                      backgroundColor: theme.palette.surface,
+                      borderColor: theme.palette.borderStrong,
+                      color: theme.palette.text.primary,
+                    },
+                  ]}
+                  testID="playlist-detail-rename-input"
+                />
+                <View style={styles.renameActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Umbenennen abbrechen"
+                    onPress={closeRename}
+                    style={[
+                      styles.renameActionButton,
+                      { borderColor: theme.palette.border, backgroundColor: theme.palette.surface },
+                    ]}
+                    testID="playlist-detail-rename-cancel"
+                  >
+                    <Text style={[styles.renameActionText, { color: theme.palette.text.secondary }]}>Abbrechen</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Playlist speichern"
+                    accessibilityState={{ disabled: renameDisabled }}
+                    disabled={renameDisabled}
+                    onPress={submitRename}
+                    style={[
+                      styles.renameActionButton,
+                      { borderColor: theme.palette.primaryDark, backgroundColor: theme.palette.primary },
+                    ]}
+                    testID="playlist-detail-rename-save"
+                  >
+                    <Text style={[styles.renameActionText, { color: theme.palette.text.onPrimary }]}>Speichern</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
             {missingSongs > 0 && (
               <Text style={[styles.warning, { color: theme.palette.error }]}>{missingSongs} nicht mehr gefunden</Text>
             )}
@@ -193,6 +298,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: staticTheme.spacing.md,
   },
+  renameButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
   deleteButton: {
     minHeight: 42,
     flexDirection: 'row',
@@ -206,12 +320,45 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
+  renameButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
   deleteButtonText: {
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
-  pressed: { opacity: 0.74 },
-  disabled: { opacity: 0.45 },
+  renamePanel: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: staticTheme.radii.card,
+    gap: staticTheme.spacing.sm,
+    marginTop: staticTheme.spacing.sm,
+    padding: staticTheme.spacing.md,
+  },
+  renameInput: {
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: staticTheme.radii.card,
+    paddingHorizontal: staticTheme.spacing.md,
+    fontFamily: staticTheme.fonts.body,
+    fontSize: 16,
+  },
+  renameActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: staticTheme.spacing.sm,
+  },
+  renameActionButton: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
+  renameActionText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
   warning: {
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
