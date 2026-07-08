@@ -7,7 +7,10 @@ const mockSong = { id: 's1', title: 'One', artist: 'A' };
 const mockSeekTo = jest.fn(async () => undefined);
 const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
+const mockNext = jest.fn(async () => undefined);
+const mockPrevious = jest.fn(async () => undefined);
 let mockPlaybackQueue = [mockSong];
+let mockControlsMode: 'buttons' | 'coverSwipe' = 'buttons';
 const mockSaveQueueAsPlaylist = jest.fn((name: string, queue: typeof mockPlaybackQueue) =>
   queue.length ? { id: 'pl-1', name, songIds: queue.map((song) => song.id), createdAt: 1 } : null,
 );
@@ -26,12 +29,22 @@ jest.mock('../../contexts/MusicContext', () => ({
     setVolume: mockSetVolume,
     palette: { vibrant: '#123456' },
     playSong: mockPlaySong,
+    next: mockNext,
+    previous: mockPrevious,
     saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
   }),
 }));
 
 jest.mock('../../contexts/PlaybackProgressContext', () => ({
   usePlaybackProgress: () => ({ position: 3, duration: 9 }),
+}));
+
+jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
+  useNowPlayingControlsMode: () => ({
+    mode: mockControlsMode,
+    isHydrated: true,
+    setMode: jest.fn(),
+  }),
 }));
 
 jest.mock('../useNowPlayingFavorite', () => ({
@@ -82,9 +95,16 @@ const ScreenStateProbe = () => {
       <Text testID="album-title">{state.albumTitle}</Text>
       <Text testID="position">{state.position}</Text>
       <Text testID="duration">{state.duration}</Text>
+      <Text testID="controls-mode">{state.controlsMode}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
       <Pressable testID="save-queue" onPress={state.saveCurrentQueueAsPlaylist}>
         <Text>Save queue</Text>
+      </Pressable>
+      <Pressable testID="swipe-next" onPress={state.swipeToNext}>
+        <Text>Next</Text>
+      </Pressable>
+      <Pressable testID="swipe-previous" onPress={state.swipeToPrevious}>
+        <Text>Previous</Text>
       </Pressable>
     </>
   );
@@ -93,7 +113,10 @@ const ScreenStateProbe = () => {
 describe('useNowPlayingScreenState', () => {
   beforeEach(() => {
     mockPlaybackQueue = [mockSong];
+    mockControlsMode = 'buttons';
     mockSaveQueueAsPlaylist.mockClear();
+    mockNext.mockClear();
+    mockPrevious.mockClear();
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2026, 5, 11, 14, 35, 0));
@@ -114,7 +137,26 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('album-title').props.children).toBe('Album');
     expect(getByTestId('position').props.children).toBe(3);
     expect(getByTestId('duration').props.children).toBe(9);
+    expect(getByTestId('controls-mode').props.children).toBe('buttons');
     expect(getByTestId('can-save-queue').props.children).toBe('true');
+  });
+
+  test('exposes the cover swipe mode from settings', () => {
+    mockControlsMode = 'coverSwipe';
+
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    expect(getByTestId('controls-mode').props.children).toBe('coverSwipe');
+  });
+
+  test('uses existing next and previous actions for cover swipes', () => {
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('swipe-next'));
+    fireEvent.press(getByTestId('swipe-previous'));
+
+    expect(mockNext).toHaveBeenCalledTimes(1);
+    expect(mockPrevious).toHaveBeenCalledTimes(1);
   });
 
   test('builds saved queue playlist names with German timestamps', () => {
