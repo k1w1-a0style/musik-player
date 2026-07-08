@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Animated, Image, PanResponder, StyleSheet, View } from 'react-native';
+import { Animated, Image, PanResponder, StyleSheet, View, type ViewStyle } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -81,6 +81,11 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
     },
   }), [coverSize, onSwipeLeft, onSwipeRight, swipeEnabled, translateX]);
 
+  const animatedCoverStyle = useMemo(
+    () => ({ transform: [{ translateX }] }) as unknown as ViewStyle,
+    [translateX],
+  );
+
   return (
     <Animated.View
       {...(swipeEnabled ? panResponder.panHandlers : {})}
@@ -91,8 +96,8 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
           height: coverSize,
           shadowColor: accent,
           backgroundColor: theme.palette.surface,
-          transform: [{ translateX }],
         },
+        animatedCoverStyle,
       ]}
       testID="now-playing-cover-card"
     >
