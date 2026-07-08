@@ -40,10 +40,10 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}>
           {APP_APPEARANCE_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}>
           {option === 'dark' ? 'Dunkle Oberfläche für Musikbetrieb.' : 'Helle Oberfläche für Tageslicht.'}
         </Text>
       </Pressable>
@@ -68,10 +68,10 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}>
           {APP_THEME_SKIN_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}>
           {option === 'graphite'
             ? 'Neutraler Schwarz/Grau-Standard.'
             : option === 'minimal'
@@ -100,10 +100,10 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, { color: theme.palette.text.primary }]}>
           {NOW_PLAYING_CONTROLS_MODE_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary }]}>
           {NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS[option]}
         </Text>
       </Pressable>
