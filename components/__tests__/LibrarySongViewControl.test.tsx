@@ -1,13 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibrarySongViewControl from '../LibrarySongViewControl';
-
 const mockAppTheme = {
-  tokens: {
-    spacing: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
-    radii: { input: 10, card: 14, elevatedCard: 20, control: 18 },
-    fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular' },
-  },
   palette: {
     surfaceGlass: 'rgba(18, 20, 26, 0.76)',
     border: 'rgba(255, 255, 255, 0.08)',
