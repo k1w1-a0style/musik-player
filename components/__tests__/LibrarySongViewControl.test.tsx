@@ -24,6 +24,9 @@ const mockAppTheme = {
   },
 };
 
+const flattenPressableStyle = (style: unknown) =>
+  StyleSheet.flatten(typeof style === 'function' ? style({ pressed: false }) : style);
+
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
     appearance: 'dark',
@@ -44,7 +47,7 @@ describe('LibrarySongViewControl', () => {
   test('styles the control from app theme palette and tokens', () => {
     const { getByTestId } = render(<LibrarySongViewControl mode="list" onCycle={jest.fn()} />);
 
-    const controlStyle = StyleSheet.flatten(getByTestId('library-song-view-control').props.style({ pressed: false }));
+    const controlStyle = flattenPressableStyle(getByTestId('library-song-view-control').props.style);
     const labelStyle = StyleSheet.flatten(getByTestId('library-song-view-control-label').props.style);
 
     expect(controlStyle.backgroundColor).toBe(mockAppTheme.palette.surfaceGlass);
