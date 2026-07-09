@@ -17,6 +17,9 @@ jest.mock('../../contexts/AppThemeContext', () => ({
   }),
 }));
 
+jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => children);
+jest.mock('../../components/Screen', () => ({ children }: { children: React.ReactNode }) => children);
+
 describe('TrackInfoNotFound', () => {
   test('renders the missing track message with the active theme font and color', () => {
     const { getByText } = render(<TrackInfoNotFound />);
