@@ -10,18 +10,7 @@ const TrackInfoNotFound: React.FC = () => {
   return (
     <AppBackground>
       <Screen contentStyle={styles.container}>
-        <Text
-          style={[
-            styles.error,
-            {
-              color: theme.palette.text.primary,
-              fontFamily: theme.tokens.fonts.heading,
-            },
-          ]}
-          testID="track-info-not-found-message"
-        >
-          Titel nicht gefunden.
-        </Text>
+        <Text style={[styles.error, { color: theme.palette.text.primary, fontFamily: theme.tokens.fonts.heading }]}>Titel nicht gefunden.</Text>
       </Screen>
     </AppBackground>
   );
