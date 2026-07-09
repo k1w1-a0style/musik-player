@@ -7,7 +7,6 @@ import {
   removeSongFromPlaylistById,
   renamePlaylistById,
 } from '../utils/playlistState';
-import type { PlaylistSongMoveDirection } from '../utils/playlistState';
 import {
   appendPlaylist,
   createPlaylistRecord,
@@ -15,7 +14,8 @@ import {
   runPlayPlaylistAction,
 } from './playlistActionHelpers';
 export { buildPlaylistQueue } from './playlistActionHelpers';
-export type { PlaylistSongMoveDirection } from '../utils/playlistState';
+
+type PlaylistSongMoveDirection = 'up' | 'down';
 
 export interface PlaylistActionsArgs {
   playlists: Playlist[];
