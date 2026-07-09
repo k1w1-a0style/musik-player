@@ -15,7 +15,7 @@ import {
 } from './playlistActionHelpers';
 export { buildPlaylistQueue } from './playlistActionHelpers';
 
-type PlaylistSongMoveDirection = 'up' | 'down';
+export type PlaylistSongMoveDirection = 'up' | 'down';
 
 export interface PlaylistActionsArgs {
   playlists: Playlist[];
