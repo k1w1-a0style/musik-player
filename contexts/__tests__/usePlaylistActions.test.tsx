@@ -27,6 +27,7 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
     renamePlaylist,
     addSongToPlaylist,
     removeSongFromPlaylist,
+    moveSongInPlaylist,
     playPlaylist,
   } = usePlaylistActions({ playlists, setPlaylists, songsRef, playSong });
 
@@ -64,6 +65,8 @@ const PlaylistProbe = ({ playSong }: { playSong: jest.Mock }) => {
       />
       <Button testID="rename" title="rename" onPress={() => renamePlaylist('pl-1', 'Renamed')} />
       <Button testID="add" title="add" onPress={() => addSongToPlaylist('pl-1', 's2')} />
+      <Button testID="move-up" title="move up" onPress={() => moveSongInPlaylist('pl-1', 's2', 'up')} />
+      <Button testID="move-down" title="move down" onPress={() => moveSongInPlaylist('pl-1', 's1', 'down')} />
       <Button testID="remove" title="remove" onPress={() => removeSongFromPlaylist('pl-1', 's1')} />
       <Button testID="delete" title="delete" onPress={() => deletePlaylist('pl-1')} />
       <Button testID="play" title="play" onPress={() => void playPlaylist('pl-1')} />
@@ -83,7 +86,7 @@ describe('usePlaylistActions', () => {
     ]);
   });
 
-  test('creates, saves queues, renames, adds, removes and deletes playlists', () => {
+  test('creates, saves queues, renames, adds, moves, removes and deletes playlists', () => {
     const playSong = jest.fn(async () => undefined);
     const { getByTestId } = render(<PlaylistProbe playSong={playSong} />);
 
@@ -107,6 +110,12 @@ describe('usePlaylistActions', () => {
 
     act(() => fireEvent.press(getByTestId('add')));
     expect(getByTestId('song-ids').props.children).toBe('s1,s2');
+
+    act(() => fireEvent.press(getByTestId('move-up')));
+    expect(getByTestId('song-ids').props.children).toBe('s2,s1');
+
+    act(() => fireEvent.press(getByTestId('move-down')));
+    expect(getByTestId('song-ids').props.children).toBe('s2,s1');
 
     act(() => fireEvent.press(getByTestId('remove')));
     expect(getByTestId('song-ids').props.children).toBe('s2');
