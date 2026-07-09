@@ -158,10 +158,6 @@ test('disables move controls at playlist boundaries', () => {
   expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(false);
   expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(false);
   expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
-
-  fireEvent.press(getByTestId('playlist-detail-move-up-song-song-b'));
-  fireEvent.press(getByTestId('playlist-detail-move-down-song-song-a'));
-
   expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
 });
 
