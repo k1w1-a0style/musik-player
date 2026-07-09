@@ -51,7 +51,7 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>
           {APP_APPEARANCE_LABELS[option]}
         </Text>
         <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
@@ -80,7 +80,7 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>
           {APP_THEME_SKIN_LABELS[option]}
         </Text>
         <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
@@ -113,10 +113,10 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>
           {NOW_PLAYING_CONTROLS_MODE_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>
           {NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS[option]}
         </Text>
       </Pressable>
@@ -168,9 +168,7 @@ const Settings: React.FC = () => {
             <View style={[styles.previewLine, { backgroundColor: theme.palette.borderStrong }]} />
             <View style={[styles.previewPill, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} />
           </View>
-          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
-            Die vollständige Migration alter Screens erfolgt schrittweise, damit keine UI-Baustelle explodiert.
-          </Text>
+          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>Die vollständige Migration alter Screens erfolgt schrittweise, damit keine UI-Baustelle explodiert.</Text>
         </View>
       </ScrollView>
     </View>
