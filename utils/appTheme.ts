@@ -46,6 +46,50 @@ export interface AppThemePalette {
   };
 }
 
+export interface AppThemeTokens {
+  spacing: {
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+    xxl: number;
+  };
+  radii: {
+    input: number;
+    card: number;
+    elevatedCard: number;
+    control: number;
+  };
+  fonts: {
+    display: string;
+    heading: string;
+    body: string;
+  };
+  typography: {
+    hero: { fontSize: number; lineHeight: number; letterSpacing: number };
+    h1: { fontSize: number; lineHeight: number; letterSpacing: number };
+    h2: { fontSize: number; lineHeight: number; letterSpacing: number };
+    body: { fontSize: number; lineHeight: number };
+    small: { fontSize: number; lineHeight: number; letterSpacing: number };
+    caps: { fontSize: number; lineHeight: number; letterSpacing: number };
+  };
+}
+
+export const APP_THEME_TOKENS: AppThemeTokens = {
+  spacing: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
+  radii: { input: 10, card: 14, elevatedCard: 20, control: 18 },
+  fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular' },
+  typography: {
+    hero: { fontSize: 34, lineHeight: 38, letterSpacing: -1.0 },
+    h1: { fontSize: 24, lineHeight: 28, letterSpacing: -0.5 },
+    h2: { fontSize: 19, lineHeight: 23, letterSpacing: -0.3 },
+    body: { fontSize: 14, lineHeight: 20 },
+    small: { fontSize: 11, lineHeight: 15, letterSpacing: 0.2 },
+    caps: { fontSize: 10, lineHeight: 13, letterSpacing: 1.4 },
+  },
+};
+
 export interface AppTheme {
   id: string;
   appearance: AppAppearance;
@@ -53,6 +97,7 @@ export interface AppTheme {
   label: string;
   navigationDark: boolean;
   statusBarStyle: StatusBarStyle;
+  tokens: AppThemeTokens;
   palette: AppThemePalette;
   gradients: {
     background: readonly [string, string, string];
@@ -67,6 +112,7 @@ const graphiteDark: AppTheme = {
   label: 'Graphite Dark',
   navigationDark: true,
   statusBarStyle: 'light-content',
+  tokens: APP_THEME_TOKENS,
   palette: {
     background: '#08090B',
     backgroundDeep: '#030406',
@@ -105,6 +151,7 @@ const graphiteLight: AppTheme = {
   label: 'Graphite Light',
   navigationDark: false,
   statusBarStyle: 'dark-content',
+  tokens: APP_THEME_TOKENS,
   palette: {
     background: '#F4F5F7',
     backgroundDeep: '#E8EAEE',
