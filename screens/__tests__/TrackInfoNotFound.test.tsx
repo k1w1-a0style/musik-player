@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { render } from '@testing-library/react-native';
 import TrackInfoNotFound from '../TrackInfoNotFound';
 import { getAppTheme } from '../../utils/appTheme';
@@ -26,7 +26,7 @@ jest.mock('../../components/Screen', () => ({
   contentStyle,
 }: {
   children: React.ReactNode;
-  contentStyle?: unknown;
+  contentStyle?: StyleProp<ViewStyle>;
 }) => (
   <View testID="screen" style={contentStyle}>
     {children}
