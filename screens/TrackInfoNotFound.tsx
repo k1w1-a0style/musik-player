@@ -3,7 +3,6 @@ import { StyleSheet, Text } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
 
 const TrackInfoNotFound: React.FC = () => {
   const { theme } = useAppTheme();
@@ -11,7 +10,18 @@ const TrackInfoNotFound: React.FC = () => {
   return (
     <AppBackground>
       <Screen contentStyle={styles.container}>
-        <Text style={[styles.error, { color: theme.palette.text.primary }]}>Titel nicht gefunden.</Text>
+        <Text
+          style={[
+            styles.error,
+            {
+              color: theme.palette.text.primary,
+              fontFamily: theme.tokens.fonts.heading,
+            },
+          ]}
+          testID="track-info-not-found-message"
+        >
+          Titel nicht gefunden.
+        </Text>
       </Screen>
     </AppBackground>
   );
@@ -19,7 +29,7 @@ const TrackInfoNotFound: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  error: { fontFamily: staticTheme.fonts.heading, fontSize: 16 },
+  error: { fontSize: 16 },
 });
 
 export default TrackInfoNotFound;
