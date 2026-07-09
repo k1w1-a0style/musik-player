@@ -3,6 +3,7 @@ import {
   APP_APPEARANCES,
   APP_THEME_SKIN_LABELS,
   APP_THEME_SKINS,
+  APP_THEME_TOKENS,
   DEFAULT_APP_APPEARANCE,
   DEFAULT_APP_THEME_SKIN,
   getAppTheme,
@@ -50,6 +51,11 @@ describe('appTheme', () => {
         expect(theme.label).toContain(appearance === 'dark' ? 'Dark' : 'Light');
         expect(theme.navigationDark).toBe(appearance === 'dark');
         expect(theme.statusBarStyle).toBe(appearance === 'dark' ? 'light-content' : 'dark-content');
+        expect(theme.tokens).toBe(APP_THEME_TOKENS);
+        expect(theme.tokens.spacing.md).toBe(14);
+        expect(theme.tokens.radii.card).toBe(14);
+        expect(theme.tokens.fonts.heading).toBe('Bricolage-SemiBold');
+        expect(theme.tokens.typography.body.lineHeight).toBe(20);
         expect(theme.gradients.background).toHaveLength(3);
         expect(theme.gradients.nowPlaying).toHaveLength(3);
         expect(theme.palette.background).toBeTruthy();
