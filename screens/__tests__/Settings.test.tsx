@@ -91,7 +91,7 @@ describe('Settings', () => {
     expect(getByTestId('settings-now-playing-controls-coverSwipe').props.accessibilityState.selected).toBe(true);
   });
 
-  test('styles selected and unselected controls from the active theme palette', () => {
+  test('styles selected and unselected controls from the active theme palette and tokens', () => {
     const activeTheme = setMockTheme('light', 'neon-cover');
     mockNowPlayingControlsMode = 'coverSwipe';
 
@@ -105,6 +105,9 @@ describe('Settings', () => {
 
     expect(selectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surfaceElevated);
     expect(selectedAppearanceStyle.borderColor).toBe(activeTheme.palette.primary);
+    expect(selectedAppearanceStyle.borderRadius).toBe(activeTheme.tokens.radii.card);
+    expect(selectedAppearanceStyle.padding).toBe(activeTheme.tokens.spacing.md);
+    expect(selectedAppearanceStyle.gap).toBe(activeTheme.tokens.spacing.xs);
     expect(unselectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surface);
     expect(unselectedAppearanceStyle.borderColor).toBe(activeTheme.palette.border);
     expect(selectedSkinStyle.backgroundColor).toBe(activeTheme.palette.surfaceElevated);
@@ -138,16 +141,22 @@ describe('Settings', () => {
     expect(getByText('Minimal Light')).toBeTruthy();
   });
 
-  test('styles the screen and preview from the current theme values', () => {
+  test('styles the screen, scroll content, and preview from the current theme values', () => {
     const activeTheme = setMockTheme('light', 'neon-cover');
 
     const { getByTestId, getByText } = render(<Settings />);
     const screenStyle = StyleSheet.flatten(getByTestId('settings-screen').props.style);
+    const scrollContentStyle = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle);
     const previewStyle = StyleSheet.flatten(getByTestId('settings-theme-preview').props.style);
 
     expect(getByText(activeTheme.label)).toBeTruthy();
     expect(screenStyle.backgroundColor).toBe(activeTheme.palette.background);
+    expect(scrollContentStyle.padding).toBe(activeTheme.tokens.spacing.md);
+    expect(scrollContentStyle.gap).toBe(activeTheme.tokens.spacing.md);
     expect(previewStyle.backgroundColor).toBe(activeTheme.palette.surfaceGlass);
     expect(previewStyle.borderColor).toBe(activeTheme.palette.borderStrong);
+    expect(previewStyle.borderRadius).toBe(activeTheme.tokens.radii.elevatedCard);
+    expect(previewStyle.padding).toBe(activeTheme.tokens.spacing.md);
+    expect(previewStyle.gap).toBe(activeTheme.tokens.spacing.md);
   });
 });
