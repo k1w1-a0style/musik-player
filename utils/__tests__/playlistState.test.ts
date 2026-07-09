@@ -244,6 +244,17 @@ describe('playlistState helpers', () => {
     expect(movedDown[0].updatedAt).toBe(112);
   });
 
+  test('uses Date.now when moving a playlist song without an explicit timestamp', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(4321);
+    const source: Playlist[] = [{ id: 'pl-1', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 }];
+
+    const result = moveSongInPlaylistById(source, 'pl-1', 's2', 'up');
+
+    expect(result[0].songIds).toEqual(['s2', 's1']);
+    expect(result[0].updatedAt).toBe(4321);
+    expect(nowSpy).toHaveBeenCalledTimes(1);
+  });
+
   test('keeps playlist array unchanged when moving cannot change order', () => {
     const source: Playlist[] = [{ id: 'pl-1', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 }];
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(999);
