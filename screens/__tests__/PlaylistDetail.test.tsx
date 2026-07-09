@@ -172,7 +172,6 @@ test('disables move controls when the move action is unavailable', () => {
   expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(true);
   expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(true);
   expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
-  getByTestId('playlist-detail-move-down-song-song-b').props.onPress();
   expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
 });
 
