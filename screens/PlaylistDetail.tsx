@@ -27,7 +27,14 @@ const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
   const navigation = useNavigation<PlaylistDetailNavigation>();
   const { theme } = useAppTheme();
-  const { playlists, deletePlaylist, renamePlaylist, playPlaylist, songs } = useLibraryMusicContext();
+  const {
+    playlists,
+    deletePlaylist,
+    renamePlaylist,
+    removeSongFromPlaylist,
+    playPlaylist,
+    songs,
+  } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
   const [renameOpen, setRenameOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -72,6 +79,22 @@ const PlaylistDetail: React.FC = () => {
     setRenameOpen(false);
   };
 
+  const confirmRemoveSong = (song: Song) => {
+    if (!playlist) return;
+    Alert.alert(
+      'Titel entfernen',
+      `„${song.title || 'Unbekannter Titel'}“ aus „${playlist.name}“ entfernen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Entfernen',
+          style: 'destructive',
+          onPress: () => removeSongFromPlaylist(playlist.id, song.id),
+        },
+      ],
+    );
+  };
+
   const confirmDeletePlaylist = () => {
     if (!playlist) return;
     Alert.alert(
@@ -105,6 +128,21 @@ const PlaylistDetail: React.FC = () => {
           {item.artist || 'Unbekannter Künstler'}
         </Text>
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title || 'Unbekannter Titel'} aus Playlist entfernen`}
+        onPress={() => confirmRemoveSong(item)}
+        style={[
+          styles.removeSongButton,
+          {
+            backgroundColor: theme.palette.surface,
+            borderColor: theme.palette.error,
+          },
+        ]}
+        testID={`playlist-detail-remove-song-${item.id}`}
+      >
+        <Text style={[styles.removeSongText, { color: theme.palette.error }]}>Entfernen</Text>
+      </Pressable>
     </View>
   );
 
@@ -392,6 +430,17 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
     marginTop: 2,
+  },
+  removeSongButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.sm,
+  },
+  removeSongText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 12,
   },
 });
 
