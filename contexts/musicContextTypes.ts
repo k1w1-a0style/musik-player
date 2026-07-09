@@ -56,6 +56,7 @@ export interface LibraryMusicContextValue {
   playlists: Playlist[];
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 

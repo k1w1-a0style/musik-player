@@ -66,6 +66,7 @@ describe('music context value builders', () => {
       playlists: baseValue.playlists,
       deletePlaylist: baseValue.deletePlaylist,
       renamePlaylist: baseValue.renamePlaylist,
+      removeSongFromPlaylist: baseValue.removeSongFromPlaylist,
       playPlaylist: baseValue.playPlaylist,
     });
   });

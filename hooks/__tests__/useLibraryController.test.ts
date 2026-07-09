@@ -42,6 +42,7 @@ const mockMusicContext: MockLibraryMusicContext = {
   playlists: [],
   deletePlaylist: fn,
   renamePlaylist: fn,
+  removeSongFromPlaylist: fn,
   playPlaylist: asyncFn,
 };
 

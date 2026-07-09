@@ -34,6 +34,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     playlists,
     deletePlaylist,
     renamePlaylist,
+    removeSongFromPlaylist,
     playPlaylist,
     togglePlayPause,
     next,
@@ -60,6 +61,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         playlists,
         deletePlaylist,
         renamePlaylist,
+        removeSongFromPlaylist,
         playPlaylist,
       }),
     [
@@ -74,6 +76,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       playlists,
       deletePlaylist,
       renamePlaylist,
+      removeSongFromPlaylist,
       playPlaylist,
     ],
   );
