@@ -39,9 +39,8 @@ const moveSongId = (songIds: string[], songId: string, direction: PlaylistSongMo
   const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
   if (targetIndex < 0 || targetIndex >= songIds.length) return songIds;
   const next = [...songIds];
-  const currentSongId = next[currentIndex];
-  const targetSongId = next[targetIndex];
-  if (!currentSongId || !targetSongId) return songIds;
+  const currentSongId = next[currentIndex]!;
+  const targetSongId = next[targetIndex]!;
   next[currentIndex] = targetSongId;
   next[targetIndex] = currentSongId;
   return next;
