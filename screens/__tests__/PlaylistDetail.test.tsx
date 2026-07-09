@@ -7,6 +7,7 @@ import type { Playlist, Song } from '../../types/Song';
 let mockPlaylistId = 'playlist-1';
 let mockSongs: Song[] = [];
 let mockPlaylists: Playlist[] = [];
+let mockMoveSongInPlaylistEnabled = true;
 const mockGoBack = jest.fn();
 const mockDeletePlaylist = jest.fn();
 const mockRenamePlaylist = jest.fn();
@@ -57,7 +58,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     renamePlaylist: mockRenamePlaylist,
     addSongToPlaylist: mockAddSongToPlaylist,
     removeSongFromPlaylist: mockRemoveSongFromPlaylist,
-    moveSongInPlaylist: mockMoveSongInPlaylist,
+    moveSongInPlaylist: mockMoveSongInPlaylistEnabled ? mockMoveSongInPlaylist : undefined,
     playPlaylist: mockPlayPlaylist,
     songs: mockSongs,
   }),
@@ -89,6 +90,7 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
 
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
+  mockMoveSongInPlaylistEnabled = true;
   mockDeletePlaylist.mockClear();
   mockRenamePlaylist.mockClear();
   mockAddSongToPlaylist.mockClear();
@@ -159,6 +161,17 @@ test('disables move controls at playlist boundaries', () => {
   expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(false);
   expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
   expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
+});
+
+test('disables move controls when the move action is unavailable', () => {
+  mockMoveSongInPlaylistEnabled = false;
+
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  expect(getByTestId('playlist-detail-move-up-song-song-b').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
 });
 
 test('opens add panel with songs that are not already in the playlist', () => {
