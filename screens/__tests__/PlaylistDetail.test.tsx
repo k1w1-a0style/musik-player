@@ -7,11 +7,13 @@ import type { Playlist, Song } from '../../types/Song';
 let mockPlaylistId = 'playlist-1';
 let mockSongs: Song[] = [];
 let mockPlaylists: Playlist[] = [];
+let mockMoveSongInPlaylistEnabled = true;
 const mockGoBack = jest.fn();
 const mockDeletePlaylist = jest.fn();
 const mockRenamePlaylist = jest.fn();
 const mockAddSongToPlaylist = jest.fn();
 const mockRemoveSongFromPlaylist = jest.fn();
+const mockMoveSongInPlaylist = jest.fn();
 const mockPlayPlaylist = jest.fn(async () => undefined);
 
 const mockAppTheme = {
@@ -56,6 +58,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     renamePlaylist: mockRenamePlaylist,
     addSongToPlaylist: mockAddSongToPlaylist,
     removeSongFromPlaylist: mockRemoveSongFromPlaylist,
+    moveSongInPlaylist: mockMoveSongInPlaylistEnabled ? mockMoveSongInPlaylist : undefined,
     playPlaylist: mockPlayPlaylist,
     songs: mockSongs,
   }),
@@ -87,10 +90,12 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
 
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
+  mockMoveSongInPlaylistEnabled = true;
   mockDeletePlaylist.mockClear();
   mockRenamePlaylist.mockClear();
   mockAddSongToPlaylist.mockClear();
   mockRemoveSongFromPlaylist.mockClear();
+  mockMoveSongInPlaylist.mockClear();
   mockGoBack.mockClear();
   mockPlayPlaylist.mockClear();
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -118,6 +123,10 @@ test('renders playlist name, valid song count, and contained songs in playlist o
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-up-song-song-b')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-down-song-song-b')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-up-song-song-a')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-down-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-a')).toBeTruthy();
   expect(getByText('Beta')).toBeTruthy();
@@ -132,6 +141,38 @@ test('plays the playlist through the existing playlist playback action', () => {
   fireEvent.press(getByTestId('playlist-detail-play-button'));
 
   expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
+});
+
+test('moves songs through the existing playlist move action', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-move-down-song-song-b'));
+  fireEvent.press(getByTestId('playlist-detail-move-up-song-song-a'));
+
+  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(1, 'playlist-1', 'song-b', 'down');
+  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(2, 'playlist-1', 'song-a', 'up');
+});
+
+test('disables move controls at playlist boundaries', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  expect(getByTestId('playlist-detail-move-up-song-song-b').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
+  expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
+});
+
+test('disables move controls when the move action is unavailable', () => {
+  mockMoveSongInPlaylistEnabled = false;
+
+  const { getByTestId } = render(<PlaylistDetail />);
+
+  expect(getByTestId('playlist-detail-move-up-song-song-b').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
+  expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
 });
 
 test('opens add panel with songs that are not already in the playlist', () => {
@@ -274,6 +315,8 @@ test('shows empty state for an empty playlist and disables play action', () => {
   expect(getByTestId('playlist-detail-add-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-rename-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
+  expect(queryByTestId('playlist-detail-move-up-song-song-a')).toBeNull();
+  expect(queryByTestId('playlist-detail-move-down-song-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
   fireEvent.press(playButton);
   expect(mockPlayPlaylist).not.toHaveBeenCalled();
@@ -293,6 +336,8 @@ test('shows missing song warning without rendering missing songs', () => {
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-c')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-up-song-song-a')).toBeTruthy();
+  expect(getByTestId('playlist-detail-move-down-song-song-c')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-c')).toBeTruthy();
   expect(queryByTestId('playlist-detail-song-missing-song')).toBeNull();
@@ -310,5 +355,7 @@ test('shows not found state for an unknown playlist id', () => {
   expect(queryByTestId('playlist-detail-add-button')).toBeNull();
   expect(queryByTestId('playlist-detail-rename-button')).toBeNull();
   expect(queryByTestId('playlist-detail-delete-button')).toBeNull();
+  expect(queryByTestId('playlist-detail-move-up-song-song-a')).toBeNull();
+  expect(queryByTestId('playlist-detail-move-down-song-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
 });

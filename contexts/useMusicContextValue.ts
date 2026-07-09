@@ -38,6 +38,7 @@ export const useMusicContextValue = ({
   renamePlaylist,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  moveSongInPlaylist,
   playPlaylist,
   isReady,
 }: MusicContextValue): MusicContextValue =>
@@ -79,6 +80,7 @@ export const useMusicContextValue = ({
       renamePlaylist,
       addSongToPlaylist,
       removeSongFromPlaylist,
+      moveSongInPlaylist,
       playPlaylist,
       isReady,
     }),
@@ -119,6 +121,7 @@ export const useMusicContextValue = ({
       renamePlaylist,
       addSongToPlaylist,
       removeSongFromPlaylist,
+      moveSongInPlaylist,
       playPlaylist,
       isReady,
     ],

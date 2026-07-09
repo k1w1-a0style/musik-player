@@ -1,5 +1,7 @@
 import type { Playlist } from '../types/Song';
 
+export type PlaylistSongMoveDirection = 'up' | 'down';
+
 const normalizeId = (value: string): string | undefined => {
   const trimmed = value.trim();
   return trimmed || undefined;
@@ -30,6 +32,19 @@ const uniqueValidSongIds = (songIds: string[], normalizedValidSongIds?: Set<stri
 };
 
 const sameSongIds = (a: string[], b: string[]): boolean => a.length === b.length && a.every((songId, index) => songId === b[index]);
+
+const moveSongId = (songIds: string[], songId: string, direction: PlaylistSongMoveDirection): string[] => {
+  const currentIndex = songIds.indexOf(songId);
+  if (currentIndex < 0) return songIds;
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= songIds.length) return songIds;
+  const next = [...songIds];
+  const currentSongId = next[currentIndex]!;
+  const targetSongId = next[targetIndex]!;
+  next[currentIndex] = targetSongId;
+  next[targetIndex] = currentSongId;
+  return next;
+};
 
 export const prunePlaylists = (items: Playlist[], validSongIds: Set<string>): Playlist[] => {
   if (items.length === 0) return items;
@@ -113,6 +128,30 @@ export const removeSongFromPlaylistById = (
     changed = true;
     timestamp ??= now ?? Date.now();
     return { ...playlist, songIds, updatedAt: timestamp };
+  });
+  return changed ? next : items;
+};
+
+export const moveSongInPlaylistById = (
+  items: Playlist[],
+  playlistId: string,
+  songId: string,
+  direction: PlaylistSongMoveDirection,
+  now?: number,
+): Playlist[] => {
+  const targetPlaylistId = normalizeId(playlistId);
+  const targetSongId = normalizeId(songId);
+  if (!targetPlaylistId || !targetSongId) return items;
+  let changed = false;
+  let timestamp: number | undefined;
+  const next = items.map(playlist => {
+    if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
+    const songIds = uniqueValidSongIds(playlist.songIds);
+    const movedSongIds = moveSongId(songIds, targetSongId, direction);
+    if (sameSongIds(movedSongIds, playlist.songIds)) return playlist;
+    changed = true;
+    timestamp ??= now ?? Date.now();
+    return { ...playlist, songIds: movedSongIds, updatedAt: timestamp };
   });
   return changed ? next : items;
 };

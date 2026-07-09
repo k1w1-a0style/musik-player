@@ -9,13 +9,14 @@ describe('musicProviderActionInput', () => {
       setSongs: noop,
       addSongs: noop,
       updateSongMetadata: noop,
-  applySongMetadataPatches: noop,
+      applySongMetadataPatches: noop,
       createPlaylist: () => ({ id: 'pl-1', name: 'List', songIds: [], createdAt: 1, updatedAt: 1 }),
       saveQueueAsPlaylist: () => ({ id: 'pl-2', name: 'Queue', songIds: ['s1'], createdAt: 2, updatedAt: 2 }),
       deletePlaylist: noop,
       renamePlaylist: noop,
       addSongToPlaylist: noop,
       removeSongFromPlaylist: noop,
+      moveSongInPlaylist: noop,
       playPlaylist: noopAsync,
     };
 
@@ -33,6 +34,7 @@ describe('musicProviderActionInput', () => {
         renamePlaylist: actions.renamePlaylist,
         addSongToPlaylist: actions.addSongToPlaylist,
         removeSongFromPlaylist: actions.removeSongFromPlaylist,
+        moveSongInPlaylist: actions.moveSongInPlaylist,
         playPlaylist: actions.playPlaylist,
       },
     });

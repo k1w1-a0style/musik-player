@@ -44,6 +44,7 @@ const baseValue: MusicContextValue = {
   renamePlaylist: noop,
   addSongToPlaylist: noop,
   removeSongFromPlaylist: noop,
+  moveSongInPlaylist: noop,
   playPlaylist: noopAsync,
   isReady: true,
 };

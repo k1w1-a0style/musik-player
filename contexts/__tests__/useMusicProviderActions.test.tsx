@@ -71,6 +71,7 @@ describe('useMusicProviderActions', () => {
       renamePlaylist: noop,
       addSongToPlaylist: noop,
       removeSongFromPlaylist: noop,
+      moveSongInPlaylist: noop,
       playPlaylist: noopAsync,
     };
 

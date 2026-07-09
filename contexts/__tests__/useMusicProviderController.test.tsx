@@ -101,6 +101,7 @@ describe('useMusicProviderController', () => {
       renamePlaylist: noop,
       addSongToPlaylist: noop,
       removeSongFromPlaylist: noop,
+      moveSongInPlaylist: noop,
       playPlaylist: noopAsync,
     };
     const value: MusicContextValue = {
@@ -140,6 +141,7 @@ describe('useMusicProviderController', () => {
       renamePlaylist: actions.renamePlaylist,
       addSongToPlaylist: actions.addSongToPlaylist,
       removeSongFromPlaylist: actions.removeSongFromPlaylist,
+      moveSongInPlaylist: actions.moveSongInPlaylist,
       playPlaylist: actions.playPlaylist,
       isReady: true,
     };
@@ -159,6 +161,7 @@ describe('useMusicProviderController', () => {
         renamePlaylist: value.renamePlaylist,
         addSongToPlaylist: value.addSongToPlaylist,
         removeSongFromPlaylist: value.removeSongFromPlaylist,
+        moveSongInPlaylist: value.moveSongInPlaylist,
         playPlaylist: value.playPlaylist,
       },
       miniPlayerValue: {
