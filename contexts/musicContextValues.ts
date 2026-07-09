@@ -20,6 +20,7 @@ type LibraryMusicContextInput = Pick<
   | 'renamePlaylist'
   | 'addSongToPlaylist'
   | 'removeSongFromPlaylist'
+  | 'moveSongInPlaylist'
   | 'playPlaylist'
 >;
 
@@ -58,6 +59,7 @@ export const buildLibraryMusicContextValue = ({
   renamePlaylist,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  moveSongInPlaylist,
   playPlaylist,
 }: LibraryMusicContextInput): LibraryMusicContextValue => ({
   songs,
@@ -73,6 +75,7 @@ export const buildLibraryMusicContextValue = ({
   renamePlaylist,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  moveSongInPlaylist,
   playPlaylist,
 });
 
