@@ -76,6 +76,7 @@ const actions: MusicProviderDomainActions = {
   renamePlaylist: noop,
   addSongToPlaylist: noop,
   removeSongFromPlaylist: noop,
+  moveSongInPlaylist: noop,
   playPlaylist: noopAsync,
 };
 
@@ -90,6 +91,7 @@ describe('useMusicProviderContextComposition', () => {
       songs: [song],
       currentSong: song,
       isReady: true,
+      moveSongInPlaylist: actions.moveSongInPlaylist,
     });
     expect(result.current.miniPlayerValue).toMatchObject({
       currentSong: song,
