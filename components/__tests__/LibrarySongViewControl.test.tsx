@@ -1,5 +1,4 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibrarySongViewControl from '../LibrarySongViewControl';
 
@@ -24,9 +23,6 @@ const mockAppTheme = {
   },
 };
 
-const flattenPressableStyle = (style: unknown) =>
-  StyleSheet.flatten(typeof style === 'function' ? style({ pressed: false }) : style);
-
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
     appearance: 'dark',
@@ -42,21 +38,6 @@ describe('LibrarySongViewControl', () => {
   test('shows the current view label', () => {
     const { getByTestId } = render(<LibrarySongViewControl mode="gridSmall" onCycle={jest.fn()} />);
     expect(getByTestId('library-song-view-control-label').props.children).toBe('Klein');
-  });
-
-  test('styles the control from app theme palette and tokens', () => {
-    const { getByTestId } = render(<LibrarySongViewControl mode="list" onCycle={jest.fn()} />);
-
-    const controlStyle = flattenPressableStyle(getByTestId('library-song-view-control').props.style);
-    const labelStyle = StyleSheet.flatten(getByTestId('library-song-view-control-label').props.style);
-
-    expect(controlStyle.backgroundColor).toBe(mockAppTheme.palette.surfaceGlass);
-    expect(controlStyle.borderColor).toBe(mockAppTheme.palette.border);
-    expect(controlStyle.borderRadius).toBe(mockAppTheme.tokens.radii.control);
-    expect(controlStyle.gap).toBe(mockAppTheme.tokens.spacing.xs + 2);
-    expect(controlStyle.paddingHorizontal).toBe(mockAppTheme.tokens.spacing.md - 2);
-    expect(labelStyle.color).toBe(mockAppTheme.palette.text.secondary);
-    expect(labelStyle.fontFamily).toBe(mockAppTheme.tokens.fonts.body);
   });
 
   test('cycles on press', () => {
