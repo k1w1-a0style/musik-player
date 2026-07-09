@@ -15,6 +15,18 @@ const mockAppThemeContextValue = {
     label: 'Graphite Dark',
     navigationDark: true,
     statusBarStyle: 'light-content',
+    tokens: {
+      spacing: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
+      radii: { input: 10, card: 14, elevatedCard: 20, control: 18 },
+      fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular' },
+      typography: {
+        display: { fontSize: 34, lineHeight: 40, letterSpacing: -0.8 },
+        title: { fontSize: 24, lineHeight: 30, letterSpacing: -0.5 },
+        sectionTitle: { fontSize: 18, lineHeight: 24, letterSpacing: -0.2 },
+        body: { fontSize: 14, lineHeight: 20, letterSpacing: 0 },
+        caption: { fontSize: 12, lineHeight: 16, letterSpacing: 0.2 },
+      },
+    },
     palette: {
       background: '#08090B',
       backgroundDeep: '#030406',
