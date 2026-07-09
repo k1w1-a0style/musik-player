@@ -52,7 +52,7 @@ const Settings: React.FC = () => {
         ]}
       >
         <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{APP_APPEARANCE_LABELS[option]}</Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>
           {option === 'dark' ? 'Dunkle Oberfläche für Musikbetrieb.' : 'Helle Oberfläche für Tageslicht.'}
         </Text>
       </Pressable>
@@ -79,7 +79,7 @@ const Settings: React.FC = () => {
         ]}
       >
         <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{APP_THEME_SKIN_LABELS[option]}</Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>
           {option === 'graphite'
             ? 'Neutraler Schwarz/Grau-Standard.'
             : option === 'minimal'
