@@ -36,6 +36,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     renamePlaylist,
     addSongToPlaylist,
     removeSongFromPlaylist,
+    moveSongInPlaylist,
     playPlaylist,
     togglePlayPause,
     next,
@@ -64,6 +65,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         renamePlaylist,
         addSongToPlaylist,
         removeSongFromPlaylist,
+        moveSongInPlaylist,
         playPlaylist,
       }),
     [
@@ -80,6 +82,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       renamePlaylist,
       addSongToPlaylist,
       removeSongFromPlaylist,
+      moveSongInPlaylist,
       playPlaylist,
     ],
   );
