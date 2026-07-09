@@ -10,6 +10,7 @@ const deletePlaylist = jest.fn();
 const renamePlaylist = jest.fn();
 const addSongToPlaylist = jest.fn();
 const removeSongFromPlaylist = jest.fn();
+const moveSongInPlaylist = jest.fn();
 const saveQueueAsPlaylist = () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3, updatedAt: 3 });
 
 const baseValue: MusicContextValue = {
@@ -52,6 +53,7 @@ const baseValue: MusicContextValue = {
   renamePlaylist,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  moveSongInPlaylist,
   playPlaylist: noopAsync,
   isReady: true,
 };
@@ -68,6 +70,7 @@ const ValuesProbe = () => {
       <Text testID="library-rename-ref">{String(libraryValue.renamePlaylist === renamePlaylist)}</Text>
       <Text testID="library-add-song-ref">{String(libraryValue.addSongToPlaylist === addSongToPlaylist)}</Text>
       <Text testID="library-remove-song-ref">{String(libraryValue.removeSongFromPlaylist === removeSongFromPlaylist)}</Text>
+      <Text testID="library-move-song-ref">{String(libraryValue.moveSongInPlaylist === moveSongInPlaylist)}</Text>
       <Text testID="mini-can-next">{String(miniPlayerValue.canSkipNext)}</Text>
       <Text testID="now-can-skip">{String(nowPlayingValue.canSkip)}</Text>
       <Text testID="now-volume">{String(nowPlayingValue.volume)}</Text>
@@ -86,6 +89,7 @@ describe('useProvidedMusicContextValues', () => {
     expect(getByTestId('library-rename-ref').props.children).toBe('true');
     expect(getByTestId('library-add-song-ref').props.children).toBe('true');
     expect(getByTestId('library-remove-song-ref').props.children).toBe('true');
+    expect(getByTestId('library-move-song-ref').props.children).toBe('true');
     expect(getByTestId('mini-can-next').props.children).toBe('true');
     expect(getByTestId('now-can-skip').props.children).toBe('true');
     expect(getByTestId('now-volume').props.children).toBe('0.8');
