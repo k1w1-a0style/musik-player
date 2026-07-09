@@ -1,6 +1,7 @@
 import {
   addSongToPlaylistById,
   deletePlaylistById,
+  moveSongInPlaylistById,
   prunePlaylists,
   removeSongFromPlaylistById,
   renamePlaylistById,
@@ -231,6 +232,45 @@ describe('playlistState helpers', () => {
     expect(result[2]).toBe(duplicated[2]);
   });
 
+  test('moves a playlist song up and down by normalized ids', () => {
+    const source: Playlist[] = [{ id: 'pl-1', name: 'One', songIds: ['s1', 's2', 's3'], createdAt: 1, updatedAt: 1 }];
+
+    const movedUp = moveSongInPlaylistById(source, ' pl-1 ', ' s3 ', 'up', 111);
+    expect(movedUp[0].songIds).toEqual(['s1', 's3', 's2']);
+    expect(movedUp[0].updatedAt).toBe(111);
+
+    const movedDown = moveSongInPlaylistById(movedUp, 'pl-1', 's1', 'down', 112);
+    expect(movedDown[0].songIds).toEqual(['s3', 's1', 's2']);
+    expect(movedDown[0].updatedAt).toBe(112);
+  });
+
+  test('keeps playlist array unchanged when moving cannot change order', () => {
+    const source: Playlist[] = [{ id: 'pl-1', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 }];
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(999);
+
+    expect(moveSongInPlaylistById(source, 'pl-1', 's1', 'up')).toBe(source);
+    expect(moveSongInPlaylistById(source, 'pl-1', 's2', 'down')).toBe(source);
+    expect(moveSongInPlaylistById(source, 'pl-1', 'missing', 'up')).toBe(source);
+    expect(moveSongInPlaylistById(source, '   ', 's2', 'up')).toBe(source);
+    expect(moveSongInPlaylistById(source, 'pl-1', '   ', 'up')).toBe(source);
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  test('moves a song across duplicate playlist ids with mixed boundaries', () => {
+    const duplicated: Playlist[] = [
+      { id: 'dup', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 },
+      { id: ' dup ', name: 'Two', songIds: ['s2', 's1'], createdAt: 2, updatedAt: 2 },
+      { id: 'other', name: 'Other', songIds: ['s2', 's1'], createdAt: 3, updatedAt: 3 },
+    ];
+
+    const result = moveSongInPlaylistById(duplicated, 'dup', 's2', 'up', 777);
+    expect(result).not.toBe(duplicated);
+    expect(result[0].songIds).toEqual(['s2', 's1']);
+    expect(result[0].updatedAt).toBe(777);
+    expect(result[1]).toBe(duplicated[1]);
+    expect(result[2]).toBe(duplicated[2]);
+  });
+
   test('does not call Date.now for add/remove no-op and calls it once for multiple changes', () => {
     const noOpNowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
     const dupNoOp: Playlist[] = [
@@ -240,6 +280,7 @@ describe('playlistState helpers', () => {
 
     expect(addSongToPlaylistById(dupNoOp, 'dup', 's1')).toBe(dupNoOp);
     expect(removeSongFromPlaylistById(dupNoOp, 'dup', 's9')).toBe(dupNoOp);
+    expect(moveSongInPlaylistById(dupNoOp, 'dup', 's1', 'down')).toBe(dupNoOp);
     expect(noOpNowSpy).not.toHaveBeenCalled();
 
     noOpNowSpy.mockClear();
