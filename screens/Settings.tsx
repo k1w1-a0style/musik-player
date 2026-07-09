@@ -22,6 +22,16 @@ const Settings: React.FC = () => {
   const { mode: nowPlayingControlsMode, setMode: setNowPlayingControlsMode } = useNowPlayingControlsMode();
   const { fonts, radii, spacing } = theme.tokens;
 
+  const optionTokenStyle = {
+    borderRadius: radii.card,
+    gap: spacing.xs,
+    padding: spacing.md,
+  };
+  const optionTitleTokenStyle = { fontFamily: fonts.heading };
+  const optionSubtitleTokenStyle = { fontFamily: fonts.body };
+  const sectionTokenStyle = { gap: spacing.sm };
+  const sectionTitleTokenStyle = { fontFamily: fonts.heading };
+
   const renderAppearanceOption = (option: AppAppearance) => {
     const selected = option === appearance;
     return (
@@ -34,19 +44,17 @@ const Settings: React.FC = () => {
         onPress={() => setAppearance(option)}
         style={[
           styles.option,
+          optionTokenStyle,
           {
             backgroundColor: selected ? theme.palette.surfaceElevated : theme.palette.surface,
             borderColor: selected ? theme.palette.primary : theme.palette.border,
-            borderRadius: radii.card,
-            gap: spacing.xs,
-            padding: spacing.md,
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
           {APP_APPEARANCE_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
           {option === 'dark' ? 'Dunkle Oberfläche für Musikbetrieb.' : 'Helle Oberfläche für Tageslicht.'}
         </Text>
       </Pressable>
@@ -65,19 +73,17 @@ const Settings: React.FC = () => {
         onPress={() => setSkin(option)}
         style={[
           styles.option,
+          optionTokenStyle,
           {
             backgroundColor: selected ? theme.palette.surfaceElevated : theme.palette.surface,
             borderColor: selected ? theme.palette.primary : theme.palette.border,
-            borderRadius: radii.card,
-            gap: spacing.xs,
-            padding: spacing.md,
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
           {APP_THEME_SKIN_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
           {option === 'graphite'
             ? 'Neutraler Schwarz/Grau-Standard.'
             : option === 'minimal'
@@ -100,19 +106,17 @@ const Settings: React.FC = () => {
         onPress={() => setNowPlayingControlsMode(option)}
         style={[
           styles.option,
+          optionTokenStyle,
           {
             backgroundColor: selected ? theme.palette.surfaceElevated : theme.palette.surface,
             borderColor: selected ? theme.palette.primary : theme.palette.border,
-            borderRadius: radii.card,
-            gap: spacing.xs,
-            padding: spacing.md,
           },
         ]}
       >
-        <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}> 
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}> 
           {NOW_PLAYING_CONTROLS_MODE_LABELS[option]}
         </Text>
-        <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
           {NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS[option]}
         </Text>
       </Pressable>
@@ -130,18 +134,18 @@ const Settings: React.FC = () => {
           Wähle Darstellung und Oberfläche. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
         </Text>
 
-        <View style={[styles.section, { gap: spacing.sm }]}> 
-          <Text style={[styles.sectionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Hell / Dunkel</Text>
+        <View style={[styles.section, sectionTokenStyle]}>
+          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}
         </View>
 
-        <View style={[styles.section, { gap: spacing.sm }]}> 
-          <Text style={[styles.sectionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Oberfläche</Text>
+        <View style={[styles.section, sectionTokenStyle]}>
+          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Oberfläche</Text>
           {APP_THEME_SKINS.map(renderSkinOption)}
         </View>
 
-        <View style={[styles.section, { gap: spacing.sm }]}> 
-          <Text style={[styles.sectionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Player-Bedienung</Text>
+        <View style={[styles.section, sectionTokenStyle]}>
+          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Bedienung</Text>
           {NOW_PLAYING_CONTROLS_MODES.map(renderNowPlayingControlsOption)}
         </View>
 
@@ -164,7 +168,7 @@ const Settings: React.FC = () => {
             <View style={[styles.previewLine, { backgroundColor: theme.palette.borderStrong }]} />
             <View style={[styles.previewPill, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} />
           </View>
-          <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
+          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
             Die vollständige Migration alter Screens erfolgt schrittweise, damit keine UI-Baustelle explodiert.
           </Text>
         </View>
