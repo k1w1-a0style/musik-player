@@ -2,12 +2,6 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import LibraryTabContent from '../LibraryTabContent';
 
-const mockThemeTokens = {
-  spacing: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
-  radii: { input: 10, card: 14, elevatedCard: 20, control: 18 },
-  fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular' },
-};
-
 const mockAppThemeContextValue = {
   appearance: 'dark',
   skin: 'graphite',
@@ -21,7 +15,6 @@ const mockAppThemeContextValue = {
     label: 'Graphite Dark',
     navigationDark: true,
     statusBarStyle: 'light-content',
-    tokens: mockThemeTokens,
     palette: {
       background: '#07090C',
       backgroundDeep: '#030406',
