@@ -1,6 +1,7 @@
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import type { SongMetadataPatchesById } from './useLibraryActions';
+import type { PlaylistSongMoveDirection } from './usePlaylistActions';
 
 export interface MusicContextValue {
   songs: Song[];
@@ -40,6 +41,7 @@ export interface MusicContextValue {
   renamePlaylist: (id: string, name: string) => void;
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
+  moveSongInPlaylist: (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) => void;
   playPlaylist: (playlistId: string) => Promise<void>;
   isReady: boolean;
 }
@@ -58,6 +60,7 @@ export interface LibraryMusicContextValue {
   renamePlaylist: (id: string, name: string) => void;
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
+  moveSongInPlaylist: (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) => void;
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 
