@@ -33,6 +33,7 @@ const PlaylistDetail: React.FC = () => {
     renamePlaylist,
     addSongToPlaylist,
     removeSongFromPlaylist,
+    moveSongInPlaylist,
     playPlaylist,
     songs,
   } = useLibraryMusicContext();
@@ -99,6 +100,11 @@ const PlaylistDetail: React.FC = () => {
     addSongToPlaylist(playlist.id, songId);
   };
 
+  const handleMoveSong = (songId: string, direction: 'up' | 'down') => {
+    if (!playlist) return;
+    moveSongInPlaylist(playlist.id, songId, direction);
+  };
+
   const confirmRemoveSong = (song: Song) => {
     if (!playlist) return;
     Alert.alert(
@@ -134,37 +140,78 @@ const PlaylistDetail: React.FC = () => {
     );
   };
 
-  const renderSong: ListRenderItem<Song> = ({ item, index }) => (
-    <View
-      style={[styles.songRow, { borderBottomColor: theme.palette.border }]}
-      testID={`playlist-detail-song-${item.id}`}
-    >
-      <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
-      <View style={styles.songTextWrap}>
-        <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-          {item.title || 'Unbekannter Titel'}
-        </Text>
-        <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-          {item.artist || 'Unbekannter Künstler'}
-        </Text>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${item.title || 'Unbekannter Titel'} aus Playlist entfernen`}
-        onPress={() => confirmRemoveSong(item)}
-        style={[
-          styles.removeSongButton,
-          {
-            backgroundColor: theme.palette.surface,
-            borderColor: theme.palette.error,
-          },
-        ]}
-        testID={`playlist-detail-remove-song-${item.id}`}
+  const renderSong: ListRenderItem<Song> = ({ item, index }) => {
+    const isFirstSong = index === 0;
+    const isLastSong = index === playlistSongs.length - 1;
+
+    return (
+      <View
+        style={[styles.songRow, { borderBottomColor: theme.palette.border }]}
+        testID={`playlist-detail-song-${item.id}`}
       >
-        <Text style={[styles.removeSongText, { color: theme.palette.error }]}>Entfernen</Text>
-      </Pressable>
-    </View>
-  );
+        <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
+        <View style={styles.songTextWrap}>
+          <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
+            {item.title || 'Unbekannter Titel'}
+          </Text>
+          <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+            {item.artist || 'Unbekannter Künstler'}
+          </Text>
+        </View>
+        <View style={styles.moveSongActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach oben verschieben`}
+            accessibilityState={{ disabled: isFirstSong }}
+            disabled={isFirstSong}
+            onPress={() => handleMoveSong(item.id, 'up')}
+            style={[
+              styles.moveSongButton,
+              {
+                backgroundColor: theme.palette.surface,
+                borderColor: theme.palette.border,
+              },
+            ]}
+            testID={`playlist-detail-move-up-song-${item.id}`}
+          >
+            <Text style={[styles.moveSongText, { color: theme.palette.text.secondary }]}>Hoch</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach unten verschieben`}
+            accessibilityState={{ disabled: isLastSong }}
+            disabled={isLastSong}
+            onPress={() => handleMoveSong(item.id, 'down')}
+            style={[
+              styles.moveSongButton,
+              {
+                backgroundColor: theme.palette.surface,
+                borderColor: theme.palette.border,
+              },
+            ]}
+            testID={`playlist-detail-move-down-song-${item.id}`}
+          >
+            <Text style={[styles.moveSongText, { color: theme.palette.text.secondary }]}>Runter</Text>
+          </Pressable>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title || 'Unbekannter Titel'} aus Playlist entfernen`}
+          onPress={() => confirmRemoveSong(item)}
+          style={[
+            styles.removeSongButton,
+            {
+              backgroundColor: theme.palette.surface,
+              borderColor: theme.palette.error,
+            },
+          ]}
+          testID={`playlist-detail-remove-song-${item.id}`}
+        >
+          <Text style={[styles.removeSongText, { color: theme.palette.error }]}>Entfernen</Text>
+        </Pressable>
+      </View>
+    );
+  };
 
   if (!playlist) {
     return (
@@ -562,6 +609,21 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.body,
     fontSize: 12,
     marginTop: 2,
+  },
+  moveSongActions: {
+    flexDirection: 'row',
+    gap: staticTheme.spacing.xs,
+  },
+  moveSongButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.sm,
+  },
+  moveSongText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 12,
   },
   removeSongButton: {
     minHeight: 34,
