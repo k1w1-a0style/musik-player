@@ -46,6 +46,7 @@ type PlaylistInput = Pick<
   | 'renamePlaylist'
   | 'addSongToPlaylist'
   | 'removeSongFromPlaylist'
+  | 'moveSongInPlaylist'
   | 'playPlaylist'
 >;
 
