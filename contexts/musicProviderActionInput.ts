@@ -13,6 +13,7 @@ type ContextPlaylistInput = Pick<
   | 'renamePlaylist'
   | 'addSongToPlaylist'
   | 'removeSongFromPlaylist'
+  | 'moveSongInPlaylist'
   | 'playPlaylist'
 >;
 
@@ -34,6 +35,7 @@ export const buildMusicProviderContextActionsInput = ({
   renamePlaylist,
   addSongToPlaylist,
   removeSongFromPlaylist,
+  moveSongInPlaylist,
   playPlaylist,
 }: ContextActionsInput): ContextActionSections => ({
   library: {
@@ -49,6 +51,7 @@ export const buildMusicProviderContextActionsInput = ({
     renamePlaylist,
     addSongToPlaylist,
     removeSongFromPlaylist,
+    moveSongInPlaylist,
     playPlaylist,
   },
 });
