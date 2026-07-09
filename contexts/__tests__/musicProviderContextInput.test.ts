@@ -41,6 +41,7 @@ const baseValue: MusicContextValue = {
   renamePlaylist: noop,
   addSongToPlaylist: noop,
   removeSongFromPlaylist: noop,
+  moveSongInPlaylist: noop,
   playPlaylist: noopAsync,
   isReady: true,
 };
@@ -97,6 +98,7 @@ describe('buildMusicProviderContextInput', () => {
           renamePlaylist: baseValue.renamePlaylist,
           addSongToPlaylist: baseValue.addSongToPlaylist,
           removeSongFromPlaylist: baseValue.removeSongFromPlaylist,
+          moveSongInPlaylist: baseValue.moveSongInPlaylist,
           playPlaylist: baseValue.playPlaylist,
         },
       }),
