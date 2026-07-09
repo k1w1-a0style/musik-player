@@ -9,7 +9,7 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { Edit3, Trash2, Play } from 'lucide-react-native';
+import { Edit3, Plus, Trash2, Play } from 'lucide-react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -31,12 +31,14 @@ const PlaylistDetail: React.FC = () => {
     playlists,
     deletePlaylist,
     renamePlaylist,
+    addSongToPlaylist,
     removeSongFromPlaylist,
     playPlaylist,
     songs,
   } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
   const [renameOpen, setRenameOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
 
   const playlist = useMemo(
@@ -48,6 +50,8 @@ const PlaylistDetail: React.FC = () => {
     if (!renameOpen && playlist) setDraftName(playlist.name);
   }, [playlist, renameOpen]);
 
+  const playlistSongIds = useMemo(() => new Set(playlist?.songIds ?? []), [playlist]);
+
   const playlistSongs = useMemo(() => {
     if (!playlist) return [];
     const songsById = new Map(songs.map(song => [song.id, song]));
@@ -57,6 +61,11 @@ const PlaylistDetail: React.FC = () => {
     });
   }, [playlist, songs]);
 
+  const addableSongs = useMemo(
+    () => (playlist ? songs.filter(song => !playlistSongIds.has(song.id)) : []),
+    [playlist, playlistSongIds, songs],
+  );
+
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
   const trimmedDraftName = draftName.trim();
@@ -64,6 +73,7 @@ const PlaylistDetail: React.FC = () => {
 
   const openRename = () => {
     if (!playlist) return;
+    setAddOpen(false);
     setDraftName(playlist.name);
     setRenameOpen(true);
   };
@@ -77,6 +87,16 @@ const PlaylistDetail: React.FC = () => {
     if (!playlist || renameDisabled) return;
     renamePlaylist(playlist.id, trimmedDraftName);
     setRenameOpen(false);
+  };
+
+  const toggleAddPanel = () => {
+    setRenameOpen(false);
+    setAddOpen(open => !open);
+  };
+
+  const handleAddSong = (songId: string) => {
+    if (!playlist) return;
+    addSongToPlaylist(playlist.id, songId);
   };
 
   const confirmRemoveSong = (song: Song) => {
@@ -192,6 +212,22 @@ const PlaylistDetail: React.FC = () => {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Titel zu ${playlist.name} hinzufügen`}
+                onPress={toggleAddPanel}
+                style={[
+                  styles.addButton,
+                  {
+                    backgroundColor: theme.palette.surface,
+                    borderColor: theme.palette.border,
+                  },
+                ]}
+                testID="playlist-detail-add-button"
+              >
+                <Plus color={theme.palette.text.primary} size={17} />
+                <Text style={[styles.addButtonText, { color: theme.palette.text.primary }]}>Titel hinzufügen</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} umbenennen`}
                 onPress={openRename}
                 style={[
@@ -223,6 +259,54 @@ const PlaylistDetail: React.FC = () => {
                 <Text style={[styles.deleteButtonText, { color: theme.palette.error }]}>Löschen</Text>
               </Pressable>
             </View>
+            {addOpen && (
+              <View
+                style={[
+                  styles.addPanel,
+                  {
+                    backgroundColor: theme.palette.surfaceElevated,
+                    borderColor: theme.palette.border,
+                  },
+                ]}
+                testID="playlist-detail-add-panel"
+              >
+                <Text style={[styles.panelTitle, { color: theme.palette.text.primary }]}>Titel hinzufügen</Text>
+                {addableSongs.length === 0 ? (
+                  <Text style={[styles.panelEmpty, { color: theme.palette.text.muted }]} testID="playlist-detail-add-empty">
+                    Alle verfügbaren Titel sind bereits in dieser Playlist.
+                  </Text>
+                ) : (
+                  addableSongs.map(song => (
+                    <View
+                      key={song.id}
+                      style={[styles.addSongRow, { borderTopColor: theme.palette.border }]}
+                      testID={`playlist-detail-add-candidate-${song.id}`}
+                    >
+                      <View style={styles.addSongTextWrap}>
+                        <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
+                          {song.title || 'Unbekannter Titel'}
+                        </Text>
+                        <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+                          {song.artist || 'Unbekannter Künstler'}
+                        </Text>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${song.title || 'Unbekannter Titel'} zur Playlist hinzufügen`}
+                        onPress={() => handleAddSong(song.id)}
+                        style={[
+                          styles.addSongButton,
+                          { borderColor: theme.palette.primaryDark, backgroundColor: theme.palette.primary },
+                        ]}
+                        testID={`playlist-detail-add-song-${song.id}`}
+                      >
+                        <Text style={[styles.addSongButtonText, { color: theme.palette.text.onPrimary }]}>Hinzufügen</Text>
+                      </Pressable>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
             {renameOpen && (
               <View
                 style={[
@@ -336,6 +420,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: staticTheme.spacing.md,
   },
+  addButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.md,
+  },
   renameButton: {
     minHeight: 42,
     flexDirection: 'row',
@@ -358,6 +451,10 @@ const styles = StyleSheet.create({
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
   },
+  addButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 14,
+  },
   renameButtonText: {
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
@@ -365,6 +462,41 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontFamily: staticTheme.fonts.heading,
     fontSize: 14,
+  },
+  addPanel: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: staticTheme.radii.card,
+    gap: staticTheme.spacing.sm,
+    marginTop: staticTheme.spacing.sm,
+    padding: staticTheme.spacing.md,
+  },
+  panelTitle: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 16,
+  },
+  panelEmpty: {
+    fontFamily: staticTheme.fonts.body,
+    fontSize: 13,
+  },
+  addSongRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: staticTheme.spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: staticTheme.spacing.sm,
+  },
+  addSongTextWrap: { flex: 1, minWidth: 0 },
+  addSongButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: staticTheme.spacing.sm,
+  },
+  addSongButtonText: {
+    fontFamily: staticTheme.fonts.heading,
+    fontSize: 12,
   },
   renamePanel: {
     borderWidth: StyleSheet.hairlineWidth,

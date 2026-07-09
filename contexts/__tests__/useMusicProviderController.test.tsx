@@ -157,6 +157,7 @@ describe('useMusicProviderController', () => {
         playlists: value.playlists,
         deletePlaylist: value.deletePlaylist,
         renamePlaylist: value.renamePlaylist,
+        addSongToPlaylist: value.addSongToPlaylist,
         removeSongFromPlaylist: value.removeSongFromPlaylist,
         playPlaylist: value.playPlaylist,
       },
