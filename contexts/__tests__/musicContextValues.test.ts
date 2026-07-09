@@ -48,6 +48,7 @@ const baseValue: MusicContextValue = {
   renamePlaylist: noop,
   addSongToPlaylist: noop,
   removeSongFromPlaylist: noop,
+  moveSongInPlaylist: noop,
   playPlaylist: noopAsync,
   isReady: true,
 };
@@ -68,6 +69,7 @@ describe('music context value builders', () => {
       renamePlaylist: baseValue.renamePlaylist,
       addSongToPlaylist: baseValue.addSongToPlaylist,
       removeSongFromPlaylist: baseValue.removeSongFromPlaylist,
+      moveSongInPlaylist: baseValue.moveSongInPlaylist,
       playPlaylist: baseValue.playPlaylist,
     });
   });
