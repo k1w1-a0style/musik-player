@@ -69,6 +69,7 @@ const PlaylistDetail: React.FC = () => {
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
+  const canMoveSongs = typeof moveSongInPlaylist === 'function';
   const trimmedDraftName = draftName.trim();
   const renameDisabled = !playlist || trimmedDraftName.length === 0 || trimmedDraftName === playlist.name;
 
@@ -101,7 +102,7 @@ const PlaylistDetail: React.FC = () => {
   };
 
   const handleMoveSong = (songId: string, direction: 'up' | 'down') => {
-    if (!playlist) return;
+    if (!playlist || !moveSongInPlaylist) return;
     moveSongInPlaylist(playlist.id, songId, direction);
   };
 
@@ -143,6 +144,8 @@ const PlaylistDetail: React.FC = () => {
   const renderSong: ListRenderItem<Song> = ({ item, index }) => {
     const isFirstSong = index === 0;
     const isLastSong = index === playlistSongs.length - 1;
+    const moveUpDisabled = isFirstSong || !canMoveSongs;
+    const moveDownDisabled = isLastSong || !canMoveSongs;
 
     return (
       <View
@@ -162,8 +165,8 @@ const PlaylistDetail: React.FC = () => {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach oben verschieben`}
-            accessibilityState={{ disabled: isFirstSong }}
-            disabled={isFirstSong}
+            accessibilityState={{ disabled: moveUpDisabled }}
+            disabled={moveUpDisabled}
             onPress={() => handleMoveSong(item.id, 'up')}
             style={[
               styles.moveSongButton,
@@ -179,8 +182,8 @@ const PlaylistDetail: React.FC = () => {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach unten verschieben`}
-            accessibilityState={{ disabled: isLastSong }}
-            disabled={isLastSong}
+            accessibilityState={{ disabled: moveDownDisabled }}
+            disabled={moveDownDisabled}
             onPress={() => handleMoveSong(item.id, 'down')}
             style={[
               styles.moveSongButton,
