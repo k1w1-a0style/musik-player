@@ -1,7 +1,8 @@
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import type { SongMetadataPatchesById } from './useLibraryActions';
-import type { PlaylistSongMoveDirection } from './usePlaylistActions';
+
+type PlaylistSongMoveDirection = 'up' | 'down';
 
 export interface MusicContextValue {
   songs: Song[];
