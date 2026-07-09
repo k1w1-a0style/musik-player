@@ -4,10 +4,10 @@ import {
   addSongToPlaylistById,
   deletePlaylistById,
   moveSongInPlaylistById,
-  type PlaylistSongMoveDirection,
   removeSongFromPlaylistById,
   renamePlaylistById,
 } from '../utils/playlistState';
+import type { PlaylistSongMoveDirection } from '../utils/playlistState';
 import {
   appendPlaylist,
   createPlaylistRecord,
