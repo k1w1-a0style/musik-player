@@ -104,6 +104,9 @@ describe('V6.6 accessibility patch', () => {
       onOpenEqualizer: jest.fn(),
       onToggleFavorite: jest.fn(),
       onSaveQueueAsPlaylist: jest.fn(),
+      sleepTimerActive: false,
+      onStartSleepTimer: jest.fn(),
+      onCancelSleepTimer: jest.fn(),
     };
     const { getByTestId, getByText } = render(<NowPlayingMenuModal {...menuProps} />);
 

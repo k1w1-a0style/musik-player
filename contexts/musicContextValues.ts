@@ -37,6 +37,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'currentSong'
   | 'seekTo'
   | 'isPlaying'
+  | 'togglePlayPause'
   | 'volume'
   | 'setVolume'
   | 'palette'
@@ -107,6 +108,7 @@ export const buildNowPlayingMusicContextValue = ({
   currentSong,
   seekTo,
   isPlaying,
+  togglePlayPause,
   volume,
   setVolume,
   palette,
@@ -120,6 +122,7 @@ export const buildNowPlayingMusicContextValue = ({
   currentSong,
   seekTo,
   isPlaying,
+  togglePlayPause,
   volume,
   setVolume,
   palette,

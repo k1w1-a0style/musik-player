@@ -94,6 +94,7 @@ const mockNowPlayingContext = {
   currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
   seekTo: jest.fn(async () => undefined),
   isPlaying: false,
+  togglePlayPause: jest.fn(async () => undefined),
   volume: 1,
   setVolume: jest.fn(async () => undefined),
   palette: null,
@@ -162,6 +163,8 @@ describe('NowPlaying cover fallback', () => {
     mockSetFavoriteSongId.mockClear();
     mockNowPlayingContext.next.mockClear();
     mockNowPlayingContext.previous.mockClear();
+    mockNowPlayingContext.togglePlayPause.mockClear();
+    mockNowPlayingContext.isPlaying = false;
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
@@ -329,6 +332,27 @@ describe('NowPlaying cover fallback', () => {
     fireEvent.press(getByText(OPEN_EQUALIZER_LABEL));
 
     expect(mockNavigate).toHaveBeenCalledWith('Equalizer');
+  });
+
+
+  test('sleep timer pauses playback after the selected duration without changing queue or current song', () => {
+    jest.useFakeTimers();
+    mockNowPlayingContext.isPlaying = true;
+    const initialQueue = mockNowPlayingContext.playbackQueue;
+    const initialSong = mockNowPlayingContext.currentSong;
+    const { getByLabelText, getByText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText('Sleep-Timer: 15 Minuten'));
+
+    act(() => {
+      jest.advanceTimersByTime(15 * 60 * 1000);
+    });
+
+    expect(mockNowPlayingContext.togglePlayPause).toHaveBeenCalledTimes(1);
+    expect(mockNowPlayingContext.playbackQueue).toBe(initialQueue);
+    expect(mockNowPlayingContext.currentSong).toBe(initialSong);
+    jest.useRealTimers();
   });
 
   test('queue save menu item saves the current queue as playlist', () => {

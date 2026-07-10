@@ -184,6 +184,7 @@ describe('useMusicProviderController', () => {
         currentSong: value.currentSong,
         seekTo: value.seekTo,
         isPlaying: value.isPlaying,
+        togglePlayPause: value.togglePlayPause,
         volume: value.volume,
         setVolume: value.setVolume,
         palette: value.palette,

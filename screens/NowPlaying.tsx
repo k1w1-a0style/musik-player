@@ -32,6 +32,9 @@ const NowPlayingScreenInner: React.FC = () => {
     openTrackInfo,
     openEqualizer,
     saveCurrentQueueAsPlaylist,
+    sleepTimerActive,
+    startSleepTimer,
+    cancelSleepTimer,
     queue,
     playQueueItemById,
     moveQueueItem,
@@ -131,6 +134,9 @@ const NowPlayingScreenInner: React.FC = () => {
         onOpenEqualizer={openEqualizer}
         onToggleFavorite={toggleFavorite}
         onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
+        sleepTimerActive={sleepTimerActive}
+        onStartSleepTimer={startSleepTimer}
+        onCancelSleepTimer={cancelSleepTimer}
       />
     </>
   );

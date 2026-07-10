@@ -84,6 +84,7 @@ export interface NowPlayingMusicContextValue {
   currentSong: Song | null;
   seekTo: (millis: number) => Promise<void>;
   isPlaying: boolean;
+  togglePlayPause: () => Promise<void>;
   volume: number;
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;
