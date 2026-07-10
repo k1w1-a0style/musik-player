@@ -39,3 +39,9 @@ test('renders curve chart with app theme chrome', () => {
   expect(styleText).toContain(mockAppTheme.palette.surface);
   expect(styleText).toContain(mockAppTheme.palette.border);
 });
+
+test('uses a gradient fill for the equalizer curve instead of a flat glow color', () => {
+  const { getByTestId } = render(<EqualizerCurveChart curvePath="M0 40 L320 40" />);
+
+  expect(getByTestId('equalizer-curve-path').props.fill).toBe('url(#eqCurveFill)');
+});
