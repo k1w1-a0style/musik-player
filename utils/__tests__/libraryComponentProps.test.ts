@@ -8,6 +8,10 @@ import {
   buildLibraryTopBarProps,
 } from '../libraryComponentProps';
 import type { LibraryTabContentPropsBuilderOptions } from '../libraryComponentProps';
+import type { Song } from '../../types/Song';
+import type { ScanFolder } from '../../types/ScanFolder';
+import type { LibraryGroupItem } from '../libraryPresentation';
+import type { LibraryPlaylistItem } from '../libraryPlaylists';
 
 const fn = jest.fn();
 
@@ -83,11 +87,11 @@ test('buildLibraryTabContentProps returns tab content props and direct sort sele
 });
 
 test('buildLibraryTabContentProps preserves list and renderer references', () => {
-  const song = { id: 's1', title: 'Song', artist: 'Artist' };
-  const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
-  const group = { id: 'album:One', title: 'One', subtitle: '1 Titel', songs: [song] };
-  const playlist = { id: 'playlist-1', name: 'Playlist', songs: [song], validCount: 1, totalCount: 1 };
-  const songKeyExtractor = jest.fn((item: typeof song) => item.id);
+  const song: Song = { id: 's1', title: 'Song', artist: 'Artist' };
+  const folder: ScanFolder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+  const group: LibraryGroupItem = { id: 'album:One', title: 'One', subtitle: '1 Titel', songs: [song] };
+  const playlist: LibraryPlaylistItem = { id: 'playlist-1', name: 'Playlist', songs: [song], validCount: 1, totalCount: 1 };
+  const songKeyExtractor = jest.fn((item: Song) => item.id);
 
   const props = buildLibraryTabContentProps({
     ...makeTabOptions(),
