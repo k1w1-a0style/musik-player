@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useMusicContext } from '../contexts/MusicContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { RepeatMode } from '../types/Song';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
@@ -206,8 +206,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: staticTheme.spacing.xs,
-    paddingHorizontal: staticTheme.spacing.sm,
+    paddingVertical: staticTokens.spacing.xs,
+    paddingHorizontal: staticTokens.spacing.sm,
   },
   controlRail: {
     flexDirection: 'row',

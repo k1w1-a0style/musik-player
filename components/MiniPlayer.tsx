@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } 
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
@@ -132,11 +132,11 @@ const styles = StyleSheet.create({
   thumbImage: { width: '100%', height: '100%' },
   textWrap: { flex: 1, minWidth: 0 },
   title: {
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: staticTokens.fonts.heading,
     fontSize: 14,
   },
   artist: {
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: staticTokens.fonts.body,
     fontSize: 11,
   },
   right: {

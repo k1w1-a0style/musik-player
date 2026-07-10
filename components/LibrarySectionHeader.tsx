@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface LibrarySectionHeaderProps {
@@ -26,8 +26,8 @@ const LibrarySectionHeader: React.FC<LibrarySectionHeaderProps> = ({ title, coun
 
 const styles = StyleSheet.create({
   listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  sortLabel: { fontFamily: staticTheme.fonts.heading, fontSize: 14 },
-  folderCount: { fontFamily: staticTheme.fonts.body, fontSize: 12 },
+  sortLabel: { fontFamily: staticTokens.fonts.heading, fontSize: 14 },
+  folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });
 

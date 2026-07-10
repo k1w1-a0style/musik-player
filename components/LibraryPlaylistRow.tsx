@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ListMusic, Play } from 'lucide-react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 
@@ -99,9 +99,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   groupTextWrap: { flex: 1, minWidth: 0 },
-  groupTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 15 },
-  groupSubtitle: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 2 },
-  playlistWarning: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 2 },
+  groupTitle: { fontFamily: staticTokens.fonts.heading, fontSize: 15 },
+  groupSubtitle: { fontFamily: staticTokens.fonts.body, fontSize: 12, marginTop: 2 },
+  playlistWarning: { fontFamily: staticTokens.fonts.body, fontSize: 11, marginTop: 2 },
   roundButton: {
     width: 36,
     height: 36,

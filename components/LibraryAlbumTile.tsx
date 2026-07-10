@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 
@@ -77,9 +77,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   albumImage: { width: '100%', height: '100%' },
-  albumLetter: { fontFamily: staticTheme.fonts.heading, fontSize: 34 },
-  albumTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
-  albumSubtitle: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 2 },
+  albumLetter: { fontFamily: staticTokens.fonts.heading, fontSize: 34 },
+  albumTitle: { fontFamily: staticTokens.fonts.heading, fontSize: 13, marginTop: 7, lineHeight: 17 },
+  albumSubtitle: { fontFamily: staticTokens.fonts.body, fontSize: 11, marginTop: 2 },
   pressed: { opacity: 0.72 },
 });
 

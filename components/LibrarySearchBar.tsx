@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Search } from 'lucide-react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 export interface LibrarySearchBarProps {
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: staticTokens.fonts.body,
     paddingVertical: 8,
     fontSize: 13,
   },

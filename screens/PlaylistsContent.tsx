@@ -4,7 +4,7 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Playlist } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import PlaylistCreateForm from './PlaylistCreateForm';
 import PlaylistListItem from './PlaylistListItem';
 
@@ -69,23 +69,23 @@ const PlaylistsContent: React.FC<PlaylistsContentProps> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: staticTheme.spacing.md, paddingTop: 8 },
-  listContent: { paddingBottom: staticTheme.spacing.xxl },
+  content: { paddingHorizontal: staticTokens.spacing.md, paddingTop: 8 },
+  listContent: { paddingBottom: staticTokens.spacing.xxl },
   eyebrow: {
     fontSize: 10,
     letterSpacing: 1.8,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: staticTokens.fonts.body,
   },
   header: {
     fontSize: 32,
-    fontFamily: staticTheme.fonts.display,
+    fontFamily: staticTokens.fonts.display,
     letterSpacing: -1.0,
-    marginBottom: staticTheme.spacing.lg,
+    marginBottom: staticTokens.spacing.lg,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: staticTheme.spacing.xxl,
-    fontFamily: staticTheme.fonts.body,
+    marginTop: staticTokens.spacing.xxl,
+    fontFamily: staticTokens.fonts.body,
   },
 });
 

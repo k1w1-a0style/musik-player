@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ScanFolder } from '../types/ScanFolder';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayFolderName } from '../utils/libraryPresentation';
 
@@ -56,15 +56,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   folderTextWrap: { flex: 1, minWidth: 0 },
-  folderName: { fontFamily: staticTheme.fonts.heading, fontSize: 14 },
-  folderMeta: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 2 },
+  folderName: { fontFamily: staticTokens.fonts.heading, fontSize: 14 },
+  folderMeta: { fontFamily: staticTokens.fonts.body, fontSize: 11, marginTop: 2 },
   removeFolderButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  removeFolderText: { fontFamily: staticTheme.fonts.body, fontSize: 12 },
+  removeFolderText: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   pressed: { opacity: 0.72 },
 });
 

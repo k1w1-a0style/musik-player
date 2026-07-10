@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { LayoutGrid } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { getLibrarySongViewModeLabel, type LibrarySongViewMode } from '../utils/libraryViewMode';
 
 interface LibrarySongViewControlProps {
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.72 },
   label: {
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: staticTokens.fonts.body,
     fontSize: 12,
     letterSpacing: 0.3,
   },

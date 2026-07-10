@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent, PanResponder, type AccessibilityActionEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface ProgressBarProps {
@@ -178,7 +178,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
 };
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: staticTheme.spacing.md, marginVertical: staticTheme.spacing.sm, width: '100%' },
+  container: { paddingHorizontal: staticTokens.spacing.md, marginVertical: staticTokens.spacing.sm, width: '100%' },
   progressBarContainer: { paddingVertical: 14 },
   progressBarBackground: { height: 4, borderRadius: 2 },
   progressBarFill: { height: '100%', borderRadius: 2 },
@@ -189,8 +189,8 @@ const styles = StyleSheet.create({
   thumbActive: {
     top: -8, width: 20, height: 20, borderRadius: 10, marginLeft: -10,
   },
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: staticTheme.spacing.xs },
-  time: { fontSize: 11, fontFamily: staticTheme.fonts.body, letterSpacing: 0.5 },
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: staticTokens.spacing.xs },
+  time: { fontSize: 11, fontFamily: staticTokens.fonts.body, letterSpacing: 0.5 },
 });
 
 export default ProgressBar;
