@@ -1,4 +1,6 @@
-import type { StatusBarStyle } from 'react-native';
+import { Platform, type StatusBarStyle } from 'react-native';
+
+const monoFontFamily = Platform.OS === 'android' ? 'monospace' : 'Menlo';
 
 export type AppAppearance = 'dark' | 'light';
 export type AppThemeSkin = 'graphite' | 'minimal' | 'neon-cover';
@@ -65,6 +67,14 @@ export interface AppThemeTokens {
     display: string;
     heading: string;
     body: string;
+    mono: string;
+  };
+  borderRadius: {
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+    pill: number;
   };
   typography: {
     hero: { fontSize: number; lineHeight: number; letterSpacing: number };
@@ -79,7 +89,8 @@ export interface AppThemeTokens {
 export const APP_THEME_TOKENS: AppThemeTokens = {
   spacing: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
   radii: { input: 10, card: 14, elevatedCard: 20, control: 18 },
-  fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular' },
+  fonts: { display: 'Bricolage-Bold', heading: 'Bricolage-SemiBold', body: 'Bricolage-Regular', mono: monoFontFamily },
+  borderRadius: { sm: 8, md: 14, lg: 20, xl: 28, pill: 999 },
   typography: {
     hero: { fontSize: 34, lineHeight: 38, letterSpacing: -1.0 },
     h1: { fontSize: 24, lineHeight: 28, letterSpacing: -0.5 },

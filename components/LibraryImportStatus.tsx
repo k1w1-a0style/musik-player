@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { libraryImportMessages } from '../utils/libraryImportMessages';
 import {
   useMetadataRefreshOperation,
@@ -130,18 +130,18 @@ const styles = StyleSheet.create({
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   spinnerSlot: { width: 16, height: 16 },
-  statusText: { fontFamily: staticTheme.fonts.body, fontSize: 12, flex: 1 },
-  detailsText: { fontFamily: staticTheme.fonts.body, fontSize: 11, opacity: 0.85 },
+  statusText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, flex: 1 },
+  detailsText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, opacity: 0.85 },
   actionButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  actionLabel: { fontFamily: staticTheme.fonts.body, fontSize: 12, fontWeight: '600' },
+  actionLabel: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, fontWeight: '600' },
   actionPressed: { opacity: 0.7 },
   errorBlock: { marginTop: 2 },
-  errorTitle: { fontFamily: staticTheme.fonts.body, fontSize: 11, fontWeight: '600' },
-  errorRow: { fontFamily: staticTheme.fonts.body, fontSize: 11, opacity: 0.8 },
+  errorTitle: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, fontWeight: '600' },
+  errorRow: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, opacity: 0.8 },
 });
 
 export default LibraryImportStatus;

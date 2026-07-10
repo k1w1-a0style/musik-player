@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Playlist, Song } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
 
 interface SongPlaylistPickerModalProps {
@@ -79,14 +79,14 @@ const SongPlaylistPickerModal: React.FC<SongPlaylistPickerModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   card: { borderRadius: 22, borderWidth: 1, paddingVertical: 14, paddingHorizontal: 16 },
-  title: { fontFamily: staticTheme.fonts.heading, fontSize: 17, marginBottom: 8 },
-  empty: { fontFamily: staticTheme.fonts.body, fontSize: 14, paddingVertical: 12 },
+  title: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 17, marginBottom: 8 },
+  empty: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 14, paddingVertical: 12 },
   playlistList: { maxHeight: '70%' },
   playlistListContent: { paddingBottom: 2 },
   row: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pressed: { opacity: 0.72 },
-  name: { flex: 1, fontFamily: staticTheme.fonts.body, fontSize: 15 },
-  status: { fontFamily: staticTheme.fonts.body, fontSize: 12 },
+  name: { flex: 1, fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 15 },
+  status: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12 },
 });
 
 export default SongPlaylistPickerModal;

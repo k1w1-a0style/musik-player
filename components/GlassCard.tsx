@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface GlassCardProps {
@@ -63,12 +63,12 @@ const GlassCard: React.FC<GlassCardProps> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: staticTheme.borderRadius.lg,
+    borderRadius: APP_THEME_TOKENS.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
   },
   content: {
-    padding: staticTheme.spacing.md,
+    padding: APP_THEME_TOKENS.spacing.md,
   },
 });
 

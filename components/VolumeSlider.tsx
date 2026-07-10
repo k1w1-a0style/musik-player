@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Volume2, VolumeX } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface Props {
   volume: number;
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: staticTheme.spacing.sm,
+    gap: APP_THEME_TOKENS.spacing.sm,
   },
   sliderHitbox: {
     flex: 1,
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     minWidth: 40,
     textAlign: 'right',
-    fontFamily: staticTheme.fonts.mono,
+    fontFamily: APP_THEME_TOKENS.fonts.mono,
   },
 });
 

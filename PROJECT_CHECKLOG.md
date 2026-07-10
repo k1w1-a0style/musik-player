@@ -1,5 +1,17 @@
 # Project Checklog
 
+## Theme Migration Paket 4 — Rest-Sweep + Guards (2026-07-10)
+
+- [x] Code-seitiger Rest-Sweep für migrierte UI-Bereiche abgeschlossen: verbleibende `../theme`-Imports in Components/Screens wurden auf `APP_THEME_TOKENS` für statische Spacing-/Radii-/Font-Tokens umgestellt; dynamische Farben bleiben über `useAppTheme`/`AppTheme` aufgelöst.
+- [x] Bewusst zulässige statische Tokens bleiben zentral in `APP_THEME_TOKENS`: Spacing, Radii/Border-Radius-Aliase, Fonts inklusive Mono-Fallback und Typografie. Diese Tokens sind nicht skin-/appearance-dynamisch und dürfen in `StyleSheet.create` verwendet werden.
+- [x] Bewusst zulässige Legacy-/konkrete Farbnutzungen bleiben nur in zentralen Theme-Definitionsdateien (`theme.ts`, `utils/appTheme.ts`, `utils/appThemeOverlays.ts`, `utils/jsPaletteFallback.ts`) sowie in Tests/Dokumentation, wo konkrete Farbwerte absichtlich verglichen oder Fixtures gebaut werden.
+- [x] Architektur-Guard verhindert neue Legacy-Theme-Imports in migrierten Components/Screens und hält hardcodierte Produktions-UI-Farben außerhalb zentraler Theme-Dateien blockiert.
+- [x] Kein APK-Build, kein Expo/EAS-Build, keine Dependency-Änderung und keine New-Architecture-Aktivierung in diesem PR.
+- [ ] Echter Geräte-Smoke für Samsung/Huawei Dark/Light/Skins bleibt offen.
+- [ ] Persistenzprüfung nach echtem App-Neustart bleibt offen.
+- [ ] Visuelle Prüfung auf kleinen Displays bleibt offen.
+
+
 ## APK Inspector Tool Lookup Follow-up (2026-07-10)
 
 - [x] PR #276 hat den APK-Inspector-Tool-Lookup von `bash -lc command -v` auf direkte Node-`PATH`-Auflösung umgestellt.

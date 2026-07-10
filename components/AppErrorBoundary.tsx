@@ -1,7 +1,7 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import * as AppThemeContext from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { getAppTheme, type AppTheme } from '../utils/appTheme';
 
 type AppErrorBoundaryVariant = 'full' | 'compact';
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   text: {
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
     fontSize: 16,
   },
   button: {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   buttonText: {
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
     fontSize: 14,
   },
 });
