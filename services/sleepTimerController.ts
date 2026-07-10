@@ -22,6 +22,7 @@ const clearSleepTimerTimeout = (): void => {
 const retrySleepTimerAfterError = (): void => {
   if (sleepTimerDeadlineMs === null) return;
 
+  clearSleepTimerTimeout();
   sleepTimerTimeout = setTimeout(() => {
     enforceExpiredSleepTimer().catch(logSleepTimerError);
   }, 1000);
@@ -29,7 +30,6 @@ const retrySleepTimerAfterError = (): void => {
 
 const logSleepTimerError = (error: unknown): void => {
   console.warn('[sleepTimerController] Sleep timer expiry failed', error);
-  retrySleepTimerAfterError();
 };
 
 const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, State.Buffering]);
@@ -45,7 +45,13 @@ export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Prom
   if (sleepTimerDeadlineMs === null || nowMs < sleepTimerDeadlineMs) return false;
 
   clearSleepTimerTimeout();
-  await pausePlaybackExplicitly();
+  try {
+    await pausePlaybackExplicitly();
+  } catch (error) {
+    retrySleepTimerAfterError();
+    throw error;
+  }
+
   sleepTimerDeadlineMs = null;
   notifySleepTimerListeners();
   return true;

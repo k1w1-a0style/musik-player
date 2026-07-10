@@ -5,6 +5,7 @@ import {
   isSleepTimerActive,
   resetSleepTimerForTests,
   startSleepTimer,
+  subscribeToSleepTimer,
 } from '../sleepTimerController';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
@@ -60,7 +61,8 @@ describe('sleepTimerController', () => {
     },
   );
 
-  test('keeps the expired deadline active when pause fails so progress events or timeouts can retry', async () => {
+  test('keeps the expired deadline active and retries when pause fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     trackPlayerTestApi.__setState(State.Playing);
     (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('pause failed'));
     startSleepTimer(15);
@@ -70,7 +72,27 @@ describe('sleepTimerController', () => {
 
     expect(isSleepTimerActive()).toBe(true);
 
-    await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
+    await jest.advanceTimersByTimeAsync(1000);
+
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(2);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('timeout expiry logs failures and leaves the deadline retryable', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    trackPlayerTestApi.__setState(State.Playing);
+    (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('pause failed'));
+    startSleepTimer(15);
+
+    await jest.advanceTimersByTimeAsync(15 * 60 * 1000);
+
+    expect(warn).toHaveBeenCalledWith('[sleepTimerController] Sleep timer expiry failed', expect.any(Error));
+    expect(isSleepTimerActive()).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(1000);
+
     expect(TrackPlayer.pause).toHaveBeenCalledTimes(2);
     expect(isSleepTimerActive()).toBe(false);
   });
@@ -83,5 +105,21 @@ describe('sleepTimerController', () => {
 
     expect(isSleepTimerActive()).toBe(false);
     expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('resetSleepTimerForTests clears deadline, timeout, and listeners', async () => {
+    const listener = jest.fn();
+    subscribeToSleepTimer(listener);
+    startSleepTimer(15);
+    listener.mockClear();
+
+    resetSleepTimerForTests();
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await jest.runOnlyPendingTimersAsync();
+    startSleepTimer(15);
+
+    expect(isSleepTimerActive()).toBe(true);
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
   });
 });
