@@ -123,6 +123,7 @@ describe('sleepTimerController', () => {
     expect(TrackPlayer.play).not.toHaveBeenCalled();
     expect(isSleepTimerActive()).toBe(true);
 
+    trackPlayerTestApi.__setState(State.Playing);
     jest.setSystemTime(new Date('2026-01-01T00:45:02.000Z'));
     await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
     expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
