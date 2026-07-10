@@ -12,6 +12,7 @@ export interface UseLibraryControllerRenderersOptions {
   isPlaying: boolean;
   onOpenPlaylistDetail: (playlistId: string) => void;
   onOpenTrackInfo: (song: Song) => void;
+  onOpenSongActions?: (song: Song) => void;
   playPlaylist: (playlistId: string) => unknown;
   playSong: (song: Song, queue?: Song[]) => unknown;
   removeFolder: (folder: ScanFolder) => void | Promise<void>;
@@ -32,6 +33,7 @@ export const useLibraryControllerRenderers = ({
   isPlaying,
   onOpenPlaylistDetail,
   onOpenTrackInfo,
+  onOpenSongActions,
   playPlaylist,
   playSong,
   removeFolder,
@@ -45,6 +47,7 @@ export const useLibraryControllerRenderers = ({
     isPlaying,
     onOpenPlaylistDetail,
     onOpenTrackInfo,
+    onOpenSongActions,
     playPlaylist,
     playSong,
     removeFolder,

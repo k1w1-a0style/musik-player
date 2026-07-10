@@ -19,6 +19,7 @@ export const useLibraryRenderers = ({
   isPlaying,
   onOpenPlaylistDetail,
   onOpenTrackInfo,
+  onOpenSongActions,
   playPlaylist,
   playSong,
   removeFolder,
@@ -29,6 +30,7 @@ export const useLibraryRenderers = ({
     filteredSongs,
     isPlaying,
     onOpenTrackInfo,
+    onOpenSongActions,
     playSong,
     songViewMode,
   });

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
 import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
 import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
@@ -13,6 +13,7 @@ import {
   canResumeMetadataRefresh,
   useMetadataRefreshOperation,
 } from '../utils/metadataRefreshOperation';
+import type { Song } from '../types/Song';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
@@ -26,6 +27,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       playPlaylist,
       playSong,
       playlists,
+      addSongToPlaylist,
+      removeSongFromPlaylist,
       setSongs,
       songs,
       songsCount,
@@ -105,6 +108,32 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songs,
   });
 
+  const [songActionSong, setSongActionSong] = useState<Song | null>(null);
+  const [playlistPickerSong, setPlaylistPickerSong] = useState<Song | null>(null);
+
+  const closeSongActionMenu = useCallback(() => setSongActionSong(null), []);
+  const closePlaylistPicker = useCallback(() => setPlaylistPickerSong(null), []);
+  const openSongActionMenu = useCallback((song: Song) => setSongActionSong(song), []);
+  const openTrackInfoFromSongMenu = useCallback(() => {
+    if (!songActionSong) return;
+    closeSongActionMenu();
+    openTrackInfo(songActionSong);
+  }, [closeSongActionMenu, openTrackInfo, songActionSong]);
+  const openPlaylistPickerFromSongMenu = useCallback(() => {
+    if (!songActionSong) return;
+    setPlaylistPickerSong(songActionSong);
+    closeSongActionMenu();
+  }, [closeSongActionMenu, songActionSong]);
+  const toggleSongPlaylist = useCallback((playlistId: string, containsSong: boolean) => {
+    if (!playlistPickerSong) return;
+    if (containsSong) {
+      removeSongFromPlaylist(playlistId, playlistPickerSong.id);
+    } else {
+      addSongToPlaylist(playlistId, playlistPickerSong.id);
+    }
+  }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
+
+
   useLibraryCoverBackfill({ songs, applySongMetadataPatches });
   useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });
 
@@ -128,6 +157,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     isPlaying,
     onOpenPlaylistDetail: openPlaylistDetail,
     onOpenTrackInfo: openTrackInfo,
+    onOpenSongActions: openSongActionMenu,
     playPlaylist,
     playSong,
     removeFolder,
@@ -182,5 +212,18 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songViewMode: viewMode,
     onCycleSongViewMode: cycleViewMode,
     toggleSearch,
+    songActionMenuProps: {
+      visible: !!songActionSong,
+      onClose: closeSongActionMenu,
+      onOpenTrackInfo: openTrackInfoFromSongMenu,
+      onOpenPlaylistPicker: openPlaylistPickerFromSongMenu,
+    },
+    songPlaylistPickerProps: {
+      visible: !!playlistPickerSong,
+      song: playlistPickerSong,
+      playlists,
+      onClose: closePlaylistPicker,
+      onTogglePlaylist: toggleSongPlaylist,
+    },
   });
 };
