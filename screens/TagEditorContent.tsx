@@ -5,7 +5,7 @@ import type { PickedTagCover } from '../utils/tagCoverPicker';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import TagEditorActions from './TagEditorActions';
 import TagEditorCoverControls from './TagEditorCoverControls';
 import TagEditorFields from './TagEditorFields';
@@ -96,9 +96,9 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: staticTheme.spacing.md, gap: 10 },
+  content: { padding: APP_THEME_TOKENS.spacing.md, gap: 10 },
   header: {
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: APP_THEME_TOKENS.fonts.heading,
     fontSize: 22,
   },
 });

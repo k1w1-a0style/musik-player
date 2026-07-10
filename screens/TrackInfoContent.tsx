@@ -4,7 +4,7 @@ import type { Song } from '../types/Song';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import TrackInfoActions from './TrackInfoActions';
 import TrackInfoCover from './TrackInfoCover';
 import TrackInfoSections from './TrackInfoSections';
@@ -65,8 +65,8 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: staticTheme.spacing.md, paddingBottom: 120, gap: 6 },
-  header: { fontFamily: staticTheme.fonts.heading, fontSize: 24, marginBottom: 4 },
+  content: { padding: APP_THEME_TOKENS.spacing.md, paddingBottom: 120, gap: 6 },
+  header: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 24, marginBottom: 4 },
 });
 
 export default TrackInfoContent;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { EqPresetName } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { PRESET_KEYS, PRESET_LABELS } from './equalizerHelpers';
 
@@ -65,10 +65,10 @@ const EqualizerPresetList: React.FC<EqualizerPresetListProps> = ({
 };
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 11, letterSpacing: 1.6, fontFamily: staticTheme.fonts.body, marginBottom: staticTheme.spacing.sm },
-  presetRow: { flexDirection: 'row', gap: staticTheme.spacing.sm, paddingVertical: staticTheme.spacing.xs, paddingRight: staticTheme.spacing.md },
-  preset: { paddingHorizontal: staticTheme.spacing.md, paddingVertical: 10, borderRadius: staticTheme.borderRadius.pill, borderWidth: 1 },
-  presetText: { fontFamily: staticTheme.fonts.heading, fontSize: 12, letterSpacing: 0.4 },
+  sectionTitle: { fontSize: 11, letterSpacing: 1.6, fontFamily: APP_THEME_TOKENS.fonts.body, marginBottom: APP_THEME_TOKENS.spacing.sm },
+  presetRow: { flexDirection: 'row', gap: APP_THEME_TOKENS.spacing.sm, paddingVertical: APP_THEME_TOKENS.spacing.xs, paddingRight: APP_THEME_TOKENS.spacing.md },
+  preset: { paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingVertical: 10, borderRadius: APP_THEME_TOKENS.radii.control, borderWidth: 1 },
+  presetText: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 12, letterSpacing: 0.4 },
   pressed: { opacity: 0.75 },
 });
 

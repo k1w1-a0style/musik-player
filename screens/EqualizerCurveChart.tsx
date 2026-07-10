@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface EqualizerCurveChartProps {
@@ -32,9 +32,9 @@ const EqualizerCurveChart: React.FC<EqualizerCurveChartProps> = ({ curvePath }) 
 
 const styles = StyleSheet.create({
   curveWrap: {
-    marginBottom: staticTheme.spacing.md,
+    marginBottom: APP_THEME_TOKENS.spacing.md,
     borderWidth: 1,
-    borderRadius: staticTheme.borderRadius.md,
+    borderRadius: APP_THEME_TOKENS.radii.card,
     padding: 8,
   },
 });

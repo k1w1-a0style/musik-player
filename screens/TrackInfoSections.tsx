@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import {
   formatBitrate,
   formatBitrateMode,
@@ -89,7 +89,7 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
 };
 
 const styles = StyleSheet.create({
-  section: { fontFamily: staticTheme.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
+  section: { fontFamily: APP_THEME_TOKENS.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
 });
 
 export default TrackInfoSections;

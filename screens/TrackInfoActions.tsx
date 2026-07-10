@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface TrackInfoActionsProps {
   onOpenTagEditor: () => void;
@@ -53,22 +53,22 @@ const TrackInfoActions: React.FC<TrackInfoActionsProps> = ({
 const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 2 },
   editButton: {
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     paddingVertical: 10,
     paddingHorizontal: 14,
     alignSelf: 'flex-start',
     borderWidth: 1,
   },
-  editButtonText: { fontFamily: staticTheme.fonts.heading, fontSize: 13 },
+  editButtonText: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
   removeButton: {
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     paddingVertical: 10,
     paddingHorizontal: 14,
     alignSelf: 'flex-start',
     borderWidth: 1,
   },
-  removeButtonText: { fontFamily: staticTheme.fonts.heading, fontSize: 13 },
-  hint: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginBottom: 4 },
+  removeButtonText: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
+  hint: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginBottom: 4 },
 });
 
 export default TrackInfoActions;

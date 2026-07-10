@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getTagEditorWarningBoxColors } from '../utils/appThemeOverlays';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface TagEditorNoticesProps {
   capabilityMessage?: string;
@@ -50,16 +50,16 @@ const TagEditorNotices: React.FC<TagEditorNoticesProps> = ({
 const styles = StyleSheet.create({
   warningBox: {
     borderWidth: 1,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     padding: 10,
   },
-  warning: { fontFamily: staticTheme.fonts.body },
+  warning: { fontFamily: APP_THEME_TOKENS.fonts.body },
   infoBox: {
     borderWidth: 1,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     padding: 10,
   },
-  infoText: { fontFamily: staticTheme.fonts.body },
+  infoText: { fontFamily: APP_THEME_TOKENS.fonts.body },
 });
 
 export default TagEditorNotices;

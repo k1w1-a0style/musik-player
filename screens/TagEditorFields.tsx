@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { EditableTrackTags } from '../types/TagEdit';
 import { FIELDS, type FormState } from './tagEditorHelpers';
 
@@ -50,12 +50,12 @@ const TagEditorFields: React.FC<TagEditorFieldsProps> = ({
 
 const styles = StyleSheet.create({
   fieldWrap: { gap: 4 },
-  label: { fontFamily: staticTheme.fonts.body },
+  label: { fontFamily: APP_THEME_TOKENS.fonts.body },
   input: {
     borderWidth: 1,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     padding: 10,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
   },
   inputReadOnly: { opacity: 0.8 },
 });
