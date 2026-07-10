@@ -24,6 +24,8 @@ import { useLibraryScanFolderActions } from '../useLibraryScanFolderActions';
 import { useLibraryStoredState } from '../useLibraryStoredState';
 import { useLibraryViewState } from '../useLibraryViewState';
 
+const mockSetSortMode = jest.fn();
+
 type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
 const fn = jest.fn();
@@ -161,7 +163,7 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     songKeyExtractor: item => item.id,
     songsForActiveList: [],
     sortMode: 'alphabet',
-    onCycleSortMode: fn,
+    onSelectSortMode: fn,
     songViewMode: 'list',
     onCycleSongViewMode: fn,
   },
@@ -265,7 +267,7 @@ jest.mock('../useLibraryViewState', () => ({
 }));
 
 jest.mock('../useLibrarySortMode', () => ({
-  useLibrarySortMode: jest.fn(() => ({ sortMode: 'alphabet', setSortMode: jest.fn(), cycleSortMode: jest.fn() })),
+  useLibrarySortMode: jest.fn(() => ({ sortMode: 'alphabet', setSortMode: mockSetSortMode, cycleSortMode: jest.fn() })),
 }));
 
 jest.mock('../useLibrarySongViewMode', () => ({
@@ -365,6 +367,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     query: '',
     searchOpen: false,
     songsCount: 0,
+    onSelectSortMode: mockSetSortMode,
   }));
   expect(Object.keys(jest.mocked(useLibraryComponentProps).mock.calls[0][0]).some(key => key.toLowerCase().includes('visualizer') || key.toLowerCase().includes('fft'))).toBe(false);
 });
