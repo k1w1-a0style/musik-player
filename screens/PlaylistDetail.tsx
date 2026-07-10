@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   addButton: {
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   renameButton: {
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   deleteButton: {
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   playButtonText: {
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
   },
   addSongButtonText: {
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   renameActionText: {
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
   },
   moveSongText: {
@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
   },
   removeSongText: {
