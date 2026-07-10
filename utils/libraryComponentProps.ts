@@ -63,7 +63,7 @@ export interface LibraryTabContentPropsBuilderOptions {
   songKeyExtractor: (item: Song) => string;
   songsForActiveList: Song[];
   sortMode: LibrarySortMode;
-  onCycleSortMode: () => void;
+  onSelectSortMode: (mode: LibrarySortMode) => void;
   songViewMode: LibrarySongViewMode;
   onCycleSongViewMode: () => void;
 }
@@ -133,7 +133,7 @@ export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuild
   songKeyExtractor: options.songKeyExtractor,
   songsForActiveList: options.songsForActiveList,
   sortMode: options.sortMode,
-  onCycleSortMode: options.onCycleSortMode,
+  onSelectSortMode: options.onSelectSortMode,
   songViewMode: options.songViewMode,
   onCycleSongViewMode: options.onCycleSongViewMode,
 });
