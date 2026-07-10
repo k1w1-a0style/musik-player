@@ -41,7 +41,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
           {label}
         </Text>
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={closeMenu} testID="library-sort-menu">
+      <Modal visible={open} transparent animationType="fade" onRequestClose={closeMenu}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Sortierung schließen"
@@ -49,8 +49,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
           style={styles.backdrop}
           testID="library-sort-menu-backdrop"
         >
-          <Pressable
-            accessibilityRole="menu"
+          <View
             style={[
               styles.menu,
               {
@@ -66,7 +65,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
               return (
                 <Pressable
                   key={sortMode}
-                  accessibilityRole="menuitem"
+                  accessibilityRole="button"
                   accessibilityLabel={`Nach ${getLibrarySortModeLabel(sortMode)} sortieren`}
                   accessibilityState={{ selected }}
                   onPress={() => selectMode(sortMode)}
@@ -85,7 +84,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
                 </Pressable>
               );
             })}
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
     </>
