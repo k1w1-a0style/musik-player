@@ -47,13 +47,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
           testID="now-playing-menu-card"
         >
           <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
-          <NowPlayingMenuItem
-            label="Equalizer öffnen"
-            onPress={() => {
-              onOpenEqualizer();
-              onClose();
-            }}
-          />
+          <NowPlayingMenuItem label="Equalizer öffnen" onPress={onOpenEqualizer} />
           <NowPlayingMenuItem
             label="Warteschlange speichern"
             onPress={() => {

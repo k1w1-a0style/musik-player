@@ -69,7 +69,7 @@ test('calls menu actions', () => {
   expect(onOpenEqualizer).toHaveBeenCalledTimes(1);
   expect(onSaveQueueAsPlaylist).toHaveBeenCalledTimes(1);
   expect(onToggleFavorite).toHaveBeenCalledTimes(1);
-  expect(onClose).toHaveBeenCalledTimes(3);
+  expect(onClose).toHaveBeenCalledTimes(2);
 });
 
 test('renders remove favorite label when favorite', () => {
