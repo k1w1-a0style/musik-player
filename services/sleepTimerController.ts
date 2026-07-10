@@ -19,9 +19,24 @@ const clearSleepTimerTimeout = (): void => {
   }
 };
 
+const retrySleepTimerAfterError = (): void => {
+  if (sleepTimerDeadlineMs === null) return;
+
+  sleepTimerTimeout = setTimeout(() => {
+    enforceExpiredSleepTimer().catch(logSleepTimerError);
+  }, 1000);
+};
+
+const logSleepTimerError = (error: unknown): void => {
+  console.warn('[sleepTimerController] Sleep timer expiry failed', error);
+  retrySleepTimerAfterError();
+};
+
+const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, State.Buffering]);
+
 export const pausePlaybackExplicitly = async (): Promise<void> => {
   const state = (await TrackPlayer.getPlaybackState()).state;
-  if (state !== State.Playing) return;
+  if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return;
 
   await runExclusiveNativePlaybackControl(() => TrackPlayer.pause());
 };
@@ -30,9 +45,9 @@ export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Prom
   if (sleepTimerDeadlineMs === null || nowMs < sleepTimerDeadlineMs) return false;
 
   clearSleepTimerTimeout();
+  await pausePlaybackExplicitly();
   sleepTimerDeadlineMs = null;
   notifySleepTimerListeners();
-  await pausePlaybackExplicitly();
   return true;
 };
 
@@ -42,7 +57,7 @@ const scheduleSleepTimerTimeout = (): void => {
 
   const delayMs = Math.max(0, sleepTimerDeadlineMs - Date.now());
   sleepTimerTimeout = setTimeout(() => {
-    void enforceExpiredSleepTimer();
+    enforceExpiredSleepTimer().catch(logSleepTimerError);
   }, delayMs);
 };
 

@@ -147,6 +147,9 @@ const TrackPlayer = {
   __getRepeatMode: () => repeatMode,
   __getListeners: event => Array.from(listeners.get(event) ?? []),
   __trigger: trigger,
+  __setState: nextState => {
+    state = nextState;
+  },
 };
 
 module.exports = {
