@@ -62,6 +62,23 @@ describe('SongPlaylistPickerModal', () => {
     expect(onTogglePlaylist).toHaveBeenCalledWith('playlist-2', true);
   });
 
+  it('wraps playlist rows in a bounded scroll view', () => {
+    const manyPlaylists = Array.from({ length: 16 }, (_, index) => ({
+      id: `playlist-${index + 1}`,
+      name: `Playlist ${index + 1}`,
+      songIds: [],
+      createdAt: 1,
+      updatedAt: 1,
+    }));
+
+    const screen = renderPicker(manyPlaylists);
+
+    expect(screen.getByTestId('song-playlist-picker-list').props.style).toEqual(
+      expect.objectContaining({ maxHeight: '70%' }),
+    );
+    expect(screen.getByText('Playlist 16')).toBeTruthy();
+  });
+
   it('renders empty playlist state', () => {
     const screen = renderPicker([]);
 
