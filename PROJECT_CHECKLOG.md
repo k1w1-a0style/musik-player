@@ -1,5 +1,13 @@
 # Project Checklog
 
+## APK Inspector Tool Lookup Follow-up (2026-07-10)
+
+- [x] PR #276 hat den APK-Inspector-Tool-Lookup von `bash -lc command -v` auf direkte Node-`PATH`-Auflösung umgestellt.
+- [x] Android-SDK-Build-Tools bleiben weiterhin als Fallback für `aapt`, `aapt2` und `apksigner` erhalten.
+- [x] Die zuvor dokumentierte rote `__tests__/androidApkInspector.test.ts`-Umgebungslücke ist damit als Projektstatus-Restpunkt erledigt; echte APK-/EAS-Builds bleiben weiterhin bewusst separat.
+- [x] GitHub-CI für PR #276 war grün: Typecheck, Tests mit Coverage, Lint, Expo Config Gate und Android Manifest Permission Gate.
+- [x] Keine Dependency-, Native-, Runtime-, APK- oder Expo/EAS-Build-Änderung.
+
 ## DeepScan Performance / Palette / Waveform / Runtime (2026-07-05)
 
 Fortsetzung des unterbrochenen Deep-Scan- und Fix-Durchlaufs. Der vorherige (unterbrochene) Commit `d7b3f62` hatte bereits Performance-, Palette- und Hydration-Punkte inklusive Tests umgesetzt; dieser Durchlauf hat den Waveform-Traceability-Teil ergänzt und validiert.
@@ -28,7 +36,7 @@ Fortsetzung des unterbrochenen Deep-Scan- und Fix-Durchlaufs. Der vorherige (unt
 - [x] `git diff --check` sauber.
 
 ### Follow-up / Not fixed (bewusst offen, größere/fremde Themen)
-- `__tests__/androidApkInspector.test.ts`: benötigt echte Android-Build-Tools (`aapt`/`apksigner`); nur in einer Android-fähigen Umgebung/CI grün. Nicht Teil dieses Scopes.
+- `__tests__/androidApkInspector.test.ts`: nachgelagert in PR #276 behoben; siehe Abschnitt „APK Inspector Tool Lookup Follow-up (2026-07-10)“.
 - Optionale Waveform-Telemetrie könnte perspektivisch als sichtbares Debug-Overlay im NowPlaying auftauchen – bewusst nicht umgesetzt (keine Now-Playing-Layout-Änderung im Scope).
 - Kein EAS Build ausgeführt. Kein Android/APK Build ausgeführt. Android/Samsung/Huawei-Smoke bleibt offen.
 
