@@ -30,18 +30,14 @@ const baseProps: LibraryScreenContentProps = {
     onOpenSettings: fn,
     onOpenEqualizer: fn,
   },
-  searchBarProps: {
-    autoFocus: true,
-    onChangeText: fn,
-    value: 'abc',
-  },
+  searchBarProps: { autoFocus: true, onChangeText: fn, value: 'abc' },
   showImportStatus: true,
   showSearchBar: true,
   tabContentProps: {
-    activeTab: 'tracks' as const,
+    activeTab: 'tracks',
     activeFolders: 0,
     albumGroups: [],
-    albumViewMode: 'grid' as const,
+    albumViewMode: 'grid',
     artistGroups: [],
     emptyMessage: 'Leer',
     genreGroups: [],
@@ -59,31 +55,14 @@ const baseProps: LibraryScreenContentProps = {
     songKeyExtractor: (item: { id: string }) => item.id,
     songsForActiveList: [],
     sortMode: 'alphabet',
-    onCycleSortMode: fn,
+    onSelectSortMode: fn,
     songViewMode: 'list',
     onCycleSongViewMode: fn,
   },
-  tabsProps: {
-    activeTab: 'tracks' as const,
-    onChangeTab: fn,
-  },
-  topBarProps: {
-    onOpenMenu: fn,
-    onToggleSearch: fn,
-  },
-  songActionMenuProps: {
-    visible: false,
-    onClose: fn,
-    onOpenTrackInfo: fn,
-    onOpenPlaylistPicker: fn,
-  },
-  songPlaylistPickerProps: {
-    visible: false,
-    song: null,
-    playlists: [],
-    onClose: fn,
-    onTogglePlaylist: fn,
-  },
+  tabsProps: { activeTab: 'tracks', onChangeTab: fn },
+  topBarProps: { onOpenMenu: fn, onToggleSearch: fn },
+  songActionMenuProps: { visible: false, onClose: fn, onOpenTrackInfo: fn, onOpenPlaylistPicker: fn },
+  songPlaylistPickerProps: { visible: false, song: null, playlists: [], onClose: fn, onTogglePlaylist: fn },
 };
 
 test('renders library screen sections', () => {
