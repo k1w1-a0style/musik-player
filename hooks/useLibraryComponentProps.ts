@@ -70,7 +70,7 @@ export const useLibraryComponentProps = ({
   songsCount,
   songsForActiveList,
   sortMode,
-  onCycleSortMode,
+  onSelectSortMode,
   songViewMode,
   onCycleSongViewMode,
   toggleSearch,
@@ -126,7 +126,7 @@ export const useLibraryComponentProps = ({
     songKeyExtractor,
     songsForActiveList,
     sortMode,
-    onCycleSortMode,
+    onSelectSortMode,
     songViewMode,
     onCycleSongViewMode,
   }), [
@@ -151,7 +151,7 @@ export const useLibraryComponentProps = ({
     songKeyExtractor,
     songsForActiveList,
     sortMode,
-    onCycleSortMode,
+    onSelectSortMode,
     songViewMode,
     onCycleSongViewMode,
   ]);
