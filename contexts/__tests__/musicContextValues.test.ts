@@ -42,7 +42,7 @@ const baseValue: MusicContextValue = {
   eqPreset: 'flat',
   applyEqPreset: noop,
   eqNative: null,
-  palette: null,
+  palette: { vibrant: '#AA5500', muted: '#553311' },
   playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
   createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2, updatedAt: 2 }),
   saveQueueAsPlaylist: () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3, updatedAt: 3 }),
@@ -78,12 +78,13 @@ describe('music context value builders', () => {
     });
   });
 
-  test('builds the mini player slice with skip flags', () => {
+  test('builds the mini player slice with skip flags and palette', () => {
     expect(buildMiniPlayerMusicContextValue(baseValue)).toMatchObject({
       currentSong: baseValue.currentSong,
       isPlaying: true,
       canSkipNext: true,
       canSkipPrevious: true,
+      palette: baseValue.palette,
     });
   });
 
