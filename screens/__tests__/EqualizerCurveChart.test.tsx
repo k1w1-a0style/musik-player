@@ -1,4 +1,5 @@
 import React from 'react';
+import { Path } from 'react-native-svg';
 
 const mockAppTheme = {
   palette: {
@@ -41,7 +42,7 @@ test('renders curve chart with app theme chrome', () => {
 });
 
 test('uses a gradient fill for the equalizer curve instead of a flat glow color', () => {
-  const { getByTestId } = render(<EqualizerCurveChart curvePath="M0 40 L320 40" />);
+  const { UNSAFE_getByType } = render(<EqualizerCurveChart curvePath="M0 40 L320 40" />);
 
-  expect(getByTestId('equalizer-curve-path').props.fill).toBe('url(#eqCurveFill)');
+  expect(UNSAFE_getByType(Path).props.fill).toBe('url(#eqCurveFill)');
 });
