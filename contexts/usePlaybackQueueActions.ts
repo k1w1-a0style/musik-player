@@ -79,11 +79,14 @@ export const usePlaybackQueueActions = ({
           setPlaybackQueue,
           setCurrentSong,
           currentSongId,
+          shuffle,
+          shuffleRef,
+          setShuffle,
         });
       });
       return result;
     },
-    [baseQueueContextRef, currentSongId, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, songsRef],
+    [baseQueueContextRef, currentSongId, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
 
   const playSongNext = useCallback(
