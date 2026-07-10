@@ -11,6 +11,9 @@ type MiniCtx = {
   previous: jest.Mock<Promise<void>, []>;
   canSkipNext: boolean;
   canSkipPrevious: boolean;
+};
+
+type PaletteCtx = {
   palette: {
     dominant?: string;
     vibrant?: string;
@@ -23,10 +26,12 @@ type MiniCtx = {
 };
 
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
+const mockUseMusicContext = jest.fn<PaletteCtx, []>();
 const mockUseMiniPlayerProgress = jest.fn<number, []>();
 
 jest.mock('../../contexts/MusicContext', () => ({
   useMiniPlayerMusicContext: () => mockUseMiniPlayerMusicContext(),
+  useMusicContext: () => mockUseMusicContext(),
 }));
 
 jest.mock('../../hooks/useMiniPlayerProgress', () => {
@@ -75,7 +80,6 @@ const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
   previous: jest.fn(async () => undefined),
   canSkipNext: true,
   canSkipPrevious: true,
-  palette: null,
   ...overrides,
 });
 
@@ -83,6 +87,8 @@ describe('MiniPlayer', () => {
   beforeEach(() => {
     mockUseMiniPlayerMusicContext.mockReset();
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+    mockUseMusicContext.mockReset();
+    mockUseMusicContext.mockReturnValue({ palette: null });
     mockUseMiniPlayerProgress.mockReset();
     mockUseMiniPlayerProgress.mockReturnValue(0.42);
   });
@@ -177,9 +183,9 @@ describe('MiniPlayer', () => {
   });
 
   test('uses cover palette accent for progress and chrome when available', () => {
-    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({
+    mockUseMusicContext.mockReturnValue({
       palette: { vibrant: '#AA5500', muted: '#553311' },
-    }));
+    });
 
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
     const containerStyle = JSON.stringify(getByTestId('mini-player-open').props.style);
