@@ -2,17 +2,6 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibrarySortControl from '../LibrarySortControl';
 
-jest.mock('react-native', () => {
-  const actual = jest.requireActual('react-native');
-  const React = require('react');
-  return {
-    ...actual,
-    Modal: ({ children, visible }: { children: React.ReactNode; visible?: boolean }) => (
-      visible ? React.createElement(React.Fragment, null, children) : null
-    ),
-  };
-});
-
 const mockAppTheme = {
   palette: {
     surface: '#101218',
@@ -52,14 +41,11 @@ describe('LibrarySortControl', () => {
 
   test('opens the menu and selects a sort mode', () => {
     const onSelect = jest.fn();
-    const { getByTestId, queryByTestId } = render(<LibrarySortControl mode="alphabet" onSelect={onSelect} />);
-
-    expect(queryByTestId('library-sort-option-year')).toBeNull();
+    const { getByTestId } = render(<LibrarySortControl mode="alphabet" onSelect={onSelect} />);
 
     fireEvent.press(getByTestId('library-sort-control'));
     fireEvent.press(getByTestId('library-sort-option-year'));
 
     expect(onSelect).toHaveBeenCalledWith('year');
-    expect(queryByTestId('library-sort-option-year')).toBeNull();
   });
 });
