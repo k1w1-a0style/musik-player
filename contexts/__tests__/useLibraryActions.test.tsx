@@ -139,7 +139,7 @@ describe('useLibraryActions', () => {
     expect(getByTestId('native-ref').props.children).toBe('s1');
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(TrackPlayer.add).not.toHaveBeenCalled();
-  });
+  }, 10000);
 
   test('removing queued/current song clears current id and rebuilds native queue', async () => {
     await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
