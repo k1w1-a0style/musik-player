@@ -43,6 +43,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={closeMenu}>
         <Pressable
+          accessible={false}
           accessibilityRole="button"
           accessibilityLabel="Sortierung schließen"
           onPress={closeMenu}
