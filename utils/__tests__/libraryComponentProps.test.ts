@@ -11,7 +11,7 @@ import type { LibraryTabContentPropsBuilderOptions } from '../libraryComponentPr
 
 const fn = jest.fn();
 
-const makeTabOptions = (overrides: Partial<LibraryTabContentPropsBuilderOptions> = {}): LibraryTabContentPropsBuilderOptions => ({
+const makeTabOptions = (): LibraryTabContentPropsBuilderOptions => ({
   activeTab: 'tracks',
   activeFolders: 2,
   albumGroups: [],
@@ -36,7 +36,6 @@ const makeTabOptions = (overrides: Partial<LibraryTabContentPropsBuilderOptions>
   onSelectSortMode: fn,
   songViewMode: 'list',
   onCycleSongViewMode: fn,
-  ...overrides,
 });
 
 test('buildLibraryTopBarProps returns top bar props', () => {
@@ -90,7 +89,8 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
   const playlist = { id: 'playlist-1', name: 'Playlist', songs: [song], validCount: 1, totalCount: 1 };
   const songKeyExtractor = jest.fn((item: typeof song) => item.id);
 
-  const props = buildLibraryTabContentProps(makeTabOptions({
+  const props = buildLibraryTabContentProps({
+    ...makeTabOptions(),
     activeTab: 'playlists',
     activeFolders: 1,
     albumGroups: [group],
@@ -103,7 +103,7 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
     songsForActiveList: [song],
     sortMode: 'year',
     songViewMode: 'gridLarge',
-  }));
+  });
 
   expect(props.albumGroups).toEqual([group]);
   expect(props.artistGroups).toEqual([group]);
