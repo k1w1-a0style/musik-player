@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ArrowDownUp, Check } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
@@ -22,8 +22,7 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onCycle }
   const [open, setOpen] = useState(false);
   const label = getLibrarySortModeLabel(mode);
 
-  const closeMenu = useCallback(() => setOpen(false), []);
-  const openMenu = useCallback(() => setOpen(true), []);
+  const toggleMenu = useCallback(() => setOpen(value => !value), []);
   const selectMode = useCallback((targetMode: LibrarySortMode) => {
     const steps = getCycleStepCount(mode, targetMode);
     for (let step = 0; step < steps; step += 1) onCycle();
@@ -31,12 +30,12 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onCycle }
   }, [mode, onCycle]);
 
   return (
-    <>
+    <View style={styles.wrap}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Sortierung auswählen"
         accessibilityValue={{ text: label }}
-        onPress={openMenu}
+        onPress={toggleMenu}
         style={({ pressed }) => [
           styles.control,
           { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
@@ -49,57 +48,52 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onCycle }
           {label}
         </Text>
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={closeMenu}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sortierung schließen"
-          onPress={closeMenu}
-          style={styles.backdrop}
-          testID="library-sort-menu-backdrop"
+      {open ? (
+        <View
+          style={[
+            styles.menu,
+            {
+              backgroundColor: theme.palette.surfaceElevated,
+              borderColor: theme.palette.border,
+            },
+          ]}
+          testID="library-sort-menu-card"
         >
-          <View
-            style={[
-              styles.menu,
-              {
-                backgroundColor: theme.palette.surfaceElevated,
-                borderColor: theme.palette.border,
-              },
-            ]}
-            testID="library-sort-menu-card"
-          >
-            <Text style={[styles.menuTitle, { color: theme.palette.text.primary }]}>Sortierung</Text>
-            {LIBRARY_SORT_MODES.map(sortMode => {
-              const selected = sortMode === mode;
-              return (
-                <Pressable
-                  key={sortMode}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Nach ${getLibrarySortModeLabel(sortMode)} sortieren`}
-                  accessibilityValue={{ text: selected ? 'Aktiv' : 'Nicht aktiv' }}
-                  onPress={() => selectMode(sortMode)}
-                  style={({ pressed }) => [
-                    styles.menuItem,
-                    {
-                      backgroundColor: selected ? theme.palette.primaryGlow : theme.palette.surface,
-                      borderColor: selected ? theme.palette.primaryDark : theme.palette.border,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                  testID={`library-sort-option-${sortMode}`}
-                >
-                  <Text style={[styles.menuItemLabel, { color: theme.palette.text.primary }]}>{getLibrarySortModeLabel(sortMode)}</Text>
-                  {selected ? <Check color={theme.palette.primary} size={16} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </Pressable>
-      </Modal>
-    </>
+          {LIBRARY_SORT_MODES.map(sortMode => {
+            const selected = sortMode === mode;
+            return (
+              <Pressable
+                key={sortMode}
+                accessibilityRole="button"
+                accessibilityLabel={`Nach ${getLibrarySortModeLabel(sortMode)} sortieren`}
+                accessibilityValue={{ text: selected ? 'Aktiv' : 'Nicht aktiv' }}
+                onPress={() => selectMode(sortMode)}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  {
+                    backgroundColor: selected ? theme.palette.primaryGlow : theme.palette.surface,
+                    borderColor: selected ? theme.palette.primaryDark : theme.palette.border,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                testID={`library-sort-option-${sortMode}`}
+              >
+                <Text style={[styles.menuItemLabel, { color: theme.palette.text.primary }]}>{getLibrarySortModeLabel(sortMode)}</Text>
+                {selected ? <Check color={theme.palette.primary} size={16} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrap: {
+    position: 'relative',
+    zIndex: 3,
+  },
   control: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -115,34 +109,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.3,
   },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    padding: staticTokens.spacing.md,
-  },
   menu: {
+    position: 'absolute',
+    top: 38,
+    right: 0,
+    minWidth: 180,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: staticTokens.radii.card,
-    gap: staticTokens.spacing.sm,
-    padding: staticTokens.spacing.md,
-  },
-  menuTitle: {
-    fontFamily: staticTokens.fonts.heading,
-    fontSize: 16,
-    marginBottom: staticTokens.spacing.xs,
+    gap: staticTokens.spacing.xs,
+    padding: staticTokens.spacing.sm,
   },
   menuItem: {
-    minHeight: 42,
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: staticTokens.borderRadius.pill,
-    paddingHorizontal: staticTokens.spacing.md,
+    paddingHorizontal: staticTokens.spacing.sm,
   },
   menuItemLabel: {
     fontFamily: staticTokens.fonts.body,
-    fontSize: 14,
+    fontSize: 13,
   },
 });
 
