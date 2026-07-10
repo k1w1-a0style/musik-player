@@ -28,7 +28,7 @@ type LibraryMusicContextInput = Pick<
 
 type MiniPlayerMusicContextInput = Pick<
   MusicContextValue,
-  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue'
+  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'palette'
 >;
 
 type NowPlayingMusicContextInput = Pick<
@@ -96,6 +96,7 @@ export const buildMiniPlayerMusicContextValue = ({
   next,
   previous,
   playbackQueue,
+  palette,
 }: MiniPlayerMusicContextInput): MiniPlayerMusicContextValue => ({
   currentSong,
   isPlaying,
@@ -104,6 +105,7 @@ export const buildMiniPlayerMusicContextValue = ({
   previous,
   canSkipNext: currentSong !== null && playbackQueue.length > 1,
   canSkipPrevious: currentSong !== null,
+  palette,
 });
 
 export const buildNowPlayingMusicContextValue = ({
