@@ -114,10 +114,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     ],
   );
 
-  const sleepTimerState = useSleepTimer({
-    isPlaying,
-    pausePlayback: togglePlayPause,
-  });
+  const sleepTimerState = useSleepTimer();
 
   const nowPlayingValue = useMemo(
     () =>

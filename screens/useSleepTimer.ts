@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-interface UseSleepTimerOptions {
-  isPlaying: boolean;
-  pausePlayback: () => Promise<void> | void;
-}
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  cancelSleepTimer as cancelSharedSleepTimer,
+  isSleepTimerActive,
+  startSleepTimer as startSharedSleepTimer,
+  subscribeToSleepTimer,
+} from '../services/sleepTimerController';
 
 interface SleepTimerState {
   sleepTimerActive: boolean;
@@ -11,45 +12,19 @@ interface SleepTimerState {
   cancelSleepTimer: () => void;
 }
 
-export const useSleepTimer = ({ isPlaying, pausePlayback }: UseSleepTimerOptions): SleepTimerState => {
-  const [sleepTimerActive, setSleepTimerActive] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isPlayingRef = useRef(isPlaying);
-  const pausePlaybackRef = useRef(pausePlayback);
+export const useSleepTimer = (): SleepTimerState => {
+  const [sleepTimerActive, setSleepTimerActive] = useState(isSleepTimerActive);
 
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
+  useEffect(() => subscribeToSleepTimer(setSleepTimerActive), []);
+  useEffect(() => cancelSharedSleepTimer, []);
 
-  useEffect(() => {
-    pausePlaybackRef.current = pausePlayback;
-  }, [pausePlayback]);
-
-  const clearSleepTimer = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+  const startSleepTimer = useCallback((minutes: number) => {
+    startSharedSleepTimer(minutes);
   }, []);
 
   const cancelSleepTimer = useCallback(() => {
-    clearSleepTimer();
-    setSleepTimerActive(false);
-  }, [clearSleepTimer]);
-
-  const startSleepTimer = useCallback((minutes: number) => {
-    clearSleepTimer();
-    setSleepTimerActive(true);
-    timeoutRef.current = setTimeout(() => {
-      timeoutRef.current = null;
-      setSleepTimerActive(false);
-      if (isPlayingRef.current) {
-        void pausePlaybackRef.current();
-      }
-    }, minutes * 60 * 1000);
-  }, [clearSleepTimer]);
-
-  useEffect(() => cancelSleepTimer, [cancelSleepTimer]);
+    cancelSharedSleepTimer();
+  }, []);
 
   return useMemo(() => ({
     sleepTimerActive,

@@ -1,8 +1,10 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { act, render, renderHook } from '@testing-library/react-native';
+import TrackPlayer from 'react-native-track-player';
 import { useProvidedMusicContextValues } from '../useProvidedMusicContextValues';
 import type { MusicContextValue } from '../musicContextTypes';
+import { resetSleepTimerForTests } from '../../services/sleepTimerController';
 
 const noopAsync = async () => undefined;
 const mockTogglePlayPause = jest.fn(noopAsync);
@@ -84,6 +86,10 @@ const ValuesProbe = () => {
 };
 
 describe('useProvidedMusicContextValues', () => {
+  beforeEach(() => {
+    resetSleepTimerForTests();
+    jest.clearAllMocks();
+  });
   test('builds provided context values from the full music value', () => {
     const { getByTestId } = render(<ValuesProbe />);
 
@@ -102,10 +108,11 @@ describe('useProvidedMusicContextValues', () => {
   });
 
 
-  test('keeps the sleep timer alive in the provider slice until provider unmount', () => {
+  test('keeps the sleep timer alive in the provider slice until provider unmount', async () => {
     jest.useFakeTimers();
     const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-    mockTogglePlayPause.mockClear();
+    await TrackPlayer.play();
+    jest.clearAllMocks();
     const initialQueue = baseValue.playbackQueue;
     const initialSong = baseValue.currentSong;
     const { result, unmount } = renderHook(() => useProvidedMusicContextValues(baseValue));
@@ -115,11 +122,13 @@ describe('useProvidedMusicContextValues', () => {
     });
     expect(result.current.nowPlayingValue.sleepTimerActive).toBe(true);
 
-    act(() => {
+    await act(async () => {
       jest.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
     });
 
-    expect(mockTogglePlayPause).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(mockTogglePlayPause).not.toHaveBeenCalled();
     expect(result.current.nowPlayingValue.playbackQueue).toBe(initialQueue);
     expect(result.current.nowPlayingValue.currentSong).toBe(initialSong);
 
@@ -133,17 +142,20 @@ describe('useProvidedMusicContextValues', () => {
     jest.useRealTimers();
   });
 
-  test('does not start playback when the sleep timer expires while already paused', () => {
+  test('does not start playback when the sleep timer expires while already paused', async () => {
     jest.useFakeTimers();
-    mockTogglePlayPause.mockClear();
+    await TrackPlayer.pause();
+    jest.clearAllMocks();
     const pausedValue: MusicContextValue = { ...baseValue, isPlaying: false };
     const { result } = renderHook(() => useProvidedMusicContextValues(pausedValue));
 
-    act(() => {
+    await act(async () => {
       result.current.nowPlayingValue.startSleepTimer(15);
       jest.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
     });
 
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
     expect(mockTogglePlayPause).not.toHaveBeenCalled();
     jest.useRealTimers();
   });

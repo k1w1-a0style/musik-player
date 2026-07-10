@@ -1,10 +1,12 @@
 import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
+import TrackPlayer from 'react-native-track-player';
 import { useSleepTimer } from '../useSleepTimer';
+import { resetSleepTimerForTests } from '../../services/sleepTimerController';
 
-const SleepTimerProbe = ({ isPlaying, pausePlayback }: { isPlaying: boolean; pausePlayback: () => void }) => {
-  const { sleepTimerActive, startSleepTimer, cancelSleepTimer } = useSleepTimer({ isPlaying, pausePlayback });
+const SleepTimerProbe = () => {
+  const { sleepTimerActive, startSleepTimer, cancelSleepTimer } = useSleepTimer();
 
   return (
     <>
@@ -19,6 +21,7 @@ const SleepTimerProbe = ({ isPlaying, pausePlayback }: { isPlaying: boolean; pau
 describe('useSleepTimer', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    resetSleepTimerForTests();
     jest.clearAllMocks();
   });
 
@@ -28,7 +31,7 @@ describe('useSleepTimer', () => {
 
   test('clears the timeout on unmount', () => {
     const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
-    const view = render(<SleepTimerProbe isPlaying pausePlayback={jest.fn()} />);
+    const view = render(<SleepTimerProbe />);
 
     fireEvent.press(view.getByTestId('start-15'));
     view.unmount();
@@ -37,9 +40,10 @@ describe('useSleepTimer', () => {
     clearTimeoutSpy.mockRestore();
   });
 
-  test('replaces an existing timer when starting a new timer', () => {
-    const pausePlayback = jest.fn();
-    const { getByTestId } = render(<SleepTimerProbe isPlaying pausePlayback={pausePlayback} />);
+  test('replaces an existing timer when starting a new timer', async () => {
+    await TrackPlayer.play();
+    jest.clearAllMocks();
+    const { getByTestId } = render(<SleepTimerProbe />);
 
     fireEvent.press(getByTestId('start-15'));
     fireEvent.press(getByTestId('start-30'));
@@ -47,36 +51,41 @@ describe('useSleepTimer', () => {
     act(() => {
       jest.advanceTimersByTime(15 * 60 * 1000);
     });
-    expect(pausePlayback).not.toHaveBeenCalled();
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
 
-    act(() => {
+    await act(async () => {
       jest.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
     });
-    expect(pausePlayback).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
   });
 
-  test('pauses playback when the timer expires', () => {
-    const pausePlayback = jest.fn();
-    const { getByTestId } = render(<SleepTimerProbe isPlaying pausePlayback={pausePlayback} />);
+  test('pauses playback when the timer expires', async () => {
+    await TrackPlayer.play();
+    jest.clearAllMocks();
+    const { getByTestId } = render(<SleepTimerProbe />);
 
     fireEvent.press(getByTestId('start-15'));
-    act(() => {
+    await act(async () => {
       jest.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
     });
 
-    expect(pausePlayback).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
     expect(getByTestId('sleep-timer-active').props.children).toBe('false');
   });
 
-  test('does not resume playback when the timer expires while already paused', () => {
-    const pausePlayback = jest.fn();
-    const { getByTestId } = render(<SleepTimerProbe isPlaying={false} pausePlayback={pausePlayback} />);
+  test('does not resume playback when the timer expires while already paused', async () => {
+    const { getByTestId } = render(<SleepTimerProbe />);
+    await TrackPlayer.pause();
+    jest.clearAllMocks();
 
     fireEvent.press(getByTestId('start-15'));
-    act(() => {
+    await act(async () => {
       jest.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
     });
 
-    expect(pausePlayback).not.toHaveBeenCalled();
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
   });
 });

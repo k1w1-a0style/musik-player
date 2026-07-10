@@ -29,6 +29,7 @@ const Capability = {
 
 const Event = {
   PlaybackActiveTrackChanged: 'PlaybackActiveTrackChanged',
+  PlaybackProgressUpdated: 'PlaybackProgressUpdated',
   RemotePlay: 'RemotePlay',
   RemotePause: 'RemotePause',
   RemoteStop: 'RemoteStop',
