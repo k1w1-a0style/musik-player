@@ -2,6 +2,7 @@ import TrackPlayer, { State } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 
 type SleepTimerListener = (active: boolean) => void;
+type SleepTimerExpiryGuard = () => boolean;
 
 let sleepTimerDeadlineMs: number | null = null;
 let sleepTimerTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -19,8 +20,12 @@ const clearSleepTimerTimeout = (): void => {
   }
 };
 
-const retrySleepTimerAfterError = (): void => {
-  if (sleepTimerDeadlineMs === null) return;
+const logSleepTimerError = (error: unknown): void => {
+  console.warn('[sleepTimerController] Sleep timer expiry failed', error);
+};
+
+const retrySleepTimerAfterError = (deadlineMs: number): void => {
+  if (sleepTimerDeadlineMs !== deadlineMs) return;
 
   clearSleepTimerTimeout();
   sleepTimerTimeout = setTimeout(() => {
@@ -28,28 +33,39 @@ const retrySleepTimerAfterError = (): void => {
   }, 1000);
 };
 
-const logSleepTimerError = (error: unknown): void => {
-  console.warn('[sleepTimerController] Sleep timer expiry failed', error);
-};
-
 const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, State.Buffering]);
 
-export const pausePlaybackExplicitly = async (): Promise<void> => {
+export const pausePlaybackExplicitly = async (
+  shouldPause: SleepTimerExpiryGuard = () => true,
+): Promise<boolean> => {
   const state = (await TrackPlayer.getPlaybackState()).state;
-  if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return;
+  if (!shouldPause()) return false;
+  if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
 
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.pause());
+  await runExclusiveNativePlaybackControl(async () => {
+    if (!shouldPause()) return;
+    await TrackPlayer.pause();
+  });
+
+  return shouldPause();
 };
 
 export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Promise<boolean> => {
-  if (sleepTimerDeadlineMs === null || nowMs < sleepTimerDeadlineMs) return false;
+  const expiredDeadlineMs = sleepTimerDeadlineMs;
+  if (expiredDeadlineMs === null || nowMs < expiredDeadlineMs) return false;
 
+  const isCurrentExpiry = (): boolean => sleepTimerDeadlineMs === expiredDeadlineMs;
   clearSleepTimerTimeout();
+
   try {
-    await pausePlaybackExplicitly();
+    const completedForCurrentDeadline = await pausePlaybackExplicitly(isCurrentExpiry);
+    if (!completedForCurrentDeadline || !isCurrentExpiry()) return false;
   } catch (error) {
-    retrySleepTimerAfterError();
-    throw error;
+    if (isCurrentExpiry()) {
+      retrySleepTimerAfterError(expiredDeadlineMs);
+      throw error;
+    }
+    return false;
   }
 
   sleepTimerDeadlineMs = null;
