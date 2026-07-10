@@ -123,7 +123,12 @@ describe('music context value builders', () => {
   });
 
   test('builds the now playing slice with skip actions and canSkip flag', () => {
-    expect(buildNowPlayingMusicContextValue(baseValue)).toMatchObject({
+    expect(buildNowPlayingMusicContextValue({
+      ...baseValue,
+      sleepTimerActive: false,
+      startSleepTimer: jest.fn(),
+      cancelSleepTimer: jest.fn(),
+    })).toMatchObject({
       playbackQueue: baseValue.playbackQueue,
       currentSong: baseValue.currentSong,
       volume: 0.8,

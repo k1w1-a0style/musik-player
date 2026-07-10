@@ -1,6 +1,7 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { waitFor } from '@testing-library/react-native';
 import { PlaybackService } from '../PlaybackService';
+import { resetSleepTimerForTests, startSleepTimer } from '../sleepTimerController';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
@@ -15,6 +16,7 @@ describe('PlaybackService', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
     trackPlayerTestApi.__reset();
+    resetSleepTimerForTests();
     jest.clearAllMocks();
     jest.restoreAllMocks();
   });
@@ -30,6 +32,7 @@ describe('PlaybackService', () => {
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteSeek, expect.any(Function));
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteJumpForward, expect.any(Function));
     expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.RemoteJumpBackward, expect.any(Function));
+    expect(TrackPlayer.addEventListener).toHaveBeenCalledWith(Event.PlaybackProgressUpdated, expect.any(Function));
     expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.RemotePause)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.RemoteStop)).toHaveLength(1);
@@ -38,6 +41,7 @@ describe('PlaybackService', () => {
     expect(trackPlayerTestApi.__getListeners(Event.RemoteSeek)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpForward)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpBackward)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.PlaybackProgressUpdated)).toHaveLength(1);
   });
 
   test('runs remote play action', async () => {
@@ -140,6 +144,39 @@ describe('PlaybackService', () => {
     trackPlayerTestApi.__trigger(event, { interval });
 
     await waitFor(() => expect(TrackPlayer.seekBy).toHaveBeenCalledWith(expectedOffset));
+  });
+
+
+  test('pauses expired sleep timers from playback progress events', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    await TrackPlayer.play();
+    jest.clearAllMocks();
+    startSleepTimer(15);
+    await PlaybackService();
+
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    trackPlayerTestApi.__trigger(Event.PlaybackProgressUpdated);
+
+    await waitFor(() => expect(TrackPlayer.pause).toHaveBeenCalledTimes(1));
+    jest.useRealTimers();
+  });
+
+  test('does not play when an expired sleep timer finds playback already paused', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    await TrackPlayer.pause();
+    jest.clearAllMocks();
+    startSleepTimer(15);
+    await PlaybackService();
+
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    trackPlayerTestApi.__trigger(Event.PlaybackProgressUpdated);
+    await Promise.resolve();
+
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    jest.useRealTimers();
   });
 
   test('keeps the service alive after a remote handler rejection', async () => {

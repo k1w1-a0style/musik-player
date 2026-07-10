@@ -11,6 +11,7 @@ import type {
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
 import { useMusicContextValue } from './useMusicContextValue';
+import { useSleepTimer } from '../screens/useSleepTimer';
 
 export interface ProvidedMusicContextValues {
   value: MusicContextValue;
@@ -113,6 +114,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     ],
   );
 
+  const sleepTimerState = useSleepTimer();
+
   const nowPlayingValue = useMemo(
     () =>
       buildNowPlayingMusicContextValue({
@@ -120,6 +123,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         currentSong,
         seekTo,
         isPlaying,
+        togglePlayPause,
+        ...sleepTimerState,
         volume,
         setVolume,
         palette,
@@ -134,6 +139,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       currentSong,
       seekTo,
       isPlaying,
+      togglePlayPause,
+      sleepTimerState,
       volume,
       setVolume,
       palette,

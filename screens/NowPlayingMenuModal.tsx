@@ -12,6 +12,9 @@ interface NowPlayingMenuModalProps {
   onOpenEqualizer: () => void;
   onToggleFavorite: () => void;
   onSaveQueueAsPlaylist: () => void;
+  sleepTimerActive: boolean;
+  onStartSleepTimer: (minutes: number) => void;
+  onCancelSleepTimer: () => void;
 }
 
 const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
@@ -22,6 +25,9 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   onOpenEqualizer,
   onToggleFavorite,
   onSaveQueueAsPlaylist,
+  sleepTimerActive,
+  onStartSleepTimer,
+  onCancelSleepTimer,
 }) => {
   const { appearance, theme } = useAppTheme();
 
@@ -55,6 +61,26 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               onClose();
             }}
           />
+
+          {[15, 30, 45, 60].map(minutes => (
+            <NowPlayingMenuItem
+              key={minutes}
+              label={`Sleep-Timer: ${minutes} Minuten`}
+              onPress={() => {
+                onStartSleepTimer(minutes);
+                onClose();
+              }}
+            />
+          ))}
+          {sleepTimerActive ? (
+            <NowPlayingMenuItem
+              label="Sleep-Timer abbrechen"
+              onPress={() => {
+                onCancelSleepTimer();
+                onClose();
+              }}
+            />
+          ) : null}
           <NowPlayingMenuItem
             label={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
             onPress={() => {

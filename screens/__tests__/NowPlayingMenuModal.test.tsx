@@ -32,6 +32,9 @@ const renderMenu = (patch = {}) => render(
     onOpenEqualizer={jest.fn()}
     onToggleFavorite={jest.fn()}
     onSaveQueueAsPlaylist={jest.fn()}
+    sleepTimerActive={false}
+    onStartSleepTimer={jest.fn()}
+    onCancelSleepTimer={jest.fn()}
     {...patch}
   />,
 );
@@ -43,6 +46,10 @@ test('renders menu actions', () => {
   expect(getByText('Equalizer öffnen')).toBeTruthy();
   expect(getByText('Warteschlange speichern')).toBeTruthy();
   expect(getByText('Zu Favoriten hinzufügen')).toBeTruthy();
+  expect(getByText('Sleep-Timer: 15 Minuten')).toBeTruthy();
+  expect(getByText('Sleep-Timer: 30 Minuten')).toBeTruthy();
+  expect(getByText('Sleep-Timer: 45 Minuten')).toBeTruthy();
+  expect(getByText('Sleep-Timer: 60 Minuten')).toBeTruthy();
 });
 
 test('calls menu actions', () => {
@@ -70,6 +77,29 @@ test('calls menu actions', () => {
   expect(onSaveQueueAsPlaylist).toHaveBeenCalledTimes(1);
   expect(onToggleFavorite).toHaveBeenCalledTimes(1);
   expect(onClose).toHaveBeenCalledTimes(2);
+});
+
+
+test.each([15, 30, 45, 60])('starts %i minute sleep timer and closes the menu', minutes => {
+  const onStartSleepTimer = jest.fn();
+  const onClose = jest.fn();
+  const { getByText } = renderMenu({ onStartSleepTimer, onClose });
+
+  fireEvent.press(getByText(`Sleep-Timer: ${minutes} Minuten`));
+
+  expect(onStartSleepTimer).toHaveBeenCalledWith(minutes);
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+test('renders and cancels an active sleep timer', () => {
+  const onCancelSleepTimer = jest.fn();
+  const onClose = jest.fn();
+  const { getByText } = renderMenu({ sleepTimerActive: true, onCancelSleepTimer, onClose });
+
+  fireEvent.press(getByText('Sleep-Timer abbrechen'));
+
+  expect(onCancelSleepTimer).toHaveBeenCalledTimes(1);
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
 
 test('renders remove favorite label when favorite', () => {

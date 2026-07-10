@@ -94,6 +94,10 @@ const mockNowPlayingContext = {
   currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
   seekTo: jest.fn(async () => undefined),
   isPlaying: false,
+  togglePlayPause: jest.fn(async () => undefined),
+  sleepTimerActive: false,
+  startSleepTimer: jest.fn(),
+  cancelSleepTimer: jest.fn(),
   volume: 1,
   setVolume: jest.fn(async () => undefined),
   palette: null,
@@ -162,6 +166,11 @@ describe('NowPlaying cover fallback', () => {
     mockSetFavoriteSongId.mockClear();
     mockNowPlayingContext.next.mockClear();
     mockNowPlayingContext.previous.mockClear();
+    mockNowPlayingContext.togglePlayPause.mockClear();
+    mockNowPlayingContext.startSleepTimer.mockClear();
+    mockNowPlayingContext.cancelSleepTimer.mockClear();
+    mockNowPlayingContext.isPlaying = false;
+    mockNowPlayingContext.sleepTimerActive = false;
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
@@ -329,6 +338,28 @@ describe('NowPlaying cover fallback', () => {
     fireEvent.press(getByText(OPEN_EQUALIZER_LABEL));
 
     expect(mockNavigate).toHaveBeenCalledWith('Equalizer');
+  });
+
+
+  test('sleep timer menu item starts the provider-owned timer and closes the menu', () => {
+    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText('Sleep-Timer: 15 Minuten'));
+
+    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(15);
+    expect(queryByText('Sleep-Timer: 15 Minuten')).toBeNull();
+  });
+
+  test('active sleep timer can be cancelled from the menu', () => {
+    mockNowPlayingContext.sleepTimerActive = true;
+    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText('Sleep-Timer abbrechen'));
+
+    expect(mockNowPlayingContext.cancelSleepTimer).toHaveBeenCalledTimes(1);
+    expect(queryByText('Sleep-Timer abbrechen')).toBeNull();
   });
 
   test('queue save menu item saves the current queue as playlist', () => {

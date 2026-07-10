@@ -1,5 +1,6 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { cancelSleepTimer, enforceExpiredSleepTimer } from './sleepTimerController';
 
 const logRemotePlaybackError = (action: string, error: unknown): void => {
   console.warn(`[PlaybackService] Remote ${action} failed`, error);
@@ -45,4 +46,11 @@ export const PlaybackService = async (): Promise<void> => {
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => {
     handleRemotePlaybackAction('jump backward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(-normalizeJumpInterval(interval))));
   });
+  TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, () => {
+    handleRemotePlaybackAction('sleep timer expiry', () => enforceExpiredSleepTimer());
+  });
+};
+
+export const cleanupPlaybackService = (): void => {
+  cancelSleepTimer();
 };
