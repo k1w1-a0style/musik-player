@@ -16,16 +16,23 @@ const mockAppTheme = {
   },
 };
 
+const mockUseOptionalAppTheme = jest.fn();
+
 jest.mock('../../contexts/AppThemeContext', () => ({
-  useAppTheme: () => ({
+  useOptionalAppTheme: () => mockUseOptionalAppTheme(),
+}));
+
+beforeEach(() => {
+  mockUseOptionalAppTheme.mockReset();
+  mockUseOptionalAppTheme.mockReturnValue({
     appearance: 'dark',
     skin: 'graphite',
     isHydrated: true,
     setAppearance: () => undefined,
     setSkin: () => undefined,
     theme: mockAppTheme,
-  }),
-}));
+  });
+});
 
 test('renders themed loading container', () => {
   const { getByTestId } = render(<AppLoading />);
@@ -44,4 +51,13 @@ test('renders branded loading copy and spinner', () => {
   expect(getByTestId('app-loading-spinner')).toBeTruthy();
   expect(logoStyle).toContain(mockAppTheme.palette.surfaceGlass);
   expect(logoStyle).toContain(mockAppTheme.palette.borderStrong);
+});
+
+test('renders safely before the app theme provider is mounted', () => {
+  mockUseOptionalAppTheme.mockReturnValue(null);
+
+  const { getByTestId, getByText } = render(<AppLoading />);
+
+  expect(getByTestId('app-loading')).toBeTruthy();
+  expect(getByText('k1w1-Musik')).toBeTruthy();
 });
