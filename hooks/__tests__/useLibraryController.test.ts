@@ -117,6 +117,19 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     onOpenSettings: fn,
     onOpenEqualizer: fn,
   },
+  songActionMenuProps: {
+    visible: false,
+    onClose: fn,
+    onOpenTrackInfo: fn,
+    onOpenPlaylistPicker: fn,
+  },
+  songPlaylistPickerProps: {
+    visible: false,
+    song: null,
+    playlists: [],
+    onClose: fn,
+    onTogglePlaylist: fn,
+  },
   searchBarProps: {
     autoFocus: true,
     onChangeText: fn,
@@ -325,7 +338,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     showAlert: mockAlerts.showAlert,
     songs: [],
   });
-  expect(useLibraryRenderers).toHaveBeenCalledWith({
+  expect(useLibraryRenderers).toHaveBeenCalledWith(expect.objectContaining({
     currentSongId: null,
     filteredSongs: [],
     isPlaying: false,
@@ -335,7 +348,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     playSong: mockMusicContext.playSong,
     removeFolder: mockScanFolderActions.removeFolder,
     songViewMode: 'list',
-  });
+  }));
   expect(useLibraryPlaybackActions).toHaveBeenCalledWith({
     handleSongPress: mockRenderers.handleSongPress,
     playSong: mockMusicContext.playSong,

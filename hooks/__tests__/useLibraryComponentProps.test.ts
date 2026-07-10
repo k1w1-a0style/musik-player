@@ -46,6 +46,19 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   songViewMode: 'list',
   onCycleSongViewMode: fn,
   toggleSearch: fn,
+  songActionMenuProps: {
+    visible: false,
+    onClose: fn,
+    onOpenTrackInfo: fn,
+    onOpenPlaylistPicker: fn,
+  },
+  songPlaylistPickerProps: {
+    visible: false,
+    song: null,
+    playlists: [],
+    onClose: fn,
+    onTogglePlaylist: fn,
+  },
 };
 
 test('returns library component props', () => {

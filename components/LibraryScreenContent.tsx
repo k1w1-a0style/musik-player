@@ -1,6 +1,8 @@
 import React from 'react';
 import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
 import LibraryMenuModal, { type LibraryMenuModalProps } from './LibraryMenuModal';
+import SongActionMenuModal from './SongActionMenuModal';
+import SongPlaylistPickerModal from './SongPlaylistPickerModal';
 import LibrarySearchBar, { type LibrarySearchBarProps } from './LibrarySearchBar';
 import LibraryTabContent, { type LibraryTabContentProps } from './LibraryTabContent';
 import LibraryTabs, { type LibraryTabsProps } from './LibraryTabs';
@@ -18,6 +20,8 @@ export interface LibraryScreenContentProps extends LibraryScreenVisibilityProps 
   tabContentProps: LibraryTabContentProps;
   tabsProps: LibraryTabsProps;
   topBarProps: LibraryTopBarProps;
+  songActionMenuProps: React.ComponentProps<typeof SongActionMenuModal>;
+  songPlaylistPickerProps: React.ComponentProps<typeof SongPlaylistPickerModal>;
 }
 
 const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
@@ -29,6 +33,8 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
   tabContentProps,
   tabsProps,
   topBarProps,
+  songActionMenuProps,
+  songPlaylistPickerProps,
 }) => (
   <>
     <LibraryTopBar {...topBarProps} />
@@ -41,6 +47,8 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
     <LibraryTabContent {...tabContentProps} />
 
     <LibraryMenuModal {...menuModalProps} />
+    <SongActionMenuModal {...songActionMenuProps} />
+    <SongPlaylistPickerModal {...songPlaylistPickerProps} />
   </>
 );
 

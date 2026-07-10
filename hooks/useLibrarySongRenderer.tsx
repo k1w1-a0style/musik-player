@@ -24,6 +24,7 @@ interface UseLibrarySongRendererOptions {
   filteredSongs: Song[];
   isPlaying: boolean;
   onOpenTrackInfo: LibraryRendererOpenTrackInfo;
+  onOpenSongActions?: (song: Song) => void;
   playSong: LibraryRendererPlaySong;
   songViewMode?: LibrarySongViewMode;
 }
@@ -40,6 +41,7 @@ export const useLibrarySongRenderer = ({
   filteredSongs,
   isPlaying,
   onOpenTrackInfo,
+  onOpenSongActions,
   playSong,
   songViewMode = DEFAULT_LIBRARY_SONG_VIEW_MODE,
 }: UseLibrarySongRendererOptions): UseLibrarySongRendererResult => {
@@ -74,9 +76,9 @@ export const useLibrarySongRenderer = ({
       isPlaying={currentSongId === item.id && isPlaying}
       variant={variant}
       onPressSong={handleSongPress}
-      onInfoSong={shouldShowTrackInfoAction(item) ? onOpenTrackInfo : undefined}
+      onInfoSong={shouldShowTrackInfoAction(item) ? (onOpenSongActions ?? onOpenTrackInfo) : undefined}
     />
-  ), [currentSongId, handleSongPress, isPlaying, onOpenTrackInfo, variant]);
+  ), [currentSongId, handleSongPress, isPlaying, onOpenSongActions, onOpenTrackInfo, variant]);
 
   return {
     getSongItemLayout,

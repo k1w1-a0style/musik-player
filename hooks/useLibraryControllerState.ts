@@ -16,6 +16,8 @@ export interface LibraryControllerMusicState {
   playPlaylist: (playlistId: string) => unknown;
   playSong: (song: Song, queue?: Song[]) => unknown;
   playlists: Playlist[];
+  addSongToPlaylist: (playlistId: string, songId: string) => void;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   setSongs: (songs: Song[]) => void;
   songs: Song[];
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
@@ -43,6 +45,8 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     playPlaylist = defaultPlayPlaylist,
     playSong,
     playlists = defaultPlaylists,
+    addSongToPlaylist,
+    removeSongFromPlaylist,
     setSongs,
     songs,
     updateSongMetadata,
@@ -59,6 +63,8 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
       playPlaylist,
       playSong,
       playlists,
+      addSongToPlaylist,
+      removeSongFromPlaylist,
       setSongs,
       songs,
       updateSongMetadata,

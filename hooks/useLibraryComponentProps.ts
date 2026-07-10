@@ -23,7 +23,8 @@ export type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryImportStatusPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
   & LibraryTabContentPropsBuilderOptions
-  & LibraryScreenVisibilityPropsBuilderOptions;
+  & LibraryScreenVisibilityPropsBuilderOptions
+  & Pick<LibraryScreenContentProps, 'songActionMenuProps' | 'songPlaylistPickerProps'>;
 
 export type UseLibraryComponentPropsResult = LibraryScreenContentProps;
 
@@ -73,6 +74,8 @@ export const useLibraryComponentProps = ({
   songViewMode,
   onCycleSongViewMode,
   toggleSearch,
+  songActionMenuProps,
+  songPlaylistPickerProps,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
     openMenu,
@@ -183,5 +186,5 @@ export const useLibraryComponentProps = ({
     refreshHasResumable,
   ]);
 
-  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, ...visibilityProps };
+  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, songActionMenuProps, songPlaylistPickerProps, ...visibilityProps };
 };

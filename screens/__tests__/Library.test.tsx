@@ -58,6 +58,8 @@ const MockPressable = Pressable;
 const MockText = Text;
 const mockPlaySong = jest.fn(async () => undefined);
 const mockPlayPlaylist = jest.fn(async () => undefined);
+const mockAddSongToPlaylist = jest.fn();
+const mockRemoveSongFromPlaylist = jest.fn();
 let mockPlaylists: Array<{ id: string; name: string; songIds: string[] }> = [];
 const mockNavigate = jest.fn();
 const mockSetSongs = jest.fn();
@@ -90,6 +92,8 @@ jest.mock('../../contexts/MusicContext', () => ({
       isReady: true,
       isPlaying: false,
       playlists: mockPlaylists,
+      addSongToPlaylist: mockAddSongToPlaylist,
+      removeSongFromPlaylist: mockRemoveSongFromPlaylist,
       playPlaylist: mockPlayPlaylist,
     };
   },
@@ -198,6 +202,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     fireEvent.press(getByTestId('info-s1'));
+    fireEvent.press(view.getByText('Titelinformationen öffnen'));
 
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
     expect(mockPlaySong).not.toHaveBeenCalled();

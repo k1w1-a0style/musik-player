@@ -9,6 +9,8 @@ jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => mockRea
 jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => mockReact.createElement(mockText, null, `Status: ${status}`));
 jest.mock('../LibraryTabContent', () => () => mockReact.createElement(mockText, null, 'Tab Content'));
 jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, null, 'Menu Modal'));
+jest.mock('../SongActionMenuModal', () => () => mockReact.createElement(mockText, null, 'Song Action Menu'));
+jest.mock('../SongPlaylistPickerModal', () => () => mockReact.createElement(mockText, null, 'Song Playlist Picker'));
 
 const fn = jest.fn();
 
@@ -68,6 +70,19 @@ const baseProps: LibraryScreenContentProps = {
   topBarProps: {
     onOpenMenu: fn,
     onToggleSearch: fn,
+  },
+  songActionMenuProps: {
+    visible: false,
+    onClose: fn,
+    onOpenTrackInfo: fn,
+    onOpenPlaylistPicker: fn,
+  },
+  songPlaylistPickerProps: {
+    visible: false,
+    song: null,
+    playlists: [],
+    onClose: fn,
+    onTogglePlaylist: fn,
   },
 };
 
