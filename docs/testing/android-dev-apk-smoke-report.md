@@ -11,12 +11,14 @@
 - Android-Version: manuell eintragen
 - Datum/Uhrzeit: manuell eintragen
 - Ergebnis: offen / bestanden / mit Hinweisen / fehlgeschlagen
+- Theme-Migration: code-seitig abgeschlossen; echter Dark/Light/Skin-Geräte-Smoke offen
 
 ## Vorbedingungen
 
 - Frischer codex-Stand gezogen
 - Keine lokalen uncommitted changes
 - Dev-APK wurde nach den Native-Fixes für AudioInfo und SAF-TagWriter neu gebaut
+- Dev-APK wurde nach der Theme-Migration aus dem getesteten Commit neu gebaut
 - Dev-APK auf echtem Android-Gerät installiert
 - App-Daten optional sauber zurückgesetzt oder Ausgangszustand dokumentiert
 - Testmusik mit mindestens 3 lokalen Titeln vorhanden
@@ -26,6 +28,7 @@
 - SAF-Quelle verfügbar
 - Lokale Datei-Quelle verfügbar
 - SAF-MP3-Testdatei mit bestehender Berechtigung verfügbar
+- Theme-Testzustände verfügbar: Graphite, Minimal und Neon Cover jeweils in Hell/Dunkel prüfen
 
 ## Build-/Config-Prüfung
 
@@ -48,6 +51,31 @@ Checkliste:
 - [ ] Settings/Modal-Flows öffnen und schließen
 - [ ] Keine roten Fehler-Screens
 - [ ] Keine auffälligen JS- oder Native-Crashes
+
+## Theme / Settings / Dark-Light-Skins
+
+- [ ] Settings-Screen öffnet aus dem Library-Menü
+- [ ] Appearance-Wechsel `Dunkel` → `Hell` funktioniert ohne Crash
+- [ ] Appearance-Wechsel `Hell` → `Dunkel` funktioniert ohne Crash
+- [ ] Skin-Wechsel `Graphite` funktioniert ohne Crash
+- [ ] Skin-Wechsel `Minimal` funktioniert ohne Crash
+- [ ] Skin-Wechsel `Neon Cover` funktioniert ohne Crash
+- [ ] Appearance und Skin bleiben nach Navigation zwischen Library, Now Playing, TrackInfo, TagEditor, Equalizer und PlaylistDetail erhalten
+- [ ] Appearance und Skin bleiben nach echtem App-Neustart erhalten
+- [ ] StatusBar und NavigationTheme passen zu Hell/Dunkel
+- [ ] Library, Suche, Tabs, Sortierung, Songs, Alben, Playlists und Importstatus sind in Hell/Dunkel lesbar
+- [ ] MiniPlayer ist in Hell/Dunkel lesbar und bleibt bedienbar
+- [ ] NowPlaying, Queue, Waveform, Menü und Sleep-Timer-Menü sind in Hell/Dunkel lesbar
+- [ ] Cover-/Palette-Akzent bleibt bei Player, Queue und Waveform sichtbar, ohne Grundflächen unlesbar einzufärben
+- [ ] TagEditor-Felder, Hinweise, Buttons und CoverControls sind in Hell/Dunkel lesbar
+- [ ] SAF/content-Blockadehinweise bleiben sichtbar und verständlich
+- [ ] TrackInfo-Zeilen, Sektionen und Actions sind in Hell/Dunkel lesbar
+- [ ] Equalizer-Header, StatusCard, Presets, Slider und CurveChart sind in Hell/Dunkel lesbar
+- [ ] PlaylistDetail, PlaylistCreateForm und PlaylistListItem sind in Hell/Dunkel lesbar
+- [ ] Modals/Overlays behalten ausreichenden Kontrast
+- [ ] Neon Cover nutzt stärkere Akzente, ohne Grundflächen giftig/unlesbar zu machen
+- [ ] Kleine Displays zeigen keine abgeschnittenen Settings-/Theme-Controls
+- [ ] Keine Theme-bedingten Layout-Sprünge, Touch-Zonenverluste oder unlesbaren disabled states
 
 ## Import / Library
 
@@ -130,13 +158,18 @@ Checkliste:
 - [ ] RepeatMode lädt nach Neustart
 - [ ] EQ Settings laden nach Neustart
 - [ ] Favoriten/Playlists laden nach Neustart
+- [ ] Appearance und Skin laden nach Neustart
 - [ ] Keine doppelten Queue-Einträge nach Neustart
 
 ## Fehler-/Crash-Log
 
 | Bereich | Fehler beobachtet? | Log / Screenshot | Bewertung | Follow-up |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| Theme / Settings | | | | |
+| Import / Library | | | | |
+| Playback / Background | | | | |
+| Tag / Metadata / SAF | | | | |
+| EQ / Native Module | | | | |
 
 ## Ergebnisentscheidung
 
@@ -151,6 +184,7 @@ Bestanden nur, wenn:
 - keine Crashs
 - Playback im Vordergrund stabil
 - Background/Notification/Lockscreen geprüft
+- Theme Dark/Light/Skins inklusive Persistenz nach Neustart geprüft
 - Cover/Palette Smoke geprüft
 - lokales Tag/Cover-Speichern geprüft
 - SAF-MP3-Texttag-Speichern und nicht verfügbare SAF-Grenzen geprüft
@@ -163,5 +197,6 @@ Nicht release-ready, wenn:
 - keine neue Dev-APK gebaut wurde
 - falsche Commit-SHA getestet wurde
 - Gerätetest nicht durchgeführt wurde
+- Theme Dark/Light/Skins nicht auf echtem Gerät geprüft wurden
 - Background/Notification/Lockscreen nicht geprüft wurde
 - Native-Smoke für AudioInfo, Cover/Palette und SAF-TagWriter nicht geprüft wurde
