@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { EQ_BAND_LABELS } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 const toA11yHz = (label: string): string =>
@@ -52,11 +52,11 @@ const EqualizerBandSliders: React.FC<EqualizerBandSlidersProps> = ({
 };
 
 const styles = StyleSheet.create({
-  bandsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: staticTheme.spacing.lg, height: 240 },
+  bandsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: APP_THEME_TOKENS.spacing.lg, height: 240 },
   bandCol: { flex: 1, alignItems: 'center' },
-  verticalSlider: { width: 120, height: 40, transform: [{ rotate: '-90deg' }], marginVertical: staticTheme.spacing.xl },
-  bandValue: { fontSize: 10, fontFamily: staticTheme.fonts.mono },
-  bandLabel: { fontSize: 11, marginTop: staticTheme.spacing.sm, fontFamily: staticTheme.fonts.body },
+  verticalSlider: { width: 120, height: 40, transform: [{ rotate: '-90deg' }], marginVertical: APP_THEME_TOKENS.spacing.xl },
+  bandValue: { fontSize: 10, fontFamily: (Platform.OS === 'android' ? 'monospace' : 'Menlo') },
+  bandLabel: { fontSize: 11, marginTop: APP_THEME_TOKENS.spacing.sm, fontFamily: APP_THEME_TOKENS.fonts.body },
 });
 
 export default EqualizerBandSliders;

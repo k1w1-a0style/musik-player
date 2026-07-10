@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 
 interface TagEditorCoverControlsProps {
@@ -135,14 +135,14 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
 const styles = StyleSheet.create({
   toggle: {
     padding: 12,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     borderWidth: 1,
   },
   toggleText: {},
-  helperText: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  helperText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
   coverPreviewWrap: {
     padding: 14,
-    borderRadius: staticTheme.radii.card,
+    borderRadius: APP_THEME_TOKENS.radii.card,
     borderWidth: 1,
     alignItems: 'center',
     gap: 8,
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
   },
   coverPreview: { width: '100%', height: '100%' },
   coverPreviewPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  coverPreviewPlaceholderText: { fontFamily: staticTheme.fonts.body, fontSize: 12, textAlign: 'center' },
-  previewTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 14, textAlign: 'center' },
+  coverPreviewPlaceholderText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, textAlign: 'center' },
+  previewTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
   disabledButton: { opacity: 0.5 },
   pressed: { opacity: 0.72 },
 });

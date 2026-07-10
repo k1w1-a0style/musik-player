@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface TrackInfoRowProps {
   label: string;
@@ -20,8 +20,8 @@ const TrackInfoRow: React.FC<TrackInfoRowProps> = ({ label, value, long = false 
 };
 
 const styles = StyleSheet.create({
-  row: { fontFamily: staticTheme.fonts.body, fontSize: 13 },
-  longRow: { fontFamily: staticTheme.fonts.body, fontSize: 13 },
+  row: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 13 },
+  longRow: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 13 },
 });
 
 export default TrackInfoRow;

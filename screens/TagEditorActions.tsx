@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface TagEditorActionsProps {
   canSave: boolean;
@@ -73,24 +73,24 @@ const TagEditorActions: React.FC<TagEditorActionsProps> = ({
 const styles = StyleSheet.create({
   saveButton: {
     padding: 12,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     borderWidth: 1,
   },
   backButton: {
     padding: 12,
-    borderRadius: staticTheme.radii.input,
+    borderRadius: APP_THEME_TOKENS.radii.input,
     borderWidth: StyleSheet.hairlineWidth,
   },
   disabledButton: { opacity: 0.48 },
   saveText: {
     textAlign: 'center',
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: APP_THEME_TOKENS.fonts.heading,
   },
   backText: {
     textAlign: 'center',
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: APP_THEME_TOKENS.fonts.heading,
   },
-  status: { fontFamily: staticTheme.fonts.body },
+  status: { fontFamily: APP_THEME_TOKENS.fonts.body },
 });
 
 export default TagEditorActions;

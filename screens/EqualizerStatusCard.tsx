@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import type { EqInitResult } from 'expo-system-audio';
 import GlassCard from '../components/GlassCard';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { formatHz } from './equalizerHelpers';
 
@@ -32,10 +32,10 @@ const EqualizerStatusCard: React.FC<EqualizerStatusCardProps> = ({ eqNative }) =
 };
 
 const styles = StyleSheet.create({
-  statusCard: { marginBottom: staticTheme.spacing.md },
-  statusBadge: { fontSize: 11, letterSpacing: 1.6, fontFamily: staticTheme.fonts.heading, marginBottom: 6 },
-  statusText: { fontSize: 12, fontFamily: staticTheme.fonts.body, lineHeight: 18 },
-  statusFreq: { fontSize: 11, fontFamily: staticTheme.fonts.mono, marginTop: 6 },
+  statusCard: { marginBottom: APP_THEME_TOKENS.spacing.md },
+  statusBadge: { fontSize: 11, letterSpacing: 1.6, fontFamily: APP_THEME_TOKENS.fonts.heading, marginBottom: 6 },
+  statusText: { fontSize: 12, fontFamily: APP_THEME_TOKENS.fonts.body, lineHeight: 18 },
+  statusFreq: { fontSize: 11, fontFamily: (Platform.OS === 'android' ? 'monospace' : 'Menlo'), marginTop: 6 },
 });
 
 export default EqualizerStatusCard;

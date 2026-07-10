@@ -4,7 +4,7 @@ import type { EqInitResult } from 'expo-system-audio';
 import type { EqPresetName } from '../types/Song';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import EqualizerBandSliders from './EqualizerBandSliders';
 import EqualizerCurveChart from './EqualizerCurveChart';
 import EqualizerHeader from './EqualizerHeader';
@@ -47,7 +47,7 @@ const EqualizerContent: React.FC<EqualizerContentProps> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: staticTheme.spacing.md, paddingTop: 8 },
+  content: { paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: 8 },
 });
 
 export default EqualizerContent;
