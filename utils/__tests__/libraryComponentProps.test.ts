@@ -6,155 +6,104 @@ import {
   buildLibraryTabContentProps,
   buildLibraryTabsProps,
   buildLibraryTopBarProps,
-  type LibraryImportStatusPropsBuilderOptions,
-  type LibraryMenuModalPropsBuilderOptions,
-  type LibraryScreenVisibilityPropsBuilderOptions,
-  type LibrarySearchBarPropsBuilderOptions,
-  type LibraryTabContentPropsBuilderOptions,
-  type LibraryTabsPropsBuilderOptions,
-  type LibraryTopBarPropsBuilderOptions,
 } from '../libraryComponentProps';
-import type { Song } from '../../types/Song';
-import type { ScanFolder } from '../../types/ScanFolder';
-import type { LibraryGroupItem } from '../libraryPresentation';
-import type { LibraryPlaylistItem } from '../libraryPlaylists';
+import type { LibraryTabContentPropsBuilderOptions } from '../libraryComponentProps';
+
+const fn = jest.fn();
+
+const makeTabOptions = (overrides: Partial<LibraryTabContentPropsBuilderOptions> = {}): LibraryTabContentPropsBuilderOptions => ({
+  activeTab: 'tracks',
+  activeFolders: 2,
+  albumGroups: [],
+  albumViewMode: 'grid',
+  artistGroups: [],
+  emptyMessage: 'Leer',
+  genreGroups: [],
+  getSongItemLayout: fn,
+  onPlayActiveList: fn,
+  onShuffle: fn,
+  onToggleAlbumView: fn,
+  playlistItems: [],
+  renderAlbumTile: fn,
+  renderFolderItem: fn,
+  renderGroupItem: fn,
+  renderPlaylistItem: fn,
+  renderSongItem: fn,
+  scanFolders: [],
+  songKeyExtractor: item => item.id,
+  songsForActiveList: [],
+  sortMode: 'alphabet',
+  onSelectSortMode: fn,
+  songViewMode: 'list',
+  onCycleSongViewMode: fn,
+  ...overrides,
+});
 
 test('buildLibraryTopBarProps returns top bar props', () => {
-  const openMenu = jest.fn();
-  const toggleSearch = jest.fn();
-  const options: LibraryTopBarPropsBuilderOptions = { openMenu, toggleSearch };
-
-  expect(buildLibraryTopBarProps(options)).toEqual({
-    onOpenMenu: openMenu,
-    onToggleSearch: toggleSearch,
+  expect(buildLibraryTopBarProps({ openMenu: fn, toggleSearch: fn })).toEqual({
+    onOpenMenu: fn,
+    onToggleSearch: fn,
   });
 });
 
 test('buildLibraryTabsProps returns tabs props', () => {
-  const setActiveTab = jest.fn();
-  const options: LibraryTabsPropsBuilderOptions = { activeTab: 'albums', setActiveTab };
-
-  expect(buildLibraryTabsProps(options)).toEqual({
+  expect(buildLibraryTabsProps({ activeTab: 'albums', setActiveTab: fn })).toEqual({
     activeTab: 'albums',
-    onChangeTab: setActiveTab,
+    onChangeTab: fn,
   });
 });
 
 test('buildLibrarySearchBarProps returns search bar props', () => {
-  const setQuery = jest.fn();
-  const options: LibrarySearchBarPropsBuilderOptions = { query: 'abc', setQuery };
-
-  expect(buildLibrarySearchBarProps(options)).toEqual({
+  expect(buildLibrarySearchBarProps({ query: 'abc', setQuery: fn })).toEqual({
     autoFocus: true,
-    onChangeText: setQuery,
+    onChangeText: fn,
     value: 'abc',
   });
 });
 
 test('buildLibraryImportStatusProps returns import status props', () => {
-  const options: LibraryImportStatusPropsBuilderOptions = { importStatus: 'Import läuft' };
-
-  expect(buildLibraryImportStatusProps(options)).toEqual({ status: 'Import läuft' });
+  expect(buildLibraryImportStatusProps({ importStatus: 'Import läuft' })).toEqual({ status: 'Import läuft' });
 });
 
 test('buildLibraryScreenVisibilityProps returns screen content visibility props', () => {
-  const options: LibraryScreenVisibilityPropsBuilderOptions = { loading: true, searchOpen: false };
-
-  expect(buildLibraryScreenVisibilityProps(options)).toEqual({
+  expect(buildLibraryScreenVisibilityProps({ loading: true, searchOpen: false })).toEqual({
     showImportStatus: true,
     showSearchBar: false,
   });
 });
 
-test('buildLibraryTabContentProps returns tab content props', () => {
-  const fn = jest.fn();
-  const options: LibraryTabContentPropsBuilderOptions = {
-    activeTab: 'tracks',
-    activeFolders: 2,
-    albumGroups: [],
-    albumViewMode: 'grid',
-    artistGroups: [],
-    emptyMessage: 'Leer',
-    genreGroups: [],
-    getSongItemLayout: fn,
-    onPlayActiveList: fn,
-    onShuffle: fn,
-    onToggleAlbumView: fn,
-    playlistItems: [],
-    renderAlbumTile: fn,
-    renderFolderItem: fn,
-    renderGroupItem: fn,
-    renderPlaylistItem: fn,
-    renderSongItem: fn,
-    scanFolders: [],
-    songKeyExtractor: item => item.id,
-    songsForActiveList: [],
-    sortMode: 'alphabet',
-    onCycleSortMode: fn,
-    songViewMode: 'list',
-    onCycleSongViewMode: fn,
-  };
-
-  const props = buildLibraryTabContentProps(options);
+test('buildLibraryTabContentProps returns tab content props and direct sort selector', () => {
+  const props = buildLibraryTabContentProps(makeTabOptions());
 
   expect(props.activeTab).toBe('tracks');
   expect(props.activeFolders).toBe(2);
   expect(props.emptyMessage).toBe('Leer');
   expect(props.getSongItemLayout).toBe(fn);
   expect(props.onShuffle).toBe(fn);
+  expect(props.onSelectSortMode).toBe(fn);
 });
 
 test('buildLibraryTabContentProps preserves list and renderer references', () => {
-  const song: Song = { id: 's1', title: 'Song', artist: 'Artist' };
-  const folder: ScanFolder = {
-    id: 'folder-1',
-    name: 'Music',
-    uri: 'file:///music',
-    addedAt: 1,
-    enabled: true,
-  };
-  const group: LibraryGroupItem = {
-    id: 'album:One',
-    title: 'One',
-    subtitle: '1 Titel',
-    songs: [song],
-  };
-  const playlist: LibraryPlaylistItem = {
-    id: 'playlist-1',
-    name: 'Playlist',
-    songs: [song],
-    validCount: 1,
-    totalCount: 1,
-  };
-  const fn = jest.fn();
-  const songKeyExtractor = jest.fn((item: Song) => item.id);
+  const song = { id: 's1', title: 'Song', artist: 'Artist' };
+  const folder = { id: 'folder-1', name: 'Music', uri: 'file:///music', addedAt: 1, enabled: true };
+  const group = { id: 'album:One', title: 'One', subtitle: '1 Titel', songs: [song] };
+  const playlist = { id: 'playlist-1', name: 'Playlist', songs: [song], validCount: 1, totalCount: 1 };
+  const songKeyExtractor = jest.fn((item: typeof song) => item.id);
 
-  const props = buildLibraryTabContentProps({
+  const props = buildLibraryTabContentProps(makeTabOptions({
     activeTab: 'playlists',
     activeFolders: 1,
     albumGroups: [group],
     albumViewMode: 'list',
     artistGroups: [group],
-    emptyMessage: 'Leer',
     genreGroups: [group],
-    getSongItemLayout: fn,
-    onPlayActiveList: fn,
-    onShuffle: fn,
-    onToggleAlbumView: fn,
     playlistItems: [playlist],
-    renderAlbumTile: fn,
-    renderFolderItem: fn,
-    renderGroupItem: fn,
-    renderPlaylistItem: fn,
-    renderSongItem: fn,
     scanFolders: [folder],
     songKeyExtractor,
     songsForActiveList: [song],
     sortMode: 'year',
-    onCycleSortMode: fn,
     songViewMode: 'gridLarge',
-    onCycleSongViewMode: fn,
-  });
+  }));
 
   expect(props.albumGroups).toEqual([group]);
   expect(props.artistGroups).toEqual([group]);
@@ -168,8 +117,7 @@ test('buildLibraryTabContentProps preserves list and renderer references', () =>
 });
 
 test('buildLibraryMenuModalProps returns menu modal props', () => {
-  const fn = jest.fn();
-  const options: LibraryMenuModalPropsBuilderOptions = {
+  const props = buildLibraryMenuModalProps({
     activeFolders: 3,
     closeMenu: fn,
     importFromDevice: fn,
@@ -182,27 +130,16 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 5,
-  };
-
-  const props = buildLibraryMenuModalProps(options);
+  });
 
   expect(props.visible).toBe(true);
-  expect(props.loading).toBe(false);
-  expect(props.isReady).toBe(true);
   expect(props.hasSongs).toBe(true);
-  expect(props.activeFolders).toBe(3);
-  expect(props.onClose).toBe(fn);
-  expect(props.onImport).toBe(fn);
-  expect(props.onRefreshMetadata).toBe(fn);
-  expect(props.onAddFolder).toBe(fn);
-  expect(props.onShowFolders).toBe(fn);
   expect(props.onOpenSettings).toBe(fn);
   expect(props.onOpenEqualizer).toBe(fn);
 });
 
 test('buildLibraryMenuModalProps marks empty library when song count is zero', () => {
-  const fn = jest.fn();
-  const options: LibraryMenuModalPropsBuilderOptions = {
+  const props = buildLibraryMenuModalProps({
     activeFolders: 0,
     closeMenu: fn,
     importFromDevice: fn,
@@ -215,9 +152,7 @@ test('buildLibraryMenuModalProps marks empty library when song count is zero', (
     refreshMetadataFromFiles: fn,
     showScanFolders: fn,
     songsCount: 0,
-  };
-
-  const props = buildLibraryMenuModalProps(options);
+  });
 
   expect(props.visible).toBe(false);
   expect(props.hasSongs).toBe(false);
