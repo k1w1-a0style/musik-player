@@ -1,17 +1,19 @@
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
+import { useMiniPlayerMusicContext, useMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
+  const { palette } = useMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
@@ -19,6 +21,12 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const artworkUri = getSongArtworkUri(currentSong);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const displayArtistName = currentSong ? displayArtist(currentSong) : '';
+  const effectivePalette = useMemo(
+    () => mergeNativeAndFallbackPalette(palette, currentSong),
+    [palette, currentSong],
+  );
+  const coverAccent = effectivePalette.vibrant ?? appTheme.palette.primary;
+  const coverAccentMuted = effectivePalette.muted ?? appTheme.palette.borderStrong;
 
   useEffect(() => {
     setCoverFailed(false);
@@ -46,12 +54,12 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
-      <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: appTheme.palette.borderStrong }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
-        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated }]}>
+      <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: coverAccentMuted }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
+        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated, borderColor: coverAccentMuted }]}>
           {showCover ? (
             <Image source={{ uri: artworkUri }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
           ) : (
-            <Disc3 color={appTheme.palette.text.muted} size={18} />
+            <Disc3 color={coverAccentMuted} size={18} />
           )}
         </View>
 
@@ -96,7 +104,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
             <ListMusic color={appTheme.palette.text.primary} size={19} opacity={0.85} />
           </Pressable>
         </View>
-        <MiniPlayerProgress progress={progress} />
+        <MiniPlayerProgress progress={progress} accent={coverAccent} />
       </Pressable>
     </View>
   );
@@ -125,6 +133,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

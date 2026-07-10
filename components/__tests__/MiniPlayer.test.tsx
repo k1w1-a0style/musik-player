@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer from '../MiniPlayer';
 
 type MiniCtx = {
-  currentSong: { id: string; title: string; artist: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
+  currentSong: { id: string; title: string; artist: string; album?: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
   isPlaying: boolean;
   togglePlayPause: jest.Mock<Promise<void>, []>;
   next: jest.Mock<Promise<void>, []>;
@@ -13,11 +13,25 @@ type MiniCtx = {
   canSkipPrevious: boolean;
 };
 
+type PaletteCtx = {
+  palette: {
+    dominant?: string;
+    vibrant?: string;
+    lightVibrant?: string;
+    darkVibrant?: string;
+    muted?: string;
+    lightMuted?: string;
+    darkMuted?: string;
+  } | null;
+};
+
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
+const mockUseMusicContext = jest.fn<PaletteCtx, []>();
 const mockUseMiniPlayerProgress = jest.fn<number, []>();
 
 jest.mock('../../contexts/MusicContext', () => ({
   useMiniPlayerMusicContext: () => mockUseMiniPlayerMusicContext(),
+  useMusicContext: () => mockUseMusicContext(),
 }));
 
 jest.mock('../../hooks/useMiniPlayerProgress', () => {
@@ -73,6 +87,8 @@ describe('MiniPlayer', () => {
   beforeEach(() => {
     mockUseMiniPlayerMusicContext.mockReset();
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+    mockUseMusicContext.mockReset();
+    mockUseMusicContext.mockReturnValue({ palette: null });
     mockUseMiniPlayerProgress.mockReset();
     mockUseMiniPlayerProgress.mockReturnValue(0.42);
   });
@@ -163,7 +179,20 @@ describe('MiniPlayer', () => {
 
     expect(getByTestId('mini-player-progress')).toBeTruthy();
     expect(fillStyle).toContain('42%');
-    expect(fillStyle).toContain(mockAppTheme.palette.primary);
+    expect(fillStyle).not.toContain('undefined');
+  });
+
+  test('uses cover palette accent for progress and chrome when available', () => {
+    mockUseMusicContext.mockReturnValue({
+      palette: { vibrant: '#AA5500', muted: '#553311' },
+    });
+
+    const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
+    const containerStyle = JSON.stringify(getByTestId('mini-player-open').props.style);
+    const fillStyle = JSON.stringify(getByTestId('mini-player-progress-fill').props.style);
+
+    expect(containerStyle).toContain('#553311');
+    expect(fillStyle).toContain('#AA5500');
   });
 
   test('exposes disabled accessibility state for next', () => {
@@ -201,7 +230,6 @@ describe('MiniPlayer', () => {
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
     const styleText = JSON.stringify(getByTestId('mini-player-open').props.style);
 
-    expect(styleText).toContain(mockAppTheme.palette.borderStrong);
     expect(styleText).toContain(mockAppTheme.palette.surfaceGlass);
     expect(styleText).not.toContain('rgba(115, 230, 210, 0.9)');
   });
