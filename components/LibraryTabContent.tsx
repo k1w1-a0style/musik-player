@@ -52,7 +52,7 @@ export interface LibraryTabContentProps {
   songKeyExtractor: (item: Song) => string;
   songsForActiveList: Song[];
   sortMode: LibrarySortMode;
-  onCycleSortMode: () => void;
+  onSelectSortMode: (mode: LibrarySortMode) => void;
   songViewMode: LibrarySongViewMode;
   onCycleSongViewMode: () => void;
 }
@@ -88,7 +88,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   songKeyExtractor,
   songsForActiveList,
   sortMode,
-  onCycleSortMode,
+  onSelectSortMode,
   songViewMode,
   onCycleSongViewMode,
 }) => {
@@ -199,7 +199,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
     <LibraryListShell testID={`library-${activeTab}-shell`}>
       <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
         <LibrarySongViewControl mode={songViewMode} onCycle={onCycleSongViewMode} />
-        <LibrarySortControl mode={sortMode} onCycle={onCycleSortMode} />
+        <LibrarySortControl mode={sortMode} onSelect={onSelectSortMode} />
         <LibraryPlaybackActions
           disabled={songsForActiveList.length === 0}
           showFavoriteIcon={activeTab === 'favorites'}

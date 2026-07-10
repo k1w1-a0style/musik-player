@@ -42,7 +42,7 @@ const baseOptions: UseLibraryComponentPropsOptions = {
   songsCount: 2,
   songsForActiveList: [],
   sortMode: 'alphabet',
-  onCycleSortMode: fn,
+  onSelectSortMode: fn,
   songViewMode: 'list',
   onCycleSongViewMode: fn,
   toggleSearch: fn,
@@ -84,6 +84,7 @@ test('returns library component props', () => {
   expect(result.current.tabContentProps.activeFolders).toBe(1);
   expect(result.current.tabContentProps.emptyMessage).toBe('Leer');
   expect(result.current.tabContentProps.onShuffle).toBe(fn);
+  expect(result.current.tabContentProps.onSelectSortMode).toBe(fn);
   expect(result.current.menuModalProps.visible).toBe(true);
   expect(result.current.menuModalProps.hasSongs).toBe(true);
   expect(result.current.menuModalProps.onClose).toBe(fn);

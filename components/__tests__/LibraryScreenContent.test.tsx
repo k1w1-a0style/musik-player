@@ -1,20 +1,22 @@
-import mockReact from 'react';
-import { Text as mockText } from 'react-native';
+import React from 'react';
+import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import LibraryScreenContent, { type LibraryScreenContentProps } from '../LibraryScreenContent';
 
-jest.mock('../LibraryTopBar', () => () => mockReact.createElement(mockText, null, 'Top Bar'));
-jest.mock('../LibraryTabs', () => () => mockReact.createElement(mockText, null, 'Tabs'));
-jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => mockReact.createElement(mockText, null, `Search: ${value}`));
-jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => mockReact.createElement(mockText, null, `Status: ${status}`));
-jest.mock('../LibraryTabContent', () => () => mockReact.createElement(mockText, null, 'Tab Content'));
-jest.mock('../LibraryMenuModal', () => () => mockReact.createElement(mockText, null, 'Menu Modal'));
-jest.mock('../SongActionMenuModal', () => () => mockReact.createElement(mockText, null, 'Song Action Menu'));
-jest.mock('../SongPlaylistPickerModal', () => () => mockReact.createElement(mockText, null, 'Song Playlist Picker'));
+const mockRenderText = (children: string) => <Text>{children}</Text>;
+
+jest.mock('../LibraryTopBar', () => () => mockRenderText('Top Bar'));
+jest.mock('../LibraryTabs', () => () => mockRenderText('Tabs'));
+jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => mockRenderText(`Search: ${value}`));
+jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => mockRenderText(`Status: ${status}`));
+jest.mock('../LibraryTabContent', () => () => mockRenderText('Tab Content'));
+jest.mock('../LibraryMenuModal', () => () => mockRenderText('Menu Modal'));
+jest.mock('../SongActionMenuModal', () => () => mockRenderText('Song Action Menu'));
+jest.mock('../SongPlaylistPickerModal', () => () => mockRenderText('Song Playlist Picker'));
 
 const fn = jest.fn();
 
-const baseProps: LibraryScreenContentProps = {
+const baseProps = {
   importStatusProps: { status: 'Import läuft' },
   menuModalProps: {
     visible: false,
@@ -30,18 +32,14 @@ const baseProps: LibraryScreenContentProps = {
     onOpenSettings: fn,
     onOpenEqualizer: fn,
   },
-  searchBarProps: {
-    autoFocus: true,
-    onChangeText: fn,
-    value: 'abc',
-  },
+  searchBarProps: { autoFocus: true, onChangeText: fn, value: 'abc' },
   showImportStatus: true,
   showSearchBar: true,
   tabContentProps: {
-    activeTab: 'tracks' as const,
+    activeTab: 'tracks',
     activeFolders: 0,
     albumGroups: [],
-    albumViewMode: 'grid' as const,
+    albumViewMode: 'grid',
     artistGroups: [],
     emptyMessage: 'Leer',
     genreGroups: [],
@@ -59,32 +57,15 @@ const baseProps: LibraryScreenContentProps = {
     songKeyExtractor: (item: { id: string }) => item.id,
     songsForActiveList: [],
     sortMode: 'alphabet',
-    onCycleSortMode: fn,
+    onSelectSortMode: fn,
     songViewMode: 'list',
     onCycleSongViewMode: fn,
   },
-  tabsProps: {
-    activeTab: 'tracks' as const,
-    onChangeTab: fn,
-  },
-  topBarProps: {
-    onOpenMenu: fn,
-    onToggleSearch: fn,
-  },
-  songActionMenuProps: {
-    visible: false,
-    onClose: fn,
-    onOpenTrackInfo: fn,
-    onOpenPlaylistPicker: fn,
-  },
-  songPlaylistPickerProps: {
-    visible: false,
-    song: null,
-    playlists: [],
-    onClose: fn,
-    onTogglePlaylist: fn,
-  },
-};
+  tabsProps: { activeTab: 'tracks', onChangeTab: fn },
+  topBarProps: { onOpenMenu: fn, onToggleSearch: fn },
+  songActionMenuProps: { visible: false, onClose: fn, onOpenTrackInfo: fn, onOpenPlaylistPicker: fn },
+  songPlaylistPickerProps: { visible: false, song: null, playlists: [], onClose: fn, onTogglePlaylist: fn },
+} as LibraryScreenContentProps;
 
 test('renders library screen sections', () => {
   const screen = render(<LibraryScreenContent {...baseProps} />);

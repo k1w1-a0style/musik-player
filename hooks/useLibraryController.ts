@@ -59,7 +59,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     },
   } = useLibraryControllerState();
 
-  const { sortMode, cycleSortMode } = useLibrarySortMode();
+  const { sortMode, setSortMode } = useLibrarySortMode();
   const { viewMode, cycleViewMode } = useLibrarySongViewMode();
   const sortedSongs = useMemo(() => sortLibrarySongs(songs, sortMode), [songs, sortMode]);
 
@@ -220,7 +220,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songsCount,
     songsForActiveList,
     sortMode,
-    onCycleSortMode: cycleSortMode,
+    onSelectSortMode: setSortMode,
     songViewMode: viewMode,
     onCycleSongViewMode: cycleViewMode,
     toggleSearch,
