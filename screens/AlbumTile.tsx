@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Disc3 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Song } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { formatAlbumSongCount, type AlbumGroup } from './coversHelpers';
 
 interface AlbumTileProps {
@@ -63,28 +63,28 @@ AlbumTile.displayName = 'AlbumTile';
 const styles = StyleSheet.create({
   tile: {
     flex: 1,
-    borderRadius: staticTheme.borderRadius.md,
-    padding: staticTheme.spacing.sm,
+    borderRadius: APP_THEME_TOKENS.borderRadius.md,
+    padding: APP_THEME_TOKENS.spacing.sm,
     borderWidth: 1,
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   image: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: staticTheme.borderRadius.sm,
+    borderRadius: APP_THEME_TOKENS.borderRadius.sm,
   },
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   tileTitle: {
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: APP_THEME_TOKENS.fonts.heading,
     fontSize: 14,
-    marginTop: staticTheme.spacing.sm,
+    marginTop: APP_THEME_TOKENS.spacing.sm,
   },
   tileMeta: {
     fontSize: 12,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
   },
 });
 

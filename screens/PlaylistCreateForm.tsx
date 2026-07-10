@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface PlaylistCreateFormProps {
   value: string;
@@ -57,22 +57,22 @@ const PlaylistCreateForm: React.FC<PlaylistCreateFormProps> = ({
 const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
-    marginBottom: staticTheme.spacing.lg,
+    marginBottom: APP_THEME_TOKENS.spacing.lg,
     alignItems: 'center',
-    gap: staticTheme.spacing.sm,
+    gap: APP_THEME_TOKENS.spacing.sm,
   },
   input: {
     flex: 1,
-    paddingHorizontal: staticTheme.spacing.md,
+    paddingHorizontal: APP_THEME_TOKENS.spacing.md,
     paddingVertical: 12,
-    borderRadius: staticTheme.borderRadius.md,
+    borderRadius: APP_THEME_TOKENS.borderRadius.md,
     borderWidth: 1,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
   },
   addButton: {
     width: 44,
     height: 44,
-    borderRadius: staticTheme.borderRadius.pill,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

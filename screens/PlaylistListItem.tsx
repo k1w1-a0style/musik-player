@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ListMusic, Play, Trash2 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Playlist } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { formatPlaylistSongCount } from './playlistHelpers';
 
 interface PlaylistListItemProps {
@@ -91,34 +91,34 @@ const styles = StyleSheet.create({
   playlistItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: staticTheme.spacing.md,
-    borderRadius: staticTheme.borderRadius.md,
-    marginBottom: staticTheme.spacing.sm,
+    padding: APP_THEME_TOKENS.spacing.md,
+    borderRadius: APP_THEME_TOKENS.borderRadius.md,
+    marginBottom: APP_THEME_TOKENS.spacing.sm,
     borderWidth: 1,
-    gap: staticTheme.spacing.md,
+    gap: APP_THEME_TOKENS.spacing.md,
   },
   playlistIcon: {
     width: 44,
     height: 44,
-    borderRadius: staticTheme.borderRadius.sm,
+    borderRadius: APP_THEME_TOKENS.borderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   playlistInfo: { flex: 1 },
   playlistName: {
     fontSize: 15,
-    fontFamily: staticTheme.fonts.heading,
+    fontFamily: APP_THEME_TOKENS.fonts.heading,
     letterSpacing: -0.2,
   },
   songCount: {
     fontSize: 12,
     marginTop: 2,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: APP_THEME_TOKENS.fonts.body,
   },
   iconButton: {
     width: 38,
     height: 38,
-    borderRadius: staticTheme.borderRadius.pill,
+    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

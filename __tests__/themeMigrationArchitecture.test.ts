@@ -59,13 +59,15 @@ const readProductionFiles = () =>
     }));
 
 describe('theme migration architecture', () => {
-  it('does not import the legacy theme as a live theme object in production UI code', () => {
+  it('does not import the legacy theme module in migrated production UI code', () => {
     const violations = readProductionFiles().flatMap(({ relativePath, content }) => {
-      const importsLegacyThemeDirectly =
-        /import\s*\{\s*theme\s*\}\s*from\s*['"](?:\.\.\/)+theme['"];?/.test(content) ||
-        /import\s*\{\s*theme\s*\}\s*from\s*['"]\.\/theme['"];?/.test(content);
+      if (!relativePath.startsWith(`components${path.sep}`) && !relativePath.startsWith(`screens${path.sep}`)) {
+        return [];
+      }
 
-      return importsLegacyThemeDirectly ? [relativePath] : [];
+      const legacyThemeImports = content.match(/import\s+(?:[^'"]+?\s+from\s+)?['"](?:\.\.\/)+theme['"];?/g) ?? [];
+
+      return legacyThemeImports.map(match => `${relativePath}: ${match}`);
     });
 
     expect(violations).toEqual([]);
