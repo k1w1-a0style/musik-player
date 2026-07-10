@@ -73,6 +73,8 @@ describe('useMusicProviderDomainActions', () => {
   test('derives currentSongId once from runtime state and passes only action dependencies', () => {
     const actions = {
       playSong: noopAsync,
+      playSongNext: async () => true,
+      addSongToQueue: async () => true,
       toggleShuffle: noopAsync,
       setSongs: noop,
       addSongs: noop,

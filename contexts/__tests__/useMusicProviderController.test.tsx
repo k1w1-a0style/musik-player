@@ -90,6 +90,8 @@ describe('useMusicProviderController', () => {
     };
     const actions: ReturnType<typeof useMusicProviderDomainActions> = {
       playSong: jest.fn(),
+  playSongNext: jest.fn(async () => true),
+  addSongToQueue: jest.fn(async () => true),
       toggleShuffle: jest.fn(),
       setSongs: noop,
       addSongs: noop,
@@ -115,6 +117,8 @@ describe('useMusicProviderController', () => {
       isPlaying: true,
       isBuffering: false,
       playSong: actions.playSong,
+      playSongNext: actions.playSongNext,
+      addSongToQueue: actions.addSongToQueue,
       togglePlayPause: noopAsync,
       stop: noopAsync,
       seekTo: noopAsync,
@@ -152,6 +156,8 @@ describe('useMusicProviderController', () => {
         setSongs: value.setSongs,
         currentSong: value.currentSong,
         playSong: value.playSong,
+        playSongNext: value.playSongNext,
+        addSongToQueue: value.addSongToQueue,
         isReady: value.isReady,
         isPlaying: value.isPlaying,
         updateSongMetadata: value.updateSongMetadata,

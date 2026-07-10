@@ -8,6 +8,8 @@ interface SongActionMenuModalProps {
   visible: boolean;
   onClose: () => void;
   onOpenTrackInfo: () => void;
+  onPlayNext?: () => void;
+  onAddToQueue?: () => void;
   onOpenPlaylistPicker: () => void;
 }
 
@@ -15,6 +17,8 @@ const SongActionMenuModal: React.FC<SongActionMenuModalProps> = ({
   visible,
   onClose,
   onOpenTrackInfo,
+  onPlayNext = onClose,
+  onAddToQueue = onClose,
   onOpenPlaylistPicker,
 }) => {
   const { appearance, theme } = useAppTheme();
@@ -32,6 +36,8 @@ const SongActionMenuModal: React.FC<SongActionMenuModalProps> = ({
           testID="song-action-menu-card"
         >
           <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
+          <NowPlayingMenuItem label="Als Nächstes abspielen" onPress={onPlayNext} />
+          <NowPlayingMenuItem label="Zur Warteschlange hinzufügen" onPress={onAddToQueue} />
           <NowPlayingMenuItem label="Zu Playlist hinzufügen" onPress={onOpenPlaylistPicker} />
         </View>
       </Pressable>

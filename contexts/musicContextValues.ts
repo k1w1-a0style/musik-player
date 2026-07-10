@@ -11,6 +11,8 @@ type LibraryMusicContextInput = Pick<
   | 'setSongs'
   | 'currentSong'
   | 'playSong'
+  | 'playSongNext'
+  | 'addSongToQueue'
   | 'isReady'
   | 'isPlaying'
   | 'updateSongMetadata'
@@ -50,6 +52,8 @@ export const buildLibraryMusicContextValue = ({
   setSongs,
   currentSong,
   playSong,
+  playSongNext,
+  addSongToQueue,
   isReady,
   isPlaying,
   updateSongMetadata,
@@ -66,6 +70,8 @@ export const buildLibraryMusicContextValue = ({
   setSongs,
   currentSong,
   playSong,
+  playSongNext,
+  addSongToQueue,
   isReady,
   isPlaying,
   updateSongMetadata,

@@ -27,6 +27,7 @@ interface ApplyPlaybackQueueStateArgs {
 
 type ShuffleQueueActionResult = 'applied' | 'failed' | 'stale';
 type ReorderQueueActionResult = 'applied' | 'failed' | 'stale' | 'noop';
+type InsertQueueActionResult = 'applied' | 'failed' | 'stale' | 'noop';
 
 export class NativeQueueReplacementStaleError extends Error {
   constructor() {
@@ -56,6 +57,12 @@ export interface RunShuffleQueueActionArgs extends PlaybackQueueActionRefs {
   setShuffle: Dispatch<SetStateAction<boolean>>;
 }
 
+export interface RunInsertSongQueueActionArgs extends PlaybackQueueActionRefs {
+  song: Song;
+  currentSongId?: string;
+  position: 'next' | 'end';
+}
+
 export interface RunReorderQueueActionArgs extends PlaybackQueueActionRefs {
   fromIndex: number;
   toIndex: number;
@@ -72,6 +79,36 @@ const normalizeSongId = (songId?: string): string | undefined => {
 
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
   (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
+
+const findSongByNormalizedId = (songs: Song[], songId?: string): Song | undefined => {
+  const normalizedId = normalizeSongId(songId);
+  return normalizedId ? songs.find(song => normalizeSongId(song.id) === normalizedId) : undefined;
+};
+
+const buildQueueWithInsertedSong = ({
+  queue,
+  song,
+  currentSongId,
+  position,
+}: {
+  queue: Song[];
+  song: Song;
+  currentSongId?: string;
+  position: 'next' | 'end';
+}): { queue: Song[]; insertIndex: number; changed: boolean } => {
+  const insertedSongId = normalizeSongId(song.id);
+  if (insertedSongId && queue.some(item => normalizeSongId(item.id) === insertedSongId)) {
+    return { queue, insertIndex: -1, changed: false };
+  }
+
+  const currentIndex = position === 'next'
+    ? queue.findIndex(item => normalizeSongId(item.id) === normalizeSongId(currentSongId))
+    : -1;
+  const insertIndex = currentIndex >= 0 ? currentIndex + 1 : queue.length;
+  const nextQueue = queue.slice();
+  nextQueue.splice(insertIndex, 0, song);
+  return { queue: nextQueue, insertIndex, changed: true };
+};
 
 export const persistRequestedSongId = async (
   requestedSong: Song,
@@ -206,6 +243,62 @@ export const runPlaySongQueueAction = async ({
     selectedSong: requestedSong,
   });
   await persistRequestedSongId(requestedSong, songsRef.current);
+};
+
+
+export const runInsertSongQueueAction = async ({
+  song,
+  currentSongId,
+  position,
+  songsRef,
+  queueContextRef,
+  baseQueueContextRef,
+  nativeQueueRef,
+  setPlaybackQueue,
+  setCurrentSong,
+}: RunInsertSongQueueActionArgs): Promise<boolean> => {
+  if (!isPlayableSong(song)) {
+    console.warn('[PlaybackQueue] Unable to insert unplayable song into queue.', { songId: song.id });
+    return false;
+  }
+
+  const result = await runExclusiveNativeQueueReplacement<InsertQueueActionResult>(async context => {
+    const { isCurrent } = context;
+    if (!isCurrent()) return 'stale';
+
+    const activeTrack = await TrackPlayer.getActiveTrack();
+    if (!isCurrent()) return 'stale';
+
+    const activeSongId = activeTrack?.id ?? currentSongId;
+    const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
+    const selectedSong = findSongByNormalizedId(currentQueue, activeSongId);
+    const plan = buildQueueWithInsertedSong({ queue: currentQueue, song, currentSongId: activeSongId, position });
+    if (!plan.changed) return 'noop';
+
+    try {
+      await TrackPlayer.add(toTrackPlayerTrack(song), plan.insertIndex);
+      if (!isCurrent()) return 'stale';
+      nativeQueueRef.current = plan.queue.slice();
+      applyPlaybackQueueState({
+        queueContextRef,
+        baseQueueContextRef,
+        setPlaybackQueue,
+        setCurrentSong,
+        orderedQueue: plan.queue,
+        baseQueue: plan.queue,
+        selectedSong,
+      });
+      return 'applied';
+    } catch (error) {
+      console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
+      return 'failed';
+    }
+  }).catch(error => {
+    console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
+    return 'failed' as const;
+  });
+
+  return result === 'applied' || result === 'noop';
 };
 
 export const runReorderQueueAction = async ({

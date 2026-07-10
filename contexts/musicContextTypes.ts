@@ -15,6 +15,8 @@ export interface MusicContextValue {
   isPlaying: boolean;
   isBuffering: boolean;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSongNext: (song: Song) => Promise<boolean>;
+  addSongToQueue: (song: Song) => Promise<boolean>;
   reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
   togglePlayPause: () => Promise<void>;
   stop: () => Promise<void>;
@@ -52,6 +54,8 @@ export interface LibraryMusicContextValue {
   setSongs: (s: Song[]) => void;
   currentSong: Song | null;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSongNext: (song: Song) => Promise<boolean>;
+  addSongToQueue: (song: Song) => Promise<boolean>;
   isReady: boolean;
   isPlaying: boolean;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;

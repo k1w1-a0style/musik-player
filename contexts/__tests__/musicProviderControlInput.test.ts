@@ -40,7 +40,7 @@ const equalizer: EqualizerControls = {
 
 describe('musicProviderControlInput', () => {
   test('builds context playback input', () => {
-    const actions = { playSong: noopAsync, toggleShuffle: noopAsync };
+    const actions = { playSong: noopAsync, playSongNext: async () => true, addSongToQueue: async () => true, toggleShuffle: noopAsync };
 
     expect(buildMusicProviderContextPlaybackInput(playback, actions)).toEqual({
       isPlaying: true,

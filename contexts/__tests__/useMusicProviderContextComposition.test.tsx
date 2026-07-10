@@ -65,6 +65,8 @@ const runtime: MusicProviderRuntime = {
 
 const actions: MusicProviderDomainActions = {
   playSong: noopAsync,
+  playSongNext: async () => true,
+  addSongToQueue: async () => true,
   toggleShuffle: noopAsync,
   setSongs: noop,
   addSongs: noop,
