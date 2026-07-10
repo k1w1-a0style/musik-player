@@ -103,7 +103,6 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         next,
         previous,
         playbackQueue,
-        palette,
       }),
     [
       currentSong,
@@ -112,7 +111,6 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       next,
       previous,
       playbackQueue,
-      palette,
     ],
   );
 
