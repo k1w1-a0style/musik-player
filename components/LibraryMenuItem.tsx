@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 type MenuIcon = React.ElementType<{ color?: string; size?: number }>;
@@ -43,7 +43,7 @@ const LibraryMenuItem: React.FC<LibraryMenuItemProps> = ({ label, onPress, disab
 const styles = StyleSheet.create({
   menuItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22 },
   iconSlot: { width: 20, alignItems: 'center' },
-  menuText: { fontFamily: staticTheme.fonts.body, fontSize: 18, letterSpacing: -0.3 },
+  menuText: { fontFamily: staticTokens.fonts.body, fontSize: 18, letterSpacing: -0.3 },
   menuTextMuted: { fontSize: 14 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },

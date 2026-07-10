@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Play } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 
 interface LibraryGroupRowProps {
@@ -81,10 +81,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   groupCover: { width: '100%', height: '100%' },
-  groupIconText: { fontFamily: staticTheme.fonts.heading, fontSize: 18 },
+  groupIconText: { fontFamily: staticTokens.fonts.heading, fontSize: 18 },
   groupTextWrap: { flex: 1, minWidth: 0 },
-  groupTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 15 },
-  groupSubtitle: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 2 },
+  groupTitle: { fontFamily: staticTokens.fonts.heading, fontSize: 15 },
+  groupSubtitle: { fontFamily: staticTokens.fonts.body, fontSize: 12, marginTop: 2 },
   pressed: { opacity: 0.72 },
 });
 

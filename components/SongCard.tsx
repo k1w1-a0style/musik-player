@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
 import { CircleEllipsis, Music2 } from 'lucide-react-native';
 import type { Song } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { buildSongKey } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
@@ -229,10 +229,10 @@ const styles = StyleSheet.create({
   tileCover: { width: '100%', height: undefined, aspectRatio: 1, borderRadius: 12 },
   coverImage: { width: '100%', height: '100%' },
   infoContainer: { flex: 1, minWidth: 0 },
-  title: { fontSize: 15, fontFamily: staticTheme.fonts.body, letterSpacing: -0.1 },
-  bannerTitle: { fontSize: 17, fontFamily: staticTheme.fonts.heading, letterSpacing: -0.2 },
-  artist: { fontSize: 12, marginTop: 2, fontFamily: staticTheme.fonts.body },
-  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTheme.fonts.body, letterSpacing: 0.1 },
+  title: { fontSize: 15, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
+  bannerTitle: { fontSize: 17, fontFamily: staticTokens.fonts.heading, letterSpacing: -0.2 },
+  artist: { fontSize: 12, marginTop: 2, fontFamily: staticTokens.fonts.body },
+  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTokens.fonts.body, letterSpacing: 0.1 },
   infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
   tileInfoButton: {
     position: 'absolute',
@@ -245,9 +245,9 @@ const styles = StyleSheet.create({
   },
   tileContainer: { flex: 1, maxWidth: '50%', paddingVertical: 8, paddingHorizontal: 4, gap: 6 },
   tileCurrent: { borderRadius: 12 },
-  tileTitle: { fontSize: 13, fontFamily: staticTheme.fonts.body, letterSpacing: -0.1 },
-  tileArtist: { fontSize: 11, fontFamily: staticTheme.fonts.body },
-  tileMetadata: { fontSize: 10, fontFamily: staticTheme.fonts.body, letterSpacing: 0.1 },
+  tileTitle: { fontSize: 13, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
+  tileArtist: { fontSize: 11, fontFamily: staticTokens.fonts.body },
+  tileMetadata: { fontSize: 10, fontFamily: staticTokens.fonts.body, letterSpacing: 0.1 },
 });
 
 export default SongCard;

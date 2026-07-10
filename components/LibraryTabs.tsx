@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { LIBRARY_TABS, type LibraryTab } from '../utils/libraryTabs';
 
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   tabsScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 48, marginBottom: 8 },
   tabsRow: { alignItems: 'flex-end', gap: 15, paddingHorizontal: 20, paddingRight: 34 },
   tabButton: { paddingVertical: 4, alignItems: 'center' },
-  tabLabel: { fontFamily: staticTheme.fonts.body, fontSize: 16, letterSpacing: -0.3 },
+  tabLabel: { fontFamily: staticTokens.fonts.body, fontSize: 16, letterSpacing: -0.3 },
   indicator: { marginTop: 4, height: 2, width: 18, borderRadius: 1 },
   pressed: { opacity: 0.72 },
 });

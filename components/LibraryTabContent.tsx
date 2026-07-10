@@ -11,7 +11,7 @@ import { getLibrarySongViewColumns, type LibrarySongViewMode } from '../utils/li
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryTab } from '../utils/libraryTabs';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
@@ -226,12 +226,12 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
 };
 
 const styles = StyleSheet.create({
-  folderCount: { fontFamily: staticTheme.fonts.body, fontSize: 12 },
+  folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: 12 },
   songGridColumn: { gap: 12, paddingHorizontal: 12 },
-  empty: { textAlign: 'center', marginTop: 30, fontFamily: staticTheme.fonts.body },
+  empty: { textAlign: 'center', marginTop: 30, fontFamily: staticTokens.fonts.body },
 });
 
 export default LibraryTabContent;

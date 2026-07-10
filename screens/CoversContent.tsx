@@ -4,7 +4,7 @@ import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Song } from '../types/Song';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import AlbumTile from './AlbumTile';
 import type { AlbumGroup } from './coversHelpers';
 
@@ -46,24 +46,24 @@ const CoversContent: React.FC<CoversContentProps> = ({ albums, onPressAlbum }) =
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: staticTheme.spacing.md, paddingTop: 8 },
+  content: { paddingHorizontal: staticTokens.spacing.md, paddingTop: 8 },
   eyebrow: {
     fontSize: 10,
     letterSpacing: 1.8,
-    fontFamily: staticTheme.fonts.body,
+    fontFamily: staticTokens.fonts.body,
   },
   title: {
     fontSize: 32,
-    fontFamily: staticTheme.fonts.display,
+    fontFamily: staticTokens.fonts.display,
     letterSpacing: -1.0,
-    marginBottom: staticTheme.spacing.md,
+    marginBottom: staticTokens.spacing.md,
   },
-  columnWrapper: { gap: staticTheme.spacing.md },
-  listContent: { gap: staticTheme.spacing.md, paddingBottom: staticTheme.spacing.xxl },
+  columnWrapper: { gap: staticTokens.spacing.md },
+  listContent: { gap: staticTokens.spacing.md, paddingBottom: staticTokens.spacing.xxl },
   empty: {
     textAlign: 'center',
-    marginTop: staticTheme.spacing.xl,
-    fontFamily: staticTheme.fonts.body,
+    marginTop: staticTokens.spacing.xl,
+    fontFamily: staticTokens.fonts.body,
   },
 });
 

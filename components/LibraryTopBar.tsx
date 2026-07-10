@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MoreVertical, Search } from 'lucide-react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 export interface LibraryTopBarProps {
@@ -46,7 +46,7 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 },
-  brand: { fontFamily: staticTheme.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
+  brand: { fontFamily: staticTokens.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 });
