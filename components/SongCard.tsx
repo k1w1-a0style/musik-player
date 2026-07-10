@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
   bannerTitle: { fontSize: 17, fontFamily: staticTokens.fonts.heading, letterSpacing: -0.2 },
   artist: { fontSize: 12, marginTop: 2, fontFamily: staticTokens.fonts.body },
-  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTokens.fonts.body, letterSpacing: 0.1 },
+  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTokens.fonts.mono, letterSpacing: 0.2 },
   infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
   tileInfoButton: {
     position: 'absolute',
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   tileCurrent: { borderRadius: 12 },
   tileTitle: { fontSize: 13, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
   tileArtist: { fontSize: 11, fontFamily: staticTokens.fonts.body },
-  tileMetadata: { fontSize: 10, fontFamily: staticTokens.fonts.body, letterSpacing: 0.1 },
+  tileMetadata: { fontSize: 10, fontFamily: staticTokens.fonts.mono, letterSpacing: 0.2 },
 });
 
 export default SongCard;
