@@ -7,7 +7,6 @@ import { useNowPlayingFavorite } from './useNowPlayingFavorite';
 import { useNowPlayingMenu } from './useNowPlayingMenu';
 import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
-import { useSleepTimer } from './useSleepTimer';
 
 export const buildSavedQueuePlaylistName = (date = new Date()): string => {
   const ts = date.toLocaleString('de-DE', {
@@ -27,7 +26,9 @@ export const useNowPlayingScreenState = () => {
     currentSong,
     seekTo,
     isPlaying,
-    togglePlayPause,
+    sleepTimerActive,
+    startSleepTimer,
+    cancelSleepTimer,
     volume,
     setVolume,
     palette,
@@ -43,10 +44,6 @@ export const useNowPlayingScreenState = () => {
   const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
   const presentation = useNowPlayingPresentation({ currentSong, palette });
   const { mode: controlsMode } = useNowPlayingControlsMode();
-  const sleepTimerState = useSleepTimer({
-    isPlaying,
-    pausePlayback: togglePlayPause,
-  });
   const queueShift = reorderQueue ?? noopQueueShift;
 
   const saveCurrentQueueAsPlaylist = () => {
@@ -70,7 +67,9 @@ export const useNowPlayingScreenState = () => {
     currentSong,
     seekTo,
     isPlaying,
-    togglePlayPause,
+    sleepTimerActive,
+    startSleepTimer,
+    cancelSleepTimer,
     volume,
     setVolume,
     position,
@@ -84,7 +83,6 @@ export const useNowPlayingScreenState = () => {
     canReorderQueue: queueState.queue.length > 1 && !!reorderQueue,
     ...favoriteState,
     ...menuState,
-    ...sleepTimerState,
     ...queueState,
     ...presentation,
   };

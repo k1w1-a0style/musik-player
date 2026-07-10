@@ -85,6 +85,9 @@ export interface NowPlayingMusicContextValue {
   seekTo: (millis: number) => Promise<void>;
   isPlaying: boolean;
   togglePlayPause: () => Promise<void>;
+  sleepTimerActive: boolean;
+  startSleepTimer: (minutes: number) => void;
+  cancelSleepTimer: () => void;
   volume: number;
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;

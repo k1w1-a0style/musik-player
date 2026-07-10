@@ -46,6 +46,9 @@ type NowPlayingMusicContextInput = Pick<
   | 'previous'
   | 'reorderQueue'
   | 'saveQueueAsPlaylist'
+> & Pick<
+  NowPlayingMusicContextValue,
+  'sleepTimerActive' | 'startSleepTimer' | 'cancelSleepTimer'
 >;
 
 export const buildLibraryMusicContextValue = ({
@@ -109,6 +112,9 @@ export const buildNowPlayingMusicContextValue = ({
   seekTo,
   isPlaying,
   togglePlayPause,
+  sleepTimerActive,
+  startSleepTimer,
+  cancelSleepTimer,
   volume,
   setVolume,
   palette,
@@ -123,6 +129,9 @@ export const buildNowPlayingMusicContextValue = ({
   seekTo,
   isPlaying,
   togglePlayPause,
+  sleepTimerActive,
+  startSleepTimer,
+  cancelSleepTimer,
   volume,
   setVolume,
   palette,

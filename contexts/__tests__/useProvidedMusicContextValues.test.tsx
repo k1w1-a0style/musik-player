@@ -1,10 +1,11 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { render, renderHook } from '@testing-library/react-native';
+import { act, render, renderHook } from '@testing-library/react-native';
 import { useProvidedMusicContextValues } from '../useProvidedMusicContextValues';
 import type { MusicContextValue } from '../musicContextTypes';
 
 const noopAsync = async () => undefined;
+const mockTogglePlayPause = jest.fn(noopAsync);
 const noop = () => undefined;
 const deletePlaylist = jest.fn();
 const renamePlaylist = jest.fn();
@@ -29,7 +30,7 @@ const baseValue: MusicContextValue = {
   playSong: noopAsync,
   playSongNext: async () => true,
   addSongToQueue: async () => true,
-  togglePlayPause: noopAsync,
+  togglePlayPause: mockTogglePlayPause,
   stop: noopAsync,
   seekTo: noopAsync,
   next: noopAsync,
@@ -76,6 +77,7 @@ const ValuesProbe = () => {
       <Text testID="mini-can-next">{String(miniPlayerValue.canSkipNext)}</Text>
       <Text testID="now-can-skip">{String(nowPlayingValue.canSkip)}</Text>
       <Text testID="now-volume">{String(nowPlayingValue.volume)}</Text>
+      <Text testID="sleep-active">{String(nowPlayingValue.sleepTimerActive)}</Text>
       <Text testID="now-queue-save-name">{nowPlayingValue.saveQueueAsPlaylist('Queue', nowPlayingValue.playbackQueue)?.name}</Text>
     </>
   );
@@ -95,7 +97,55 @@ describe('useProvidedMusicContextValues', () => {
     expect(getByTestId('mini-can-next').props.children).toBe('true');
     expect(getByTestId('now-can-skip').props.children).toBe('true');
     expect(getByTestId('now-volume').props.children).toBe('0.8');
+    expect(getByTestId('sleep-active').props.children).toBe('false');
     expect(getByTestId('now-queue-save-name').props.children).toBe('Queue');
+  });
+
+
+  test('keeps the sleep timer alive in the provider slice until provider unmount', () => {
+    jest.useFakeTimers();
+    const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+    mockTogglePlayPause.mockClear();
+    const initialQueue = baseValue.playbackQueue;
+    const initialSong = baseValue.currentSong;
+    const { result, unmount } = renderHook(() => useProvidedMusicContextValues(baseValue));
+
+    act(() => {
+      result.current.nowPlayingValue.startSleepTimer(15);
+    });
+    expect(result.current.nowPlayingValue.sleepTimerActive).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(15 * 60 * 1000);
+    });
+
+    expect(mockTogglePlayPause).toHaveBeenCalledTimes(1);
+    expect(result.current.nowPlayingValue.playbackQueue).toBe(initialQueue);
+    expect(result.current.nowPlayingValue.currentSong).toBe(initialSong);
+
+    act(() => {
+      result.current.nowPlayingValue.startSleepTimer(30);
+    });
+    unmount();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  test('does not start playback when the sleep timer expires while already paused', () => {
+    jest.useFakeTimers();
+    mockTogglePlayPause.mockClear();
+    const pausedValue: MusicContextValue = { ...baseValue, isPlaying: false };
+    const { result } = renderHook(() => useProvidedMusicContextValues(pausedValue));
+
+    act(() => {
+      result.current.nowPlayingValue.startSleepTimer(15);
+      jest.advanceTimersByTime(15 * 60 * 1000);
+    });
+
+    expect(mockTogglePlayPause).not.toHaveBeenCalled();
+    jest.useRealTimers();
   });
 
   test('keeps slice references stable when unrelated fields change', () => {

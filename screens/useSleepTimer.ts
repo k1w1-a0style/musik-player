@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface UseSleepTimerOptions {
   isPlaying: boolean;
@@ -51,5 +51,9 @@ export const useSleepTimer = ({ isPlaying, pausePlayback }: UseSleepTimerOptions
 
   useEffect(() => cancelSleepTimer, [cancelSleepTimer]);
 
-  return { sleepTimerActive, startSleepTimer, cancelSleepTimer };
+  return useMemo(() => ({
+    sleepTimerActive,
+    startSleepTimer,
+    cancelSleepTimer,
+  }), [cancelSleepTimer, sleepTimerActive, startSleepTimer]);
 };

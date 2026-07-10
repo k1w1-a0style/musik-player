@@ -95,6 +95,9 @@ const mockNowPlayingContext = {
   seekTo: jest.fn(async () => undefined),
   isPlaying: false,
   togglePlayPause: jest.fn(async () => undefined),
+  sleepTimerActive: false,
+  startSleepTimer: jest.fn(),
+  cancelSleepTimer: jest.fn(),
   volume: 1,
   setVolume: jest.fn(async () => undefined),
   palette: null,
@@ -164,7 +167,10 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.next.mockClear();
     mockNowPlayingContext.previous.mockClear();
     mockNowPlayingContext.togglePlayPause.mockClear();
+    mockNowPlayingContext.startSleepTimer.mockClear();
+    mockNowPlayingContext.cancelSleepTimer.mockClear();
     mockNowPlayingContext.isPlaying = false;
+    mockNowPlayingContext.sleepTimerActive = false;
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
@@ -335,24 +341,25 @@ describe('NowPlaying cover fallback', () => {
   });
 
 
-  test('sleep timer pauses playback after the selected duration without changing queue or current song', () => {
-    jest.useFakeTimers();
-    mockNowPlayingContext.isPlaying = true;
-    const initialQueue = mockNowPlayingContext.playbackQueue;
-    const initialSong = mockNowPlayingContext.currentSong;
-    const { getByLabelText, getByText } = render(<NowPlaying />);
+  test('sleep timer menu item starts the provider-owned timer and closes the menu', () => {
+    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
 
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
     fireEvent.press(getByText('Sleep-Timer: 15 Minuten'));
 
-    act(() => {
-      jest.advanceTimersByTime(15 * 60 * 1000);
-    });
+    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(15);
+    expect(queryByText('Sleep-Timer: 15 Minuten')).toBeNull();
+  });
 
-    expect(mockNowPlayingContext.togglePlayPause).toHaveBeenCalledTimes(1);
-    expect(mockNowPlayingContext.playbackQueue).toBe(initialQueue);
-    expect(mockNowPlayingContext.currentSong).toBe(initialSong);
-    jest.useRealTimers();
+  test('active sleep timer can be cancelled from the menu', () => {
+    mockNowPlayingContext.sleepTimerActive = true;
+    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText('Sleep-Timer abbrechen'));
+
+    expect(mockNowPlayingContext.cancelSleepTimer).toHaveBeenCalledTimes(1);
+    expect(queryByText('Sleep-Timer abbrechen')).toBeNull();
   });
 
   test('queue save menu item saves the current queue as playlist', () => {
