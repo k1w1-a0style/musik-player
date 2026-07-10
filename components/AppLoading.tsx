@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
-import { useAppTheme } from '../contexts/AppThemeContext';
-import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { useOptionalAppTheme } from '../contexts/AppThemeContext';
+import {
+  APP_THEME_TOKENS,
+  DEFAULT_APP_APPEARANCE,
+  DEFAULT_APP_THEME_SKIN,
+  getAppTheme,
+} from '../utils/appTheme';
 
 const AppLoading: React.FC = () => {
-  const { theme } = useAppTheme();
+  const appTheme = useOptionalAppTheme();
+  const fallbackTheme = useMemo(
+    () => getAppTheme(DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN),
+    [],
+  );
+  const theme = appTheme?.theme ?? fallbackTheme;
 
   return (
     <View style={[styles.loading, { backgroundColor: theme.palette.background }]} testID="app-loading">
