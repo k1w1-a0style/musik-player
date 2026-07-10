@@ -75,17 +75,51 @@ const candidateSdkToolPaths = name => {
   return candidates;
 };
 
+const candidatePathToolNames = name => {
+  if (process.platform !== 'win32') return [name];
+  const extensions = (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM')
+    .split(';')
+    .filter(Boolean);
+  const lowerName = name.toLowerCase();
+  if (extensions.some(ext => lowerName.endsWith(ext.toLowerCase()))) return [name];
+  return [name, ...extensions.map(ext => `${name}${ext}`)];
+};
+
+const isExecutableFile = candidate => {
+  try {
+    const stat = fs.statSync(candidate);
+    if (!stat.isFile()) return false;
+    if (process.platform === 'win32') return true;
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const findToolOnPath = name => {
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const toolNames = candidatePathToolNames(name);
+  for (const entry of pathEntries) {
+    for (const toolName of toolNames) {
+      const candidate = path.join(entry, toolName);
+      if (isExecutableFile(candidate)) return candidate;
+    }
+  }
+  return '';
+};
+
 const findTool = name => {
   if (tools.has(name)) return tools.get(name);
-  const result = spawnSync('bash', ['-lc', `command -v ${name}`], { encoding: 'utf8' });
-  const fromPath = result.status === 0 ? result.stdout.trim().split('\n')[0] : '';
+
+  const fromPath = findToolOnPath(name);
   if (fromPath) {
     tools.set(name, fromPath);
     return fromPath;
   }
 
   for (const candidate of candidateSdkToolPaths(name)) {
-    if (fs.existsSync(candidate)) {
+    if (isExecutableFile(candidate)) {
       tools.set(name, candidate);
       return candidate;
     }
