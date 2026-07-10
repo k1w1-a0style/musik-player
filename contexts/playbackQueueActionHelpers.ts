@@ -265,7 +265,6 @@ export const runInsertSongQueueAction = async ({
   song,
   currentSongId,
   position,
-  songsRef,
   queueContextRef,
   baseQueueContextRef,
   nativeQueueRef,
@@ -288,9 +287,9 @@ export const runInsertSongQueueAction = async ({
     if (!isCurrent()) return 'stale';
 
     const activeSongId = activeTrack?.id ?? currentSongId;
-    const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
-    const nativeQueue = nativeQueueRef.current.length > 0 ? nativeQueueRef.current.slice() : currentQueue.slice();
-    const selectedSong = findSongByNormalizedId(currentQueue, activeSongId) ?? findSongByNormalizedId(nativeQueue, activeSongId);
+    const activeQueue = queueContextRef.current.length > 0 ? queueContextRef.current.slice() : nativeQueueRef.current.slice();
+    const nativeQueue = nativeQueueRef.current.length > 0 ? nativeQueueRef.current.slice() : activeQueue.slice();
+    const selectedSong = findSongByNormalizedId(activeQueue, activeSongId) ?? findSongByNormalizedId(nativeQueue, activeSongId);
     const nativeInsertIndex = getNativeInsertIndex({ nativeQueue, activeSongId, position });
     const plan = buildQueueWithInsertedSong({ queue: nativeQueue, song, insertIndex: nativeInsertIndex });
     if (!plan.changed) return 'noop';

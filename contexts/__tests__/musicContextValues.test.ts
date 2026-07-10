@@ -62,6 +62,8 @@ describe('music context value builders', () => {
       setSongs: baseValue.setSongs,
       currentSong: baseValue.currentSong,
       playSong: baseValue.playSong,
+      playSongNext: baseValue.playSongNext,
+      addSongToQueue: baseValue.addSongToQueue,
       isReady: true,
       isPlaying: true,
       updateSongMetadata: baseValue.updateSongMetadata,

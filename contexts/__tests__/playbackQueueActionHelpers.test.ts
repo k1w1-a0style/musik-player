@@ -305,6 +305,23 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's4']);
   });
 
+  test('runInsertSongQueueAction inserts into an empty playback queue instead of treating the library as active queue', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = [];
+    args.nativeQueueRef.current = [];
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(undefined);
+
+    await runInsertSongQueueAction({ ...args, song: songs[0], position: 'end' });
+
+    expect(TrackPlayer.add).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }), 0);
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
+    expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1']);
+    expect(args.baseQueueContextRef.current.map(song => song.id)).toEqual(['s1']);
+  });
+
   test('runInsertSongQueueAction disables shuffle instead of overwriting base queue with a shuffled queue', async () => {
     const args = createQueueArgs();
     const shuffleRef = { current: true };
