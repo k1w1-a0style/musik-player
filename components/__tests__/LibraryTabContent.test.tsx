@@ -1,5 +1,6 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
+import LibrarySortControl from '../LibrarySortControl';
 import LibraryTabContent from '../LibraryTabContent';
 
 const mockAppThemeContextValue = {
@@ -94,4 +95,24 @@ test('renders tracks tab shell and icon empty state', () => {
   expect(screen.getByText('Name')).toBeTruthy();
   expect(screen.getByTestId('library-empty-state-tracks')).toBeTruthy();
   expect(screen.getByText('Leer')).toBeTruthy();
+});
+
+test('opens sort menu and cycles to selected mode', () => {
+  const onCycle = jest.fn();
+  const screen = render(<LibrarySortControl mode="alphabet" onCycle={onCycle} />);
+
+  fireEvent.press(screen.getByTestId('library-sort-control'));
+  fireEvent.press(screen.getByTestId('library-sort-option-year'));
+
+  expect(onCycle).toHaveBeenCalledTimes(2);
+});
+
+test('selecting the active sort mode closes without cycling', () => {
+  const onCycle = jest.fn();
+  const screen = render(<LibrarySortControl mode="year" onCycle={onCycle} />);
+
+  fireEvent.press(screen.getByTestId('library-sort-control'));
+  fireEvent.press(screen.getByTestId('library-sort-option-year'));
+
+  expect(onCycle).not.toHaveBeenCalled();
 });
