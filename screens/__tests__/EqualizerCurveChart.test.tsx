@@ -44,5 +44,5 @@ test('renders curve chart with app theme chrome', () => {
 test('uses a gradient fill for the equalizer curve instead of a flat glow color', () => {
   const { UNSAFE_getByType } = render(<EqualizerCurveChart curvePath="M0 40 L320 40" />);
 
-  expect(UNSAFE_getByType(Path).props.fill).toBe('url(#eqCurveFill)');
+  expect(UNSAFE_getByType(Path).props.fill).toEqual({ type: 1, brushRef: 'eqCurveFill' });
 });
