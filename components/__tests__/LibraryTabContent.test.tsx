@@ -73,7 +73,7 @@ const baseProps = {
   songKeyExtractor: (item: { id: string }) => item.id,
   songsForActiveList: [],
   sortMode: 'alphabet' as const,
-  onCycleSortMode: jest.fn(),
+  onSelectSortMode: jest.fn(),
   songViewMode: 'list' as const,
   onCycleSongViewMode: jest.fn(),
 };
