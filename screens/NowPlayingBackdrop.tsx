@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
-import { theme as staticTheme } from '../theme';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -16,6 +15,8 @@ interface NowPlayingBackdropProps {
   artworkUri?: string;
 }
 
+
+const BACKDROP_BLUR_INTENSITY = 32;
 
 const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   gradientColors,
@@ -47,7 +48,7 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
       <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent, left: glowLeft }]} />
       <BlurView
         pointerEvents="none"
-        intensity={staticTheme.blur.medium}
+        intensity={BACKDROP_BLUR_INTENSITY}
         tint={theme.appearance === 'light' ? 'light' : 'dark'}
         style={StyleSheet.absoluteFill}
       />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface NowPlayingMenuItemProps {
@@ -25,7 +25,7 @@ const NowPlayingMenuItem: React.FC<NowPlayingMenuItemProps> = ({ label, onPress 
 
 const styles = StyleSheet.create({
   menuItem: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 18 },
-  menuText: { fontFamily: staticTheme.fonts.body, fontSize: 16 },
+  menuText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 16 },
   pressed: { opacity: 0.72 },
 });
 

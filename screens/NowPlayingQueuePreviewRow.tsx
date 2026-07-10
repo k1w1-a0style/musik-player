@@ -2,7 +2,7 @@ import React from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface NowPlayingQueuePreviewRowProps {
   id: string;
@@ -143,18 +143,18 @@ const NowPlayingQueuePreviewRow = React.memo(({
 });
 
 const styles = StyleSheet.create({
-  queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: staticTheme.borderRadius.sm, paddingHorizontal: 8 },
+  queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: APP_THEME_TOKENS.radii.input, paddingHorizontal: 8 },
   queueItemActive: { borderWidth: 1 },
   queueItemEditing: { borderWidth: 1 },
   queueItemDragging: { zIndex: 20, elevation: 8, opacity: 0.96 },
   queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 20, borderRadius: 3 },
   queueTextWrap: { flex: 1 },
-  queueTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 12 },
+  queueTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 12 },
   queueTitleActive: { fontWeight: '700' },
-  queueArtist: { fontFamily: staticTheme.fonts.body, fontSize: 11, marginTop: 1 },
+  queueArtist: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 1 },
   playingBadge: { minWidth: 54, maxWidth: 72, height: 26, borderRadius: 13, borderWidth: 1, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  playingLabel: { fontFamily: staticTheme.fonts.heading, fontSize: 10 },
+  playingLabel: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 10 },
   dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
 });
 

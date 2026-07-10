@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 
 interface NowPlayingTitleRowProps {
@@ -51,8 +51,8 @@ const NowPlayingTitleRow: React.FC<NowPlayingTitleRowProps> = ({
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 2, marginBottom: 6 },
   titleBlock: { flex: 1, minWidth: 0 },
-  title: { fontSize: 21, letterSpacing: -0.55, fontFamily: staticTheme.fonts.display },
-  artist: { fontSize: 13, marginTop: 2, fontFamily: staticTheme.fonts.body },
+  title: { fontSize: 21, letterSpacing: -0.55, fontFamily: APP_THEME_TOKENS.fonts.display },
+  artist: { fontSize: 13, marginTop: 2, fontFamily: APP_THEME_TOKENS.fonts.body },
   heartBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });
 

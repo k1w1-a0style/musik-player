@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { buildSongKey, displayArtist, displayTitle } from '../utils/libraryPresentation';
 import NowPlayingQueuePreviewRow from './NowPlayingQueuePreviewRow';
 
@@ -86,8 +86,8 @@ const styles = StyleSheet.create({
   queueList: { flex: 1 },
   queueListContent: { flexGrow: 1, paddingBottom: 16 },
   emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  emptyTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 14, textAlign: 'center' },
-  emptyText: { fontFamily: staticTheme.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  emptyTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
+  emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
 });
 
 export default NowPlayingQueueCard;

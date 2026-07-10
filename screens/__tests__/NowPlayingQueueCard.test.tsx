@@ -2,36 +2,21 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingQueueCard from '../NowPlayingQueueCard';
 import type { Song } from '../../types/Song';
-import { theme } from '../../theme';
-const mockAppTheme = {
+import { getAppTheme } from '../../utils/appTheme';
+let mockAppTheme: {
+  appearance: 'dark' | 'light';
+  skin: 'graphite';
+  isHydrated: boolean;
+  setAppearance: () => undefined;
+  setSkin: () => undefined;
+  theme: ReturnType<typeof getAppTheme>;
+} = {
   appearance: 'dark',
-  skin: 'graphite',
+  skin: 'graphite' as const,
   isHydrated: true,
   setAppearance: () => undefined,
   setSkin: () => undefined,
-  theme: {
-    palette: {
-      background: '#08090B',
-      backgroundDeep: '#030406',
-      surface: '#111318',
-      surfaceElevated: '#191B21',
-      border: 'rgba(255, 255, 255, 0.08)',
-      borderStrong: 'rgba(210, 218, 230, 0.28)',
-      primary: '#D8DEE8',
-      primaryDark: '#87909E',
-      accent: '#BFC7D4',
-      text: {
-        primary: '#F4F5F3',
-        secondary: 'rgba(244, 245, 247, 0.70)',
-        muted: 'rgba(244, 245, 247, 0.42)',
-        onPrimary: '#07090C',
-      },
-    },
-    gradients: {
-      background: ['#030406', '#08090B', '#0D1014'],
-      nowPlaying: ['#030406', '#08090B', '#0D1014'],
-    },
-  },
+  theme: getAppTheme('dark', 'graphite'),
 };
 
 jest.mock('../../contexts/AppThemeContext', () => ({
@@ -86,8 +71,8 @@ test('uses row text contrast instead of foregroundOnAccent for active text while
     />,
   );
 
-  expect(JSON.stringify(getByText(longQueue[0].title).props.style)).toContain(theme.palette.text.primary);
-  expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(theme.palette.text.primary);
+  expect(JSON.stringify(getByText(longQueue[0].title).props.style)).toContain(mockAppTheme.theme.palette.text.primary);
+  expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
   expect(JSON.stringify(getByText(longQueue[0].title).props.style)).not.toContain('#101820');
   expect(JSON.stringify(getByText('Aktiv').props.style)).not.toContain('#101820');
 
@@ -137,4 +122,36 @@ test('does not expose drag handles before the current track', () => {
   expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
   expect(queryByTestId('queue-drag-handle-s2')).toBeNull();
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
+});
+
+test.each(['light', 'dark'] as const)('renders queue card and preview row with %s app theme without crashing', appearance => {
+  mockAppTheme = {
+    ...mockAppTheme,
+    appearance,
+    theme: getAppTheme(appearance, 'graphite'),
+  };
+
+  const { getByTestId, getByText, unmount } = render(
+    <NowPlayingQueueCard
+      queue={queue}
+      currentSongId="s1"
+      maxHeight={240}
+      onPlayQueueItem={jest.fn()}
+      onQueueShift={jest.fn()}
+      canShiftQueue
+      accentColor="#33B5FF"
+    />,
+  );
+
+  expect(getByTestId('queue-row-s1')).toBeTruthy();
+  expect(JSON.stringify(getByText('One').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
+  expect(JSON.stringify(getByText('A').props.style)).toContain(mockAppTheme.theme.palette.text.secondary);
+  expect(JSON.stringify(getByTestId('queue-accent-bar-s2').props.style)).toContain(mockAppTheme.theme.palette.border);
+
+  unmount();
+  mockAppTheme = {
+    ...mockAppTheme,
+    appearance: 'dark',
+    theme: getAppTheme('dark', 'graphite'),
+  };
 });

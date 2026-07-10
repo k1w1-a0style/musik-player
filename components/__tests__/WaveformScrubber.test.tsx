@@ -1,20 +1,9 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
 import WaveformScrubber from '../WaveformScrubber';
-const mockAppTheme = {
-  palette: {
-    background: '#08090B',
-    surfaceElevated: '#191B21',
-    borderStrong: 'rgba(210, 218, 230, 0.28)',
-    primary: '#D8DEE8',
-    text: {
-      primary: '#F4F5F7',
-      secondary: 'rgba(244, 245, 247, 0.70)',
-      muted: 'rgba(244, 245, 247, 0.42)',
-      onPrimary: '#07090C',
-    },
-  },
-};
+import { Rect } from 'react-native-svg';
+import { getAppTheme } from '../../utils/appTheme';
+let mockAppTheme = getAppTheme('dark', 'graphite');
 
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
@@ -124,4 +113,36 @@ describe('WaveformScrubber seek semantics', () => {
 
     expect(getAllByText('0:50').length).toBeGreaterThan(0);
   });
+
+  test('uses app theme rest and time colors while preserving seek behavior', () => {
+    mockAppTheme = getAppTheme('light', 'graphite');
+    const onSeek = jest.fn();
+    const onSeekPreview = jest.fn();
+    const { getByTestId, getAllByText, UNSAFE_getAllByType } = render(
+      <WaveformScrubber
+        waveform={waveform}
+        currentPosition={25_000}
+        duration={100_000}
+        onSeek={onSeek}
+        onSeekPreview={onSeekPreview}
+        accent="#33B5FF"
+      />,
+    );
+
+    expect(JSON.stringify(getAllByText('0:25')[0].props.style)).toContain(mockAppTheme.palette.text.muted);
+    expect(JSON.stringify(getAllByText('1:40')[0].props.style)).toContain(mockAppTheme.palette.text.muted);
+    expect(JSON.stringify(UNSAFE_getAllByType(Rect)[2].props.fill)).toContain(mockAppTheme.palette.borderStrong);
+
+    const scrubber = getByTestId('waveform-scrubber').findByProps({ accessibilityRole: 'adjustable' });
+    act(() => {
+      scrubber.props.onLayout(layout);
+      scrubber.props.onResponderGrant(touchAt(100));
+      scrubber.props.onResponderRelease();
+    });
+
+    expect(onSeekPreview).toHaveBeenCalledWith(50_000);
+    expect(onSeek).toHaveBeenCalledWith(50_000);
+    mockAppTheme = getAppTheme('dark', 'graphite');
+  });
+
 });
