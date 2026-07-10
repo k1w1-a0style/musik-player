@@ -16,19 +16,19 @@ interface LibraryEmptyStateProps {
   message: string;
 }
 
-const getEmptyIcon = (activeTab: LibraryTab): LibraryEmptyIcon => {
-  if (activeTab === 'folders') return Folder;
-  if (activeTab === 'favorites') return Star;
-  if (activeTab === 'playlists') return ListMusic;
-  if (activeTab === 'albums') return Disc3;
-  if (activeTab === 'artists') return Mic2;
-  if (activeTab === 'genres') return Tags;
-  return Music2;
+const EMPTY_ICONS: Record<LibraryTab, LibraryEmptyIcon> = {
+  albums: Disc3,
+  artists: Mic2,
+  favorites: Star,
+  folders: Folder,
+  genres: Tags,
+  playlists: ListMusic,
+  tracks: Music2,
 };
 
 const LibraryEmptyState: React.FC<LibraryEmptyStateProps> = ({ activeTab, message }) => {
   const { theme } = useAppTheme();
-  const Icon = getEmptyIcon(activeTab);
+  const Icon = EMPTY_ICONS[activeTab];
 
   return (
     <View style={styles.wrap} testID={`library-empty-state-${activeTab}`}>
