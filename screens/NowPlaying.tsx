@@ -30,6 +30,7 @@ const NowPlayingScreenInner: React.FC = () => {
     closeMenu,
     handleClose,
     openTrackInfo,
+    openEqualizer,
     saveCurrentQueueAsPlaylist,
     queue,
     playQueueItemById,
@@ -127,6 +128,7 @@ const NowPlayingScreenInner: React.FC = () => {
         favorite={favorite}
         onClose={closeMenu}
         onOpenTrackInfo={openTrackInfo}
+        onOpenEqualizer={openEqualizer}
         onToggleFavorite={toggleFavorite}
         onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
       />

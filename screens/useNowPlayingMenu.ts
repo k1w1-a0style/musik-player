@@ -10,6 +10,7 @@ interface NowPlayingMenuState {
   closeMenu: () => void;
   handleClose: () => void;
   openTrackInfo: () => void;
+  openEqualizer: () => void;
 }
 
 export const useNowPlayingMenu = (songId?: string): NowPlayingMenuState => {
@@ -34,5 +35,10 @@ export const useNowPlayingMenu = (songId?: string): NowPlayingMenuState => {
     navigation.navigate(APP_STACK_ROUTES.TRACK_INFO, { songId });
   }, [navigation, songId]);
 
-  return { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo };
+  const openEqualizer = useCallback(() => {
+    setMenuOpen(false);
+    navigation.navigate(APP_STACK_ROUTES.EQUALIZER);
+  }, [navigation]);
+
+  return { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo, openEqualizer };
 };

@@ -62,6 +62,7 @@ jest.mock('../useNowPlayingMenu', () => ({
     closeMenu: jest.fn(),
     handleClose: jest.fn(),
     openTrackInfo: jest.fn(),
+    openEqualizer: jest.fn(),
   }),
 }));
 

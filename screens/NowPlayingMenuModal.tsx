@@ -9,6 +9,7 @@ interface NowPlayingMenuModalProps {
   favorite: boolean;
   onClose: () => void;
   onOpenTrackInfo: () => void;
+  onOpenEqualizer: () => void;
   onToggleFavorite: () => void;
   onSaveQueueAsPlaylist: () => void;
 }
@@ -18,6 +19,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   favorite,
   onClose,
   onOpenTrackInfo,
+  onOpenEqualizer,
   onToggleFavorite,
   onSaveQueueAsPlaylist,
 }) => {
@@ -45,6 +47,13 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
           testID="now-playing-menu-card"
         >
           <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
+          <NowPlayingMenuItem
+            label="Equalizer öffnen"
+            onPress={() => {
+              onOpenEqualizer();
+              onClose();
+            }}
+          />
           <NowPlayingMenuItem
             label="Warteschlange speichern"
             onPress={() => {

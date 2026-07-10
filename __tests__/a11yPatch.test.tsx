@@ -101,6 +101,7 @@ describe('V6.6 accessibility patch', () => {
       favorite: false,
       onClose: jest.fn(),
       onOpenTrackInfo: jest.fn(),
+      onOpenEqualizer: jest.fn(),
       onToggleFavorite: jest.fn(),
       onSaveQueueAsPlaylist: jest.fn(),
     };
