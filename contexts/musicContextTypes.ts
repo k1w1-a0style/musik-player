@@ -77,6 +77,7 @@ export interface MiniPlayerMusicContextValue {
   previous: () => Promise<void>;
   canSkipNext: boolean;
   canSkipPrevious: boolean;
+  palette: PaletteResult | null;
 }
 
 export interface NowPlayingMusicContextValue {
