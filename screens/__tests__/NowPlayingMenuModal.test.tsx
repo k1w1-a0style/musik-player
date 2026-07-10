@@ -29,6 +29,7 @@ const renderMenu = (patch = {}) => render(
     favorite={false}
     onClose={jest.fn()}
     onOpenTrackInfo={jest.fn()}
+    onOpenEqualizer={jest.fn()}
     onToggleFavorite={jest.fn()}
     onSaveQueueAsPlaylist={jest.fn()}
     {...patch}
@@ -39,6 +40,7 @@ test('renders menu actions', () => {
   const { getByText } = renderMenu();
 
   expect(getByText('Titelinformationen öffnen')).toBeTruthy();
+  expect(getByText('Equalizer öffnen')).toBeTruthy();
   expect(getByText('Warteschlange speichern')).toBeTruthy();
   expect(getByText('Zu Favoriten hinzufügen')).toBeTruthy();
 });
@@ -46,21 +48,25 @@ test('renders menu actions', () => {
 test('calls menu actions', () => {
   const onOpenTrackInfo = jest.fn();
   const onSaveQueueAsPlaylist = jest.fn();
+  const onOpenEqualizer = jest.fn();
   const onToggleFavorite = jest.fn();
   const onClose = jest.fn();
 
   const { getByText } = renderMenu({
     onOpenTrackInfo,
     onSaveQueueAsPlaylist,
+    onOpenEqualizer,
     onToggleFavorite,
     onClose,
   });
 
   fireEvent.press(getByText('Titelinformationen öffnen'));
+  fireEvent.press(getByText('Equalizer öffnen'));
   fireEvent.press(getByText('Warteschlange speichern'));
   fireEvent.press(getByText('Zu Favoriten hinzufügen'));
 
   expect(onOpenTrackInfo).toHaveBeenCalledTimes(1);
+  expect(onOpenEqualizer).toHaveBeenCalledTimes(1);
   expect(onSaveQueueAsPlaylist).toHaveBeenCalledTimes(1);
   expect(onToggleFavorite).toHaveBeenCalledTimes(1);
   expect(onClose).toHaveBeenCalledTimes(2);

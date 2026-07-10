@@ -12,7 +12,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 const MenuProbe = ({ songId }: { songId?: string }) => {
-  const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo } = useNowPlayingMenu(songId);
+  const { menuOpen, openMenu, closeMenu, handleClose, openTrackInfo, openEqualizer } = useNowPlayingMenu(songId);
 
   return (
     <>
@@ -21,6 +21,7 @@ const MenuProbe = ({ songId }: { songId?: string }) => {
       <Pressable testID="close-menu" onPress={closeMenu} />
       <Pressable testID="close-screen" onPress={handleClose} />
       <Pressable testID="track-info" onPress={openTrackInfo} />
+      <Pressable testID="equalizer" onPress={openEqualizer} />
     </>
   );
 };
@@ -55,6 +56,16 @@ describe('useNowPlayingMenu', () => {
     fireEvent.press(getByTestId('track-info'));
 
     expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.TRACK_INFO, { songId: 's1' });
+    expect(getByTestId('menu-open').props.children).toBe('false');
+  });
+
+  test('navigates to equalizer and closes the menu', () => {
+    const { getByTestId } = render(<MenuProbe songId="s1" />);
+
+    fireEvent.press(getByTestId('open-menu'));
+    fireEvent.press(getByTestId('equalizer'));
+
+    expect(mockNavigate).toHaveBeenCalledWith(APP_STACK_ROUTES.EQUALIZER);
     expect(getByTestId('menu-open').props.children).toBe('false');
   });
 

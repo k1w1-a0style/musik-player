@@ -58,6 +58,7 @@ const CLOSE_NOW_PLAYING_LABEL = 'Wiedergabe schließen';
 const OPEN_NOW_PLAYING_MENU_LABEL = 'Wiedergabe-Menü öffnen';
 const OPEN_TRACK_INFO_LABEL = 'Titelinformationen öffnen';
 const SAVE_QUEUE_LABEL = 'Warteschlange speichern';
+const OPEN_EQUALIZER_LABEL = 'Equalizer öffnen';
 
 const mockGoBack = jest.fn();
 const mockNavigate = jest.fn();
@@ -318,7 +319,16 @@ describe('NowPlaying cover fallback', () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
     expect(getByText(OPEN_TRACK_INFO_LABEL)).toBeTruthy();
+    expect(getByText(OPEN_EQUALIZER_LABEL)).toBeTruthy();
     expect(getByText(SAVE_QUEUE_LABEL)).toBeTruthy();
+  });
+
+  test('equalizer menu item opens the equalizer screen', () => {
+    const { getByLabelText, getByText } = render(<NowPlaying />);
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    fireEvent.press(getByText(OPEN_EQUALIZER_LABEL));
+
+    expect(mockNavigate).toHaveBeenCalledWith('Equalizer');
   });
 
   test('queue save menu item saves the current queue as playlist', () => {
