@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Playlist, Song } from '../types/Song';
 import { theme as staticTheme } from '../theme';
@@ -31,8 +31,10 @@ const SongPlaylistPickerModal: React.FC<SongPlaylistPickerModalProps> = ({
         accessible={false}
         testID="song-playlist-picker-backdrop"
       >
-        <View
+        <Pressable
           style={[styles.card, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]}
+          onPress={event => event.stopPropagation()}
+          accessible={false}
           testID="song-playlist-picker-card"
         >
           <Text style={[styles.title, { color: theme.palette.text.primary }]}>Playlist auswählen</Text>
@@ -68,7 +70,7 @@ const SongPlaylistPickerModal: React.FC<SongPlaylistPickerModalProps> = ({
               })}
             </ScrollView>
           )}
-        </View>
+        </Pressable>
       </Pressable>
     </Modal>
   );

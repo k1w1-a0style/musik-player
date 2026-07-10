@@ -23,13 +23,14 @@ const playlists: Playlist[] = [
   { id: 'playlist-2', name: 'Favorites', songIds: ['song-1'], createdAt: 1, updatedAt: 1 },
 ];
 const onTogglePlaylist = jest.fn();
+const onClose = jest.fn();
 
 const renderPicker = (items = playlists) => render(
   <SongPlaylistPickerModal
     visible
     song={song}
     playlists={items}
-    onClose={jest.fn()}
+    onClose={onClose}
     onTogglePlaylist={onTogglePlaylist}
   />,
 );
@@ -52,6 +53,7 @@ describe('SongPlaylistPickerModal', () => {
     fireEvent.press(screen.getByTestId('song-playlist-picker-item-playlist-1'));
 
     expect(onTogglePlaylist).toHaveBeenCalledWith('playlist-1', false);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('toggles remove for a playlist with the song', () => {
@@ -60,6 +62,7 @@ describe('SongPlaylistPickerModal', () => {
     fireEvent.press(screen.getByTestId('song-playlist-picker-item-playlist-2'));
 
     expect(onTogglePlaylist).toHaveBeenCalledWith('playlist-2', true);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('wraps playlist rows in a bounded scroll view', () => {
