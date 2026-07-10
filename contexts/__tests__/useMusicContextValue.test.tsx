@@ -18,6 +18,8 @@ const baseValue: MusicContextValue = {
   isPlaying: true,
   isBuffering: false,
   playSong: noopAsync,
+  playSongNext: async () => true,
+  addSongToQueue: async () => true,
   togglePlayPause: noopAsync,
   stop: noopAsync,
   seekTo: noopAsync,

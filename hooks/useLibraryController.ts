@@ -26,6 +26,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       isReady,
       playPlaylist,
       playSong,
+      playSongNext,
+      addSongToQueue,
       playlists,
       addSongToPlaylist,
       removeSongFromPlaylist,
@@ -124,6 +126,16 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     setPlaylistPickerSong(songActionSong);
     closeSongActionMenu();
   }, [closeSongActionMenu, songActionSong]);
+  const playSongNextFromSongMenu = useCallback(() => {
+    if (!songActionSong) return;
+    void playSongNext(songActionSong);
+    closeSongActionMenu();
+  }, [closeSongActionMenu, playSongNext, songActionSong]);
+  const addSongToQueueFromSongMenu = useCallback(() => {
+    if (!songActionSong) return;
+    void addSongToQueue(songActionSong);
+    closeSongActionMenu();
+  }, [addSongToQueue, closeSongActionMenu, songActionSong]);
   const toggleSongPlaylist = useCallback((playlistId: string, containsSong: boolean) => {
     if (!playlistPickerSong) return;
     if (containsSong) {
@@ -216,6 +228,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       visible: !!songActionSong,
       onClose: closeSongActionMenu,
       onOpenTrackInfo: openTrackInfoFromSongMenu,
+      onPlayNext: playSongNextFromSongMenu,
+      onAddToQueue: addSongToQueueFromSongMenu,
       onOpenPlaylistPicker: openPlaylistPickerFromSongMenu,
     },
     songPlaylistPickerProps: {

@@ -27,6 +27,7 @@ interface ApplyPlaybackQueueStateArgs {
 
 type ShuffleQueueActionResult = 'applied' | 'failed' | 'stale';
 type ReorderQueueActionResult = 'applied' | 'failed' | 'stale' | 'noop';
+type InsertQueueActionResult = 'applied' | 'failed' | 'stale' | 'noop';
 
 export class NativeQueueReplacementStaleError extends Error {
   constructor() {
@@ -56,6 +57,15 @@ export interface RunShuffleQueueActionArgs extends PlaybackQueueActionRefs {
   setShuffle: Dispatch<SetStateAction<boolean>>;
 }
 
+export interface RunInsertSongQueueActionArgs extends PlaybackQueueActionRefs {
+  song: Song;
+  currentSongId?: string;
+  position: 'next' | 'end';
+  shuffle: boolean;
+  shuffleRef?: MutableRefObject<boolean>;
+  setShuffle: Dispatch<SetStateAction<boolean>>;
+}
+
 export interface RunReorderQueueActionArgs extends PlaybackQueueActionRefs {
   fromIndex: number;
   toIndex: number;
@@ -72,6 +82,48 @@ const normalizeSongId = (songId?: string): string | undefined => {
 
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
   (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
+
+const findSongByNormalizedId = (songs: Song[], songId?: string): Song | undefined => {
+  const normalizedId = normalizeSongId(songId);
+  return normalizedId ? songs.find(song => normalizeSongId(song.id) === normalizedId) : undefined;
+};
+
+const buildQueueWithInsertedSong = ({
+  queue,
+  song,
+  insertIndex,
+}: {
+  queue: Song[];
+  song: Song;
+  insertIndex: number;
+}): { queue: Song[]; insertIndex: number; changed: boolean } => {
+  const insertedSongId = normalizeSongId(song.id);
+  if (insertedSongId && queue.some(item => normalizeSongId(item.id) === insertedSongId)) {
+    return { queue, insertIndex: -1, changed: false };
+  }
+
+  const safeInsertIndex = Math.max(0, Math.min(insertIndex, queue.length));
+  const nextQueue = queue.slice();
+  nextQueue.splice(safeInsertIndex, 0, song);
+  return { queue: nextQueue, insertIndex: safeInsertIndex, changed: true };
+};
+
+const getNativeInsertIndex = ({
+  nativeQueue,
+  activeSongId,
+  position,
+}: {
+  nativeQueue: Song[];
+  activeSongId?: string;
+  position: 'next' | 'end';
+}): number => {
+  if (position === 'end') return nativeQueue.length;
+
+  const activeNativeIndex = nativeQueue.findIndex(song => normalizeSongId(song.id) === normalizeSongId(activeSongId));
+  // Fallback: if TrackPlayer reports an active track that is not present in the
+  // native queue ref, append instead of guessing from the rotated UI queue.
+  return activeNativeIndex >= 0 ? activeNativeIndex + 1 : nativeQueue.length;
+};
 
 export const persistRequestedSongId = async (
   requestedSong: Song,
@@ -206,6 +258,71 @@ export const runPlaySongQueueAction = async ({
     selectedSong: requestedSong,
   });
   await persistRequestedSongId(requestedSong, songsRef.current);
+};
+
+
+export const runInsertSongQueueAction = async ({
+  song,
+  currentSongId,
+  position,
+  queueContextRef,
+  baseQueueContextRef,
+  nativeQueueRef,
+  setPlaybackQueue,
+  setCurrentSong,
+  shuffle,
+  shuffleRef,
+  setShuffle,
+}: RunInsertSongQueueActionArgs): Promise<boolean> => {
+  if (!isPlayableSong(song)) {
+    console.warn('[PlaybackQueue] Unable to insert unplayable song into queue.', { songId: song.id });
+    return false;
+  }
+
+  const result = await runExclusiveNativeQueueReplacement<InsertQueueActionResult>(async context => {
+    const { isCurrent } = context;
+    if (!isCurrent()) return 'stale';
+
+    const activeTrack = await TrackPlayer.getActiveTrack();
+    if (!isCurrent()) return 'stale';
+
+    const activeSongId = activeTrack?.id ?? currentSongId;
+    const activeQueue = queueContextRef.current.length > 0 ? queueContextRef.current.slice() : nativeQueueRef.current.slice();
+    const nativeQueue = nativeQueueRef.current.length > 0 ? nativeQueueRef.current.slice() : activeQueue.slice();
+    const selectedSong = findSongByNormalizedId(activeQueue, activeSongId) ?? findSongByNormalizedId(nativeQueue, activeSongId);
+    const nativeInsertIndex = getNativeInsertIndex({ nativeQueue, activeSongId, position });
+    const plan = buildQueueWithInsertedSong({ queue: nativeQueue, song, insertIndex: nativeInsertIndex });
+    if (!plan.changed) return 'noop';
+
+    try {
+      await TrackPlayer.add(toTrackPlayerTrack(song), plan.insertIndex);
+      if (!isCurrent()) return 'stale';
+      nativeQueueRef.current = plan.queue.slice();
+      applyPlaybackQueueState({
+        queueContextRef,
+        baseQueueContextRef,
+        setPlaybackQueue,
+        setCurrentSong,
+        orderedQueue: plan.queue,
+        baseQueue: plan.queue,
+        selectedSong,
+      });
+      const shuffleEnabled = shuffleRef?.current ?? shuffle;
+      if (shuffleEnabled) {
+        if (shuffleRef) shuffleRef.current = false;
+        setShuffle(false);
+      }
+      return 'applied';
+    } catch (error) {
+      console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
+      return 'failed';
+    }
+  }).catch(error => {
+    console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
+    return 'failed' as const;
+  });
+
+  return result === 'applied' || result === 'noop';
 };
 
 export const runReorderQueueAction = async ({

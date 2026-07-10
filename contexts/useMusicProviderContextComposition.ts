@@ -23,6 +23,8 @@ export const useMusicProviderContextComposition = (
       library: contextActions.library,
       playback: buildMusicProviderContextPlaybackInput(runtime.playback, {
         playSong: actions.playSong,
+        playSongNext: actions.playSongNext,
+        addSongToQueue: actions.addSongToQueue,
         reorderQueue: actions.reorderQueue,
         toggleShuffle: actions.toggleShuffle,
       }),

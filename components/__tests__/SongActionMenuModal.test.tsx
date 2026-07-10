@@ -20,6 +20,8 @@ const props = {
   visible: true,
   onClose: jest.fn(),
   onOpenTrackInfo: jest.fn(),
+  onPlayNext: jest.fn(),
+  onAddToQueue: jest.fn(),
   onOpenPlaylistPicker: jest.fn(),
 };
 
@@ -30,6 +32,8 @@ describe('SongActionMenuModal', () => {
     const screen = render(<SongActionMenuModal {...props} />);
 
     expect(screen.getByText('Titelinformationen öffnen')).toBeTruthy();
+    expect(screen.getByText('Als Nächstes abspielen')).toBeTruthy();
+    expect(screen.getByText('Zur Warteschlange hinzufügen')).toBeTruthy();
     expect(screen.getByText('Zu Playlist hinzufügen')).toBeTruthy();
   });
 
@@ -39,6 +43,23 @@ describe('SongActionMenuModal', () => {
     fireEvent.press(screen.getByText('Titelinformationen öffnen'));
 
     expect(props.onOpenTrackInfo).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('plays song next', () => {
+    const screen = render(<SongActionMenuModal {...props} />);
+
+    fireEvent.press(screen.getByText('Als Nächstes abspielen'));
+
+    expect(props.onPlayNext).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds song to queue', () => {
+    const screen = render(<SongActionMenuModal {...props} />);
+
+    fireEvent.press(screen.getByText('Zur Warteschlange hinzufügen'));
+
+    expect(props.onAddToQueue).toHaveBeenCalledTimes(1);
   });
 
   it('opens playlist picker', () => {

@@ -35,6 +35,8 @@ const mockMusicContext: MockLibraryMusicContext = {
   setSongs: fn,
   currentSong: null,
   playSong: asyncFn,
+  playSongNext: async () => true,
+  addSongToQueue: async () => true,
   isReady: true,
   isPlaying: false,
   updateSongMetadata: fn,
