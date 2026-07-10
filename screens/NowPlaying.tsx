@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
@@ -55,7 +55,7 @@ const NowPlayingScreenInner: React.FC = () => {
   const [measuredPagerHeight, setMeasuredPagerHeight] = useState(0);
   const availablePagerHeight = measuredPagerHeight > 0
     ? measuredPagerHeight
-    : Math.max(1, height - bottomInset - 48 - staticTheme.spacing.xs);
+    : Math.max(1, height - bottomInset - 48 - APP_THEME_TOKENS.spacing.xs);
   const layoutMetrics = useMemo(() => buildNowPlayingLayoutMetrics({
     width,
     height: availablePagerHeight,
@@ -156,7 +156,7 @@ const NowPlaying: React.FC = () => (
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { flex: 1, paddingTop: staticTheme.spacing.xs, paddingBottom: 0 },
+  content: { flex: 1, paddingTop: APP_THEME_TOKENS.spacing.xs, paddingBottom: 0 },
   pagerSlot: { flex: 1, minHeight: 1 },
 });
 

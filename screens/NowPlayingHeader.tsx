@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronDown, MoreHorizontal } from 'lucide-react-native';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 interface NowPlayingHeaderProps {
@@ -49,8 +49,8 @@ const styles = StyleSheet.create({
   headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 2 },
   headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { alignItems: 'center', flex: 1 },
-  headerEyebrow: { fontSize: 10, letterSpacing: 1.8, fontFamily: staticTheme.fonts.body },
-  headerTitle: { fontFamily: staticTheme.fonts.heading, fontSize: 14, marginTop: 2 },
+  headerEyebrow: { fontSize: 10, letterSpacing: 1.8, fontFamily: APP_THEME_TOKENS.fonts.body },
+  headerTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, marginTop: 2 },
 });
 
 export default NowPlayingHeader;

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { theme as staticTheme } from '../theme';
+import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { SongWaveform } from '../utils/waveformTypes';
 
 interface WaveformScrubberProps {
@@ -137,10 +137,10 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { paddingHorizontal: staticTheme.spacing.md, marginVertical: staticTheme.spacing.sm, width: '100%' },
+  root: { paddingHorizontal: APP_THEME_TOKENS.spacing.md, marginVertical: APP_THEME_TOKENS.spacing.sm, width: '100%' },
   waveformSurface: { justifyContent: 'center', overflow: 'hidden', paddingVertical: 4 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  time: { fontSize: 11, fontFamily: staticTheme.fonts.body },
+  time: { fontSize: 11, fontFamily: APP_THEME_TOKENS.fonts.body },
 });
 
 export default WaveformScrubber;
