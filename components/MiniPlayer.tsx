@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
+import { useMiniPlayerMusicContext, useMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
@@ -12,7 +12,8 @@ import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious, palette } = useMiniPlayerMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
+  const { palette } = useMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
