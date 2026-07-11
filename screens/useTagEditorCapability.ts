@@ -37,7 +37,11 @@ export const useTagEditorCapability = ({
     const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons, plan);
     const coverUriType = plan.uriType ?? capability.uriType;
     const coverContainer = plan.container ?? capability.supportedContainer;
-    const canWriteCover = Boolean(coverUriType === 'file' && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4'));
+    const canWriteCover = Boolean(
+      capability.canWrite
+      && coverUriType === 'file'
+      && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4'),
+    );
     const coverCapabilityMessage = canWriteCover || !capability.canWrite
       ? undefined
       : coverUriType === 'content'
