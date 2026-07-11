@@ -15,12 +15,14 @@ interface NowPlayingCoverArtworkProps {
   onSwipeRight?: () => void;
 }
 
-const SWIPE_THRESHOLD = 56;
-const MOVE_THRESHOLD = 12;
+const SWIPE_THRESHOLD = 36;
+const MOVE_THRESHOLD = 8;
+const VERTICAL_CANCEL_RATIO = 1.15;
 const SWIPE_OUT_DURATION_MS = 150;
 const SWIPE_RESET_DURATION_MS = 120;
 
 const getPageX = (event: GestureResponderEvent): number => event.nativeEvent.pageX;
+const getPageY = (event: GestureResponderEvent): number => event.nativeEvent.pageY;
 
 const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   song,
@@ -36,6 +38,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   const [coverFailed, setCoverFailed] = React.useState(false);
   const translateX = useRef(new Animated.Value(0)).current;
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
 
   React.useEffect(() => setCoverFailed(false), [song?.id, artworkUri]);
 
@@ -75,20 +78,32 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
 
   const handleResponderGrant = useCallback((event: GestureResponderEvent) => {
     startXRef.current = getPageX(event);
+    startYRef.current = getPageY(event);
   }, []);
 
   const handleResponderMove = useCallback((event: GestureResponderEvent) => {
     if (!swipeEnabled) return;
-    translateX.setValue(getPageX(event) - startXRef.current);
+    const dx = getPageX(event) - startXRef.current;
+    const dy = getPageY(event) - startYRef.current;
+    if (Math.abs(dy) > Math.abs(dx) * VERTICAL_CANCEL_RATIO) return;
+    translateX.setValue(dx);
   }, [swipeEnabled, translateX]);
 
   const handleResponderRelease = useCallback((event: GestureResponderEvent) => {
     if (!swipeEnabled) return;
-    finishSwipe(getPageX(event) - startXRef.current);
-  }, [finishSwipe, swipeEnabled]);
+    const dx = getPageX(event) - startXRef.current;
+    const dy = getPageY(event) - startYRef.current;
+    if (Math.abs(dy) > Math.abs(dx) * VERTICAL_CANCEL_RATIO) {
+      resetCover();
+      return;
+    }
+    finishSwipe(dx);
+  }, [finishSwipe, resetCover, swipeEnabled]);
 
   const shouldSetResponder = useCallback((event: GestureResponderEvent) => (
-    swipeEnabled && Math.abs(getPageX(event) - startXRef.current) > MOVE_THRESHOLD
+    swipeEnabled
+    && Math.abs(getPageX(event) - startXRef.current) > MOVE_THRESHOLD
+    && Math.abs(getPageX(event) - startXRef.current) > Math.abs(getPageY(event) - startYRef.current)
   ), [swipeEnabled]);
 
   const responderProps = swipeEnabled

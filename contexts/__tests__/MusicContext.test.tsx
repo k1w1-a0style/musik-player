@@ -192,13 +192,13 @@ describe('MusicContext', () => {
     });
   });
 
-  test('playSong builds queue starting at requested song', async () => {
+  test('playSong keeps visible queue stable while selecting requested song', async () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('set-songs'));
     fireEvent.press(getByTestId('play-s2'));
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
-    expect(getByTestId('probe-playback-queue').props.children).toBe('s2,s3,s4,s1');
+    expect(getByTestId('probe-playback-queue').props.children).toBe('s1,s2,s3,s4');
     expect(mockTrackPlayer.__getQueue()).toHaveLength(4);
   });
 

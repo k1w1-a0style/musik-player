@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, StyleSheet, Text } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -57,9 +57,19 @@ const PlaylistsContent: React.FC<PlaylistsContentProps> = ({
             />
           )}
           ListEmptyComponent={
-            <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]} testID="playlists-empty">
-              Noch keine Playlists. Lege oben deine erste an.
-            </Text>
+            <View style={[styles.emptyCard, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} testID="playlists-empty">
+              <Text style={[styles.emptyTitle, { color: theme.palette.text.primary }]}>Noch keine Playlists</Text>
+              <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]}>Erstelle hier deine erste Sammlung.</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Neue Playlist erstellen"
+                testID="playlists-empty-create-button"
+                onPress={onCreatePlaylist}
+                style={[styles.emptyButton, { backgroundColor: theme.palette.primary }]}
+              >
+                <Text style={[styles.emptyButtonText, { color: theme.palette.text.onPrimary }]}>Neue Playlist erstellen</Text>
+              </Pressable>
+            </View>
           }
         />
       </Screen>
@@ -82,10 +92,31 @@ const styles = StyleSheet.create({
     letterSpacing: -1.0,
     marginBottom: staticTokens.spacing.lg,
   },
+  emptyCard: {
+    alignItems: 'center',
+    borderRadius: staticTokens.radii.card,
+    borderWidth: 1,
+    gap: 10,
+    marginTop: staticTokens.spacing.xxl,
+    padding: staticTokens.spacing.lg,
+  },
+  emptyTitle: {
+    fontFamily: staticTokens.fonts.heading,
+    fontSize: 18,
+  },
   emptyText: {
     textAlign: 'center',
-    marginTop: staticTokens.spacing.xxl,
     fontFamily: staticTokens.fonts.body,
+  },
+  emptyButton: {
+    borderRadius: 999,
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  emptyButtonText: {
+    fontFamily: staticTokens.fonts.heading,
+    fontSize: 14,
   },
 });
 

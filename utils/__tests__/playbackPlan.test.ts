@@ -125,12 +125,12 @@ describe('playbackPlan helpers', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  test('builds a rebuild plan with requested song first', () => {
+  test('builds a rebuild plan without rotating the visible queue', () => {
     const plan = buildPlaySongQueuePlan(songs[1], songs, []);
 
     expect(plan?.requestedSong.id).toBe('s2');
     expect(plan?.canReuseNativeQueue).toBe(false);
-    expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['s2', 's3', 's1']);
+    expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
   });
 
   test('builds a native queue reuse plan when native queue has the same songs', () => {
@@ -139,7 +139,7 @@ describe('playbackPlan helpers', () => {
 
     expect(plan?.nativeIndex).toBe(2);
     expect(plan?.canReuseNativeQueue).toBe(true);
-    expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s3', 's1', 's2']);
+    expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
   });
 
 
@@ -150,7 +150,7 @@ describe('playbackPlan helpers', () => {
     const plan = buildPlaySongQueuePlan(songs[2], contextQueue, nativeQueue);
 
     expect(plan?.canReuseNativeQueue).toBe(false);
-    expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['s3', 's2', 's1']);
+    expect(plan?.rebuildOrderedQueue.map(song => song.id)).toEqual(['s1', 's3', 's2']);
   });
 
   test('normalizes queues before deciding native queue reuse', () => {
@@ -160,7 +160,7 @@ describe('playbackPlan helpers', () => {
 
     expect(plan?.queueWithRequested.map(song => song.id)).toEqual(['s1', 's2', 's3']);
     expect(plan?.canReuseNativeQueue).toBe(true);
-    expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s2', 's3', 's1']);
+    expect(plan?.reusableOrderedQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
   });
 
   test('returns null when requested song has no playable uri and is not in playable queue', () => {
@@ -219,7 +219,7 @@ describe('playbackPlan helpers', () => {
     expect(plan?.selectedSong?.id).toBe('s2');
   });
 
-  test('builds shuffle-off plan from base queue rotated to current song', () => {
+  test('builds shuffle-off plan from stable base queue while selecting current song', () => {
     const shuffled = [songs[1], songs[2], songs[0]];
     const plan = buildShuffleTogglePlan({
       currentQueue: shuffled,
@@ -228,7 +228,7 @@ describe('playbackPlan helpers', () => {
       shuffleEnabled: true,
     });
 
-    expect(plan?.nextQueue.map(song => song.id)).toEqual(['s3', 's1', 's2']);
+    expect(plan?.nextQueue.map(song => song.id)).toEqual(['s1', 's2', 's3']);
     expect(plan?.selectedSong?.id).toBe('s3');
   });
 

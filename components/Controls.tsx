@@ -63,7 +63,7 @@ const PressScale: React.FC<PressScaleProps> = ({
           height: size,
           borderRadius: size / 2,
           backgroundColor: primary
-            ? theme.palette.surfaceGlass
+            ? accentColor ?? theme.palette.primary
             : active
               ? theme.palette.primaryGlow
               : theme.palette.surfaceGlass,
@@ -97,7 +97,7 @@ const Controls: React.FC<ControlsProps> = ({
   const { theme } = useAppTheme();
   const resolvedAccentColor = accentColor ?? theme.palette.primary;
   const resolvedAccentDarkColor = accentDarkColor ?? theme.palette.primaryDark;
-  const resolvedOnAccentColor = onAccentColor ?? resolvedAccentColor;
+  const resolvedOnAccentColor = onAccentColor ?? theme.palette.text.onPrimary;
 
   const {
     isPlaying,

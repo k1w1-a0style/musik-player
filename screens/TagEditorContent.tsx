@@ -22,6 +22,8 @@ interface TagEditorContentProps {
   capability: TagEditCapability;
   hasCover: boolean;
   canSave: boolean;
+  canWriteCover: boolean;
+  coverCapabilityMessage?: string;
   capabilityMessage?: string;
   blockedReasonMessage?: string;
   safetyMessage?: string;
@@ -42,6 +44,8 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
   capability,
   hasCover,
   canSave,
+  canWriteCover,
+  coverCapabilityMessage,
   capabilityMessage,
   blockedReasonMessage,
   safetyMessage,
@@ -71,7 +75,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
           />
 
           <TagEditorCoverControls
-            canWrite={capability.canWrite}
+            canWrite={canWriteCover}
             saving={saving}
             hasCover={hasCover}
             currentCoverUri={currentCoverUri}
@@ -79,6 +83,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
             replacementCover={replacementCover}
             onToggleRemoveCover={onToggleRemoveCover}
             onPickCover={onPickCover}
+            unsupportedMessage={coverCapabilityMessage}
           />
 
           <TagEditorActions

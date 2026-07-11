@@ -4,6 +4,7 @@ import type {
   EditableTrackTags,
   TagEditDraft,
   TagWriterErrorCode,
+  WriteOperationPlan,
   WriteTagsResult,
 } from '../types/TagEdit';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
@@ -110,13 +111,27 @@ export const buildDraftFromDirtyFields = (
 
 export const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Titel nicht verfügbar.';
 
-export const blockingReasonMessage = (reasons: TagWriterErrorCode[]): string | undefined => {
+export const blockingReasonMessage = (reasons: TagWriterErrorCode[], plan?: Pick<WriteOperationPlan, 'uriType' | 'container' | 'warnings'>): string | undefined => {
   if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;
   if (reasons.includes('FileTooLarge')) return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
   if (reasons.includes('WriteNotImplementedV22')) return ID3V22_UNSUPPORTED_MESSAGE;
   if (reasons.includes('WriteNotImplementedV24')) return ID3V24_UNSUPPORTED_MESSAGE;
-  if (reasons.includes('WriteNotImplemented')) return FILE_REPLACE_UNSUPPORTED_MESSAGE;
-  if (reasons.includes('UnsupportedFormat')) return 'Format nicht unterstützt.';
+  if (reasons.includes('WriteNotImplemented')) {
+    if (plan?.uriType === 'content' && plan.warnings?.some(warning => warning.toLowerCase().includes('cover artwork writes'))) {
+      return 'Cover-Schreiben für SAF/content:// ist in dieser Version noch nicht unterstützt. Entferne die Cover-Änderung, um MP3-Texttags zu speichern.';
+    }
+    if (plan?.uriType === 'content' && plan.container === 'mp3') {
+      return 'MP3 SAF/content:// Texttag-Schreiben ist nur mit Android-SAF-Schreibfreigabe unterstützt; diese Quelle ist schreibgeschützt.';
+    }
+    if (plan?.container === 'm4a' || plan?.container === 'mp4') {
+      return 'MP4/M4A-Schreiben ist in dieser Version noch nicht unterstützt.';
+    }
+    return FILE_REPLACE_UNSUPPORTED_MESSAGE;
+  }
+  if (reasons.includes('UnsupportedFormat')) {
+    if (plan?.container === 'm4a' || plan?.container === 'mp4') return 'MP4/M4A-Schreiben ist in dieser Version noch nicht unterstützt.';
+    return 'Format nicht unterstützt.';
+  }
   if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';
   return undefined;
 };
