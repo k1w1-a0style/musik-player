@@ -40,6 +40,13 @@ const song = {
   uri: 'mock-song-1.mp3',
 };
 
+const song2 = {
+  id: 's2',
+  title: 'Song 2',
+  artist: 'Artist',
+  uri: 'mock-song-2.mp3',
+};
+
 const makeCtx = (overrides = {}) => ({
   isPlaying: false,
   isBuffering: false,
@@ -66,6 +73,30 @@ describe('Controls', () => {
 
     expect(getByTestId('controls-previous').props.accessibilityState?.disabled).toBe(false);
     expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  test('disables next at the stable queue end when repeat all is off', () => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ currentSong: song2, playbackQueue: [song, song2] }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  test('allows next at the stable queue end when repeat all is enabled', () => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ currentSong: song2, playbackQueue: [song, song2], repeatMode: 'all' }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(false);
+  });
+
+  test('allows next before the stable queue end', () => {
+    mockUseMusicContext.mockReturnValue(makeCtx({ currentSong: song, playbackQueue: [song, song2] }));
+
+    const { getByTestId } = render(<Controls />);
+
+    expect(getByTestId('controls-next').props.accessibilityState?.disabled).toBe(false);
   });
 
   test('disables previous and next without a current song', () => {
