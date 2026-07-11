@@ -162,11 +162,11 @@ describe('tagEditorHelpers', () => {
     expect(hasRemovableCover({ id: 's8', title: 'Unknown app cover', artist: 'Artist', cover: 'file:///unknown-cover.jpg', coverInfo: { status: 'unknown' } })).toBe(false);
   });
 
-  test('maps status messages', () => {
-    expect(statusMessage(writeResult('written'))).toBe('Metadaten erfolgreich geschrieben.');
-    expect(statusMessage(writeResult('noop'))).toBe('Keine Änderung.');
+  test('maps status messages without making noop look like success', () => {
+    expect(statusMessage(writeResult('written'))).toContain('Metadaten geschrieben');
+    expect(statusMessage(writeResult('noop'))).toBe('Keine Änderung geschrieben – die Datei meldete keinen Unterschied.');
     expect(statusMessage(writeResult('rolledBack'))).toBe('Änderung wurde zurückgerollt.');
-    expect(statusMessage(writeResult('blocked'))).toBe('Schreiben blockiert.');
+    expect(statusMessage(writeResult('blocked'))).toBe('Schreiben blockiert oder fehlgeschlagen.');
   });
 
   test('explains protected Android content URIs with an actionable copy hint', () => {
