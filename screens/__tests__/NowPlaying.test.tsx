@@ -105,6 +105,7 @@ const mockNowPlayingContext = {
   next: jest.fn(async () => undefined),
   previous: jest.fn(async () => undefined),
   saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
+  repeatMode: 'off',
 };
 
 const setCurrentSongId = (id: string) => {

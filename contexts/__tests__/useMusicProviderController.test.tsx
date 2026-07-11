@@ -195,6 +195,7 @@ describe('useMusicProviderController', () => {
         next: value.next,
         previous: value.previous,
         saveQueueAsPlaylist: value.saveQueueAsPlaylist,
+        repeatMode: value.repeatMode,
         canSkip: false,
       },
     };

@@ -135,6 +135,7 @@ describe('music context value builders', () => {
       next: baseValue.next,
       previous: baseValue.previous,
       saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
+      repeatMode: baseValue.repeatMode,
       canSkip: true,
     });
   });

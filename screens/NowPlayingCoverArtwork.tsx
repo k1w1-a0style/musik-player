@@ -13,6 +13,8 @@ interface NowPlayingCoverArtworkProps {
   swipeEnabled?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  canSwipeLeft?: boolean;
+  canSwipeRight?: boolean;
 }
 
 const SWIPE_THRESHOLD = 36;
@@ -33,6 +35,8 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
   swipeEnabled = false,
   onSwipeLeft,
   onSwipeRight,
+  canSwipeLeft = true,
+  canSwipeRight = true,
 }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = React.useState(false);
@@ -56,7 +60,9 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
         ? onSwipeRight
         : undefined;
 
-    if (!targetHandler) {
+    const swipeAllowed = dx <= -SWIPE_THRESHOLD ? canSwipeLeft : canSwipeRight;
+
+    if (!targetHandler || !swipeAllowed) {
       resetCover();
       return;
     }
@@ -74,7 +80,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
         useNativeDriver: true,
       }).start();
     });
-  }, [coverSize, onSwipeLeft, onSwipeRight, resetCover, translateX]);
+  }, [canSwipeLeft, canSwipeRight, coverSize, onSwipeLeft, onSwipeRight, resetCover, translateX]);
 
   const recordTouchStart = useCallback((event: GestureResponderEvent) => {
     startXRef.current = getPageX(event);

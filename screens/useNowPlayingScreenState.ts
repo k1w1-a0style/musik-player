@@ -7,6 +7,7 @@ import { useNowPlayingFavorite } from './useNowPlayingFavorite';
 import { useNowPlayingMenu } from './useNowPlayingMenu';
 import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
+import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 
 export const buildSavedQueuePlaylistName = (date = new Date()): string => {
   const ts = date.toLocaleString('de-DE', {
@@ -37,6 +38,7 @@ export const useNowPlayingScreenState = () => {
     previous,
     reorderQueue,
     saveQueueAsPlaylist,
+    repeatMode,
   } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
@@ -55,7 +57,10 @@ export const useNowPlayingScreenState = () => {
     Alert.alert('Playlist gespeichert', `„${playlist.name}“ wurde erstellt.`);
   };
 
+  const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
+
   const swipeToNext = () => {
+    if (!canSwipeToNext) return;
     void next();
   };
 
@@ -78,6 +83,7 @@ export const useNowPlayingScreenState = () => {
     controlsMode,
     swipeToNext,
     swipeToPrevious,
+    canSwipeToNext,
     saveCurrentQueueAsPlaylist,
     moveQueueItem: queueShift,
     canReorderQueue: queueState.queue.length > 1 && !!reorderQueue,

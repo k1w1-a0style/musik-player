@@ -9,7 +9,10 @@ const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
 const mockNext = jest.fn(async () => undefined);
 const mockPrevious = jest.fn(async () => undefined);
+const mockSong2 = { id: 's2', title: 'Two', artist: 'A' };
+let mockCurrentSong = mockSong;
 let mockPlaybackQueue = [mockSong];
+let mockRepeatMode: 'off' | 'one' | 'all' = 'off';
 let mockControlsMode: 'buttons' | 'coverSwipe' = 'buttons';
 const mockSaveQueueAsPlaylist = jest.fn((name: string, queue: typeof mockPlaybackQueue) =>
   queue.length ? { id: 'pl-1', name, songIds: queue.map((song) => song.id), createdAt: 1 } : null,
@@ -22,7 +25,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('../../contexts/MusicContext', () => ({
   useNowPlayingMusicContext: () => ({
     playbackQueue: mockPlaybackQueue,
-    currentSong: mockSong,
+    currentSong: mockCurrentSong,
     seekTo: mockSeekTo,
     isPlaying: true,
     volume: 0.8,
@@ -32,6 +35,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     next: mockNext,
     previous: mockPrevious,
     saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
+    repeatMode: mockRepeatMode,
   }),
 }));
 
@@ -113,7 +117,9 @@ const ScreenStateProbe = () => {
 
 describe('useNowPlayingScreenState', () => {
   beforeEach(() => {
+    mockCurrentSong = mockSong;
     mockPlaybackQueue = [mockSong];
+    mockRepeatMode = 'off';
     mockControlsMode = 'buttons';
     mockSaveQueueAsPlaylist.mockClear();
     mockNext.mockClear();
@@ -150,13 +156,33 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('controls-mode').props.children).toBe('coverSwipe');
   });
 
-  test('uses existing next and previous actions for cover swipes', () => {
+  test('does not call next for a cover swipe when the shared next guard is false', () => {
+    mockCurrentSong = mockSong2;
+    mockPlaybackQueue = [mockSong, mockSong2];
+
     const { getByTestId } = render(<ScreenStateProbe />);
 
     fireEvent.press(getByTestId('swipe-next'));
-    fireEvent.press(getByTestId('swipe-previous'));
+
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('calls next for a cover swipe when the shared next guard is true', () => {
+    mockCurrentSong = mockSong;
+    mockPlaybackQueue = [mockSong, mockSong2];
+
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('swipe-next'));
 
     expect(mockNext).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps previous action available for cover swipes', () => {
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('swipe-previous'));
+
     expect(mockPrevious).toHaveBeenCalledTimes(1);
   });
 
