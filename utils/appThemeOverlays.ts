@@ -8,6 +8,14 @@ interface AppThemeBoxOverlayColors {
   borderColor: string;
 }
 
+interface NowPlayingSoundCloudOverlayColors {
+  gradient: AppThemeOverlayGradient;
+  titleBackgroundColor: string;
+  artistBackgroundColor: string;
+  infoBackgroundColor: string;
+  playButtonBackgroundColor: string;
+}
+
 const nowPlayingBackdropOverlayColors: Record<AppAppearance, AppThemeOverlayGradient> = {
   dark: [
     'rgba(5,6,10,0.0)',
@@ -19,6 +27,23 @@ const nowPlayingBackdropOverlayColors: Record<AppAppearance, AppThemeOverlayGrad
     'rgba(244,245,247,0.44)',
     'rgba(244,245,247,0.86)',
   ],
+};
+
+const nowPlayingSoundCloudOverlayColors: Record<AppAppearance, NowPlayingSoundCloudOverlayColors> = {
+  dark: {
+    gradient: ['rgba(0,0,0,0.72)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)'],
+    titleBackgroundColor: 'rgba(0,0,0,0.78)',
+    artistBackgroundColor: 'rgba(0,0,0,0.68)',
+    infoBackgroundColor: 'rgba(0,0,0,0.68)',
+    playButtonBackgroundColor: 'rgba(0,0,0,0.46)',
+  },
+  light: {
+    gradient: ['rgba(255,255,255,0.72)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.78)'],
+    titleBackgroundColor: 'rgba(255,255,255,0.78)',
+    artistBackgroundColor: 'rgba(255,255,255,0.68)',
+    infoBackgroundColor: 'rgba(255,255,255,0.68)',
+    playButtonBackgroundColor: 'rgba(255,255,255,0.46)',
+  },
 };
 
 const tagEditorWarningBoxColors: Record<AppAppearance, AppThemeBoxOverlayColors> = {
@@ -35,6 +60,10 @@ const tagEditorWarningBoxColors: Record<AppAppearance, AppThemeBoxOverlayColors>
 export const getNowPlayingBackdropOverlayColors = (
   appearance: AppAppearance,
 ): AppThemeOverlayGradient => nowPlayingBackdropOverlayColors[appearance];
+
+export const getNowPlayingSoundCloudOverlayColors = (
+  appearance: AppAppearance,
+): NowPlayingSoundCloudOverlayColors => nowPlayingSoundCloudOverlayColors[appearance];
 
 export const getNowPlayingSnapPagerInactiveDotColor = (
   appearance: AppAppearance,
