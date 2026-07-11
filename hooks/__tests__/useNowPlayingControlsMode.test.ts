@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNowPlayingControlsMode } from '../useNowPlayingControlsMode';
 
-const storageKey = '@musikplayer:nowPlayingControlsMode';
+const storageKey = '@musikplayer:nowPlayingPlayerLayout';
+const previousStorageKey = '@musikplayer:nowPlayingControlsMode';
 
 describe('useNowPlayingControlsMode', () => {
   beforeEach(() => {
@@ -10,46 +11,56 @@ describe('useNowPlayingControlsMode', () => {
     jest.restoreAllMocks();
   });
 
-  test('hydrates the default mode when nothing is stored', async () => {
+  test('hydrates the default layout when nothing is stored', async () => {
     const { result } = renderHook(() => useNowPlayingControlsMode());
 
     await waitFor(() => expect(result.current.isHydrated).toBe(true));
 
-    expect(result.current.mode).toBe('buttons');
+    expect(result.current.mode).toBe('classic');
   });
 
-  test('hydrates a stored mode', async () => {
-    await AsyncStorage.setItem(storageKey, JSON.stringify('coverSwipe'));
+  test('hydrates a stored player layout', async () => {
+    await AsyncStorage.setItem(storageKey, JSON.stringify('soundcloud'));
 
     const { result } = renderHook(() => useNowPlayingControlsMode());
 
     await waitFor(() => expect(result.current.isHydrated).toBe(true));
 
-    expect(result.current.mode).toBe('coverSwipe');
+    expect(result.current.mode).toBe('soundcloud');
   });
 
-  test('falls back to buttons for invalid stored values', async () => {
+  test('migrates the old cover swipe mode to the SoundCloud layout', async () => {
+    await AsyncStorage.setItem(previousStorageKey, JSON.stringify('coverSwipe'));
+
+    const { result } = renderHook(() => useNowPlayingControlsMode());
+
+    await waitFor(() => expect(result.current.isHydrated).toBe(true));
+
+    expect(result.current.mode).toBe('soundcloud');
+  });
+
+  test('falls back to classic for invalid stored values', async () => {
     await AsyncStorage.setItem(storageKey, JSON.stringify('sideways-toaster'));
 
     const { result } = renderHook(() => useNowPlayingControlsMode());
 
     await waitFor(() => expect(result.current.isHydrated).toBe(true));
 
-    expect(result.current.mode).toBe('buttons');
+    expect(result.current.mode).toBe('classic');
   });
 
-  test('updates and persists the selected mode', async () => {
+  test('updates and persists the selected layout', async () => {
     const { result } = renderHook(() => useNowPlayingControlsMode());
 
     await waitFor(() => expect(result.current.isHydrated).toBe(true));
 
     act(() => {
-      result.current.setMode('coverSwipe');
+      result.current.setMode('soundcloud');
     });
 
-    expect(result.current.mode).toBe('coverSwipe');
+    expect(result.current.mode).toBe('soundcloud');
     await waitFor(async () => {
-      await expect(AsyncStorage.getItem(storageKey)).resolves.toBe(JSON.stringify('coverSwipe'));
+      await expect(AsyncStorage.getItem(storageKey)).resolves.toBe(JSON.stringify('soundcloud'));
     });
   });
 });
