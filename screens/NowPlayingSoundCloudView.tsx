@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Info, Pause, Play } from 'lucide-react-native';
+import VolumeSlider from '../components/VolumeSlider';
 import WaveformScrubber from '../components/WaveformScrubber';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useMusicContext } from '../contexts/MusicContext';
@@ -33,6 +34,8 @@ interface NowPlayingSoundCloudViewProps {
   canSwipeToNext?: boolean;
   onOpenTrackInfo: () => void;
   progressAccent: string;
+  volume: number;
+  onVolumeChange: (value: number) => Promise<void>;
   bottomInset: number;
 }
 
@@ -54,6 +57,8 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   canSwipeToNext = true,
   onOpenTrackInfo,
   progressAccent,
+  volume,
+  onVolumeChange,
   bottomInset,
 }) => {
   const { appearance, theme } = useAppTheme();
@@ -156,6 +161,10 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
             height={116}
           />
         </View>
+
+        <View style={[styles.volumeBox, { backgroundColor: overlayColors.infoBackgroundColor }]}>
+          <VolumeSlider volume={volume} onVolumeChange={onVolumeChange} accentColor={progressAccent} inactiveColor={waveformRestColor} />
+        </View>
       </View>
     </LinearGradient>
   );
@@ -183,7 +192,8 @@ const styles = StyleSheet.create({
   infoText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 16 },
   centerPlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   playBubble: { width: 76, height: 76, borderRadius: 38, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
-  waveformBox: { marginHorizontal: -APP_THEME_TOKENS.spacing.md, marginBottom: APP_THEME_TOKENS.spacing.xl },
+  waveformBox: { marginHorizontal: -APP_THEME_TOKENS.spacing.md, marginBottom: APP_THEME_TOKENS.spacing.md },
+  volumeBox: { borderRadius: APP_THEME_TOKENS.borderRadius.lg, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingVertical: APP_THEME_TOKENS.spacing.xs },
 });
 
 export default NowPlayingSoundCloudView;
