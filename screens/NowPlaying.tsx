@@ -8,6 +8,7 @@ import NowPlayingHeader from './NowPlayingHeader';
 import NowPlayingMenuModal from './NowPlayingMenuModal';
 import NowPlayingSnapPager from './NowPlayingSnapPager';
 import NowPlayingPlayerPanel from './NowPlayingPlayerPanel';
+import NowPlayingSoundCloudView from './NowPlayingSoundCloudView';
 import NowPlayingDetailsPanel from './NowPlayingDetailsPanel';
 import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
@@ -68,32 +69,49 @@ const NowPlayingScreenInner: React.FC = () => {
   }, []);
 
   const renderPlayerPage = useCallback(() => (
-    <NowPlayingPlayerPanel
-      currentSong={currentSong}
-      artworkUri={artworkUri}
-      isPlaying={isPlaying}
-      accent={accent}
-      coverAreaHeight={layoutMetrics.coverAreaHeight}
-      coverSize={layoutMetrics.coverSize}
-      favorite={favorite}
-      favoritePending={favoritePending}
-      onToggleFavorite={toggleFavorite}
-      position={position}
-      duration={duration}
-      onSeek={seekTo}
-      progressAccent={progressAccent}
-      progressAccentDark={progressAccentDark}
-      foregroundOnAccent={foregroundOnAccent}
-      volume={volume}
-      onVolumeChange={setVolume}
-      bottomInset={bottomInset}
-      onOpenTrackInfo={openTrackInfo}
-      controlsMode={controlsMode}
-      onSwipeToNext={swipeToNext}
-      onSwipeToPrevious={swipeToPrevious}
-      canSwipeToNext={canSwipeToNext}
-    />
-  ), [accent, artworkUri, bottomInset, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, canSwipeToNext, toggleFavorite, volume]);
+    controlsMode === 'soundcloud' ? (
+      <NowPlayingSoundCloudView
+        currentSong={currentSong}
+        artworkUri={artworkUri}
+        isPlaying={isPlaying}
+        position={position}
+        duration={duration}
+        onSeek={seekTo}
+        progressAccent={progressAccent}
+        bottomInset={bottomInset}
+        onOpenTrackInfo={openTrackInfo}
+        onSwipeToNext={swipeToNext}
+        onSwipeToPrevious={swipeToPrevious}
+        canSwipeToNext={canSwipeToNext}
+      />
+    ) : (
+      <NowPlayingPlayerPanel
+        currentSong={currentSong}
+        artworkUri={artworkUri}
+        isPlaying={isPlaying}
+        accent={accent}
+        coverAreaHeight={layoutMetrics.coverAreaHeight}
+        coverSize={layoutMetrics.coverSize}
+        favorite={favorite}
+        favoritePending={favoritePending}
+        onToggleFavorite={toggleFavorite}
+        position={position}
+        duration={duration}
+        onSeek={seekTo}
+        progressAccent={progressAccent}
+        progressAccentDark={progressAccentDark}
+        foregroundOnAccent={foregroundOnAccent}
+        volume={volume}
+        onVolumeChange={setVolume}
+        bottomInset={bottomInset}
+        onOpenTrackInfo={openTrackInfo}
+        controlsMode={controlsMode}
+        onSwipeToNext={swipeToNext}
+        onSwipeToPrevious={swipeToPrevious}
+        canSwipeToNext={canSwipeToNext}
+      />
+    )
+  ), [accent, artworkUri, bottomInset, canSwipeToNext, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, toggleFavorite, volume]);
 
   const renderDetailsPage = useCallback(() => (
     <NowPlayingDetailsPanel
