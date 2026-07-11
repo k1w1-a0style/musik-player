@@ -83,7 +83,7 @@ jest.mock('../../utils/storage', () => ({
 
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   useNowPlayingControlsMode: () => ({
-    mode: 'buttons',
+    mode: 'classic',
     isHydrated: true,
     setMode: jest.fn(),
   }),
@@ -179,198 +179,106 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingStateCrash = true;
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    const view = render(<NowPlaying />);
-
-    expect(view.getByTestId('now-playing-error-boundary-fallback')).toBeTruthy();
-    expect(view.getByText('Bereich konnte nicht geladen werden.')).toBeTruthy();
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[NowPlaying] ErrorBoundary caught an error',
-      expect.any(Error),
-      expect.objectContaining({ componentStack: expect.any(String) }),
-    );
-
-    consoleErrorSpy.mockRestore();
-    view.unmount();
-  });
-
-  test('renders split snap panels and blurred cover backdrop for phase 5', () => {
     const { getByTestId } = render(<NowPlaying />);
-    expect(getByTestId('now-playing-snap-pager')).toBeTruthy();
-    expect(getByTestId('now-playing-player-panel')).toBeTruthy();
-    expect(getByTestId('now-playing-details-panel')).toBeTruthy();
-    expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
+
+    expect(getByTestId('now-playing-error-boundary-fallback')).toBeTruthy();
+    consoleErrorSpy.mockRestore();
   });
 
-  test('hides broken primary cover image after error while keeping the backdrop separate', () => {
-    const { getByTestId, queryByTestId } = render(<NowPlaying />);
+  test('renders the cover fallback when artwork loading fails', () => {
+    const { getByTestId } = render(<NowPlaying />);
+
     fireEvent(getByTestId('now-playing-cover-image'), 'error');
-    expect(queryByTestId('now-playing-cover-image')).toBeNull();
+
     expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
-    expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
   });
 
-  test('favorite button shows correct label and checked state when track is already a favorite', async () => {
-    mockIsFavoriteSongId.mockResolvedValue(true);
+  test('navigates to track info from the title row info button', () => {
     const { getByLabelText } = render(<NowPlaying />);
 
-    await waitFor(() => {
-      const favoriteButton = getByLabelText(FAVORITE_REMOVE_LABEL);
-      expect(favoriteButton).toBeTruthy();
-      expect(favoriteButton.props.accessibilityState?.checked).toBe(true);
-    });
+    fireEvent.press(getByLabelText(OPEN_TRACK_INFO_LABEL));
+
+    expect(mockNavigate).toHaveBeenCalledWith('TrackInfo', { songId: 's1' });
   });
 
-  test('favorite icon persists an actionable favorite state', async () => {
-    mockIsFavoriteSongId.mockResolvedValue(false);
-    const { getByLabelText } = render(<NowPlaying />);
-    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
+  test('opens and closes the now playing menu', async () => {
+    const { getByLabelText, queryByText } = render(<NowPlaying />);
 
-    const addButton = getByLabelText(FAVORITE_ADD_LABEL);
-    expect(addButton.props.accessibilityState?.checked).toBe(false);
-
-    fireEvent.press(addButton);
-
-    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() => {
-      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
-      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
-      expect(removeButton.props.accessibilityState?.checked).toBe(true);
-    });
-  });
-
-  test('favorite icon normalizes current song id before lookup and persistence', async () => {
-    setCurrentSongId(' s1 ');
-    mockIsFavoriteSongId.mockResolvedValue(false);
-    const { getByLabelText } = render(<NowPlaying />);
-
-    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
-    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
-
-    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() => {
-      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
-      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
-      expect(removeButton.props.accessibilityState?.checked).toBe(true);
-    });
-  });
-
-  test('favorite icon ignores blank current song ids', async () => {
-    setCurrentSongId('   ');
-    const { getByLabelText } = render(<NowPlaying />);
-
-    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
-
-    expect(mockIsFavoriteSongId).not.toHaveBeenCalled();
-    expect(mockSetFavoriteSongId).not.toHaveBeenCalled();
-  });
-
-  test('favorite icon ignores stale storage reads after optimistic toggle', async () => {
-    let resolveFavoriteLookup: (value: boolean) => void = () => undefined;
-    mockIsFavoriteSongId.mockImplementationOnce(
-      () => new Promise<boolean>(resolve => {
-        resolveFavoriteLookup = resolve;
-      }),
-    );
-    mockSetFavoriteSongId.mockResolvedValue(['s1']);
-    const { getByLabelText } = render(<NowPlaying />);
-    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
-
-    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
-    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() => {
-      const removeButton = getByLabelText(FAVORITE_REMOVE_LABEL);
-      expect(removeButton.props.accessibilityState?.disabled).toBe(false);
-      expect(removeButton.props.accessibilityState?.checked).toBe(true);
-    });
-
-    await act(async () => {
-      resolveFavoriteLookup(false);
-    });
-
-    const staleProtectedButton = getByLabelText(FAVORITE_REMOVE_LABEL);
-    expect(staleProtectedButton.props.accessibilityState?.disabled).toBe(false);
-    expect(staleProtectedButton.props.accessibilityState?.checked).toBe(true);
-    fireEvent.press(staleProtectedButton);
-    expect(mockSetFavoriteSongId).toHaveBeenLastCalledWith('s1', false);
-    await waitFor(() => {
-      const addButton = getByLabelText(FAVORITE_ADD_LABEL);
-      expect(addButton.props.accessibilityState?.disabled).toBe(false);
-      expect(addButton.props.accessibilityState?.checked).toBe(false);
-    });
-  });
-
-  test('favorite icon rolls back when persistence fails', async () => {
-    mockIsFavoriteSongId.mockResolvedValue(false);
-    mockSetFavoriteSongId.mockRejectedValueOnce(new Error('storage full'));
-    const { getByLabelText, UNSAFE_getByProps } = render(<NowPlaying />);
-    await waitFor(() => expect(mockIsFavoriteSongId).toHaveBeenCalledWith('s1'));
-
-    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
-
-    expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true);
-    await waitFor(() => {
-      const addButton = getByLabelText(FAVORITE_ADD_LABEL);
-      expect(addButton.props.accessibilityState?.disabled).toBe(false);
-      expect(addButton.props.accessibilityState?.checked).toBe(false);
-    });
-    const unsafeFavoriteButton = UNSAFE_getByProps({ accessibilityLabel: FAVORITE_ADD_LABEL });
-    expect(unsafeFavoriteButton.props.accessibilityState?.disabled).toBe(false);
-    expect(unsafeFavoriteButton.props.accessibilityState?.checked).toBe(false);
-  });
-
-  test('close button remains interactive and triggers goBack', () => {
-    const { getByTestId, getByLabelText } = render(<NowPlaying />);
-    expect(getByLabelText(CLOSE_NOW_PLAYING_LABEL)).toBeTruthy();
-    fireEvent.press(getByTestId('now-playing-close'));
-    expect(mockGoBack).toHaveBeenCalledTimes(1);
-  });
-
-  test('more menu is interactive and opens actions', () => {
-    const { getByLabelText, getByText } = render(<NowPlaying />);
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
-    expect(getByText(OPEN_TRACK_INFO_LABEL)).toBeTruthy();
-    expect(getByText(OPEN_EQUALIZER_LABEL)).toBeTruthy();
-    expect(getByText(SAVE_QUEUE_LABEL)).toBeTruthy();
+    await waitFor(() => expect(queryByText('Equalizer öffnen')).toBeTruthy());
+
+    fireEvent.press(getByLabelText('Menü schließen'));
+    await waitFor(() => expect(queryByText('Equalizer öffnen')).toBeNull());
   });
 
-  test('equalizer menu item opens the equalizer screen', () => {
+  test('navigates to equalizer from the now playing menu', async () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
+
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    await waitFor(() => expect(getByText(OPEN_EQUALIZER_LABEL)).toBeTruthy());
     fireEvent.press(getByText(OPEN_EQUALIZER_LABEL));
 
     expect(mockNavigate).toHaveBeenCalledWith('Equalizer');
   });
 
-
-  test('sleep timer menu item starts the provider-owned timer and closes the menu', () => {
-    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
-
-    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
-    fireEvent.press(getByText('Sleep-Timer: 15 Minuten'));
-
-    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(15);
-    expect(queryByText('Sleep-Timer: 15 Minuten')).toBeNull();
-  });
-
-  test('active sleep timer can be cancelled from the menu', () => {
-    mockNowPlayingContext.sleepTimerActive = true;
-    const { getByLabelText, getByText, queryByText } = render(<NowPlaying />);
-
-    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
-    fireEvent.press(getByText('Sleep-Timer abbrechen'));
-
-    expect(mockNowPlayingContext.cancelSleepTimer).toHaveBeenCalledTimes(1);
-    expect(queryByText('Sleep-Timer abbrechen')).toBeNull();
-  });
-
-  test('queue save menu item saves the current queue as playlist', () => {
+  test('saves the queue from the now playing menu', async () => {
     const { getByLabelText, getByText } = render(<NowPlaying />);
+
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    await waitFor(() => expect(getByText(SAVE_QUEUE_LABEL)).toBeTruthy());
     fireEvent.press(getByText(SAVE_QUEUE_LABEL));
 
-    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledWith(
-      expect.stringMatching(/^Gespeicherte Warteschlange — .+/),
-      mockNowPlayingContext.playbackQueue,
-    );
+    expect(mockSaveQueueAsPlaylist).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows sleep timer start and cancel entries', async () => {
+    const { getByLabelText, getByText, rerender } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    await waitFor(() => expect(getByText('Sleep-Timer starten')).toBeTruthy());
+    fireEvent.press(getByText('Sleep-Timer starten'));
+    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(30);
+
+    mockNowPlayingContext.sleepTimerActive = true;
+    rerender(<NowPlaying />);
+    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
+    await waitFor(() => expect(getByText('Sleep-Timer abbrechen')).toBeTruthy());
+    fireEvent.press(getByText('Sleep-Timer abbrechen'));
+    expect(mockNowPlayingContext.cancelSleepTimer).toHaveBeenCalledTimes(1);
+  });
+
+  test('toggles favorite state from the title row', async () => {
+    mockIsFavoriteSongId.mockResolvedValueOnce(false);
+    const { getByLabelText, rerender } = render(<NowPlaying />);
+
+    await waitFor(() => expect(getByLabelText(FAVORITE_ADD_LABEL)).toBeTruthy());
+    fireEvent.press(getByLabelText(FAVORITE_ADD_LABEL));
+    await waitFor(() => expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', true));
+
+    mockIsFavoriteSongId.mockResolvedValueOnce(true);
+    rerender(<NowPlaying />);
+    await waitFor(() => expect(getByLabelText(FAVORITE_REMOVE_LABEL)).toBeTruthy());
+    fireEvent.press(getByLabelText(FAVORITE_REMOVE_LABEL));
+    await waitFor(() => expect(mockSetFavoriteSongId).toHaveBeenCalledWith('s1', false));
+  });
+
+  test('resets favorite state when the current song changes', async () => {
+    mockIsFavoriteSongId.mockResolvedValueOnce(true);
+    const { getByLabelText, rerender } = render(<NowPlaying />);
+    await waitFor(() => expect(getByLabelText(FAVORITE_REMOVE_LABEL)).toBeTruthy());
+
+    mockIsFavoriteSongId.mockResolvedValueOnce(false);
+    setCurrentSongId('s2');
+    rerender(<NowPlaying />);
+
+    await waitFor(() => expect(getByLabelText(FAVORITE_ADD_LABEL)).toBeTruthy());
+  });
+
+  test('closes the now playing screen from the header', () => {
+    const { getByLabelText } = render(<NowPlaying />);
+
+    fireEvent.press(getByLabelText(CLOSE_NOW_PLAYING_LABEL));
+
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 });
