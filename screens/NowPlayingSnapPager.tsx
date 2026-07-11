@@ -14,7 +14,6 @@ import { getNowPlayingSnapPagerInactiveDotColor } from '../utils/appThemeOverlay
 export type NowPlayingPageId = 'player' | 'details';
 
 const PAGE_ORDER: readonly NowPlayingPageId[] = ['player', 'details'] as const;
-const SNAP_THRESHOLD = 0.28;
 
 interface NowPlayingSnapPagerProps {
   pageHeight: number;
@@ -31,24 +30,6 @@ interface SnapPage {
 }
 
 const clampPageIndex = (index: number): number => Math.max(0, Math.min(PAGE_ORDER.length - 1, index));
-
-const resolveSnapIndex = ({
-  offsetY,
-  pageHeight,
-  currentIndex,
-}: {
-  offsetY: number;
-  pageHeight: number;
-  currentIndex: number;
-}): number => {
-  if (!Number.isFinite(pageHeight) || pageHeight <= 0) return clampPageIndex(currentIndex);
-  const safeCurrentIndex = clampPageIndex(currentIndex);
-  const currentOffset = safeCurrentIndex * pageHeight;
-  const deltaRatio = (offsetY - currentOffset) / pageHeight;
-  if (deltaRatio > SNAP_THRESHOLD) return clampPageIndex(safeCurrentIndex + 1);
-  if (deltaRatio < -SNAP_THRESHOLD) return clampPageIndex(safeCurrentIndex - 1);
-  return safeCurrentIndex;
-};
 
 const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
   pageHeight,
@@ -78,41 +59,30 @@ const NowPlayingSnapPager: React.FC<NowPlayingSnapPagerProps> = ({
     index,
   }), [effectivePageHeight]);
 
-  const commitPageIndex = useCallback((index: number, animated = true) => {
-    const targetIndex = clampPageIndex(index);
-    const nextPage = PAGE_ORDER[targetIndex] ?? 'player';
-    if (effectivePageHeight > 0) {
-      listRef.current?.scrollToOffset({ offset: targetIndex * effectivePageHeight, animated });
-    }
+  const setPageFromOffset = useCallback((offsetY: number) => {
+    const index = clampPageIndex(Math.round(offsetY / Math.max(1, effectivePageHeight)));
+    const nextPage = PAGE_ORDER[index] ?? 'player';
     if (nextPage !== activePage) {
       setActivePage(nextPage);
       onPageChange?.(nextPage);
     }
   }, [activePage, effectivePageHeight, onPageChange]);
 
-  const settleFromOffset = useCallback((offsetY: number, animated = true) => {
-    const currentIndex = PAGE_ORDER.indexOf(activePage);
-    commitPageIndex(resolveSnapIndex({
-      offsetY,
-      pageHeight: effectivePageHeight,
-      currentIndex,
-    }), animated);
-  }, [activePage, commitPageIndex, effectivePageHeight]);
-
   const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    settleFromOffset(event.nativeEvent.contentOffset.y, true);
-  }, [settleFromOffset]);
+    setPageFromOffset(event.nativeEvent.contentOffset.y);
+  }, [setPageFromOffset]);
 
   const handleScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (effectivePageHeight <= 0) return;
-    settleFromOffset(event.nativeEvent.contentOffset.y, true);
-  }, [effectivePageHeight, settleFromOffset]);
+    const index = clampPageIndex(Math.round(event.nativeEvent.contentOffset.y / Math.max(1, effectivePageHeight)));
+    listRef.current?.scrollToOffset({ offset: index * effectivePageHeight, animated: true });
+  }, [effectivePageHeight]);
 
   const goToPage = useCallback((target: NowPlayingPageId) => {
     const index = PAGE_ORDER.indexOf(target);
     if (index < 0 || effectivePageHeight <= 0) return;
-    commitPageIndex(index, true);
-  }, [commitPageIndex, effectivePageHeight]);
+    listRef.current?.scrollToOffset({ offset: index * effectivePageHeight, animated: true });
+  }, [effectivePageHeight]);
 
   const renderItem = useCallback<ListRenderItem<SnapPage>>(({ item }) => (
     <View style={{ height: effectivePageHeight, width: '100%' }} testID={`now-playing-page-${item.id}`}>
