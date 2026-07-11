@@ -88,6 +88,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               onClose();
             }}
           />
+          <NowPlayingMenuItem label="Menü schließen" onPress={onClose} />
         </View>
       </Pressable>
     </Modal>
