@@ -13,7 +13,7 @@ const mockSong2 = { id: 's2', title: 'Two', artist: 'A' };
 let mockCurrentSong = mockSong;
 let mockPlaybackQueue = [mockSong];
 let mockRepeatMode: 'off' | 'one' | 'all' = 'off';
-let mockControlsMode: 'buttons' | 'coverSwipe' = 'buttons';
+let mockPlayerLayout: 'classic' | 'soundcloud' = 'classic';
 const mockSaveQueueAsPlaylist = jest.fn((name: string, queue: typeof mockPlaybackQueue) =>
   queue.length ? { id: 'pl-1', name, songIds: queue.map((song) => song.id), createdAt: 1 } : null,
 );
@@ -45,7 +45,7 @@ jest.mock('../../contexts/PlaybackProgressContext', () => ({
 
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   useNowPlayingControlsMode: () => ({
-    mode: mockControlsMode,
+    mode: mockPlayerLayout,
     isHydrated: true,
     setMode: jest.fn(),
   }),
@@ -100,7 +100,7 @@ const ScreenStateProbe = () => {
       <Text testID="album-title">{state.albumTitle}</Text>
       <Text testID="position">{state.position}</Text>
       <Text testID="duration">{state.duration}</Text>
-      <Text testID="controls-mode">{state.controlsMode}</Text>
+      <Text testID="player-layout">{state.controlsMode}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
       <Pressable testID="save-queue" onPress={state.saveCurrentQueueAsPlaylist}>
         <Text>Save queue</Text>
@@ -120,7 +120,7 @@ describe('useNowPlayingScreenState', () => {
     mockCurrentSong = mockSong;
     mockPlaybackQueue = [mockSong];
     mockRepeatMode = 'off';
-    mockControlsMode = 'buttons';
+    mockPlayerLayout = 'classic';
     mockSaveQueueAsPlaylist.mockClear();
     mockNext.mockClear();
     mockPrevious.mockClear();
@@ -144,19 +144,19 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('album-title').props.children).toBe('Album');
     expect(getByTestId('position').props.children).toBe(3);
     expect(getByTestId('duration').props.children).toBe(9);
-    expect(getByTestId('controls-mode').props.children).toBe('buttons');
+    expect(getByTestId('player-layout').props.children).toBe('classic');
     expect(getByTestId('can-save-queue').props.children).toBe('true');
   });
 
-  test('exposes the cover swipe mode from settings', () => {
-    mockControlsMode = 'coverSwipe';
+  test('exposes the SoundCloud player layout from settings', () => {
+    mockPlayerLayout = 'soundcloud';
 
     const { getByTestId } = render(<ScreenStateProbe />);
 
-    expect(getByTestId('controls-mode').props.children).toBe('coverSwipe');
+    expect(getByTestId('player-layout').props.children).toBe('soundcloud');
   });
 
-  test('does not call next for a cover swipe when the shared next guard is false', () => {
+  test('does not call next when the shared next guard is false', () => {
     mockCurrentSong = mockSong2;
     mockPlaybackQueue = [mockSong, mockSong2];
 
@@ -167,7 +167,7 @@ describe('useNowPlayingScreenState', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('calls next for a cover swipe when the shared next guard is true', () => {
+  test('calls next when the shared next guard is true', () => {
     mockCurrentSong = mockSong;
     mockPlaybackQueue = [mockSong, mockSong2];
 
@@ -178,7 +178,7 @@ describe('useNowPlayingScreenState', () => {
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 
-  test('keeps previous action available for cover swipes', () => {
+  test('keeps previous action available for future swipe layouts', () => {
     const { getByTestId } = render(<ScreenStateProbe />);
 
     fireEvent.press(getByTestId('swipe-previous'));

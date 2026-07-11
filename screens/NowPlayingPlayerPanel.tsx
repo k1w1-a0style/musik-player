@@ -73,7 +73,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
         isPlaying={isPlaying}
         accent={accent}
         coverSize={coverSize}
-        swipeEnabled={controlsMode === 'coverSwipe'}
+        swipeEnabled={controlsMode === 'soundcloud' && false}
         onSwipeLeft={onSwipeToNext}
         onSwipeRight={onSwipeToPrevious}
         canSwipeLeft={canSwipeToNext}
