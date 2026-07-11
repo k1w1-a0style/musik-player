@@ -121,7 +121,14 @@ const Controls: React.FC<ControlsProps> = ({
   }, [repeatMode, resolvedAccentColor, theme.palette.text.muted]);
 
   const shuffleColor = shuffle ? resolvedAccentColor : theme.palette.text.muted;
-  const canSkipNext = !!currentSong && playbackQueue.length > 1;
+  const currentQueueIndex = currentSong
+    ? playbackQueue.findIndex(item => item.id === currentSong.id)
+    : -1;
+  const canSkipNext = Boolean(
+    currentSong
+    && playbackQueue.length > 1
+    && (repeatMode === 'all' || currentQueueIndex < 0 || currentQueueIndex < playbackQueue.length - 1),
+  );
   const canSkipPrevious = !!currentSong;
 
   return (
