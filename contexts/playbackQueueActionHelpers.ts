@@ -392,6 +392,7 @@ export const runReorderQueueAction = async ({
         nativeQueueRef,
         progress.position,
         context,
+        plan.currentIndex,
       );
       if (!rebuilt || !isCurrent()) return 'stale';
       return 'applied';

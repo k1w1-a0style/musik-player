@@ -8,6 +8,10 @@ const songs: Song[] = [
   { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
   { id: 's3', title: 'Three', artist: 'A', uri: 'file:///s3.mp3' },
 ];
+const longerQueue: Song[] = [
+  ...songs,
+  { id: 's4', title: 'Four', artist: 'A', uri: 'file:///s4.mp3' },
+];
 
 const createSongRef = (current: Song[] = []) => ({ current });
 const createArgs = () => ({
@@ -45,6 +49,29 @@ describe('runReorderQueueAction', () => {
     expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[0], songs[2], songs[1]]);
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(42);
     expect(TrackPlayer.play).toHaveBeenCalled();
+  });
+
+  test('preserves a later active track when rebuilding reordered queues', async () => {
+    const args = createArgs();
+    args.songsRef.current = longerQueue.slice();
+    args.queueContextRef.current = longerQueue.slice();
+    args.baseQueueContextRef.current = longerQueue.slice();
+    args.nativeQueueRef.current = longerQueue.slice();
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's2' });
+
+    await expect(runReorderQueueAction({
+      ...args,
+      fromIndex: 3,
+      toIndex: 2,
+      currentSongId: 's2',
+      shuffle: false,
+      setShuffle: args.setShuffle,
+    })).resolves.toBe(true);
+
+    expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's4', 's3']);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[1]);
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
+    expect(TrackPlayer.seekTo).toHaveBeenCalledWith(42);
   });
 
   test('does not move the current track', async () => {
