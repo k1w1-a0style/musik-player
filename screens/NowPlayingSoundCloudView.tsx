@@ -38,6 +38,7 @@ interface NowPlayingSoundCloudViewProps {
 
 const MIN_HORIZONTAL_SWIPE = 40;
 const HORIZONTAL_DOMINANCE = 1.1;
+const MAX_TAP_DRIFT = 12;
 
 const displayText = (value?: string | null, fallback = '') => value?.trim() || fallback;
 
@@ -64,11 +65,15 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   const waveformRestColor = getNowPlayingWaveformRestColor(appearance);
   const overlayColors = getNowPlayingSoundCloudOverlayColors(appearance);
 
+  const togglePlayback = useCallback(() => {
+    if (currentSong) void togglePlayPause();
+  }, [currentSong, togglePlayPause]);
+
   const rememberStart = useCallback((event: GestureResponderEvent) => {
     startRef.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
   }, []);
 
-  const finishSwipe = useCallback((event: GestureResponderEvent) => {
+  const finishInteraction = useCallback((event: GestureResponderEvent) => {
     const start = startRef.current;
     startRef.current = null;
     if (!start) return;
@@ -77,6 +82,12 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     const dy = event.nativeEvent.pageY - start.y;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
+
+    if (absDx <= MAX_TAP_DRIFT && absDy <= MAX_TAP_DRIFT) {
+      togglePlayback();
+      return;
+    }
+
     if (absDx < MIN_HORIZONTAL_SWIPE || absDx < absDy * HORIZONTAL_DOMINANCE) return;
 
     if (dx < 0) {
@@ -84,11 +95,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     } else {
       onSwipeToPrevious();
     }
-  }, [canSwipeToNext, onSwipeToNext, onSwipeToPrevious]);
-
-  const togglePlayback = useCallback(() => {
-    if (currentSong) void togglePlayPause();
-  }, [currentSong, togglePlayPause]);
+  }, [canSwipeToNext, onSwipeToNext, onSwipeToPrevious, togglePlayback]);
 
   const inner = (
     <LinearGradient
@@ -96,6 +103,9 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
       <View
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
         style={styles.page}
         testID="now-playing-soundcloud-view"
         onStartShouldSetResponder={() => true}
@@ -107,17 +117,9 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
           return dx > 12 && dx > dy;
         }}
         onResponderGrant={rememberStart}
-        onResponderRelease={finishSwipe}
+        onResponderRelease={finishInteraction}
         onResponderTerminate={() => { startRef.current = null; }}
       >
-        <Pressable
-          style={styles.tapLayer}
-          onPress={togglePlayback}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-          testID="soundcloud-play-pause-hitbox"
-        />
-
         <View style={styles.metadata} pointerEvents="box-none">
           <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
           <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
@@ -174,7 +176,6 @@ const styles = StyleSheet.create({
   image: { opacity: 0.98 },
   overlay: { flex: 1 },
   page: { flex: 1, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: APP_THEME_TOKENS.spacing.lg },
-  tapLayer: { ...StyleSheet.absoluteFillObject },
   metadata: { alignItems: 'flex-start', gap: 6 },
   title: { paddingHorizontal: 10, paddingVertical: 5, fontSize: 27, lineHeight: 34, fontFamily: APP_THEME_TOKENS.fonts.heading },
   artist: { paddingHorizontal: 10, paddingVertical: 4, fontSize: 22, fontFamily: APP_THEME_TOKENS.fonts.body },
