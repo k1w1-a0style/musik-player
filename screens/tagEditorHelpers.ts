@@ -241,8 +241,8 @@ export const hasRemovableCover = (song: Song): boolean => {
 };
 
 export const statusMessage = (result: WriteTagsResult): string => {
-  if (result.status === 'written') return 'Metadaten erfolgreich geschrieben.';
-  if (result.status === 'noop') return 'Keine Änderung.';
+  if (result.status === 'written') return 'Metadaten geschrieben. Öffne die Track-Infos erneut, falls alte Werte aus einem Datei-Refresh auftauchen.';
+  if (result.status === 'noop') return 'Keine Änderung geschrieben – die Datei meldete keinen Unterschied.';
   if (result.status === 'rolledBack') return 'Änderung wurde zurückgerollt.';
-  return 'Schreiben blockiert.';
+  return 'Schreiben blockiert oder fehlgeschlagen.';
 };
