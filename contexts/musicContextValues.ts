@@ -46,6 +46,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'previous'
   | 'reorderQueue'
   | 'saveQueueAsPlaylist'
+  | 'repeatMode'
 > & Pick<
   NowPlayingMusicContextValue,
   'sleepTimerActive' | 'startSleepTimer' | 'cancelSleepTimer'
@@ -123,6 +124,7 @@ export const buildNowPlayingMusicContextValue = ({
   previous,
   reorderQueue,
   saveQueueAsPlaylist,
+  repeatMode,
 }: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
   playbackQueue,
   currentSong,
@@ -140,5 +142,6 @@ export const buildNowPlayingMusicContextValue = ({
   previous,
   reorderQueue,
   saveQueueAsPlaylist,
+  repeatMode,
   canSkip: playbackQueue.length > 1,
 });

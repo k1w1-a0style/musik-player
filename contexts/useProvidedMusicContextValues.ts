@@ -50,6 +50,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     setVolume,
     palette,
     saveQueueAsPlaylist,
+    repeatMode,
   } = value;
 
   const libraryValue = useMemo(
@@ -133,6 +134,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         previous,
         reorderQueue,
         saveQueueAsPlaylist,
+        repeatMode,
       }),
     [
       playbackQueue,
@@ -149,6 +151,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       previous,
       reorderQueue,
       saveQueueAsPlaylist,
+      repeatMode,
     ],
   );
 

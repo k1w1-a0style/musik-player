@@ -13,6 +13,7 @@ import { useMusicContext } from '../contexts/MusicContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { RepeatMode } from '../types/Song';
+import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
   off: 'Wiederholung aus',
@@ -121,14 +122,7 @@ const Controls: React.FC<ControlsProps> = ({
   }, [repeatMode, resolvedAccentColor, theme.palette.text.muted]);
 
   const shuffleColor = shuffle ? resolvedAccentColor : theme.palette.text.muted;
-  const currentQueueIndex = currentSong
-    ? playbackQueue.findIndex(item => item.id === currentSong.id)
-    : -1;
-  const canSkipNext = Boolean(
-    currentSong
-    && playbackQueue.length > 1
-    && (repeatMode === 'all' || currentQueueIndex < 0 || currentQueueIndex < playbackQueue.length - 1),
-  );
+  const canSkipNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
   const canSkipPrevious = !!currentSong;
 
   return (

@@ -58,4 +58,28 @@ describe('NowPlayingCoverArtwork', () => {
     expect(card.props.onMoveShouldSetResponder).toEqual(expect.any(Function));
     expect(getByTestId('now-playing-cover-image')).toBeTruthy();
   });
+
+  test('resets instead of finishing a left swipe when left swipes are disabled', () => {
+    const onSwipeLeft = jest.fn();
+    const { getByTestId } = render(
+      <NowPlayingCoverArtwork
+        song={song}
+        isPlaying
+        accent="#123456"
+        coverSize={160}
+        swipeEnabled
+        canSwipeLeft={false}
+        onSwipeLeft={onSwipeLeft}
+      />,
+    );
+
+    const card = getByTestId('now-playing-cover-card');
+    const startEvent = { nativeEvent: { pageX: 100, pageY: 50 } };
+    const endEvent = { nativeEvent: { pageX: 40, pageY: 52 } };
+
+    card.props.onStartShouldSetResponder(startEvent);
+    card.props.onResponderRelease(endEvent);
+
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+  });
 });

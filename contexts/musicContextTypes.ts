@@ -96,5 +96,6 @@ export interface NowPlayingMusicContextValue {
   previous: () => Promise<void>;
   reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
+  repeatMode: RepeatMode;
   canSkip: boolean;
 }

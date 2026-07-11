@@ -30,6 +30,7 @@ interface NowPlayingPlayerPanelProps {
   controlsMode: NowPlayingControlsMode;
   onSwipeToNext: () => void;
   onSwipeToPrevious: () => void;
+  canSwipeToNext?: boolean;
 }
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
@@ -55,6 +56,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   controlsMode,
   onSwipeToNext,
   onSwipeToPrevious,
+  canSwipeToNext = true,
 }) => (
   <ScrollView
     style={styles.playerPage}
@@ -74,6 +76,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
         swipeEnabled={controlsMode === 'coverSwipe'}
         onSwipeLeft={onSwipeToNext}
         onSwipeRight={onSwipeToPrevious}
+        canSwipeLeft={canSwipeToNext}
       />
     </View>
 

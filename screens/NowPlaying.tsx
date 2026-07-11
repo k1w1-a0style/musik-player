@@ -42,6 +42,7 @@ const NowPlayingScreenInner: React.FC = () => {
     controlsMode,
     swipeToNext,
     swipeToPrevious,
+    canSwipeToNext,
     accent,
     gradientColors,
     albumTitle,
@@ -90,8 +91,9 @@ const NowPlayingScreenInner: React.FC = () => {
       controlsMode={controlsMode}
       onSwipeToNext={swipeToNext}
       onSwipeToPrevious={swipeToPrevious}
+      canSwipeToNext={canSwipeToNext}
     />
-  ), [accent, artworkUri, bottomInset, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, toggleFavorite, volume]);
+  ), [accent, artworkUri, bottomInset, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, canSwipeToNext, toggleFavorite, volume]);
 
   const renderDetailsPage = useCallback(() => (
     <NowPlayingDetailsPanel
