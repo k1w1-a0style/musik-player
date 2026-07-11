@@ -1,12 +1,13 @@
 /* istanbul ignore file */
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ImageBackground,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
-  type GestureResponderEvent,
+  type PanResponderGestureState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Info, Pause, Play } from 'lucide-react-native';
@@ -39,11 +40,16 @@ interface NowPlayingSoundCloudViewProps {
   bottomInset: number;
 }
 
-const MIN_HORIZONTAL_SWIPE = 40;
-const HORIZONTAL_DOMINANCE = 1.1;
-const MAX_TAP_DRIFT = 12;
+const MIN_HORIZONTAL_SWIPE = 34;
+const HORIZONTAL_DOMINANCE = 1.05;
 
 const displayText = (value?: string | null, fallback = '') => value?.trim() || fallback;
+
+const isHorizontalTrackSwipe = (gesture: PanResponderGestureState): boolean => {
+  const absDx = Math.abs(gesture.dx);
+  const absDy = Math.abs(gesture.dy);
+  return absDx >= MIN_HORIZONTAL_SWIPE && absDx >= absDy * HORIZONTAL_DOMINANCE;
+};
 
 const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   currentSong,
@@ -64,7 +70,6 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   const { appearance, theme } = useAppTheme();
   const { togglePlayPause } = useMusicContext();
   const { waveform } = useSongWaveform({ song: currentSong, durationMs: duration });
-  const startRef = useRef<{ x: number; y: number } | null>(null);
   const title = displayText(currentSong?.title, 'Unbekannter Titel');
   const artist = displayText(currentSong?.artist, 'Unbekannter Künstler');
   const waveformRestColor = getNowPlayingWaveformRestColor(appearance);
@@ -74,57 +79,30 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     if (currentSong) void togglePlayPause();
   }, [currentSong, togglePlayPause]);
 
-  const rememberStart = useCallback((event: GestureResponderEvent) => {
-    startRef.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
-  }, []);
+  const finishTrackSwipe = useCallback((gesture: PanResponderGestureState) => {
+    if (!isHorizontalTrackSwipe(gesture)) return;
 
-  const finishInteraction = useCallback((event: GestureResponderEvent) => {
-    const start = startRef.current;
-    startRef.current = null;
-    if (!start) return;
-
-    const dx = event.nativeEvent.pageX - start.x;
-    const dy = event.nativeEvent.pageY - start.y;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-
-    if (absDx <= MAX_TAP_DRIFT && absDy <= MAX_TAP_DRIFT) {
-      togglePlayback();
-      return;
-    }
-
-    if (absDx < MIN_HORIZONTAL_SWIPE || absDx < absDy * HORIZONTAL_DOMINANCE) return;
-
-    if (dx < 0) {
+    if (gesture.dx < 0) {
       if (canSwipeToNext) onSwipeToNext();
     } else {
       onSwipeToPrevious();
     }
-  }, [canSwipeToNext, onSwipeToNext, onSwipeToPrevious, togglePlayback]);
+  }, [canSwipeToNext, onSwipeToNext, onSwipeToPrevious]);
+
+  const trackSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => isHorizontalTrackSwipe(gesture),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => isHorizontalTrackSwipe(gesture),
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_event, gesture) => finishTrackSwipe(gesture),
+    onPanResponderTerminate: (_event, gesture) => finishTrackSwipe(gesture),
+  }), [finishTrackSwipe]);
 
   const inner = (
     <LinearGradient
       colors={overlayColors.gradient}
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
-      <View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-        style={styles.page}
-        testID="now-playing-soundcloud-view"
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={event => {
-          const start = startRef.current;
-          if (!start) return false;
-          const dx = Math.abs(event.nativeEvent.pageX - start.x);
-          const dy = Math.abs(event.nativeEvent.pageY - start.y);
-          return dx > 12 && dx > dy;
-        }}
-        onResponderGrant={rememberStart}
-        onResponderRelease={finishInteraction}
-        onResponderTerminate={() => { startRef.current = null; }}
-      >
+      <View style={styles.page} testID="now-playing-soundcloud-view">
         <View style={styles.metadata} pointerEvents="box-none">
           <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
           <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
@@ -140,7 +118,14 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
           </Pressable>
         </View>
 
-        <View style={styles.centerPlay} pointerEvents="none">
+        <Pressable
+          {...trackSwipeResponder.panHandlers}
+          style={styles.centerPlay}
+          onPress={togglePlayback}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
+          testID="soundcloud-play-pause-hitbox"
+        >
           <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
             {isPlaying ? (
               <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
@@ -148,7 +133,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
               <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
             )}
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.waveformBox}>
           <WaveformScrubber
@@ -162,7 +147,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
           />
         </View>
 
-        <View style={[styles.volumeBox, { backgroundColor: overlayColors.infoBackgroundColor }]}>
+        <View style={[styles.volumeBox, { backgroundColor: overlayColors.infoBackgroundColor }]}> 
           <VolumeSlider volume={volume} onVolumeChange={onVolumeChange} accentColor={progressAccent} inactiveColor={waveformRestColor} />
         </View>
       </View>
