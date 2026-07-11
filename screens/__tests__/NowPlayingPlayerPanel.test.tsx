@@ -99,20 +99,20 @@ describe('NowPlayingPlayerPanel', () => {
     mockCoverProps.length = 0;
   });
 
-  test('renders the player ScrollView with Android nested scrolling enabled', () => {
+  test('renders as a fixed classic panel so the outer snap pager owns vertical scrolling', () => {
     const { getByTestId } = renderPanel();
     const playerPanel = getByTestId('now-playing-player-panel');
 
-    expect(playerPanel.props.nestedScrollEnabled).toBe(true);
-    expect(playerPanel.props.bounces).toBe(false);
-    expect(playerPanel.props.showsVerticalScrollIndicator).toBe(false);
+    expect(playerPanel.props.nestedScrollEnabled).toBeUndefined();
+    expect(playerPanel.props.bounces).toBeUndefined();
+    expect(playerPanel.props.showsVerticalScrollIndicator).toBeUndefined();
   });
 
-  test('keeps content container style and renders bottom controls', () => {
+  test('renders bottom controls without a nested content container', () => {
     const { getByTestId } = renderPanel();
     const playerPanel = getByTestId('now-playing-player-panel');
 
-    expect(playerPanel.props.contentContainerStyle).toBeTruthy();
+    expect(playerPanel.props.contentContainerStyle).toBeUndefined();
     expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
   });
 
