@@ -16,7 +16,10 @@ import { useMusicContext } from '../contexts/MusicContext';
 import { useSongWaveform } from '../hooks/useSongWaveform';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
-import { getNowPlayingWaveformRestColor } from '../utils/appThemeOverlays';
+import {
+  getNowPlayingSoundCloudOverlayColors,
+  getNowPlayingWaveformRestColor,
+} from '../utils/appThemeOverlays';
 
 interface NowPlayingSoundCloudViewProps {
   currentSong: Song | null;
@@ -59,6 +62,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   const title = displayText(currentSong?.title, 'Unbekannter Titel');
   const artist = displayText(currentSong?.artist, 'Unbekannter Künstler');
   const waveformRestColor = getNowPlayingWaveformRestColor(appearance);
+  const overlayColors = getNowPlayingSoundCloudOverlayColors(appearance);
 
   const rememberStart = useCallback((event: GestureResponderEvent) => {
     startRef.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
@@ -88,7 +92,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
 
   const inner = (
     <LinearGradient
-      colors={['rgba(0,0,0,0.72)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)']}
+      colors={overlayColors.gradient}
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
       <View
@@ -115,10 +119,10 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
         />
 
         <View style={styles.metadata} pointerEvents="box-none">
-          <Text style={[styles.title, { color: theme.palette.text.primary }]} numberOfLines={2}>{title}</Text>
-          <Text style={[styles.artist, { color: theme.palette.text.secondary }]} numberOfLines={1}>{artist}</Text>
+          <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
+          <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
           <Pressable
-            style={styles.infoButton}
+            style={[styles.infoButton, { backgroundColor: overlayColors.infoBackgroundColor }]}
             onPress={onOpenTrackInfo}
             accessibilityRole="button"
             accessibilityLabel="Infos zu diesem Track"
@@ -130,7 +134,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
         </View>
 
         <View style={styles.centerPlay} pointerEvents="none">
-          <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong }]}> 
+          <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
             {isPlaying ? (
               <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
             ) : (
@@ -172,12 +176,12 @@ const styles = StyleSheet.create({
   page: { flex: 1, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: APP_THEME_TOKENS.spacing.lg },
   tapLayer: { ...StyleSheet.absoluteFillObject },
   metadata: { alignItems: 'flex-start', gap: 6 },
-  title: { backgroundColor: 'rgba(0,0,0,0.78)', paddingHorizontal: 10, paddingVertical: 5, fontSize: 27, lineHeight: 34, fontFamily: APP_THEME_TOKENS.fonts.heading },
-  artist: { backgroundColor: 'rgba(0,0,0,0.68)', paddingHorizontal: 10, paddingVertical: 4, fontSize: 22, fontFamily: APP_THEME_TOKENS.fonts.body },
-  infoButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.68)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4 },
+  title: { paddingHorizontal: 10, paddingVertical: 5, fontSize: 27, lineHeight: 34, fontFamily: APP_THEME_TOKENS.fonts.heading },
+  artist: { paddingHorizontal: 10, paddingVertical: 4, fontSize: 22, fontFamily: APP_THEME_TOKENS.fonts.body },
+  infoButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4 },
   infoText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 16 },
   centerPlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  playBubble: { width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(0,0,0,0.46)', borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  playBubble: { width: 76, height: 76, borderRadius: 38, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   waveformBox: { marginHorizontal: -APP_THEME_TOKENS.spacing.md, marginBottom: APP_THEME_TOKENS.spacing.xl },
 });
 
