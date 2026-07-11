@@ -88,7 +88,7 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayer
     onVolumeChange={jest.fn(async () => undefined)}
     bottomInset={0}
     onOpenTrackInfo={jest.fn()}
-    controlsMode={props.controlsMode ?? 'buttons'}
+    controlsMode={props.controlsMode ?? 'classic'}
     onSwipeToNext={props.onSwipeToNext ?? jest.fn()}
     onSwipeToPrevious={props.onSwipeToPrevious ?? jest.fn()}
   />,
@@ -116,22 +116,15 @@ describe('NowPlayingPlayerPanel', () => {
     expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
   });
 
-  test('keeps cover swipe disabled while button mode is selected', () => {
-    renderPanel({ controlsMode: 'buttons' });
+  test('keeps cover swipe disabled in the classic player layout', () => {
+    renderPanel({ controlsMode: 'classic' });
 
     expect(mockCoverProps[0].swipeEnabled).toBe(false);
   });
 
-  test('enables cover swipe and forwards swipe handlers in cover swipe mode', () => {
-    const onSwipeToNext = jest.fn();
-    const onSwipeToPrevious = jest.fn();
+  test('does not enable cover swipe in the placeholder SoundCloud layout yet', () => {
+    renderPanel({ controlsMode: 'soundcloud' });
 
-    renderPanel({ controlsMode: 'coverSwipe', onSwipeToNext, onSwipeToPrevious });
-
-    expect(mockCoverProps[0].swipeEnabled).toBe(true);
-    mockCoverProps[0].onSwipeLeft?.();
-    mockCoverProps[0].onSwipeRight?.();
-    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
-    expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
+    expect(mockCoverProps[0].swipeEnabled).toBeFalsy();
   });
 });
