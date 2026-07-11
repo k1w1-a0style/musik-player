@@ -61,6 +61,13 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               onClose();
             }}
           />
+          <NowPlayingMenuItem
+            label="Sleep-Timer starten"
+            onPress={() => {
+              onStartSleepTimer(30);
+              onClose();
+            }}
+          />
 
           {[15, 30, 45, 60].map(minutes => (
             <NowPlayingMenuItem
