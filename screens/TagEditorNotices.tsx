@@ -18,6 +18,8 @@ const TagEditorNotices: React.FC<TagEditorNoticesProps> = ({
   const { theme } = useAppTheme();
   const warningBoxColors = getTagEditorWarningBoxColors(theme.appearance);
   const warningBoxStyle = [styles.warningBox, warningBoxColors];
+  const warningMessage = blockedReasonMessage ?? capabilityMessage;
+  const infoMessage = safetyMessage && safetyMessage !== warningMessage ? safetyMessage : undefined;
   const infoBoxStyle = [
     styles.infoBox,
     {
@@ -28,19 +30,14 @@ const TagEditorNotices: React.FC<TagEditorNoticesProps> = ({
 
   return (
     <>
-      {!!capabilityMessage && (
+      {!!warningMessage && (
         <View style={warningBoxStyle}>
-          <Text style={[styles.warning, { color: theme.palette.error }]}>{capabilityMessage}</Text>
+          <Text style={[styles.warning, { color: theme.palette.error }]}>{warningMessage}</Text>
         </View>
       )}
-      {!!blockedReasonMessage && (
-        <View style={warningBoxStyle}>
-          <Text style={[styles.warning, { color: theme.palette.error }]}>{blockedReasonMessage}</Text>
-        </View>
-      )}
-      {!!safetyMessage && (
+      {!!infoMessage && (
         <View style={infoBoxStyle}>
-          <Text style={[styles.infoText, { color: theme.palette.text.secondary }]}>{safetyMessage}</Text>
+          <Text style={[styles.infoText, { color: theme.palette.text.secondary }]}>{infoMessage}</Text>
         </View>
       )}
     </>
