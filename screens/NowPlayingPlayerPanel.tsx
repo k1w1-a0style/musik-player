@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
 import type { NowPlayingControlsMode } from '../utils/nowPlayingControlsMode';
 import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
@@ -58,14 +58,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onSwipeToPrevious: _onSwipeToPrevious,
   canSwipeToNext: _canSwipeToNext = true,
 }) => (
-  <ScrollView
-    style={styles.playerPage}
-    contentContainerStyle={styles.playerContent}
-    bounces={false}
-    nestedScrollEnabled
-    showsVerticalScrollIndicator={false}
-    testID="now-playing-player-panel"
-  >
+  <View style={styles.playerPage} testID="now-playing-player-panel">
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
         song={currentSong}
@@ -103,12 +96,11 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
         accentColor={progressAccent}
       />
     </View>
-  </ScrollView>
+  </View>
 );
 
 const styles = StyleSheet.create({
-  playerPage: { flex: 1 },
-  playerContent: { flexGrow: 1, justifyContent: 'space-between' },
+  playerPage: { flex: 1, justifyContent: 'space-between' },
   coverArea: { alignItems: 'center', justifyContent: 'center', marginTop: 0 },
   fixedControlsArea: { width: '100%' },
 });

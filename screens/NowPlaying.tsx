@@ -78,6 +78,8 @@ const NowPlayingScreenInner: React.FC = () => {
         duration={duration}
         onSeek={seekTo}
         progressAccent={progressAccent}
+        volume={volume}
+        onVolumeChange={setVolume}
         bottomInset={bottomInset}
         onOpenTrackInfo={openTrackInfo}
         onSwipeToNext={swipeToNext}
