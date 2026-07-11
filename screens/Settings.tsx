@@ -11,15 +11,15 @@ import {
   type AppThemeSkin,
 } from '../utils/appTheme';
 import {
-  NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS,
-  NOW_PLAYING_CONTROLS_MODE_LABELS,
-  NOW_PLAYING_CONTROLS_MODES,
-  type NowPlayingControlsMode,
+  NOW_PLAYING_PLAYER_LAYOUT_DESCRIPTIONS,
+  NOW_PLAYING_PLAYER_LAYOUT_LABELS,
+  NOW_PLAYING_PLAYER_LAYOUTS,
+  type NowPlayingPlayerLayout,
 } from '../utils/nowPlayingControlsMode';
 
 const Settings: React.FC = () => {
   const { appearance, skin, theme, setAppearance, setSkin } = useAppTheme();
-  const { mode: nowPlayingControlsMode, setMode: setNowPlayingControlsMode } = useNowPlayingControlsMode();
+  const { mode: nowPlayingPlayerLayout, setMode: setNowPlayingPlayerLayout } = useNowPlayingControlsMode();
   const { fonts, radii, spacing } = theme.tokens;
 
   const optionTokenStyle = {
@@ -90,16 +90,16 @@ const Settings: React.FC = () => {
     );
   };
 
-  const renderNowPlayingControlsOption = (option: NowPlayingControlsMode) => {
-    const selected = option === nowPlayingControlsMode;
+  const renderNowPlayingPlayerLayoutOption = (option: NowPlayingPlayerLayout) => {
+    const selected = option === nowPlayingPlayerLayout;
     return (
       <Pressable
         key={option}
-        testID={`settings-now-playing-controls-${option}`}
+        testID={`settings-player-layout-${option}`}
         accessibilityRole="button"
-        accessibilityLabel={`Player-Bedienung ${NOW_PLAYING_CONTROLS_MODE_LABELS[option]}`}
+        accessibilityLabel={`Player-Ansicht ${NOW_PLAYING_PLAYER_LAYOUT_LABELS[option]}`}
         accessibilityState={{ selected }}
-        onPress={() => setNowPlayingControlsMode(option)}
+        onPress={() => setNowPlayingPlayerLayout(option)}
         style={[
           styles.option,
           optionTokenStyle,
@@ -109,8 +109,8 @@ const Settings: React.FC = () => {
           },
         ]}
       >
-        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{NOW_PLAYING_CONTROLS_MODE_LABELS[option]}</Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>{NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS[option]}</Text>
+        <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{NOW_PLAYING_PLAYER_LAYOUT_LABELS[option]}</Text>
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>{NOW_PLAYING_PLAYER_LAYOUT_DESCRIPTIONS[option]}</Text>
       </Pressable>
     );
   };
@@ -123,7 +123,7 @@ const Settings: React.FC = () => {
       >
         <Text style={[styles.header, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Einstellungen</Text>
         <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
-          Wähle Darstellung und Oberfläche. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
+          Wähle Darstellung, Oberfläche und Player-Ansicht. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
         </Text>
 
         <View style={[styles.section, sectionTokenStyle]}>
@@ -137,8 +137,8 @@ const Settings: React.FC = () => {
         </View>
 
         <View style={[styles.section, sectionTokenStyle]}>
-          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Bedienung</Text>
-          {NOW_PLAYING_CONTROLS_MODES.map(renderNowPlayingControlsOption)}
+          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
+          {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
 
         <View
