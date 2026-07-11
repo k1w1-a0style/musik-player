@@ -118,22 +118,23 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
           </Pressable>
         </View>
 
-        <Pressable
-          {...trackSwipeResponder.panHandlers}
-          style={styles.centerPlay}
-          onPress={togglePlayback}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-          testID="soundcloud-play-pause-hitbox"
-        >
-          <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
-            {isPlaying ? (
-              <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
-            ) : (
-              <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
-            )}
-          </View>
-        </Pressable>
+        <View style={styles.centerPlay} {...trackSwipeResponder.panHandlers}>
+          <Pressable
+            style={styles.playHitbox}
+            onPress={togglePlayback}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
+            testID="soundcloud-play-pause-hitbox"
+          >
+            <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
+              {isPlaying ? (
+                <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
+              ) : (
+                <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
+              )}
+            </View>
+          </Pressable>
+        </View>
 
         <View style={styles.waveformBox}>
           <WaveformScrubber
@@ -175,7 +176,8 @@ const styles = StyleSheet.create({
   artist: { paddingHorizontal: 10, paddingVertical: 4, fontSize: 22, fontFamily: APP_THEME_TOKENS.fonts.body },
   infoButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4 },
   infoText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 16 },
-  centerPlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centerPlay: { flex: 1 },
+  playHitbox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   playBubble: { width: 76, height: 76, borderRadius: 38, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   waveformBox: { marginHorizontal: -APP_THEME_TOKENS.spacing.md, marginBottom: APP_THEME_TOKENS.spacing.md },
   volumeBox: { borderRadius: APP_THEME_TOKENS.borderRadius.lg, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingVertical: APP_THEME_TOKENS.spacing.xs },
