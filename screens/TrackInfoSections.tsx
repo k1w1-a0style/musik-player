@@ -12,9 +12,6 @@ import {
   formatCoverStatus,
   formatDuration,
   formatSampleRate,
-  getTrackInfoAlbum,
-  getTrackInfoAlbumArtist,
-  getTrackInfoArtist,
   getTrackInfoCodec,
   getTrackInfoContainer,
   getTrackInfoDurationMs,
@@ -34,6 +31,15 @@ interface TrackInfoSectionsProps {
   importedAt: string;
 }
 
+const hasTagValue = (value?: string | number): boolean => {
+  if (typeof value === 'number') return Number.isFinite(value);
+  return Boolean(value?.trim());
+};
+
+const OptionalTagRow = ({ label, value, long = false }: { label: string; value?: string | number; long?: boolean }) => (
+  hasTagValue(value) ? <TrackInfoRow label={label} value={valueOrNA(value)} long={long} /> : null
+);
+
 const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   song,
   coverUri,
@@ -50,14 +56,14 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
     <>
       <Text style={sectionStyle}>Basis</Text>
       <TrackInfoRow label="Titel" value={getTrackInfoTitle(song)} />
-      <TrackInfoRow label="Künstler" value={getTrackInfoArtist(song)} />
-      <TrackInfoRow label="Album" value={getTrackInfoAlbum(song)} />
-      <TrackInfoRow label="Album-Künstler" value={getTrackInfoAlbumArtist(song)} />
-      <TrackInfoRow label="Jahr" value={valueOrNA(song.year)} />
-      <TrackInfoRow label="Genre" value={valueOrNA(song.genre)} />
-      <TrackInfoRow label="Tracknummer" value={valueOrNA(song.trackNumber)} />
-      <TrackInfoRow label="Discnummer" value={valueOrNA(song.discNumber)} />
-      <TrackInfoRow label="Kommentar" value={valueOrNA(song.comment)} long />
+      <TrackInfoRow label="Künstler" value={valueOrNA(song.artist)} />
+      <OptionalTagRow label="Album" value={song.album} />
+      <OptionalTagRow label="Album-Künstler" value={song.albumArtist} />
+      <OptionalTagRow label="Jahr" value={song.year} />
+      <OptionalTagRow label="Genre" value={song.genre} />
+      <OptionalTagRow label="Tracknummer" value={song.trackNumber} />
+      <OptionalTagRow label="Discnummer" value={song.discNumber} />
+      <OptionalTagRow label="Kommentar" value={song.comment} long />
       <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
 
       <Text style={sectionStyle}>Datei</Text>
