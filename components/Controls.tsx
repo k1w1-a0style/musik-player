@@ -63,7 +63,7 @@ const PressScale: React.FC<PressScaleProps> = ({
           height: size,
           borderRadius: size / 2,
           backgroundColor: primary
-            ? theme.palette.surfaceGlass
+            ? accentColor ?? theme.palette.primary
             : active
               ? theme.palette.primaryGlow
               : theme.palette.surfaceGlass,
@@ -97,7 +97,7 @@ const Controls: React.FC<ControlsProps> = ({
   const { theme } = useAppTheme();
   const resolvedAccentColor = accentColor ?? theme.palette.primary;
   const resolvedAccentDarkColor = accentDarkColor ?? theme.palette.primaryDark;
-  const resolvedOnAccentColor = onAccentColor ?? resolvedAccentColor;
+  const resolvedOnAccentColor = onAccentColor ?? theme.palette.text.onPrimary;
 
   const {
     isPlaying,
@@ -121,7 +121,14 @@ const Controls: React.FC<ControlsProps> = ({
   }, [repeatMode, resolvedAccentColor, theme.palette.text.muted]);
 
   const shuffleColor = shuffle ? resolvedAccentColor : theme.palette.text.muted;
-  const canSkipNext = !!currentSong && playbackQueue.length > 1;
+  const currentQueueIndex = currentSong
+    ? playbackQueue.findIndex(item => item.id === currentSong.id)
+    : -1;
+  const canSkipNext = Boolean(
+    currentSong
+    && playbackQueue.length > 1
+    && (repeatMode === 'all' || currentQueueIndex < 0 || currentQueueIndex < playbackQueue.length - 1),
+  );
   const canSkipPrevious = !!currentSong;
 
   return (

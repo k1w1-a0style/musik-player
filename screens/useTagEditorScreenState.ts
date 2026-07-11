@@ -45,6 +45,8 @@ export const useTagEditorScreenState = () => {
     capability,
     hasCover,
     canSave,
+    canWriteCover,
+    coverCapabilityMessage,
     capabilityMessage,
     blockedReasonMessage,
     safetyMessage,
@@ -52,7 +54,7 @@ export const useTagEditorScreenState = () => {
 
   const handlePickCover = useTagEditorCoverFlow({
     song,
-    canWrite: capability.canWrite,
+    canWrite: canWriteCover,
     saving,
     beginCoverFlow,
     isCoverFlowStale,
@@ -84,6 +86,8 @@ export const useTagEditorScreenState = () => {
     capability,
     hasCover,
     canSave,
+    canWriteCover,
+    coverCapabilityMessage,
     capabilityMessage,
     blockedReasonMessage,
     safetyMessage,

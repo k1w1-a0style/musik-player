@@ -25,8 +25,23 @@ interface UseSongWaveformOptions {
  * differences with container + reason context without spamming production or
  * normal fallback-only devices.
  */
-const logWaveformDecision = (diagnostics: WaveformSourceDiagnostics): void => {
+const loggedWaveformDecisionKeys = new Set<string>();
+
+export const resetWaveformDecisionLogThrottleForTests = (): void => {
+  loggedWaveformDecisionKeys.clear();
+};
+
+const getWaveformDecisionLogKey = (diagnostics: WaveformSourceDiagnostics): string => [
+  diagnostics.source,
+  diagnostics.decision,
+  diagnostics.container ?? 'unknown',
+].join('|');
+
+export const logWaveformDecision = (diagnostics: WaveformSourceDiagnostics): void => {
   if (typeof __DEV__ !== 'undefined' && __DEV__ && isNativeWaveformRejectionNoteworthy(diagnostics.decision)) {
+    const key = getWaveformDecisionLogKey(diagnostics);
+    if (loggedWaveformDecisionKeys.has(key)) return;
+    loggedWaveformDecisionKeys.add(key);
     // eslint-disable-next-line no-console
     console.info(describeWaveformDecision(diagnostics));
   }

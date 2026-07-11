@@ -174,8 +174,9 @@ describe('playbackQueueActionHelpers', () => {
     await runPlaySongQueueAction({ ...args, song: songs[1] });
 
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[1]);
-    expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[1], songs[2], songs[0]]);
-    expect(args.nativeQueueRef.current).toEqual([songs[1], songs[2], songs[0]]);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[0], songs[1], songs[2]]);
+    expect(args.nativeQueueRef.current).toEqual([songs[0], songs[1], songs[2]]);
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s2');
@@ -238,7 +239,7 @@ describe('playbackQueueActionHelpers', () => {
 
     expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
     expect(args.baseQueueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's3']);
-    expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s3', 's1', 's2']);
+    expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's3']);
   });
 
 

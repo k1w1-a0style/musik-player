@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import { asPlayableSong, isPlayableSong, toPlayableSongs, type PlayableSong } from './playableSong';
-import { hasSameCircularOrderedSongIds, rotateQueueFromIndex } from './playbackQueue';
+import { hasSameOrderedSongIds } from './playbackQueue';
 
 export interface PlaySongQueuePlan {
   requestedSong: PlayableSong;
@@ -97,23 +97,15 @@ export const buildPlaySongQueuePlan = (
   const playableNativeQueue = normalizePlayableQueue(nativeQueue);
   const nativeIndex = playableNativeQueue.findIndex(item => item.id === requestedSong.id);
   const canReuseNativeQueue =
-    nativeIndex >= 0 && hasSameCircularOrderedSongIds(playableNativeQueue, queueWithRequested);
+    nativeIndex >= 0 && hasSameOrderedSongIds(playableNativeQueue, queueWithRequested);
 
   return {
     requestedSong,
     queueWithRequested,
     nativeIndex,
     canReuseNativeQueue,
-    reusableOrderedQueue: canReuseNativeQueue
-      ? toPlayableSongs(rotateQueueFromIndex(
-        queueWithRequested,
-        requestedIndex >= 0 ? requestedIndex : 0,
-      ))
-      : [],
-    rebuildOrderedQueue: toPlayableSongs(rotateQueueFromIndex(
-      queueWithRequested,
-      requestedIndex >= 0 ? requestedIndex : 0,
-    )),
+    reusableOrderedQueue: canReuseNativeQueue ? toPlayableSongs(queueWithRequested) : [],
+    rebuildOrderedQueue: toPlayableSongs(queueWithRequested),
   };
 };
 
@@ -162,13 +154,7 @@ export const buildShuffleTogglePlan = ({
   }
 
   const restoreQueue = playableBaseQueue.length > 0 ? playableBaseQueue : playableCurrentQueue;
-  const currentIndex = normalizedCurrentSongId
-    ? restoreQueue.findIndex(song => song.id === normalizedCurrentSongId)
-    : -1;
-  const nextQueueRaw = currentIndex >= 0
-    ? rotateQueueFromIndex(restoreQueue, currentIndex)
-    : restoreQueue.slice();
-  const nextQueue = toPlayableSongs(nextQueueRaw);
+  const nextQueue = toPlayableSongs(restoreQueue.slice());
 
   return {
     nextQueue,

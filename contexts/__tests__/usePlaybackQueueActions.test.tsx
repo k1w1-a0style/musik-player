@@ -77,8 +77,8 @@ describe('usePlaybackQueueActions', () => {
     });
 
     await waitFor(() => expect(getByTestId('current').props.children).toBe('s2'));
-    expect(getByTestId('queue').props.children).toBe('s2,s3,s1');
-    expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s2', 's3', 's1']);
+    expect(getByTestId('queue').props.children).toBe('s1,s2,s3');
+    expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s1', 's2', 's3']);
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe('usePlaybackQueueActions', () => {
 
     await waitFor(() => expect(getByTestId('shuffle').props.children).toBe('false'));
     expect(getByTestId('current').props.children).toBe('s2');
-    expect(getByTestId('queue').props.children).toBe('s2,s3,s1');
-    expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s2', 's3', 's1']);
+    expect(getByTestId('queue').props.children).toBe('s1,s2,s3');
+    expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s1', 's2', 's3']);
   });
 });

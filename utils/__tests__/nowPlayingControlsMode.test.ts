@@ -26,7 +26,8 @@ test('has labels and descriptions for every player mode', () => {
 });
 
 test('describes cover swipe as an available gesture', () => {
+  expect(NOW_PLAYING_CONTROLS_MODE_LABELS.coverSwipe).toBe('Cover zusätzlich wischen');
   expect(NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS.coverSwipe).toBe(
-    'Wische auf dem Cover nach links oder rechts, um den Titel zu wechseln; Player und Steuerung bleiben an Ort und Stelle.',
+    'Wische zusätzlich auf dem Cover nach links oder rechts, um den Titel zu wechseln; die Buttons bleiben als Alternative sichtbar.',
   );
 });

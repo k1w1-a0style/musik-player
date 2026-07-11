@@ -13,6 +13,7 @@ interface TagEditorCoverControlsProps {
   replacementCover: PickedTagCover | null;
   onToggleRemoveCover: () => void;
   onPickCover: () => void;
+  unsupportedMessage?: string;
 }
 
 const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
@@ -24,6 +25,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
   replacementCover,
   onToggleRemoveCover,
   onPickCover,
+  unsupportedMessage,
 }) => {
   const { theme } = useAppTheme();
   const hasReplacementCover = Boolean(replacementCover);
@@ -125,7 +127,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
           Cover auswählen: {hasReplacementCover ? 'Ausgewählt' : 'JPG/PNG'}
         </Text>
         <Text style={[styles.helperText, { color: theme.palette.text.secondary }]}>
-          Maximal 5 MB. Ein neues Cover ersetzt ein bestehendes Cover beim Speichern.
+          {unsupportedMessage ?? 'Maximal 5 MB. Ein neues Cover ersetzt ein bestehendes Cover beim Speichern.'}
         </Text>
       </Pressable>
     </>

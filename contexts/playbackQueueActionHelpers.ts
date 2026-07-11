@@ -163,6 +163,7 @@ export const rebuildNativePlaybackQueueUnlocked = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
   replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent'>,
+  startIndex = 0,
 ): Promise<boolean> => {
   const isCurrent = replacementContext?.isCurrent ?? (() => true);
 
@@ -173,6 +174,12 @@ export const rebuildNativePlaybackQueueUnlocked = async (
 
   if (queue.length > 0) {
     await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    if (!isCurrent()) return false;
+  }
+
+  const safeStartIndex = Number.isInteger(startIndex) && startIndex > 0 && startIndex < queue.length ? startIndex : 0;
+  if (safeStartIndex > 0) {
+    await TrackPlayer.skip(safeStartIndex);
     if (!isCurrent()) return false;
   }
 
@@ -194,8 +201,9 @@ export const rebuildNativePlaybackQueue = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
+  startIndex = 0,
 ): Promise<void> => runExclusiveNativeQueueReplacement(async context => {
-  const rebuilt = await rebuildNativePlaybackQueueUnlocked(queue, nativeQueueRef, resumePositionSeconds, context);
+  const rebuilt = await rebuildNativePlaybackQueueUnlocked(queue, nativeQueueRef, resumePositionSeconds, context, startIndex);
   if (!rebuilt) throw new NativeQueueReplacementStaleError();
 });
 
@@ -247,7 +255,8 @@ export const runPlaySongQueueAction = async ({
   }
 
   const orderedQueue = plan.rebuildOrderedQueue;
-  await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef);
+  const orderedStartIndex = orderedQueue.findIndex(item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id));
+  await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef, undefined, orderedStartIndex);
   applyPlaybackQueueState({
     queueContextRef,
     baseQueueContextRef,
@@ -383,6 +392,7 @@ export const runReorderQueueAction = async ({
         nativeQueueRef,
         progress.position,
         context,
+        plan.currentIndex,
       );
       if (!rebuilt || !isCurrent()) return 'stale';
       return 'applied';
@@ -448,11 +458,13 @@ export const runShuffleQueueAction = async ({
     if (!isCurrent()) return 'stale';
 
     const { nextQueue, nextBaseQueue, selectedSong } = plan;
+    const selectedIndex = selectedSong ? nextQueue.findIndex(song => normalizeSongId(song.id) === normalizeSongId(selectedSong.id)) : 0;
     const rebuilt = await rebuildNativePlaybackQueueUnlocked(
       nextQueue,
       nativeQueueRef,
       pos.position,
       context,
+      selectedIndex,
     );
     if (!rebuilt || !isCurrent()) return 'stale';
 
