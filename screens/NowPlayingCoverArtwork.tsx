@@ -76,7 +76,7 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
     });
   }, [coverSize, onSwipeLeft, onSwipeRight, resetCover, translateX]);
 
-  const handleResponderGrant = useCallback((event: GestureResponderEvent) => {
+  const recordTouchStart = useCallback((event: GestureResponderEvent) => {
     startXRef.current = getPageX(event);
     startYRef.current = getPageY(event);
   }, []);
@@ -100,17 +100,23 @@ const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = ({
     finishSwipe(dx);
   }, [finishSwipe, resetCover, swipeEnabled]);
 
-  const shouldSetResponder = useCallback((event: GestureResponderEvent) => (
-    swipeEnabled
-    && Math.abs(getPageX(event) - startXRef.current) > MOVE_THRESHOLD
-    && Math.abs(getPageX(event) - startXRef.current) > Math.abs(getPageY(event) - startYRef.current)
-  ), [swipeEnabled]);
+  const shouldSetResponder = useCallback((event: GestureResponderEvent) => {
+    const dx = getPageX(event) - startXRef.current;
+    const dy = getPageY(event) - startYRef.current;
+    return (
+      swipeEnabled
+      && Math.abs(dx) > MOVE_THRESHOLD
+      && Math.abs(dx) > Math.abs(dy)
+    );
+  }, [swipeEnabled]);
 
   const responderProps = swipeEnabled
     ? {
-        onStartShouldSetResponder: () => true,
+        onStartShouldSetResponder: (event: GestureResponderEvent) => {
+          recordTouchStart(event);
+          return false;
+        },
         onMoveShouldSetResponder: shouldSetResponder,
-        onResponderGrant: handleResponderGrant,
         onResponderMove: handleResponderMove,
         onResponderRelease: handleResponderRelease,
         onResponderTerminate: resetCover,
