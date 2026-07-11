@@ -53,10 +53,10 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onVolumeChange,
   bottomInset,
   onOpenTrackInfo,
-  controlsMode,
-  onSwipeToNext,
-  onSwipeToPrevious,
-  canSwipeToNext = true,
+  controlsMode: _controlsMode,
+  onSwipeToNext: _onSwipeToNext,
+  onSwipeToPrevious: _onSwipeToPrevious,
+  canSwipeToNext: _canSwipeToNext = true,
 }) => (
   <ScrollView
     style={styles.playerPage}
@@ -66,51 +66,51 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
     showsVerticalScrollIndicator={false}
     testID="now-playing-player-panel"
   >
-    <View style={[styles.coverArea, { height: coverAreaHeight }]}>
+    <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
         song={currentSong}
         artworkUri={artworkUri}
         isPlaying={isPlaying}
         accent={accent}
         coverSize={coverSize}
-        swipeEnabled={controlsMode === 'soundcloud' && false}
-        onSwipeLeft={onSwipeToNext}
-        onSwipeRight={onSwipeToPrevious}
-        canSwipeLeft={canSwipeToNext}
+        swipeEnabled={false}
       />
     </View>
 
-    <NowPlayingTitleRow
-      currentSong={currentSong}
-      favorite={favorite}
-      favoritePending={favoritePending}
-      onToggleFavorite={onToggleFavorite}
-    />
+    <View style={styles.fixedControlsArea}>
+      <NowPlayingTitleRow
+        currentSong={currentSong}
+        favorite={favorite}
+        favoritePending={favoritePending}
+        onToggleFavorite={onToggleFavorite}
+      />
 
-    <NowPlayingPlaybackSection
-      currentSong={currentSong}
-      position={position}
-      duration={duration}
-      onSeek={onSeek}
-      progressAccent={progressAccent}
-      progressAccentDark={progressAccentDark}
-      foregroundOnAccent={foregroundOnAccent}
-    />
+      <NowPlayingPlaybackSection
+        currentSong={currentSong}
+        position={position}
+        duration={duration}
+        onSeek={onSeek}
+        progressAccent={progressAccent}
+        progressAccentDark={progressAccentDark}
+        foregroundOnAccent={foregroundOnAccent}
+      />
 
-    <NowPlayingBottomControlsRow
-      volume={volume}
-      onVolumeChange={onVolumeChange}
-      bottomInset={bottomInset}
-      onOpenTrackInfo={onOpenTrackInfo}
-      accentColor={progressAccent}
-    />
+      <NowPlayingBottomControlsRow
+        volume={volume}
+        onVolumeChange={onVolumeChange}
+        bottomInset={bottomInset}
+        onOpenTrackInfo={onOpenTrackInfo}
+        accentColor={progressAccent}
+      />
+    </View>
   </ScrollView>
 );
 
 const styles = StyleSheet.create({
   playerPage: { flex: 1 },
-  playerContent: { flexGrow: 1 },
+  playerContent: { flexGrow: 1, justifyContent: 'space-between' },
   coverArea: { alignItems: 'center', justifyContent: 'center', marginTop: 0 },
+  fixedControlsArea: { width: '100%' },
 });
 
 export default NowPlayingPlayerPanel;
