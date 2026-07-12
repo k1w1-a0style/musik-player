@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   centerPlay: { flex: 1 },
   playHitbox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   playBubble: { width: 76, height: 76, borderRadius: 38, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
-  pausedControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: APP_THEME_TOKENS.spacing.lg },
+  pausedControls: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: APP_THEME_TOKENS.spacing.lg },
   transportButton: { width: 58, height: 58, borderRadius: 29, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   pausedPlayButton: { width: 84, height: 84, borderRadius: 42 },
   disabledControl: { opacity: 0.38 },
