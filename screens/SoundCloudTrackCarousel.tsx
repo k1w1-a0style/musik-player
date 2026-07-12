@@ -7,6 +7,7 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type GestureResponderHandlers,
   type PanResponderGestureState,
 } from 'react-native';
 import type { Song } from '../types/Song';
@@ -27,7 +28,7 @@ export interface SoundCloudTrackCarouselProps {
   onSwipeToNext: () => void;
   onSwipeToPrevious: () => void;
   blurRadius?: number;
-  children: React.ReactNode;
+  children: (panHandlers: GestureResponderHandlers) => React.ReactNode;
 }
 
 const MIN_HORIZONTAL_ACTIVATION = 18;
@@ -181,7 +182,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
 
   return (
     <View testID="soundcloud-track-carousel-root" style={styles.root}>
-      <Animated.View testID="soundcloud-track-carousel" style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: Animated.add(translateX, -panelWidth) }] }]} {...responder.panHandlers}>
+      <Animated.View testID="soundcloud-track-carousel" style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: Animated.add(translateX, -panelWidth) }] }]}>
         <View style={{ width: panelWidth }}>
           <CarouselPanel testID="soundcloud-carousel-previous-panel" song={previousSong} artworkUri={previousArtworkUri} blurRadius={blurRadius} />
         </View>
@@ -192,7 +193,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
           <CarouselPanel testID="soundcloud-carousel-next-panel" song={nextSong} artworkUri={nextArtworkUri} fallbackArtworkUri={currentArtworkUri} blurRadius={blurRadius} />
         </View>
       </Animated.View>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">{children}</View>
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">{children(responder.panHandlers)}</View>
     </View>
   );
 };
