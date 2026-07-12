@@ -8,27 +8,35 @@ interface PlaylistCreateFormProps {
   value: string;
   onChangeText: (value: string) => void;
   onSubmit: () => void;
+  cardTestID?: string;
+  inputTestID?: string;
+  buttonTestID?: string;
+  helperText?: string;
 }
 
 const PlaylistCreateForm: React.FC<PlaylistCreateFormProps> = ({
   value,
   onChangeText,
   onSubmit,
+  cardTestID = 'playlist-create-card',
+  inputTestID = 'new-playlist-input',
+  buttonTestID = 'create-playlist-button',
+  helperText = 'Erstelle eine leere Playlist, ohne vorher einen Track auszuwählen.',
 }) => {
   const { theme } = useAppTheme();
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} testID="playlist-create-card">
+    <View style={[styles.card, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} testID={cardTestID}>
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
           <Text style={[styles.title, { color: theme.palette.text.primary }]}>Neue Playlist erstellen</Text>
-          <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>Erstelle eine leere Playlist, ohne vorher einen Track auszuwählen.</Text>
+          <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{helperText}</Text>
         </View>
       </View>
 
       <View style={styles.inputContainer}>
         <TextInput
-          testID="new-playlist-input"
+          testID={inputTestID}
           style={[
             styles.input,
             {
@@ -46,7 +54,7 @@ const PlaylistCreateForm: React.FC<PlaylistCreateFormProps> = ({
           accessibilityLabel="Name der neuen Playlist"
         />
         <Pressable
-          testID="create-playlist-button"
+          testID={buttonTestID}
           accessibilityRole="button"
           accessibilityLabel="Neue Playlist erstellen"
           onPress={onSubmit}

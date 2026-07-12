@@ -7,6 +7,7 @@ import LibraryPlaybackActions from './LibraryPlaybackActions';
 import LibrarySectionHeader from './LibrarySectionHeader';
 import LibrarySortControl from './LibrarySortControl';
 import LibrarySongViewControl from './LibrarySongViewControl';
+import PlaylistCreateForm from '../screens/PlaylistCreateForm';
 import type { LibrarySortMode } from '../utils/librarySort';
 import { getLibrarySongViewColumns, type LibrarySongViewMode } from '../utils/libraryViewMode';
 import type { Song } from '../types/Song';
@@ -42,6 +43,9 @@ export interface LibraryTabContentProps {
   onPlayActiveList: () => void;
   onShuffle: () => void;
   onToggleAlbumView: () => void;
+  newPlaylistName: string;
+  onChangePlaylistName: (value: string) => void;
+  onCreatePlaylist: () => void;
   playlistItems: LibraryPlaylistItem[];
   renderAlbumTile: ListRenderItem<LibraryGroupItem>;
   renderFolderItem: ListRenderItem<ScanFolder>;
@@ -78,6 +82,9 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   onPlayActiveList,
   onShuffle,
   onToggleAlbumView,
+  newPlaylistName,
+  onChangePlaylistName,
+  onCreatePlaylist,
   playlistItems,
   renderAlbumTile,
   renderFolderItem,
@@ -189,6 +196,17 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
+          ListHeaderComponent={(
+            <PlaylistCreateForm
+              value={newPlaylistName}
+              onChangeText={onChangePlaylistName}
+              onSubmit={onCreatePlaylist}
+              cardTestID="library-playlist-create-card"
+              inputTestID="library-playlist-name-input"
+              buttonTestID="library-playlist-create-button"
+              helperText="Erstelle eine leere Playlist und füge später Titel hinzu."
+            />
+          )}
           ListEmptyComponent={emptyState}
         />
       </LibraryListShell>
