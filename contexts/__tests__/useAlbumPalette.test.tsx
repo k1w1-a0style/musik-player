@@ -3,7 +3,10 @@ import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useAlbumPalette } from '../useAlbumPalette';
-import { buildJsFallbackPalette } from '../../utils/jsPaletteFallback';
+import {
+  buildJsFallbackPalette,
+  mergeNativeAndFallbackPalette,
+} from '../../utils/jsPaletteFallback';
 import type { Song } from '../../types/Song';
 
 const songWithCover: Song = {
@@ -49,13 +52,12 @@ describe('useAlbumPalette', () => {
       resolvePalette({ dominant: '#111111' });
     });
     await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
-    expect(readPalette(getByTestId('palette').props.children)).toEqual({
-      ...buildJsFallbackPalette(songWithCover),
-      dominant: '#111111',
-    });
+    expect(readPalette(getByTestId('palette').props.children)).toEqual(
+      mergeNativeAndFallbackPalette({ dominant: '#111111' }, songWithCover),
+    );
   });
 
-  test('fills missing native fields from the same song fallback for partial palettes', async () => {
+  test('fills missing native fields from the matching song fallback for partial palettes', async () => {
     jest
       .spyOn(SystemAudio, 'extractPalette')
       .mockResolvedValueOnce({ dominant: '#111111' })
@@ -76,7 +78,12 @@ describe('useAlbumPalette', () => {
       muted: '#333333',
     });
 
-    const thirdSongWithCover = { ...secondSongWithCover, id: 's3', title: 'Three', cover: 'file:///cover-3.jpg' };
+    const thirdSongWithCover = {
+      ...secondSongWithCover,
+      id: 's3',
+      title: 'Three',
+      cover: 'file:///cover-3.jpg',
+    };
     rerender(<PaletteProbe song={thirdSongWithCover} />);
     await waitFor(() => expect(readPalette(getByTestId('palette').props.children)?.darkVibrant).toBe('#444444'));
     expect(readPalette(getByTestId('palette').props.children)).toEqual({
@@ -85,7 +92,7 @@ describe('useAlbumPalette', () => {
     });
   });
 
-  test('retains previous palette during artwork transition and switches directly to the next palette', async () => {
+  test('retains the complete previous visible palette during an artwork transition', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let resolveSecond: (value: { dominant: string }) => void = () => undefined;
     jest
@@ -97,21 +104,33 @@ describe('useAlbumPalette', () => {
         resolveSecond = resolve;
       }));
 
+    const firstEffectivePalette = mergeNativeAndFallbackPalette(
+      { dominant: '#111111' },
+      songWithCover,
+    );
+    const secondEffectivePalette = mergeNativeAndFallbackPalette(
+      { dominant: '#222222' },
+      secondSongWithCover,
+    );
+
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
 
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
 
-    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
+    expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette);
+    expect(readPalette(getByTestId('palette').props.children)?.vibrant).not.toBe(
+      buildJsFallbackPalette(secondSongWithCover).vibrant,
+    );
 
     await act(async () => {
       resolveSecond({ dominant: '#222222' });
     });
-    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#222222'));
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(secondEffectivePalette));
   });
 
   test('ignores stale palette results after the artwork changes', async () => {
@@ -140,7 +159,7 @@ describe('useAlbumPalette', () => {
     expect(readDominant(getByTestId('palette').props.children)).toBe('#222222');
   });
 
-  test('retains existing palette while extraction is pending and clears it when extraction fails', async () => {
+  test('retains the visible palette while extraction is pending and clears it after failure', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let rejectSecond: (error: Error) => void = () => undefined;
     jest
@@ -152,15 +171,19 @@ describe('useAlbumPalette', () => {
         rejectSecond = reject;
       }));
 
+    const firstEffectivePalette = mergeNativeAndFallbackPalette(
+      { dominant: '#111111' },
+      songWithCover,
+    );
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
 
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
-    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
+    expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette);
 
     await act(async () => {
       rejectSecond(new Error('failed'));
@@ -193,15 +216,30 @@ describe('useAlbumPalette', () => {
     });
   });
 
-  test('does not restart extraction or clear palette when song metadata changes but artwork stays the same', async () => {
+  test('recomputes fallback fields for a new song that shares the same artwork', async () => {
     jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
+    const sameArtworkSong: Song = {
+      ...songWithCover,
+      id: 's1-remix',
+      title: 'One (Remix)',
+      artist: 'Different Artist',
+    };
+    const firstEffectivePalette = mergeNativeAndFallbackPalette(
+      { dominant: '#111111' },
+      songWithCover,
+    );
+    const secondEffectivePalette = mergeNativeAndFallbackPalette(
+      { dominant: '#111111' },
+      sameArtworkSong,
+    );
+    expect(secondEffectivePalette.vibrant).not.toBe(firstEffectivePalette.vibrant);
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
-    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette));
 
-    rerender(<PaletteProbe song={{ ...songWithCover, id: 's1-remix', title: 'One (Remix)' }} />);
+    rerender(<PaletteProbe song={sameArtworkSong} />);
 
-    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
+    expect(readPalette(getByTestId('palette').props.children)).toEqual(secondEffectivePalette);
     expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
   });
 });
