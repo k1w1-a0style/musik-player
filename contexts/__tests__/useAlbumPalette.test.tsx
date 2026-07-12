@@ -29,28 +29,50 @@ describe('useAlbumPalette', () => {
     jest.clearAllMocks();
   });
 
-  test('loads palette for current song artwork', async () => {
-    jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
+  test('starts without palette and applies native palette when initial extraction resolves', async () => {
+    let resolvePalette: (value: { dominant: string }) => void = () => undefined;
+    jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(resolve => {
+      resolvePalette = resolve;
+    }));
 
     const { getByTestId } = render(<PaletteProbe song={songWithCover} />);
-
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
-    expect(SystemAudio.extractPalette).toHaveBeenCalledWith('file:///cover.jpg');
-  });
-
-  test('clears palette when song has no artwork', () => {
-    const { getByTestId } = render(<PaletteProbe song={null} />);
 
     expect(getByTestId('palette').props.children).toBe('');
-    expect(SystemAudio.extractPalette).not.toHaveBeenCalled();
+    expect(SystemAudio.extractPalette).toHaveBeenCalledWith('file:///cover.jpg');
+
+    await act(async () => {
+      resolvePalette({ dominant: '#111111' });
+    });
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
   });
 
-  test('clears palette when extraction fails', async () => {
-    jest.spyOn(SystemAudio, 'extractPalette').mockRejectedValueOnce(new Error('failed'));
+  test('retains previous palette during artwork transition and switches directly to the next palette', async () => {
+    let resolveFirst: (value: { dominant: string }) => void = () => undefined;
+    let resolveSecond: (value: { dominant: string }) => void = () => undefined;
+    jest
+      .spyOn(SystemAudio, 'extractPalette')
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveFirst = resolve;
+      }))
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveSecond = resolve;
+      }));
 
-    const { getByTestId } = render(<PaletteProbe song={songWithCover} />);
+    const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
 
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe(''));
+    await act(async () => {
+      resolveFirst({ dominant: '#111111' });
+    });
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+
+    rerender(<PaletteProbe song={secondSongWithCover} />);
+
+    expect(getByTestId('palette').props.children).toBe('#111111');
+
+    await act(async () => {
+      resolveSecond({ dominant: '#222222' });
+    });
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#222222'));
   });
 
   test('ignores stale palette results after the artwork changes', async () => {
@@ -79,6 +101,45 @@ describe('useAlbumPalette', () => {
     expect(getByTestId('palette').props.children).toBe('#222222');
   });
 
+  test('retains existing palette while extraction is pending and clears it when extraction fails', async () => {
+    let resolveFirst: (value: { dominant: string }) => void = () => undefined;
+    let rejectSecond: (error: Error) => void = () => undefined;
+    jest
+      .spyOn(SystemAudio, 'extractPalette')
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveFirst = resolve;
+      }))
+      .mockReturnValueOnce(new Promise((resolve, reject) => {
+        rejectSecond = reject;
+      }));
+
+    const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
+
+    await act(async () => {
+      resolveFirst({ dominant: '#111111' });
+    });
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+
+    rerender(<PaletteProbe song={secondSongWithCover} />);
+    expect(getByTestId('palette').props.children).toBe('#111111');
+
+    await act(async () => {
+      rejectSecond(new Error('failed'));
+    });
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe(''));
+  });
+
+  test('clears retained palette immediately when the new song has no artwork', async () => {
+    jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
+
+    const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
+    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+
+    rerender(<PaletteProbe song={{ id: 'no-cover', title: 'nc', artist: 'A' }} />);
+
+    expect(getByTestId('palette').props.children).toBe('');
+  });
+
   test('does not set hook state after unmount', async () => {
     let resolvePalette: (value: { dominant: string }) => void = () => undefined;
     jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(resolve => {
@@ -93,46 +154,15 @@ describe('useAlbumPalette', () => {
     });
   });
 
-  test('resets palette immediately on artwork change so consumers do not read stale native colors', async () => {
-    let resolveFirst: (value: { dominant: string }) => void = () => undefined;
-    let resolveSecond: (value: { dominant: string }) => void = () => undefined;
-    jest
-      .spyOn(SystemAudio, 'extractPalette')
-      .mockReturnValueOnce(new Promise(resolve => {
-        resolveFirst = resolve;
-      }))
-      .mockReturnValueOnce(new Promise(resolve => {
-        resolveSecond = resolve;
-      }));
-
-    const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
-
-    await act(async () => {
-      resolveFirst({ dominant: '#111111' });
-    });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
-
-    rerender(<PaletteProbe song={secondSongWithCover} />);
-
-    // Between artwork switch and the new native palette arriving the hook must
-    // return null so consumers fall back to the deterministic JS palette rather
-    // than painting the new cover with the previous song's native accents.
-    expect(getByTestId('palette').props.children).toBe('');
-
-    await act(async () => {
-      resolveSecond({ dominant: '#222222' });
-    });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#222222'));
-  });
-
-  test('resets palette to null when a new song has no artwork', async () => {
+  test('does not restart extraction or clear palette when song metadata changes but artwork stays the same', async () => {
     jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
     await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
 
-    rerender(<PaletteProbe song={{ id: 'no-cover', title: 'nc', artist: 'A' }} />);
+    rerender(<PaletteProbe song={{ ...songWithCover, id: 's1-remix', title: 'One (Remix)' }} />);
 
-    expect(getByTestId('palette').props.children).toBe('');
+    expect(getByTestId('palette').props.children).toBe('#111111');
+    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,23 +9,22 @@ import {
 /**
  * Native cover-palette hook.
  *
- * Reset semantics: whenever the artwork URI changes we clear the previous
- * native palette immediately, so consumers merging this with the JS fallback
- * never render with stale colors from the previous song while the new native
- * palette is still resolving. The `null` state means "no native palette yet";
- * the deterministic JS fallback then owns the visible accent until (or unless)
- * the new native palette lands.
+ * Transition semantics: when moving from one artwork URI to another, keep the
+ * last resolved native palette visible while the replacement palette loads,
+ * then switch directly to the new native palette. If the new extraction
+ * completes with null/failure, clear the retained palette so consumers can use
+ * the deterministic JS fallback. When there is no artwork URI, clear
+ * immediately so a previous cover palette is not retained indefinitely.
  */
 export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null => {
   const [palette, setPalette] = useState<PaletteResult | null>(null);
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
 
   useEffect(() => {
-    // Clear synchronously on artwork change to avoid a visible frame where
-    // the previous song's native palette is applied to the new cover.
-    setPalette(null);
-
-    if (!currentArtworkUri) return undefined;
+    if (!currentArtworkUri) {
+      setPalette(null);
+      return undefined;
+    }
 
     const controller = new AbortController();
 

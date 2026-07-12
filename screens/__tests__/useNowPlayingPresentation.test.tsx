@@ -2,6 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { useNowPlayingPresentation } from '../useNowPlayingPresentation';
+import { buildJsFallbackPalette } from '../../utils/jsPaletteFallback';
 import type { Song } from '../../types/Song';
 const mockAppTheme = {
   appearance: 'dark',
@@ -45,6 +46,14 @@ const song: Song = {
   artist: 'A',
   album: 'Album',
   cover: 'file:///cover.jpg',
+};
+
+const secondSong: Song = {
+  id: 's2',
+  title: 'Two',
+  artist: 'B',
+  album: 'Second Album',
+  cover: 'file:///cover-2.jpg',
 };
 
 const PresentationProbe = () => {
@@ -105,6 +114,29 @@ describe('useNowPlayingPresentation', () => {
     expect(accent).not.toBe(mockAppTheme.theme.palette.accent);
     // Foreground is one of the two safe contrast colors.
     expect(['#FFFFFF', '#0A0B0C']).toContain(getByTestId('foreground').props.children);
+  });
+
+
+  test('does not render a temporary fallback accent during artwork-to-artwork palette transition', () => {
+    const TransitionProbe = ({ currentSong, palette }: Parameters<typeof useNowPlayingPresentation>[0]) => {
+      const presentation = useNowPlayingPresentation({ currentSong, palette });
+      return <Text testID="accent">{presentation.accent}</Text>;
+    };
+    const secondFallbackAccent = buildJsFallbackPalette(secondSong).vibrant;
+    expect(secondFallbackAccent).not.toBe('#111111');
+    expect(secondFallbackAccent).not.toBe('#222222');
+
+    const { getByTestId, rerender } = render(
+      <TransitionProbe currentSong={song} palette={{ vibrant: '#111111' }} />,
+    );
+    expect(getByTestId('accent').props.children).toBe('#111111');
+
+    rerender(<TransitionProbe currentSong={secondSong} palette={{ vibrant: '#111111' }} />);
+    expect(getByTestId('accent').props.children).toBe('#111111');
+    expect(getByTestId('accent').props.children).not.toBe(secondFallbackAccent);
+
+    rerender(<TransitionProbe currentSong={secondSong} palette={{ vibrant: '#222222' }} />);
+    expect(getByTestId('accent').props.children).toBe('#222222');
   });
 
   test('hasNativePalette is true when palette is provided', () => {
