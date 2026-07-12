@@ -36,6 +36,7 @@ const DISTANCE_COMMIT_RATIO = 0.3;
 const VELOCITY_COMMIT = 0.8;
 const SPRING_CONFIG = { tension: 150, friction: 22, useNativeDriver: true };
 const TIMING_CONFIG = { duration: 150, useNativeDriver: true };
+const PREVIOUS_RESTART_RESET_DELAY_MS = 250;
 
 const isHorizontalGesture = (gesture: PanResponderGestureState): boolean => {
   const absDx = Math.abs(gesture.dx);
@@ -91,21 +92,38 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
   const { width } = useWindowDimensions();
   const translateX = useRef(new Animated.Value(0)).current;
   const isSwitchingRef = useRef(false);
+  const currentSongIdRef = useRef(currentSong?.id);
+  const fallbackResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelWidth = Math.max(width, 1);
   const hasPrevious = !!previousSong;
   const hasNext = !!nextSong && canSwipeToNext;
 
+  currentSongIdRef.current = currentSong?.id;
+
+  const clearFallbackReset = useCallback(() => {
+    if (fallbackResetTimeoutRef.current) {
+      clearTimeout(fallbackResetTimeoutRef.current);
+      fallbackResetTimeoutRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
+    clearFallbackReset();
     translateX.stopAnimation();
     translateX.setValue(0);
     isSwitchingRef.current = false;
-  }, [currentSong?.id, nextSong?.id, previousSong?.id, translateX]);
+  }, [clearFallbackReset, currentSong?.id, nextSong?.id, previousSong?.id, translateX]);
+
+  useEffect(() => () => {
+    clearFallbackReset();
+  }, [clearFallbackReset]);
 
   const animateBack = useCallback(() => {
+    clearFallbackReset();
     Animated.spring(translateX, { ...SPRING_CONFIG, toValue: 0 }).start(() => {
       isSwitchingRef.current = false;
     });
-  }, [translateX]);
+  }, [clearFallbackReset, translateX]);
 
   const completeSwipe = useCallback((direction: 'next' | 'previous') => {
     isSwitchingRef.current = true;
@@ -115,10 +133,20 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
         animateBack();
         return;
       }
+      const swipedFromSongId = currentSongIdRef.current;
       if (direction === 'next') onSwipeToNext();
-      else onSwipeToPrevious();
+      else {
+        onSwipeToPrevious();
+        clearFallbackReset();
+        fallbackResetTimeoutRef.current = setTimeout(() => {
+          fallbackResetTimeoutRef.current = null;
+          if (isSwitchingRef.current && currentSongIdRef.current === swipedFromSongId) {
+            animateBack();
+          }
+        }, PREVIOUS_RESTART_RESET_DELAY_MS);
+      }
     });
-  }, [animateBack, onSwipeToNext, onSwipeToPrevious, panelWidth, translateX]);
+  }, [animateBack, clearFallbackReset, onSwipeToNext, onSwipeToPrevious, panelWidth, translateX]);
 
   const finishGesture = useCallback((gesture: PanResponderGestureState) => {
     if (isSwitchingRef.current) return;

@@ -104,6 +104,7 @@ describe('NowPlayingSoundCloudView', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -234,6 +235,25 @@ describe('NowPlayingSoundCloudView', () => {
 
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
     expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
+  });
+
+  test('resets after a previous swipe that restarts the current track instead of changing songs', () => {
+    jest.useFakeTimers();
+    const onSwipeToPrevious = jest.fn();
+    const { getByTestId } = renderSoundCloudView({ onSwipeToPrevious });
+    const carousel = getByTestId('soundcloud-track-carousel');
+
+    releaseSwipe(carousel, 100, 4, 1);
+    releaseSwipe(carousel, 100, 4, 1);
+
+    expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      jest.advanceTimersByTime(250);
+    });
+    releaseSwipe(carousel, 100, 4, 1);
+
+    expect(onSwipeToPrevious).toHaveBeenCalledTimes(2);
   });
 
   test('does not fake a next swipe at queue end or react to vertical gestures', () => {
