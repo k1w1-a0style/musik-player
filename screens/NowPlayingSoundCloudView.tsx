@@ -10,7 +10,7 @@ import {
   type PanResponderGestureState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Info, Pause, Play } from 'lucide-react-native';
+import { Info, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import VolumeSlider from '../components/VolumeSlider';
 import WaveformScrubber from '../components/WaveformScrubber';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -97,46 +97,82 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     onPanResponderTerminate: (_event, gesture) => finishTrackSwipe(gesture),
   }), [finishTrackSwipe]);
 
+  const handleNextPress = useCallback(() => {
+    if (canSwipeToNext) onSwipeToNext();
+  }, [canSwipeToNext, onSwipeToNext]);
+
   const inner = (
     <LinearGradient
       colors={overlayColors.gradient}
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
       <View style={styles.page} testID="now-playing-soundcloud-view">
-        <View style={styles.metadata} pointerEvents="box-none">
-          <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
-          <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
-          <Pressable
-            style={[styles.infoButton, { backgroundColor: overlayColors.infoBackgroundColor }]}
-            onPress={onOpenTrackInfo}
-            accessibilityRole="button"
-            accessibilityLabel="Infos zu diesem Track"
-            testID="soundcloud-track-info"
-          >
-            <Info color={theme.palette.text.secondary} size={16} />
-            <Text style={[styles.infoText, { color: theme.palette.text.secondary }]}>Infos zu diesem Track</Text>
-          </Pressable>
+        <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox" {...trackSwipeResponder.panHandlers}>
+          <View style={styles.metadata} pointerEvents="box-none">
+            <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
+            <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
+            <Pressable
+              style={[styles.infoButton, { backgroundColor: overlayColors.infoBackgroundColor }]}
+              onPress={onOpenTrackInfo}
+              accessibilityRole="button"
+              accessibilityLabel="Infos zu diesem Track"
+              testID="soundcloud-track-info"
+            >
+              <Info color={theme.palette.text.secondary} size={16} />
+              <Text style={[styles.infoText, { color: theme.palette.text.secondary }]}>Infos zu diesem Track</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.centerPlay}>
+            {isPlaying ? (
+              <Pressable
+                style={styles.playHitbox}
+                onPress={togglePlayback}
+                accessibilityRole="button"
+                accessibilityLabel="Pausieren"
+                testID="soundcloud-pause-button"
+              >
+                <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
+                  <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
+                </View>
+              </Pressable>
+            ) : (
+              <View style={styles.pausedControls}>
+                <Pressable
+                  style={[styles.transportButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}
+                  onPress={onSwipeToPrevious}
+                  accessibilityRole="button"
+                  accessibilityLabel="Vorheriger Track"
+                  testID="soundcloud-previous-button"
+                >
+                  <SkipBack color={theme.palette.text.primary} fill={theme.palette.text.primary} size={28} />
+                </Pressable>
+                <Pressable
+                  style={[styles.playBubble, styles.pausedPlayButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}
+                  onPress={togglePlayback}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abspielen"
+                  testID="soundcloud-play-button"
+                >
+                  <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={32} />
+                </Pressable>
+                <Pressable
+                  style={[styles.transportButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }, !canSwipeToNext && styles.disabledControl]}
+                  onPress={handleNextPress}
+                  disabled={!canSwipeToNext}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nächster Track"
+                  accessibilityState={{ disabled: !canSwipeToNext }}
+                  testID="soundcloud-next-button"
+                >
+                  <SkipForward color={theme.palette.text.primary} fill={theme.palette.text.primary} size={28} />
+                </Pressable>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={styles.centerPlay} {...trackSwipeResponder.panHandlers}>
-          <Pressable
-            style={styles.playHitbox}
-            onPress={togglePlayback}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-            testID="soundcloud-play-pause-hitbox"
-          >
-            <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
-              {isPlaying ? (
-                <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
-              ) : (
-                <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
-              )}
-            </View>
-          </Pressable>
-        </View>
-
-        <View style={styles.waveformBox}>
+        <View style={[styles.waveformBox, !isPlaying && styles.waveformBoxPaused]}>
           <WaveformScrubber
             waveform={waveform}
             currentPosition={position}
@@ -157,7 +193,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
 
   if (artworkUri) {
     return (
-      <ImageBackground source={{ uri: artworkUri }} resizeMode="cover" style={styles.root} imageStyle={styles.image}>
+      <ImageBackground source={{ uri: artworkUri }} resizeMode="cover" style={styles.root} imageStyle={styles.image} blurRadius={isPlaying ? 0 : 18}>
         {inner}
       </ImageBackground>
     );
@@ -171,6 +207,7 @@ const styles = StyleSheet.create({
   image: { opacity: 0.98 },
   overlay: { flex: 1 },
   page: { flex: 1, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: APP_THEME_TOKENS.spacing.lg },
+  swipeHitbox: { flex: 1 },
   metadata: { alignItems: 'flex-start', gap: 6 },
   title: { paddingHorizontal: 10, paddingVertical: 5, fontSize: 27, lineHeight: 34, fontFamily: APP_THEME_TOKENS.fonts.heading },
   artist: { paddingHorizontal: 10, paddingVertical: 4, fontSize: 22, fontFamily: APP_THEME_TOKENS.fonts.body },
@@ -179,7 +216,12 @@ const styles = StyleSheet.create({
   centerPlay: { flex: 1 },
   playHitbox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   playBubble: { width: 76, height: 76, borderRadius: 38, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  pausedControls: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: APP_THEME_TOKENS.spacing.lg },
+  transportButton: { width: 58, height: 58, borderRadius: 29, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  pausedPlayButton: { width: 84, height: 84, borderRadius: 42 },
+  disabledControl: { opacity: 0.38 },
   waveformBox: { marginHorizontal: -APP_THEME_TOKENS.spacing.md, marginBottom: APP_THEME_TOKENS.spacing.md },
+  waveformBoxPaused: { opacity: 0.72 },
   volumeBox: { borderRadius: APP_THEME_TOKENS.borderRadius.lg, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingVertical: APP_THEME_TOKENS.spacing.xs },
 });
 
