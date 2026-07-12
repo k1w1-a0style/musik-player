@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import {
@@ -7,42 +7,75 @@ import {
 } from './albumPaletteHelpers';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 
+interface ResolvedNativePalette {
+  artworkUri: string;
+  palette: PaletteResult;
+}
+
 /**
  * Native cover-palette hook.
  *
- * Transition semantics: when moving from one artwork URI to another, keep the
- * last resolved complete/effective palette visible while the replacement
- * palette loads, then switch directly to the new complete palette. If the
- * new extraction completes with null/failure, clear the retained palette so
- * consumers can use the deterministic JS fallback. When there is no artwork
- * URI, clear
- * immediately so a previous cover palette is not retained indefinitely.
+ * Transition semantics:
+ * - while a different artwork palette is loading, keep the complete palette
+ *   that was last visible for the previous artwork;
+ * - once the replacement native palette resolves, merge its optional fields
+ *   with the fallback for the song currently using that artwork;
+ * - when multiple songs share an artwork URI, reuse the raw native extraction
+ *   but recompute fallback fields for the current song;
+ * - clear immediately when no artwork exists, or after extraction returns null.
  */
 export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null => {
-  const [palette, setPalette] = useState<PaletteResult | null>(null);
+  const [resolvedNativePalette, setResolvedNativePalette] = useState<ResolvedNativePalette | null>(null);
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
-  const artworkSongRef = useRef<{ artworkUri: string | undefined; song: Song | null }>({
-    artworkUri: currentArtworkUri,
-    song: currentSong,
-  });
+  const currentSongRef = useRef(currentSong);
+  const retainedEffectivePaletteRef = useRef<PaletteResult | null>(null);
 
-  if (artworkSongRef.current.artworkUri !== currentArtworkUri) {
-    artworkSongRef.current = { artworkUri: currentArtworkUri, song: currentSong };
-  }
+  currentSongRef.current = currentSong;
+
+  const visiblePalette = useMemo(() => {
+    if (!currentArtworkUri) return null;
+
+    if (resolvedNativePalette?.artworkUri === currentArtworkUri) {
+      return mergeNativeAndFallbackPalette(resolvedNativePalette.palette, currentSong);
+    }
+
+    return retainedEffectivePaletteRef.current;
+  }, [currentArtworkUri, currentSong, resolvedNativePalette]);
+
+  useLayoutEffect(() => {
+    if (!currentArtworkUri) {
+      retainedEffectivePaletteRef.current = null;
+      return;
+    }
+
+    if (resolvedNativePalette?.artworkUri === currentArtworkUri && visiblePalette) {
+      retainedEffectivePaletteRef.current = visiblePalette;
+    }
+  }, [currentArtworkUri, resolvedNativePalette, visiblePalette]);
 
   useEffect(() => {
     if (!currentArtworkUri) {
-      setPalette(null);
+      setResolvedNativePalette(null);
       return undefined;
     }
 
     const controller = new AbortController();
+    const requestedArtworkUri = currentArtworkUri;
 
-    extractAlbumPalette(currentArtworkUri, { signal: controller.signal }).then(nextPalette => {
+    extractAlbumPalette(requestedArtworkUri, { signal: controller.signal }).then(nextPalette => {
       if (controller.signal.aborted) return;
-      setPalette(
-        nextPalette ? mergeNativeAndFallbackPalette(nextPalette, artworkSongRef.current.song) : null,
+
+      if (!nextPalette) {
+        retainedEffectivePaletteRef.current = null;
+        setResolvedNativePalette(null);
+        return;
+      }
+
+      retainedEffectivePaletteRef.current = mergeNativeAndFallbackPalette(
+        nextPalette,
+        currentSongRef.current,
       );
+      setResolvedNativePalette({ artworkUri: requestedArtworkUri, palette: nextPalette });
     });
 
     return () => {
@@ -50,5 +83,5 @@ export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null 
     };
   }, [currentArtworkUri]);
 
-  return palette;
+  return visiblePalette;
 };
