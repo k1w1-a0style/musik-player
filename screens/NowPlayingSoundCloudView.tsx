@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type GestureResponderHandlers,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Info, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
@@ -80,13 +81,13 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     if (canSwipeToNext) onSwipeToNext();
   }, [canSwipeToNext, onSwipeToNext]);
 
-  const inner = (
+  const renderOverlay = (panHandlers: GestureResponderHandlers) => (
     <LinearGradient
       colors={overlayColors.gradient}
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
       <View style={styles.page} testID="now-playing-soundcloud-view">
-        <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox">
+        <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox" {...panHandlers}>
           <View style={styles.metadata} pointerEvents="box-none">
             <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
             <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
@@ -184,7 +185,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
         onSwipeToPrevious={onSwipeToPrevious}
         blurRadius={isPlaying ? 0 : 18}
       >
-        {inner}
+        {renderOverlay}
       </SoundCloudTrackCarousel>
     </View>
   );

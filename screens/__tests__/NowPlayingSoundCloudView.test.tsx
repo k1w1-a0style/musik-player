@@ -5,6 +5,7 @@ import NowPlayingSoundCloudView from '../NowPlayingSoundCloudView';
 
 const mockTogglePlayPause = jest.fn();
 const mockWaveformScrubber = jest.fn((_props: Record<string, unknown>) => null);
+const mockVolumeSlider = jest.fn((_props: Record<string, unknown>) => null);
 
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({
@@ -40,7 +41,10 @@ jest.mock('../../components/WaveformScrubber', () => ({
 
 jest.mock('../../components/VolumeSlider', () => ({
   __esModule: true,
-  default: () => null,
+  default: (props: Record<string, unknown>) => {
+    mockVolumeSlider(props);
+    return null;
+  },
 }));
 
 jest.mock('lucide-react-native', () => ({
@@ -108,15 +112,18 @@ describe('NowPlayingSoundCloudView', () => {
     jest.restoreAllMocks();
   });
 
-  test('shows paused previous, play, and next controls and wires their handlers', () => {
+  test('shows paused info, previous, play, and next controls and wires their handlers', () => {
     const onSwipeToPrevious = jest.fn();
     const onSwipeToNext = jest.fn();
-    const { getByTestId } = renderSoundCloudView({ onSwipeToPrevious, onSwipeToNext, isPlaying: false });
+    const onOpenTrackInfo = jest.fn();
+    const { getByTestId } = renderSoundCloudView({ onSwipeToPrevious, onSwipeToNext, onOpenTrackInfo, isPlaying: false });
 
+    fireEvent.press(getByTestId('soundcloud-track-info'));
     fireEvent.press(getByTestId('soundcloud-previous-button'));
     fireEvent.press(getByTestId('soundcloud-play-button'));
     fireEvent.press(getByTestId('soundcloud-next-button'));
 
+    expect(onOpenTrackInfo).toHaveBeenCalledTimes(1);
     expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
     expect(mockTogglePlayPause).toHaveBeenCalledTimes(1);
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
@@ -147,7 +154,7 @@ describe('NowPlayingSoundCloudView', () => {
   test('renders carousel panels for previous, current, and next candidates', () => {
     const { getByTestId, getByText } = renderSoundCloudView();
 
-    expect(getByTestId('soundcloud-track-carousel')).toBeTruthy();
+    expect(getByTestId('soundcloud-swipe-hitbox')).toBeTruthy();
     expect(getByTestId('soundcloud-carousel-previous-panel').props.source.uri).toBe('https://example.com/prev.jpg');
     expect(getByTestId('soundcloud-carousel-current-panel').props.source.uri).toBe('https://example.com/art.jpg');
     expect(getByTestId('soundcloud-carousel-next-panel').props.source.uri).toBe('https://example.com/next.jpg');
@@ -155,11 +162,24 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByText('Next track')).toBeTruthy();
   });
 
+  test('attaches responder handlers to the visible hitbox instead of the background carousel track', () => {
+    const { getByTestId } = renderSoundCloudView();
+    const hitbox = getByTestId('soundcloud-swipe-hitbox');
+    const carousel = getByTestId('soundcloud-track-carousel');
+
+    expect(hitbox.props.onMoveShouldSetResponder).toEqual(expect.any(Function));
+    expect(hitbox.props.onResponderMove).toEqual(expect.any(Function));
+    expect(hitbox.props.onResponderRelease).toEqual(expect.any(Function));
+    expect(carousel.props.onMoveShouldSetResponder).toBeUndefined();
+    expect(carousel.props.onResponderMove).toBeUndefined();
+    expect(carousel.props.onResponderRelease).toBeUndefined();
+  });
+
   test('short swipes and unavailable previous candidates snap back without switching tracks', () => {
     const onSwipeToPrevious = jest.fn();
     const onSwipeToNext = jest.fn();
     const { getByTestId, rerender } = renderSoundCloudView({ onSwipeToPrevious, onSwipeToNext });
-    const carousel = getByTestId('soundcloud-track-carousel');
+    const carousel = getByTestId('soundcloud-swipe-hitbox');
 
     releaseSwipe(carousel, -40, 2);
     releaseSwipe(carousel, 40, 2);
@@ -185,7 +205,7 @@ describe('NowPlayingSoundCloudView', () => {
       onVolumeChange={jest.fn(async () => undefined)}
       bottomInset={0}
     />);
-    releaseSwipe(getByTestId('soundcloud-track-carousel'), 100, 4, 1);
+    releaseSwipe(getByTestId('soundcloud-swipe-hitbox'), 100, 4, 1);
 
     expect(onSwipeToPrevious).not.toHaveBeenCalled();
   });
@@ -194,8 +214,8 @@ describe('NowPlayingSoundCloudView', () => {
     const onSwipeToNext = jest.fn();
     const { getByTestId, queryByText, rerender } = renderSoundCloudView({ onSwipeToNext });
 
-    releaseSwipe(getByTestId('soundcloud-track-carousel'), -25, 2, -1.1);
-    releaseSwipe(getByTestId('soundcloud-track-carousel'), -120, 2, -1.1);
+    releaseSwipe(getByTestId('soundcloud-swipe-hitbox'), -25, 2, -1.1);
+    releaseSwipe(getByTestId('soundcloud-swipe-hitbox'), -120, 2, -1.1);
 
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
 
@@ -227,21 +247,39 @@ describe('NowPlayingSoundCloudView', () => {
     const onSwipeToNext = jest.fn();
     const nextRender = renderSoundCloudView({ onSwipeToPrevious, onSwipeToNext });
 
-    releaseSwipe(nextRender.getByTestId('soundcloud-track-carousel'), -100, 4, -1);
+    releaseSwipe(nextRender.getByTestId('soundcloud-swipe-hitbox'), -100, 4, -1);
     nextRender.unmount();
 
     const previousRender = renderSoundCloudView({ onSwipeToPrevious, onSwipeToNext });
-    releaseSwipe(previousRender.getByTestId('soundcloud-track-carousel'), 100, 4, 1);
+    releaseSwipe(previousRender.getByTestId('soundcloud-swipe-hitbox'), 100, 4, 1);
 
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
     expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps waveform seeking and volume changes outside track swipe handling', async () => {
+    const onSeek = jest.fn(async () => undefined);
+    const onVolumeChange = jest.fn(async () => undefined);
+    const onSwipeToPrevious = jest.fn();
+    const onSwipeToNext = jest.fn();
+    renderSoundCloudView({ onSeek, onVolumeChange, onSwipeToPrevious, onSwipeToNext });
+
+    await act(async () => {
+      await (mockWaveformScrubber.mock.calls.at(-1)?.[0].onSeek as (position: number) => Promise<void>)(42000);
+      await (mockVolumeSlider.mock.calls.at(-1)?.[0].onVolumeChange as (volume: number) => Promise<void>)(0.8);
+    });
+
+    expect(onSeek).toHaveBeenCalledWith(42000);
+    expect(onVolumeChange).toHaveBeenCalledWith(0.8);
+    expect(onSwipeToNext).not.toHaveBeenCalled();
+    expect(onSwipeToPrevious).not.toHaveBeenCalled();
   });
 
   test('resets after a previous swipe that restarts the current track instead of changing songs', () => {
     jest.useFakeTimers();
     const onSwipeToPrevious = jest.fn();
     const { getByTestId } = renderSoundCloudView({ onSwipeToPrevious });
-    const carousel = getByTestId('soundcloud-track-carousel');
+    const carousel = getByTestId('soundcloud-swipe-hitbox');
 
     releaseSwipe(carousel, 100, 4, 1);
     releaseSwipe(carousel, 100, 4, 1);
@@ -260,7 +298,7 @@ describe('NowPlayingSoundCloudView', () => {
     const onSwipeToPrevious = jest.fn();
     const onSwipeToNext = jest.fn();
     const { getByTestId } = renderSoundCloudView({ canSwipeToNext: false, onSwipeToPrevious, onSwipeToNext });
-    const hitbox = getByTestId('soundcloud-track-carousel');
+    const hitbox = getByTestId('soundcloud-swipe-hitbox');
 
     releaseSwipe(hitbox, -100, 4, -1);
     releaseSwipe(hitbox, 20, 80);
