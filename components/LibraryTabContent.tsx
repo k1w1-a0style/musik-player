@@ -192,7 +192,6 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           keyExtractor={groupKeyExtractor}
           contentContainerStyle={styles.listContent}
           renderItem={renderPlaylistItem}
-          getItemLayout={getGroupItemLayout}
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
