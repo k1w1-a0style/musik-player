@@ -14,6 +14,7 @@ const renamePlaylist = jest.fn();
 const addSongToPlaylist = jest.fn();
 const removeSongFromPlaylist = jest.fn();
 const moveSongInPlaylist = jest.fn();
+const createPlaylist = jest.fn(() => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2, updatedAt: 2 }));
 const saveQueueAsPlaylist = () => ({ id: 'pl-3', name: 'Queue', songIds: ['s1'], createdAt: 3, updatedAt: 3 });
 
 const baseValue: MusicContextValue = {
@@ -52,7 +53,7 @@ const baseValue: MusicContextValue = {
   eqNative: null,
   palette: null,
   playlists: [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }],
-  createPlaylist: () => ({ id: 'pl-2', name: 'New', songIds: [], createdAt: 2, updatedAt: 2 }),
+  createPlaylist,
   saveQueueAsPlaylist,
   deletePlaylist,
   renamePlaylist,
@@ -71,6 +72,7 @@ const ValuesProbe = () => {
     <>
       <Text testID="full-ready">{String(value.isReady)}</Text>
       <Text testID="library-songs">{libraryValue.songs.length}</Text>
+      <Text testID="library-create-ref">{String(libraryValue.createPlaylist === createPlaylist)}</Text>
       <Text testID="library-delete-ref">{String(libraryValue.deletePlaylist === deletePlaylist)}</Text>
       <Text testID="library-rename-ref">{String(libraryValue.renamePlaylist === renamePlaylist)}</Text>
       <Text testID="library-add-song-ref">{String(libraryValue.addSongToPlaylist === addSongToPlaylist)}</Text>
@@ -95,6 +97,7 @@ describe('useProvidedMusicContextValues', () => {
 
     expect(getByTestId('full-ready').props.children).toBe('true');
     expect(getByTestId('library-songs').props.children).toBe(1);
+    expect(getByTestId('library-create-ref').props.children).toBe('true');
     expect(getByTestId('library-delete-ref').props.children).toBe('true');
     expect(getByTestId('library-rename-ref').props.children).toBe('true');
     expect(getByTestId('library-add-song-ref').props.children).toBe('true');
