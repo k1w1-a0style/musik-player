@@ -29,6 +29,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       playSongNext,
       addSongToQueue,
       playlists,
+      createPlaylist,
       addSongToPlaylist,
       removeSongFromPlaylist,
       setSongs,
@@ -109,6 +110,16 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     applySongMetadataPatches,
     songs,
   });
+
+
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const handleCreatePlaylist = useCallback(() => {
+    const trimmedName = newPlaylistName.trim();
+    if (!trimmedName) return;
+
+    createPlaylist(trimmedName);
+    setNewPlaylistName('');
+  }, [createPlaylist, newPlaylistName]);
 
   const [songActionSong, setSongActionSong] = useState<Song | null>(null);
   const [playlistPickerSong, setPlaylistPickerSong] = useState<Song | null>(null);
@@ -197,6 +208,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     onPlayActiveList: handlePlayActiveList,
     onShuffle: handleShufflePress,
     onToggleAlbumView: toggleAlbumView,
+    newPlaylistName,
+    onChangePlaylistName: setNewPlaylistName,
+    onCreatePlaylist: handleCreatePlaylist,
     openMenu,
     openSettings,
     openEqualizer,

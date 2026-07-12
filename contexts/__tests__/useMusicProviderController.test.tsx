@@ -163,6 +163,7 @@ describe('useMusicProviderController', () => {
         updateSongMetadata: value.updateSongMetadata,
         applySongMetadataPatches: value.applySongMetadataPatches,
         playlists: value.playlists,
+        createPlaylist: value.createPlaylist,
         deletePlaylist: value.deletePlaylist,
         renamePlaylist: value.renamePlaylist,
         addSongToPlaylist: value.addSongToPlaylist,

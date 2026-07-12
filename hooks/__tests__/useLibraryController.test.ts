@@ -1,7 +1,7 @@
 import React from 'react';
-import { renderHook } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
 import { useLibraryController } from '../useLibraryController';
-import type { useLibraryMusicContext } from '../../contexts/MusicContext';
+import { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
 import type { UseLibraryComponentPropsResult } from '../useLibraryComponentProps';
 import type { UseLibraryImportActionsResult } from '../useLibraryImportActions';
@@ -44,6 +44,7 @@ const mockMusicContext: MockLibraryMusicContext = {
   updateSongMetadata: fn,
   applySongMetadataPatches: fn,
   playlists: [],
+  createPlaylist: fn,
   deletePlaylist: fn,
   renamePlaylist: fn,
   addSongToPlaylist: fn,
@@ -153,6 +154,9 @@ const mockComponentProps: UseLibraryComponentPropsResult = {
     onPlayActiveList: fn,
     onShuffle: fn,
     onToggleAlbumView: fn,
+    newPlaylistName: '',
+    onChangePlaylistName: fn,
+    onCreatePlaylist: fn,
     playlistItems: [],
     renderAlbumTile: fn,
     renderFolderItem: fn,
@@ -370,4 +374,53 @@ test('wires controller state, actions, renderers, playback, and props without ch
     onSelectSortMode: mockSetSortMode,
   }));
   expect(Object.keys(jest.mocked(useLibraryComponentProps).mock.calls[0][0]).some(key => key.toLowerCase().includes('visualizer') || key.toLowerCase().includes('fft'))).toBe(false);
+});
+
+test('creates playlist with trimmed name and clears input', () => {
+  const createPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Roadtrip', songIds: [], createdAt: 1, updatedAt: 1 }));
+  jest.mocked(useLibraryMusicContext).mockReturnValue({
+    ...mockMusicContext,
+    createPlaylist,
+  });
+
+  const { rerender } = renderHook(() => useLibraryController());
+  let props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+
+  act(() => {
+    props?.onChangePlaylistName('  Roadtrip  ');
+  });
+  rerender(undefined);
+  props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+
+  act(() => {
+    props?.onCreatePlaylist();
+  });
+  rerender(undefined);
+  props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+
+  expect(createPlaylist).toHaveBeenCalledWith('Roadtrip');
+  expect(props?.newPlaylistName).toBe('');
+});
+
+test('does not create playlist from empty name', () => {
+  const createPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Roadtrip', songIds: [], createdAt: 1, updatedAt: 1 }));
+  jest.mocked(useLibraryMusicContext).mockReturnValue({
+    ...mockMusicContext,
+    createPlaylist,
+  });
+
+  const { rerender } = renderHook(() => useLibraryController());
+  let props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+
+  act(() => {
+    props?.onChangePlaylistName('   ');
+  });
+  rerender(undefined);
+  props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+
+  act(() => {
+    props?.onCreatePlaylist();
+  });
+
+  expect(createPlaylist).not.toHaveBeenCalled();
 });

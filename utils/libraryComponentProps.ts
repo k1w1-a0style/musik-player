@@ -53,6 +53,9 @@ export interface LibraryTabContentPropsBuilderOptions {
   onPlayActiveList: () => void;
   onShuffle: () => void;
   onToggleAlbumView: () => void;
+  newPlaylistName: string;
+  onChangePlaylistName: (value: string) => void;
+  onCreatePlaylist: () => void;
   playlistItems: LibraryPlaylistItem[];
   renderAlbumTile: LibraryTabContentProps['renderAlbumTile'];
   renderFolderItem: LibraryTabContentProps['renderFolderItem'];
@@ -123,6 +126,9 @@ export const buildLibraryTabContentProps = (options: LibraryTabContentPropsBuild
   onPlayActiveList: options.onPlayActiveList,
   onShuffle: options.onShuffle,
   onToggleAlbumView: options.onToggleAlbumView,
+  newPlaylistName: options.newPlaylistName,
+  onChangePlaylistName: options.onChangePlaylistName,
+  onCreatePlaylist: options.onCreatePlaylist,
   playlistItems: options.playlistItems,
   renderAlbumTile: options.renderAlbumTile,
   renderFolderItem: options.renderFolderItem,

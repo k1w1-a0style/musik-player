@@ -69,6 +69,7 @@ describe('music context value builders', () => {
       updateSongMetadata: baseValue.updateSongMetadata,
       applySongMetadataPatches: baseValue.applySongMetadataPatches,
       playlists: baseValue.playlists,
+      createPlaylist: baseValue.createPlaylist,
       deletePlaylist: baseValue.deletePlaylist,
       renamePlaylist: baseValue.renamePlaylist,
       addSongToPlaylist: baseValue.addSongToPlaylist,
