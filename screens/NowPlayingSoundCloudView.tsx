@@ -1,18 +1,16 @@
 /* istanbul ignore file */
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import {
-  ImageBackground,
-  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
-  type PanResponderGestureState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Info, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import VolumeSlider from '../components/VolumeSlider';
 import WaveformScrubber from '../components/WaveformScrubber';
+import SoundCloudTrackCarousel from './SoundCloudTrackCarousel';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useMusicContext } from '../contexts/MusicContext';
 import { useSongWaveform } from '../hooks/useSongWaveform';
@@ -25,7 +23,11 @@ import {
 
 interface NowPlayingSoundCloudViewProps {
   currentSong: Song | null;
+  previousSong?: Song | null;
+  nextSong?: Song | null;
   artworkUri?: string;
+  previousArtworkUri?: string;
+  nextArtworkUri?: string;
   isPlaying: boolean;
   position: number;
   duration: number;
@@ -40,20 +42,15 @@ interface NowPlayingSoundCloudViewProps {
   bottomInset: number;
 }
 
-const MIN_HORIZONTAL_SWIPE = 34;
-const HORIZONTAL_DOMINANCE = 1.05;
-
 const displayText = (value?: string | null, fallback = '') => value?.trim() || fallback;
-
-const isHorizontalTrackSwipe = (gesture: PanResponderGestureState): boolean => {
-  const absDx = Math.abs(gesture.dx);
-  const absDy = Math.abs(gesture.dy);
-  return absDx >= MIN_HORIZONTAL_SWIPE && absDx >= absDy * HORIZONTAL_DOMINANCE;
-};
 
 const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   currentSong,
+  previousSong,
+  nextSong,
   artworkUri,
+  previousArtworkUri,
+  nextArtworkUri,
   isPlaying,
   position,
   duration,
@@ -79,24 +76,6 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     if (currentSong) void togglePlayPause();
   }, [currentSong, togglePlayPause]);
 
-  const finishTrackSwipe = useCallback((gesture: PanResponderGestureState) => {
-    if (!isHorizontalTrackSwipe(gesture)) return;
-
-    if (gesture.dx < 0) {
-      if (canSwipeToNext) onSwipeToNext();
-    } else {
-      onSwipeToPrevious();
-    }
-  }, [canSwipeToNext, onSwipeToNext, onSwipeToPrevious]);
-
-  const trackSwipeResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_event, gesture) => isHorizontalTrackSwipe(gesture),
-    onMoveShouldSetPanResponderCapture: (_event, gesture) => isHorizontalTrackSwipe(gesture),
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderRelease: (_event, gesture) => finishTrackSwipe(gesture),
-    onPanResponderTerminate: (_event, gesture) => finishTrackSwipe(gesture),
-  }), [finishTrackSwipe]);
-
   const handleNextPress = useCallback(() => {
     if (canSwipeToNext) onSwipeToNext();
   }, [canSwipeToNext, onSwipeToNext]);
@@ -107,7 +86,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
       style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
     >
       <View style={styles.page} testID="now-playing-soundcloud-view">
-        <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox" {...trackSwipeResponder.panHandlers}>
+        <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox">
           <View style={styles.metadata} pointerEvents="box-none">
             <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
             <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
@@ -191,20 +170,28 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
     </LinearGradient>
   );
 
-  if (artworkUri) {
-    return (
-      <ImageBackground source={{ uri: artworkUri }} resizeMode="cover" style={styles.root} imageStyle={styles.image} blurRadius={isPlaying ? 0 : 18}>
+  return (
+    <View style={[styles.root, { backgroundColor: theme.palette.backgroundDeep }]}>
+      <SoundCloudTrackCarousel
+        currentSong={currentSong}
+        previousSong={previousSong}
+        nextSong={nextSong}
+        currentArtworkUri={artworkUri}
+        previousArtworkUri={previousArtworkUri}
+        nextArtworkUri={nextArtworkUri}
+        canSwipeToNext={canSwipeToNext}
+        onSwipeToNext={onSwipeToNext}
+        onSwipeToPrevious={onSwipeToPrevious}
+        blurRadius={isPlaying ? 0 : 18}
+      >
         {inner}
-      </ImageBackground>
-    );
-  }
-
-  return <View style={[styles.root, { backgroundColor: theme.palette.backgroundDeep }]}>{inner}</View>;
+      </SoundCloudTrackCarousel>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
-  image: { opacity: 0.98 },
   overlay: { flex: 1 },
   page: { flex: 1, paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: APP_THEME_TOKENS.spacing.lg },
   swipeHitbox: { flex: 1 },

@@ -16,6 +16,10 @@ import { useNowPlayingScreenState } from './useNowPlayingScreenState';
 const NowPlayingScreenInner: React.FC = () => {
   const {
     currentSong,
+    previousSong,
+    nextSong,
+    previousArtworkUri,
+    nextArtworkUri,
     seekTo,
     isPlaying,
     volume,
@@ -72,7 +76,11 @@ const NowPlayingScreenInner: React.FC = () => {
     controlsMode === 'soundcloud' ? (
       <NowPlayingSoundCloudView
         currentSong={currentSong}
+        previousSong={previousSong}
+        nextSong={nextSong}
         artworkUri={artworkUri}
+        previousArtworkUri={previousArtworkUri}
+        nextArtworkUri={nextArtworkUri}
         isPlaying={isPlaying}
         position={position}
         duration={duration}
@@ -113,7 +121,7 @@ const NowPlayingScreenInner: React.FC = () => {
         canSwipeToNext={canSwipeToNext}
       />
     )
-  ), [accent, artworkUri, bottomInset, canSwipeToNext, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, progressAccent, progressAccentDark, seekTo, setVolume, swipeToNext, swipeToPrevious, toggleFavorite, volume]);
+  ), [accent, artworkUri, bottomInset, canSwipeToNext, controlsMode, currentSong, duration, favorite, favoritePending, foregroundOnAccent, isPlaying, layoutMetrics.coverAreaHeight, layoutMetrics.coverSize, openTrackInfo, position, previousArtworkUri, previousSong, progressAccent, progressAccentDark, seekTo, setVolume, nextArtworkUri, nextSong, swipeToNext, swipeToPrevious, toggleFavorite, volume]);
 
   const renderDetailsPage = useCallback(() => (
     <NowPlayingDetailsPanel
