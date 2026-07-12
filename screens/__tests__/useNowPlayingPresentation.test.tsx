@@ -1,8 +1,10 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
+import SystemAudio from 'expo-system-audio';
 import { useNowPlayingPresentation } from '../useNowPlayingPresentation';
-import { buildJsFallbackPalette } from '../../utils/jsPaletteFallback';
+import { buildJsFallbackPalette, mergeNativeAndFallbackPalette } from '../../utils/jsPaletteFallback';
+import { useAlbumPalette } from '../../contexts/useAlbumPalette';
 import type { Song } from '../../types/Song';
 const mockAppTheme = {
   appearance: 'dark',
@@ -82,6 +84,10 @@ const PresentationProbe = () => {
 };
 
 describe('useNowPlayingPresentation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   test('builds presentation values from current song and palette', () => {
     const { getByTestId } = render(<PresentationProbe />);
 
@@ -116,27 +122,43 @@ describe('useNowPlayingPresentation', () => {
     expect(['#FFFFFF', '#0A0B0C']).toContain(getByTestId('foreground').props.children);
   });
 
-
-  test('does not render a temporary fallback accent during artwork-to-artwork palette transition', () => {
-    const TransitionProbe = ({ currentSong, palette }: Parameters<typeof useNowPlayingPresentation>[0]) => {
+  test('does not mix a retained partial native palette with the new song fallback while artwork loads', async () => {
+    let resolveFirst: (value: { dominant: string }) => void = () => undefined;
+    let resolveSecond: (value: { dominant: string }) => void = () => undefined;
+    jest
+      .spyOn(SystemAudio, 'extractPalette')
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveFirst = resolve;
+      }))
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveSecond = resolve;
+      }));
+    const TransitionProbe = ({ currentSong }: { currentSong: Song }) => {
+      const palette = useAlbumPalette(currentSong);
       const presentation = useNowPlayingPresentation({ currentSong, palette });
       return <Text testID="accent">{presentation.accent}</Text>;
     };
+    const firstVisibleAccent = mergeNativeAndFallbackPalette({ dominant: '#111111' }, song).vibrant;
     const secondFallbackAccent = buildJsFallbackPalette(secondSong).vibrant;
-    expect(secondFallbackAccent).not.toBe('#111111');
-    expect(secondFallbackAccent).not.toBe('#222222');
+    const secondVisibleAccent = mergeNativeAndFallbackPalette({ dominant: '#222222' }, secondSong).vibrant;
+    expect(firstVisibleAccent).not.toBe(secondFallbackAccent);
 
-    const { getByTestId, rerender } = render(
-      <TransitionProbe currentSong={song} palette={{ vibrant: '#111111' }} />,
-    );
-    expect(getByTestId('accent').props.children).toBe('#111111');
+    const { getByTestId, rerender } = render(<TransitionProbe currentSong={song} />);
 
-    rerender(<TransitionProbe currentSong={secondSong} palette={{ vibrant: '#111111' }} />);
-    expect(getByTestId('accent').props.children).toBe('#111111');
+    await act(async () => {
+      resolveFirst({ dominant: '#111111' });
+    });
+    await waitFor(() => expect(getByTestId('accent').props.children).toBe(firstVisibleAccent));
+
+    rerender(<TransitionProbe currentSong={secondSong} />);
+
+    expect(getByTestId('accent').props.children).toBe(firstVisibleAccent);
     expect(getByTestId('accent').props.children).not.toBe(secondFallbackAccent);
 
-    rerender(<TransitionProbe currentSong={secondSong} palette={{ vibrant: '#222222' }} />);
-    expect(getByTestId('accent').props.children).toBe('#222222');
+    await act(async () => {
+      resolveSecond({ dominant: '#222222' });
+    });
+    await waitFor(() => expect(getByTestId('accent').props.children).toBe(secondVisibleAccent));
   });
 
   test('hasNativePalette is true when palette is provided', () => {

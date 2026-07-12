@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useAlbumPalette } from '../useAlbumPalette';
+import { buildJsFallbackPalette } from '../../utils/jsPaletteFallback';
 import type { Song } from '../../types/Song';
 
 const songWithCover: Song = {
@@ -21,8 +22,12 @@ const secondSongWithCover: Song = {
 
 const PaletteProbe = ({ song }: { song: Song | null }) => {
   const palette = useAlbumPalette(song);
-  return <Text testID="palette">{palette?.dominant ?? ''}</Text>;
+  return <Text testID="palette">{palette ? JSON.stringify(palette) : ''}</Text>;
 };
+
+const readPalette = (children: string): Record<string, string> | null =>
+  (children ? JSON.parse(children) : null);
+const readDominant = (children: string): string => readPalette(children)?.dominant ?? '';
 
 describe('useAlbumPalette', () => {
   beforeEach(() => {
@@ -43,7 +48,41 @@ describe('useAlbumPalette', () => {
     await act(async () => {
       resolvePalette({ dominant: '#111111' });
     });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
+    expect(readPalette(getByTestId('palette').props.children)).toEqual({
+      ...buildJsFallbackPalette(songWithCover),
+      dominant: '#111111',
+    });
+  });
+
+  test('fills missing native fields from the same song fallback for partial palettes', async () => {
+    jest
+      .spyOn(SystemAudio, 'extractPalette')
+      .mockResolvedValueOnce({ dominant: '#111111' })
+      .mockResolvedValueOnce({ muted: '#333333' })
+      .mockResolvedValueOnce({ darkVibrant: '#444444' });
+
+    const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
+    expect(readPalette(getByTestId('palette').props.children)).toEqual({
+      ...buildJsFallbackPalette(songWithCover),
+      dominant: '#111111',
+    });
+
+    rerender(<PaletteProbe song={secondSongWithCover} />);
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)?.muted).toBe('#333333'));
+    expect(readPalette(getByTestId('palette').props.children)).toEqual({
+      ...buildJsFallbackPalette(secondSongWithCover),
+      muted: '#333333',
+    });
+
+    const thirdSongWithCover = { ...secondSongWithCover, id: 's3', title: 'Three', cover: 'file:///cover-3.jpg' };
+    rerender(<PaletteProbe song={thirdSongWithCover} />);
+    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)?.darkVibrant).toBe('#444444'));
+    expect(readPalette(getByTestId('palette').props.children)).toEqual({
+      ...buildJsFallbackPalette(thirdSongWithCover),
+      darkVibrant: '#444444',
+    });
   });
 
   test('retains previous palette during artwork transition and switches directly to the next palette', async () => {
@@ -63,16 +102,16 @@ describe('useAlbumPalette', () => {
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
 
-    expect(getByTestId('palette').props.children).toBe('#111111');
+    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
 
     await act(async () => {
       resolveSecond({ dominant: '#222222' });
     });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#222222'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#222222'));
   });
 
   test('ignores stale palette results after the artwork changes', async () => {
@@ -93,12 +132,12 @@ describe('useAlbumPalette', () => {
     await act(async () => {
       resolveSecond({ dominant: '#222222' });
     });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#222222'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#222222'));
 
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    expect(getByTestId('palette').props.children).toBe('#222222');
+    expect(readDominant(getByTestId('palette').props.children)).toBe('#222222');
   });
 
   test('retains existing palette while extraction is pending and clears it when extraction fails', async () => {
@@ -118,10 +157,10 @@ describe('useAlbumPalette', () => {
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
-    expect(getByTestId('palette').props.children).toBe('#111111');
+    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
 
     await act(async () => {
       rejectSecond(new Error('failed'));
@@ -133,7 +172,7 @@ describe('useAlbumPalette', () => {
     jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
 
     rerender(<PaletteProbe song={{ id: 'no-cover', title: 'nc', artist: 'A' }} />);
 
@@ -158,11 +197,11 @@ describe('useAlbumPalette', () => {
     jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValueOnce({ dominant: '#111111' });
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
-    await waitFor(() => expect(getByTestId('palette').props.children).toBe('#111111'));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
 
     rerender(<PaletteProbe song={{ ...songWithCover, id: 's1-remix', title: 'One (Remix)' }} />);
 
-    expect(getByTestId('palette').props.children).toBe('#111111');
+    expect(readDominant(getByTestId('palette').props.children)).toBe('#111111');
     expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
   });
 });
