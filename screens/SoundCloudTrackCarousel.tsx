@@ -36,7 +36,7 @@ const DISTANCE_COMMIT_RATIO = 0.3;
 const VELOCITY_COMMIT = 0.8;
 const SPRING_CONFIG = { tension: 150, friction: 22, useNativeDriver: true };
 const TIMING_CONFIG = { duration: 150, useNativeDriver: true };
-const PREVIOUS_RESTART_RESET_DELAY_MS = 250;
+const SWITCH_FALLBACK_RESET_DELAY_MS = 250;
 
 const isHorizontalGesture = (gesture: PanResponderGestureState): boolean => {
   const absDx = Math.abs(gesture.dx);
@@ -57,7 +57,7 @@ const CarouselPanel: React.FC<PanelProps> = ({ song, artworkUri, fallbackArtwork
   const overlayColors = getNowPlayingSoundCloudOverlayColors(appearance);
   const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song) ?? fallbackArtworkUri;
   const content = (
-    <View style={[styles.panelScrim, { backgroundColor: overlayColors.carouselScrimColor }]}>
+    <View style={[styles.panelScrim, { backgroundColor: overlayColors.carouselScrimColor }]}> 
       {song ? (
         <View style={styles.panelMetadata}>
           <Text style={[styles.panelTitle, { color: overlayColors.carouselTitleColor, textShadowColor: overlayColors.carouselTextShadowColor }]} numberOfLines={2}>{displayTitle(song)}</Text>
@@ -125,6 +125,16 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
     });
   }, [clearFallbackReset, translateX]);
 
+  const scheduleFallbackReset = useCallback((swipedFromSongId?: string) => {
+    clearFallbackReset();
+    fallbackResetTimeoutRef.current = setTimeout(() => {
+      fallbackResetTimeoutRef.current = null;
+      if (isSwitchingRef.current && currentSongIdRef.current === swipedFromSongId) {
+        animateBack();
+      }
+    }, SWITCH_FALLBACK_RESET_DELAY_MS);
+  }, [animateBack, clearFallbackReset]);
+
   const completeSwipe = useCallback((direction: 'next' | 'previous') => {
     isSwitchingRef.current = true;
     const toValue = direction === 'next' ? -panelWidth : panelWidth;
@@ -135,18 +145,10 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
       }
       const swipedFromSongId = currentSongIdRef.current;
       if (direction === 'next') onSwipeToNext();
-      else {
-        onSwipeToPrevious();
-        clearFallbackReset();
-        fallbackResetTimeoutRef.current = setTimeout(() => {
-          fallbackResetTimeoutRef.current = null;
-          if (isSwitchingRef.current && currentSongIdRef.current === swipedFromSongId) {
-            animateBack();
-          }
-        }, PREVIOUS_RESTART_RESET_DELAY_MS);
-      }
+      else onSwipeToPrevious();
+      scheduleFallbackReset(swipedFromSongId);
     });
-  }, [animateBack, clearFallbackReset, onSwipeToNext, onSwipeToPrevious, panelWidth, translateX]);
+  }, [animateBack, onSwipeToNext, onSwipeToPrevious, panelWidth, scheduleFallbackReset, translateX]);
 
   const finishGesture = useCallback((gesture: PanResponderGestureState) => {
     if (isSwitchingRef.current) return;
@@ -178,8 +180,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
   }), [finishGesture, hasNext, hasPrevious, translateX]);
 
   return (
-    <View testID="soundcloud-track-carousel" style={styles.root} {...responder.panHandlers}>
-      <Animated.View style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: Animated.add(translateX, -panelWidth) }] }]}>
+    <View testID="soundcloud-track-carousel-root" style={styles.root}>
+      <Animated.View testID="soundcloud-track-carousel" style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: Animated.add(translateX, -panelWidth) }] }]} {...responder.panHandlers}>
         <View style={{ width: panelWidth }}>
           <CarouselPanel testID="soundcloud-carousel-previous-panel" song={previousSong} artworkUri={previousArtworkUri} blurRadius={blurRadius} />
         </View>
@@ -200,8 +202,8 @@ const styles = StyleSheet.create({
   track: { flex: 1, flexDirection: 'row' },
   panel: { flex: 1 },
   panelImage: { opacity: 0.98 },
-  emptyPanel: { backgroundColor: 'transparent' },
-  panelScrim: { flex: 1, justifyContent: 'flex-end', padding: APP_THEME_TOKENS.spacing.lg, backgroundColor: 'transparent' },
+  emptyPanel: {},
+  panelScrim: { flex: 1, justifyContent: 'flex-end', padding: APP_THEME_TOKENS.spacing.lg },
   panelMetadata: { alignItems: 'flex-start', marginBottom: APP_THEME_TOKENS.spacing.xl },
   panelTitle: { fontSize: 24, lineHeight: 30, fontFamily: APP_THEME_TOKENS.fonts.heading, textShadowRadius: 8 },
   panelArtist: { fontSize: 18, fontFamily: APP_THEME_TOKENS.fonts.body, textShadowRadius: 8 },
