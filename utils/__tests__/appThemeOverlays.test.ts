@@ -31,6 +31,10 @@ describe('appThemeOverlays', () => {
       artistBackgroundColor: 'rgba(0,0,0,0.68)',
       infoBackgroundColor: 'rgba(0,0,0,0.68)',
       playButtonBackgroundColor: 'rgba(0,0,0,0.46)',
+      carouselScrimColor: 'rgba(0,0,0,0.16)',
+      carouselTitleColor: '#ffffff',
+      carouselArtistColor: 'rgba(255,255,255,0.78)',
+      carouselTextShadowColor: 'rgba(0,0,0,0.45)',
     });
 
     expect(getNowPlayingSoundCloudOverlayColors('light')).toEqual({
@@ -39,6 +43,10 @@ describe('appThemeOverlays', () => {
       artistBackgroundColor: 'rgba(255,255,255,0.68)',
       infoBackgroundColor: 'rgba(255,255,255,0.68)',
       playButtonBackgroundColor: 'rgba(255,255,255,0.46)',
+      carouselScrimColor: 'rgba(255,255,255,0.12)',
+      carouselTitleColor: '#101318',
+      carouselArtistColor: 'rgba(16,19,25,0.78)',
+      carouselTextShadowColor: 'rgba(255,255,255,0.45)',
     });
   });
 

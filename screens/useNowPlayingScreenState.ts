@@ -8,6 +8,8 @@ import { useNowPlayingMenu } from './useNowPlayingMenu';
 import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
+import { getSongArtworkUri } from '../utils/songArtwork';
+import type { RepeatMode, Song } from '../types/Song';
 
 export const buildSavedQueuePlaylistName = (date = new Date()): string => {
   const ts = date.toLocaleString('de-DE', {
@@ -19,6 +21,25 @@ export const buildSavedQueuePlaylistName = (date = new Date()): string => {
 };
 
 const noopQueueShift = async (): Promise<boolean> => false;
+
+export const getAdjacentNowPlayingSongs = (
+  playbackQueue: Song[],
+  currentSong: Song | null,
+  repeatMode?: RepeatMode,
+) => {
+  if (!currentSong) return { previousSong: null, nextSong: null };
+  const currentIndex = playbackQueue.findIndex(song => song.id === currentSong.id);
+  if (currentIndex < 0) return { previousSong: null, nextSong: null };
+
+  const isRepeatAllQueueEnd = repeatMode === 'all'
+    && playbackQueue.length > 1
+    && currentIndex === playbackQueue.length - 1;
+
+  return {
+    previousSong: playbackQueue[currentIndex - 1] ?? null,
+    nextSong: isRepeatAllQueueEnd ? playbackQueue[0] ?? null : playbackQueue[currentIndex + 1] ?? null,
+  };
+};
 
 export const useNowPlayingScreenState = () => {
   const insets = useSafeAreaInsets();
@@ -58,6 +79,7 @@ export const useNowPlayingScreenState = () => {
   };
 
   const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
+  const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
 
   const swipeToNext = () => {
     if (!canSwipeToNext) return;
@@ -70,6 +92,10 @@ export const useNowPlayingScreenState = () => {
 
   return {
     currentSong,
+    playbackQueue,
+    ...adjacentSongs,
+    previousArtworkUri: getSongArtworkUri(adjacentSongs.previousSong),
+    nextArtworkUri: getSongArtworkUri(adjacentSongs.nextSong),
     seekTo,
     isPlaying,
     sleepTimerActive,
