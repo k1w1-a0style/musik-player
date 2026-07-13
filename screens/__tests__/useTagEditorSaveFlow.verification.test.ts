@@ -75,7 +75,7 @@ describe('TagEditor post-write verification helpers', () => {
     expect(buildVerifiedTagPatch(song, song, draft)).toBeUndefined();
   });
 
-  it('compares genre codes against the parser-normalized genre', () => {
+  it('compares MP3 genre codes against the parser-normalized genre', () => {
     const draft: TagEditDraft = {
       songId: song.id,
       tags: { genre: '17' },
@@ -83,6 +83,21 @@ describe('TagEditor post-write verification helpers', () => {
     const reread: Song = { ...song, genre: 'Rock' };
 
     expect(buildVerifiedTagPatch(song, reread, draft)).toEqual({ genre: 'Rock' });
+  });
+
+  it('keeps numeric M4A/MP4 genres literal during verification', () => {
+    const mp4Song: Song = {
+      ...song,
+      uri: 'file:///song.m4a',
+      fileInfo: { uri: 'file:///song.m4a', extension: 'm4a' },
+    };
+    const draft: TagEditDraft = {
+      songId: mp4Song.id,
+      tags: { genre: '17' },
+    };
+    const reread: Song = { ...mp4Song, genre: '17' };
+
+    expect(buildVerifiedTagPatch(mp4Song, reread, draft)).toEqual({ genre: '17' });
   });
 
   it('accepts the exact re-read embedded cover bytes as verified truth', () => {
