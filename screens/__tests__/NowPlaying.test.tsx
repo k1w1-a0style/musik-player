@@ -96,6 +96,7 @@ const mockNowPlayingContext = {
   isPlaying: false,
   togglePlayPause: jest.fn(async () => undefined),
   sleepTimerActive: false,
+  sleepTimerRemainingSeconds: null as number | null,
   startSleepTimer: jest.fn(),
   cancelSleepTimer: jest.fn(),
   volume: 1,
@@ -172,6 +173,7 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.cancelSleepTimer.mockClear();
     mockNowPlayingContext.isPlaying = false;
     mockNowPlayingContext.sleepTimerActive = false;
+    mockNowPlayingContext.sleepTimerRemainingSeconds = null;
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
@@ -232,17 +234,20 @@ describe('NowPlaying cover fallback', () => {
   });
 
   test('shows sleep timer start and cancel entries', async () => {
-    const { getByLabelText, getByText, rerender } = render(<NowPlaying />);
+    const { getByLabelText, getByText, getByTestId, rerender } = render(<NowPlaying />);
 
     fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
-    await waitFor(() => expect(getByText('Sleep-Timer starten')).toBeTruthy());
-    fireEvent.press(getByText('Sleep-Timer starten'));
-    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(30);
+    await waitFor(() => expect(getByText('Sleep-Timer: 1 Minute')).toBeTruthy());
+    fireEvent.press(getByText('Sleep-Timer: 1 Minute'));
+    expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(1);
 
     mockNowPlayingContext.sleepTimerActive = true;
+    mockNowPlayingContext.sleepTimerRemainingSeconds = 14 * 60 + 59;
     rerender(<NowPlaying />);
-    fireEvent.press(getByLabelText(OPEN_NOW_PLAYING_MENU_LABEL));
-    await waitFor(() => expect(getByText('Sleep-Timer abbrechen')).toBeTruthy());
+    fireEvent.press(getByTestId('now-playing-more'));
+    await waitFor(() => expect(getByText('Sleep-Timer aktiv · 14:59')).toBeTruthy());
+    expect(getByText('JETZT LÄUFT · TIMER 14:59')).toBeTruthy();
+    expect(getByText('Sleep-Timer abbrechen')).toBeTruthy();
     fireEvent.press(getByText('Sleep-Timer abbrechen'));
     expect(mockNowPlayingContext.cancelSleepTimer).toHaveBeenCalledTimes(1);
   });

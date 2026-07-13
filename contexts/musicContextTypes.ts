@@ -87,6 +87,7 @@ export interface NowPlayingMusicContextValue {
   isPlaying: boolean;
   togglePlayPause: () => Promise<void>;
   sleepTimerActive: boolean;
+  sleepTimerRemainingSeconds: number | null;
   startSleepTimer: (minutes: number) => void;
   cancelSleepTimer: () => void;
   volume: number;

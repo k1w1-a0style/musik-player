@@ -3,18 +3,31 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronDown, MoreHorizontal } from 'lucide-react-native';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { formatSleepTimerRemaining } from './useSleepTimer';
 
 interface NowPlayingHeaderProps {
   albumTitle: string;
+  sleepTimerActive?: boolean;
+  sleepTimerRemainingSeconds?: number | null;
   onClose: () => void;
   onMore: () => void;
 }
 
-const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: NowPlayingHeaderProps) => {
+const NowPlayingHeader = React.memo(({
+  albumTitle,
+  sleepTimerActive = false,
+  sleepTimerRemainingSeconds = null,
+  onClose,
+  onMore,
+}: NowPlayingHeaderProps) => {
   const { theme } = useAppTheme();
+  const formattedSleepTimer = sleepTimerActive
+    ? formatSleepTimerRemaining(sleepTimerRemainingSeconds)
+    : null;
+  const eyebrowLabel = formattedSleepTimer ? `JETZT LÄUFT · TIMER ${formattedSleepTimer}` : 'JETZT LÄUFT';
 
   return (
-    <View style={styles.headerBar}>
+    <View style={styles.headerBar} accessibilityLabel={eyebrowLabel}>
       <Pressable
         testID="now-playing-close"
         style={styles.headerBtn}
@@ -25,7 +38,9 @@ const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: NowPlaying
         <ChevronDown color={theme.palette.text.primary} size={22} />
       </Pressable>
       <View style={styles.headerTitleWrap}>
-        <Text style={[styles.headerEyebrow, { color: theme.palette.text.muted }]}>JETZT LÄUFT</Text>
+        <Text style={[styles.headerEyebrow, { color: theme.palette.text.muted }]} numberOfLines={1}>
+          {eyebrowLabel}
+        </Text>
         <Text style={[styles.headerTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
           {albumTitle}
         </Text>
@@ -35,7 +50,7 @@ const NowPlayingHeader = React.memo(({ albumTitle, onClose, onMore }: NowPlaying
         style={styles.headerBtn}
         onPress={onMore}
         accessibilityRole="button"
-        accessibilityLabel="Wiedergabe-Menü öffnen"
+        accessibilityLabel={formattedSleepTimer ? `Wiedergabe-Menü öffnen, Sleep-Timer ${formattedSleepTimer}` : 'Wiedergabe-Menü öffnen'}
       >
         <MoreHorizontal color={theme.palette.text.primary} size={22} />
       </Pressable>

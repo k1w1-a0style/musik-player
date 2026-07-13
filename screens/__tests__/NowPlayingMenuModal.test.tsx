@@ -33,6 +33,7 @@ const renderMenu = (patch = {}) => render(
     onToggleFavorite={jest.fn()}
     onSaveQueueAsPlaylist={jest.fn()}
     sleepTimerActive={false}
+    sleepTimerRemainingSeconds={null}
     onStartSleepTimer={jest.fn()}
     onCancelSleepTimer={jest.fn()}
     {...patch}
@@ -46,6 +47,7 @@ test('renders menu actions', () => {
   expect(getByText('Equalizer öffnen')).toBeTruthy();
   expect(getByText('Warteschlange speichern')).toBeTruthy();
   expect(getByText('Zu Favoriten hinzufügen')).toBeTruthy();
+  expect(getByText('Sleep-Timer: 1 Minute')).toBeTruthy();
   expect(getByText('Sleep-Timer: 15 Minuten')).toBeTruthy();
   expect(getByText('Sleep-Timer: 30 Minuten')).toBeTruthy();
   expect(getByText('Sleep-Timer: 45 Minuten')).toBeTruthy();
@@ -80,21 +82,35 @@ test('calls menu actions', () => {
 });
 
 
-test.each([15, 30, 45, 60])('starts %i minute sleep timer and closes the menu', minutes => {
+test.each([1, 15, 30, 45, 60])('starts %i minute sleep timer and closes the menu', minutes => {
   const onStartSleepTimer = jest.fn();
   const onClose = jest.fn();
   const { getByText } = renderMenu({ onStartSleepTimer, onClose });
 
-  fireEvent.press(getByText(`Sleep-Timer: ${minutes} Minuten`));
+  fireEvent.press(getByText(`Sleep-Timer: ${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'}`));
 
   expect(onStartSleepTimer).toHaveBeenCalledWith(minutes);
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test('does not render the old generic sleep timer action or duplicate 30 minute actions', () => {
+  const { queryByText, getAllByText } = renderMenu();
+
+  expect(queryByText('Sleep-Timer starten')).toBeNull();
+  expect(getAllByText('Sleep-Timer: 30 Minuten')).toHaveLength(1);
+});
+
 test('renders and cancels an active sleep timer', () => {
   const onCancelSleepTimer = jest.fn();
   const onClose = jest.fn();
-  const { getByText } = renderMenu({ sleepTimerActive: true, onCancelSleepTimer, onClose });
+  const { getByText } = renderMenu({
+    sleepTimerActive: true,
+    sleepTimerRemainingSeconds: 14 * 60 + 59,
+    onCancelSleepTimer,
+    onClose,
+  });
+
+  expect(getByText('Sleep-Timer aktiv · 14:59')).toBeTruthy();
 
   fireEvent.press(getByText('Sleep-Timer abbrechen'));
 

@@ -38,6 +38,7 @@ const NowPlayingScreenInner: React.FC = () => {
     openEqualizer,
     saveCurrentQueueAsPlaylist,
     sleepTimerActive,
+    sleepTimerRemainingSeconds,
     startSleepTimer,
     cancelSleepTimer,
     queue,
@@ -146,7 +147,13 @@ const NowPlayingScreenInner: React.FC = () => {
         artworkUri={artworkUri}
       />
 
-      <NowPlayingHeader albumTitle={albumTitle} onClose={handleClose} onMore={openMenu} />
+      <NowPlayingHeader
+        albumTitle={albumTitle}
+        sleepTimerActive={sleepTimerActive}
+        sleepTimerRemainingSeconds={sleepTimerRemainingSeconds}
+        onClose={handleClose}
+        onMore={openMenu}
+      />
 
       <View style={styles.pagerSlot} onLayout={handlePagerLayout} testID="now-playing-pager-slot">
         <NowPlayingSnapPager
@@ -165,6 +172,7 @@ const NowPlayingScreenInner: React.FC = () => {
         onToggleFavorite={toggleFavorite}
         onSaveQueueAsPlaylist={saveCurrentQueueAsPlaylist}
         sleepTimerActive={sleepTimerActive}
+        sleepTimerRemainingSeconds={sleepTimerRemainingSeconds}
         onStartSleepTimer={startSleepTimer}
         onCancelSleepTimer={cancelSleepTimer}
       />
