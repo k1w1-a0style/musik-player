@@ -3,6 +3,7 @@ import type { TagEditDraft } from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { encodeBytesToBase64 } from '../utils/base64';
 import { normalizeId3Genre } from '../utils/id3Parser';
+import { getSupportedContainer } from '../utils/tagEditCapability';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import type { FormState } from './tagEditorHelpers';
@@ -14,16 +15,17 @@ import {
 
 const WRITE_REREAD_FAILED_MESSAGE = 'Datei wurde geschrieben, die Metadaten konnten aber nicht neu eingelesen werden.';
 const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die erneute Prüfung hat nicht alle Änderungen bestätigt.';
-const TAG_COVER_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
+const TAG_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
 const normalizeExpectedValue = (
+  song: Song,
   key: (typeof FIELDS)[number]['key'],
   value: unknown,
 ): string => {
   const normalized = normalizeValue(value);
-  if (key !== 'genre') return normalized;
+  if (key !== 'genre' || getSupportedContainer(song) !== 'mp3') return normalized;
   return normalizeId3Genre(normalized) ?? '';
 };
 
@@ -84,7 +86,7 @@ export const buildVerifiedTagPatch = (
   const patch: Partial<Song> = {};
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    const expected = normalizeExpectedValue(field.key, draft.tags[field.key]);
+    const expected = normalizeExpectedValue(before, field.key, draft.tags[field.key]);
     const actual = normalizeValue(rereadSong[field.key]);
     if (actual !== expected) return undefined;
     if (before[field.key] !== rereadSong[field.key]) {
@@ -110,17 +112,19 @@ export const buildVerifiedTagPatch = (
 
 const rereadWrittenSong = async (song: Song, draft: TagEditDraft): Promise<Song | undefined> => {
   const verificationSeed = buildTagVerificationSeedSong(song, draft);
+  const container = getSupportedContainer(song);
   const verifyCover = Boolean(draft.cover || draft.removeCover);
+  const needsWideReadBounds = verifyCover || container === 'm4a' || container === 'mp4';
   const result = await refreshSongsFromId3([verificationSeed], {
     includeCover: verifyCover,
     concurrency: 1,
     disableNativeFastPath: true,
-    ...(verifyCover
+    ...(needsWideReadBounds
       ? {
-          maxHeadBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
-          maxTailBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
-          maxFrameOffsetBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
-          maxFrameBodyReadBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
+          maxHeadBytes: TAG_VERIFICATION_SCAN_BYTES,
+          maxTailBytes: TAG_VERIFICATION_SCAN_BYTES,
+          maxFrameOffsetBytes: TAG_VERIFICATION_SCAN_BYTES,
+          maxFrameBodyReadBytes: TAG_VERIFICATION_SCAN_BYTES,
         }
       : {}),
   });
