@@ -12,6 +12,7 @@ import {
 
 const WRITE_REREAD_FAILED_MESSAGE = 'Datei wurde geschrieben, die Metadaten konnten aber nicht neu eingelesen werden.';
 const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die erneute Prüfung hat nicht alle Änderungen bestätigt.';
+const TAG_COVER_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
@@ -97,10 +98,19 @@ export const buildVerifiedTagPatch = (
 
 const rereadWrittenSong = async (song: Song, draft: TagEditDraft): Promise<Song | undefined> => {
   const verificationSeed = buildTagVerificationSeedSong(song, draft);
+  const verifyCover = Boolean(draft.cover || draft.removeCover);
   const result = await refreshSongsFromId3([verificationSeed], {
-    includeCover: true,
+    includeCover: verifyCover,
     concurrency: 1,
     disableNativeFastPath: true,
+    ...(verifyCover
+      ? {
+          maxHeadBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
+          maxTailBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
+          maxFrameOffsetBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
+          maxFrameBodyReadBytes: TAG_COVER_VERIFICATION_SCAN_BYTES,
+        }
+      : {}),
   });
   if (result.failed > 0 || result.songs.length !== 1) return undefined;
   return result.songs[0];
