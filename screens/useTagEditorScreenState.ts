@@ -67,6 +67,7 @@ export const useTagEditorScreenState = () => {
     song,
     draft,
     form,
+    container: capability.supportedContainer ?? 'unsupported',
     beginSaveFlow,
     isSaveFlowStale,
     updateSongMetadata,
