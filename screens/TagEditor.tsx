@@ -17,6 +17,7 @@ const TagEditorScreenInner: React.FC = () => {
     capability,
     hasCover,
     canSave,
+    canPickCover,
     canWriteCover,
     coverCapabilityMessage,
     capabilityMessage,
@@ -42,6 +43,7 @@ const TagEditorScreenInner: React.FC = () => {
       capability={capability}
       hasCover={hasCover}
       canSave={canSave}
+      canPickCover={canPickCover}
       canWriteCover={canWriteCover}
       coverCapabilityMessage={coverCapabilityMessage}
       capabilityMessage={capabilityMessage}

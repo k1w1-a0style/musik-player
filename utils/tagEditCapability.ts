@@ -95,12 +95,10 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   }
 
   if (uriType === 'content') {
-    const isAndroidSafMp3 = platform === 'android' && container === 'mp3' && isSafWritableContentSource(song);
+    const isAndroidSafWritable = platform === 'android' && isSafWritableContentSource(song);
     let reason: string;
-    if (isAndroidSafMp3) {
-      reason = 'SAF/content:// MP3-Texttag-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz versucht.';
-    } else if (container !== 'mp3') {
-      reason = 'SAF/content:// Schreiben ist für dieses Format noch nicht unterstützt.';
+    if (isAndroidSafWritable) {
+      reason = 'SAF/content:// MP3/M4A/MP4-Schreiben wird nativ mit Berechtigungs-, Temp- und Verifikationsschutz versucht.';
     } else if (platform !== 'android') {
       reason = 'SAF/content:// Schreiben ist nur in der Android-Development-Build unterstützt.';
     } else {
@@ -108,7 +106,7 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
     }
     return {
       canRead: true,
-      canWrite: isAndroidSafMp3,
+      canWrite: isAndroidSafWritable,
       uriType,
       supportedContainer: container,
       reason,

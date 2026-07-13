@@ -22,6 +22,7 @@ interface TagEditorContentProps {
   capability: TagEditCapability;
   hasCover: boolean;
   canSave: boolean;
+  canPickCover: boolean;
   canWriteCover: boolean;
   coverCapabilityMessage?: string;
   capabilityMessage?: string;
@@ -44,6 +45,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
   capability,
   hasCover,
   canSave,
+  canPickCover,
   canWriteCover,
   coverCapabilityMessage,
   capabilityMessage,
@@ -75,6 +77,7 @@ const TagEditorContent: React.FC<TagEditorContentProps> = ({
           />
 
           <TagEditorCoverControls
+            canPick={canPickCover}
             canWrite={canWriteCover}
             saving={saving}
             hasCover={hasCover}

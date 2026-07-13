@@ -184,7 +184,7 @@ describe('tagEditorHelpers', () => {
     expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.2');
     expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.3');
     expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('ID3v2.4');
-    expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('ID3v2.3');
+    expect(ERROR_MESSAGES.WriteNotImplementedV24).toContain('Sonderstruktur');
     expect(blockingReasonMessage(['WriteNotImplementedV22'])).toContain('ID3v2.2');
     expect(blockingReasonMessage(['WriteNotImplementedV24'])).toContain('ID3v2.4');
     expect(tagWriterErrorMessage('WriteNotImplementedV22')).toContain('ID3v2.2');

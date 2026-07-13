@@ -1260,11 +1260,12 @@ describe('writeTagsToFile SAF/content native route', () => {
     expect(native.writeAudioTags).not.toHaveBeenCalled();
   });
 
-  test('content:// m4a is rejected before native read to avoid unsafe formats', async () => {
+  test('content:// m4a is passed through native full-buffer rewrite when readable', async () => {
     const native = { isAvailable: true, hasNativeTagWriter: true, readAudioFileBase64: jest.fn(), writeAudioTags: jest.fn() };
     const { writeTagsToFile: write } = loadWithNative(native);
+    native.readAudioFileBase64.mockResolvedValue('AAAA');
     const result = await write(song({ uri: 'content://media/a.m4a', fileInfo: { extension: 'm4a' } }), { songId: '1', tags: { title: 'X' } });
-    expect(result).toMatchObject({ status: 'unsupportedUri', errorCode: 'UnsupportedFormat' });
-    expect(native.readAudioFileBase64).not.toHaveBeenCalled();
+    expect(native.readAudioFileBase64).toHaveBeenCalled();
+    expect(result.errorCode).not.toBe('UnsupportedFormat');
   });
 });

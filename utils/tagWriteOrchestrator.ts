@@ -44,7 +44,7 @@ const getPrimaryBlockingReasonFromList = (
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
   if (container === 'mp3' || container === 'm4a' || container === 'mp4')
-    return 'MP3 file:// writes use guarded backup + temp + byte verification; content:// MP3 writes use the native SAF guarded rewrite flow. MP4/M4A content:// writes remain unsupported.';
+    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use the native guarded full-buffer rewrite flow when Android SAF write permission is available.';
   return undefined;
 };
 
@@ -73,12 +73,9 @@ export const validateWritePreconditions = (
   if (!uri || uriType === 'empty' || uriType === 'unknown' || uriType === 'remote')
     errors.push('UnsupportedUri');
   if (container === 'unsupported') errors.push('UnsupportedFormat');
-  if (uriType === 'content' && container !== 'mp3') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
     errors.push('FileTooLarge');
   if (uriType === 'content' && !capability.canWrite)
-    errors.push('WriteNotImplemented');
-  if (uriType === 'content' && (draft.cover || draft.removeCover))
     errors.push('WriteNotImplemented');
   if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
     errors.push('WriteNotImplemented');
@@ -108,8 +105,6 @@ export const createTagWriteOperationPlan = (
   if (containerWarn) warnings.push(containerWarn);
   if (draft.removeCover && draft.cover)
     warnings.push('removeCover=true takes precedence over cover payload.');
-  if (uriType === 'content' && (draft.cover || draft.removeCover))
-    warnings.push('SAF/content:// cover artwork writes are not supported in this release; save is blocked before writing.');
   const knownFileSize = getKnownFileSize(song);
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes) {
     warnings.push(
@@ -118,9 +113,7 @@ export const createTagWriteOperationPlan = (
   }
   if (uriType === 'content')
     warnings.push(
-      container === 'mp3'
-        ? 'SAF/content:// MP3 writes require native ContentResolver permission checks, temp verification, provider replace, and post-write verification.'
-        : 'SAF/content:// writing is only enabled for MP3 in this release; other containers are rejected before mutation.',
+      'SAF/content:// writes require native ContentResolver permission checks, temp verification, provider replace, and post-write verification.',
     );
   if (uriType === 'file')
     warnings.push(
@@ -153,7 +146,7 @@ export const createTagWriteOperationPlan = (
     requiresBackup: uriType === 'file' || uriType === 'content',
     requiresTempFile: uriType === 'file' || uriType === 'content',
     supportsAtomicReplace: false,
-    supportsRollback: uriType === 'file' || (uriType === 'content' && container === 'mp3'),
+    supportsRollback: uriType === 'file' || (uriType === 'content' && container !== 'unsupported'),
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',
     estimatedRisk: getRiskLevel(uriType),

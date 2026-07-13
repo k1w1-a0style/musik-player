@@ -5,6 +5,7 @@ import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
 
 interface TagEditorCoverControlsProps {
+  canPick: boolean;
   canWrite: boolean;
   saving: boolean;
   hasCover: boolean;
@@ -17,6 +18,7 @@ interface TagEditorCoverControlsProps {
 }
 
 const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
+  canPick,
   canWrite,
   saving,
   hasCover,
@@ -30,7 +32,7 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
   const { theme } = useAppTheme();
   const hasReplacementCover = Boolean(replacementCover);
   const removeDisabled = !canWrite || !hasCover || saving || hasReplacementCover;
-  const pickDisabled = !canWrite || saving;
+  const pickDisabled = !canPick || saving;
   const previewUri = replacementCover?.uri ?? (!removeCover ? currentCoverUri : undefined);
   const shouldShowPreview = Boolean(previewUri || hasReplacementCover || removeCover);
   const previewTitle = hasReplacementCover

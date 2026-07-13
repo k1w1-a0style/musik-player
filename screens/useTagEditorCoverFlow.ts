@@ -10,7 +10,7 @@ type FlowToken = {
 
 type UseTagEditorCoverFlowInput = {
   song?: Song;
-  canWrite: boolean;
+  canPick: boolean;
   saving: boolean;
   beginCoverFlow: (songId: string) => FlowToken;
   isCoverFlowStale: (token: FlowToken) => boolean;
@@ -20,7 +20,7 @@ type UseTagEditorCoverFlowInput = {
 
 export const useTagEditorCoverFlow = ({
   song,
-  canWrite,
+  canPick,
   saving,
   beginCoverFlow,
   isCoverFlowStale,
@@ -28,7 +28,7 @@ export const useTagEditorCoverFlow = ({
   applyReplacementCover,
 }: UseTagEditorCoverFlowInput) =>
   useCallback(async (): Promise<void> => {
-    if (!song || !canWrite || saving) return;
+    if (!song || !canPick || saving) return;
 
     const token = beginCoverFlow(song.id);
     const result = await pickTagEditorCover();
@@ -42,4 +42,4 @@ export const useTagEditorCoverFlow = ({
     if (result.status !== 'selected') return;
 
     applyReplacementCover(result.cover);
-  }, [applyReplacementCover, beginCoverFlow, canWrite, isCoverFlowStale, saving, setStatus, song]);
+  }, [applyReplacementCover, beginCoverFlow, canPick, isCoverFlowStale, saving, setStatus, song]);
