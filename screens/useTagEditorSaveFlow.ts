@@ -17,6 +17,11 @@ const normalizeValue = (value: unknown): string => typeof value === 'string' ? v
 
 export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {
   const seed: Song = { ...song };
+  const writtenUri = song.fileInfo?.uri?.trim() || song.uri?.trim();
+  if (writtenUri) {
+    seed.uri = writtenUri;
+    seed.fileInfo = { ...song.fileInfo, uri: writtenUri };
+  }
 
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
