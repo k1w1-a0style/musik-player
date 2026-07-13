@@ -10,13 +10,60 @@ import {
   tagWriterErrorMessage,
 } from './tagEditorHelpers';
 
-
 const WRITE_REREAD_FAILED_MESSAGE = 'Datei wurde geschrieben, die Metadaten konnten aber nicht neu eingelesen werden.';
 const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die erneute Prüfung hat nicht alle Änderungen bestätigt.';
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
-const buildVerifiedPatch = (before: Song, rereadSong: Song, draft: TagEditDraft): Partial<Song> | undefined => {
+export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {
+  const seed: Song = { ...song };
+
+  for (const field of FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
+    switch (field.key) {
+      case 'title':
+        seed.title = '';
+        break;
+      case 'artist':
+        seed.artist = '';
+        break;
+      case 'albumArtist':
+        seed.albumArtist = undefined;
+        break;
+      case 'album':
+        seed.album = undefined;
+        break;
+      case 'year':
+        seed.year = undefined;
+        break;
+      case 'genre':
+        seed.genre = undefined;
+        break;
+      case 'trackNumber':
+        seed.trackNumber = undefined;
+        break;
+      case 'discNumber':
+        seed.discNumber = undefined;
+        break;
+      case 'comment':
+        seed.comment = undefined;
+        break;
+    }
+  }
+
+  if (draft.cover || draft.removeCover) {
+    seed.cover = undefined;
+    seed.coverInfo = undefined;
+  }
+
+  return seed;
+};
+
+export const buildVerifiedTagPatch = (
+  before: Song,
+  rereadSong: Song,
+  draft: TagEditDraft,
+): Partial<Song> | undefined => {
   const patch: Partial<Song> = {};
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
@@ -43,8 +90,13 @@ const buildVerifiedPatch = (before: Song, rereadSong: Song, draft: TagEditDraft)
   return patch;
 };
 
-const rereadWrittenSong = async (song: Song): Promise<Song | undefined> => {
-  const result = await refreshSongsFromId3([song], { includeCover: true, concurrency: 1 });
+const rereadWrittenSong = async (song: Song, draft: TagEditDraft): Promise<Song | undefined> => {
+  const verificationSeed = buildTagVerificationSeedSong(song, draft);
+  const result = await refreshSongsFromId3([verificationSeed], {
+    includeCover: true,
+    concurrency: 1,
+    disableNativeFastPath: true,
+  });
   if (result.failed > 0 || result.songs.length !== 1) return undefined;
   return result.songs[0];
 };
@@ -93,7 +145,7 @@ export const useTagEditorSaveFlow = ({
       }
 
       if (result.status === 'written') {
-        const rereadSong = await rereadWrittenSong(song);
+        const rereadSong = await rereadWrittenSong(song, draft);
         if (isSaveFlowStale(token)) {
           console.warn('[TrackInfo] Ignoring stale tag re-read result.', { songId: token.songId });
           return;
@@ -102,7 +154,7 @@ export const useTagEditorSaveFlow = ({
           setStatus(WRITE_REREAD_FAILED_MESSAGE);
           return;
         }
-        const metadataPatch = buildVerifiedPatch(song, rereadSong, draft);
+        const metadataPatch = buildVerifiedTagPatch(song, rereadSong, draft);
         if (!metadataPatch) {
           setStatus(WRITE_VERIFICATION_FAILED_MESSAGE);
           return;
