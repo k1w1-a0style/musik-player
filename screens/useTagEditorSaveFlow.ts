@@ -1,9 +1,8 @@
 import { useCallback } from 'react';
-import type { TagEditDraft } from '../types/TagEdit';
+import type { TagEditDraft, TagEditableContainer } from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { encodeBytesToBase64 } from '../utils/base64';
 import { normalizeId3Genre } from '../utils/id3Parser';
-import { getSupportedContainer } from '../utils/tagEditCapability';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import type { FormState } from './tagEditorHelpers';
@@ -20,12 +19,12 @@ const TAG_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
 const normalizeExpectedValue = (
-  song: Song,
+  container: TagEditableContainer,
   key: (typeof FIELDS)[number]['key'],
   value: unknown,
 ): string => {
   const normalized = normalizeValue(value);
-  if (key !== 'genre' || getSupportedContainer(song) !== 'mp3') return normalized;
+  if (key !== 'genre' || container !== 'mp3') return normalized;
   return normalizeId3Genre(normalized) ?? '';
 };
 
@@ -82,11 +81,12 @@ export const buildVerifiedTagPatch = (
   before: Song,
   rereadSong: Song,
   draft: TagEditDraft,
+  container: TagEditableContainer,
 ): Partial<Song> | undefined => {
   const patch: Partial<Song> = {};
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    const expected = normalizeExpectedValue(before, field.key, draft.tags[field.key]);
+    const expected = normalizeExpectedValue(container, field.key, draft.tags[field.key]);
     const actual = normalizeValue(rereadSong[field.key]);
     if (actual !== expected) return undefined;
     if (before[field.key] !== rereadSong[field.key]) {
@@ -110,9 +110,12 @@ export const buildVerifiedTagPatch = (
   return patch;
 };
 
-const rereadWrittenSong = async (song: Song, draft: TagEditDraft): Promise<Song | undefined> => {
+const rereadWrittenSong = async (
+  song: Song,
+  draft: TagEditDraft,
+  container: TagEditableContainer,
+): Promise<Song | undefined> => {
   const verificationSeed = buildTagVerificationSeedSong(song, draft);
-  const container = getSupportedContainer(song);
   const verifyCover = Boolean(draft.cover || draft.removeCover);
   const needsWideReadBounds = verifyCover || container === 'm4a' || container === 'mp4';
   const result = await refreshSongsFromId3([verificationSeed], {
@@ -141,6 +144,7 @@ type UseTagEditorSaveFlowInput = {
   song?: Song;
   draft: TagEditDraft;
   form: FormState;
+  container: TagEditableContainer;
   beginSaveFlow: (songId: string) => FlowToken;
   isSaveFlowStale: (token: FlowToken) => boolean;
   updateSongMetadata: (songId: string, metadataPatch: Partial<Song>) => void;
@@ -154,6 +158,7 @@ export const useTagEditorSaveFlow = ({
   song,
   draft,
   form,
+  container,
   beginSaveFlow,
   isSaveFlowStale,
   updateSongMetadata,
@@ -176,7 +181,7 @@ export const useTagEditorSaveFlow = ({
       }
 
       if (result.status === 'written') {
-        const rereadSong = await rereadWrittenSong(song, draft);
+        const rereadSong = await rereadWrittenSong(song, draft, container);
         if (isSaveFlowStale(token)) {
           console.warn('[TrackInfo] Ignoring stale tag re-read result.', { songId: token.songId });
           return;
@@ -185,7 +190,7 @@ export const useTagEditorSaveFlow = ({
           setStatus(WRITE_REREAD_FAILED_MESSAGE);
           return;
         }
-        const metadataPatch = buildVerifiedTagPatch(song, rereadSong, draft);
+        const metadataPatch = buildVerifiedTagPatch(song, rereadSong, draft, container);
         if (!metadataPatch) {
           setStatus(WRITE_VERIFICATION_FAILED_MESSAGE);
           return;
@@ -218,6 +223,7 @@ export const useTagEditorSaveFlow = ({
     }
   }, [
     beginSaveFlow,
+    container,
     draft,
     form,
     isSaveFlowStale,
