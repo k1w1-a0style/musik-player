@@ -81,7 +81,6 @@ test('calls menu actions', () => {
   expect(onClose).toHaveBeenCalledTimes(2);
 });
 
-
 test.each([1, 15, 30, 45, 60])('starts %i minute sleep timer and closes the menu', minutes => {
   const onStartSleepTimer = jest.fn();
   const onClose = jest.fn();
@@ -116,6 +115,20 @@ test('renders and cancels an active sleep timer', () => {
 
   expect(onCancelSleepTimer).toHaveBeenCalledTimes(1);
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+test('keeps all active timer actions reachable in a constrained scrollable card', () => {
+  const { getByTestId, getByText } = renderMenu({
+    sleepTimerActive: true,
+    sleepTimerRemainingSeconds: 14 * 60 + 59,
+  });
+  const card = getByTestId('now-playing-menu-card');
+
+  expect(card.props.showsVerticalScrollIndicator).toBe(true);
+  expect(card.props.keyboardShouldPersistTaps).toBe('handled');
+  expect(JSON.stringify(card.props.style)).toContain('100%');
+  expect(getByText('Sleep-Timer abbrechen')).toBeTruthy();
+  expect(getByText('Menü schließen')).toBeTruthy();
 });
 
 test('renders remove favorite label when favorite', () => {
