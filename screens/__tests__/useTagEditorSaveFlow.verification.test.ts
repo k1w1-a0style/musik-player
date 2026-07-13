@@ -58,7 +58,7 @@ describe('TagEditor post-write verification helpers', () => {
     };
     const reread = buildTagVerificationSeedSong(song, draft);
 
-    expect(buildVerifiedTagPatch(song, reread, draft)).toEqual({
+    expect(buildVerifiedTagPatch(song, reread, draft, 'mp3')).toEqual({
       title: '',
       album: undefined,
       cover: undefined,
@@ -72,7 +72,7 @@ describe('TagEditor post-write verification helpers', () => {
       tags: { title: '' },
     };
 
-    expect(buildVerifiedTagPatch(song, song, draft)).toBeUndefined();
+    expect(buildVerifiedTagPatch(song, song, draft, 'mp3')).toBeUndefined();
   });
 
   it('compares MP3 genre codes against the parser-normalized genre', () => {
@@ -82,7 +82,7 @@ describe('TagEditor post-write verification helpers', () => {
     };
     const reread: Song = { ...song, genre: 'Rock' };
 
-    expect(buildVerifiedTagPatch(song, reread, draft)).toEqual({ genre: 'Rock' });
+    expect(buildVerifiedTagPatch(song, reread, draft, 'mp3')).toEqual({ genre: 'Rock' });
   });
 
   it('keeps numeric M4A/MP4 genres literal during verification', () => {
@@ -97,7 +97,7 @@ describe('TagEditor post-write verification helpers', () => {
     };
     const reread: Song = { ...mp4Song, genre: '17' };
 
-    expect(buildVerifiedTagPatch(mp4Song, reread, draft)).toEqual({ genre: '17' });
+    expect(buildVerifiedTagPatch(mp4Song, reread, draft, 'm4a')).toEqual({ genre: '17' });
   });
 
   it('accepts the exact re-read embedded cover bytes as verified truth', () => {
@@ -120,7 +120,7 @@ describe('TagEditor post-write verification helpers', () => {
       },
     };
 
-    expect(buildVerifiedTagPatch(song, reread, draft)).toMatchObject({
+    expect(buildVerifiedTagPatch(song, reread, draft, 'mp3')).toMatchObject({
       cover: verifiedCover,
       coverInfo: {
         status: 'embedded',
@@ -139,6 +139,6 @@ describe('TagEditor post-write verification helpers', () => {
       },
     };
 
-    expect(buildVerifiedTagPatch(song, song, draft)).toBeUndefined();
+    expect(buildVerifiedTagPatch(song, song, draft, 'mp3')).toBeUndefined();
   });
 });
