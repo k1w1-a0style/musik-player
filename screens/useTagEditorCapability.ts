@@ -30,25 +30,24 @@ export const useTagEditorCapability = ({
     const capability = getTagEditCapability(capabilitySong);
     const plan = createTagWriteOperationPlan(capabilitySong, draft);
     const hasCover = song ? hasRemovableCover(song) : false;
-    const canSave = Boolean(
-      song && capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving,
-    );
-    const capabilityMessage = capability.canWrite ? undefined : capabilityReason(capability.reason);
-    const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons, plan);
+    const canPickCover = Boolean(song && !saving);
     const coverUriType = plan.uriType ?? capability.uriType;
     const coverContainer = plan.container ?? capability.supportedContainer;
     const canWriteCover = Boolean(
       capability.canWrite
-      && coverUriType === 'file'
-      && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4'),
+      && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4')
+      && (coverUriType === 'file' || coverUriType === 'content')
     );
-    const coverCapabilityMessage = canWriteCover || !capability.canWrite
+    const hasPendingCoverWrite = Boolean(draft.cover || draft.removeCover);
+    const coverWriteBlocked = hasPendingCoverWrite && !canWriteCover;
+    const canSave = Boolean(
+      song && capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving && !coverWriteBlocked,
+    );
+    const capabilityMessage = capability.canWrite ? undefined : capabilityReason(capability.reason);
+    const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons, plan);
+    const coverCapabilityMessage = canWriteCover
       ? undefined
-      : coverUriType === 'content'
-        ? 'Cover-Auswahl ist für SAF/content:// nur Vorschau; Cover-Schreiben ist noch nicht unterstützt.'
-        : coverContainer === 'm4a' || coverContainer === 'mp4'
-          ? 'Cover-Auswahl ist für MP4/M4A in dieser Version nicht speicherbar.'
-          : undefined;
+      : 'Das Cover kann ausgewählt, für diese Dateiquelle aber noch nicht gespeichert werden.';
     const safetyMessage = song ? safetyNotice(song) : undefined;
 
     return {
@@ -56,6 +55,7 @@ export const useTagEditorCapability = ({
       plan,
       hasCover,
       canSave,
+      canPickCover,
       canWriteCover,
       coverCapabilityMessage,
       capabilityMessage,

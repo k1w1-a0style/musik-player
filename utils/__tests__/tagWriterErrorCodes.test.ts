@@ -26,16 +26,10 @@ describe('tag writer ID3 version error codes', () => {
     }
   });
 
-  it('emits a specific code for ID3v2.4 write blocks', () => {
-    try {
-      applyTagEditToBuffer(id3v24, 'mp3', { songId: 's1', tags: { title: 'X' } });
-      throw new Error('Expected ID3v2.4 write block');
-    } catch (error) {
-      expect(error).toBeInstanceOf(TagWriterError);
-      expect((error as TagWriterError).code).toBe('WriteNotImplementedV24');
-      expect((error as Error).message).toContain('ID3v2.4');
-      expect(tagWriterErrorMessage((error as TagWriterError).code, (error as Error).message)).toContain('ID3v2.4');
-    }
+  it('rewrites ordinary ID3v2.4 tags instead of emitting a version block', () => {
+    const result = applyTagEditToBuffer(id3v24, 'mp3', { songId: 's1', tags: { title: 'X' } });
+    expect(result[3]).toBe(0x03);
+    expect(result).not.toBe(id3v24);
   });
 
   it('keeps unrelated WriteNotImplemented errors generic', () => {

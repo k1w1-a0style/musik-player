@@ -17,7 +17,7 @@ const SAF_READ_ONLY_MESSAGE =
 const ID3V22_UNSUPPORTED_MESSAGE =
   'Diese MP3 nutzt ID3v2.2. Dieses sehr alte Tag-Format wird aktuell nicht geschrieben; bitte extern nach ID3v2.3 konvertieren.';
 const ID3V24_UNSUPPORTED_MESSAGE =
-  'Diese MP3 nutzt ID3v2.4. Der Editor schreibt aktuell nur sichere ID3v2.3-Änderungen; bitte extern nach ID3v2.3 konvertieren oder die Datei unverändert lassen.';
+  'Diese MP3 nutzt eine ID3v2.4-Sonderstruktur (z. B. Unsynchronisation, Footer oder Frame-Flags), die der Editor nicht sicher umschreiben kann. Gewöhnliche ID3v2.4-Tags werden konservativ geschrieben.';
 const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 
@@ -124,12 +124,12 @@ export const blockingReasonMessage = (reasons: TagWriterErrorCode[], plan?: Pick
       return 'MP3 SAF/content:// Texttag-Schreiben ist nur mit Android-SAF-Schreibfreigabe unterstützt; diese Quelle ist schreibgeschützt.';
     }
     if (plan?.container === 'm4a' || plan?.container === 'mp4') {
-      return 'MP4/M4A-Schreiben ist in dieser Version noch nicht unterstützt.';
+      return 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
     }
     return FILE_REPLACE_UNSUPPORTED_MESSAGE;
   }
   if (reasons.includes('UnsupportedFormat')) {
-    if (plan?.container === 'm4a' || plan?.container === 'mp4') return 'MP4/M4A-Schreiben ist in dieser Version noch nicht unterstützt.';
+    if (plan?.container === 'm4a' || plan?.container === 'mp4') return 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
     return 'Format nicht unterstützt.';
   }
   if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';

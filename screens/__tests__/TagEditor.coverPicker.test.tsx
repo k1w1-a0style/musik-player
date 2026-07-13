@@ -57,6 +57,7 @@ const mockRequestMediaLibraryPermissionsAsync = jest.fn();
 const mockLaunchImageLibraryAsync = jest.fn();
 const mockWriteTagsToFile = jest.fn();
 const mockUpdateSongMetadata = jest.fn();
+const mockRefreshSongsFromId3 = jest.fn();
 const mockSongId = 's1';
 let mockSongs: Array<{
   id: string;
@@ -88,6 +89,10 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: jest.fn() }),
 }));
 
+
+jest.mock('../../utils/songMetadataRefresh', () => ({
+  refreshSongsFromId3: (...args: unknown[]) => mockRefreshSongsFromId3(...args),
+}));
 jest.mock('../../contexts/MusicContext', () => ({
   useLibraryMusicContext: () => ({
     songs: mockSongs,
@@ -164,6 +169,15 @@ beforeEach(() => {
   mockLaunchImageLibraryAsync.mockReset();
   mockWriteTagsToFile.mockReset();
   mockUpdateSongMetadata.mockReset();
+  mockRefreshSongsFromId3.mockReset();
+  mockRefreshSongsFromId3.mockImplementation(async ([song]: any[]) => {
+    const draft = mockWriteTagsToFile.mock.calls.at(-1)?.[1] ?? { tags: {} };
+    const normalizedTags = Object.fromEntries(Object.entries(draft.tags ?? {}).map(([key, value]) => [key, typeof value === 'string' && value.trim() ? value.trim() : undefined]));
+    const next = { ...song, ...normalizedTags };
+    if (draft.cover) { next.cover = 'file:///new-cover.jpg'; next.coverInfo = { status: 'embedded', uri: 'file:///new-cover.jpg', embeddedArtworkChecked: true }; }
+    if (draft.removeCover) { next.cover = undefined; next.coverInfo = undefined; }
+    return { songs: [next], updated: 1, skipped: 0, failed: 0, errors: [], patchesBySongId: { [song.id]: normalizedTags }, processed: 1, total: 1, completed: true };
+  });
 });
 
 test('cover controls expose German accessibility labels before picking a cover', () => {
@@ -236,12 +250,9 @@ test('valid picked cover enables save and writes cover draft', async () => {
   expect(mockUpdateSongMetadata).toHaveBeenCalledWith('s1', {
     cover: 'file:///new-cover.jpg',
     coverInfo: {
-      status: 'external',
+      status: 'embedded',
       uri: 'file:///new-cover.jpg',
-      embeddedArtworkChecked: false,
-      embeddedArtworkRevision: expect.any(Number),
-      pendingEmbeddedArtworkRefresh: true,
-      embeddedArtworkRefreshFailed: false,
+      embeddedArtworkChecked: true,
     },
   });
 });

@@ -85,27 +85,27 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(getTagEditCapability(safMp3Song(), 'android').canWrite).toBe(true);
     expect(getTagEditCapability(safUriWithoutSource, 'android').canWrite).toBe(true);
     expect(getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android').canWrite).toBe(false);
-    expect(getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android').canWrite).toBe(false);
+    expect(getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android').canWrite).toBe(true);
     expect(getTagEditCapability(safMp3Song(), 'ios').canWrite).toBe(false);
   });
 
-  test('content:// mp3 cover payload is blocked before save while text-only remains allowed', () => {
+  test('content:// mp3 cover payload is allowed through native full-buffer rewrite while text-only remains allowed', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
       'android',
     );
-    expect(plan.blockingReasons).toContain('WriteNotImplemented');
-    expect(plan.warnings.join(' ')).toMatch(/cover artwork writes are not supported/i);
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
+    expect(plan.warnings.join(' ')).toMatch(/post-write verification/i);
   });
 
-  test('content:// mp3 removeCover is blocked before save', () => {
+  test('content:// mp3 removeCover is allowed through native full-buffer rewrite', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, removeCover: true },
       'android',
     );
-    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
   });
 
   test('media-library content:// mp3 is blocked before dry-run success', () => {
@@ -120,7 +120,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(assertSafeWriteAllowed(plan)).toBe('WriteNotImplemented');
   });
 
-  test('unsupported content containers are blocked before dry-run success', () => {
+  test('SAF m4a/mp4 content containers are allowed before native full-buffer rewrite', () => {
     const m4aPlan = createTagWriteOperationPlan(
       song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }),
       draft,
@@ -131,10 +131,10 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
       draft,
       'android',
     );
-    expect(m4aPlan.blockingReasons).toContain('UnsupportedFormat');
-    expect(mp4Plan.blockingReasons).toContain('UnsupportedFormat');
-    expect(simulateTagWriteOperation(m4aPlan).ok).toBe(false);
-    expect(assertSafeWriteAllowed(m4aPlan)).toBe('UnsupportedFormat');
+    expect(m4aPlan.blockingReasons).not.toContain('UnsupportedFormat');
+    expect(mp4Plan.blockingReasons).not.toContain('UnsupportedFormat');
+    expect(simulateTagWriteOperation(m4aPlan).ok).toBe(true);
+    expect(assertSafeWriteAllowed(m4aPlan)).toBeNull();
   });
 
   test('content:// mp3 is blocked on non-Android platforms', () => {

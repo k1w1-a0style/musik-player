@@ -178,6 +178,11 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
       'WriteNotImplemented',
       'Existing ID3 unsynchronisation is not supported yet.',
     );
+  if (h.major === 4 && (h.flags & 0x10) !== 0)
+    throw new TagWriterError(
+      'WriteNotImplemented',
+      'Existing ID3v2.4 footer tags are not supported yet.',
+    );
   const frames: ParsedFrame[] = [];
   const end = 10 + h.size;
   let p = h.frameStart;
@@ -195,7 +200,14 @@ const parseFrames = (buffer: Uint8Array, h: ParsedId3Header): ParsedFrame[] => {
       h.major === 4
         ? decodeSynchsafe(buffer.subarray(p + 4, p + 8))
         : readU32(buffer, p + 4);
-    const flags: [number, number] = [buffer[p + 8], buffer[p + 9]];
+    const rawFlags: [number, number] = [buffer[p + 8], buffer[p + 9]];
+    if (h.major === 4 && (rawFlags[0] !== 0 || rawFlags[1] !== 0)) {
+      throw new TagWriterError(
+        'WriteNotImplemented',
+        'ID3v2.4 frame flags requiring compression, encryption, unsynchronisation, grouping, data-length indicators, or preservation semantics are not supported yet.',
+      );
+    }
+    const flags: [number, number] = h.major === 4 ? [0, 0] : rawFlags;
     if (sz < 0 || p + 10 + sz > end)
       throw new TagWriterError('InvalidTagData', 'Truncated ID3 frame.');
     frames.push({ id, flags, body: buffer.slice(p + 10, p + 10 + sz) });
@@ -278,13 +290,7 @@ export const mergeId3v23TagIntoMp3Buffer = (
   if (original.length === 0)
     throw new TagWriterError('InvalidTagData', 'Empty audio buffer.');
   const header = readId3Header(original);
-  if (header?.major === 4) {
-    if (!hasAnyTagEditIntent(draft)) return original.slice();
-    throw new TagWriterError(
-      'WriteNotImplemented',
-      'Rewriting existing ID3v2.4 tags is not supported yet.',
-    );
-  }
+  if (header?.major === 4 && !hasAnyTagEditIntent(draft)) return original.slice();
   const existing = header ? parseFrames(original, header) : [];
   const audio = header ? original.slice(header.audioStart) : original.slice();
   const rewrite = buildId3v23TagFromDraft(draft, existing);

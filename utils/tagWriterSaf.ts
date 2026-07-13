@@ -48,28 +48,6 @@ export const writeTagsToSafContentUri = async (
   return withUriWriteLock(uri, async () => {
     const container = getSupportedContainer(song);
     const changedFields = changedFieldsForDraft(draft);
-    if (container !== 'mp3') {
-      return toResult({
-        success: false,
-        uri,
-        changedFields: [],
-        failedFields: changedFields,
-        errorCode: 'UnsupportedFormat',
-        message: 'SAF/content:// tag writing currently supports MP3/ID3v2.3 text tags only.',
-        verified: false,
-      });
-    }
-    if (draft.cover || draft.removeCover) {
-      return toResult({
-        success: false,
-        uri,
-        changedFields: [],
-        failedFields: changedFields,
-        errorCode: 'WriteNotImplemented',
-        message: 'SAF/content:// cover artwork writes are not enabled yet; text tags can be saved without changing cover artwork.',
-        verified: false,
-      });
-    }
     if (!SystemAudio.hasNativeTagWriter) {
       return toResult({
         success: false,

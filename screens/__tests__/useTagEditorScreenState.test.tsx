@@ -11,6 +11,7 @@ const mockGoBack = jest.fn();
 const mockUpdateSongMetadata = jest.fn();
 const mockWriteTagsToFile = jest.fn();
 const mockPickTagEditorCover = jest.fn();
+const mockRefreshSongsFromId3 = jest.fn();
 
 const baseSongs: Song[] = [
   {
@@ -77,6 +78,10 @@ jest.mock('../tagEditorCoverPicker', () => ({
   pickTagEditorCover: () => mockPickTagEditorCover(),
 }));
 
+jest.mock('../../utils/songMetadataRefresh', () => ({
+  refreshSongsFromId3: (...args: unknown[]) => mockRefreshSongsFromId3(...args),
+}));
+
 const TagEditorStateProbe = () => {
   const state = useTagEditorScreenState();
 
@@ -108,6 +113,17 @@ describe('useTagEditorScreenState', () => {
     mockCapability.reason = 'ok';
     mockPlan.blockingReasons = [];
     mockWriteTagsToFile.mockResolvedValue({ status: 'written', sourceUri: 'file:///song.mp3', warnings: [] });
+    mockRefreshSongsFromId3.mockImplementation(async ([song]: Song[]) => ({
+      songs: [{ ...song, title: 'New Title' }],
+      updated: 1,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      patchesBySongId: { [song.id]: { title: 'New Title' } },
+      processed: 1,
+      total: 1,
+      completed: true,
+    }));
     mockPickTagEditorCover.mockResolvedValue({
       status: 'selected',
       message: 'Neues Cover ausgewählt. Speichern schreibt es in die Datei.',
