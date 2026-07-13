@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingMenuBackdropColor } from '../utils/appThemeOverlays';
 import NowPlayingMenuItem from './NowPlayingMenuItem';
@@ -50,7 +50,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
         accessible={false}
         testID="now-playing-menu-backdrop"
       >
-        <View
+        <ScrollView
           style={[
             styles.menuCard,
             {
@@ -58,6 +58,9 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               borderColor: theme.palette.border,
             },
           ]}
+          contentContainerStyle={styles.menuContent}
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
           testID="now-playing-menu-card"
         >
           <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
@@ -106,15 +109,27 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
             }}
           />
           <NowPlayingMenuItem label="Menü schließen" onPress={onClose} />
-        </View>
+        </ScrollView>
       </Pressable>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22 },
-  menuCard: { width: 235, borderRadius: 20, paddingVertical: 8, borderWidth: 1 },
+  menuBackdrop: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingTop: 54,
+    paddingRight: 22,
+    paddingBottom: 16,
+  },
+  menuCard: {
+    width: 235,
+    maxHeight: '100%',
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  menuContent: { paddingVertical: 8 },
   sleepTimerStatus: { paddingHorizontal: 16, paddingVertical: 10, fontSize: 13, fontWeight: '600' },
 });
 
