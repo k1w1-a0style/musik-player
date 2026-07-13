@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import type { TagEditDraft } from '../types/TagEdit';
 import type { Song } from '../types/Song';
+import { encodeBytesToBase64 } from '../utils/base64';
+import { normalizeId3Genre } from '../utils/id3Parser';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import type { FormState } from './tagEditorHelpers';
@@ -15,6 +17,15 @@ const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die ern
 const TAG_COVER_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+const normalizeExpectedValue = (
+  key: (typeof FIELDS)[number]['key'],
+  value: unknown,
+): string => {
+  const normalized = normalizeValue(value);
+  if (key !== 'genre') return normalized;
+  return normalizeId3Genre(normalized) ?? '';
+};
 
 export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {
   const seed: Song = { ...song };
@@ -73,7 +84,7 @@ export const buildVerifiedTagPatch = (
   const patch: Partial<Song> = {};
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    const expected = normalizeValue(draft.tags[field.key]);
+    const expected = normalizeExpectedValue(field.key, draft.tags[field.key]);
     const actual = normalizeValue(rereadSong[field.key]);
     if (actual !== expected) return undefined;
     if (before[field.key] !== rereadSong[field.key]) {
@@ -82,8 +93,9 @@ export const buildVerifiedTagPatch = (
   }
 
   if (draft.cover) {
-    const verifiedCover = rereadSong.coverInfo?.uri ?? rereadSong.cover;
-    if (!verifiedCover) return undefined;
+    const verifiedCover = rereadSong.cover ?? rereadSong.coverInfo?.uri;
+    const expectedCover = `data:${draft.cover.mimeType};base64,${encodeBytesToBase64(draft.cover.data)}`;
+    if (verifiedCover !== expectedCover) return undefined;
     patch.cover = rereadSong.cover;
     patch.coverInfo = rereadSong.coverInfo;
   } else if (draft.removeCover) {
