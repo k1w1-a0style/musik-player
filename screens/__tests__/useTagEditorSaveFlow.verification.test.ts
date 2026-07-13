@@ -34,6 +34,22 @@ describe('TagEditor post-write verification helpers', () => {
     expect(seed.fileInfo).toEqual(song.fileInfo);
   });
 
+  it('re-reads the same fileInfo URI that the writer targets', () => {
+    const sourceWithDifferentPlaybackUri: Song = {
+      ...song,
+      uri: 'content://playback-cache/song-1',
+      fileInfo: { ...song.fileInfo, uri: 'content://saf/document/song-1' },
+    };
+
+    const seed = buildTagVerificationSeedSong(sourceWithDifferentPlaybackUri, {
+      songId: song.id,
+      tags: { title: 'New title' },
+    });
+
+    expect(seed.uri).toBe('content://saf/document/song-1');
+    expect(seed.fileInfo?.uri).toBe('content://saf/document/song-1');
+  });
+
   it('accepts confirmed text and cover deletions instead of restoring old song values', () => {
     const draft: TagEditDraft = {
       songId: song.id,
