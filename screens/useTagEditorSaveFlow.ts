@@ -5,6 +5,7 @@ import { encodeBytesToBase64 } from '../utils/base64';
 import { normalizeId3Genre } from '../utils/id3Parser';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
+import { hasTagDeletionIntent, verifyTagDeletionState } from '../utils/tagWriteVerification';
 import type { FormState } from './tagEditorHelpers';
 import {
   FIELDS,
@@ -181,6 +182,18 @@ export const useTagEditorSaveFlow = ({
       }
 
       if (result.status === 'written') {
+        if (hasTagDeletionIntent(draft)) {
+          const deletionVerified = await verifyTagDeletionState(song, draft, container);
+          if (isSaveFlowStale(token)) {
+            console.warn('[TrackInfo] Ignoring stale tag deletion verification.', { songId: token.songId });
+            return;
+          }
+          if (!deletionVerified) {
+            setStatus(WRITE_VERIFICATION_FAILED_MESSAGE);
+            return;
+          }
+        }
+
         const rereadSong = await rereadWrittenSong(song, draft, container);
         if (isSaveFlowStale(token)) {
           console.warn('[TrackInfo] Ignoring stale tag re-read result.', { songId: token.songId });
