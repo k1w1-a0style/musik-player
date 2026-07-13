@@ -75,7 +75,18 @@ describe('TagEditor post-write verification helpers', () => {
     expect(buildVerifiedTagPatch(song, song, draft)).toBeUndefined();
   });
 
-  it('uses the re-read embedded cover instead of the picker preview as verified truth', () => {
+  it('compares genre codes against the parser-normalized genre', () => {
+    const draft: TagEditDraft = {
+      songId: song.id,
+      tags: { genre: '17' },
+    };
+    const reread: Song = { ...song, genre: 'Rock' };
+
+    expect(buildVerifiedTagPatch(song, reread, draft)).toEqual({ genre: 'Rock' });
+  });
+
+  it('accepts the exact re-read embedded cover bytes as verified truth', () => {
+    const verifiedCover = 'data:image/jpeg;base64,AQID';
     const draft: TagEditDraft = {
       songId: song.id,
       tags: {},
@@ -86,20 +97,33 @@ describe('TagEditor post-write verification helpers', () => {
     };
     const reread: Song = {
       ...song,
-      cover: 'file:///verified-embedded-cover.jpg',
+      cover: verifiedCover,
       coverInfo: {
         status: 'embedded',
-        uri: 'file:///verified-embedded-cover.jpg',
+        uri: verifiedCover,
         embeddedArtworkChecked: true,
       },
     };
 
     expect(buildVerifiedTagPatch(song, reread, draft)).toMatchObject({
-      cover: 'file:///verified-embedded-cover.jpg',
+      cover: verifiedCover,
       coverInfo: {
         status: 'embedded',
-        uri: 'file:///verified-embedded-cover.jpg',
+        uri: verifiedCover,
       },
     });
+  });
+
+  it('rejects a stale or different cover after a reported write', () => {
+    const draft: TagEditDraft = {
+      songId: song.id,
+      tags: {},
+      cover: {
+        mimeType: 'image/jpeg',
+        data: new Uint8Array([1, 2, 3]),
+      },
+    };
+
+    expect(buildVerifiedTagPatch(song, song, draft)).toBeUndefined();
   });
 });
