@@ -118,7 +118,12 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     ],
   );
 
-  const sleepTimerState = useSleepTimer();
+  const {
+    sleepTimerActive,
+    sleepTimerRemainingSeconds,
+    startSleepTimer,
+    cancelSleepTimer,
+  } = useSleepTimer();
 
   const nowPlayingValue = useMemo(
     () =>
@@ -128,7 +133,10 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         seekTo,
         isPlaying,
         togglePlayPause,
-        ...sleepTimerState,
+        sleepTimerActive,
+        sleepTimerRemainingSeconds,
+        startSleepTimer,
+        cancelSleepTimer,
         volume,
         setVolume,
         palette,
@@ -145,7 +153,10 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       seekTo,
       isPlaying,
       togglePlayPause,
-      sleepTimerState,
+      sleepTimerActive,
+      sleepTimerRemainingSeconds,
+      startSleepTimer,
+      cancelSleepTimer,
       volume,
       setVolume,
       palette,

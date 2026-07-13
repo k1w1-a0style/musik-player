@@ -102,6 +102,8 @@ export const cancelSleepTimer = (): void => {
 
 export const isSleepTimerActive = (): boolean => sleepTimerDeadlineMs !== null;
 
+export const getSleepTimerDeadlineMs = (): number | null => sleepTimerDeadlineMs;
+
 export const subscribeToSleepTimer = (listener: SleepTimerListener): (() => void) => {
   listeners.add(listener);
   listener(isSleepTimerActive());

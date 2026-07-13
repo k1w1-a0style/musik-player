@@ -127,6 +127,7 @@ describe('music context value builders', () => {
     expect(buildNowPlayingMusicContextValue({
       ...baseValue,
       sleepTimerActive: false,
+      sleepTimerRemainingSeconds: null,
       startSleepTimer: jest.fn(),
       cancelSleepTimer: jest.fn(),
     })).toMatchObject({
@@ -137,6 +138,7 @@ describe('music context value builders', () => {
       previous: baseValue.previous,
       saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
       repeatMode: baseValue.repeatMode,
+      sleepTimerRemainingSeconds: null,
       canSkip: true,
     });
   });

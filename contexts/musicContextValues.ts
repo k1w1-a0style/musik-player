@@ -50,7 +50,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'repeatMode'
 > & Pick<
   NowPlayingMusicContextValue,
-  'sleepTimerActive' | 'startSleepTimer' | 'cancelSleepTimer'
+  'sleepTimerActive' | 'sleepTimerRemainingSeconds' | 'startSleepTimer' | 'cancelSleepTimer'
 >;
 
 export const buildLibraryMusicContextValue = ({
@@ -117,6 +117,7 @@ export const buildNowPlayingMusicContextValue = ({
   isPlaying,
   togglePlayPause,
   sleepTimerActive,
+  sleepTimerRemainingSeconds,
   startSleepTimer,
   cancelSleepTimer,
   volume,
@@ -135,6 +136,7 @@ export const buildNowPlayingMusicContextValue = ({
   isPlaying,
   togglePlayPause,
   sleepTimerActive,
+  sleepTimerRemainingSeconds,
   startSleepTimer,
   cancelSleepTimer,
   volume,

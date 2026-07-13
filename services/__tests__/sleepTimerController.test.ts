@@ -3,6 +3,7 @@ import { waitFor } from '@testing-library/react-native';
 import {
   cancelSleepTimer,
   enforceExpiredSleepTimer,
+  getSleepTimerDeadlineMs,
   isSleepTimerActive,
   resetSleepTimerForTests,
   startSleepTimer,
@@ -222,6 +223,32 @@ describe('sleepTimerController', () => {
     expect(isSleepTimerActive()).toBe(false);
   });
 
+  test('exposes the deadline after start and replacement', () => {
+    startSleepTimer(15);
+    expect(getSleepTimerDeadlineMs()).toBe(Date.now() + 15 * 60 * 1000);
+
+    jest.setSystemTime(new Date('2026-01-01T00:01:00.000Z'));
+    startSleepTimer(30);
+
+    expect(getSleepTimerDeadlineMs()).toBe(Date.now() + 30 * 60 * 1000);
+  });
+
+  test('clears the exposed deadline on cancel', () => {
+    startSleepTimer(15);
+    cancelSleepTimer();
+
+    expect(getSleepTimerDeadlineMs()).toBeNull();
+  });
+
+  test('clears the exposed deadline after expiry', async () => {
+    startSleepTimer(15);
+
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
+
+    expect(getSleepTimerDeadlineMs()).toBeNull();
+  });
+
   test('cancel remains idempotent', () => {
     startSleepTimer(15);
 
@@ -244,6 +271,7 @@ describe('sleepTimerController', () => {
     startSleepTimer(15);
 
     expect(isSleepTimerActive()).toBe(true);
+    expect(getSleepTimerDeadlineMs()).not.toBeNull();
     expect(TrackPlayer.pause).not.toHaveBeenCalled();
     expect(listener).not.toHaveBeenCalled();
   });

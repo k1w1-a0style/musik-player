@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingMenuBackdropColor } from '../utils/appThemeOverlays';
 import NowPlayingMenuItem from './NowPlayingMenuItem';
+import { formatSleepTimerRemaining } from './useSleepTimer';
 
 interface NowPlayingMenuModalProps {
   visible: boolean;
@@ -13,9 +14,12 @@ interface NowPlayingMenuModalProps {
   onToggleFavorite: () => void;
   onSaveQueueAsPlaylist: () => void;
   sleepTimerActive: boolean;
+  sleepTimerRemainingSeconds?: number | null;
   onStartSleepTimer: (minutes: number) => void;
   onCancelSleepTimer: () => void;
 }
+
+const SLEEP_TIMER_OPTIONS_MINUTES = [1, 15, 30, 45, 60];
 
 const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   visible,
@@ -26,10 +30,14 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   onToggleFavorite,
   onSaveQueueAsPlaylist,
   sleepTimerActive,
+  sleepTimerRemainingSeconds = null,
   onStartSleepTimer,
   onCancelSleepTimer,
 }) => {
   const { appearance, theme } = useAppTheme();
+  const formattedSleepTimer = sleepTimerActive
+    ? formatSleepTimerRemaining(sleepTimerRemainingSeconds)
+    : null;
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
@@ -42,7 +50,7 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
         accessible={false}
         testID="now-playing-menu-backdrop"
       >
-        <View
+        <ScrollView
           style={[
             styles.menuCard,
             {
@@ -50,6 +58,9 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               borderColor: theme.palette.border,
             },
           ]}
+          contentContainerStyle={styles.menuContent}
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
           testID="now-playing-menu-card"
         >
           <NowPlayingMenuItem label="Titelinformationen öffnen" onPress={onOpenTrackInfo} />
@@ -61,18 +72,20 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
               onClose();
             }}
           />
-          <NowPlayingMenuItem
-            label="Sleep-Timer starten"
-            onPress={() => {
-              onStartSleepTimer(30);
-              onClose();
-            }}
-          />
 
-          {[15, 30, 45, 60].map(minutes => (
+          {formattedSleepTimer ? (
+            <Text
+              style={[styles.sleepTimerStatus, { color: theme.palette.text.primary }]}
+              accessibilityRole="text"
+            >
+              {`Sleep-Timer aktiv · ${formattedSleepTimer}`}
+            </Text>
+          ) : null}
+
+          {SLEEP_TIMER_OPTIONS_MINUTES.map(minutes => (
             <NowPlayingMenuItem
               key={minutes}
-              label={`Sleep-Timer: ${minutes} Minuten`}
+              label={`Sleep-Timer: ${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'}`}
               onPress={() => {
                 onStartSleepTimer(minutes);
                 onClose();
@@ -96,15 +109,28 @@ const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
             }}
           />
           <NowPlayingMenuItem label="Menü schließen" onPress={onClose} />
-        </View>
+        </ScrollView>
       </Pressable>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 22 },
-  menuCard: { width: 235, borderRadius: 20, paddingVertical: 8, borderWidth: 1 },
+  menuBackdrop: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingTop: 54,
+    paddingRight: 22,
+    paddingBottom: 16,
+  },
+  menuCard: {
+    width: 235,
+    maxHeight: '100%',
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  menuContent: { paddingVertical: 8 },
+  sleepTimerStatus: { paddingHorizontal: 16, paddingVertical: 10, fontSize: 13, fontWeight: '600' },
 });
 
 export default NowPlayingMenuModal;

@@ -47,3 +47,24 @@ test('uses app theme text colors', () => {
   expect(JSON.stringify(getByText('JETZT LÄUFT').props.style)).toContain(mockAppTheme.palette.text.muted);
   expect(JSON.stringify(getByText('Mein Album').props.style)).toContain(mockAppTheme.palette.text.primary);
 });
+
+
+test('shows sleep timer countdown only when active', () => {
+  const inactive = render(
+    <NowPlayingHeader albumTitle="Mein Album" onClose={jest.fn()} onMore={jest.fn()} />,
+  );
+  expect(inactive.getByText('JETZT LÄUFT')).toBeTruthy();
+  expect(inactive.queryByText('JETZT LÄUFT · TIMER 14:59')).toBeNull();
+
+  const active = render(
+    <NowPlayingHeader
+      albumTitle="Mein Album"
+      sleepTimerActive
+      sleepTimerRemainingSeconds={14 * 60 + 59}
+      onClose={jest.fn()}
+      onMore={jest.fn()}
+    />,
+  );
+
+  expect(active.getByText('JETZT LÄUFT · TIMER 14:59')).toBeTruthy();
+});
