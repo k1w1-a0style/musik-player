@@ -44,7 +44,7 @@ const getPrimaryBlockingReasonFromList = (
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
   if (container === 'mp3' || container === 'm4a' || container === 'mp4')
-    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use the native guarded full-buffer rewrite flow when Android SAF write permission is available.';
+    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use native permission checks, in-memory original restore attempts, and post-write byte verification when Android SAF write permission is available.';
   return undefined;
 };
 
@@ -113,7 +113,7 @@ export const createTagWriteOperationPlan = (
   }
   if (uriType === 'content')
     warnings.push(
-      'SAF/content:// writes require native ContentResolver permission checks, temp verification, provider replace, and post-write verification.',
+      'SAF/content:// writes require native ContentResolver write permission, provider writable flags, and post-write verification; they do not currently provide durable backup, atomic replacement, or crash recovery.',
     );
   if (uriType === 'file')
     warnings.push(
@@ -134,19 +134,26 @@ export const createTagWriteOperationPlan = (
     },
     backup: {
       required: uriType === 'file' || uriType === 'content',
-      backupUri: safeUri ? `${safeUri}.bak` : undefined,
-      strategy: uriType === 'file' || uriType === 'content' ? 'sidecar-copy' : 'none',
+      backupUri: uriType === 'file' && safeUri ? `${safeUri}.bak` : undefined,
+      strategy: uriType === 'file' ? 'sidecar-copy' : uriType === 'content' ? 'in-memory-original' : 'none',
     },
     atomicWrite: {
       required: uriType === 'file' || uriType === 'content',
-      tempUri: safeUri ? `${safeUri}.tmp` : undefined,
+      tempUri: uriType === 'file' && safeUri ? `${safeUri}.tmp` : undefined,
       supportsAtomicReplace: false,
     },
     rollback: { required: false, supportsRollback: false, steps: [] },
     requiresBackup: uriType === 'file' || uriType === 'content',
     requiresTempFile: uriType === 'file' || uriType === 'content',
     supportsAtomicReplace: false,
-    supportsRollback: uriType === 'file' || (uriType === 'content' && container !== 'unsupported'),
+    supportsRollback: uriType === 'file',
+    safetyCapabilities: {
+      durableBackup: uriType === 'file',
+      inMemoryRollback: uriType === 'content' && container !== 'unsupported',
+      atomicReplace: false,
+      postWriteVerification: uriType === 'file' || uriType === 'content',
+      crashRecovery: false,
+    },
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',
     estimatedRisk: getRiskLevel(uriType),
@@ -182,12 +189,18 @@ export const simulateTagWriteOperation = (
       ? 'Would write output to temp file first.'
       : 'No temp file required.',
     'Would validate written output metadata before replace step.',
-    plan.supportsAtomicReplace
+    plan.safetyCapabilities.atomicReplace
       ? 'Would perform atomic replace.'
-      : 'OS-atomic replace is not guaranteed; guarded fallback is required.',
-    plan.supportsRollback
-      ? 'Rollback strategy is available if replace fails.'
-      : 'Rollback guarantee is limited for this URI type.',
+      : 'OS-atomic replace is not guaranteed by the current plan.',
+    plan.safetyCapabilities.durableBackup
+      ? 'Durable sidecar backup would be available before replace.'
+      : 'No durable sidecar backup is available for this URI type.',
+    plan.safetyCapabilities.inMemoryRollback
+      ? 'Only in-memory rollback is available if the provider write fails.'
+      : 'No rollback guarantee is available for this URI type.',
+    plan.safetyCapabilities.crashRecovery
+      ? 'Crash recovery journal would be available.'
+      : 'Crash recovery is not available in the current plan.',
     'Dry-run only: no filesystem mutation performed.',
   ];
 

@@ -61,7 +61,15 @@ export interface WritePermissionState {
 export interface BackupPlan {
   required: boolean;
   backupUri?: string;
-  strategy: 'none' | 'sidecar-copy';
+  strategy: 'none' | 'sidecar-copy' | 'in-memory-original';
+}
+
+export interface WriteSafetyCapabilities {
+  durableBackup: boolean;
+  inMemoryRollback: boolean;
+  atomicReplace: boolean;
+  postWriteVerification: boolean;
+  crashRecovery: boolean;
 }
 
 export interface AtomicWritePlan {
@@ -89,6 +97,7 @@ export interface WriteOperationPlan {
   requiresTempFile: boolean;
   supportsAtomicReplace: boolean;
   supportsRollback: boolean;
+  safetyCapabilities: WriteSafetyCapabilities;
   requiresUserConfirmation: boolean;
   requiresFullRewrite: boolean;
   estimatedRisk: WriteRiskLevel;

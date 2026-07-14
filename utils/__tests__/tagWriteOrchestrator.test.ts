@@ -97,6 +97,16 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     );
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
     expect(plan.warnings.join(' ')).toMatch(/post-write verification/i);
+    expect(plan.safetyCapabilities).toMatchObject({
+      durableBackup: false,
+      inMemoryRollback: true,
+      atomicReplace: false,
+      postWriteVerification: true,
+      crashRecovery: false,
+    });
+    expect(plan.backup.strategy).toBe('in-memory-original');
+    expect(plan.backup.backupUri).toBeUndefined();
+    expect(plan.supportsRollback).toBe(false);
   });
 
   test('content:// mp3 removeCover is allowed through native full-buffer rewrite', () => {
@@ -195,9 +205,29 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
     const rollback = createRollbackPlan(plan);
     expect(rollback.steps.length).toBeGreaterThan(0);
+    expect(plan.safetyCapabilities.durableBackup).toBe(true);
+    expect(plan.safetyCapabilities.postWriteVerification).toBe(true);
     const result = simulateTagWriteOperation(plan);
     expect(result.primaryBlockingReason).toBeUndefined();
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
+  });
+
+
+  test('SAF capability plan does not claim durable backup, atomic replace, or crash recovery', () => {
+    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
+
+    expect(plan.backup.strategy).toBe('in-memory-original');
+    expect(plan.backup.backupUri).toBeUndefined();
+    expect(plan.supportsRollback).toBe(false);
+    expect(plan.atomicWrite.tempUri).toBeUndefined();
+    expect(plan.safetyCapabilities).toEqual({
+      durableBackup: false,
+      inMemoryRollback: true,
+      atomicReplace: false,
+      postWriteVerification: true,
+      crashRecovery: false,
+    });
+    expect(simulateTagWriteOperation(plan).simulatedSteps.join(' ')).toMatch(/No durable sidecar backup/i);
   });
 
   test('writeTagsToFile with content uri returns controlled native-unavailable result', async () => {

@@ -299,24 +299,55 @@ class SystemAudioModule : Module() {
 
   private fun hasSafWritePermission(uri: Uri): Boolean {
     val ctx = appContext.reactContext ?: return false
-    val direct = try { ctx.checkUriPermission(uri, android.os.Process.myPid(), android.os.Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED } catch (_: Throwable) { false }
+    val direct = try {
+      ctx.checkUriPermission(
+        uri,
+        android.os.Process.myPid(),
+        android.os.Process.myUid(),
+        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) { false }
     if (direct) return true
+
     return ctx.contentResolver.persistedUriPermissions.any { perm ->
-      perm.isWritePermission && (perm.uri == uri || uri.toString().startsWith(perm.uri.toString()))
+      if (!perm.isWritePermission) return@any false
+      if (perm.uri == uri) return@any true
+      isUriCoveredByPersistedTreePermission(perm.uri, uri)
     }
+  }
+
+  private fun isUriCoveredByPersistedTreePermission(permissionUri: Uri, targetUri: Uri): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    return try {
+      if (!DocumentsContract.isTreeUri(permissionUri)) return false
+      if (permissionUri.authority != targetUri.authority) return false
+      val treeDocumentId = DocumentsContract.getTreeDocumentId(permissionUri)
+      val targetDocumentId = when {
+        DocumentsContract.isDocumentUri(ctx, targetUri) -> DocumentsContract.getDocumentId(targetUri)
+        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.getTreeDocumentId(targetUri)
+        else -> return false
+      }
+      targetDocumentId == treeDocumentId || targetDocumentId.startsWith("$treeDocumentId/")
+    } catch (_: Throwable) { false }
   }
 
   private fun isDocumentWritable(uri: Uri): Boolean {
     val ctx = appContext.reactContext ?: return false
     return try {
-      if (!DocumentsContract.isDocumentUri(ctx, uri)) return true
-      ctx.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
+      val queryUri = when {
+        DocumentsContract.isDocumentUri(ctx, uri) -> uri
+        DocumentsContract.isTreeUri(uri) -> DocumentsContract.buildDocumentUriUsingTree(
+          uri,
+          DocumentsContract.getTreeDocumentId(uri),
+        )
+        else -> return false
+      }
+      ctx.contentResolver.query(queryUri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
         if (!cursor.moveToFirst()) return@use false
         val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
         if (index < 0 || cursor.isNull(index)) return@use false
         val flags = cursor.getInt(index)
-        (flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0 ||
-          (flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0
+        (flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0
       } ?: false
     } catch (_: Throwable) { false }
   }
