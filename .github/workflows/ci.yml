@@ -52,3 +52,22 @@ jobs:
 
       - name: Generated Android manifest permission gate
         run: npm run check:android-permissions
+
+      - name: Select JDK 17 for Android Kotlin compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${JAVA_HOME_17_X64:-}" ]; then
+            echo "::error::JAVA_HOME_17_X64 is not available on this runner."
+            exit 1
+          fi
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
+
+      - name: Android Kotlin compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo prebuild --platform android --no-install --clean
+          cd android
+          ./gradlew :app:compileDebugKotlin --no-daemon

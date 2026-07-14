@@ -8,6 +8,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import expo.modules.systemaudio.saf.SafPermissionPolicy
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.util.Base64
@@ -327,7 +328,28 @@ class SystemAudioModule : Module() {
         DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.getTreeDocumentId(targetUri)
         else -> return false
       }
-      targetDocumentId == treeDocumentId || targetDocumentId.startsWith("$treeDocumentId/")
+      val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(permissionUri, treeDocumentId)
+      val targetDocumentUri = when {
+        DocumentsContract.isDocumentUri(ctx, targetUri) -> targetUri
+        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.buildDocumentUriUsingTree(targetUri, targetDocumentId)
+        else -> return false
+      }
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        permissionUri.authority,
+        treeDocumentId,
+        targetUri.authority,
+        targetDocumentId,
+        providerConfirmsChild = tryProviderChildDocumentCheck(parentDocumentUri, targetDocumentUri),
+      )
+    } catch (_: Throwable) { false }
+  }
+
+  private fun tryProviderChildDocumentCheck(parentDocumentUri: Uri, targetDocumentUri: Uri): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    return try {
+      DocumentsContract.isChildDocument(ctx.contentResolver, parentDocumentUri, targetDocumentUri)
     } catch (_: Throwable) { false }
   }
 
@@ -347,7 +369,7 @@ class SystemAudioModule : Module() {
         val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
         if (index < 0 || cursor.isNull(index)) return@use false
         val flags = cursor.getInt(index)
-        (flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0
+        SafPermissionPolicy.isDocumentWritableFromFlags(flags, DocumentsContract.Document.FLAG_SUPPORTS_WRITE)
       } ?: false
     } catch (_: Throwable) { false }
   }

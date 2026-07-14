@@ -28,8 +28,8 @@ describe('Android SAF permission and writable flag guards', () => {
     const body = source.match(/private fun isUriCoveredByPersistedTreePermission[\s\S]*?\n  }\n/)?.[0] ?? '';
 
     expect(body).toContain('permissionUri.authority != targetUri.authority');
-    expect(body).toContain('targetDocumentId == treeDocumentId');
-    expect(body).toContain('targetDocumentId.startsWith("$treeDocumentId/")');
+    expect(body).toContain('tryProviderChildDocumentCheck');
+    expect(body).toContain('SafPermissionPolicy.isPersistedGrantCovered');
     expect(body).not.toContain('.toString().startsWith');
   });
 });

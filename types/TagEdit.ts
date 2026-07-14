@@ -61,7 +61,7 @@ export interface WritePermissionState {
 export interface BackupPlan {
   required: boolean;
   backupUri?: string;
-  strategy: 'none' | 'sidecar-copy' | 'in-memory-original';
+  strategy: 'none' | 'sidecar-copy';
 }
 
 export interface WriteSafetyCapabilities {
