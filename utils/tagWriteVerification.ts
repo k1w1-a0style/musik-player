@@ -17,6 +17,43 @@ export const hasTagDeletionIntent = (draft: TagEditDraft): boolean =>
 const bytesEqual = (left: Uint8Array, right: Uint8Array): boolean =>
   left.length === right.length && left.every((byte, index) => byte === right[index]);
 
+const hasAsciiMarker = (
+  bytes: Uint8Array,
+  offset: number,
+  marker: string,
+): boolean => {
+  if (offset < 0 || offset + marker.length > bytes.length) return false;
+  for (let index = 0; index < marker.length; index += 1) {
+    if (bytes[offset + index] !== marker.charCodeAt(index)) return false;
+  }
+  return true;
+};
+
+/**
+ * The MP3 writer currently rewrites ID3v2 only. Known trailing metadata blocks
+ * must therefore prevent deletion verification: otherwise a removed value can
+ * remain in ID3v1/APE/Lyrics3 while re-applying the ID3v2 draft is byte-idempotent.
+ */
+export const hasUnsupportedMp3TailMetadata = (bytes: Uint8Array): boolean => {
+  const candidateEnds = new Set<number>([bytes.length]);
+  const id3v1Start = bytes.length - 128;
+  if (hasAsciiMarker(bytes, id3v1Start, 'TAG')) {
+    candidateEnds.add(id3v1Start);
+    const enhancedId3v1Start = id3v1Start - 227;
+    if (hasAsciiMarker(bytes, enhancedId3v1Start, 'TAG+')) {
+      candidateEnds.add(enhancedId3v1Start);
+    }
+  }
+
+  for (const end of candidateEnds) {
+    if (hasAsciiMarker(bytes, end - 32, 'APETAGEX')) return true;
+    if (hasAsciiMarker(bytes, end - 9, 'LYRICS200')) return true;
+    if (hasAsciiMarker(bytes, end - 9, 'LYRICSEND')) return true;
+  }
+
+  return candidateEnds.size > 1;
+};
+
 type TagDeletionVerificationOptions = {
   adapter?: TagFileWriteAdapter;
   maxFileSizeBytes?: number;
@@ -55,8 +92,9 @@ const readWrittenBytes = async (
 /**
  * Proves that an explicit text/cover deletion is already represented in the
  * bytes currently stored at the writer target. Re-applying the same draft must
- * be byte-idempotent; an unreadable target or any additional mutation fails
- * verification instead of trusting a pre-cleared metadata seed.
+ * be byte-idempotent; an unreadable target, unsupported MP3 tail metadata, or
+ * any additional mutation fails verification instead of trusting a pre-cleared
+ * metadata seed.
  */
 export const verifyTagDeletionState = async (
   song: Song,
@@ -71,6 +109,7 @@ export const verifyTagDeletionState = async (
   try {
     const writtenBytes = await readWrittenBytes(uri, options);
     if (!writtenBytes?.length) return false;
+    if (container === 'mp3' && hasUnsupportedMp3TailMetadata(writtenBytes)) return false;
     const reapplied = applyTagEditToBuffer(writtenBytes, container, draft);
     return bytesEqual(writtenBytes, reapplied);
   } catch {
