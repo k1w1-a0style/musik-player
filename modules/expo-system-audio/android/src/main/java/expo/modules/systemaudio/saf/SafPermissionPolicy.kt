@@ -13,6 +13,8 @@ object SafPermissionPolicy {
 
   enum class PersistedGrantKind { DOCUMENT, TREE, UNKNOWN }
 
+  enum class ProviderChildDecision { CHILD, NOT_CHILD, UNAVAILABLE }
+
   fun isPersistedGrantCovered(
     grantKind: PersistedGrantKind,
     hasWritePermission: Boolean,
@@ -20,18 +22,22 @@ object SafPermissionPolicy {
     grantDocumentId: String?,
     targetAuthority: String?,
     targetDocumentId: String?,
-    providerConfirmsChild: Boolean = false,
+    providerChildDecision: ProviderChildDecision = ProviderChildDecision.UNAVAILABLE,
   ): Boolean {
     if (!hasWritePermission) return false
     if (grantAuthority == null || grantAuthority != targetAuthority) return false
     return when (grantKind) {
       PersistedGrantKind.DOCUMENT -> grantDocumentId != null && grantDocumentId == targetDocumentId
-      PersistedGrantKind.TREE -> providerConfirmsChild || fallbackCoversDocumentId(
-        grantAuthority,
-        grantDocumentId,
-        targetAuthority,
-        targetDocumentId,
-      )
+      PersistedGrantKind.TREE -> when (providerChildDecision) {
+        ProviderChildDecision.CHILD -> true
+        ProviderChildDecision.NOT_CHILD -> false
+        ProviderChildDecision.UNAVAILABLE -> fallbackCoversDocumentId(
+          grantAuthority,
+          grantDocumentId,
+          targetAuthority,
+          targetDocumentId,
+        )
+      }
       PersistedGrantKind.UNKNOWN -> false
     }
   }
@@ -59,13 +65,16 @@ object SafPermissionPolicy {
   }
 
   private fun parseExternalStorageDocumentId(documentId: String?): ExternalStorageDocumentId? {
-    if (documentId == null) return null
+    if (documentId.isNullOrEmpty()) return null
     val separator = documentId.indexOf(':')
-    if (separator < 0) return null
+    if (separator < 0 || separator != documentId.lastIndexOf(':')) return null
     val volumeId = documentId.substring(0, separator)
     if (volumeId.isBlank()) return null
-    val path = documentId.substring(separator + 1).trim('/')
-    if (path.contains("//")) return null
+    val path = documentId.substring(separator + 1)
+    if (path.isEmpty()) return ExternalStorageDocumentId(volumeId, path)
+    if (path.startsWith('/') || path.endsWith('/') || path.contains("//")) return null
+    val segments = path.split('/')
+    if (segments.any { it.isEmpty() || it == "." || it == ".." }) return null
     return ExternalStorageDocumentId(volumeId, path)
   }
 

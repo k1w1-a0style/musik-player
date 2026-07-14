@@ -11,6 +11,7 @@ import android.provider.OpenableColumns
 import expo.modules.systemaudio.saf.SafPermissionPolicy
 import android.media.audiofx.Equalizer
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import android.util.Log
 import androidx.palette.graphics.Palette
@@ -341,16 +342,26 @@ class SystemAudioModule : Module() {
         treeDocumentId,
         targetUri.authority,
         targetDocumentId,
-        providerConfirmsChild = tryProviderChildDocumentCheck(parentDocumentUri, targetDocumentUri),
+        providerChildDecision = tryProviderChildDocumentCheck(parentDocumentUri, targetDocumentUri),
       )
     } catch (_: Throwable) { false }
   }
 
-  private fun tryProviderChildDocumentCheck(parentDocumentUri: Uri, targetDocumentUri: Uri): Boolean {
-    val ctx = appContext.reactContext ?: return false
+  private fun tryProviderChildDocumentCheck(
+    parentDocumentUri: Uri,
+    targetDocumentUri: Uri,
+  ): SafPermissionPolicy.ProviderChildDecision {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+      return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
+    }
+    val ctx = appContext.reactContext ?: return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
     return try {
-      DocumentsContract.isChildDocument(ctx.contentResolver, parentDocumentUri, targetDocumentUri)
-    } catch (_: Throwable) { false }
+      if (DocumentsContract.isChildDocument(ctx.contentResolver, parentDocumentUri, targetDocumentUri)) {
+        SafPermissionPolicy.ProviderChildDecision.CHILD
+      } else {
+        SafPermissionPolicy.ProviderChildDecision.NOT_CHILD
+      }
+    } catch (_: Throwable) { SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE }
   }
 
   private fun isDocumentWritable(uri: Uri): Boolean {

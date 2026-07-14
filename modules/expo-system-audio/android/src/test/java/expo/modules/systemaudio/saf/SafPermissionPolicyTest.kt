@@ -47,7 +47,7 @@ class SafPermissionPolicyTest {
         "opaque-parent",
         "com.example.documents",
         "opaque-child",
-        providerConfirmsChild = true,
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.CHILD,
       ),
     )
     assertFalse(
@@ -58,7 +58,18 @@ class SafPermissionPolicyTest {
         "opaque-parent",
         "com.example.documents",
         "opaque-child",
-        providerConfirmsChild = false,
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.NOT_CHILD,
+      ),
+    )
+    assertFalse(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        "com.example.documents",
+        "opaque-parent",
+        "com.example.documents",
+        "opaque-child",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE,
       ),
     )
   }
@@ -87,10 +98,86 @@ class SafPermissionPolicyTest {
   }
 
   @Test fun invalidExternalStorageIdsAreNotCovered() {
+    val invalidTargets = listOf(
+      "primary:Music/../Other/song.mp3",
+      "primary:Music/./song.mp3",
+      "primary:Music/..",
+      "primary:Music/.",
+      "primary:../Music/song.mp3",
+      "primary:/Music/../Other/song.mp3",
+      "primary:Music//song.mp3",
+      "primary:/Music/song.mp3",
+      "primary:Music/",
+      "primary:/Music",
+      "",
+    )
+
+    for (target in invalidTargets) {
+      assertFalse("Expected invalid target to be rejected: $target", SafPermissionPolicy.isExternalStorageDocumentIdDescendant("primary:Music", target))
+    }
     assertFalse(SafPermissionPolicy.isExternalStorageDocumentIdDescendant(null, "primary:Music/song.mp3"))
     assertFalse(SafPermissionPolicy.isExternalStorageDocumentIdDescendant("primary:Music", null))
     assertFalse(SafPermissionPolicy.isExternalStorageDocumentIdDescendant("primary", "primary:Music/song.mp3"))
     assertFalse(SafPermissionPolicy.isExternalStorageDocumentIdDescendant(":Music", "primary:Music/song.mp3"))
+    assertFalse(SafPermissionPolicy.isExternalStorageDocumentIdDescendant("", "primary:Music/song.mp3"))
+  }
+
+  @Test fun providerDecisionControlsTreeFallback() {
+    assertTrue(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:",
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:Music/song.mp3",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE,
+      ),
+    )
+    assertFalse(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        "com.example.documents",
+        "primary:",
+        "com.example.documents",
+        "primary:Music/song.mp3",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE,
+      ),
+    )
+    assertFalse(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:",
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:Music/song.mp3",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.NOT_CHILD,
+      ),
+    )
+    assertFalse(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        false,
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:",
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:Music/song.mp3",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.CHILD,
+      ),
+    )
+    assertFalse(
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        SafPermissionPolicy.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+        "primary:",
+        "com.example.documents",
+        "primary:Music/song.mp3",
+        providerChildDecision = SafPermissionPolicy.ProviderChildDecision.CHILD,
+      ),
+    )
   }
 
   @Test fun externalStorageFallbackRequiresMatchingKnownAuthority() {
