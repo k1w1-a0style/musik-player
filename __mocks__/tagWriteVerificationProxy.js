@@ -1,4 +1,8 @@
-const actual = jest.requireActual('../utils/tagWriteVerification');
+const path = require('path');
+
+const actual = jest.requireActual(
+  path.join(__dirname, '../utils/tagWriteVerification'),
+);
 
 const isLegacyTagEditorScreenTest = () => {
   const testPath = expect.getState().testPath || '';
