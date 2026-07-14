@@ -4,6 +4,7 @@ import { encodeBytesToBase64 } from '../base64';
 import {
   hasTagDeletionIntent,
   hasUnsupportedMp3TailMetadata,
+  shouldVerifyTagDeletionResult,
   verifyTagDeletionState,
 } from '../tagWriteVerification';
 
@@ -66,6 +67,17 @@ describe('tag deletion byte verification', () => {
     expect(hasTagDeletionIntent(deleteTitleDraft)).toBe(true);
     expect(hasTagDeletionIntent({ songId: song.id, tags: { title: 'New' } })).toBe(false);
     expect(hasTagDeletionIntent({ songId: song.id, tags: {}, removeCover: true })).toBe(true);
+  });
+
+  test('requires deletion verification for written and noop results', () => {
+    expect(shouldVerifyTagDeletionResult('written', deleteTitleDraft)).toBe(true);
+    expect(shouldVerifyTagDeletionResult('noop', deleteTitleDraft)).toBe(true);
+    expect(shouldVerifyTagDeletionResult('noop', {
+      songId: song.id,
+      tags: { title: 'New title' },
+    })).toBe(false);
+    expect(shouldVerifyTagDeletionResult('blocked', deleteTitleDraft)).toBe(false);
+    expect(shouldVerifyTagDeletionResult('writeFailed', deleteTitleDraft)).toBe(false);
   });
 
   test('detects unsupported MP3 tail metadata layouts', () => {

@@ -5,7 +5,10 @@ import { encodeBytesToBase64 } from '../utils/base64';
 import { normalizeId3Genre } from '../utils/id3Parser';
 import { TagWriterError, writeTagsToFile } from '../utils/tagWriter';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
-import { hasTagDeletionIntent, verifyTagDeletionState } from '../utils/tagWriteVerification';
+import {
+  shouldVerifyTagDeletionResult,
+  verifyTagDeletionState,
+} from '../utils/tagWriteVerification';
 import type { FormState } from './tagEditorHelpers';
 import {
   FIELDS,
@@ -15,6 +18,7 @@ import {
 
 const WRITE_REREAD_FAILED_MESSAGE = 'Datei wurde geschrieben, die Metadaten konnten aber nicht neu eingelesen werden.';
 const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die erneute Prüfung hat nicht alle Änderungen bestätigt.';
+const NOOP_DELETION_VERIFICATION_FAILED_MESSAGE = 'Die Löschung konnte in der Datei nicht bestätigt werden.';
 const TAG_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
@@ -181,19 +185,23 @@ export const useTagEditorSaveFlow = ({
         return;
       }
 
-      if (result.status === 'written') {
-        if (hasTagDeletionIntent(draft)) {
-          const deletionVerified = await verifyTagDeletionState(song, draft, container);
-          if (isSaveFlowStale(token)) {
-            console.warn('[TrackInfo] Ignoring stale tag deletion verification.', { songId: token.songId });
-            return;
-          }
-          if (!deletionVerified) {
-            setStatus(WRITE_VERIFICATION_FAILED_MESSAGE);
-            return;
-          }
+      if (shouldVerifyTagDeletionResult(result.status, draft)) {
+        const deletionVerified = await verifyTagDeletionState(song, draft, container);
+        if (isSaveFlowStale(token)) {
+          console.warn('[TrackInfo] Ignoring stale tag deletion verification.', { songId: token.songId });
+          return;
         }
+        if (!deletionVerified) {
+          setStatus(
+            result.status === 'noop'
+              ? NOOP_DELETION_VERIFICATION_FAILED_MESSAGE
+              : WRITE_VERIFICATION_FAILED_MESSAGE,
+          );
+          return;
+        }
+      }
 
+      if (result.status === 'written') {
         const rereadSong = await rereadWrittenSong(song, draft, container);
         if (isSaveFlowStale(token)) {
           console.warn('[TrackInfo] Ignoring stale tag re-read result.', { songId: token.songId });

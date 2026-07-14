@@ -1,5 +1,9 @@
 import SystemAudio from 'expo-system-audio';
-import type { TagEditDraft, TagEditableContainer } from '../types/TagEdit';
+import type {
+  TagEditDraft,
+  TagEditableContainer,
+  WriteTagsResult,
+} from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { decodeBase64ToBytes } from './base64';
 import { getUriType } from './tagEditCapability';
@@ -13,6 +17,12 @@ export const hasTagDeletionIntent = (draft: TagEditDraft): boolean =>
     const value = draft.tags[key as keyof TagEditDraft['tags']];
     return typeof value === 'string' && value.trim().length === 0;
   });
+
+export const shouldVerifyTagDeletionResult = (
+  status: WriteTagsResult['status'],
+  draft: TagEditDraft,
+): boolean =>
+  (status === 'written' || status === 'noop') && hasTagDeletionIntent(draft);
 
 const bytesEqual = (left: Uint8Array, right: Uint8Array): boolean =>
   left.length === right.length && left.every((byte, index) => byte === right[index]);
