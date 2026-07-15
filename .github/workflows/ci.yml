@@ -38,28 +38,36 @@ jobs:
         run: npm run typecheck
 
       - name: Tests with coverage
-        id: jest_coverage
-        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          set +e
           npm run test:coverage -- --runInBand 2>&1 | tee jest-coverage.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > jest-coverage.exit-code
+          exit 0
 
       - name: Upload Jest coverage diagnostic log
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: jest-coverage-log
-          path: jest-coverage.log
+          path: |
+            jest-coverage.log
+            jest-coverage.exit-code
           if-no-files-found: error
           retention-days: 3
 
-      - name: Fail when Jest coverage checks failed
-        if: steps.jest_coverage.outcome == 'failure'
+      - name: Enforce Jest coverage result
         shell: bash
         run: |
-          echo "::error::Jest coverage failed. See jest-coverage-log artifact."
-          exit 1
+          set -euo pipefail
+          status=$(cat jest-coverage.exit-code)
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Jest coverage failed with exit code $status. See jest-coverage-log artifact."
+            exit "$status"
+          fi
 
       - name: Lint
         run: npm run lint:ci
@@ -94,33 +102,40 @@ jobs:
           npx --no-install expo prebuild --platform android --no-install --clean
 
       - name: Android native compile and unit tests – no APK/EAS build
-        id: native_gradle
-        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          set +e
           cd android
           echo "Exact native Gradle test task: ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain"
           ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > ../native-gradle.exit-code
+          exit 0
 
       - name: Upload native Gradle diagnostic log
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-gradle-log
-          path: native-gradle.log
-          if-no-files-found: ignore
+          path: |
+            native-gradle.log
+            native-gradle.exit-code
+          if-no-files-found: error
           retention-days: 3
 
-      - name: Fail when native Gradle checks failed
-        if: steps.native_gradle.outcome == 'failure'
+      - name: Enforce native Gradle result
         shell: bash
         run: |
-          echo "::error::Android native compile or unit tests failed. See native-gradle-log artifact."
-          exit 1
+          set -euo pipefail
+          status=$(cat native-gradle.exit-code)
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Android native compile or unit tests failed with exit code $status. See native-gradle-log artifact."
+            exit "$status"
+          fi
 
       - name: Verify native JUnit execution
-        if: steps.native_gradle.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
