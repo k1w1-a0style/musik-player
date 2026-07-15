@@ -81,8 +81,10 @@ class AudioTagTransactionManagerTest {
       writes += 1
       val call = writes
       if (failOpenOnWriteCall == call) throw IOException("write open failed")
-      outputOpened?.countDown()
-      holdWriteUntil?.await(10, TimeUnit.SECONDS)
+      val openedLatch = outputOpened
+      val holdLatch = holdWriteUntil
+      openedLatch?.countDown()
+      holdLatch?.await(10, TimeUnit.SECONDS)
       val out = ByteArrayOutputStream()
       return object : OutputStream() {
         private var count = 0
@@ -127,9 +129,7 @@ class AudioTagTransactionManagerTest {
     val rewritten = "new".toByteArray()
     val root = tmp()
     val store = FakeStore(old)
-
     val result = manager(root, store).write(req(uri, old, rewritten))
-
     assertTrue(result.success)
     assertTrue(result.verified)
     assertArrayEquals(rewritten, store.bytes)
@@ -139,9 +139,7 @@ class AudioTagTransactionManagerTest {
   @Test fun targetIsNotOpenedBeforeOriginalVerification() {
     val old = "old".toByteArray()
     val store = FakeStore(old)
-
     val result = manager(tmp(), store).write(req(uri, "wrong".toByteArray(), "new".toByteArray()))
-
     assertFalse(result.success)
     assertEquals("VerificationFailed", result.errorCode)
     assertEquals(0, store.writes)
@@ -155,9 +153,7 @@ class AudioTagTransactionManagerTest {
         throw IOException("backup read failed")
       }
     }
-
     val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
-
     assertFalse(result.success)
     assertEquals(0, store.writes)
     assertArrayEquals(old, store.bytes)
@@ -175,9 +171,7 @@ class AudioTagTransactionManagerTest {
     val old = "old".toByteArray()
     val external = "external".toByteArray()
     val store = FakeStore(old).apply { replacementBeforeReadCall = 2 to external }
-
     val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
-
     assertFalse(result.success)
     assertEquals("VerificationFailed", result.errorCode)
     assertEquals(0, store.writes)
@@ -196,9 +190,7 @@ class AudioTagTransactionManagerTest {
     val old = "old".toByteArray()
     val root = tmp()
     val store = FakeStore(old).apply { failOpenOnWriteCall = 1 }
-
     val result = manager(root, store).write(req(uri, old, "new".toByteArray()))
-
     assertFalse(result.success)
     assertEquals("ReplaceFailed", result.errorCode)
     assertTrue(result.recovered)
@@ -211,9 +203,7 @@ class AudioTagTransactionManagerTest {
     val old = "old".toByteArray()
     val root = tmp()
     val store = FakeStore(old).apply { failPartialOnWriteCall = 1 }
-
     val result = manager(root, store).write(req(uri, old, "newer".toByteArray()))
-
     assertEquals("ReplaceFailed", result.errorCode)
     assertTrue(result.recovered)
     assertFalse(result.recoveryPending)
@@ -224,9 +214,7 @@ class AudioTagTransactionManagerTest {
   @Test fun targetSyncFailureRollsBackSuccessfully() {
     val old = "old".toByteArray()
     val store = FakeStore(old).apply { failSyncOnWriteCall = 1 }
-
     val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
-
     assertEquals("ReplaceFailed", result.errorCode)
     assertTrue(result.recovered)
     assertArrayEquals(old, store.bytes)
@@ -237,9 +225,7 @@ class AudioTagTransactionManagerTest {
     val store = FakeStore(old).apply {
       readOverride = { readCall, current -> if (readCall == 3) "wrong".toByteArray() else current }
     }
-
     val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
-
     assertEquals("VerificationFailed", result.errorCode)
     assertTrue(result.recovered)
     assertFalse(result.recoveryPending)
@@ -253,9 +239,7 @@ class AudioTagTransactionManagerTest {
       failPartialOnWriteCall = 1
       failOpenOnWriteCall = 2
     }
-
     val result = manager(root, store).write(req(uri, old, "newer".toByteArray()))
-
     assertFalse(result.success)
     assertEquals("RollbackFailed", result.errorCode)
     assertTrue(result.recoveryPending)
@@ -266,9 +250,7 @@ class AudioTagTransactionManagerTest {
     val root = prepared(TransactionState.WRITE_STARTED)
     File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
     val store = FakeStore("partial".toByteArray())
-
     val summary = manager(root, store).recoverPendingSummary()
-
     assertFalse(summary.success)
     assertEquals("BackupCorrupted", summary.transactions.single().errorCode)
     assertEquals(0, store.writes)
@@ -279,9 +261,7 @@ class AudioTagTransactionManagerTest {
     val root = prepared(TransactionState.COMMITTED)
     val external = "externally-edited".toByteArray()
     val store = FakeStore(external)
-
     val summary = manager(root, store).recoverPendingSummary()
-
     assertTrue(summary.success)
     assertEquals(0, store.writes)
     assertArrayEquals(external, store.bytes)
@@ -292,9 +272,7 @@ class AudioTagTransactionManagerTest {
     val root = prepared(TransactionState.WRITE_STARTED)
     val old = "old".toByteArray()
     val store = FakeStore(old)
-
     val summary = manager(root, store).recoverPendingSummary()
-
     assertTrue(summary.success)
     assertEquals(0, store.writes)
     assertArrayEquals(old, store.bytes)
@@ -305,9 +283,7 @@ class AudioTagTransactionManagerTest {
     val root = prepared(TransactionState.WRITTEN_UNVERIFIED)
     val rewritten = "new".toByteArray()
     val store = FakeStore(rewritten)
-
     val summary = manager(root, store).recoverPendingSummary()
-
     assertTrue(summary.success)
     assertEquals(0, store.writes)
     assertArrayEquals(rewritten, store.bytes)
@@ -318,9 +294,7 @@ class AudioTagTransactionManagerTest {
     val root = prepared(TransactionState.WRITE_STARTED)
     val external = "external-after-crash".toByteArray()
     val store = FakeStore(external)
-
     val summary = manager(root, store).recoverPendingSummary()
-
     assertFalse(summary.success)
     assertTrue(summary.pendingCount > 0)
     assertEquals(0, store.writes)
@@ -344,9 +318,7 @@ class AudioTagTransactionManagerTest {
     val originalBefore = File(dir, "original.bin").readBytes()
     val store = FakeStore("partial".toByteArray())
     val manager = manager(root, store)
-
     val status = manager.status()
-
     assertEquals(1, status["pendingCount"])
     assertEquals(0, store.writes)
     assertEquals(journalBefore, File(dir, "journal.json").readText())
@@ -361,9 +333,7 @@ class AudioTagTransactionManagerTest {
     File(damaged, "journal.json").writeText("{")
     val otherUri = Uri.parse("content://provider/tree/other")
     val store = FakeStore("old".toByteArray())
-
     val result = manager(root, store).write(req(otherUri, "old".toByteArray(), "new".toByteArray()))
-
     assertTrue(result.success)
     assertArrayEquals("new".toByteArray(), store.bytes)
     val quarantine = File(root.parentFile, "audio-tag-transactions-quarantine")
@@ -396,8 +366,10 @@ class AudioTagTransactionManagerTest {
   }
 
   @Test fun directorySyncFailureDuringStorageCreationIsPropagated() {
+    val parent = tmp()
+    val root = File(parent, "transactions")
     val sync = CountingDirectorySync(failOnCall = 1)
-    assertThrows(IOException::class.java) { TransactionStorage(tmp(), sync) }
+    assertThrows(IOException::class.java) { TransactionStorage(root, sync) }
     assertEquals(1, sync.calls)
   }
 
@@ -416,20 +388,16 @@ class AudioTagTransactionManagerTest {
     var firstResult: TransactionResult? = null
     var secondResult: TransactionResult? = null
 
-    val t1 = thread {
-      firstResult = manager.write(req(uri, old, first))
-    }
+    val firstThread = thread { firstResult = manager.write(req(uri, old, first)) }
     assertTrue(opened.await(5, TimeUnit.SECONDS))
     store.outputOpened = null
     store.holdWriteUntil = null
-    val t2 = thread {
-      secondResult = manager.write(req(uri, first, second))
-    }
+    val secondThread = thread { secondResult = manager.write(req(uri, first, second)) }
     Thread.sleep(150)
     assertEquals(1, store.writes)
     release.countDown()
-    t1.join(10_000)
-    t2.join(10_000)
+    firstThread.join(10_000)
+    secondThread.join(10_000)
 
     assertTrue(firstResult?.success == true)
     assertTrue(secondResult?.success == true)
