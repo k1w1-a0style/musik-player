@@ -26,8 +26,8 @@ object InterruptedSafWriteClassifier {
   ): Boolean {
     if (!original.isFile || !rewritten.isFile || rewritten.length() <= 0L) return false
 
-    val liveInput = store.openInput(uri) ?: return false
     return try {
+      val liveInput = store.openInput(uri) ?: return false
       BufferedInputStream(liveInput).use { live ->
         BufferedInputStream(FileInputStream(original)).use { originalInput ->
           BufferedInputStream(FileInputStream(rewritten)).use { rewrittenInput ->
@@ -93,9 +93,11 @@ object InterruptedSafWriteClassifier {
     val originalHasMore = original.read() >= 0
     val rewrittenHasMore = rewritten.read() >= 0
 
-    // Empty live data is a valid truncate-before-first-byte crash shape.
-    val truncatedRewrittenPrefix =
-      prefixPossible && rewrittenHasMore && (prefixContainsMutation || liveBytes == 0L)
+    // Any strict prefix of the staged rewrite is attributable to a provider
+    // that truncated the target and crashed before the remaining bytes were
+    // written. This includes a prefix that happens to be shared with the
+    // original before the first changed byte.
+    val truncatedRewrittenPrefix = prefixPossible && rewrittenHasMore
 
     val rewrittenPrefixWithOriginalTail =
       originalSuffixPossible && suffixContainsMutation && !originalHasMore
