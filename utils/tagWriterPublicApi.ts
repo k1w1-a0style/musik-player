@@ -1,3 +1,4 @@
+import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { TagEditDraft, TagEditPlan, TagWriterErrorCode, WriteTagsResult } from '../types/TagEdit';
 import { createTagWriteOperationPlan } from './tagWriteOrchestrator';
@@ -9,7 +10,13 @@ import { writeTagsToSafContentUri } from './tagWriterSaf';
 import { TagWriterError, tagWriterWarn } from './tagWriterError';
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
-  createTagWriteOperationPlan(song, draft);
+  createTagWriteOperationPlan(
+    song,
+    draft,
+    undefined,
+    undefined,
+    { safDurableWriterAvailable: SystemAudio.hasNativeTagWriter },
+  );
 
 const tagWriterFailureStatus = (code: TagWriterErrorCode): WriteTagsResult['status'] => {
   if (code === 'UnsupportedUri' || code === 'UnsupportedFormat') return 'unsupportedUri';

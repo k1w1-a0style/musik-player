@@ -108,6 +108,20 @@ describe('tag writer ID3 version error codes', () => {
     expect(normalizeTagWriterErrorCode('InvalidTagData', 'ID3v2.4 mention inside unrelated error.')).toBe('InvalidTagData');
   });
 
+
+  it('normalizes native SAF error codes at runtime', () => {
+    expect(normalizeTagWriterErrorCode('BackupCorrupted')).toBe('BackupCorrupted');
+    expect(normalizeTagWriterErrorCode('RecoveryPending')).toBe('RecoveryPending');
+    expect(normalizeTagWriterErrorCode('UnknownNativeCode')).toBe('ReplaceFailed');
+    expect(normalizeTagWriterErrorCode(null)).toBe('ReplaceFailed');
+    expect(normalizeTagWriterErrorCode(undefined)).toBe('ReplaceFailed');
+    expect(normalizeTagWriterErrorCode(42)).toBe('ReplaceFailed');
+  });
+
+  it('maps BackupCorrupted to the German recovery safety message', () => {
+    expect(tagWriterErrorMessage('BackupCorrupted')).toContain('Wiederherstellungs-Backup ist beschädigt');
+  });
+
   it('does not affect normal MP3 writes', () => {
     const output = applyTagEditToBuffer(u8(1, 2, 3), 'mp3', {
       songId: 's1',

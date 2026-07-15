@@ -5,7 +5,7 @@ import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
 import { withUriWriteLock } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
-import { TagWriterError } from './tagWriterError';
+import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { applyTagEditToBuffer, validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { sha256Hex } from './sha256';
 
@@ -23,17 +23,24 @@ const failureStatus = (code?: string): WriteTagsResult['status'] => {
   return 'writeFailed';
 };
 
-const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => ({
-  status: nativeResult.success && nativeResult.verified ? 'written' : failureStatus(nativeResult.errorCode),
-  sourceUri: nativeResult.uri,
-  backupUri: nativeResult.backupUri,
-  tempUri: nativeResult.tempUri,
-  bytesBefore: nativeResult.bytesBefore,
-  bytesAfter: nativeResult.bytesAfter,
-  warnings,
-  errorCode: nativeResult.success ? undefined : nativeResult.errorCode as WriteTagsResult['errorCode'],
-  errorMessage: nativeResult.success ? undefined : nativeResult.message,
-});
+const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => {
+  const errorCode = nativeResult.success ? undefined : normalizeTagWriterErrorCode(nativeResult.errorCode, nativeResult.message ?? '');
+  return {
+    status: nativeResult.success && nativeResult.verified ? 'written' : failureStatus(errorCode),
+    sourceUri: nativeResult.uri,
+    backupUri: nativeResult.backupUri,
+    tempUri: nativeResult.tempUri,
+    bytesBefore: nativeResult.bytesBefore,
+    bytesAfter: nativeResult.bytesAfter,
+    warnings,
+    errorCode,
+    errorMessage: nativeResult.success ? undefined : nativeResult.message,
+    transactionId: nativeResult.transactionId,
+    recoveryPending: nativeResult.recoveryPending,
+    recovered: nativeResult.recovered,
+    cleanupPending: nativeResult.cleanupPending,
+  };
+};
 
 export const writeTagsToSafContentUri = async (
   song: Song,
@@ -63,6 +70,35 @@ export const writeTagsToSafContentUri = async (
     try {
       validateTagWriteDraftOrThrow(draft);
       const maxBytes = options?.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
+
+      let recovery;
+      try {
+        recovery = await SystemAudio.recoverPendingAudioTagTransactions(uri);
+      } catch (error) {
+        throw new TagWriterError(
+          'RecoveryFailed',
+          `Pending SAF transaction recovery could not run before reading the document: ${String(error)}`,
+        );
+      }
+
+      const recoveryPending = Boolean(recovery.recoveryPending || (recovery.pendingCount ?? 0) > 0);
+      if (!recovery.success || recoveryPending) {
+        const fallbackCode = recoveryPending ? 'RecoveryPending' : 'RecoveryFailed';
+        const errorCode = normalizeTagWriterErrorCode(
+          recovery.errorCode ?? fallbackCode,
+          recovery.message ?? '',
+        );
+        return {
+          status: failureStatus(errorCode),
+          sourceUri: uri,
+          warnings: [],
+          errorCode,
+          errorMessage: recovery.message ?? 'Pending SAF transaction recovery must complete before reading or rewriting the document.',
+          recoveryPending,
+          recovered: recovery.recovered,
+        };
+      }
+
       const originalBase64 = await SystemAudio.readAudioFileBase64(uri, maxBytes);
       if (!originalBase64) throw new TagWriterError('UnsupportedUri', 'SAF/content:// file could not be read through the native module.');
       const original = decodeBase64ToBytes(originalBase64);
@@ -80,6 +116,7 @@ export const writeTagsToSafContentUri = async (
         expectedOriginalSizeBytes: original.length,
         expectedOriginalSha256Hex: sha256Hex(original),
         expectedWrittenSizeBytes: rewritten.length,
+        expectedWrittenSha256Hex: sha256Hex(rewritten),
         maxFileSizeBytes: maxBytes,
         changedFields,
         failedFields: [],

@@ -15,10 +15,11 @@ describe('expo-system-audio wrapper', () => {
       errorCode: 'WriteNotImplemented',
       verified: false,
     });
+    await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toEqual({ pendingCount: 0, transactions: [] });
+    await expect(SystemAudio.recoverPendingAudioTagTransactions()).resolves.toMatchObject({ success: true, recoveryPending: false });
     expect(SystemAudio.isAvailable).toBe(false);
   });
 });
-
 
 test('hasNativeTagWriter is false for old native module without SAF methods', () => {
   jest.resetModules();
@@ -40,4 +41,70 @@ test('hasNativeTagWriter is false for old native module without SAF methods', ()
 
   expect(SystemAudio.isAvailable).toBe(true);
   expect(SystemAudio.hasNativeTagWriter).toBe(false);
+});
+
+test('fails closed for legacy native writer without recovery contract', async () => {
+  jest.resetModules();
+  const legacyWriteAudioTags = jest.fn().mockResolvedValue({
+    success: true,
+    uri: 'content://song.mp3',
+    changedFields: ['title'],
+    failedFields: [],
+    verified: true,
+  });
+  jest.doMock('expo', () => ({
+    NativeModule: class {},
+    requireNativeModule: jest.fn(() => ({
+      eqInit: jest.fn(),
+      eqSetEnabled: jest.fn(),
+      eqSetBandLevel: jest.fn(),
+      eqRelease: jest.fn(),
+      extractPalette: jest.fn(),
+      extractEmbeddedArtwork: jest.fn(),
+      extractAudioInfo: jest.fn(),
+      readAudioFileBase64: jest.fn(),
+      writeAudioTags: legacyWriteAudioTags,
+    })),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SystemAudio } = require('../index');
+
+  expect(SystemAudio.hasNativeTagWriter).toBe(false);
+  await expect(SystemAudio.writeAudioTags('content://song.mp3', { changedFields: ['title'] })).resolves.toMatchObject({
+    success: false,
+    errorCode: 'WriteNotImplemented',
+    verified: false,
+  });
+  expect(legacyWriteAudioTags).not.toHaveBeenCalled();
+});
+
+test('forwards native recovery APIs when present', async () => {
+  jest.resetModules();
+  const getAudioTagRecoveryStatus = jest.fn().mockResolvedValue({ pendingCount: 1, transactions: [{ transactionId: 'tx', state: 'RECOVERY_REQUIRED' }] });
+  const recoverPendingAudioTagTransactions = jest.fn().mockResolvedValue({ success: false, errorCode: 'RecoveryPending', recoveryPending: true });
+  jest.doMock('expo', () => ({
+    NativeModule: class {},
+    requireNativeModule: jest.fn(() => ({
+      eqInit: jest.fn(),
+      eqSetEnabled: jest.fn(),
+      eqSetBandLevel: jest.fn(),
+      eqRelease: jest.fn(),
+      extractPalette: jest.fn(),
+      extractEmbeddedArtwork: jest.fn(),
+      extractAudioInfo: jest.fn(),
+      readAudioFileBase64: jest.fn(),
+      writeAudioTags: jest.fn(),
+      getAudioTagRecoveryStatus,
+      recoverPendingAudioTagTransactions,
+    })),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SystemAudio } = require('../index');
+
+  expect(SystemAudio.hasNativeTagWriter).toBe(true);
+  await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toMatchObject({ pendingCount: 1 });
+  await expect(SystemAudio.recoverPendingAudioTagTransactions('content://song.mp3')).resolves.toMatchObject({ errorCode: 'RecoveryPending', recoveryPending: true });
+  expect(recoverPendingAudioTagTransactions).toHaveBeenCalledWith('content://song.mp3');
 });
