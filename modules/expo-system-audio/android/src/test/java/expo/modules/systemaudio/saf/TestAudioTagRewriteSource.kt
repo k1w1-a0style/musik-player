@@ -7,6 +7,9 @@ fun staticRewriteSource(
   bytes: ByteArray,
   changed: Boolean = true,
 ): AudioTagRewriteSource = object : AudioTagRewriteSource {
+  override fun estimatedOutputSizeUpperBound(originalSize: Long, maxBytes: Long): Long =
+    bytes.size.toLong().coerceAtMost(maxBytes)
+
   override fun rewrite(original: File, temporary: File, maxBytes: Long): AudioTagRewriteResult {
     if (bytes.size.toLong() > maxBytes) throw SizeLimitException()
     FileOutputStream(temporary).use { output ->

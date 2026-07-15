@@ -5,6 +5,8 @@ import java.io.File
 import java.io.IOException
 import java.util.Calendar
 
+const val MAX_SAFE_TAG_WRITE_FILE_BYTES = 50L * 1024L * 1024L
+
 data class AudioTagRewriteResult(
   val changed: Boolean,
   val digest: DigestInfo,
@@ -16,6 +18,8 @@ interface AudioTagRewriteSource {
     temporary: File,
     maxBytes: Long,
   ): AudioTagRewriteResult
+
+  fun estimatedOutputSizeUpperBound(originalSize: Long, maxBytes: Long): Long = maxBytes
 }
 
 class AudioTagRewriteException(
@@ -42,6 +46,21 @@ data class NativeTagEditSpec(
     get() = removeCover || touchedFields.any { field ->
       field in TEXT_FIELDS && normalizedValue(field) == null
     }
+
+  fun estimatedReplacementGrowthUpperBound(): Long {
+    var total = 128L * 1024L
+    for (field in touchedFields) {
+      if (field !in TEXT_FIELDS) continue
+      val value = normalizedValue(field) ?: continue
+      val encodedUpperBound = value.length.toLong() * 4L + 64L
+      total = saturatingAdd(total, encodedUpperBound)
+    }
+    coverBytes?.let { bytes -> total = saturatingAdd(total, bytes.size.toLong() + 128L) }
+    return total
+  }
+
+  private fun saturatingAdd(left: Long, right: Long): Long =
+    if (right > 0L && Long.MAX_VALUE - left < right) Long.MAX_VALUE else left + right
 
   companion object {
     val TEXT_FIELDS = setOf(
@@ -70,8 +89,20 @@ object NativeTagEditRequestParser {
     changedFields: List<String>,
     maxBytes: Long,
   ): NativeTagEditSpec {
-    if (maxBytes <= 0) {
+    if (maxBytes <= 0L) {
       throw AudioTagRewriteException("InvalidTagData", "Maximum file size must be positive.")
+    }
+    if (maxBytes > MAX_SAFE_TAG_WRITE_FILE_BYTES) {
+      throw AudioTagRewriteException("FileTooLarge", "Maximum file size exceeds the native safety limit.")
+    }
+
+    val rawChangedFields = request["changedFields"]
+    if (rawChangedFields != null) {
+      if (rawChangedFields !is List<*> || rawChangedFields.size != changedFields.size || rawChangedFields.any { it !is String }) {
+        throw AudioTagRewriteException("InvalidTagData", "Changed fields must be a string list.")
+      }
+    } else if (changedFields.isNotEmpty()) {
+      throw AudioTagRewriteException("InvalidTagData", "Changed fields payload is missing.")
     }
 
     val container = (request["container"] as? String)
@@ -87,14 +118,20 @@ object NativeTagEditRequestParser {
       throw AudioTagRewriteException("InvalidTagData", "Changed fields contain unsupported or duplicate entries.")
     }
 
-    val rawTags = request["tags"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
-    val unknownTagKeys = rawTags.keys.filterIsInstance<String>().filter { it !in NativeTagEditSpec.TEXT_FIELDS }
-    if (unknownTagKeys.isNotEmpty()) {
+    val rawTagsValue = request["tags"]
+    if (rawTagsValue != null && rawTagsValue !is Map<*, *>) {
+      throw AudioTagRewriteException("InvalidTagData", "Tag payload must be an object.")
+    }
+    val rawTags = rawTagsValue as? Map<*, *> ?: emptyMap<Any?, Any?>()
+    if (rawTags.keys.any { it !is String || it !in NativeTagEditSpec.TEXT_FIELDS }) {
       throw AudioTagRewriteException("InvalidTagData", "Tag payload contains unsupported fields.")
     }
 
     val tags = buildMap<String, String?> {
       for (field in touched.filter { it in NativeTagEditSpec.TEXT_FIELDS }) {
+        if (!rawTags.containsKey(field)) {
+          throw AudioTagRewriteException("InvalidTagData", "Changed tag field $field is missing from the payload.")
+        }
         val raw = rawTags[field]
         if (raw != null && raw !is String) {
           throw AudioTagRewriteException("InvalidTagData", "Tag field $field must be text or null.")
@@ -109,8 +146,19 @@ object NativeTagEditRequestParser {
 
     validateTagValues(tags)
 
-    val removeCover = request["removeCover"] as? Boolean ?: false
-    val coverPayload = request["cover"] as? Map<*, *>
+    val removeCoverValue = request["removeCover"]
+    if (removeCoverValue != null && removeCoverValue !is Boolean) {
+      throw AudioTagRewriteException("InvalidTagData", "removeCover must be a boolean.")
+    }
+    val removeCover = removeCoverValue as? Boolean ?: false
+    val coverValue = request["cover"]
+    if (coverValue != null && coverValue !is Map<*, *>) {
+      throw AudioTagRewriteException("InvalidTagData", "Cover payload must be an object.")
+    }
+    val coverPayload = coverValue as? Map<*, *>
+    if (coverPayload != null && coverPayload.keys.any { it !is String || it !in setOf("mimeType", "dataBase64") }) {
+      throw AudioTagRewriteException("InvalidTagData", "Cover payload contains unsupported fields.")
+    }
     if (removeCover && coverPayload != null) {
       throw AudioTagRewriteException("InvalidTagData", "Cover removal and replacement cannot be requested together.")
     }
@@ -224,6 +272,12 @@ object NativeTagEditRequestParser {
 class StreamingAudioTagRewriteSource(
   private val spec: NativeTagEditSpec,
 ) : AudioTagRewriteSource {
+  override fun estimatedOutputSizeUpperBound(originalSize: Long, maxBytes: Long): Long {
+    val growth = spec.estimatedReplacementGrowthUpperBound()
+    val estimate = if (growth > 0L && Long.MAX_VALUE - originalSize < growth) Long.MAX_VALUE else originalSize + growth
+    return estimate.coerceAtMost(maxBytes)
+  }
+
   override fun rewrite(
     original: File,
     temporary: File,

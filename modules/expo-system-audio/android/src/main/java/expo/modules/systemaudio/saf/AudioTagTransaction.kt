@@ -591,9 +591,22 @@ class AudioTagTransactionManager(
         message = "Maximum file size must be positive.",
       )
     }
+    val knownOriginalSize = store.size(request.uri)?.takeIf { it >= 0L }
+    if (knownOriginalSize != null && knownOriginalSize > request.maxBytes) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "FileTooLarge",
+        message = "File exceeds the safe tag write size limit.",
+        bytesBefore = knownOriginalSize,
+      )
+    }
+    val originalReserve = knownOriginalSize ?: request.maxBytes
+    val rewrittenReserve = request.rewriteSource
+      .estimatedOutputSizeUpperBound(originalReserve, request.maxBytes)
+      .coerceIn(0L, request.maxBytes)
     val expectedSpace = listOf(
-      store.size(request.uri) ?: request.maxBytes,
-      request.maxBytes,
+      originalReserve,
+      rewrittenReserve,
       safetyMarginBytes,
     ).fold(0L) { total, rawValue ->
       val value = rawValue.coerceAtLeast(0L)

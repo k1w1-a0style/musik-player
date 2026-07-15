@@ -171,6 +171,19 @@ class AudioTagTransactionManagerTest {
     assertArrayEquals(old, store.bytes)
   }
 
+  @Test fun smallRewriteUsesActualOutputEstimateInsteadOfGlobalLimit() {
+    val old = "old".toByteArray()
+    val rewritten = "new".toByteArray()
+    val root = tmp()
+    ShadowStatFs.registerStats(root, 1, 1, 1)
+    val store = FakeStore(old)
+
+    val result = manager(root, store).write(req(uri, old, rewritten))
+
+    assertTrue(result.success)
+    assertArrayEquals(rewritten, store.bytes)
+  }
+
   @Test fun insufficientStorageIsRejectedBeforeMutation() {
     val old = "old".toByteArray()
     val root = tmp()

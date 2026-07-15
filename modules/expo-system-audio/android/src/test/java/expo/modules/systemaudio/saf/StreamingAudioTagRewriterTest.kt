@@ -178,6 +178,78 @@ class StreamingAudioTagRewriterTest {
   }
 
   @Test
+  fun requestParserRejectsMissingTouchedTextField() {
+    val request = mapOf<String, Any?>(
+      "container" to "mp3",
+      "tags" to emptyMap<String, String?>(),
+      "changedFields" to listOf("title"),
+    )
+
+    val error = try {
+      NativeTagEditRequestParser.parse(request, listOf("title"), maxBytes)
+      null
+    } catch (caught: AudioTagRewriteException) {
+      caught
+    }
+
+    assertEquals("InvalidTagData", error?.errorCode)
+  }
+
+  @Test
+  fun requestParserRejectsMalformedChangedFields() {
+    val request = mapOf<String, Any?>(
+      "container" to "mp3",
+      "tags" to mapOf("title" to "New"),
+      "changedFields" to listOf("title", 7),
+    )
+
+    val error = try {
+      NativeTagEditRequestParser.parse(request, listOf("title"), maxBytes)
+      null
+    } catch (caught: AudioTagRewriteException) {
+      caught
+    }
+
+    assertEquals("InvalidTagData", error?.errorCode)
+  }
+
+  @Test
+  fun requestParserRejectsMalformedTagObject() {
+    val request = mapOf<String, Any?>(
+      "container" to "mp3",
+      "tags" to "not-an-object",
+      "changedFields" to listOf("title"),
+    )
+
+    val error = try {
+      NativeTagEditRequestParser.parse(request, listOf("title"), maxBytes)
+      null
+    } catch (caught: AudioTagRewriteException) {
+      caught
+    }
+
+    assertEquals("InvalidTagData", error?.errorCode)
+  }
+
+  @Test
+  fun requestParserRejectsMaxBytesAboveNativeLimit() {
+    val request = mapOf<String, Any?>(
+      "container" to "mp3",
+      "tags" to mapOf("title" to "New"),
+      "changedFields" to listOf("title"),
+    )
+
+    val error = try {
+      NativeTagEditRequestParser.parse(request, listOf("title"), MAX_SAFE_TAG_WRITE_FILE_BYTES + 1L)
+      null
+    } catch (caught: AudioTagRewriteException) {
+      caught
+    }
+
+    assertEquals("FileTooLarge", error?.errorCode)
+  }
+
+  @Test
   fun requestParserRejectsCoverMimeSpoofing() {
     val jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 1, 2, 3)
     val request = mapOf<String, Any?>(
