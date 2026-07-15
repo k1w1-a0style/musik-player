@@ -19,6 +19,7 @@ import expo.modules.systemaudio.saf.TransactionStorage
 import expo.modules.systemaudio.saf.TransactionWriteRequest
 import android.media.audiofx.Equalizer
 import android.net.Uri
+import android.util.Base64
 import android.os.Build
 import android.util.Log
 import androidx.palette.graphics.Palette
@@ -444,7 +445,7 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
           if (comma < 0) null
           else {
             val base64Payload = uri.substring(comma + 1)
-            if (decodedBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
+            if (decodedImageBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
             val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
             decodeByteArrayForPalette(bytes)
           }
@@ -779,7 +780,27 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
     else -> "jpg"
   }
 
-  private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
+  /** Computes decoded size for bounded image data URIs only; audio bytes never use Base64. */
+    private fun decodedImageBase64ByteLength(value: String): Long {
+      var cleanLength = 0L
+      var last = ' '
+      var secondLast = ' '
+      value.forEach { char ->
+        if (!char.isWhitespace()) {
+          secondLast = last
+          last = char
+          cleanLength += 1L
+        }
+      }
+      val padding = when {
+        cleanLength >= 2L && secondLast == '=' && last == '=' -> 2L
+        cleanLength >= 1L && last == '=' -> 1L
+        else -> 0L
+      }
+      return ((cleanLength * 3L / 4L) - padding).coerceAtLeast(0L)
+    }
+
+      private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
 
   @Suppress("unused")
   private fun normalize01(v: Double): Double = v.coerceIn(0.0, 1.0)
