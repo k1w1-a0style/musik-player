@@ -1027,17 +1027,6 @@ class AudioTagTransactionManager(
     journal: TransactionJournal,
   ): TransactionResult {
     val uri = Uri.parse(journal.targetUri)
-    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-      return TransactionResult(
-        success = false,
-        errorCode = "RecoveryPending",
-        message = "Recovery permission is missing.",
-        bytesBefore = journal.originalSizeBytes,
-        bytesAfter = journal.rewrittenSizeBytes,
-        recoveryPending = true,
-      )
-    }
-
     val originalDigest = verifyOriginalBackup(directory, journal, Long.MAX_VALUE) ?: run {
       markRecoveryFailed(
         directory,
@@ -1105,7 +1094,20 @@ class AudioTagTransactionManager(
         original = storage.original(directory),
         rewritten = storage.rewritten(directory),
         maxBytes = Long.MAX_VALUE,
-      ) -> recoverInterruptedWrite(directory, journal)
+      ) -> {
+      if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
+        TransactionResult(
+          success = false,
+          errorCode = "RecoveryPending",
+          message = "Recovery permission is missing for the required restore.",
+          bytesBefore = journal.originalSizeBytes,
+          bytesAfter = journal.rewrittenSizeBytes,
+          recoveryPending = true,
+        )
+      } else {
+        recoverInterruptedWrite(directory, journal)
+      }
+    }
       else -> preserveExternalEditConflict(directory, journal)
     }
   }
