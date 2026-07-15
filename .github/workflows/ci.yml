@@ -114,7 +114,7 @@ jobs:
           printf '%s\n' "$status" > ../native-gradle.exit-code
           exit 0
 
-      - name: Upload native Gradle diagnostic log
+      - name: Upload native Gradle diagnostic log and JUnit reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -122,6 +122,8 @@ jobs:
           path: |
             native-gradle.log
             native-gradle.exit-code
+            modules/expo-system-audio/android/build/test-results/testDebugUnitTest/**/*.xml
+            modules/expo-system-audio/android/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: error
           retention-days: 3
 
