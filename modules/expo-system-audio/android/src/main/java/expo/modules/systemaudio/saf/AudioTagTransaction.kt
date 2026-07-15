@@ -774,8 +774,9 @@ class AudioTagTransactionManager(
         )
       }
 
-      journal = journal.withState(TransactionState.WRITE_STARTED)
-      storage.atomicWriteJournal(directory, journal)
+      val writeStartedJournal = journal.withState(TransactionState.WRITE_STARTED)
+      storage.atomicWriteJournal(directory, writeStartedJournal)
+      journal = writeStartedJournal
       phase = WriteExecutionPhase.WRITE_INTENT_DURABLE
 
       try {
@@ -788,8 +789,9 @@ class AudioTagTransactionManager(
         ) ?: throw IOException("provider refused output")
         phase = WriteExecutionPhase.TARGET_SYNCED
 
-        journal = journal.withState(TransactionState.WRITTEN_UNVERIFIED)
-        storage.atomicWriteJournal(directory, journal)
+        val writtenUnverifiedJournal = journal.withState(TransactionState.WRITTEN_UNVERIFIED)
+        storage.atomicWriteJournal(directory, writtenUnverifiedJournal)
+        journal = writtenUnverifiedJournal
         val after = StreamDigests.hashUri(store, request.uri, request.maxBytes)
         if (after != rewrittenDigest) {
           return@withLock rollbackFailedWrite(
@@ -802,8 +804,9 @@ class AudioTagTransactionManager(
         }
         phase = WriteExecutionPhase.TARGET_VERIFIED
 
-        journal = journal.withState(TransactionState.COMMITTED)
-        storage.atomicWriteJournal(directory, journal)
+        val committedJournal = journal.withState(TransactionState.COMMITTED)
+        storage.atomicWriteJournal(directory, committedJournal)
+        journal = committedJournal
         phase = WriteExecutionPhase.COMMITTED_DURABLE
       } catch (error: Throwable) {
         return@withLock rollbackFailedWrite(
