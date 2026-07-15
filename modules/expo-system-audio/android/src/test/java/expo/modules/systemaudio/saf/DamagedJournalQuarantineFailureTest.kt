@@ -83,7 +83,6 @@ class DamagedJournalQuarantineFailureTest {
         maxBytes = 1024 * 1024,
         expectedOriginalSize = original.size.toLong(),
         expectedOriginalSha256 = sha256(original),
-        expectedWrittenSha256 = sha256(rewritten),
       ),
     )
 
