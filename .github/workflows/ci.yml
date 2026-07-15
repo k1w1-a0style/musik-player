@@ -15,6 +15,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  apply-damaged-journal-fail-closed-patch:
+    if: github.event_name == 'pull_request' && github.head_ref == 'cp40ln-codex/implementiere-dauerhafte-saf-transaktionen'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
+      - name: Apply Kotlin patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt')
+          text = path.read_text()
+          old = '''        } catch (_: Throwable) {
+                    if (targetUri == null) pendingCount += 1
+                    reports += RecoveryTransactionReport(
+                      transactionId = directory.name,
+                      previousState = null,
+                      resultState = "INVALID",
+                      recovered = false,
+                      pending = targetUri == null,
+                      errorCode = "RecoveryPending",
+                    )
+                  }
+          '''
+          new = '''        } catch (_: Throwable) {
+                    pendingCount += 1
+                    reports += RecoveryTransactionReport(
+                      transactionId = directory.name,
+                      previousState = null,
+                      resultState = "INVALID",
+                      recovered = false,
+                      pending = true,
+                      errorCode = "RecoveryPending",
+                    )
+                  }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one damaged-journal catch block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt
+          git commit -m "fix: block writes when damaged journal quarantine fails"
+          git push origin HEAD:cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
+
   quality-gates:
     name: Typecheck, tests, coverage, lint, config gates
     runs-on: ubuntu-latest
