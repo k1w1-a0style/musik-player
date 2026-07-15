@@ -1159,7 +1159,19 @@ describe('writeTagsToFile SAF/content native route', () => {
   });
 
   const loadWithNative = (native: Record<string, unknown>) => {
-    jest.doMock('expo-system-audio', () => ({ __esModule: true, default: native, SystemAudio: native }));
+    const nativeWithRecovery = {
+      recoverPendingAudioTagTransactions: jest.fn().mockResolvedValue({
+        success: true,
+        recoveryPending: false,
+        pendingCount: 0,
+      }),
+      ...native,
+    };
+    jest.doMock('expo-system-audio', () => ({
+      __esModule: true,
+      default: nativeWithRecovery,
+      SystemAudio: nativeWithRecovery,
+    }));
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('../tagWriter') as typeof import('../tagWriter');
   };
