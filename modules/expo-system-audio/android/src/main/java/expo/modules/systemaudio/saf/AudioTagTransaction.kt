@@ -1079,8 +1079,8 @@ class AudioTagTransactionManager(
       recoveryPending = true,
     )
 
-    return when (liveDigest) {
-      originalDigest -> finalizeKnownRecoveryState(
+    return when {
+      liveDigest == originalDigest -> finalizeKnownRecoveryState(
         directory = directory,
         journal = journal,
         state = TransactionState.RECOVERED,
@@ -1088,7 +1088,7 @@ class AudioTagTransactionManager(
         recovered = true,
         verified = false,
       )
-      rewrittenDigest -> finalizeKnownRecoveryState(
+      liveDigest == rewrittenDigest -> finalizeKnownRecoveryState(
         directory = directory,
         journal = journal,
         state = TransactionState.COMMITTED,
@@ -1096,22 +1096,66 @@ class AudioTagTransactionManager(
         recovered = false,
         verified = true,
       )
-      else -> {
-        try {
-          storage.markRecoveryState(directory, journal, TransactionState.RECOVERY_REQUIRED)
-        } catch (_: Throwable) {
-          // Preserve all artifacts even when the state transition itself cannot be persisted.
-        }
-        TransactionResult(
-          success = false,
-          errorCode = "RecoveryPending",
-          message = "SAF content changed after the crash; automatic restore was refused to avoid overwriting external edits.",
-          bytesBefore = journal.originalSizeBytes,
-          bytesAfter = journal.rewrittenSizeBytes,
-          recoveryPending = true,
-        )
-      }
+      InterruptedSafWriteClassifier.matches(
+        store = store,
+        uri = uri,
+        original = storage.original(directory),
+        rewritten = storage.rewritten(directory),
+        maxBytes = Long.MAX_VALUE,
+      ) -> recoverInterruptedWrite(directory, journal)
+      else -> preserveExternalEditConflict(directory, journal)
     }
+  }
+
+  private fun recoverInterruptedWrite(
+    directory: File,
+    journal: TransactionJournal,
+  ): TransactionResult {
+    val restore = restoreOriginal(
+      directory = directory,
+      journal = journal,
+      maxBytes = Long.MAX_VALUE,
+      recoveryErrorCode = "RecoveryFailed",
+    )
+    return if (restore.restored && restore.verified) {
+      TransactionResult(
+        success = true,
+        errorCode = null,
+        message = "Interrupted SAF write was restored from the verified original backup.",
+        bytesBefore = journal.originalSizeBytes,
+        bytesAfter = journal.rewrittenSizeBytes,
+        recovered = true,
+        cleanupPending = restore.cleanupPending,
+      )
+    } else {
+      TransactionResult(
+        success = false,
+        errorCode = restore.errorCode ?: "RecoveryFailed",
+        message = restore.message,
+        bytesBefore = journal.originalSizeBytes,
+        bytesAfter = journal.rewrittenSizeBytes,
+        recoveryPending = true,
+      )
+    }
+  }
+
+  private fun preserveExternalEditConflict(
+    directory: File,
+    journal: TransactionJournal,
+  ): TransactionResult {
+    try {
+      storage.markRecoveryState(directory, journal, TransactionState.RECOVERY_REQUIRED)
+    } catch (_: Throwable) {
+      // Preserve all artifacts even when the state transition itself cannot be persisted.
+    }
+    return TransactionResult(
+      success = false,
+      errorCode = "RecoveryPending",
+      message = "SAF content changed after the crash; automatic restore was refused to avoid overwriting external edits.",
+      bytesBefore = journal.originalSizeBytes,
+      bytesAfter = journal.rewrittenSizeBytes,
+      recoveryPending = true,
+    )
   }
 
   private fun finalizeKnownRecoveryState(
