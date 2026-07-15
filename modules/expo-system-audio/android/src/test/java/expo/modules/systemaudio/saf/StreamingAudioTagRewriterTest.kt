@@ -165,6 +165,28 @@ class StreamingAudioTagRewriterTest {
   }
 
   @Test
+  fun mp4SizeChangingMoovAfterMdatPreservesTrailingTopLevelAtoms() {
+    val directory = createTempDir(prefix = "streaming-mp4-trailing-atom-")
+    val fixture = mp4Fixture(moovBeforeMdat = false, title = null)
+    val trailingFree = atom("free", byteArrayOf(9, 8, 7, 6))
+    val original = File(directory, "original.m4a").apply { writeBytes(fixture.file + trailingFree) }
+    val rewritten = File(directory, "rewritten.m4a")
+
+    val result = StreamingMp4TagRewriter.rewrite(
+      original,
+      rewritten,
+      textSpec("m4a", "title", "A longer streamed title"),
+      maxBytes,
+    )
+    val output = rewritten.readBytes()
+
+    assertTrue(result.changed)
+    assertArrayEquals(fixture.mdat, output.copyOfRange(0, fixture.mdat.size))
+    assertArrayEquals(trailingFree, output.copyOfRange(output.size - trailingFree.size, output.size))
+    assertTrue(indexOf(output, "A longer streamed title".toByteArray(Charsets.UTF_8)) >= 0)
+  }
+
+  @Test
   fun mp4MoovBeforeMdatAllowsSameSizeReplacementAndPreservesMdatOffset() {
     val directory = createTempDir(prefix = "streaming-mp4-same-size-")
     val fixture = mp4Fixture(moovBeforeMdat = true, title = "Old")

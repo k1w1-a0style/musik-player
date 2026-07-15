@@ -89,9 +89,6 @@ object StreamingMp4TagRewriter {
         RandomAccessFile(original, "r").use { source ->
           var written = 0L
           for (atom in top) {
-            if (atom.start != written) {
-              throw AudioTagRewriteException("InvalidTagData", "MP4 top-level atoms are not contiguous.")
-            }
             if (atom === moov) {
               written += newMoov.size.toLong()
               if (written > maxBytes) throw SizeLimitException()
