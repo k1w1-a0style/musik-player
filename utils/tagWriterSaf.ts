@@ -73,7 +73,7 @@ export const writeTagsToSafContentUri = async (
 
       let recovery;
       try {
-        recovery = await SystemAudio.recoverPendingAudioTagTransactions();
+        recovery = await SystemAudio.recoverPendingAudioTagTransactions(uri);
       } catch (error) {
         throw new TagWriterError(
           'RecoveryFailed',

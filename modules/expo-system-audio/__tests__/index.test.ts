@@ -105,5 +105,6 @@ test('forwards native recovery APIs when present', async () => {
 
   expect(SystemAudio.hasNativeTagWriter).toBe(true);
   await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toMatchObject({ pendingCount: 1 });
-  await expect(SystemAudio.recoverPendingAudioTagTransactions()).resolves.toMatchObject({ errorCode: 'RecoveryPending', recoveryPending: true });
+  await expect(SystemAudio.recoverPendingAudioTagTransactions('content://song.mp3')).resolves.toMatchObject({ errorCode: 'RecoveryPending', recoveryPending: true });
+  expect(recoverPendingAudioTagTransactions).toHaveBeenCalledWith('content://song.mp3');
 });

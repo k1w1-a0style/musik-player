@@ -148,7 +148,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
   getAudioTagRecoveryStatus?(): Promise<RecoveryStatusResult>;
-  recoverPendingAudioTagTransactions?(): Promise<RecoveryRunResult>;
+  recoverPendingAudioTagTransactions?(uri?: string): Promise<RecoveryRunResult>;
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
@@ -257,9 +257,9 @@ export const SystemAudio = {
       : { pendingCount: 0, transactions: [] };
   },
 
-  async recoverPendingAudioTagTransactions(): Promise<RecoveryRunResult> {
+  async recoverPendingAudioTagTransactions(uri?: string): Promise<RecoveryRunResult> {
     return native?.recoverPendingAudioTagTransactions
-      ? native.recoverPendingAudioTagTransactions()
+      ? native.recoverPendingAudioTagTransactions(uri)
       : { success: true, recoveryPending: false, recovered: false };
   },
 

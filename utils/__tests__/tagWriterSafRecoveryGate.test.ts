@@ -60,6 +60,7 @@ describe('SAF recovery gate before native reads', () => {
       recoveryPending: true,
     });
     expect(recover).toHaveBeenCalledTimes(1);
+    expect(recover).toHaveBeenCalledWith('content://provider/tree/song.mp3');
     expect(read).not.toHaveBeenCalled();
     expect(write).not.toHaveBeenCalled();
   });
@@ -118,6 +119,7 @@ describe('SAF recovery gate before native reads', () => {
     const result = await writeTagsToSafContentUri(song, draft);
 
     expect(result.status).toBe('written');
+    expect(recover).toHaveBeenCalledWith('content://provider/tree/song.mp3');
     expect(order).toEqual(['recover', 'read', 'write']);
   });
 });
