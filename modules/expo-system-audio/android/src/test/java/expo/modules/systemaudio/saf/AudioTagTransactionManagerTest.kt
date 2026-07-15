@@ -1,11 +1,14 @@
 package expo.modules.systemaudio.saf
 
 import android.net.Uri
+import org.junit.After
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowStatFs
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -34,6 +37,19 @@ class AudioTagTransactionManagerTest {
       calls += 1
       if (calls == failOnCall) throw IOException("directory sync failure")
     }
+  }
+
+  @Before fun registerRobolectricStorageCapacity() {
+    ShadowStatFs.registerStats(
+      File(System.getProperty("java.io.tmpdir")),
+      1_000_000,
+      1_000_000,
+      1_000_000,
+    )
+  }
+
+  @After fun resetRobolectricStorageCapacity() {
+    ShadowStatFs.reset()
   }
 
   private fun tmp(): File = createTempDir(prefix = "saf-tx-test-")
@@ -161,8 +177,10 @@ class AudioTagTransactionManagerTest {
 
   @Test fun insufficientStorageIsRejectedBeforeMutation() {
     val old = "old".toByteArray()
+    val root = tmp()
+    ShadowStatFs.registerStats(root, 1, 0, 0)
     val store = FakeStore(old)
-    val result = manager(tmp(), store, Long.MAX_VALUE).write(req(uri, old, "new".toByteArray()))
+    val result = manager(root, store).write(req(uri, old, "new".toByteArray()))
     assertEquals("InsufficientStorage", result.errorCode)
     assertEquals(0, store.writes)
   }
