@@ -1,0 +1,159 @@
+name: PR 308 recovery patch
+
+on:
+  push:
+    branches:
+      - cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
+          fetch-depth: 0
+
+      - name: Guard crash recovery against external edits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt')
+          text = path.read_text(encoding='utf-8')
+          old = '''  private fun recoverCrashedTransaction(dir: File, journal: TransactionJournal): TransactionResult {
+            val restore = restoreOriginal(dir, journal, Long.MAX_VALUE, recoveryErrorCode = "RecoveryFailed")
+            return if (restore.restored && restore.verified) {
+              TransactionResult(true, null, "Pending SAF transaction recovered.", bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recovered = true)
+            } else {
+              TransactionResult(false, restore.errorCode ?: "RecoveryFailed", restore.message, bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recoveryPending = true)
+            }
+          }
+          '''
+          new = '''  private fun recoverCrashedTransaction(dir: File, journal: TransactionJournal): TransactionResult {
+            val uri = Uri.parse(journal.targetUri)
+            if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
+              return TransactionResult(
+                success = false,
+                errorCode = "RecoveryPending",
+                message = "Recovery permission is missing.",
+                bytesBefore = journal.originalSizeBytes,
+                bytesAfter = journal.rewrittenSizeBytes,
+                recoveryPending = true,
+              )
+            }
+
+            val originalDigest = verifyOriginalBackupBeforeRestore(dir, journal, Long.MAX_VALUE) ?: run {
+              markRecoveryFailed(dir, journal, "BackupCorrupted", "Original backup is corrupted; target was not modified by recovery.")
+              return TransactionResult(
+                success = false,
+                errorCode = "BackupCorrupted",
+                message = "Original backup is corrupted; target was not modified by recovery.",
+                bytesBefore = journal.originalSizeBytes,
+                bytesAfter = journal.rewrittenSizeBytes,
+                recoveryPending = true,
+              )
+            }
+            val rewrittenDigest = DigestInfo(
+              journal.rewrittenSizeBytes ?: return markRecoveryFailed(dir, journal, "RecoveryFailed", "Rewritten digest is missing."),
+              journal.rewrittenSha256Hex ?: return markRecoveryFailed(dir, journal, "RecoveryFailed", "Rewritten digest is missing."),
+            )
+            val liveDigest = try {
+              StreamDigests.hashUri(store, uri, Long.MAX_VALUE)
+            } catch (_: Throwable) {
+              null
+            } ?: return TransactionResult(
+              success = false,
+              errorCode = "RecoveryPending",
+              message = "Current SAF content could not be verified; automatic recovery was not attempted.",
+              bytesBefore = journal.originalSizeBytes,
+              bytesAfter = journal.rewrittenSizeBytes,
+              recoveryPending = true,
+            )
+
+            return when (liveDigest) {
+              originalDigest -> {
+                try {
+                  storage.markRecoveryState(dir, journal, TransactionState.RECOVERED)
+                  storage.cleanup(dir)
+                  TransactionResult(
+                    success = true,
+                    errorCode = null,
+                    message = "Original content was already intact; pending transaction cleaned.",
+                    bytesBefore = journal.originalSizeBytes,
+                    bytesAfter = journal.rewrittenSizeBytes,
+                    recovered = true,
+                  )
+                } catch (_: Throwable) {
+                  TransactionResult(
+                    success = true,
+                    errorCode = null,
+                    message = "Original content is intact; transaction cleanup remains pending.",
+                    bytesBefore = journal.originalSizeBytes,
+                    bytesAfter = journal.rewrittenSizeBytes,
+                    recovered = true,
+                    cleanupPending = true,
+                  )
+                }
+              }
+
+              rewrittenDigest -> {
+                try {
+                  storage.markRecoveryState(dir, journal, TransactionState.COMMITTED)
+                  storage.cleanup(dir)
+                  TransactionResult(
+                    success = true,
+                    errorCode = null,
+                    message = "Rewritten content was already complete and verified; transaction committed.",
+                    verified = true,
+                    bytesBefore = journal.originalSizeBytes,
+                    bytesAfter = journal.rewrittenSizeBytes,
+                  )
+                } catch (_: Throwable) {
+                  TransactionResult(
+                    success = true,
+                    errorCode = null,
+                    message = "Rewritten content is verified; committed transaction cleanup remains pending.",
+                    verified = true,
+                    bytesBefore = journal.originalSizeBytes,
+                    bytesAfter = journal.rewrittenSizeBytes,
+                    cleanupPending = true,
+                  )
+                }
+              }
+
+              else -> {
+                try {
+                  storage.markRecoveryState(dir, journal, TransactionState.RECOVERY_REQUIRED)
+                } catch (_: Throwable) {
+                  // Preserve all transaction artifacts even if the state update cannot be persisted.
+                }
+                TransactionResult(
+                  success = false,
+                  errorCode = "RecoveryPending",
+                  message = "SAF content changed after the crash; automatic restore was refused to avoid overwriting external edits.",
+                  bytesBefore = journal.originalSizeBytes,
+                  bytesAfter = journal.rewrittenSizeBytes,
+                  recoveryPending = true,
+                )
+              }
+            }
+          }
+          '''
+          if old not in text:
+              raise SystemExit('Expected recovery function was not found; refusing to patch')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt
+          git diff --cached --check
+          git commit -m "Guard SAF recovery against external edits"
+          git push origin HEAD:cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
