@@ -44,6 +44,30 @@ class StreamingAudioTagRewriterTest {
   }
 
   @Test
+  fun mp3RewritePreservesUntouchedFlaggedId3v24FrameExactly() {
+    val directory = createTempDir(prefix = "streaming-mp3-v24-flags-")
+    val artistBody = byteArrayOf(3, 'A'.code.toByte(), 'r'.code.toByte(), 't'.code.toByte())
+    val flaggedArtist = id3v24Frame("TPE1", artistBody, statusFlags = 0x20, formatFlags = 0)
+    val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 4, 3, 2, 1)
+    val originalBytes = id3v24Tag(flaggedArtist) + audio
+    val original = File(directory, "original.mp3").apply { writeBytes(originalBytes) }
+    val rewritten = File(directory, "rewritten.mp3")
+
+    val result = StreamingMp3TagRewriter.rewrite(
+      original,
+      rewritten,
+      textSpec("mp3", "title", "New title"),
+      maxBytes,
+    )
+    val output = rewritten.readBytes()
+    val audioStart = 10 + decodeSynchsafe(output, 6)
+
+    assertTrue(result.changed)
+    assertTrue(indexOf(output, flaggedArtist) >= 0)
+    assertArrayEquals(audio, output.copyOfRange(audioStart, output.size))
+  }
+
+  @Test
   fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
     val directory = createTempDir(prefix = "streaming-mp3-delete-")
     val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 9, 8, 7, 6, 5)
@@ -331,6 +355,39 @@ class StreamingAudioTagRewriterTest {
     bytes[offset + 2] = ((value ushr 8) and 0xff).toByte()
     bytes[offset + 3] = (value and 0xff).toByte()
   }
+
+  private fun id3v24Tag(vararg frames: ByteArray): ByteArray {
+    val payload = frames.fold(byteArrayOf()) { accumulated, frame -> accumulated + frame }
+    val header = ByteArray(10)
+    header[0] = 'I'.code.toByte()
+    header[1] = 'D'.code.toByte()
+    header[2] = '3'.code.toByte()
+    header[3] = 4
+    encodeSynchsafe(payload.size).copyInto(header, 6)
+    return header + payload
+  }
+
+  private fun id3v24Frame(
+    id: String,
+    body: ByteArray,
+    statusFlags: Int,
+    formatFlags: Int,
+  ): ByteArray {
+    val output = ByteArray(10 + body.size)
+    id.toByteArray(Charsets.US_ASCII).copyInto(output, 0)
+    encodeSynchsafe(body.size).copyInto(output, 4)
+    output[8] = statusFlags.toByte()
+    output[9] = formatFlags.toByte()
+    body.copyInto(output, 10)
+    return output
+  }
+
+  private fun encodeSynchsafe(value: Int): ByteArray = byteArrayOf(
+    ((value ushr 21) and 0x7f).toByte(),
+    ((value ushr 14) and 0x7f).toByte(),
+    ((value ushr 7) and 0x7f).toByte(),
+    (value and 0x7f).toByte(),
+  )
 
   private fun decodeSynchsafe(bytes: ByteArray, offset: Int): Int =
     ((bytes[offset].toInt() and 0x7f) shl 21) or

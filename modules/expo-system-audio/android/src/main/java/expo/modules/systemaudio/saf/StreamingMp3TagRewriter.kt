@@ -154,14 +154,6 @@ object StreamingMp3TagRewriter {
         throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
       }
       val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
-      val flagA = tag[offset + 8].toInt() and 0xff
-      val flagB = tag[offset + 9].toInt() and 0xff
-      if (header.major == 4 && (flagA != 0 || flagB != 0)) {
-        throw AudioTagRewriteException(
-          "WriteNotImplemented",
-          "ID3v2.4 frame flags requiring special preservation semantics are not supported yet.",
-        )
-      }
       if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
         throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
       }
