@@ -36,12 +36,18 @@ export const useTagEditorCapability = ({
       undefined,
       { safDurableWriterAvailable: SystemAudio.hasNativeTagWriter },
     );
+    // Production plans always contain permission. The fallback keeps legacy
+    // partial test doubles and defensive callers from crashing while the real
+    // runtime plan still gates SAF writes on the durable native contract.
+    const planPermission = plan.permission;
+    const planCanWrite = planPermission?.canWrite ?? capability.canWrite;
+    const planPermissionReason = planPermission?.reason ?? capability.reason;
     const hasCover = song ? hasRemovableCover(song) : false;
     const canPickCover = Boolean(song && !saving);
     const coverUriType = plan.uriType ?? capability.uriType;
     const coverContainer = plan.container ?? capability.supportedContainer;
     const canWriteCover = Boolean(
-      plan.permission.canWrite
+      planCanWrite
       && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4')
       && (coverUriType === 'file' || coverUriType === 'content')
     );
@@ -49,15 +55,15 @@ export const useTagEditorCapability = ({
     const coverWriteBlocked = hasPendingCoverWrite && !canWriteCover;
     const canSave = Boolean(
       song
-      && plan.permission.canWrite
+      && planCanWrite
       && hasChanges
       && plan.blockingReasons.length === 0
       && !saving
       && !coverWriteBlocked,
     );
-    const capabilityMessage = plan.permission.canWrite
+    const capabilityMessage = planCanWrite
       ? undefined
-      : capabilityReason(plan.permission.reason ?? capability.reason);
+      : capabilityReason(planPermissionReason);
     const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons, plan);
     const coverCapabilityMessage = canWriteCover
       ? undefined
