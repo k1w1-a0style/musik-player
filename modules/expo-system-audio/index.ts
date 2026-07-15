@@ -110,6 +110,32 @@ export interface FastMetadataResult {
   mimeType?: string;
 }
 
+type RecoveryStatusResult = {
+  pendingCount: number;
+  quarantineCount?: number;
+  transactions: Array<{ transactionId: string; state: string }>;
+};
+
+type RecoveryRunResult = {
+  success: boolean;
+  errorCode?: string;
+  message?: string;
+  recoveryPending?: boolean;
+  recovered?: boolean;
+  recoveredCount?: number;
+  cleanedCount?: number;
+  pendingCount?: number;
+  failedCount?: number;
+  transactions?: Array<{
+    transactionId: string;
+    previousState?: string;
+    resultState?: string;
+    recovered: boolean;
+    pending: boolean;
+    errorCode?: string;
+  }>;
+};
+
 declare class ExpoSystemAudioModule extends NativeModule {
   eqInit(): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
@@ -121,8 +147,8 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
-  getAudioTagRecoveryStatus?(): Promise<{ pendingCount: number; quarantineCount?: number; transactions: Array<{ transactionId: string; state: string }> }>;
-  recoverPendingAudioTagTransactions?(): Promise<{ success: boolean; errorCode?: string; message?: string; recoveryPending?: boolean; recovered?: boolean; recoveredCount?: number; cleanedCount?: number; pendingCount?: number; failedCount?: number; transactions?: Array<{ transactionId: string; previousState?: string; resultState?: string; recovered: boolean; pending: boolean; errorCode?: string }> }>;
+  getAudioTagRecoveryStatus?(): Promise<RecoveryStatusResult>;
+  recoverPendingAudioTagTransactions?(): Promise<RecoveryRunResult>;
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
@@ -146,13 +172,16 @@ const waveformNative: ExpoSystemAudioWaveformModule | null = (() => {
 })();
 
 /**
- * Public API. Gracefully degrades to a no-op implementation when the
- * native module is unavailable (e.g. running in Expo Go or in Jest).
+ * Durable SAF writes require the complete native transaction/recovery contract.
+ * Failing closed here prevents a JS update from silently using an older native
+ * writer that still exposes the legacy read/write methods without crash recovery.
  */
 const hasNativeTagWriter =
   native !== null &&
   typeof native.readAudioFileBase64 === 'function' &&
-  typeof native.writeAudioTags === 'function';
+  typeof native.writeAudioTags === 'function' &&
+  typeof native.getAudioTagRecoveryStatus === 'function' &&
+  typeof native.recoverPendingAudioTagTransactions === 'function';
 
 const hasNativeMetadataFastPath =
   native !== null && typeof native.extractMetadataFast === 'function';
@@ -222,23 +251,27 @@ export const SystemAudio = {
     return native?.readAudioFileBase64 ? native.readAudioFileBase64(uri, maxBytes) : null;
   },
 
-  async getAudioTagRecoveryStatus() {
-    return native?.getAudioTagRecoveryStatus ? native.getAudioTagRecoveryStatus() : { pendingCount: 0, transactions: [] };
+  async getAudioTagRecoveryStatus(): Promise<RecoveryStatusResult> {
+    return native?.getAudioTagRecoveryStatus
+      ? native.getAudioTagRecoveryStatus()
+      : { pendingCount: 0, transactions: [] };
   },
 
-  async recoverPendingAudioTagTransactions() {
-    return native?.recoverPendingAudioTagTransactions ? native.recoverPendingAudioTagTransactions() : { success: true, recoveryPending: false, recovered: false };
+  async recoverPendingAudioTagTransactions(): Promise<RecoveryRunResult> {
+    return native?.recoverPendingAudioTagTransactions
+      ? native.recoverPendingAudioTagTransactions()
+      : { success: true, recoveryPending: false, recovered: false };
   },
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {
-    if (!native?.writeAudioTags) {
+    if (!hasNativeTagWriter || !native?.writeAudioTags) {
       return {
         success: false,
         uri,
         changedFields: [],
         failedFields: request.changedFields ?? [],
         errorCode: 'WriteNotImplemented',
-        message: 'Native audio tag writer is unavailable. A new development build is required.',
+        message: 'Durable native audio tag writing is unavailable. A new development build is required.',
         verified: false,
       };
     }
