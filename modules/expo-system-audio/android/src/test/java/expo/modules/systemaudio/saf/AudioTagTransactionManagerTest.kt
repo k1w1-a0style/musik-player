@@ -3,91 +3,463 @@ package expo.modules.systemaudio.saf
 import android.net.Uri
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AudioTagTransactionManagerTest {
-  private object NoopDirectorySync : DirectoryDurabilitySync { override fun sync(directory: File) {} }
-  private fun tmp() = createTempDir(prefix = "saf-tx-test-")
-  private fun sha(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-  private fun b64(bytes: ByteArray) = Base64.getEncoder().encodeToString(bytes)
-  private fun req(uri: Uri, original: ByteArray, rewritten: ByteArray) = TransactionWriteRequest(uri, b64(rewritten), listOf("title"), 1024 * 1024, original.size.toLong(), sha(original), rewritten.size.toLong())
-  private open class FakeStore(var bytes: ByteArray = "old".toByteArray()) : SafContentStore {
-    var permission = true; var writable = true; var failRead = false; var failWrite = false; var failAfterPartial = false; var failSync = false; var mutateBeforeWrite: ByteArray? = null; var writes = 0
-    override open fun openInput(uri: Uri) = if (failRead) null else ByteArrayInputStream(bytes)
-    override open fun openTruncatingOutput(uri: Uri): OutputStream? { writes++; if (failWrite && writes == 1) throw java.io.IOException("write failed"); mutateBeforeWrite?.let { bytes = it; mutateBeforeWrite = null }; val out = ByteArrayOutputStream(); return object: OutputStream(){ var n=0; override fun write(b: Int){ if(failAfterPartial && writes == 1 && n++ > 1) throw java.io.IOException("partial"); out.write(b) }; override fun write(b: ByteArray, off: Int, len: Int){ if(failAfterPartial && writes == 1){ out.write(b, off, minOf(2,len)); throw java.io.IOException("partial") }; out.write(b,off,len)}; override fun flush(){}; override fun close(){ bytes=out.toByteArray() } } }
-    override fun sync(output: OutputStream) { if (failSync && writes == 1) throw java.io.IOException("sync") }
-    override fun hasWritePermission(uri: Uri) = permission
-    override fun isWritable(uri: Uri) = writable
-    override fun size(uri: Uri) = bytes.size.toLong()
+  private object NoopDirectorySync : DirectoryDurabilitySync {
+    override fun sync(directory: File) = Unit
   }
-  private fun storage(root: File) = TransactionStorage(root, NoopDirectorySync)
-  private fun manager(root: File, store: FakeStore, margin: Long = 0) = AudioTagTransactionManager(storage(root), store, margin)
-  private val uri = Uri.parse("content://provider/tree/song")
 
-  @Test fun successfulCompleteSafWrite() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val r=manager(root,s).write(req(uri,o,n)); assertTrue(r.success); assertArrayEquals(n,s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun noMutatingAccessBeforeVerifiedBackup() { val o="old".toByteArray(); val s=FakeStore(o); val r=manager(tmp(),s).write(req(uri,"bad".toByteArray(),"new".toByteArray())); assertFalse(r.success); assertEquals(0,s.writes); assertArrayEquals(o,s.bytes) }
-  @Test fun backupCreationFails() { val s=FakeStore(); s.failRead=true; val r=manager(tmp(),s).write(req(uri,"old".toByteArray(),"new".toByteArray())); assertEquals("BackupFailed", r.errorCode) }
-  @Test fun insufficientAppPrivateStorage() { val s=FakeStore(); val r=manager(tmp(),s, Long.MAX_VALUE).write(req(uri,"old".toByteArray(),"new".toByteArray())); assertEquals("InsufficientStorage", r.errorCode) }
-  @Test fun originalSizeMismatch() { val s=FakeStore("old".toByteArray()); val r=manager(tmp(),s).write(req(uri,"ol".toByteArray(),"new".toByteArray()).copy(expectedOriginalSha256=sha("old".toByteArray()))); assertEquals("VerificationFailed", r.errorCode) }
-  @Test fun originalHashMismatch() { val s=FakeStore("old".toByteArray()); val r=manager(tmp(),s).write(req(uri,"old".toByteArray(),"new".toByteArray()).copy(expectedOriginalSha256=sha("bad".toByteArray()))); assertEquals("VerificationFailed", r.errorCode) }
-  @Test fun originalMutatedBetweenBackupAndWrite() { val o="old".toByteArray(); val s=FakeStore(o); s.mutateBeforeWrite="external".toByteArray(); val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertFalse(r.success) }
-  @Test fun invalidRewrittenBase64() { val o="old".toByteArray(); val r=manager(tmp(),FakeStore(o)).write(req(uri,o,"new".toByteArray()).copy(rewrittenBase64="@@@")); assertEquals("InvalidTagData", r.errorCode) }
-  @Test fun rewrittenPayloadExceedsLimit() { val o="old".toByteArray(); val r=manager(tmp(),FakeStore(o)).write(req(uri,o,"new".toByteArray()).copy(maxBytes=2)); assertEquals("FileTooLarge", r.errorCode) }
-  @Test fun rewrittenStagingSyncCanFailViaReadonlyRoot() { val root=tmp(); root.setWritable(false); try { val o="old".toByteArray(); val r=manager(root,FakeStore(o)).write(req(uri,o,"new".toByteArray())); assertFalse(r.success) } finally { root.setWritable(true) } }
-  @Test fun failureBeforeWriteStartedLeavesOriginal() { val o="old".toByteArray(); val s=FakeStore(o); s.writable=false; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("MissingWritePermission", r.errorCode); assertArrayEquals(o,s.bytes) }
-  @Test fun failureDuringTargetWriteRollsBack() { val o="old".toByteArray(); val s=FakeStore(o); s.failWrite=true; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("ReplaceFailed", r.errorCode); assertTrue(r.recovered) }
-  @Test fun failureAfterPartialTargetWriteRollsBack() { val o="old".toByteArray(); val s=FakeStore(o); s.failAfterPartial=true; val r=manager(tmp(),s).write(req(uri,o,"newer".toByteArray())); assertEquals("ReplaceFailed", r.errorCode); assertTrue(r.recovered) }
-  @Test fun failureAfterTargetSyncBeforeVerification() { val o="old".toByteArray(); val s=FakeStore(o); s.failSync=true; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("ReplaceFailed", r.errorCode) }
-  @Test fun postWriteHashMismatch() { val o="old".toByteArray(); val s=object: FakeStore(o){ override fun openInput(uri: Uri)=ByteArrayInputStream(if(writes>0) "wrong".toByteArray() else bytes) }; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("VerificationFailed", r.errorCode) }
-  @Test fun postWriteOversizeVerificationRollsBack() {
-    val o = "old".toByteArray()
-    val n = "new".toByteArray()
-    val s = object: FakeStore(o) {
-      override fun openTruncatingOutput(uri: Uri): OutputStream? {
-        writes++
-        val out = ByteArrayOutputStream()
-        return object: OutputStream() {
-          override fun write(b: Int) { out.write(b) }
-          override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len) }
-          override fun close() {
-            val written = out.toByteArray()
-            bytes = written + "-tail".toByteArray()
+  private class CountingDirectorySync(
+    private val failOnCall: Int? = null,
+  ) : DirectoryDurabilitySync {
+    var calls = 0
+      private set
+
+    override fun sync(directory: File) {
+      calls += 1
+      if (calls == failOnCall) throw IOException("directory sync failure")
+    }
+  }
+
+  private fun tmp(): File = createTempDir(prefix = "saf-tx-test-")
+  private fun sha(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+    .digest(bytes)
+    .joinToString("") { "%02x".format(it) }
+  private fun b64(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)
+  private fun req(uri: Uri, original: ByteArray, rewritten: ByteArray): TransactionWriteRequest =
+    TransactionWriteRequest(
+      uri = uri,
+      rewrittenBase64 = b64(rewritten),
+      changedFields = listOf("title"),
+      maxBytes = 1024 * 1024,
+      expectedOriginalSize = original.size.toLong(),
+      expectedOriginalSha256 = sha(original),
+      expectedWrittenSize = rewritten.size.toLong(),
+      expectedWrittenSha256 = sha(rewritten),
+    )
+
+  private open class FakeStore(initial: ByteArray = "old".toByteArray()) : SafContentStore {
+    @Volatile var bytes: ByteArray = initial
+    @Volatile var permission = true
+    @Volatile var writable = true
+    @Volatile var writes = 0
+    @Volatile var reads = 0
+    var failOpenOnWriteCall: Int? = null
+    var failPartialOnWriteCall: Int? = null
+    var failSyncOnWriteCall: Int? = null
+    var replacementBeforeReadCall: Pair<Int, ByteArray>? = null
+    var readOverride: ((Int, ByteArray) -> ByteArray)? = null
+    var outputOpened: CountDownLatch? = null
+    var holdWriteUntil: CountDownLatch? = null
+
+    override fun openInput(uri: Uri): ByteArrayInputStream {
+      reads += 1
+      replacementBeforeReadCall?.takeIf { it.first == reads }?.let {
+        bytes = it.second
+        replacementBeforeReadCall = null
+      }
+      val payload = readOverride?.invoke(reads, bytes) ?: bytes
+      return ByteArrayInputStream(payload)
+    }
+
+    override fun openTruncatingOutput(uri: Uri): OutputStream? {
+      writes += 1
+      val call = writes
+      if (failOpenOnWriteCall == call) throw IOException("write open failed")
+      outputOpened?.countDown()
+      holdWriteUntil?.await(10, TimeUnit.SECONDS)
+      val out = ByteArrayOutputStream()
+      return object : OutputStream() {
+        private var count = 0
+        override fun write(value: Int) {
+          if (failPartialOnWriteCall == call && count++ >= 2) throw IOException("partial write")
+          out.write(value)
+        }
+
+        override fun write(buffer: ByteArray, offset: Int, length: Int) {
+          if (failPartialOnWriteCall == call) {
+            val partial = minOf(2, length)
+            out.write(buffer, offset, partial)
+            throw IOException("partial write")
           }
+          out.write(buffer, offset, length)
+        }
+
+        override fun close() {
+          bytes = out.toByteArray()
         }
       }
     }
+
+    override fun sync(output: OutputStream) {
+      if (failSyncOnWriteCall == writes) throw IOException("sync failure")
+    }
+
+    override fun hasWritePermission(uri: Uri): Boolean = permission
+    override fun isWritable(uri: Uri): Boolean = writable
+    override fun size(uri: Uri): Long = bytes.size.toLong()
+  }
+
+  private fun storage(root: File, sync: DirectoryDurabilitySync = NoopDirectorySync) =
+    TransactionStorage(root, sync)
+  private fun manager(root: File, store: FakeStore, margin: Long = 0) =
+    AudioTagTransactionManager(storage(root), store, margin)
+
+  private val uri = Uri.parse("content://provider/tree/song")
+
+  @Test fun successfulWriteVerifiesAndCleansArtifacts() {
+    val old = "old".toByteArray()
+    val rewritten = "new".toByteArray()
     val root = tmp()
-    val r = manager(root, s).write(req(uri, o, n).copy(maxBytes = n.size.toLong()))
-    assertEquals("RollbackFailed", r.errorCode)
-    assertTrue(r.recoveryPending)
-    assertEquals(2, s.writes)
+    val store = FakeStore(old)
+
+    val result = manager(root, store).write(req(uri, old, rewritten))
+
+    assertTrue(result.success)
+    assertTrue(result.verified)
+    assertArrayEquals(rewritten, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun targetIsNotOpenedBeforeOriginalVerification() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old)
+
+    val result = manager(tmp(), store).write(req(uri, "wrong".toByteArray(), "new".toByteArray()))
+
+    assertFalse(result.success)
+    assertEquals("VerificationFailed", result.errorCode)
+    assertEquals(0, store.writes)
+    assertArrayEquals(old, store.bytes)
+  }
+
+  @Test fun backupReadFailureDoesNotMutateTarget() {
+    val old = "old".toByteArray()
+    val store = object : FakeStore(old) {
+      override fun openInput(uri: Uri): ByteArrayInputStream {
+        throw IOException("backup read failed")
+      }
+    }
+
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
+
+    assertFalse(result.success)
+    assertEquals(0, store.writes)
+    assertArrayEquals(old, store.bytes)
+  }
+
+  @Test fun insufficientStorageIsRejectedBeforeMutation() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old)
+    val result = manager(tmp(), store, Long.MAX_VALUE).write(req(uri, old, "new".toByteArray()))
+    assertEquals("InsufficientStorage", result.errorCode)
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun externalChangeBeforeWriteIntentAbortsWithoutMutation() {
+    val old = "old".toByteArray()
+    val external = "external".toByteArray()
+    val store = FakeStore(old).apply { replacementBeforeReadCall = 2 to external }
+
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
+
+    assertFalse(result.success)
+    assertEquals("VerificationFailed", result.errorCode)
+    assertEquals(0, store.writes)
+    assertArrayEquals(external, store.bytes)
+  }
+
+  @Test fun invalidBase64IsRejectedBeforeMutation() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old)
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()).copy(rewrittenBase64 = "@@@"))
+    assertEquals("InvalidTagData", result.errorCode)
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun targetOpenFailureRollsBackAndReportsOriginalWriteError() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val store = FakeStore(old).apply { failOpenOnWriteCall = 1 }
+
+    val result = manager(root, store).write(req(uri, old, "new".toByteArray()))
+
+    assertFalse(result.success)
+    assertEquals("ReplaceFailed", result.errorCode)
+    assertTrue(result.recovered)
+    assertFalse(result.recoveryPending)
+    assertArrayEquals(old, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun partialTargetWriteRollsBackSuccessfully() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val store = FakeStore(old).apply { failPartialOnWriteCall = 1 }
+
+    val result = manager(root, store).write(req(uri, old, "newer".toByteArray()))
+
+    assertEquals("ReplaceFailed", result.errorCode)
+    assertTrue(result.recovered)
+    assertFalse(result.recoveryPending)
+    assertArrayEquals(old, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun targetSyncFailureRollsBackSuccessfully() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old).apply { failSyncOnWriteCall = 1 }
+
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
+
+    assertEquals("ReplaceFailed", result.errorCode)
+    assertTrue(result.recovered)
+    assertArrayEquals(old, store.bytes)
+  }
+
+  @Test fun postWriteHashMismatchRestoresOriginalAndPreservesVerificationError() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old).apply {
+      readOverride = { readCall, current -> if (readCall == 3) "wrong".toByteArray() else current }
+    }
+
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()))
+
+    assertEquals("VerificationFailed", result.errorCode)
+    assertTrue(result.recovered)
+    assertFalse(result.recoveryPending)
+    assertArrayEquals(old, store.bytes)
+  }
+
+  @Test fun failedRollbackPreservesTransactionForRecovery() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val store = FakeStore(old).apply {
+      failPartialOnWriteCall = 1
+      failOpenOnWriteCall = 2
+    }
+
+    val result = manager(root, store).write(req(uri, old, "newer".toByteArray()))
+
+    assertFalse(result.success)
+    assertEquals("RollbackFailed", result.errorCode)
+    assertTrue(result.recoveryPending)
     assertFalse(root.listFiles().isNullOrEmpty())
   }
-  @Test fun successfulImmediateRestore() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); s.failWrite=true; val r=manager(root,s).write(req(uri,o,n)); assertFalse(r.success); assertEquals("ReplaceFailed", r.errorCode); assertTrue(r.recovered); assertFalse(r.recoveryPending); assertArrayEquals(o, s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun failedImmediateRestorePreservesTransaction() { val o="old".toByteArray(); val s=FakeStore(o); s.failAfterPartial=true; s.permission=false; val r=manager(tmp(),s).write(req(uri,o,"newer".toByteArray())); assertFalse(r.success) }
-  @Test fun crashAtBackupReadyCleans() { val root=tmp(); val st=storage(root); val d=st.createDir(); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.BACKUP_READY,createdAtEpochMs=1,updatedAtEpochMs=1)); val r=manager(root,FakeStore()).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun crashAtWriteStartedRestores() { recoverState(TransactionState.WRITE_STARTED) }
-  @Test fun crashAtWrittenUnverifiedRestores() { recoverState(TransactionState.WRITTEN_UNVERIFIED) }
-  @Test fun crashAfterCommittedBeforeCleanup() { val root=tmp(); val st=storage(root); val d=st.createDir(); val n="new".toByteArray(); st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.COMMITTED,createdAtEpochMs=1,updatedAtEpochMs=1,rewrittenSizeBytes=n.size.toLong(),rewrittenSha256Hex=sha(n))); val r=manager(root,FakeStore(n)).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun recoveryWithPermission() { recoverState(TransactionState.WRITE_STARTED) }
-  @Test fun recoveryWithoutPermissionPending() { val root=prepared(TransactionState.WRITE_STARTED); val s=FakeStore("bad".toByteArray()); s.permission=false; val r=manager(root,s).recoverPending(); assertEquals("RecoveryPending", r.errorCode); assertFalse(root.listFiles().isNullOrEmpty()) }
-  @Test fun damagedJournalQuarantined() { val root=tmp(); val d=File(root,"x"); d.mkdirs(); File(d,"journal.json").writeText("{"); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RecoveryPending", r.errorCode) }
-  @Test fun missingOriginalBinFailsRecovery() { val root=prepared(TransactionState.WRITE_STARTED); File(root.listFiles()!![0],"original.bin").delete(); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RecoveryFailed", r.errorCode) }
-  @Test fun manipulatedOriginalBinFailsRecovery() { val root=prepared(TransactionState.WRITE_STARTED); File(root.listFiles()!![0],"original.bin").writeText("tampered"); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RollbackFailed", r.errorCode) }
-  @Test fun duplicateParallelTransactionIsSerialized() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val m=manager(root,s); val r1=m.write(req(uri,o,n)); val r2=m.write(req(uri,n,"new2".toByteArray())); assertTrue(r1.success); assertTrue(r2.success); assertArrayEquals("new2".toByteArray(), s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun repeatedRecoveryIsIdempotent() { val root=prepared(TransactionState.BACKUP_READY); val m=manager(root,FakeStore()); assertTrue(m.recoverPending().success); assertTrue(m.recoverPending().success) }
-  @Test fun successfulCleanupLeavesNoArtifacts() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val r=manager(root,s).write(req(uri,o,n)); assertTrue(r.success); assertTrue(r.verified); assertArrayEquals(n,s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
-  @Test fun journalDoesNotUseUriAsDirectoryName() { val root=tmp(); val s=FakeStore("old".toByteArray()); manager(root,s).write(req(uri,"old".toByteArray(),"new".toByteArray())); assertFalse(root.absolutePath.contains(uri.toString())) }
 
-  @Test fun journalAcceptsJsChangedFieldNames() { val all = listOf("title", "artist", "albumArtist", "album", "year", "genre", "trackNumber", "discNumber", "comment", "cover"); val j=TransactionJournal(transactionId="tx",targetUri=uri.toString(),state=TransactionState.PREPARING,createdAtEpochMs=1,updatedAtEpochMs=1,changedFields=all); assertEquals(all, TransactionJournal.fromJson(j.toJson()).changedFields) }
-  @Test fun journalRejectsUnknownChangedField() { val j=TransactionJournal(transactionId="tx",targetUri=uri.toString(),state=TransactionState.PREPARING,createdAtEpochMs=1,updatedAtEpochMs=1,changedFields=listOf("track")); assertThrows(IllegalArgumentException::class.java) { TransactionJournal.fromJson(j.toJson()) } }
-  @Test fun damagedJournalDoesNotBlockIndependentUri() { val root=tmp(); val bad=File(root,"bad"); bad.mkdirs(); File(bad,"original.bin").writeText("backup"); File(bad,"journal.json").writeText("{"); val s=FakeStore("old".toByteArray()); val r=manager(root,s).write(req(Uri.parse("content://provider/tree/other"),"old".toByteArray(),"new".toByteArray())); assertTrue(r.success); assertArrayEquals("new".toByteArray(), s.bytes); assertTrue(File(root.parentFile,"audio-tag-transactions-quarantine").listFiles()?.isNotEmpty() == true) }
+  @Test fun corruptedBackupIsDetectedBeforeRecoveryMutation() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
+    val store = FakeStore("partial".toByteArray())
 
-  private fun prepared(state: TransactionState): File { val root=tmp(); val st=storage(root); val d=st.createDir(); val o="old".toByteArray(); val n="new".toByteArray(); st.original(d).writeBytes(o); if (state != TransactionState.BACKUP_READY && state != TransactionState.PREPARING) st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=state,createdAtEpochMs=1,updatedAtEpochMs=1,originalSizeBytes=o.size.toLong(),originalSha256Hex=sha(o),rewrittenSizeBytes=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else n.size.toLong(),rewrittenSha256Hex=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else sha(n))); return root }
-  private fun recoverState(state: TransactionState) { val root=prepared(state); val r=manager(root,FakeStore("broken".toByteArray())).recoverPending(); assertTrue(r.success); assertTrue(r.recovered) }
+    val summary = manager(root, store).recoverPendingSummary()
+
+    assertFalse(summary.success)
+    assertEquals("BackupCorrupted", summary.transactions.single().errorCode)
+    assertEquals(0, store.writes)
+    assertArrayEquals("partial".toByteArray(), store.bytes)
+  }
+
+  @Test fun committedTransactionIsCleanupOnlyEvenAfterExternalEdit() {
+    val root = prepared(TransactionState.COMMITTED)
+    val external = "externally-edited".toByteArray()
+    val store = FakeStore(external)
+
+    val summary = manager(root, store).recoverPendingSummary()
+
+    assertTrue(summary.success)
+    assertEquals(0, store.writes)
+    assertArrayEquals(external, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun crashedWriteWithOriginalStillPresentCleansWithoutWriting() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val old = "old".toByteArray()
+    val store = FakeStore(old)
+
+    val summary = manager(root, store).recoverPendingSummary()
+
+    assertTrue(summary.success)
+    assertEquals(0, store.writes)
+    assertArrayEquals(old, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun crashedWriteWithRewrittenContentCommitsWithoutRollback() {
+    val root = prepared(TransactionState.WRITTEN_UNVERIFIED)
+    val rewritten = "new".toByteArray()
+    val store = FakeStore(rewritten)
+
+    val summary = manager(root, store).recoverPendingSummary()
+
+    assertTrue(summary.success)
+    assertEquals(0, store.writes)
+    assertArrayEquals(rewritten, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun crashedWriteWithUnknownExternalContentStaysPendingAndIsNotOverwritten() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val external = "external-after-crash".toByteArray()
+    val store = FakeStore(external)
+
+    val summary = manager(root, store).recoverPendingSummary()
+
+    assertFalse(summary.success)
+    assertTrue(summary.pendingCount > 0)
+    assertEquals(0, store.writes)
+    assertArrayEquals(external, store.bytes)
+    assertFalse(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun recoveryWithoutPermissionRemainsPending() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val store = FakeStore("partial".toByteArray()).apply { permission = false }
+    val result = manager(root, store).recoverPending()
+    assertEquals("RecoveryPending", result.errorCode)
+    assertTrue(result.recoveryPending)
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun statusIsReadOnly() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val dir = root.listFiles()!!.single()
+    val journalBefore = File(dir, "journal.json").readText()
+    val originalBefore = File(dir, "original.bin").readBytes()
+    val store = FakeStore("partial".toByteArray())
+    val manager = manager(root, store)
+
+    val status = manager.status()
+
+    assertEquals(1, status["pendingCount"])
+    assertEquals(0, store.writes)
+    assertEquals(journalBefore, File(dir, "journal.json").readText())
+    assertArrayEquals(originalBefore, File(dir, "original.bin").readBytes())
+    assertArrayEquals("partial".toByteArray(), store.bytes)
+  }
+
+  @Test fun damagedJournalIsQuarantinedAndDoesNotBlockIndependentUri() {
+    val root = tmp()
+    val damaged = File(root, "damaged").apply { mkdirs() }
+    File(damaged, "original.bin").writeText("backup")
+    File(damaged, "journal.json").writeText("{")
+    val otherUri = Uri.parse("content://provider/tree/other")
+    val store = FakeStore("old".toByteArray())
+
+    val result = manager(root, store).write(req(otherUri, "old".toByteArray(), "new".toByteArray()))
+
+    assertTrue(result.success)
+    assertArrayEquals("new".toByteArray(), store.bytes)
+    val quarantine = File(root.parentFile, "audio-tag-transactions-quarantine")
+    assertTrue(quarantine.listFiles()?.isNotEmpty() == true)
+  }
+
+  @Test fun journalAcceptsAllFieldsEmittedByJsWriter() {
+    val fields = listOf("title", "artist", "albumArtist", "album", "year", "genre", "trackNumber", "discNumber", "comment", "cover")
+    val journal = TransactionJournal(
+      transactionId = "tx",
+      targetUri = uri.toString(),
+      state = TransactionState.PREPARING,
+      createdAtEpochMs = 1,
+      updatedAtEpochMs = 1,
+      changedFields = fields,
+    )
+    assertEquals(fields, TransactionJournal.fromJson(journal.toJson()).changedFields)
+  }
+
+  @Test fun journalRejectsUnknownChangedField() {
+    val journal = TransactionJournal(
+      transactionId = "tx",
+      targetUri = uri.toString(),
+      state = TransactionState.PREPARING,
+      createdAtEpochMs = 1,
+      updatedAtEpochMs = 1,
+      changedFields = listOf("track"),
+    )
+    assertThrows(IllegalArgumentException::class.java) { TransactionJournal.fromJson(journal.toJson()) }
+  }
+
+  @Test fun directorySyncFailureDuringStorageCreationIsPropagated() {
+    val sync = CountingDirectorySync(failOnCall = 1)
+    assertThrows(IOException::class.java) { TransactionStorage(tmp(), sync) }
+    assertEquals(1, sync.calls)
+  }
+
+  @Test fun twoWritesForSameUriNeverOpenTargetConcurrently() {
+    val old = "old".toByteArray()
+    val first = "first".toByteArray()
+    val second = "second".toByteArray()
+    val root = tmp()
+    val opened = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply {
+      outputOpened = opened
+      holdWriteUntil = release
+    }
+    val manager = manager(root, store)
+    var firstResult: TransactionResult? = null
+    var secondResult: TransactionResult? = null
+
+    val t1 = thread {
+      firstResult = manager.write(req(uri, old, first))
+    }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+    store.outputOpened = null
+    store.holdWriteUntil = null
+    val t2 = thread {
+      secondResult = manager.write(req(uri, first, second))
+    }
+    Thread.sleep(150)
+    assertEquals(1, store.writes)
+    release.countDown()
+    t1.join(10_000)
+    t2.join(10_000)
+
+    assertTrue(firstResult?.success == true)
+    assertTrue(secondResult?.success == true)
+    assertArrayEquals(second, store.bytes)
+  }
+
+  private fun prepared(state: TransactionState): File {
+    val root = tmp()
+    val storage = storage(root)
+    val dir = storage.createDir()
+    val original = "old".toByteArray()
+    val rewritten = "new".toByteArray()
+    storage.original(dir).writeBytes(original)
+    if (state != TransactionState.PREPARING && state != TransactionState.BACKUP_READY) {
+      storage.rewritten(dir).writeBytes(rewritten)
+    }
+    storage.atomicWriteJournal(
+      dir,
+      TransactionJournal(
+        transactionId = dir.name,
+        targetUri = uri.toString(),
+        state = state,
+        createdAtEpochMs = 1,
+        updatedAtEpochMs = 1,
+        originalSizeBytes = if (state == TransactionState.PREPARING) null else original.size.toLong(),
+        originalSha256Hex = if (state == TransactionState.PREPARING) null else sha(original),
+        rewrittenSizeBytes = if (state == TransactionState.PREPARING || state == TransactionState.BACKUP_READY) null else rewritten.size.toLong(),
+        rewrittenSha256Hex = if (state == TransactionState.PREPARING || state == TransactionState.BACKUP_READY) null else sha(rewritten),
+      ),
+    )
+    return root
+  }
 }
