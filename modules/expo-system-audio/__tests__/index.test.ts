@@ -21,7 +21,6 @@ describe('expo-system-audio wrapper', () => {
   });
 });
 
-
 test('hasNativeTagWriter is false for old native module without SAF methods', () => {
   jest.resetModules();
   jest.doMock('expo', () => ({
@@ -44,6 +43,41 @@ test('hasNativeTagWriter is false for old native module without SAF methods', ()
   expect(SystemAudio.hasNativeTagWriter).toBe(false);
 });
 
+test('fails closed for legacy native writer without recovery contract', async () => {
+  jest.resetModules();
+  const legacyWriteAudioTags = jest.fn().mockResolvedValue({
+    success: true,
+    uri: 'content://song.mp3',
+    changedFields: ['title'],
+    failedFields: [],
+    verified: true,
+  });
+  jest.doMock('expo', () => ({
+    NativeModule: class {},
+    requireNativeModule: jest.fn(() => ({
+      eqInit: jest.fn(),
+      eqSetEnabled: jest.fn(),
+      eqSetBandLevel: jest.fn(),
+      eqRelease: jest.fn(),
+      extractPalette: jest.fn(),
+      extractEmbeddedArtwork: jest.fn(),
+      extractAudioInfo: jest.fn(),
+      readAudioFileBase64: jest.fn(),
+      writeAudioTags: legacyWriteAudioTags,
+    })),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SystemAudio } = require('../index');
+
+  expect(SystemAudio.hasNativeTagWriter).toBe(false);
+  await expect(SystemAudio.writeAudioTags('content://song.mp3', { changedFields: ['title'] })).resolves.toMatchObject({
+    success: false,
+    errorCode: 'WriteNotImplemented',
+    verified: false,
+  });
+  expect(legacyWriteAudioTags).not.toHaveBeenCalled();
+});
 
 test('forwards native recovery APIs when present', async () => {
   jest.resetModules();
@@ -69,6 +103,7 @@ test('forwards native recovery APIs when present', async () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { SystemAudio } = require('../index');
 
+  expect(SystemAudio.hasNativeTagWriter).toBe(true);
   await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toMatchObject({ pendingCount: 1 });
   await expect(SystemAudio.recoverPendingAudioTagTransactions()).resolves.toMatchObject({ errorCode: 'RecoveryPending', recoveryPending: true });
 });
