@@ -19,12 +19,13 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: gpt/v7-1-pr-2b-native-streaming-saf-rewrite
-      - name: Apply complete streaming SAF migration
+      - name: Apply and commit complete streaming SAF migration
         shell: bash
         run: |
           set -uo pipefail
           set +e
-          python3 - <<'PY'
+          {
+            python3 - <<'PY'
           from pathlib import Path
 
           phase_one = Path('scripts/ci/patchNativeStreamingSaf.py')
@@ -56,15 +57,8 @@ jobs:
           '''
           phase_two.write_text(text[:start] + replacement + text[end:])
           PY
-          {
             python3 scripts/ci/patchNativeStreamingSaf.py
             python3 scripts/ci/patchNativeStreamingSafPhase2.py
-          } > patch-native-streaming.log 2>&1
-          status=$?
-          set -e
-          cat patch-native-streaming.log
-          printf '%s\n' "$status" > patch-native-streaming.exit-code
-          if [ "$status" -eq 0 ]; then
             git diff --check
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -83,9 +77,14 @@ jobs:
               utils/__tests__/tagWriterSafRecoveryGate.test.ts \
               utils/__tests__/tagWriteVerification.test.ts \
               __mocks__/expo-system-audio.js
+            git status --short
             git commit -m "feat: replace SAF full-file bridge with native streaming rewrites"
             git push origin HEAD:gpt/v7-1-pr-2b-native-streaming-saf-rewrite
-          fi
+          } > patch-native-streaming.log 2>&1
+          status=$?
+          set -e
+          cat patch-native-streaming.log
+          printf '%s\n' "$status" > patch-native-streaming.exit-code
           exit "$status"
       - name: Upload patch diagnostics
         if: always()
