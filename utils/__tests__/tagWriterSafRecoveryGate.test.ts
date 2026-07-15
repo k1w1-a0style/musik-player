@@ -1,24 +1,4 @@
-import SystemAudio from 'expo-system-audio';
 import type { Song } from '../../types/Song';
-import { writeTagsToSafContentUri } from '../tagWriterSaf';
-
-const mockRecover = jest.fn();
-const mockRead = jest.fn();
-const mockWrite = jest.fn();
-
-jest.mock('expo-system-audio', () => {
-  const mock = {
-    hasNativeTagWriter: true,
-    recoverPendingAudioTagTransactions: mockRecover,
-    readAudioFileBase64: mockRead,
-    writeAudioTags: mockWrite,
-  };
-  return {
-    __esModule: true,
-    default: mock,
-    SystemAudio: mock,
-  };
-});
 
 const song: Song = {
   id: 'song-1',
@@ -37,21 +17,39 @@ const draft = {
   tags: { title: 'New title' },
 };
 
+const loadWithNative = (native: Record<string, unknown>) => {
+  jest.resetModules();
+  jest.doMock('expo-system-audio', () => ({
+    __esModule: true,
+    default: native,
+    SystemAudio: native,
+  }));
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('../tagWriterSaf') as typeof import('../tagWriterSaf');
+};
+
 describe('SAF recovery gate before native reads', () => {
-  beforeEach(() => {
-    mockRecover.mockReset();
-    mockRead.mockReset();
-    mockWrite.mockReset();
-    (SystemAudio as { hasNativeTagWriter: boolean }).hasNativeTagWriter = true;
+  afterEach(() => {
+    jest.dontMock('expo-system-audio');
+    jest.resetModules();
+    jest.clearAllMocks();
   });
 
   test('pending recovery blocks reading and rewriting the live document', async () => {
-    mockRecover.mockResolvedValue({
+    const recover = jest.fn().mockResolvedValue({
       success: false,
       errorCode: 'RecoveryPending',
       message: 'A transaction still requires recovery.',
       recoveryPending: true,
       pendingCount: 1,
+    });
+    const read = jest.fn();
+    const write = jest.fn();
+    const { writeTagsToSafContentUri } = loadWithNative({
+      hasNativeTagWriter: true,
+      recoverPendingAudioTagTransactions: recover,
+      readAudioFileBase64: read,
+      writeAudioTags: write,
     });
 
     const result = await writeTagsToSafContentUri(song, draft);
@@ -61,13 +59,21 @@ describe('SAF recovery gate before native reads', () => {
       errorCode: 'RecoveryPending',
       recoveryPending: true,
     });
-    expect(mockRecover).toHaveBeenCalledTimes(1);
-    expect(mockRead).not.toHaveBeenCalled();
-    expect(mockWrite).not.toHaveBeenCalled();
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   test('recovery execution errors fail before native read', async () => {
-    mockRecover.mockRejectedValue(new Error('recovery unavailable'));
+    const recover = jest.fn().mockRejectedValue(new Error('recovery unavailable'));
+    const read = jest.fn();
+    const write = jest.fn();
+    const { writeTagsToSafContentUri } = loadWithNative({
+      hasNativeTagWriter: true,
+      recoverPendingAudioTagTransactions: recover,
+      readAudioFileBase64: read,
+      writeAudioTags: write,
+    });
 
     const result = await writeTagsToSafContentUri(song, draft);
 
@@ -76,29 +82,37 @@ describe('SAF recovery gate before native reads', () => {
       errorCode: 'RecoveryFailed',
     });
     expect(result.errorMessage).toMatch(/before reading/i);
-    expect(mockRead).not.toHaveBeenCalled();
-    expect(mockWrite).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   test('successful flow always recovers before reading and writing', async () => {
     const order: string[] = [];
-    mockRecover.mockImplementation(async () => {
+    const recover = jest.fn().mockImplementation(async () => {
       order.push('recover');
       return { success: true, recoveryPending: false, pendingCount: 0 };
     });
-    mockRead.mockImplementation(async () => {
+    const read = jest.fn().mockImplementation(async () => {
       order.push('read');
       return 'AQID';
     });
-    mockWrite.mockImplementation(async (uri: string, request: { changedFields?: string[] }) => {
-      order.push('write');
-      return {
-        success: true,
-        uri,
-        changedFields: request.changedFields ?? [],
-        failedFields: [],
-        verified: true,
-      };
+    const write = jest.fn().mockImplementation(
+      async (uri: string, request: { changedFields?: string[] }) => {
+        order.push('write');
+        return {
+          success: true,
+          uri,
+          changedFields: request.changedFields ?? [],
+          failedFields: [],
+          verified: true,
+        };
+      },
+    );
+    const { writeTagsToSafContentUri } = loadWithNative({
+      hasNativeTagWriter: true,
+      recoverPendingAudioTagTransactions: recover,
+      readAudioFileBase64: read,
+      writeAudioTags: write,
     });
 
     const result = await writeTagsToSafContentUri(song, draft);
