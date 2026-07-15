@@ -16,6 +16,15 @@ import { validateCoverPayload, validateEditableTags } from './tagValidation';
 
 export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
 
+export type TagWriteRuntimeAvailability = {
+  /**
+   * True only when the loaded Android native module exposes the complete
+   * durable SAF transaction and recovery contract. Source-level SAF support is
+   * not sufficient for advertising backup or crash-recovery guarantees.
+   */
+  safDurableWriterAvailable?: boolean;
+};
+
 const buildFileRollbackSteps = (targetUri: string): string[] => [
   'Abort replacement before touching the original file when possible.',
   `Restore the durable sidecar backup to ${targetUri} if the guarded replace fails.`,
@@ -28,7 +37,6 @@ const buildContentTransactionRollbackSteps = (): string[] => [
   'Verify restored bytes before deleting transaction artifacts.',
   'Keep unresolved backups for process-restart recovery when restoration cannot be verified.',
 ];
-
 
 const buildContentInMemoryRollbackSteps = (): string[] => [
   'Keep a copy of the original bytes in memory for the current process only.',
@@ -57,9 +65,18 @@ const getPrimaryBlockingReasonFromList = (
   return priority.find(reason => reasons.includes(reason));
 };
 
-const containerWarning = (container: TagEditableContainer): string | undefined => {
-  if (container === 'mp3' || container === 'm4a' || container === 'mp4')
-    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use native permission checks, app-private transaction backups, rollback, crash recovery, and post-write byte verification when Android SAF write permission is available.';
+const containerWarning = (
+  container: TagEditableContainer,
+  uriType: string,
+  concreteWriterAvailable: boolean,
+): string | undefined => {
+  if (container !== 'mp3' && container !== 'm4a' && container !== 'mp4') return undefined;
+  if (uriType === 'content' && concreteWriterAvailable) {
+    return 'SAF content:// writes use native permission checks, app-private transaction backup, rollback, crash recovery, and post-write verification.';
+  }
+  if (uriType === 'file' && concreteWriterAvailable) {
+    return 'MP3/M4A/MP4 file:// writes use guarded backup, temp staging, and byte verification.';
+  }
   return undefined;
 };
 
@@ -68,17 +85,29 @@ const getKnownFileSize = (song: Song): number | undefined => {
   return typeof size === 'number' && Number.isFinite(size) && size >= 0 ? size : undefined;
 };
 
+const hasConcreteWriter = (
+  uriType: string,
+  sourceCanWrite: boolean,
+  runtime: TagWriteRuntimeAvailability,
+): boolean => {
+  if (!sourceCanWrite) return false;
+  if (uriType !== 'content') return true;
+  return runtime.safDurableWriterAvailable ?? true;
+};
+
 export const validateWritePreconditions = (
   song: Song,
   draft: TagEditDraft,
   platform?: string,
   maxFileSizeBytes = DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
+  runtime: TagWriteRuntimeAvailability = {},
 ): TagWriterErrorCode[] => {
   const errors: TagWriterErrorCode[] = [];
   const uri = song.fileInfo?.uri ?? song.uri;
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
+  const concreteWriterAvailable = hasConcreteWriter(uriType, capability.canWrite, runtime);
   const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
   const knownFileSize = getKnownFileSize(song);
 
@@ -90,9 +119,9 @@ export const validateWritePreconditions = (
   if (container === 'unsupported') errors.push('UnsupportedFormat');
   if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
     errors.push('FileTooLarge');
-  if (uriType === 'content' && !capability.canWrite)
+  if (uriType === 'content' && !concreteWriterAvailable)
     errors.push('WriteNotImplemented');
-  if (uriType === 'file' && container !== 'unsupported' && !capability.canWrite)
+  if (uriType === 'file' && container !== 'unsupported' && !concreteWriterAvailable)
     errors.push('WriteNotImplemented');
 
   return [...new Set(errors)];
@@ -103,7 +132,9 @@ export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => {
     return {
       required: true,
       supportsRollback: true,
-      steps: plan.backup.strategy === 'app-private-transaction-backup' ? buildContentTransactionRollbackSteps() : buildFileRollbackSteps(plan.targetUri),
+      steps: plan.backup.strategy === 'app-private-transaction-backup'
+        ? buildContentTransactionRollbackSteps()
+        : buildFileRollbackSteps(plan.targetUri),
     };
   }
 
@@ -123,14 +154,20 @@ export const createTagWriteOperationPlan = (
   draft: TagEditDraft,
   platform?: string,
   maxFileSizeBytes = DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
+  runtime: TagWriteRuntimeAvailability = {},
 ): WriteOperationPlan => {
   const uri = song.fileInfo?.uri ?? song.uri;
   const safeUri = uri ?? '';
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
-  const warnings = [...(capability.reason ? [capability.reason] : [])];
-  const containerWarn = containerWarning(container);
+  const concreteWriterAvailable = hasConcreteWriter(uriType, capability.canWrite, runtime);
+  const unavailableWriterReason = uriType === 'content' && capability.canWrite && !concreteWriterAvailable
+    ? 'Der geladene Android-Native-Build enthält nicht den vollständigen dauerhaften SAF-Transaktions- und Recovery-Writer.'
+    : undefined;
+  const permissionReason = unavailableWriterReason ?? capability.reason;
+  const warnings = [...(permissionReason ? [permissionReason] : [])];
+  const containerWarn = containerWarning(container, uriType, concreteWriterAvailable);
   if (containerWarn) warnings.push(containerWarn);
   if (draft.removeCover && draft.cover)
     warnings.push('removeCover=true takes precedence over cover payload.');
@@ -140,16 +177,33 @@ export const createTagWriteOperationPlan = (
       `File is larger than ${Math.round(maxFileSizeBytes / (1024 * 1024))} MB, so in-app tag writing is blocked before reading bytes.`,
     );
   }
-  if (uriType === 'content')
+  if (uriType === 'content' && concreteWriterAvailable) {
     warnings.push(
       'SAF/content:// writes require native ContentResolver write permission, provider writable flags, app-private transaction backup, rollback, crash recovery, and post-write verification; they do not provide atomic replacement.',
     );
-  if (uriType === 'file')
+  } else if (uriType === 'content') {
+    warnings.push(
+      'SAF/content:// writing is blocked because the loaded native build does not expose the complete durable transaction and recovery contract.',
+    );
+  }
+  if (uriType === 'file') {
     warnings.push(
       'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
     );
+  }
 
-  const blockingReasons = validateWritePreconditions(song, draft, platform, maxFileSizeBytes);
+  const blockingReasons = validateWritePreconditions(
+    song,
+    draft,
+    platform,
+    maxFileSizeBytes,
+    runtime,
+  );
+  const supportsConcreteWrite =
+    (uriType === 'file' || uriType === 'content') && concreteWriterAvailable;
+  const supportsCrashRecovery =
+    uriType === 'content' && concreteWriterAvailable && container !== 'unsupported';
+
   const plan: WriteOperationPlan = {
     sourceUri: safeUri,
     targetUri: safeUri,
@@ -157,31 +211,39 @@ export const createTagWriteOperationPlan = (
     container,
     permission: {
       canRead: capability.canRead,
-      canWrite: capability.canWrite,
+      canWrite: concreteWriterAvailable,
       requiresSafPermission: uriType === 'content',
-      reason: capability.reason,
+      reason: permissionReason,
     },
     backup: {
-      required: (uriType === 'file' || uriType === 'content') && capability.canWrite,
-      backupUri: uriType === 'file' && capability.canWrite && safeUri ? `${safeUri}.bak` : undefined,
-      strategy: uriType === 'content' && capability.canWrite ? 'app-private-transaction-backup' : uriType === 'file' && capability.canWrite ? 'sidecar-copy' : 'none',
+      required: supportsConcreteWrite,
+      backupUri: uriType === 'file' && concreteWriterAvailable && safeUri
+        ? `${safeUri}.bak`
+        : undefined,
+      strategy: uriType === 'content' && concreteWriterAvailable
+        ? 'app-private-transaction-backup'
+        : uriType === 'file' && concreteWriterAvailable
+          ? 'sidecar-copy'
+          : 'none',
     },
     atomicWrite: {
-      required: (uriType === 'file' || uriType === 'content') && capability.canWrite,
-      tempUri: uriType === 'file' && capability.canWrite && safeUri ? `${safeUri}.tmp` : undefined,
+      required: supportsConcreteWrite,
+      tempUri: uriType === 'file' && concreteWriterAvailable && safeUri
+        ? `${safeUri}.tmp`
+        : undefined,
       supportsAtomicReplace: false,
     },
     rollback: { required: false, supportsRollback: false, steps: [] },
-    requiresBackup: (uriType === 'file' || uriType === 'content') && capability.canWrite,
-    requiresTempFile: (uriType === 'file' || uriType === 'content') && capability.canWrite,
+    requiresBackup: supportsConcreteWrite,
+    requiresTempFile: supportsConcreteWrite,
     supportsAtomicReplace: false,
-    supportsRollback: (uriType === 'file' || uriType === 'content') && capability.canWrite,
+    supportsRollback: supportsConcreteWrite,
     safetyCapabilities: {
-      durableBackup: (uriType === 'file' || uriType === 'content') && capability.canWrite,
+      durableBackup: supportsConcreteWrite,
       inMemoryRollback: false,
       atomicReplace: false,
-      postWriteVerification: capability.canWrite && (uriType === 'file' || uriType === 'content'),
-      crashRecovery: uriType === 'content' && capability.canWrite && container !== 'unsupported',
+      postWriteVerification: supportsConcreteWrite,
+      crashRecovery: supportsCrashRecovery,
     },
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',
@@ -215,9 +277,9 @@ export const simulateTagWriteOperation = (
       ? 'Would create a durable app-private SAF transaction backup before provider write.'
       : plan.backup.strategy === 'sidecar-copy'
         ? 'Would create a durable sidecar backup before file replacement.'
-      : plan.safetyCapabilities.inMemoryRollback
-        ? 'Would keep an in-memory copy of the original bytes for the current process only.'
-        : 'No backup or in-memory rollback step is available.',
+        : plan.safetyCapabilities.inMemoryRollback
+          ? 'Would keep an in-memory copy of the original bytes for the current process only.'
+          : 'No backup or in-memory rollback step is available.',
     plan.requiresTempFile
       ? 'Would write output to temp file first.'
       : 'No temp file required.',
@@ -230,7 +292,7 @@ export const simulateTagWriteOperation = (
     plan.safetyCapabilities.durableBackup
       ? 'Durable backup would be available before the final write.'
       : 'No durable backup is available for this URI type.',
-    plan.safetyCapabilities.inMemoryRollback
+    plan.supportsRollback
       ? 'Rollback is available if the provider write fails.'
       : 'No rollback guarantee is available for this URI type.',
     plan.safetyCapabilities.crashRecovery
