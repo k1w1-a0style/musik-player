@@ -62,7 +62,6 @@ test('fails closed for legacy native writer without recovery contract', async ()
       extractPalette: jest.fn(),
       extractEmbeddedArtwork: jest.fn(),
       extractAudioInfo: jest.fn(),
-      readAudioFileBase64: jest.fn(),
       writeAudioTags: legacyWriteAudioTags,
     })),
   }));
@@ -93,8 +92,8 @@ test('forwards native recovery APIs when present', async () => {
       extractPalette: jest.fn(),
       extractEmbeddedArtwork: jest.fn(),
       extractAudioInfo: jest.fn(),
-      readAudioFileBase64: jest.fn(),
       writeAudioTags: jest.fn(),
+      verifyAudioTagDeletion: jest.fn().mockResolvedValue(true),
       getAudioTagRecoveryStatus,
       recoverPendingAudioTagTransactions,
     })),

@@ -38,6 +38,11 @@ data class NativeTagEditSpec(
   val hasIntent: Boolean
     get() = touchedFields.isNotEmpty()
 
+  val hasDeletionIntent: Boolean
+    get() = removeCover || touchedFields.any { field ->
+      field in TEXT_FIELDS && normalizedValue(field) == null
+    }
+
   companion object {
     val TEXT_FIELDS = setOf(
       "title",

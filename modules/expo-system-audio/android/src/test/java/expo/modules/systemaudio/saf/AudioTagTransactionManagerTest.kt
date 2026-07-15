@@ -15,7 +15,6 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -56,17 +55,14 @@ class AudioTagTransactionManagerTest {
   private fun sha(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
     .digest(bytes)
     .joinToString("") { "%02x".format(it) }
-  private fun b64(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)
   private fun req(uri: Uri, original: ByteArray, rewritten: ByteArray): TransactionWriteRequest =
     TransactionWriteRequest(
       uri = uri,
-      rewrittenBase64 = b64(rewritten),
+      rewriteSource = staticRewriteSource(rewritten),
       changedFields = listOf("title"),
       maxBytes = 1024 * 1024,
       expectedOriginalSize = original.size.toLong(),
       expectedOriginalSha256 = sha(original),
-      expectedWrittenSize = rewritten.size.toLong(),
-      expectedWrittenSha256 = sha(rewritten),
     )
 
   private open class FakeStore(initial: ByteArray = "old".toByteArray()) : SafContentStore {
@@ -196,10 +192,10 @@ class AudioTagTransactionManagerTest {
     assertArrayEquals(external, store.bytes)
   }
 
-  @Test fun invalidBase64IsRejectedBeforeMutation() {
+  @Test fun rewriteFailureIsRejectedBeforeMutation() {
     val old = "old".toByteArray()
     val store = FakeStore(old)
-    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()).copy(rewrittenBase64 = "@@@"))
+    val result = manager(tmp(), store).write(req(uri, old, "new".toByteArray()).copy(rewriteSource = failingRewriteSource("InvalidTagData", "rewrite failed")))
     assertEquals("InvalidTagData", result.errorCode)
     assertEquals(0, store.writes)
   }

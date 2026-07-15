@@ -1,6 +1,5 @@
 import type { TagFileWriteAdapter } from '../tagFileWriteAdapter';
 import { applyTagEditToBuffer } from '../tagWriterValidation';
-import { encodeBytesToBase64 } from '../base64';
 import {
   hasTagDeletionIntent,
   hasUnsupportedMp3TailMetadata,
@@ -124,19 +123,28 @@ describe('tag deletion byte verification', () => {
     })).resolves.toBe(false);
   });
 
-  test('supports byte evidence for content URIs through the native read boundary', async () => {
+  test('verifies content deletions through the metadata-only native boundary', async () => {
     const contentSong = {
       ...song,
       uri: 'content://documents/song-1',
       fileInfo: { ...song.fileInfo, uri: 'content://documents/song-1' },
     };
+    const verifyContentDeletion = jest.fn(async () => true);
 
     await expect(verifyTagDeletionState(contentSong, deleteTitleDraft, 'mp3', {
-      readContentBase64: jest.fn(async () => encodeBytesToBase64(audio)),
+      verifyContentDeletion,
     })).resolves.toBe(true);
+    expect(verifyContentDeletion).toHaveBeenCalledWith(
+      'content://documents/song-1',
+      expect.objectContaining({
+        container: 'mp3',
+        tags: { title: '' },
+        changedFields: ['title'],
+      }),
+    );
   });
 
-  test('rejects missing content read evidence', async () => {
+  test('rejects a negative native content deletion verdict', async () => {
     const contentSong = {
       ...song,
       uri: 'content://documents/song-1',
@@ -144,7 +152,7 @@ describe('tag deletion byte verification', () => {
     };
 
     await expect(verifyTagDeletionState(contentSong, deleteTitleDraft, 'mp3', {
-      readContentBase64: jest.fn(async () => null),
+      verifyContentDeletion: jest.fn(async () => false),
     })).resolves.toBe(false);
   });
 });

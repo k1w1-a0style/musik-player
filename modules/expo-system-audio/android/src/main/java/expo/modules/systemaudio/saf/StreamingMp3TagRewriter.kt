@@ -40,6 +40,12 @@ object StreamingMp3TagRewriter {
     val parsed = readHeaderAndFrames(original, maxBytes)
     val header = parsed.first
     val frames = parsed.second
+    if (spec.hasDeletionIntent && hasUnsupportedTailMetadata(original)) {
+      throw AudioTagRewriteException(
+        "WriteNotImplemented",
+        "MP3 deletion is blocked while ID3v1, APEv2, or Lyrics3 tail metadata remains.",
+      )
+    }
     val targetMajor = if (header?.major == 4) 4 else 3
     val touchedIds = touchedFrameIds(spec)
     val existingTouched = frames.any { it.id in touchedIds }
@@ -126,7 +132,7 @@ object StreamingMp3TagRewriter {
           throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 extended header.")
         }
         val extendedSize = readU32(tag, frameStart)
-        if (extendedSize < 6 || frameStart.toLong() + 4L + extendedSize > ID3_HEADER_BYTES + payloadSize) {
+        if (extendedSize < 6 || frameStart.toLong() + 4L + extendedSize.toLong() > (ID3_HEADER_BYTES + payloadSize).toLong()) {
           throw AudioTagRewriteException("InvalidTagData", "Invalid ID3v2.3 extended header size.")
         }
         frameStart += 4 + extendedSize.toInt()
@@ -163,6 +169,31 @@ object StreamingMp3TagRewriter {
       offset += 10 + size
     }
     return frames
+  }
+
+  private fun hasUnsupportedTailMetadata(file: File): Boolean {
+    RandomAccessFile(file, "r").use { source ->
+      val candidateEnds = linkedSetOf(source.length())
+      val id3v1Start = source.length() - 128L
+      if (hasMarker(source, id3v1Start, "TAG")) {
+        candidateEnds += id3v1Start
+        val enhancedStart = id3v1Start - 227L
+        if (hasMarker(source, enhancedStart, "TAG+")) candidateEnds += enhancedStart
+      }
+      return candidateEnds.any { end ->
+        hasMarker(source, end - 32L, "APETAGEX") ||
+          hasMarker(source, end - 9L, "LYRICS200") ||
+          hasMarker(source, end - 9L, "LYRICSEND")
+      } || candidateEnds.size > 1
+    }
+  }
+
+  private fun hasMarker(source: RandomAccessFile, offset: Long, marker: String): Boolean {
+    if (offset < 0L || offset + marker.length > source.length()) return false
+    source.seek(offset)
+    val bytes = ByteArray(marker.length)
+    source.readFully(bytes)
+    return bytes.contentEquals(marker.toByteArray(Charsets.US_ASCII))
   }
 
   private fun touchedFrameIds(spec: NativeTagEditSpec): Set<String> = buildSet {
@@ -265,9 +296,9 @@ object StreamingMp3TagRewriter {
   }
 
   private fun buildHeader(major: Int, payloadSize: Int): ByteArray = ByteArray(ID3_HEADER_BYTES).also {
-    it[0] = 0x49
-    it[1] = 0x44
-    it[2] = 0x33
+    it[0] = 0x49.toByte()
+    it[1] = 0x44.toByte()
+    it[2] = 0x33.toByte()
     it[3] = major.toByte()
     it[4] = 0
     it[5] = 0
