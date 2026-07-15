@@ -2,126 +2,163 @@ name: CI
 
 on:
   pull_request:
-    branches: [codex]
+    branches: [main, codex]
+  push:
+    branches: [main, codex]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  patch-id3v24-flag-preservation:
-    if: github.event_name == 'pull_request' && github.head_ref == 'gpt/v7-1-pr-2b-native-streaming-saf-rewrite'
+  quality-gates:
+    name: Typecheck, tests, coverage, lint, config gates
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 25
+
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
-          ref: gpt/v7-1-pr-2b-native-streaming-saf-rewrite
-      - name: Preserve untouched flagged ID3v2.4 frames
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests with coverage
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npm run test:coverage -- --runInBand 2>&1 | tee jest-coverage.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > jest-coverage.exit-code
+          exit 0
+
+      - name: Upload Jest coverage diagnostic log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jest-coverage-log
+          path: |
+            jest-coverage.log
+            jest-coverage.exit-code
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce Jest coverage result
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          from pathlib import Path
+          status=$(cat jest-coverage.exit-code)
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Jest coverage failed with exit code $status. See jest-coverage-log artifact."
+            exit "$status"
+          fi
 
-          writer_path = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt')
-          writer = writer_path.read_text()
-          old = '''      val flagA = tag[offset + 8].toInt() and 0xff
-                val flagB = tag[offset + 9].toInt() and 0xff
-                if (header.major == 4 && (flagA != 0 || flagB != 0)) {
-                  throw AudioTagRewriteException(
-                    "WriteNotImplemented",
-                    "ID3v2.4 frame flags requiring special preservation semantics are not supported yet.",
-                  )
-                }
-          '''
-          if writer.count(old) != 1:
-              raise SystemExit(f'expected one ID3v2.4 flag block, found {writer.count(old)}')
-          writer = writer.replace(old, '', 1)
-          writer_path.write_text(writer)
+      - name: Lint
+        run: npm run lint:ci
 
-          test_path = Path('modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf/StreamingAudioTagRewriterTest.kt')
-          test = test_path.read_text()
-          marker = '''  @Test
-            fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
-          '''
-          if marker not in test:
-              raise SystemExit('MP3 deletion test marker missing')
-          new_test = '''  @Test
-            fun mp3RewritePreservesUntouchedFlaggedId3v24FrameExactly() {
-              val directory = createTempDir(prefix = "streaming-mp3-v24-flags-")
-              val artistBody = byteArrayOf(3, 'A'.code.toByte(), 'r'.code.toByte(), 't'.code.toByte())
-              val flaggedArtist = id3v24Frame("TPE1", artistBody, statusFlags = 0x20, formatFlags = 0)
-              val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 4, 3, 2, 1)
-              val originalBytes = id3v24Tag(flaggedArtist) + audio
-              val original = File(directory, "original.mp3").apply { writeBytes(originalBytes) }
-              val rewritten = File(directory, "rewritten.mp3")
+      - name: Expo config release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo config --json > expo-config.json
+          node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
 
-              val result = StreamingMp3TagRewriter.rewrite(
-                original,
-                rewritten,
-                textSpec("mp3", "title", "New title"),
-                maxBytes,
-              )
-              val output = rewritten.readBytes()
-              val audioStart = 10 + decodeSynchsafe(output, 6)
+      - name: Generated Android manifest permission gate
+        run: npm run check:android-permissions
 
-              assertTrue(result.changed)
-              assertTrue(indexOf(output, flaggedArtist) >= 0)
-              assertArrayEquals(audio, output.copyOfRange(audioStart, output.size))
+      - name: Select JDK 17 for Android Kotlin compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${JAVA_HOME_17_X64:-}" ]; then
+            echo "::error::JAVA_HOME_17_X64 is not available on this runner."
+            exit 1
+          fi
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Android project for native checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "No APK/AAB/EAS build is performed in this workflow."
+          java -version
+          npx --no-install expo prebuild --platform android --no-install --clean
+
+      - name: Android native compile and unit tests – no APK/EAS build
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          cd android
+          echo "Exact native Gradle test task: ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain"
+          ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > ../native-gradle.exit-code
+          exit 0
+
+      - name: Upload native Gradle diagnostic log and JUnit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-gradle-log
+          path: |
+            native-gradle.log
+            native-gradle.exit-code
+            modules/expo-system-audio/android/build/test-results/testDebugUnitTest/**/*.xml
+            modules/expo-system-audio/android/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce native Gradle result
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(cat native-gradle.exit-code)
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Android native compile or unit tests failed with exit code $status. See native-gradle-log artifact."
+            exit "$status"
+          fi
+
+      - name: Verify native JUnit execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const resultsDir = path.resolve('..', 'modules', 'expo-system-audio', 'android', 'build', 'test-results', 'testDebugUnitTest');
+          const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
+          let tests = 0;
+          let failures = 0;
+          let errors = 0;
+          for (const file of files) {
+            const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
+            const match = xml.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*errors="(\d+)"/);
+            if (match) {
+              tests += Number(match[1]);
+              failures += Number(match[2]);
+              errors += Number(match[3]);
             }
-
-          '''
-          test = test.replace(marker, new_test + marker, 1)
-
-          helper_marker = '''  private fun decodeSynchsafe(bytes: ByteArray, offset: Int): Int =
-          '''
-          if helper_marker not in test:
-              raise SystemExit('synchsafe helper marker missing')
-          helpers = '''  private fun id3v24Tag(vararg frames: ByteArray): ByteArray {
-              val payload = frames.fold(byteArrayOf()) { accumulated, frame -> accumulated + frame }
-              val header = ByteArray(10)
-              header[0] = 'I'.code.toByte()
-              header[1] = 'D'.code.toByte()
-              header[2] = '3'.code.toByte()
-              header[3] = 4
-              encodeSynchsafe(payload.size).copyInto(header, 6)
-              return header + payload
-            }
-
-            private fun id3v24Frame(
-              id: String,
-              body: ByteArray,
-              statusFlags: Int,
-              formatFlags: Int,
-            ): ByteArray {
-              val output = ByteArray(10 + body.size)
-              id.toByteArray(Charsets.US_ASCII).copyInto(output, 0)
-              encodeSynchsafe(body.size).copyInto(output, 4)
-              output[8] = statusFlags.toByte()
-              output[9] = formatFlags.toByte()
-              body.copyInto(output, 10)
-              return output
-            }
-
-            private fun encodeSynchsafe(value: Int): ByteArray = byteArrayOf(
-              ((value ushr 21) and 0x7f).toByte(),
-              ((value ushr 14) and 0x7f).toByte(),
-              ((value ushr 7) and 0x7f).toByte(),
-              (value and 0x7f).toByte(),
-            )
-
-          '''
-          test = test.replace(helper_marker, helpers + helper_marker, 1)
-          test_path.write_text(test)
-          PY
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt \
-            modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf/StreamingAudioTagRewriterTest.kt
-          git commit -m "fix: preserve untouched flagged ID3v2.4 frames"
-          git push origin HEAD:gpt/v7-1-pr-2b-native-streaming-saf-rewrite
+          }
+          console.log(`Native Gradle test task :expo-system-audio:testDebugUnitTest completed: ${tests} tests, ${failures} failures, ${errors} errors.`);
+          if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
+          NODE
