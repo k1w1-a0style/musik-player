@@ -19,12 +19,24 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: gpt/v7-1-pr-2b-native-streaming-saf-rewrite
-      - name: Apply streaming SAF contract patch
+      - name: Apply complete streaming SAF migration
         shell: bash
         run: |
           set -uo pipefail
           set +e
-          python3 scripts/ci/patchNativeStreamingSaf.py > patch-native-streaming.log 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/ci/patchNativeStreamingSaf.py')
+          text = path.read_text()
+          marker = '# Fail closed if any production/test source still references the retired full-audio bridge.'
+          if marker not in text:
+              raise SystemExit('phase-one scan marker missing')
+          path.write_text(text[:text.index(marker)])
+          PY
+          {
+            python3 scripts/ci/patchNativeStreamingSaf.py
+            python3 scripts/ci/patchNativeStreamingSafPhase2.py
+          } > patch-native-streaming.log 2>&1
           status=$?
           set -e
           cat patch-native-streaming.log
@@ -37,11 +49,16 @@ jobs:
               modules/expo-system-audio/index.ts \
               modules/expo-system-audio/__tests__/index.test.ts \
               modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt \
+              modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagRewriteSource.kt \
               modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt \
               modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt \
               modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf \
               utils/tagWriterSaf.ts \
+              utils/tagWriterNativeRequest.ts \
+              utils/tagWriteVerification.ts \
+              utils/__tests__/tagWriter.test.ts \
               utils/__tests__/tagWriterSafRecoveryGate.test.ts \
+              utils/__tests__/tagWriteVerification.test.ts \
               __mocks__/expo-system-audio.js
             git commit -m "feat: replace SAF full-file bridge with native streaming rewrites"
             git push origin HEAD:gpt/v7-1-pr-2b-native-streaming-saf-rewrite
