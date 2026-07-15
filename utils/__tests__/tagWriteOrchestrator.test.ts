@@ -97,6 +97,21 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     );
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
     expect(plan.warnings.join(' ')).toMatch(/post-write verification/i);
+    expect(plan.safetyCapabilities).toMatchObject({
+      durableBackup: false,
+      inMemoryRollback: true,
+      atomicReplace: false,
+      postWriteVerification: true,
+      crashRecovery: false,
+    });
+    expect(plan.backup.strategy).toBe('none');
+    expect(plan.backup.required).toBe(false);
+    expect(plan.backup.backupUri).toBeUndefined();
+    expect(plan.requiresBackup).toBe(false);
+    expect(plan.requiresTempFile).toBe(false);
+    expect(plan.rollback.required).toBe(true);
+    expect(plan.rollback.supportsRollback).toBe(false);
+    expect(plan.supportsRollback).toBe(false);
   });
 
   test('content:// mp3 removeCover is allowed through native full-buffer rewrite', () => {
@@ -195,9 +210,86 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
     const rollback = createRollbackPlan(plan);
     expect(rollback.steps.length).toBeGreaterThan(0);
+    expect(plan.safetyCapabilities.durableBackup).toBe(true);
+    expect(plan.safetyCapabilities.postWriteVerification).toBe(true);
     const result = simulateTagWriteOperation(plan);
     expect(result.primaryBlockingReason).toBeUndefined();
     expect(result.simulatedSteps.join(' ')).toMatch(/no filesystem mutation/i);
+  });
+
+
+  test('SAF capability plan does not claim durable backup, atomic replace, or crash recovery', () => {
+    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
+
+    expect(plan.backup.strategy).toBe('none');
+    expect(plan.backup.required).toBe(false);
+    expect(plan.backup.backupUri).toBeUndefined();
+    expect(plan.requiresBackup).toBe(false);
+    expect(plan.requiresTempFile).toBe(false);
+    expect(plan.rollback.required).toBe(true);
+    expect(plan.rollback.supportsRollback).toBe(false);
+    expect(plan.rollback.steps.join(' ')).toMatch(/in memory/i);
+    expect(plan.supportsRollback).toBe(false);
+    expect(plan.atomicWrite.tempUri).toBeUndefined();
+    expect(plan.safetyCapabilities).toEqual({
+      durableBackup: false,
+      inMemoryRollback: true,
+      atomicReplace: false,
+      postWriteVerification: true,
+      crashRecovery: false,
+    });
+    const dryRun = simulateTagWriteOperation(plan).simulatedSteps.join(' ');
+    expect(dryRun).toMatch(/in-memory copy/i);
+    expect(dryRun).toMatch(/No durable sidecar backup/i);
+    expect(dryRun).not.toMatch(/\.bak|backup sidecar before any write/i);
+  });
+
+
+  test('blocked or unavailable writers expose no safety capabilities', () => {
+    const blockedPlans = [
+      createTagWriteOperationPlan(
+        song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }),
+        draft,
+        'android',
+      ),
+      createTagWriteOperationPlan(safMp3Song(), draft, 'ios'),
+      createTagWriteOperationPlan(song({ uri: 'content://tree/a.flac', fileInfo: { extension: 'flac', source: 'saf' } }), draft, 'android'),
+      createTagWriteOperationPlan(song({ uri: '   ', fileInfo: { extension: 'mp3' } }), draft, 'android'),
+      createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'ios'),
+    ];
+
+    for (const plan of blockedPlans) {
+      expect(plan.permission.canWrite).toBe(false);
+      expect(plan.safetyCapabilities).toEqual({
+        durableBackup: false,
+        inMemoryRollback: false,
+        atomicReplace: false,
+        postWriteVerification: false,
+        crashRecovery: false,
+      });
+      expect(plan.requiresBackup).toBe(false);
+      expect(plan.requiresTempFile).toBe(false);
+      expect(plan.rollback.required).toBe(false);
+      expect(plan.rollback.supportsRollback).toBe(false);
+    }
+  });
+
+  test('supported file writer exposes durable backup and post-write verification only when writable', () => {
+    const plan = createTagWriteOperationPlan(song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } }), draft, 'android');
+
+    expect(plan.permission.canWrite).toBe(true);
+    expect(plan.backup.strategy).toBe('sidecar-copy');
+    expect(plan.requiresBackup).toBe(true);
+    expect(plan.requiresTempFile).toBe(true);
+    expect(plan.rollback.required).toBe(true);
+    expect(plan.rollback.supportsRollback).toBe(true);
+    expect(plan.safetyCapabilities).toEqual({
+      durableBackup: true,
+      inMemoryRollback: false,
+      atomicReplace: false,
+      postWriteVerification: true,
+      crashRecovery: false,
+    });
   });
 
   test('writeTagsToFile with content uri returns controlled native-unavailable result', async () => {

@@ -52,3 +52,43 @@ jobs:
 
       - name: Generated Android manifest permission gate
         run: npm run check:android-permissions
+
+      - name: Select JDK 17 for Android Kotlin compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${JAVA_HOME_17_X64:-}" ]; then
+            echo "::error::JAVA_HOME_17_X64 is not available on this runner."
+            exit 1
+          fi
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
+
+      - name: Android Kotlin compile and native tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo prebuild --platform android --no-install --clean
+          cd android
+          echo "Running Gradle tasks: :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest"
+          ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const resultsDir = path.resolve('..', 'modules', 'expo-system-audio', 'android', 'build', 'test-results', 'testDebugUnitTest');
+          const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
+          let tests = 0;
+          let failures = 0;
+          let errors = 0;
+          for (const file of files) {
+            const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
+            const match = xml.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*errors="(\d+)"/);
+            if (match) {
+              tests += Number(match[1]);
+              failures += Number(match[2]);
+              errors += Number(match[3]);
+            }
+          }
+          console.log(`Native Gradle test task :expo-system-audio:testDebugUnitTest completed: ${tests} tests, ${failures} failures, ${errors} errors.`);
+          if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
+          NODE

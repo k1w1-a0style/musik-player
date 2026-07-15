@@ -8,8 +8,10 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import expo.modules.systemaudio.saf.SafPermissionPolicy
 import android.media.audiofx.Equalizer
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import android.util.Log
 import androidx.palette.graphics.Palette
@@ -299,24 +301,86 @@ class SystemAudioModule : Module() {
 
   private fun hasSafWritePermission(uri: Uri): Boolean {
     val ctx = appContext.reactContext ?: return false
-    val direct = try { ctx.checkUriPermission(uri, android.os.Process.myPid(), android.os.Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED } catch (_: Throwable) { false }
+    val direct = try {
+      ctx.checkUriPermission(
+        uri,
+        android.os.Process.myPid(),
+        android.os.Process.myUid(),
+        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) { false }
     if (direct) return true
+
     return ctx.contentResolver.persistedUriPermissions.any { perm ->
-      perm.isWritePermission && (perm.uri == uri || uri.toString().startsWith(perm.uri.toString()))
+      if (!perm.isWritePermission) return@any false
+      if (perm.uri == uri) return@any true
+      isUriCoveredByPersistedTreePermission(perm.uri, uri)
     }
+  }
+
+  private fun isUriCoveredByPersistedTreePermission(permissionUri: Uri, targetUri: Uri): Boolean {
+    val ctx = appContext.reactContext ?: return false
+    return try {
+      if (!DocumentsContract.isTreeUri(permissionUri)) return false
+      if (permissionUri.authority != targetUri.authority) return false
+      val treeDocumentId = DocumentsContract.getTreeDocumentId(permissionUri)
+      val targetDocumentId = when {
+        DocumentsContract.isDocumentUri(ctx, targetUri) -> DocumentsContract.getDocumentId(targetUri)
+        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.getTreeDocumentId(targetUri)
+        else -> return false
+      }
+      val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(permissionUri, treeDocumentId)
+      val targetDocumentUri = when {
+        DocumentsContract.isDocumentUri(ctx, targetUri) -> targetUri
+        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.buildDocumentUriUsingTree(targetUri, targetDocumentId)
+        else -> return false
+      }
+      SafPermissionPolicy.isPersistedGrantCovered(
+        SafPermissionPolicy.PersistedGrantKind.TREE,
+        true,
+        permissionUri.authority,
+        treeDocumentId,
+        targetUri.authority,
+        targetDocumentId,
+        providerChildDecision = tryProviderChildDocumentCheck(parentDocumentUri, targetDocumentUri),
+      )
+    } catch (_: Throwable) { false }
+  }
+
+  private fun tryProviderChildDocumentCheck(
+    parentDocumentUri: Uri,
+    targetDocumentUri: Uri,
+  ): SafPermissionPolicy.ProviderChildDecision {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+      return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
+    }
+    val ctx = appContext.reactContext ?: return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
+    return try {
+      if (DocumentsContract.isChildDocument(ctx.contentResolver, parentDocumentUri, targetDocumentUri)) {
+        SafPermissionPolicy.ProviderChildDecision.CHILD
+      } else {
+        SafPermissionPolicy.ProviderChildDecision.NOT_CHILD
+      }
+    } catch (_: Throwable) { SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE }
   }
 
   private fun isDocumentWritable(uri: Uri): Boolean {
     val ctx = appContext.reactContext ?: return false
     return try {
-      if (!DocumentsContract.isDocumentUri(ctx, uri)) return true
-      ctx.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
+      val queryUri = when {
+        DocumentsContract.isDocumentUri(ctx, uri) -> uri
+        DocumentsContract.isTreeUri(uri) -> DocumentsContract.buildDocumentUriUsingTree(
+          uri,
+          DocumentsContract.getTreeDocumentId(uri),
+        )
+        else -> return false
+      }
+      ctx.contentResolver.query(queryUri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
         if (!cursor.moveToFirst()) return@use false
         val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
         if (index < 0 || cursor.isNull(index)) return@use false
         val flags = cursor.getInt(index)
-        (flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0 ||
-          (flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0
+        SafPermissionPolicy.isDocumentWritableFromFlags(flags, DocumentsContract.Document.FLAG_SUPPORTS_WRITE)
       } ?: false
     } catch (_: Throwable) { false }
   }
