@@ -47,7 +47,11 @@ export type TagWriterErrorCode =
   | 'TempWriteFailed'
   | 'ReplaceFailed'
   | 'RollbackFailed'
-  | 'VerificationFailed';
+  | 'VerificationFailed'
+  | 'TransactionConflict'
+  | 'RecoveryPending'
+  | 'RecoveryFailed'
+  | 'InsufficientStorage';
 
 export type WriteRiskLevel = 'low' | 'medium' | 'high';
 
@@ -61,7 +65,7 @@ export interface WritePermissionState {
 export interface BackupPlan {
   required: boolean;
   backupUri?: string;
-  strategy: 'none' | 'sidecar-copy';
+  strategy: 'none' | 'sidecar-copy' | 'app-private-transaction-backup';
 }
 
 export interface WriteSafetyCapabilities {
@@ -126,6 +130,9 @@ export interface WriteTagsResult {
   warnings: string[];
   errorCode?: TagWriterErrorCode;
   errorMessage?: string;
+  transactionId?: string;
+  recoveryPending?: boolean;
+  recovered?: boolean;
 }
 
 export type WritableTagUriResolution =

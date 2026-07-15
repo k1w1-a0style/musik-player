@@ -98,20 +98,20 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
     expect(plan.warnings.join(' ')).toMatch(/post-write verification/i);
     expect(plan.safetyCapabilities).toMatchObject({
-      durableBackup: false,
-      inMemoryRollback: true,
+      durableBackup: true,
+      inMemoryRollback: false,
       atomicReplace: false,
       postWriteVerification: true,
-      crashRecovery: false,
+      crashRecovery: true,
     });
-    expect(plan.backup.strategy).toBe('none');
-    expect(plan.backup.required).toBe(false);
+    expect(plan.backup.strategy).toBe('app-private-transaction-backup');
+    expect(plan.backup.required).toBe(true);
     expect(plan.backup.backupUri).toBeUndefined();
-    expect(plan.requiresBackup).toBe(false);
-    expect(plan.requiresTempFile).toBe(false);
+    expect(plan.requiresBackup).toBe(true);
+    expect(plan.requiresTempFile).toBe(true);
     expect(plan.rollback.required).toBe(true);
-    expect(plan.rollback.supportsRollback).toBe(false);
-    expect(plan.supportsRollback).toBe(false);
+    expect(plan.rollback.supportsRollback).toBe(true);
+    expect(plan.supportsRollback).toBe(true);
   });
 
   test('content:// mp3 removeCover is allowed through native full-buffer rewrite', () => {
@@ -218,29 +218,29 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
   });
 
 
-  test('SAF capability plan does not claim durable backup, atomic replace, or crash recovery', () => {
+  test('SAF capability plan claims durable transaction backup and crash recovery but not atomic replace', () => {
     const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
 
-    expect(plan.backup.strategy).toBe('none');
-    expect(plan.backup.required).toBe(false);
+    expect(plan.backup.strategy).toBe('app-private-transaction-backup');
+    expect(plan.backup.required).toBe(true);
     expect(plan.backup.backupUri).toBeUndefined();
-    expect(plan.requiresBackup).toBe(false);
-    expect(plan.requiresTempFile).toBe(false);
+    expect(plan.requiresBackup).toBe(true);
+    expect(plan.requiresTempFile).toBe(true);
     expect(plan.rollback.required).toBe(true);
-    expect(plan.rollback.supportsRollback).toBe(false);
-    expect(plan.rollback.steps.join(' ')).toMatch(/in memory/i);
-    expect(plan.supportsRollback).toBe(false);
+    expect(plan.rollback.supportsRollback).toBe(true);
+    expect(plan.rollback.steps.join(' ')).toMatch(/app-private transaction backup/i);
+    expect(plan.supportsRollback).toBe(true);
     expect(plan.atomicWrite.tempUri).toBeUndefined();
     expect(plan.safetyCapabilities).toEqual({
-      durableBackup: false,
-      inMemoryRollback: true,
+      durableBackup: true,
+      inMemoryRollback: false,
       atomicReplace: false,
       postWriteVerification: true,
-      crashRecovery: false,
+      crashRecovery: true,
     });
     const dryRun = simulateTagWriteOperation(plan).simulatedSteps.join(' ');
-    expect(dryRun).toMatch(/in-memory copy/i);
-    expect(dryRun).toMatch(/No durable sidecar backup/i);
+    expect(dryRun).toMatch(/app-private SAF transaction backup/i);
+    expect(dryRun).toMatch(/Durable backup/i);
     expect(dryRun).not.toMatch(/\.bak|backup sidecar before any write/i);
   });
 

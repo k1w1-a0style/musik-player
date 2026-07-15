@@ -22,6 +22,14 @@ const buildFileRollbackSteps = (targetUri: string): string[] => [
   'Verify restored bytes against the original before deleting backup and temp artifacts.',
 ];
 
+const buildContentTransactionRollbackSteps = (): string[] => [
+  'Create a durable app-private transaction backup before touching the SAF document.',
+  'After a detected provider write failure, stream original.bin back to the document.',
+  'Verify restored bytes before deleting transaction artifacts.',
+  'Keep unresolved backups for process-restart recovery when restoration cannot be verified.',
+];
+
+
 const buildContentInMemoryRollbackSteps = (): string[] => [
   'Keep a copy of the original bytes in memory for the current process only.',
   'After a detected provider write failure, attempt to write those original bytes back to the document.',
@@ -51,7 +59,7 @@ const getPrimaryBlockingReasonFromList = (
 
 const containerWarning = (container: TagEditableContainer): string | undefined => {
   if (container === 'mp3' || container === 'm4a' || container === 'mp4')
-    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use native permission checks, in-memory original restore attempts, and post-write byte verification when Android SAF write permission is available.';
+    return 'MP3/M4A/MP4 file:// writes use guarded backup + temp + byte verification; SAF content:// writes use native permission checks, app-private transaction backups, rollback, crash recovery, and post-write byte verification when Android SAF write permission is available.';
   return undefined;
 };
 
@@ -91,11 +99,11 @@ export const validateWritePreconditions = (
 };
 
 export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => {
-  if (plan.safetyCapabilities.durableBackup && plan.backup.strategy === 'sidecar-copy') {
+  if (plan.safetyCapabilities.durableBackup && (plan.backup.strategy === 'sidecar-copy' || plan.backup.strategy === 'app-private-transaction-backup')) {
     return {
       required: true,
       supportsRollback: true,
-      steps: buildFileRollbackSteps(plan.targetUri),
+      steps: plan.backup.strategy === 'app-private-transaction-backup' ? buildContentTransactionRollbackSteps() : buildFileRollbackSteps(plan.targetUri),
     };
   }
 
@@ -134,7 +142,7 @@ export const createTagWriteOperationPlan = (
   }
   if (uriType === 'content')
     warnings.push(
-      'SAF/content:// writes require native ContentResolver write permission, provider writable flags, and post-write verification; they do not currently provide durable backup, atomic replacement, or crash recovery.',
+      'SAF/content:// writes require native ContentResolver write permission, provider writable flags, app-private transaction backup, rollback, crash recovery, and post-write verification; they do not provide atomic replacement.',
     );
   if (uriType === 'file')
     warnings.push(
@@ -154,26 +162,26 @@ export const createTagWriteOperationPlan = (
       reason: capability.reason,
     },
     backup: {
-      required: uriType === 'file' && capability.canWrite,
+      required: (uriType === 'file' || uriType === 'content') && capability.canWrite,
       backupUri: uriType === 'file' && capability.canWrite && safeUri ? `${safeUri}.bak` : undefined,
-      strategy: uriType === 'file' && capability.canWrite ? 'sidecar-copy' : 'none',
+      strategy: uriType === 'content' && capability.canWrite ? 'app-private-transaction-backup' : uriType === 'file' && capability.canWrite ? 'sidecar-copy' : 'none',
     },
     atomicWrite: {
-      required: uriType === 'file' && capability.canWrite,
+      required: (uriType === 'file' || uriType === 'content') && capability.canWrite,
       tempUri: uriType === 'file' && capability.canWrite && safeUri ? `${safeUri}.tmp` : undefined,
       supportsAtomicReplace: false,
     },
     rollback: { required: false, supportsRollback: false, steps: [] },
-    requiresBackup: uriType === 'file' && capability.canWrite,
-    requiresTempFile: uriType === 'file' && capability.canWrite,
+    requiresBackup: (uriType === 'file' || uriType === 'content') && capability.canWrite,
+    requiresTempFile: (uriType === 'file' || uriType === 'content') && capability.canWrite,
     supportsAtomicReplace: false,
-    supportsRollback: uriType === 'file' && capability.canWrite,
+    supportsRollback: (uriType === 'file' || uriType === 'content') && capability.canWrite,
     safetyCapabilities: {
-      durableBackup: uriType === 'file' && capability.canWrite,
-      inMemoryRollback: uriType === 'content' && capability.canWrite && container !== 'unsupported',
+      durableBackup: (uriType === 'file' || uriType === 'content') && capability.canWrite,
+      inMemoryRollback: false,
       atomicReplace: false,
       postWriteVerification: capability.canWrite && (uriType === 'file' || uriType === 'content'),
-      crashRecovery: false,
+      crashRecovery: uriType === 'content' && capability.canWrite && container !== 'unsupported',
     },
     requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
     requiresFullRewrite: container !== 'unsupported',
@@ -203,8 +211,10 @@ export const simulateTagWriteOperation = (
   const primaryBlockingReason = getPrimaryBlockingReason(plan);
   const simulatedSteps = [
     `Plan created for ${plan.container} at ${plan.targetUri || '<missing-uri>'}.`,
-    plan.backup.strategy === 'sidecar-copy'
-      ? 'Would create a durable sidecar backup before file replacement.'
+    plan.backup.strategy === 'app-private-transaction-backup'
+      ? 'Would create a durable app-private SAF transaction backup before provider write.'
+      : plan.backup.strategy === 'sidecar-copy'
+        ? 'Would create a durable sidecar backup before file replacement.'
       : plan.safetyCapabilities.inMemoryRollback
         ? 'Would keep an in-memory copy of the original bytes for the current process only.'
         : 'No backup or in-memory rollback step is available.',
@@ -218,10 +228,10 @@ export const simulateTagWriteOperation = (
       ? 'Would perform atomic replace.'
       : 'OS-atomic replace is not guaranteed by the current plan.',
     plan.safetyCapabilities.durableBackup
-      ? 'Durable sidecar backup would be available before replace.'
-      : 'No durable sidecar backup is available for this URI type.',
+      ? 'Durable backup would be available before the final write.'
+      : 'No durable backup is available for this URI type.',
     plan.safetyCapabilities.inMemoryRollback
-      ? 'Only in-memory rollback is available if the provider write fails.'
+      ? 'Rollback is available if the provider write fails.'
       : 'No rollback guarantee is available for this URI type.',
     plan.safetyCapabilities.crashRecovery
       ? 'Crash recovery journal would be available.'

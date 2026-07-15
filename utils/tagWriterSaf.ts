@@ -33,6 +33,9 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
   warnings,
   errorCode: nativeResult.success ? undefined : nativeResult.errorCode as WriteTagsResult['errorCode'],
   errorMessage: nativeResult.success ? undefined : nativeResult.message,
+  transactionId: nativeResult.transactionId,
+  recoveryPending: nativeResult.recoveryPending,
+  recovered: nativeResult.recovered,
 });
 
 export const writeTagsToSafContentUri = async (
@@ -80,6 +83,7 @@ export const writeTagsToSafContentUri = async (
         expectedOriginalSizeBytes: original.length,
         expectedOriginalSha256Hex: sha256Hex(original),
         expectedWrittenSizeBytes: rewritten.length,
+        expectedWrittenSha256Hex: sha256Hex(rewritten),
         maxFileSizeBytes: maxBytes,
         changedFields,
         failedFields: [],

@@ -39,6 +39,7 @@ export interface AudioTagWriteRequest {
   expectedOriginalSizeBytes?: number;
   expectedOriginalSha256Hex?: string;
   expectedWrittenSizeBytes?: number;
+  expectedWrittenSha256Hex?: string;
   maxFileSizeBytes?: number;
   changedFields?: string[];
   failedFields?: string[];
@@ -56,6 +57,9 @@ export interface AudioTagWriteResult {
   verified: boolean;
   bytesBefore?: number;
   bytesAfter?: number;
+  transactionId?: string;
+  recoveryPending?: boolean;
+  recovered?: boolean;
 }
 
 export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';
@@ -116,6 +120,8 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
+  getAudioTagRecoveryStatus?(): Promise<{ pendingCount: number; transactions: Array<{ transactionId: string; state: string }> }>;
+  recoverPendingAudioTagTransactions?(): Promise<{ success: boolean; errorCode?: string; message?: string; recoveryPending?: boolean; recovered?: boolean }>;
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
@@ -213,6 +219,14 @@ export const SystemAudio = {
 
   async readAudioFileBase64(uri: string, maxBytes?: number): Promise<string | null> {
     return native?.readAudioFileBase64 ? native.readAudioFileBase64(uri, maxBytes) : null;
+  },
+
+  async getAudioTagRecoveryStatus() {
+    return native?.getAudioTagRecoveryStatus ? native.getAudioTagRecoveryStatus() : { pendingCount: 0, transactions: [] };
+  },
+
+  async recoverPendingAudioTagTransactions() {
+    return native?.recoverPendingAudioTagTransactions ? native.recoverPendingAudioTagTransactions() : { success: true, recoveryPending: false, recovered: false };
   },
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {
