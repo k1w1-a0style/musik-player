@@ -1258,13 +1258,13 @@ class AudioTagTransactionManager(
             errorCode = "RecoveryFailed",
           )
         } catch (_: Throwable) {
-          if (targetUri == null) pendingCount += 1
+          pendingCount += 1
           reports += RecoveryTransactionReport(
             transactionId = directory.name,
             previousState = null,
             resultState = "INVALID",
             recovered = false,
-            pending = targetUri == null,
+            pending = true,
             errorCode = "RecoveryPending",
           )
         }
