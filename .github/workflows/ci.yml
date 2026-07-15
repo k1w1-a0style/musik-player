@@ -22,20 +22,38 @@ jobs:
       - name: Apply streaming SAF contract patch
         shell: bash
         run: |
-          set -euo pipefail
-          python3 scripts/ci/patchNativeStreamingSaf.py
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            modules/expo-system-audio/index.ts \
-            modules/expo-system-audio/__tests__/index.test.ts \
-            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt \
-            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt \
-            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt \
-            modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf \
-            utils/tagWriterSaf.ts \
-            utils/__tests__/tagWriterSafRecoveryGate.test.ts \
-            __mocks__/expo-system-audio.js
-          git commit -m "feat: replace SAF full-file bridge with native streaming rewrites"
-          git push origin HEAD:gpt/v7-1-pr-2b-native-streaming-saf-rewrite
+          set -uo pipefail
+          set +e
+          python3 scripts/ci/patchNativeStreamingSaf.py > patch-native-streaming.log 2>&1
+          status=$?
+          set -e
+          cat patch-native-streaming.log
+          printf '%s\n' "$status" > patch-native-streaming.exit-code
+          if [ "$status" -eq 0 ]; then
+            git diff --check
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add \
+              modules/expo-system-audio/index.ts \
+              modules/expo-system-audio/__tests__/index.test.ts \
+              modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt \
+              modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt \
+              modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt \
+              modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf \
+              utils/tagWriterSaf.ts \
+              utils/__tests__/tagWriterSafRecoveryGate.test.ts \
+              __mocks__/expo-system-audio.js
+            git commit -m "feat: replace SAF full-file bridge with native streaming rewrites"
+            git push origin HEAD:gpt/v7-1-pr-2b-native-streaming-saf-rewrite
+          fi
+          exit "$status"
+      - name: Upload patch diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-streaming-patch-log
+          path: |
+            patch-native-streaming.log
+            patch-native-streaming.exit-code
+          if-no-files-found: error
+          retention-days: 3
