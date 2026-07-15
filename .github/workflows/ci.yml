@@ -26,12 +26,35 @@ jobs:
           set +e
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('scripts/ci/patchNativeStreamingSaf.py')
-          text = path.read_text()
+
+          phase_one = Path('scripts/ci/patchNativeStreamingSaf.py')
+          text = phase_one.read_text()
           marker = '# Fail closed if any production/test source still references the retired full-audio bridge.'
           if marker not in text:
               raise SystemExit('phase-one scan marker missing')
-          path.write_text(text[:text.index(marker)])
+          phase_one.write_text(text[:text.index(marker)])
+
+          phase_two = Path('scripts/ci/patchNativeStreamingSafPhase2.py')
+          text = phase_two.read_text()
+          start_marker = 'if \'AsyncFunction("verifyAudioTagDeletion")\' not in module:'
+          end_marker = 'if "private fun verifyAudioTagDeletion(" not in module:'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('phase-two registration patch markers missing')
+          replacement = '''if 'AsyncFunction("verifyAudioTagDeletion")' not in module:
+              registration_marker = '    AsyncFunction("getAudioTagRecoveryStatus") {'
+              insert_at = module.find(registration_marker)
+              if insert_at < 0:
+                  raise SystemExit("native recovery registration marker missing")
+              registration = """    AsyncFunction("verifyAudioTagDeletion") { uri: String, request: Map<String, Any?> ->
+                verifyAudioTagDeletion(uri, request)
+              }
+
+          """
+              module = module[:insert_at] + registration + module[insert_at:]
+          '''
+          phase_two.write_text(text[:start] + replacement + text[end:])
           PY
           {
             python3 scripts/ci/patchNativeStreamingSaf.py
