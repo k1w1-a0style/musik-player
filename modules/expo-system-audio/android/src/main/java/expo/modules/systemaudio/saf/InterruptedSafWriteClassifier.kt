@@ -6,12 +6,16 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * Recognizes live SAF bytes that can be explained by an interrupted write of
- * rewritten.bin over original.bin without accepting arbitrary third-party edits.
+ * Recognizes live SAF bytes that can be explained by an interrupted transaction
+ * write without accepting arbitrary third-party edits.
  *
- * Supported interrupted shapes:
- * - provider truncates first and only a strict prefix of rewritten.bin survives;
- * - provider overwrites a prefix but leaves the untouched original suffix.
+ * Supported forward-write shapes:
+ * - a strict prefix of rewritten.bin after truncate-before-write;
+ * - a rewritten prefix followed by the untouched original suffix.
+ *
+ * Supported rollback-write shapes:
+ * - a strict prefix of original.bin after truncate-before-restore;
+ * - an original prefix followed by the still-present rewritten suffix.
  *
  * Exact original and exact rewritten matches are handled by the transaction
  * manager before this classifier is called.
@@ -48,14 +52,15 @@ object InterruptedSafWriteClassifier {
   ): Boolean {
     var liveBytes = 0L
 
-    // A prefix candidate means every live byte seen so far is explained by the
-    // corresponding rewritten byte. A suffix candidate means there is some
-    // transition point after at least one rewritten mutation where all later
-    // bytes equal the original file.
-    var prefixPossible = true
-    var prefixContainsMutation = false
-    var originalSuffixPossible = false
-    var suffixContainsMutation = false
+    var forwardPrefixPossible = true
+    var forwardPrefixContainsMutation = false
+    var forwardOriginalSuffixPossible = false
+    var forwardSuffixContainsMutation = false
+
+    var rollbackPrefixPossible = true
+    var rollbackPrefixContainsMutation = false
+    var rollbackRewrittenSuffixPossible = false
+    var rollbackSuffixContainsMutation = false
 
     while (true) {
       val liveByte = live.read()
@@ -67,41 +72,70 @@ object InterruptedSafWriteClassifier {
       val originalByte = original.read()
       val rewrittenByte = rewritten.read()
 
-      val oldPrefixPossible = prefixPossible
-      val oldPrefixContainsMutation = prefixContainsMutation
-      val oldSuffixPossible = originalSuffixPossible
-      val oldSuffixContainsMutation = suffixContainsMutation
+      val oldForwardPrefixPossible = forwardPrefixPossible
+      val oldForwardPrefixContainsMutation = forwardPrefixContainsMutation
+      val oldForwardSuffixPossible = forwardOriginalSuffixPossible
+      val oldForwardSuffixContainsMutation = forwardSuffixContainsMutation
 
-      prefixPossible = oldPrefixPossible && rewrittenByte >= 0 && liveByte == rewrittenByte
-      prefixContainsMutation = prefixPossible && (
-        oldPrefixContainsMutation || originalByte < 0 || liveByte != originalByte
+      forwardPrefixPossible =
+        oldForwardPrefixPossible && rewrittenByte >= 0 && liveByte == rewrittenByte
+      forwardPrefixContainsMutation = forwardPrefixPossible && (
+        oldForwardPrefixContainsMutation || originalByte < 0 || liveByte != originalByte
       )
 
       val transitionToOriginalSuffix =
-        oldPrefixPossible && originalByte >= 0 && liveByte == originalByte
+        oldForwardPrefixPossible && originalByte >= 0 && liveByte == originalByte
       val continueOriginalSuffix =
-        oldSuffixPossible && originalByte >= 0 && liveByte == originalByte
+        oldForwardSuffixPossible && originalByte >= 0 && liveByte == originalByte
 
-      originalSuffixPossible = transitionToOriginalSuffix || continueOriginalSuffix
-      suffixContainsMutation =
-        (transitionToOriginalSuffix && oldPrefixContainsMutation) ||
-          (continueOriginalSuffix && oldSuffixContainsMutation)
+      forwardOriginalSuffixPossible = transitionToOriginalSuffix || continueOriginalSuffix
+      forwardSuffixContainsMutation =
+        (transitionToOriginalSuffix && oldForwardPrefixContainsMutation) ||
+          (continueOriginalSuffix && oldForwardSuffixContainsMutation)
 
-      if (!prefixPossible && !originalSuffixPossible) return false
+      val oldRollbackPrefixPossible = rollbackPrefixPossible
+      val oldRollbackPrefixContainsMutation = rollbackPrefixContainsMutation
+      val oldRollbackSuffixPossible = rollbackRewrittenSuffixPossible
+      val oldRollbackSuffixContainsMutation = rollbackSuffixContainsMutation
+
+      rollbackPrefixPossible =
+        oldRollbackPrefixPossible && originalByte >= 0 && liveByte == originalByte
+      rollbackPrefixContainsMutation = rollbackPrefixPossible && (
+        oldRollbackPrefixContainsMutation || rewrittenByte < 0 || liveByte != rewrittenByte
+      )
+
+      val transitionToRewrittenSuffix =
+        oldRollbackPrefixPossible && rewrittenByte >= 0 && liveByte == rewrittenByte
+      val continueRewrittenSuffix =
+        oldRollbackSuffixPossible && rewrittenByte >= 0 && liveByte == rewrittenByte
+
+      rollbackRewrittenSuffixPossible = transitionToRewrittenSuffix || continueRewrittenSuffix
+      rollbackSuffixContainsMutation =
+        (transitionToRewrittenSuffix && oldRollbackPrefixContainsMutation) ||
+          (continueRewrittenSuffix && oldRollbackSuffixContainsMutation)
+
+      if (
+        !forwardPrefixPossible &&
+        !forwardOriginalSuffixPossible &&
+        !rollbackPrefixPossible &&
+        !rollbackRewrittenSuffixPossible
+      ) return false
     }
 
     val originalHasMore = original.read() >= 0
     val rewrittenHasMore = rewritten.read() >= 0
 
-    // Any strict prefix of the staged rewrite is attributable to a provider
-    // that truncated the target and crashed before the remaining bytes were
-    // written. This includes a prefix that happens to be shared with the
-    // original before the first changed byte.
-    val truncatedRewrittenPrefix = prefixPossible && rewrittenHasMore
+    val truncatedForwardWrite = forwardPrefixPossible && rewrittenHasMore
+    val forwardPrefixWithOriginalTail =
+      forwardOriginalSuffixPossible && forwardSuffixContainsMutation && !originalHasMore
 
-    val rewrittenPrefixWithOriginalTail =
-      originalSuffixPossible && suffixContainsMutation && !originalHasMore
+    val truncatedRollbackWrite = rollbackPrefixPossible && originalHasMore
+    val rollbackPrefixWithRewrittenTail =
+      rollbackRewrittenSuffixPossible && rollbackSuffixContainsMutation && !rewrittenHasMore
 
-    return truncatedRewrittenPrefix || rewrittenPrefixWithOriginalTail
+    return truncatedForwardWrite ||
+      forwardPrefixWithOriginalTail ||
+      truncatedRollbackWrite ||
+      rollbackPrefixWithRewrittenTail
   }
 }
