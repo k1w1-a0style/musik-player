@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: cp40ln-codex/implementiere-dauerhafte-saf-transaktionen
-          fetch-depth: 2
+          fetch-depth: 3
       - name: Apply patch and restore workflow
         shell: bash
         run: |
@@ -34,62 +34,30 @@ jobs:
           from pathlib import Path
 
           path = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt')
-          text = path.read_text()
-          early = '''    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-              return TransactionResult(
-                success = false,
-                errorCode = "RecoveryPending",
-                message = "Recovery permission is missing.",
-                bytesBefore = journal.originalSizeBytes,
-                bytesAfter = journal.rewrittenSizeBytes,
-                recoveryPending = true,
-              )
-            }
+          lines = path.read_text().splitlines(keepends=True)
+          function_index = next(
+              index for index, line in enumerate(lines)
+              if line.strip() == 'private fun recoverCrashedTransaction('
+          )
+          start = next(
+              index for index in range(function_index, len(lines))
+              if lines[index].strip() == 'if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {'
+          )
+          depth = 0
+          end = None
+          for index in range(start, len(lines)):
+              depth += lines[index].count('{') - lines[index].count('}')
+              if index > start and depth == 0:
+                  end = index + 1
+                  while end < len(lines) and not lines[end].strip():
+                      end += 1
+                  break
+          if end is None:
+              raise SystemExit('early recovery permission block did not terminate')
+          del lines[start:end]
+          text = ''.join(lines)
 
-          '''
-          normalized_early = '''    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-              return TransactionResult(
-                success = false,
-                errorCode = "RecoveryPending",
-                message = "Recovery permission is missing.",
-                bytesBefore = journal.originalSizeBytes,
-                bytesAfter = journal.rewrittenSizeBytes,
-                recoveryPending = true,
-              )
-            }
-
-          '''
-          canonical_early = '''    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-              return TransactionResult(
-                success = false,
-                errorCode = "RecoveryPending",
-                message = "Recovery permission is missing.",
-                bytesBefore = journal.originalSizeBytes,
-                bytesAfter = journal.rewrittenSizeBytes,
-                recoveryPending = true,
-              )
-            }
-
-          '''
-          exact_early = '''    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-              return TransactionResult(
-                success = false,
-                errorCode = "RecoveryPending",
-                message = "Recovery permission is missing.",
-                bytesBefore = journal.originalSizeBytes,
-                bytesAfter = journal.rewrittenSizeBytes,
-                recoveryPending = true,
-              )
-            }
-
-          '''
-          # Match by stable boundaries to avoid formatting-sensitive indentation.
-          start = text.index('    if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {', text.index('private fun recoverCrashedTransaction'))
-          end_marker = '    val originalDigest = verifyOriginalBackup'
-          end = text.index(end_marker, start)
-          text = text[:start] + text[end:]
-
-          old = '      ) -> recoverInterruptedWrite(directory, journal)'
+          old = '      ) -> recoverInterruptedWrite(directory, journal)\n'
           new = '''      ) -> {
                 if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
                   TransactionResult(
@@ -103,12 +71,13 @@ jobs:
                 } else {
                   recoverInterruptedWrite(directory, journal)
                 }
-              }'''
+              }
+          '''
           if text.count(old) != 1:
               raise SystemExit(f'expected one interrupted-write branch, found {text.count(old)}')
           path.write_text(text.replace(old, new, 1))
           PY
-          git show HEAD^:.github/workflows/ci.yml > .github/workflows/ci.yml
+          git show HEAD^^:.github/workflows/ci.yml > .github/workflows/ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/workflows/ci.yml modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/AudioTagTransaction.kt
