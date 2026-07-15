@@ -38,7 +38,28 @@ jobs:
         run: npm run typecheck
 
       - name: Tests with coverage
-        run: npm run test:coverage -- --runInBand
+        id: jest_coverage
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:coverage -- --runInBand 2>&1 | tee jest-coverage.log
+
+      - name: Upload Jest coverage diagnostic log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jest-coverage-log
+          path: jest-coverage.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Fail when Jest coverage checks failed
+        if: steps.jest_coverage.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error::Jest coverage failed. See jest-coverage-log artifact."
+          exit 1
 
       - name: Lint
         run: npm run lint:ci
@@ -88,7 +109,7 @@ jobs:
         with:
           name: native-gradle-log
           path: native-gradle.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 3
 
       - name: Fail when native Gradle checks failed
