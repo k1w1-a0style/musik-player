@@ -125,8 +125,8 @@ class SystemAudioModule : Module() {
       getAudioTagRecoveryStatus()
     }
 
-    AsyncFunction("recoverPendingAudioTagTransactions") {
-      recoverPendingAudioTagTransactions()
+    AsyncFunction("recoverPendingAudioTagTransactions") { uri: String? ->
+      recoverPendingAudioTagTransactions(uri)
     }
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
@@ -224,12 +224,21 @@ class SystemAudioModule : Module() {
     return audioTagTransactionManager(ctx).status()
   }
 
-  private fun recoverPendingAudioTagTransactions(): Map<String, Any?> {
-    val ctx = appContext.reactContext ?: return mapOf("success" to false, "errorCode" to "WriteNotImplemented", "message" to "Android context is unavailable.", "recoveryPending" to false)
-    return audioTagTransactionManager(ctx).recoverPendingSummary().toMap()
+  private fun recoverPendingAudioTagTransactions(uri: String?): Map<String, Any?> {
+  val ctx = appContext.reactContext ?: return mapOf("success" to false, "errorCode" to "WriteNotImplemented", "message" to "Android context is unavailable.", "recoveryPending" to false)
+  val targetUri = uri?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+    val parsed = try { Uri.parse(raw) } catch (_: Throwable) {
+      return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target URI could not be parsed.", "recoveryPending" to false)
+    }
+    if (parsed.scheme != "content") {
+      return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target must be a content:// URI.", "recoveryPending" to false)
+    }
+    parsed
   }
+  return audioTagTransactionManager(ctx).recoverPendingSummary(targetUri).toMap()
+}
 
-  private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runnable ->
+private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runnable ->
     Thread(runnable, "saf-audio-tag-recovery").apply { isDaemon = true }
   }
   @Volatile private var audioTagRecoveryFuture: Future<*>? = null
