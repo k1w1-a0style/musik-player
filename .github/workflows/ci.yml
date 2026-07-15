@@ -25,43 +25,52 @@ jobs:
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt')
           text = path.read_text()
-          old_registration = '''    AsyncFunction("recoverPendingAudioTagTransactions") {
-              recoverPendingAudioTagTransactions()
-            }
-          '''
-          new_registration = '''    AsyncFunction("recoverPendingAudioTagTransactions") { uri: String? ->
-              recoverPendingAudioTagTransactions(uri)
-            }
-          '''
-          if text.count(old_registration) != 1:
-              raise SystemExit(f'expected one recovery registration, found {text.count(old_registration)}')
-          text = text.replace(old_registration, new_registration, 1)
 
-          old_method = '''  private fun recoverPendingAudioTagTransactions(): Map<String, Any?> {
-              val ctx = appContext.reactContext ?: return mapOf("success" to false, "errorCode" to "WriteNotImplemented", "message" to "Android context is unavailable.", "recoveryPending" to false)
-              return audioTagTransactionManager(ctx).recoverPendingSummary().toMap()
-            }
-          '''
-          new_method = '''  private fun recoverPendingAudioTagTransactions(uri: String?): Map<String, Any?> {
-              val ctx = appContext.reactContext ?: return mapOf("success" to false, "errorCode" to "WriteNotImplemented", "message" to "Android context is unavailable.", "recoveryPending" to false)
-              val targetUri = uri?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
-                val parsed = try { Uri.parse(raw) } catch (_: Throwable) {
-                  return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target URI could not be parsed.", "recoveryPending" to false)
-                }
-                if (parsed.scheme != "content") {
-                  return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target must be a content:// URI.", "recoveryPending" to false)
-                }
-                parsed
+          registration_pattern = re.compile(
+              r'    AsyncFunction\("recoverPendingAudioTagTransactions"\)\s*\{\s*\n'
+              r'\s*recoverPendingAudioTagTransactions\(\)\s*\n'
+              r'\s*\}',
+          )
+          text, registration_count = registration_pattern.subn(
+              '    AsyncFunction("recoverPendingAudioTagTransactions") { uri: String? ->\n'
+              '      recoverPendingAudioTagTransactions(uri)\n'
+              '    }',
+              text,
+              count=1,
+          )
+          if registration_count != 1:
+              raise SystemExit(f'expected one recovery registration, found {registration_count}')
+
+          method_pattern = re.compile(
+              r'  private fun recoverPendingAudioTagTransactions\(\): Map<String, Any\?> \{.*?\n'
+              r'  \}\n\n'
+              r'  private val audioTagRecoveryExecutor',
+              re.S,
+          )
+          replacement = '''  private fun recoverPendingAudioTagTransactions(uri: String?): Map<String, Any?> {
+            val ctx = appContext.reactContext ?: return mapOf("success" to false, "errorCode" to "WriteNotImplemented", "message" to "Android context is unavailable.", "recoveryPending" to false)
+            val targetUri = uri?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+              val parsed = try { Uri.parse(raw) } catch (_: Throwable) {
+                return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target URI could not be parsed.", "recoveryPending" to false)
               }
-              return audioTagTransactionManager(ctx).recoverPendingSummary(targetUri).toMap()
+              if (parsed.scheme != "content") {
+                return mapOf("success" to false, "errorCode" to "UnsupportedUri", "message" to "Recovery target must be a content:// URI.", "recoveryPending" to false)
+              }
+              parsed
             }
-          '''
-          if text.count(old_method) != 1:
-              raise SystemExit(f'expected one recovery method, found {text.count(old_method)}')
-          path.write_text(text.replace(old_method, new_method, 1))
+            return audioTagTransactionManager(ctx).recoverPendingSummary(targetUri).toMap()
+          }
+
+          private val audioTagRecoveryExecutor'''
+          text, method_count = method_pattern.subn(replacement, text, count=1)
+          if method_count != 1:
+              raise SystemExit(f'expected one recovery method, found {method_count}')
+
+          path.write_text(text)
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
