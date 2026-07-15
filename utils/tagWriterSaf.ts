@@ -5,7 +5,7 @@ import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
 import { withUriWriteLock } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
-import { TagWriterError } from './tagWriterError';
+import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { applyTagEditToBuffer, validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { sha256Hex } from './sha256';
 
@@ -23,20 +23,24 @@ const failureStatus = (code?: string): WriteTagsResult['status'] => {
   return 'writeFailed';
 };
 
-const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => ({
-  status: nativeResult.success && nativeResult.verified ? 'written' : failureStatus(nativeResult.errorCode),
+const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => {
+  const errorCode = nativeResult.success ? undefined : normalizeTagWriterErrorCode(nativeResult.errorCode, nativeResult.message ?? '');
+  return {
+  status: nativeResult.success && nativeResult.verified ? 'written' : failureStatus(errorCode),
   sourceUri: nativeResult.uri,
   backupUri: nativeResult.backupUri,
   tempUri: nativeResult.tempUri,
   bytesBefore: nativeResult.bytesBefore,
   bytesAfter: nativeResult.bytesAfter,
   warnings,
-  errorCode: nativeResult.success ? undefined : nativeResult.errorCode as WriteTagsResult['errorCode'],
+  errorCode,
   errorMessage: nativeResult.success ? undefined : nativeResult.message,
   transactionId: nativeResult.transactionId,
   recoveryPending: nativeResult.recoveryPending,
   recovered: nativeResult.recovered,
-});
+  cleanupPending: nativeResult.cleanupPending,
+};
+};
 
 export const writeTagsToSafContentUri = async (
   song: Song,

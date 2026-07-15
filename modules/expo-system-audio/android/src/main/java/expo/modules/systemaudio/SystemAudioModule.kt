@@ -188,6 +188,7 @@ class SystemAudioModule : Module() {
       "transactionId" to tx.transactionId,
       "recoveryPending" to tx.recoveryPending,
       "recovered" to tx.recovered,
+      "cleanupPending" to tx.cleanupPending,
     )
     val parsed = try { Uri.parse(uri) } catch (_: Throwable) {
       return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "URI could not be parsed."))

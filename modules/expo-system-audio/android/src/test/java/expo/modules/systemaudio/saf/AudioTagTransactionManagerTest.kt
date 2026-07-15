@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.util.Base64
 
 class AudioTagTransactionManagerTest {
+  private object NoopDirectorySync : DirectoryDurabilitySync { override fun sync(directory: File) {} }
   private fun tmp() = createTempDir(prefix = "saf-tx-test-")
   private fun sha(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
   private fun b64(bytes: ByteArray) = Base64.getEncoder().encodeToString(bytes)
@@ -24,7 +25,8 @@ class AudioTagTransactionManagerTest {
     override fun isWritable(uri: Uri) = writable
     override fun size(uri: Uri) = bytes.size.toLong()
   }
-  private fun manager(root: File, store: FakeStore, margin: Long = 0) = AudioTagTransactionManager(TransactionStorage(root), store, margin)
+  private fun storage(root: File) = TransactionStorage(root, NoopDirectorySync)
+  private fun manager(root: File, store: FakeStore, margin: Long = 0) = AudioTagTransactionManager(storage(root), store, margin)
   private val uri = Uri.parse("content://provider/tree/song")
 
   @Test fun successfulCompleteSafWrite() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val r=manager(root,s).write(req(uri,o,n)); assertTrue(r.success); assertArrayEquals(n,s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
@@ -66,22 +68,26 @@ class AudioTagTransactionManagerTest {
     assertEquals(2, s.writes)
     assertFalse(root.listFiles().isNullOrEmpty())
   }
-  @Test fun successfulImmediateRestore() { failureDuringTargetWriteRollsBack() }
+  @Test fun successfulImmediateRestore() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); s.failWrite=true; val r=manager(root,s).write(req(uri,o,n)); assertFalse(r.success); assertEquals("ReplaceFailed", r.errorCode); assertTrue(r.recovered); assertFalse(r.recoveryPending); assertArrayEquals(o, s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
   @Test fun failedImmediateRestorePreservesTransaction() { val o="old".toByteArray(); val s=FakeStore(o); s.failAfterPartial=true; s.permission=false; val r=manager(tmp(),s).write(req(uri,o,"newer".toByteArray())); assertFalse(r.success) }
-  @Test fun crashAtBackupReadyCleans() { val root=tmp(); val st=TransactionStorage(root); val d=st.createDir(); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.BACKUP_READY,createdAtEpochMs=1,updatedAtEpochMs=1)); val r=manager(root,FakeStore()).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
+  @Test fun crashAtBackupReadyCleans() { val root=tmp(); val st=storage(root); val d=st.createDir(); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.BACKUP_READY,createdAtEpochMs=1,updatedAtEpochMs=1)); val r=manager(root,FakeStore()).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
   @Test fun crashAtWriteStartedRestores() { recoverState(TransactionState.WRITE_STARTED) }
   @Test fun crashAtWrittenUnverifiedRestores() { recoverState(TransactionState.WRITTEN_UNVERIFIED) }
-  @Test fun crashAfterCommittedBeforeCleanup() { val root=tmp(); val st=TransactionStorage(root); val d=st.createDir(); val n="new".toByteArray(); st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.COMMITTED,createdAtEpochMs=1,updatedAtEpochMs=1,rewrittenSizeBytes=n.size.toLong(),rewrittenSha256Hex=sha(n))); val r=manager(root,FakeStore(n)).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
+  @Test fun crashAfterCommittedBeforeCleanup() { val root=tmp(); val st=storage(root); val d=st.createDir(); val n="new".toByteArray(); st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.COMMITTED,createdAtEpochMs=1,updatedAtEpochMs=1,rewrittenSizeBytes=n.size.toLong(),rewrittenSha256Hex=sha(n))); val r=manager(root,FakeStore(n)).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }
   @Test fun recoveryWithPermission() { recoverState(TransactionState.WRITE_STARTED) }
   @Test fun recoveryWithoutPermissionPending() { val root=prepared(TransactionState.WRITE_STARTED); val s=FakeStore("bad".toByteArray()); s.permission=false; val r=manager(root,s).recoverPending(); assertEquals("RecoveryPending", r.errorCode); assertFalse(root.listFiles().isNullOrEmpty()) }
   @Test fun damagedJournalQuarantined() { val root=tmp(); val d=File(root,"x"); d.mkdirs(); File(d,"journal.json").writeText("{"); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RecoveryPending", r.errorCode) }
   @Test fun missingOriginalBinFailsRecovery() { val root=prepared(TransactionState.WRITE_STARTED); File(root.listFiles()!![0],"original.bin").delete(); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RecoveryFailed", r.errorCode) }
   @Test fun manipulatedOriginalBinFailsRecovery() { val root=prepared(TransactionState.WRITE_STARTED); File(root.listFiles()!![0],"original.bin").writeText("tampered"); val r=manager(root,FakeStore()).recoverPending(); assertEquals("RollbackFailed", r.errorCode) }
-  @Test fun duplicateParallelTransactionIsSerialized() { successfulCompleteSafWrite() }
+  @Test fun duplicateParallelTransactionIsSerialized() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val m=manager(root,s); val r1=m.write(req(uri,o,n)); val r2=m.write(req(uri,n,"new2".toByteArray())); assertTrue(r1.success); assertTrue(r2.success); assertArrayEquals("new2".toByteArray(), s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
   @Test fun repeatedRecoveryIsIdempotent() { val root=prepared(TransactionState.BACKUP_READY); val m=manager(root,FakeStore()); assertTrue(m.recoverPending().success); assertTrue(m.recoverPending().success) }
-  @Test fun successfulCleanupLeavesNoArtifacts() { successfulCompleteSafWrite() }
+  @Test fun successfulCleanupLeavesNoArtifacts() { val o="old".toByteArray(); val n="new".toByteArray(); val root=tmp(); val s=FakeStore(o); val r=manager(root,s).write(req(uri,o,n)); assertTrue(r.success); assertTrue(r.verified); assertArrayEquals(n,s.bytes); assertTrue(root.listFiles().isNullOrEmpty()) }
   @Test fun journalDoesNotUseUriAsDirectoryName() { val root=tmp(); val s=FakeStore("old".toByteArray()); manager(root,s).write(req(uri,"old".toByteArray(),"new".toByteArray())); assertFalse(root.absolutePath.contains(uri.toString())) }
 
-  private fun prepared(state: TransactionState): File { val root=tmp(); val st=TransactionStorage(root); val d=st.createDir(); val o="old".toByteArray(); val n="new".toByteArray(); st.original(d).writeBytes(o); if (state != TransactionState.BACKUP_READY && state != TransactionState.PREPARING) st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=state,createdAtEpochMs=1,updatedAtEpochMs=1,originalSizeBytes=o.size.toLong(),originalSha256Hex=sha(o),rewrittenSizeBytes=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else n.size.toLong(),rewrittenSha256Hex=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else sha(n))); return root }
+  @Test fun journalAcceptsJsChangedFieldNames() { val all = listOf("title", "artist", "albumArtist", "album", "year", "genre", "trackNumber", "discNumber", "comment", "cover"); val j=TransactionJournal(transactionId="tx",targetUri=uri.toString(),state=TransactionState.PREPARING,createdAtEpochMs=1,updatedAtEpochMs=1,changedFields=all); assertEquals(all, TransactionJournal.fromJson(j.toJson()).changedFields) }
+  @Test fun journalRejectsUnknownChangedField() { val j=TransactionJournal(transactionId="tx",targetUri=uri.toString(),state=TransactionState.PREPARING,createdAtEpochMs=1,updatedAtEpochMs=1,changedFields=listOf("track")); assertThrows(IllegalArgumentException::class.java) { TransactionJournal.fromJson(j.toJson()) } }
+  @Test fun damagedJournalDoesNotBlockIndependentUri() { val root=tmp(); val bad=File(root,"bad"); bad.mkdirs(); File(bad,"original.bin").writeText("backup"); File(bad,"journal.json").writeText("{"); val s=FakeStore("old".toByteArray()); val r=manager(root,s).write(req(Uri.parse("content://provider/tree/other"),"old".toByteArray(),"new".toByteArray())); assertTrue(r.success); assertArrayEquals("new".toByteArray(), s.bytes); assertTrue(File(root.parentFile,"audio-tag-transactions-quarantine").listFiles()?.isNotEmpty() == true) }
+
+  private fun prepared(state: TransactionState): File { val root=tmp(); val st=storage(root); val d=st.createDir(); val o="old".toByteArray(); val n="new".toByteArray(); st.original(d).writeBytes(o); if (state != TransactionState.BACKUP_READY && state != TransactionState.PREPARING) st.rewritten(d).writeBytes(n); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=state,createdAtEpochMs=1,updatedAtEpochMs=1,originalSizeBytes=o.size.toLong(),originalSha256Hex=sha(o),rewrittenSizeBytes=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else n.size.toLong(),rewrittenSha256Hex=if (state == TransactionState.BACKUP_READY || state == TransactionState.PREPARING) null else sha(n))); return root }
   private fun recoverState(state: TransactionState) { val root=prepared(state); val r=manager(root,FakeStore("broken".toByteArray())).recoverPending(); assertTrue(r.success); assertTrue(r.recovered) }
 }

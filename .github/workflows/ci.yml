@@ -64,12 +64,15 @@ jobs:
           echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
           echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
 
-      - name: Android Kotlin compile and native tests
+      - name: Android native compile and unit tests – no APK/EAS build
         shell: bash
         run: |
           set -euo pipefail
+          echo "No APK/AAB/EAS build is performed in this workflow."
+          java -version
           npx --no-install expo prebuild --platform android --no-install --clean
           cd android
+          echo "Exact native Gradle test task: ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon"
           echo "Running Gradle tasks: :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest"
           ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon
           node <<'NODE'

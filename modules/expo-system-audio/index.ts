@@ -60,6 +60,7 @@ export interface AudioTagWriteResult {
   transactionId?: string;
   recoveryPending?: boolean;
   recovered?: boolean;
+  cleanupPending?: boolean;
 }
 
 export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';
@@ -120,7 +121,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
-  getAudioTagRecoveryStatus?(): Promise<{ pendingCount: number; transactions: Array<{ transactionId: string; state: string }> }>;
+  getAudioTagRecoveryStatus?(): Promise<{ pendingCount: number; quarantineCount?: number; transactions: Array<{ transactionId: string; state: string }> }>;
   recoverPendingAudioTagTransactions?(): Promise<{ success: boolean; errorCode?: string; message?: string; recoveryPending?: boolean; recovered?: boolean; recoveredCount?: number; cleanedCount?: number; pendingCount?: number; failedCount?: number; transactions?: Array<{ transactionId: string; previousState?: string; resultState?: string; recovered: boolean; pending: boolean; errorCode?: string }> }>;
 }
 

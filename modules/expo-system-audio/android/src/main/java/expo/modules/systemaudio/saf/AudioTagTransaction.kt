@@ -2,6 +2,8 @@ package expo.modules.systemaudio.saf
 
 import android.net.Uri
 import android.os.StatFs
+import android.system.Os
+import android.system.OsConstants
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -61,7 +63,7 @@ data class TransactionJournal(
   companion object {
     private val transactionIdRegex = Regex("^[A-Za-z0-9._-]{1,80}$")
     private val sha256Regex = Regex("^[0-9a-f]{64}$")
-    private val allowedChangedFields = setOf("title", "artist", "album", "albumArtist", "genre", "year", "track", "disc", "comment", "artwork")
+    private val allowedChangedFields = setOf("title", "artist", "albumArtist", "album", "year", "genre", "trackNumber", "discNumber", "comment", "cover")
     private const val EXPECTED_SCHEMA_VERSION = 1
 
     fun fromJson(text: String): TransactionJournal = parseAndValidate(text, expectedDirectoryName = null, requireFilesIn = null)
@@ -134,8 +136,25 @@ interface SafContentStore {
   fun size(uri: Uri): Long?
 }
 
-class TransactionStorage(private val root: File) {
+interface DirectoryDurabilitySync {
+  fun sync(directory: File)
+}
+
+object AndroidDirectoryDurabilitySync : DirectoryDurabilitySync {
+  override fun sync(directory: File) {
+    if (!directory.exists() || !directory.isDirectory) throw java.io.IOException("directory sync target is invalid")
+    val fd = Os.open(directory.absolutePath, OsConstants.O_RDONLY or OsConstants.O_DIRECTORY or OsConstants.O_CLOEXEC, 0)
+    try {
+      Os.fsync(fd)
+    } finally {
+      Os.close(fd)
+    }
+  }
+}
+
+class TransactionStorage(private val root: File, private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync) {
   companion object { const val MAX_JOURNAL_BYTES = 64 * 1024 }
+  private val quarantineRoot = File(root.parentFile ?: root, "audio-tag-transactions-quarantine")
 
   init {
     if (!root.exists() && !root.mkdirs()) throw java.io.IOException("transaction root mkdir failed")
@@ -173,12 +192,27 @@ class TransactionStorage(private val root: File) {
     syncDirectory(target.parentFile ?: root)
   }
 
-  fun readJournalSafely(dir: File): TransactionJournal? = try {
-    val journalFile = journal(dir).takeIf { it.isFile } ?: return null
-    if (journalFile.length() > MAX_JOURNAL_BYTES) return null
-    TransactionJournal.parseAndValidate(journalFile.readText(Charsets.UTF_8), dir.name, dir)
-  } catch (_: Throwable) {
-    null
+  fun readJournalSafely(dir: File): TransactionJournal? {
+    return try {
+      val journalFile = journal(dir).takeIf { it.isFile } ?: return null
+      if (journalFile.length() > MAX_JOURNAL_BYTES) return null
+      TransactionJournal.parseAndValidate(journalFile.readText(Charsets.UTF_8), dir.name, dir)
+    } catch (_: Throwable) {
+      null
+    }
+  }
+
+  fun quarantinedDirs(): List<File> = quarantineRoot.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: emptyList()
+
+  fun quarantineDamaged(dir: File): File {
+    if (!quarantineRoot.exists() && !quarantineRoot.mkdirs()) throw java.io.IOException("quarantine mkdir failed")
+    syncDirectory(quarantineRoot.parentFile ?: root)
+    val target = File(quarantineRoot, "${dir.name}-${System.currentTimeMillis()}")
+    if (!dir.renameTo(target)) throw java.io.IOException("quarantine rename failed")
+    File(target, "quarantine.json").writeText(JSONObject().put("transactionId", dir.name).put("reason", "damaged-journal").put("quarantinedAtEpochMs", System.currentTimeMillis()).toString(), Charsets.UTF_8)
+    syncDirectory(quarantineRoot)
+    syncDirectory(root)
+    return target
   }
 
   fun cleanup(dir: File) {
@@ -197,7 +231,7 @@ class TransactionStorage(private val root: File) {
   private fun syncDirectory(dir: File) {
     if (!dir.exists()) return
     try {
-      FileInputStream(dir).use { it.fd.sync() }
+      directorySync.sync(dir)
     } catch (e: Throwable) {
       throw java.io.IOException("directory sync failed", e)
     }
@@ -268,7 +302,9 @@ object StreamDigests {
 class SizeLimitException: java.io.IOException("size limit exceeded")
 
 data class TransactionWriteRequest(val uri: Uri, val rewrittenBase64: String, val changedFields: List<String>, val maxBytes: Long, val expectedOriginalSize: Long?, val expectedOriginalSha256: String?, val expectedWrittenSize: Long?, val expectedWrittenSha256: String? = null)
-data class TransactionResult(val success: Boolean, val errorCode: String?, val message: String, val verified: Boolean=false, val bytesBefore: Long?=null, val bytesAfter: Long?=null, val transactionId: String?=null, val recoveryPending: Boolean=false, val recovered: Boolean=false)
+data class TransactionResult(val success: Boolean, val errorCode: String?, val message: String, val verified: Boolean=false, val bytesBefore: Long?=null, val bytesAfter: Long?=null, val transactionId: String?=null, val recoveryPending: Boolean=false, val recovered: Boolean=false, val cleanupPending: Boolean=false)
+
+data class RestoreResult(val restored: Boolean, val verified: Boolean, val recoveryPending: Boolean, val errorCode: String?, val message: String)
 
 data class RecoveryTransactionReport(val transactionId: String, val previousState: String?, val resultState: String?, val recovered: Boolean, val pending: Boolean, val errorCode: String?)
 data class RecoverySummary(val success: Boolean, val recoveredCount: Int, val cleanedCount: Int, val pendingCount: Int, val failedCount: Int, val transactions: List<RecoveryTransactionReport>) {
@@ -303,7 +339,7 @@ class AudioTagTransactionManager(private val storage: TransactionStorage, privat
       val journal = storage.readJournalSafely(dir)
       mapOf("transactionId" to dir.name, "state" to (journal?.state?.name ?: "INVALID"))
     }
-    mapOf("pendingCount" to transactions.size, "transactions" to transactions)
+    mapOf("pendingCount" to transactions.size, "quarantineCount" to storage.quarantinedDirs().size, "transactions" to transactions)
   }
 
   fun write(req: TransactionWriteRequest): TransactionResult = lock.withLock {
@@ -397,7 +433,7 @@ class AudioTagTransactionManager(private val storage: TransactionStorage, privat
       try {
         storage.cleanup(dir)
       } catch (_: Throwable) {
-        return@withLock TransactionResult(true, null, "Tags written and verified; committed transaction cleanup will be retried.", true, originalDigest.sizeBytes, rewrittenDigest.sizeBytes, journal.transactionId)
+        return@withLock TransactionResult(true, null, "Tags written and verified; committed transaction cleanup will be retried.", true, originalDigest.sizeBytes, rewrittenDigest.sizeBytes, journal.transactionId, cleanupPending = true)
       }
       TransactionResult(true, null, "Tags written and verified.", true, originalDigest.sizeBytes, rewrittenDigest.sizeBytes, journal.transactionId)
     } catch (e: Throwable) {
@@ -419,44 +455,46 @@ class AudioTagTransactionManager(private val storage: TransactionStorage, privat
     rollbackFailedWrite(dir, journal, code, message, maxBytes)
 
   private fun rollbackFailedWrite(dir: File, journal: TransactionJournal, code: String, message: String, maxBytes: Long): TransactionResult {
-    val restore = restoreOriginal(dir, journal, maxBytes, immediate = true)
-    return if (restore.success && restore.recovered) {
-      TransactionResult(false, code, message, bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recovered = true)
+    val restore = restoreOriginal(dir, journal, maxBytes, recoveryErrorCode = "RollbackFailed")
+    return if (restore.restored && restore.verified) {
+      TransactionResult(false, code, message, bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recovered = true, recoveryPending = false)
     } else {
       TransactionResult(false, restore.errorCode ?: "RollbackFailed", restore.message, bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recoveryPending = true)
     }
   }
 
   private fun recoverCrashedTransaction(dir: File, journal: TransactionJournal): TransactionResult {
-    val restore = restoreOriginal(dir, journal, Long.MAX_VALUE, immediate = false)
-    return if (restore.success && restore.recovered) {
+    val restore = restoreOriginal(dir, journal, Long.MAX_VALUE, recoveryErrorCode = "RecoveryFailed")
+    return if (restore.restored && restore.verified) {
       TransactionResult(true, null, "Pending SAF transaction recovered.", bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recovered = true)
     } else {
       TransactionResult(false, restore.errorCode ?: "RecoveryFailed", restore.message, bytesBefore = journal.originalSizeBytes, bytesAfter = journal.rewrittenSizeBytes, recoveryPending = true)
     }
   }
 
-  private fun restoreOriginal(dir: File, journal: TransactionJournal, maxBytes: Long, immediate: Boolean): TransactionResult {
+  private fun restoreOriginal(dir: File, journal: TransactionJournal, maxBytes: Long, recoveryErrorCode: String): RestoreResult {
     val uri = Uri.parse(journal.targetUri)
     if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
-      return TransactionResult(false, "RecoveryPending", "Recovery permission is missing.", recoveryPending = true)
+      return RestoreResult(false, false, true, "RecoveryPending", "Recovery permission is missing.")
     }
-    val expected = verifyOriginalBackupBeforeRestore(dir, journal, maxBytes)
-      ?: return markRecoveryFailed(dir, journal, "BackupCorrupted", "Original backup is corrupted; target was not modified by recovery.")
+    val expected = verifyOriginalBackupBeforeRestore(dir, journal, maxBytes) ?: run {
+      markRecoveryFailed(dir, journal, "BackupCorrupted", "Original backup is corrupted; target was not modified by recovery.")
+      return RestoreResult(false, false, true, "BackupCorrupted", "Original backup is corrupted; target was not modified by recovery.")
+    }
     return try {
       StreamDigests.copyFileToUriWithDigest(storage.original(dir), store, uri, maxBytes)
       val restored = StreamDigests.hashUri(store, uri, maxBytes)
       if (restored == expected) {
         storage.markRecoveryState(dir, journal, TransactionState.RECOVERED)
         storage.cleanup(dir)
-        TransactionResult(success = !immediate, errorCode = null, message = "Original restored and verified.", recovered = true)
+        RestoreResult(restored = true, verified = true, recoveryPending = false, errorCode = null, message = "Original restored and verified.")
       } else {
         storage.markRecoveryState(dir, journal, TransactionState.RECOVERY_REQUIRED)
-        TransactionResult(false, if (immediate) "RollbackFailed" else "RecoveryFailed", "Restore verification failed.", recoveryPending = true)
+        RestoreResult(restored = false, verified = false, recoveryPending = true, errorCode = recoveryErrorCode, message = "Restore verification failed.")
       }
     } catch (_: Throwable) {
       try { storage.markRecoveryState(dir, journal, TransactionState.RECOVERY_FAILED) } catch (_: Throwable) {}
-      TransactionResult(false, if (immediate) "RollbackFailed" else "RecoveryFailed", "Restore failed and recovery remains pending.", recoveryPending = true)
+      RestoreResult(restored = false, verified = false, recoveryPending = true, errorCode = recoveryErrorCode, message = "Restore failed and recovery remains pending.")
     }
   }
 
@@ -481,8 +519,14 @@ class AudioTagTransactionManager(private val storage: TransactionStorage, privat
     for (dir in storage.dirs()) {
       val journal = storage.readJournalSafely(dir)
       if (journal == null) {
-        failedCount++
-        reports += RecoveryTransactionReport(dir.name, null, "INVALID", recovered = false, pending = true, errorCode = "RecoveryFailed")
+        try {
+          storage.quarantineDamaged(dir)
+          if (targetUri == null) failedCount++
+          reports += RecoveryTransactionReport(dir.name, null, "QUARANTINED", recovered = false, pending = false, errorCode = "RecoveryFailed")
+        } catch (_: Throwable) {
+          if (targetUri == null) pendingCount++
+          reports += RecoveryTransactionReport(dir.name, null, "INVALID", recovered = false, pending = targetUri == null, errorCode = "RecoveryPending")
+        }
         continue
       }
       if (targetUri != null && journal.targetUri != targetUri.toString()) continue

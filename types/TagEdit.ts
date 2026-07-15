@@ -51,6 +51,7 @@ export type TagWriterErrorCode =
   | 'TransactionConflict'
   | 'RecoveryPending'
   | 'RecoveryFailed'
+  | 'BackupCorrupted'
   | 'InsufficientStorage';
 
 export type WriteRiskLevel = 'low' | 'medium' | 'high';
@@ -133,6 +134,7 @@ export interface WriteTagsResult {
   transactionId?: string;
   recoveryPending?: boolean;
   recovered?: boolean;
+  cleanupPending?: boolean;
 }
 
 export type WritableTagUriResolution =

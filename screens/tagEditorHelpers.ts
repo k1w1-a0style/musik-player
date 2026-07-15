@@ -61,6 +61,7 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   TransactionConflict: 'Eine andere Schreibtransaktion läuft bereits.',
   RecoveryPending: 'Eine frühere Schreibtransaktion muss zuerst wiederhergestellt werden.',
   RecoveryFailed: 'Wiederherstellung einer früheren Schreibtransaktion fehlgeschlagen.',
+  BackupCorrupted: 'Das gespeicherte Wiederherstellungs-Backup ist beschädigt. Die Originaldatei wurde aus Sicherheitsgründen nicht verändert.',
   InsufficientStorage: 'Nicht genug app-interner Speicher für ein dauerhaftes Backup.',
 };
 
