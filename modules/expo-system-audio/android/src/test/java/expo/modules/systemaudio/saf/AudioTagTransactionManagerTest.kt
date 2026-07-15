@@ -290,6 +290,31 @@ class AudioTagTransactionManagerTest {
     assertTrue(root.listFiles().isNullOrEmpty())
   }
 
+  @Test fun truncatedPartialCrashIsRestoredFromOriginalBackup() {
+    val original = "abcdef".toByteArray()
+    val rewritten = "UVWXYZ".toByteArray()
+    val root = prepared(TransactionState.WRITE_STARTED, original, rewritten)
+    val store = FakeStore("UV".toByteArray())
+    val summary = manager(root, store).recoverPendingSummary()
+    assertTrue(summary.success)
+    assertEquals(1, summary.recoveredCount)
+    assertEquals(1, store.writes)
+    assertArrayEquals(original, store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun overwrittenPrefixWithOriginalTailIsRestored() {
+    val original = "abcdef".toByteArray()
+    val rewritten = "UVWXYZ".toByteArray()
+    val root = prepared(TransactionState.WRITE_STARTED, original, rewritten)
+    val store = FakeStore("UVcdef".toByteArray())
+    val summary = manager(root, store).recoverPendingSummary()
+    assertTrue(summary.success)
+    assertEquals(1, summary.recoveredCount)
+    assertEquals(1, store.writes)
+    assertArrayEquals(original, store.bytes)
+  }
+
   @Test fun crashedWriteWithUnknownExternalContentStaysPendingAndIsNotOverwritten() {
     val root = prepared(TransactionState.WRITE_STARTED)
     val external = "external-after-crash".toByteArray()
@@ -404,12 +429,14 @@ class AudioTagTransactionManagerTest {
     assertArrayEquals(second, store.bytes)
   }
 
-  private fun prepared(state: TransactionState): File {
+  private fun prepared(
+    state: TransactionState,
+    original: ByteArray = "old".toByteArray(),
+    rewritten: ByteArray = "new".toByteArray(),
+  ): File {
     val root = tmp()
     val storage = storage(root)
     val dir = storage.createDir()
-    val original = "old".toByteArray()
-    val rewritten = "new".toByteArray()
     storage.original(dir).writeBytes(original)
     if (state != TransactionState.PREPARING && state != TransactionState.BACKUP_READY) {
       storage.rewritten(dir).writeBytes(rewritten)
