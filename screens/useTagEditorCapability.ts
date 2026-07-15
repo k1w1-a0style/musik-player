@@ -1,3 +1,4 @@
+import SystemAudio from 'expo-system-audio';
 import { useMemo } from 'react';
 import type { TagEditDraft } from '../types/TagEdit';
 import type { Song } from '../types/Song';
@@ -28,22 +29,35 @@ export const useTagEditorCapability = ({
   useMemo(() => {
     const capabilitySong = song ?? EMPTY_SONG;
     const capability = getTagEditCapability(capabilitySong);
-    const plan = createTagWriteOperationPlan(capabilitySong, draft);
+    const plan = createTagWriteOperationPlan(
+      capabilitySong,
+      draft,
+      undefined,
+      undefined,
+      { safDurableWriterAvailable: SystemAudio.hasNativeTagWriter },
+    );
     const hasCover = song ? hasRemovableCover(song) : false;
     const canPickCover = Boolean(song && !saving);
     const coverUriType = plan.uriType ?? capability.uriType;
     const coverContainer = plan.container ?? capability.supportedContainer;
     const canWriteCover = Boolean(
-      capability.canWrite
+      plan.permission.canWrite
       && (coverContainer === 'mp3' || coverContainer === 'm4a' || coverContainer === 'mp4')
       && (coverUriType === 'file' || coverUriType === 'content')
     );
     const hasPendingCoverWrite = Boolean(draft.cover || draft.removeCover);
     const coverWriteBlocked = hasPendingCoverWrite && !canWriteCover;
     const canSave = Boolean(
-      song && capability.canWrite && hasChanges && plan.blockingReasons.length === 0 && !saving && !coverWriteBlocked,
+      song
+      && plan.permission.canWrite
+      && hasChanges
+      && plan.blockingReasons.length === 0
+      && !saving
+      && !coverWriteBlocked,
     );
-    const capabilityMessage = capability.canWrite ? undefined : capabilityReason(capability.reason);
+    const capabilityMessage = plan.permission.canWrite
+      ? undefined
+      : capabilityReason(plan.permission.reason ?? capability.reason);
     const blockedReasonMessage = blockingReasonMessage(plan.blockingReasons, plan);
     const coverCapabilityMessage = canWriteCover
       ? undefined
