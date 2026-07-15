@@ -18,7 +18,7 @@ class AudioTagTransactionManagerTest {
   private open class FakeStore(var bytes: ByteArray = "old".toByteArray()) : SafContentStore {
     var permission = true; var writable = true; var failRead = false; var failWrite = false; var failAfterPartial = false; var failSync = false; var mutateBeforeWrite: ByteArray? = null; var writes = 0
     override open fun openInput(uri: Uri) = if (failRead) null else ByteArrayInputStream(bytes)
-    override fun openTruncatingOutput(uri: Uri): OutputStream? { if (failWrite) throw java.io.IOException("write failed"); writes++; mutateBeforeWrite?.let { bytes = it; mutateBeforeWrite = null }; val out = ByteArrayOutputStream(); return object: OutputStream(){ var n=0; override fun write(b: Int){ if(failAfterPartial && n++ > 1) throw java.io.IOException("partial"); out.write(b) }; override fun write(b: ByteArray, off: Int, len: Int){ if(failAfterPartial){ out.write(b, off, minOf(2,len)); throw java.io.IOException("partial") }; out.write(b,off,len)}; override fun flush(){}; override fun close(){ bytes=out.toByteArray() } } }
+    override open fun openTruncatingOutput(uri: Uri): OutputStream? { if (failWrite) throw java.io.IOException("write failed"); writes++; mutateBeforeWrite?.let { bytes = it; mutateBeforeWrite = null }; val out = ByteArrayOutputStream(); return object: OutputStream(){ var n=0; override fun write(b: Int){ if(failAfterPartial && n++ > 1) throw java.io.IOException("partial"); out.write(b) }; override fun write(b: ByteArray, off: Int, len: Int){ if(failAfterPartial){ out.write(b, off, minOf(2,len)); throw java.io.IOException("partial") }; out.write(b,off,len)}; override fun flush(){}; override fun close(){ bytes=out.toByteArray() } } }
     override fun sync(output: OutputStream) { if (failSync) throw java.io.IOException("sync") }
     override fun hasWritePermission(uri: Uri) = permission
     override fun isWritable(uri: Uri) = writable
@@ -42,6 +42,30 @@ class AudioTagTransactionManagerTest {
   @Test fun failureAfterPartialTargetWriteRollsBack() { val o="old".toByteArray(); val s=FakeStore(o); s.failAfterPartial=true; val r=manager(tmp(),s).write(req(uri,o,"newer".toByteArray())); assertEquals("ReplaceFailed", r.errorCode); assertTrue(r.recovered) }
   @Test fun failureAfterTargetSyncBeforeVerification() { val o="old".toByteArray(); val s=FakeStore(o); s.failSync=true; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("ReplaceFailed", r.errorCode) }
   @Test fun postWriteHashMismatch() { val o="old".toByteArray(); val s=object: FakeStore(o){ override fun openInput(uri: Uri)=ByteArrayInputStream(if(writes>0) "wrong".toByteArray() else bytes) }; val r=manager(tmp(),s).write(req(uri,o,"new".toByteArray())); assertEquals("VerificationFailed", r.errorCode) }
+  @Test fun postWriteOversizeVerificationRollsBack() {
+    val o = "old".toByteArray()
+    val n = "new".toByteArray()
+    val s = object: FakeStore(o) {
+      override fun openTruncatingOutput(uri: Uri): OutputStream? {
+        writes++
+        val out = ByteArrayOutputStream()
+        return object: OutputStream() {
+          override fun write(b: Int) { out.write(b) }
+          override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len) }
+          override fun close() {
+            val written = out.toByteArray()
+            bytes = written + "-tail".toByteArray()
+          }
+        }
+      }
+    }
+    val root = tmp()
+    val r = manager(root, s).write(req(uri, o, n).copy(maxBytes = n.size.toLong()))
+    assertEquals("RollbackFailed", r.errorCode)
+    assertTrue(r.recoveryPending)
+    assertEquals(2, s.writes)
+    assertFalse(root.listFiles().isNullOrEmpty())
+  }
   @Test fun successfulImmediateRestore() { failureDuringTargetWriteRollsBack() }
   @Test fun failedImmediateRestorePreservesTransaction() { val o="old".toByteArray(); val s=FakeStore(o); s.failAfterPartial=true; s.permission=false; val r=manager(tmp(),s).write(req(uri,o,"newer".toByteArray())); assertFalse(r.success) }
   @Test fun crashAtBackupReadyCleans() { val root=tmp(); val st=TransactionStorage(root); val d=st.createDir(); st.atomicWriteJournal(d, TransactionJournal(transactionId=d.name,targetUri=uri.toString(),state=TransactionState.BACKUP_READY,createdAtEpochMs=1,updatedAtEpochMs=1)); val r=manager(root,FakeStore()).recoverPending(); assertTrue(r.success); assertTrue(root.listFiles().isNullOrEmpty()) }

@@ -147,7 +147,11 @@ class AudioTagTransactionManager(private val storage: TransactionStorage, privat
       journal = journal.withState(TransactionState.WRITE_STARTED); storage.atomicWriteJournal(dir, journal)
       try { StreamDigests.copyFileToUriWithDigest(storage.rewritten(dir), store, req.uri, req.maxBytes) ?: throw java.io.IOException("provider refused output") } catch (e: Throwable) { return rollback(dir, journal, "ReplaceFailed", "SAF write failed; original restored if possible.", req.maxBytes) }
       journal = journal.withState(TransactionState.WRITTEN_UNVERIFIED); storage.atomicWriteJournal(dir, journal)
-      val after = StreamDigests.hashUri(store, req.uri, req.maxBytes)
+      val after = try {
+        StreamDigests.hashUri(store, req.uri, req.maxBytes)
+      } catch (_: SizeLimitException) {
+        null
+      }
       if (after != rewrittenDigest) return rollback(dir, journal, "VerificationFailed", "Written SAF document failed verification.", req.maxBytes)
       journal = journal.withState(TransactionState.COMMITTED); storage.atomicWriteJournal(dir, journal); storage.cleanup(dir)
       TransactionResult(true, null, "Tags written and verified.", true, originalDigest.sizeBytes, rewrittenDigest.sizeBytes, journal.transactionId)
