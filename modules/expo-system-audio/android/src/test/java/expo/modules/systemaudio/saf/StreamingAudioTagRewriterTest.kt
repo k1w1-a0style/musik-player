@@ -68,6 +68,25 @@ class StreamingAudioTagRewriterTest {
   }
 
   @Test
+  fun mp3RewriteRejectsSpoofedFileWithoutMpegAudioFrame() {
+    val directory = createTempDir(prefix = "streaming-mp3-spoof-")
+    val original = File(directory, "spoof.mp3").apply {
+      writeBytes("not really an mp3".toByteArray(Charsets.UTF_8))
+    }
+    val rewritten = File(directory, "rewritten.mp3")
+
+    val error = try {
+      StreamingMp3TagRewriter.rewrite(original, rewritten, textSpec("mp3", "title", "Spoofed"), maxBytes)
+      null
+    } catch (caught: AudioTagRewriteException) {
+      caught
+    }
+
+    assertEquals("InvalidTagData", error?.errorCode)
+    assertFalse(rewritten.exists())
+  }
+
+  @Test
   fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
     val directory = createTempDir(prefix = "streaming-mp3-delete-")
     val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 9, 8, 7, 6, 5)

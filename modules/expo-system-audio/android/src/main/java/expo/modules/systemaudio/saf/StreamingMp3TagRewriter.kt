@@ -51,6 +51,8 @@ object StreamingMp3TagRewriter {
     val existingTouched = frames.any { it.id in touchedIds }
     val replacements = buildReplacementFrames(spec, targetMajor)
     val changed = spec.hasIntent && (existingTouched || replacements.isNotEmpty())
+    val audioStart = header?.totalTagBytes ?: 0L
+    if (changed) validateMpegAudioStart(original, audioStart)
 
     FileOutputStream(temporary).use { output ->
       if (!changed) {
@@ -66,7 +68,6 @@ object StreamingMp3TagRewriter {
           kept.forEach(output::write)
           replacements.forEach(output::write)
         }
-        val audioStart = header?.totalTagBytes ?: 0L
         RandomAccessFile(original, "r").use { source ->
           source.seek(audioStart)
           copyBounded(source, output, maxBytes, initialBytes = if (payloadSize > 0L) ID3_HEADER_BYTES + payloadSize else 0L)
@@ -141,6 +142,40 @@ object StreamingMp3TagRewriter {
       val header = Header(major, flags, payloadSize, totalTagBytes, frameStart)
       return header to parseFrames(tag, header)
     }
+  }
+
+  private fun validateMpegAudioStart(original: File, audioStart: Long) {
+    RandomAccessFile(original, "r").use { source ->
+      if (audioStart < 0L || audioStart + 4L > source.length()) {
+        throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing.")
+      }
+      source.seek(audioStart)
+      val header = ByteArray(4)
+      source.readFully(header)
+      if (!isMpegAudioFrameHeader(header)) {
+        throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing or invalid.")
+      }
+    }
+  }
+
+  private fun isMpegAudioFrameHeader(header: ByteArray): Boolean {
+    if (header.size < 4) return false
+    val first = header[0].toInt() and 0xff
+    val second = header[1].toInt() and 0xff
+    val third = header[2].toInt() and 0xff
+    val fourth = header[3].toInt() and 0xff
+    val hasFrameSync = first == 0xff && (second and 0xe0) == 0xe0
+    val version = (second ushr 3) and 0x03
+    val layer = (second ushr 1) and 0x03
+    val bitrateIndex = (third ushr 4) and 0x0f
+    val sampleRateIndex = (third ushr 2) and 0x03
+    val emphasis = fourth and 0x03
+    return hasFrameSync &&
+      version != 0x01 &&
+      layer != 0x00 &&
+      bitrateIndex !in setOf(0x00, 0x0f) &&
+      sampleRateIndex != 0x03 &&
+      emphasis != 0x02
   }
 
   private fun parseFrames(tag: ByteArray, header: Header): List<Frame> {
