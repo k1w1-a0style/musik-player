@@ -19,10 +19,7 @@ class StreamingAudioTagRewriterTest {
   @Test
   fun mp3TitleRewritePreservesAudioAndIsByteIdempotent() {
     val directory = createTempDir(prefix = "streaming-mp3-title-")
-    val audio = byteArrayOf(
-      0xff.toByte(), 0xfb.toByte(), 0x90.toByte(), 0x64,
-      1, 2, 3, 4, 5, 6,
-    )
+    val audio = mpeg1Layer3Frame()
     val original = File(directory, "original.mp3").apply { writeBytes(audio) }
     val first = File(directory, "first.mp3")
     val second = File(directory, "second.mp3")
@@ -48,7 +45,7 @@ class StreamingAudioTagRewriterTest {
     val directory = createTempDir(prefix = "streaming-mp3-v24-flags-")
     val artistBody = byteArrayOf(3, 'A'.code.toByte(), 'r'.code.toByte(), 't'.code.toByte())
     val flaggedArtist = id3v24Frame("TPE1", artistBody, statusFlags = 0x20, formatFlags = 0)
-    val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 4, 3, 2, 1)
+    val audio = mpeg1Layer3Frame(0x31)
     val originalBytes = id3v24Tag(flaggedArtist) + audio
     val original = File(directory, "original.mp3").apply { writeBytes(originalBytes) }
     val rewritten = File(directory, "rewritten.mp3")
@@ -87,9 +84,28 @@ class StreamingAudioTagRewriterTest {
   }
 
   @Test
+fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader() {
+  val directory = createTempDir(prefix = "streaming-mp3-truncated-frame-")
+  val original = File(directory, "truncated.mp3").apply {
+    writeBytes(byteArrayOf(0xff.toByte(), 0xfb.toByte(), 0x90.toByte(), 0x64, 1, 2, 3, 4))
+  }
+  val rewritten = File(directory, "rewritten.mp3")
+
+  val error = try {
+    StreamingMp3TagRewriter.rewrite(original, rewritten, textSpec("mp3", "title", "Truncated"), maxBytes)
+    null
+  } catch (caught: AudioTagRewriteException) {
+    caught
+  }
+
+  assertEquals("InvalidTagData", error?.errorCode)
+  assertFalse(rewritten.exists())
+}
+
+  @Test
   fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
     val directory = createTempDir(prefix = "streaming-mp3-delete-")
-    val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 9, 8, 7, 6, 5)
+    val audio = mpeg1Layer3Frame(0x32)
     val original = File(directory, "original.mp3").apply { writeBytes(audio) }
     val tagged = File(directory, "tagged.mp3")
     val deleted = File(directory, "deleted.mp3")
@@ -335,6 +351,13 @@ class StreamingAudioTagRewriterTest {
 
     assertEquals("InvalidTagData", error?.errorCode)
   }
+
+  private fun mpeg1Layer3Frame(fill: Int = 0x55): ByteArray = ByteArray(417) { fill.toByte() }.also { frame ->
+  frame[0] = 0xff.toByte()
+  frame[1] = 0xfb.toByte()
+  frame[2] = 0x90.toByte()
+  frame[3] = 0x64
+}
 
   private data class Mp4Fixture(
     val file: ByteArray,
