@@ -102,8 +102,35 @@ fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader() {
   assertFalse(rewritten.exists())
 }
 
-  @Test
-  fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
+@Test
+fun mp3NoopDeletionRejectsSpoofedFileWithoutMpegAudioFrame() {
+  val directory = createTempDir(prefix = "streaming-mp3-spoof-noop-")
+  val original = File(directory, "spoof.mp3").apply {
+    writeBytes("not really an mp3".toByteArray(Charsets.UTF_8))
+  }
+  val rewritten = File(directory, "rewritten.mp3")
+  val deletion = NativeTagEditSpec(
+    container = "mp3",
+    tags = mapOf("title" to null),
+    touchedFields = setOf("title"),
+    removeCover = false,
+    coverMimeType = null,
+    coverBytes = null,
+  )
+
+  val error = try {
+    StreamingMp3TagRewriter.rewrite(original, rewritten, deletion, maxBytes)
+    null
+  } catch (caught: AudioTagRewriteException) {
+    caught
+  }
+
+  assertEquals("InvalidTagData", error?.errorCode)
+  assertFalse(rewritten.exists())
+}
+
+@Test
+fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
     val directory = createTempDir(prefix = "streaming-mp3-delete-")
     val audio = mpeg1Layer3Frame(0x32)
     val original = File(directory, "original.mp3").apply { writeBytes(audio) }
@@ -128,7 +155,7 @@ fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader() {
   @Test
   fun mp3DeletionWithoutMatchingFrameIsANoop() {
     val directory = createTempDir(prefix = "streaming-mp3-noop-")
-    val audio = byteArrayOf(0xff.toByte(), 0xfb.toByte(), 3, 2, 1)
+    val audio = mpeg1Layer3Frame(0x33)
     val original = File(directory, "original.mp3").apply { writeBytes(audio) }
     val rewritten = File(directory, "rewritten.mp3")
     val deletion = NativeTagEditSpec(
@@ -359,7 +386,7 @@ fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader() {
   frame[3] = 0x64
 }
 
-  private data class Mp4Fixture(
+private data class Mp4Fixture(
     val file: ByteArray,
     val mdat: ByteArray,
   )

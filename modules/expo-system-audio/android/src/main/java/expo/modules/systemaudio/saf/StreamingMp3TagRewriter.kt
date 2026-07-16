@@ -52,7 +52,7 @@ object StreamingMp3TagRewriter {
     val replacements = buildReplacementFrames(spec, targetMajor)
     val changed = spec.hasIntent && (existingTouched || replacements.isNotEmpty())
     val audioStart = header?.totalTagBytes ?: 0L
-    if (changed) validateMpegAudioStart(original, audioStart)
+    if (spec.hasIntent) validateMpegAudioStart(original, audioStart)
 
     FileOutputStream(temporary).use { output ->
       if (!changed) {
@@ -205,26 +205,26 @@ private fun parseMpegAudioFrameHeader(header: ByteArray): MpegFrameHeader? {
 }
 
 private fun parseFrames(tag: ByteArray, header: Header): List<Frame> {
-    val frames = mutableListOf<Frame>()
-    val end = ID3_HEADER_BYTES + header.payloadSize
-    var offset = header.frameStart
-    while (offset + 10 <= end) {
-      if (tag[offset] == 0.toByte()) break
-      val id = String(tag, offset, 4, Charsets.US_ASCII)
-      if (!Regex("^[A-Z0-9]{4}$").matches(id)) {
-        throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
-      }
-      val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
-      if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
-        throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
-      }
-      frames += Frame(id, tag.copyOfRange(offset, offset + 10 + size))
-      offset += 10 + size
+  val frames = mutableListOf<Frame>()
+  val end = ID3_HEADER_BYTES + header.payloadSize
+  var offset = header.frameStart
+  while (offset + 10 <= end) {
+    if (tag[offset] == 0.toByte()) break
+    val id = String(tag, offset, 4, Charsets.US_ASCII)
+    if (!Regex("^[A-Z0-9]{4}$").matches(id)) {
+      throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
     }
-    return frames
+    val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
+    if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
+      throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
+    }
+    frames += Frame(id, tag.copyOfRange(offset, offset + 10 + size))
+    offset += 10 + size
   }
+  return frames
+}
 
-  private fun hasUnsupportedTailMetadata(file: File): Boolean {
+private fun hasUnsupportedTailMetadata(file: File): Boolean {
     RandomAccessFile(file, "r").use { source ->
       val candidateEnds = linkedSetOf(source.length())
       val id3v1Start = source.length() - 128L
