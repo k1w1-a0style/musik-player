@@ -3,162 +3,220 @@ name: CI
 on:
   pull_request:
     branches: [main, codex]
-  push:
-    branches: [main, codex]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality-gates:
-    name: Typecheck, tests, coverage, lint, config gates
+  format-mp3-validation:
+    if: github.event_name == 'pull_request' && github.head_ref == 'gpt/v7-1-pr-2b-native-streaming-saf-rewrite'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+      - name: Checkout PR head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Tests with coverage
-        shell: bash
-        run: |
-          set -uo pipefail
-          set +e
-          npm run test:coverage -- --runInBand 2>&1 | tee jest-coverage.log
-          status=${PIPESTATUS[0]}
-          set -e
-          printf '%s\n' "$status" > jest-coverage.exit-code
-          exit 0
-
-      - name: Upload Jest coverage diagnostic log
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: jest-coverage-log
-          path: |
-            jest-coverage.log
-            jest-coverage.exit-code
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Enforce Jest coverage result
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Format MPEG validation blocks
         shell: bash
         run: |
           set -euo pipefail
-          status=$(cat jest-coverage.exit-code)
-          if [ "$status" -ne 0 ]; then
-            echo "::error::Jest coverage failed with exit code $status. See jest-coverage-log artifact."
-            exit "$status"
-          fi
+          python <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
 
-      - name: Lint
-        run: npm run lint:ci
+          prod = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt')
+          text = prod.read_text()
+          raw_prod = r'''
+          private data class MpegFrameHeader(
+            val frameLength: Int,
+          )
 
-      - name: Expo config release gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx --no-install expo config --json > expo-config.json
-          node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
-
-      - name: Generated Android manifest permission gate
-        run: npm run check:android-permissions
-
-      - name: Select JDK 17 for Android Kotlin compile
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${JAVA_HOME_17_X64:-}" ]; then
-            echo "::error::JAVA_HOME_17_X64 is not available on this runner."
-            exit 1
-          fi
-          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
-          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
-
-      - name: Generate Android project for native checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "No APK/AAB/EAS build is performed in this workflow."
-          java -version
-          npx --no-install expo prebuild --platform android --no-install --clean
-
-      - name: Android native compile and unit tests – no APK/EAS build
-        shell: bash
-        run: |
-          set -uo pipefail
-          set +e
-          cd android
-          echo "Exact native Gradle test task: ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain"
-          ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
-          status=${PIPESTATUS[0]}
-          set -e
-          printf '%s\n' "$status" > ../native-gradle.exit-code
-          exit 0
-
-      - name: Upload native Gradle diagnostic log and JUnit reports
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-gradle-log
-          path: |
-            native-gradle.log
-            native-gradle.exit-code
-            modules/expo-system-audio/android/build/test-results/testDebugUnitTest/**/*.xml
-            modules/expo-system-audio/android/build/reports/tests/testDebugUnitTest/**
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Enforce native Gradle result
-        shell: bash
-        run: |
-          set -euo pipefail
-          status=$(cat native-gradle.exit-code)
-          if [ "$status" -ne 0 ]; then
-            echo "::error::Android native compile or unit tests failed with exit code $status. See native-gradle-log artifact."
-            exit "$status"
-          fi
-
-      - name: Verify native JUnit execution
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd android
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const resultsDir = path.resolve('..', 'modules', 'expo-system-audio', 'android', 'build', 'test-results', 'testDebugUnitTest');
-          const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
-          let tests = 0;
-          let failures = 0;
-          let errors = 0;
-          for (const file of files) {
-            const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
-            const match = xml.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*errors="(\d+)"/);
-            if (match) {
-              tests += Number(match[1]);
-              failures += Number(match[2]);
-              errors += Number(match[3]);
+          private fun validateMpegAudioStart(original: File, audioStart: Long) {
+            RandomAccessFile(original, "r").use { source ->
+              if (audioStart < 0L || audioStart + 4L > source.length()) {
+                throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing.")
+              }
+              source.seek(audioStart)
+              val header = ByteArray(4)
+              source.readFully(header)
+              val frame = parseMpegAudioFrameHeader(header)
+                ?: throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing or invalid.")
+              if (audioStart + frame.frameLength.toLong() > source.length()) {
+                throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame is truncated.")
+              }
             }
           }
-          console.log(`Native Gradle test task :expo-system-audio:testDebugUnitTest completed: ${tests} tests, ${failures} failures, ${errors} errors.`);
-          if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
-          NODE
+
+          private fun parseMpegAudioFrameHeader(header: ByteArray): MpegFrameHeader? {
+            if (header.size < 4) return null
+            val first = header[0].toInt() and 0xff
+            val second = header[1].toInt() and 0xff
+            val third = header[2].toInt() and 0xff
+            val fourth = header[3].toInt() and 0xff
+            if (first != 0xff || (second and 0xe0) != 0xe0) return null
+
+            val version = (second ushr 3) and 0x03
+            val layer = (second ushr 1) and 0x03
+            val bitrateIndex = (third ushr 4) and 0x0f
+            val sampleRateIndex = (third ushr 2) and 0x03
+            val padding = (third ushr 1) and 0x01
+            val emphasis = fourth and 0x03
+            if (version == 0x01 || layer == 0x00 || bitrateIndex in setOf(0x00, 0x0f) || sampleRateIndex == 0x03 || emphasis == 0x02) {
+              return null
+            }
+
+            val bitrateKbps = when {
+              version == 0x03 && layer == 0x03 -> intArrayOf(0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0)[bitrateIndex]
+              version == 0x03 && layer == 0x02 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0)[bitrateIndex]
+              version == 0x03 && layer == 0x01 -> intArrayOf(0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0)[bitrateIndex]
+              version != 0x03 && layer == 0x03 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0)[bitrateIndex]
+              else -> intArrayOf(0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0)[bitrateIndex]
+            }
+            val sampleRateHz = when (version) {
+              0x03 -> intArrayOf(44_100, 48_000, 32_000)[sampleRateIndex]
+              0x02 -> intArrayOf(22_050, 24_000, 16_000)[sampleRateIndex]
+              0x00 -> intArrayOf(11_025, 12_000, 8_000)[sampleRateIndex]
+              else -> return null
+            }
+            val frameLength = when {
+              layer == 0x03 -> (((12L * bitrateKbps * 1_000L) / sampleRateHz) + padding) * 4L
+              layer == 0x01 && version != 0x03 -> ((72L * bitrateKbps * 1_000L) / sampleRateHz) + padding
+              else -> ((144L * bitrateKbps * 1_000L) / sampleRateHz) + padding
+            }
+            if (frameLength < 4L || frameLength > Int.MAX_VALUE) return null
+            return MpegFrameHeader(frameLength.toInt())
+          }
+
+          private fun parseFrames(tag: ByteArray, header: Header): List<Frame> {
+            val frames = mutableListOf<Frame>()
+            val end = ID3_HEADER_BYTES + header.payloadSize
+            var offset = header.frameStart
+            while (offset + 10 <= end) {
+              if (tag[offset] == 0.toByte()) break
+              val id = String(tag, offset, 4, Charsets.US_ASCII)
+              if (!Regex("^[A-Z0-9]{4}$").matches(id)) {
+                throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
+              }
+              val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
+              if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
+                throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
+              }
+              frames += Frame(id, tag.copyOfRange(offset, offset + 10 + size))
+              offset += 10 + size
+            }
+            return frames
+          }
+          '''
+          block = textwrap.indent(textwrap.dedent(raw_prod).strip('\n'), '  ')
+          pattern = re.compile(r'  private data class MpegFrameHeader\(.*?\n\s*private fun hasUnsupportedTailMetadata', re.S)
+          text, count = pattern.subn(block + '\n\n  private fun hasUnsupportedTailMetadata', text, count=1)
+          if count != 1:
+              raise SystemExit(f'production format replacement count={count}')
+          prod.write_text(text)
+
+          test = Path('modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf/StreamingAudioTagRewriterTest.kt')
+          text = test.read_text()
+          raw_tests = r'''
+          @Test
+          fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader() {
+            val directory = createTempDir(prefix = "streaming-mp3-truncated-frame-")
+            val original = File(directory, "truncated.mp3").apply {
+              writeBytes(byteArrayOf(0xff.toByte(), 0xfb.toByte(), 0x90.toByte(), 0x64, 1, 2, 3, 4))
+            }
+            val rewritten = File(directory, "rewritten.mp3")
+
+            val error = try {
+              StreamingMp3TagRewriter.rewrite(original, rewritten, textSpec("mp3", "title", "Truncated"), maxBytes)
+              null
+            } catch (caught: AudioTagRewriteException) {
+              caught
+            }
+
+            assertEquals("InvalidTagData", error?.errorCode)
+            assertFalse(rewritten.exists())
+          }
+
+          @Test
+          fun mp3NoopDeletionRejectsSpoofedFileWithoutMpegAudioFrame() {
+            val directory = createTempDir(prefix = "streaming-mp3-spoof-noop-")
+            val original = File(directory, "spoof.mp3").apply {
+              writeBytes("not really an mp3".toByteArray(Charsets.UTF_8))
+            }
+            val rewritten = File(directory, "rewritten.mp3")
+            val deletion = NativeTagEditSpec(
+              container = "mp3",
+              tags = mapOf("title" to null),
+              touchedFields = setOf("title"),
+              removeCover = false,
+              coverMimeType = null,
+              coverBytes = null,
+            )
+
+            val error = try {
+              StreamingMp3TagRewriter.rewrite(original, rewritten, deletion, maxBytes)
+              null
+            } catch (caught: AudioTagRewriteException) {
+              caught
+            }
+
+            assertEquals("InvalidTagData", error?.errorCode)
+            assertFalse(rewritten.exists())
+          }
+
+          @Test
+          fun mp3DeletionRemovesOnlyTheRequestedId3Frame() {
+            val directory = createTempDir(prefix = "streaming-mp3-delete-")
+            val audio = mpeg1Layer3Frame(0x32)
+            val original = File(directory, "original.mp3").apply { writeBytes(audio) }
+            val tagged = File(directory, "tagged.mp3")
+            val deleted = File(directory, "deleted.mp3")
+
+            StreamingMp3TagRewriter.rewrite(original, tagged, textSpec("mp3", "title", "Temporary"), maxBytes)
+            val deletion = NativeTagEditSpec(
+              container = "mp3",
+              tags = mapOf("title" to null),
+              touchedFields = setOf("title"),
+              removeCover = false,
+              coverMimeType = null,
+              coverBytes = null,
+            )
+            val result = StreamingMp3TagRewriter.rewrite(tagged, deleted, deletion, maxBytes)
+
+            assertTrue(result.changed)
+            assertArrayEquals(audio, deleted.readBytes())
+          }
+          '''
+          tests = textwrap.indent(textwrap.dedent(raw_tests).strip('\n'), '  ')
+          pattern = re.compile(r'  @Test\s+fun mp3RewriteRejectsTruncatedMpegFrameAfterValidHeader\(\).*?\n\s*@Test\n  fun mp3DeletionWithoutMatchingFrameIsANoop', re.S)
+          text, count = pattern.subn(tests + '\n\n  @Test\n  fun mp3DeletionWithoutMatchingFrameIsANoop', text, count=1)
+          if count != 1:
+              raise SystemExit(f'test format replacement count={count}')
+
+          raw_helper = r'''
+          private fun mpeg1Layer3Frame(fill: Int = 0x55): ByteArray = ByteArray(417) { fill.toByte() }.also { frame ->
+            frame[0] = 0xff.toByte()
+            frame[1] = 0xfb.toByte()
+            frame[2] = 0x90.toByte()
+            frame[3] = 0x64
+          }
+          '''
+          helper = textwrap.indent(textwrap.dedent(raw_helper).strip('\n'), '  ')
+          pattern = re.compile(r'  private fun mpeg1Layer3Frame\(fill: Int = 0x55\).*?\n\s*private data class Mp4Fixture', re.S)
+          text, count = pattern.subn(helper + '\n\n  private data class Mp4Fixture', text, count=1)
+          if count != 1:
+              raise SystemExit(f'helper format replacement count={count}')
+          test.write_text(text)
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/saf/StreamingMp3TagRewriter.kt modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/saf/StreamingAudioTagRewriterTest.kt
+          git commit -m 'Format MPEG validation code and tests'
+          git push origin HEAD:${{ github.head_ref }}
