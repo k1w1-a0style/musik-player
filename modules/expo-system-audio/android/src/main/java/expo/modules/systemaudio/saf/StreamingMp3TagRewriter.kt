@@ -145,86 +145,86 @@ object StreamingMp3TagRewriter {
   }
 
   private data class MpegFrameHeader(
-  val frameLength: Int,
-)
+    val frameLength: Int,
+  )
 
-private fun validateMpegAudioStart(original: File, audioStart: Long) {
-  RandomAccessFile(original, "r").use { source ->
-    if (audioStart < 0L || audioStart + 4L > source.length()) {
-      throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing.")
+  private fun validateMpegAudioStart(original: File, audioStart: Long) {
+    RandomAccessFile(original, "r").use { source ->
+      if (audioStart < 0L || audioStart + 4L > source.length()) {
+        throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing.")
+      }
+      source.seek(audioStart)
+      val header = ByteArray(4)
+      source.readFully(header)
+      val frame = parseMpegAudioFrameHeader(header)
+        ?: throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing or invalid.")
+      if (audioStart + frame.frameLength.toLong() > source.length()) {
+        throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame is truncated.")
+      }
     }
-    source.seek(audioStart)
-    val header = ByteArray(4)
-    source.readFully(header)
-    val frame = parseMpegAudioFrameHeader(header)
-      ?: throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame header is missing or invalid.")
-    if (audioStart + frame.frameLength.toLong() > source.length()) {
-      throw AudioTagRewriteException("InvalidTagData", "MP3 audio frame is truncated.")
+  }
+
+  private fun parseMpegAudioFrameHeader(header: ByteArray): MpegFrameHeader? {
+    if (header.size < 4) return null
+    val first = header[0].toInt() and 0xff
+    val second = header[1].toInt() and 0xff
+    val third = header[2].toInt() and 0xff
+    val fourth = header[3].toInt() and 0xff
+    if (first != 0xff || (second and 0xe0) != 0xe0) return null
+
+    val version = (second ushr 3) and 0x03
+    val layer = (second ushr 1) and 0x03
+    val bitrateIndex = (third ushr 4) and 0x0f
+    val sampleRateIndex = (third ushr 2) and 0x03
+    val padding = (third ushr 1) and 0x01
+    val emphasis = fourth and 0x03
+    if (version == 0x01 || layer == 0x00 || bitrateIndex in setOf(0x00, 0x0f) || sampleRateIndex == 0x03 || emphasis == 0x02) {
+      return null
     }
-  }
-}
 
-private fun parseMpegAudioFrameHeader(header: ByteArray): MpegFrameHeader? {
-  if (header.size < 4) return null
-  val first = header[0].toInt() and 0xff
-  val second = header[1].toInt() and 0xff
-  val third = header[2].toInt() and 0xff
-  val fourth = header[3].toInt() and 0xff
-  if (first != 0xff || (second and 0xe0) != 0xe0) return null
-
-  val version = (second ushr 3) and 0x03
-  val layer = (second ushr 1) and 0x03
-  val bitrateIndex = (third ushr 4) and 0x0f
-  val sampleRateIndex = (third ushr 2) and 0x03
-  val padding = (third ushr 1) and 0x01
-  val emphasis = fourth and 0x03
-  if (version == 0x01 || layer == 0x00 || bitrateIndex in setOf(0x00, 0x0f) || sampleRateIndex == 0x03 || emphasis == 0x02) {
-    return null
-  }
-
-  val bitrateKbps = when {
-    version == 0x03 && layer == 0x03 -> intArrayOf(0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0)[bitrateIndex]
-    version == 0x03 && layer == 0x02 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0)[bitrateIndex]
-    version == 0x03 && layer == 0x01 -> intArrayOf(0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0)[bitrateIndex]
-    version != 0x03 && layer == 0x03 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0)[bitrateIndex]
-    else -> intArrayOf(0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0)[bitrateIndex]
-  }
-  val sampleRateHz = when (version) {
-    0x03 -> intArrayOf(44_100, 48_000, 32_000)[sampleRateIndex]
-    0x02 -> intArrayOf(22_050, 24_000, 16_000)[sampleRateIndex]
-    0x00 -> intArrayOf(11_025, 12_000, 8_000)[sampleRateIndex]
-    else -> return null
-  }
-  val frameLength = when {
-    layer == 0x03 -> (((12L * bitrateKbps * 1_000L) / sampleRateHz) + padding) * 4L
-    layer == 0x01 && version != 0x03 -> ((72L * bitrateKbps * 1_000L) / sampleRateHz) + padding
-    else -> ((144L * bitrateKbps * 1_000L) / sampleRateHz) + padding
-  }
-  if (frameLength < 4L || frameLength > Int.MAX_VALUE) return null
-  return MpegFrameHeader(frameLength.toInt())
-}
-
-private fun parseFrames(tag: ByteArray, header: Header): List<Frame> {
-  val frames = mutableListOf<Frame>()
-  val end = ID3_HEADER_BYTES + header.payloadSize
-  var offset = header.frameStart
-  while (offset + 10 <= end) {
-    if (tag[offset] == 0.toByte()) break
-    val id = String(tag, offset, 4, Charsets.US_ASCII)
-    if (!Regex("^[A-Z0-9]{4}$").matches(id)) {
-      throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
+    val bitrateKbps = when {
+      version == 0x03 && layer == 0x03 -> intArrayOf(0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0)[bitrateIndex]
+      version == 0x03 && layer == 0x02 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0)[bitrateIndex]
+      version == 0x03 && layer == 0x01 -> intArrayOf(0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0)[bitrateIndex]
+      version != 0x03 && layer == 0x03 -> intArrayOf(0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0)[bitrateIndex]
+      else -> intArrayOf(0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0)[bitrateIndex]
     }
-    val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
-    if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
-      throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
+    val sampleRateHz = when (version) {
+      0x03 -> intArrayOf(44_100, 48_000, 32_000)[sampleRateIndex]
+      0x02 -> intArrayOf(22_050, 24_000, 16_000)[sampleRateIndex]
+      0x00 -> intArrayOf(11_025, 12_000, 8_000)[sampleRateIndex]
+      else -> return null
     }
-    frames += Frame(id, tag.copyOfRange(offset, offset + 10 + size))
-    offset += 10 + size
+    val frameLength = when {
+      layer == 0x03 -> (((12L * bitrateKbps * 1_000L) / sampleRateHz) + padding) * 4L
+      layer == 0x01 && version != 0x03 -> ((72L * bitrateKbps * 1_000L) / sampleRateHz) + padding
+      else -> ((144L * bitrateKbps * 1_000L) / sampleRateHz) + padding
+    }
+    if (frameLength < 4L || frameLength > Int.MAX_VALUE) return null
+    return MpegFrameHeader(frameLength.toInt())
   }
-  return frames
-}
 
-private fun hasUnsupportedTailMetadata(file: File): Boolean {
+  private fun parseFrames(tag: ByteArray, header: Header): List<Frame> {
+    val frames = mutableListOf<Frame>()
+    val end = ID3_HEADER_BYTES + header.payloadSize
+    var offset = header.frameStart
+    while (offset + 10 <= end) {
+      if (tag[offset] == 0.toByte()) break
+      val id = String(tag, offset, 4, Charsets.US_ASCII)
+      if (!Regex("^[A-Z0-9]{4}$").matches(id)) {
+        throw AudioTagRewriteException("InvalidTagData", "Invalid ID3 frame ID.")
+      }
+      val size = if (header.major == 4) decodeSynchsafe(tag, offset + 4) else readU32(tag, offset + 4)
+      if (size < 0 || offset.toLong() + 10L + size.toLong() > end.toLong()) {
+        throw AudioTagRewriteException("InvalidTagData", "Truncated ID3 frame.")
+      }
+      frames += Frame(id, tag.copyOfRange(offset, offset + 10 + size))
+      offset += 10 + size
+    }
+    return frames
+  }
+
+  private fun hasUnsupportedTailMetadata(file: File): Boolean {
     RandomAccessFile(file, "r").use { source ->
       val candidateEnds = linkedSetOf(source.length())
       val id3v1Start = source.length() - 128L
