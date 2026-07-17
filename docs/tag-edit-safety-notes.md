@@ -3,9 +3,9 @@
 ## Current policy
 
 - Guarded real writes are enabled for supported local Android `file://` MP3/M4A/MP4 audio files.
-- Android SAF `content://` writes are enabled only for SAF-sourced MP3/M4A/MP4 tracks when the loaded native module exposes the full durable writer/recovery contract and the provider grants write access.
-- MediaLibrary `content://` tracks without SAF write grant remain read-only.
-- Text-tag writes, cover add/replace and cover removal use the same guarded planner/writer gates for supported MP3/M4A/MP4 containers.
+- The Android TagEditor and write planner enable SAF `content://` writes only for SAF-sourced MP3/M4A/MP4 tracks when the loaded native module exposes the full durable writer/recovery contract.
+- The public writer rejects tracks explicitly identified as `media-library` before any native write. A direct caller that supplies an ambiguous `content://` URI without source metadata is not advertised as writable by the planner and is delegated to the native permission/provider checks.
+- Text-tag writes, cover add/replace and cover removal use the same guarded native writer for accepted MP3/M4A/MP4 SAF requests.
 - Remote, empty, unknown and unsupported containers remain read-only and fail before any write attempt.
 - `atomicReplace=false` for SAF and local-file plans; SAF provider truncate/write behavior remains provider-dependent and must be validated on real Android devices before release.
 
@@ -38,10 +38,10 @@ The orchestration plan models:
 - Missing, empty or unknown URI values are rejected before write attempts.
 - Local Android `file://` uses guarded backup, temp, verify and replace flow when the adapter reports safe replace support.
 - iOS/web `file://` remains unavailable until a safe replace primitive exists.
-- Android SAF `content://` writes require a SAF source signal, persisted/direct URI write permission, writable provider flags and the full native durable writer contract.
-- MediaLibrary `content://` tracks without SAF grant remain blocked.
+- The Android TagEditor/planner requires a SAF source signal, a writable runtime and the full native durable writer contract before enabling `content://` saves.
+- The public writer rejects explicit `media-library` provenance with `MissingWritePermission`. Ambiguous direct `content://` calls without source metadata fall through only to native persisted/direct permission and provider-writable checks; this fallback is not an advertised UI capability.
 - Old native builds that do not expose write, deletion verification, recovery status and recovery APIs are treated as incomplete and blocked.
-- Capability and preflight gates are expected to match the writer behavior for MP3, M4A and MP4.
+- Capability, UI and public-writer gates are aligned for known SAF and MediaLibrary provenance; ambiguous direct API calls remain fail-closed at the native permission layer.
 
 ## Backup, verification and rollback concept
 
