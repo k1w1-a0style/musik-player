@@ -48,7 +48,7 @@ false
 ]
 ```
 
-`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert. Android 13+ nutzt `READ_MEDIA_AUDIO`; ältere Android-Versionen werden über `expo-media-library`/Systemdialoge gelesen. `WRITE_EXTERNAL_STORAGE` wird nicht blind deklariert: lokale Tag-Updates laufen über app-writable lokale Dateien, SAF-MP3-Texttag-Updates laufen über die native SAF-Route mit bestehender Berechtigung, und nicht unterstützte SAF-Grenzen bleiben nicht verfügbar.
+`android.permission.RECORD_AUDIO` darf nicht erscheinen; native FFT bleibt im Release-Modul deaktiviert. Android 13+ nutzt `READ_MEDIA_AUDIO`; ältere Android-Versionen werden über `expo-media-library`/Systemdialoge gelesen. `WRITE_EXTERNAL_STORAGE` wird nicht blind deklariert: lokale Tag-Updates laufen über app-writable lokale Dateien. SAF/content MP3/M4A/MP4 Texttag- und Cover-Writes laufen über die native SAF-Route mit persisted Write-Permission, Provider-Writable-Flags, unterstütztem ID3-/Atom-Layout und erfolgreicher Byte-Verifikation. MediaLibrary-`content://` ohne SAF-Grant, source-lose Planner-URIs, alte Native-Builds und nicht unterstützte Layouts bleiben blockiert.
 
 ## Generiertes Android Manifest prüfen
 
@@ -80,8 +80,10 @@ Der `preview`-Build ist in `eas.json` als APK ohne Credentials konfiguriert und 
 - Import mit MP3 ID3v2.2/v2.3/v2.4 prüfen
 - Embedded Cover prüfen
 - Tag Editor mit kleiner lokaler Datei testen
-- Tag Editor mit SAF-MP3-Datei und bestehender Berechtigung testen
-- SAF-Cover-Updates, SAF-MP4/M4A-Updates und nicht unterstützte Layouts müssen sichtbar nicht verfügbar bleiben
+- Tag Editor mit SAF-MP3-, SAF-M4A- und SAF-MP4-Dateien testen, jeweils mit persisted Write-Permission, Provider-Writable-Flags und sicher unterstütztem Layout
+- SAF-Texttag- und Cover-Writes hinzufügen/ersetzen/entfernen prüfen; Datei muss danach abspielbar bleiben
+- MediaLibrary-`content://`, source-lose Planner-URIs, fehlende SAF-Grants, alte Native-Builds und unsupported ID3-/MP4-Layouts müssen sichtbar blockiert bleiben
+- No-op, Backup, Byte-Verifikation, Rollback und Restart-Recovery ohne Datenverlust-Anzeichen prüfen
 - AlbumArtist-Anzeige, Gruppierung und Speichern prüfen
 - AudioInfo-Backfill für bestehende Titel prüfen
 - Tag Editor mit sehr großer Datei prüfen: muss vor dem Speichern blockieren

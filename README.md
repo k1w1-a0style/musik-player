@@ -73,8 +73,8 @@ npm test -- --runInBand
 - Playback benötigt **keinen Mikrofonzugriff**; `RECORD_AUDIO` wird in der App-Konfiguration nicht angefordert.
 - Native Änderungen für AudioInfo und SAF-TagWriter benötigen einen neuen Development Build, bevor sie auf dem Gerät wirksam sind.
 - Der Tag-Editor schreibt lokale MP3/MP4/M4A-Dateien über Backup, Temp-Datei und Byteprüfung.
-- SAF-MP3-Texttags sind nur über die native SAF-Schreibroute mit bestehender Berechtigung, unterstütztem Layout und erfolgreicher Byteprüfung freigegeben.
-- SAF-Cover-Schreiben, MP4/M4A-SAF-Schreiben und nicht unterstützte Layouts bleiben bewusst blockiert.
+- SAF/content MP3/M4A/MP4 Texttag- und Cover-Writes sind nur über die native SAF-Schreibroute mit persisted Write-Permission, Provider-Writable-Flags, unterstütztem ID3-/Atom-Layout und erfolgreicher Byte-Verifikation freigegeben.
+- MediaLibrary-`content://` ohne SAF-Grant, source-lose Planner-URIs, alte Native-Builds und nicht unterstützte ID3-/MP4-Layouts bleiben bewusst blockiert.
 - Für große Audio-Dateien ist In-App-Tag-Schreiben begrenzt, um RAM- und Dateikorruptionsrisiken auf Android zu senken.
 
 ## Projektstruktur (vereinfacht)
