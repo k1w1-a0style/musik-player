@@ -27,7 +27,9 @@
 - Optional ein großes Cover / große Audiodatei für Stabilitätstest
 - SAF-Quelle verfügbar
 - Lokale Datei-Quelle verfügbar
-- SAF-MP3-Testdatei mit bestehender Berechtigung verfügbar
+- SAF-MP3-Testdatei mit bestehender persisted Permission verfügbar
+- SAF-M4A- oder SAF-MP4-Testdatei mit bestehender persisted Permission verfügbar
+- Testcover zum Hinzufügen/Ersetzen sowie mindestens ein entfernbares embedded Cover verfügbar
 - Theme-Testzustände verfügbar: Graphite, Minimal und Neon Cover jeweils in Hell/Dunkel prüfen
 
 ## Build-/Config-Prüfung
@@ -142,11 +144,15 @@ Checkliste:
 - [ ] Tag-Bearbeitung für lokale Datei funktioniert
 - [ ] Cover ersetzen für lokale Datei funktioniert
 - [ ] Cover entfernen für lokale Datei funktioniert
-- [ ] SAF-MP3-Texttag-Speichern funktioniert mit bestehender Berechtigung und unterstütztem Layout
-- [ ] SAF-Cover-Speichern bleibt sichtbar nicht verfügbar
-- [ ] MP4/M4A-SAF-Speichern bleibt sichtbar nicht verfügbar
-- [ ] Unsupported Layouts bleiben sichtbar nicht verfügbar
-- [ ] Backup/Temp/Verify/Rollback-Verhalten zeigt keine beschädigte Datei
+- [ ] SAF-MP3-Texttag-Speichern funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und unterstütztem Layout
+- [ ] SAF-MP3-Cover hinzufügen/ersetzen funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und unterstütztem Layout
+- [ ] SAF-MP3-embedded-Cover entfernen funktioniert mit bestehender persisted Permission und unterstütztem Layout
+- [ ] SAF-M4A/MP4-Texttag-Speichern funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und sicherem Atom-Layout
+- [ ] SAF-M4A/MP4-Cover hinzufügen/ersetzen/entfernen funktioniert nur bei sicher unterstütztem Atom-Layout
+- [ ] MediaLibrary-`content://`, source-lose Planner-URIs, fehlende SAF-Grants und alte Native-Builds bleiben sichtbar blockiert
+- [ ] Unsupported ID3-/MP4-Layouts bleiben sichtbar blockiert
+- [ ] No-op-Speichern verändert die Datei nicht unnötig
+- [ ] Backup/Write/Verify/Rollback/Restart-Recovery zeigt keine beschädigte Datei
 - [ ] Datei bleibt nach Tag/Cover-Änderung abspielbar
 - [ ] AlbumArtist kann im Tag Editor gespeichert und nach Refresh wieder gelesen werden
 
@@ -187,7 +193,9 @@ Bestanden nur, wenn:
 - Theme Dark/Light/Skins inklusive Persistenz nach Neustart geprüft
 - Cover/Palette Smoke geprüft
 - lokales Tag/Cover-Speichern geprüft
-- SAF-MP3-Texttag-Speichern und nicht verfügbare SAF-Grenzen geprüft
+- SAF-MP3/M4A/MP4 Texttag- und Cover-Writes für unterstützte Layouts geprüft
+- MediaLibrary-, fehlende-Permission-, source-lose Planner- und unsupported-Layout-Grenzen geprüft
+- Backup/Verify/Rollback/Restart-Recovery ohne Datenverlust-Anzeichen geprüft
 - AlbumArtist und AudioInfo-Backfill geprüft
 - keine unerwarteten Permissions
 - keine Datenverlust-Anzeichen
