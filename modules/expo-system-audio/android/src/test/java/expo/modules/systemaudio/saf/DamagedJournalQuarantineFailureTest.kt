@@ -14,7 +14,6 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.util.Base64
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -79,13 +78,11 @@ class DamagedJournalQuarantineFailureTest {
     val result = manager.write(
       TransactionWriteRequest(
         uri = uri,
-        rewrittenBase64 = Base64.getEncoder().encodeToString(rewritten),
+        rewriteSource = staticRewriteSource(rewritten),
         changedFields = listOf("title"),
         maxBytes = 1024 * 1024,
         expectedOriginalSize = original.size.toLong(),
         expectedOriginalSha256 = sha256(original),
-        expectedWrittenSize = rewritten.size.toLong(),
-        expectedWrittenSha256 = sha256(rewritten),
       ),
     )
 

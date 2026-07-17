@@ -34,15 +34,15 @@ export interface EmbeddedArtworkResult {
 export interface AudioTagWriteRequest {
   tags?: Record<string, string | null | undefined>;
   container?: 'mp3' | 'm4a' | 'mp4' | string;
-  /** Base64 encoded, already tag-rewritten full audio payload. */
-  rewrittenAudioBase64?: string;
+  removeCover?: boolean;
+  cover?: {
+    mimeType: 'image/jpeg' | 'image/png';
+    dataBase64: string;
+  };
   expectedOriginalSizeBytes?: number;
   expectedOriginalSha256Hex?: string;
-  expectedWrittenSizeBytes?: number;
-  expectedWrittenSha256Hex?: string;
   maxFileSizeBytes?: number;
   changedFields?: string[];
-  failedFields?: string[];
 }
 
 export interface AudioTagWriteResult {
@@ -55,6 +55,7 @@ export interface AudioTagWriteResult {
   backupUri?: string;
   tempUri?: string;
   verified: boolean;
+  noop?: boolean;
   bytesBefore?: number;
   bytesAfter?: number;
   transactionId?: string;
@@ -145,8 +146,8 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
-  readAudioFileBase64?(uri: string, maxBytes?: number): Promise<string | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
+  verifyAudioTagDeletion?(uri: string, request: AudioTagWriteRequest): Promise<boolean>;
   getAudioTagRecoveryStatus?(): Promise<RecoveryStatusResult>;
   recoverPendingAudioTagTransactions?(uri?: string): Promise<RecoveryRunResult>;
 }
@@ -174,12 +175,12 @@ const waveformNative: ExpoSystemAudioWaveformModule | null = (() => {
 /**
  * Durable SAF writes require the complete native transaction/recovery contract.
  * Failing closed here prevents a JS update from silently using an older native
- * writer that still exposes the legacy read/write methods without crash recovery.
+ * writer that still exposes the legacy non-streaming writer without the complete transaction contract.
  */
 const hasNativeTagWriter =
   native !== null &&
-  typeof native.readAudioFileBase64 === 'function' &&
   typeof native.writeAudioTags === 'function' &&
+  typeof native.verifyAudioTagDeletion === 'function' &&
   typeof native.getAudioTagRecoveryStatus === 'function' &&
   typeof native.recoverPendingAudioTagTransactions === 'function';
 
@@ -247,10 +248,6 @@ export const SystemAudio = {
     }
   },
 
-  async readAudioFileBase64(uri: string, maxBytes?: number): Promise<string | null> {
-    return native?.readAudioFileBase64 ? native.readAudioFileBase64(uri, maxBytes) : null;
-  },
-
   async getAudioTagRecoveryStatus(): Promise<RecoveryStatusResult> {
     return native?.getAudioTagRecoveryStatus
       ? native.getAudioTagRecoveryStatus()
@@ -261,6 +258,12 @@ export const SystemAudio = {
     return native?.recoverPendingAudioTagTransactions
       ? native.recoverPendingAudioTagTransactions(uri)
       : { success: true, recoveryPending: false, recovered: false };
+  },
+
+  async verifyAudioTagDeletion(uri: string, request: AudioTagWriteRequest): Promise<boolean> {
+    return native?.verifyAudioTagDeletion
+      ? native.verifyAudioTagDeletion(uri, request)
+      : false;
   },
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {

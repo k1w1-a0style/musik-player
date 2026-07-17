@@ -4,7 +4,6 @@ import android.net.Uri
 import android.os.StatFs
 import android.system.Os
 import android.system.OsConstants
-import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -417,18 +416,6 @@ object StreamDigests {
     DigestInfo(total, digest.hex())
   }
 
-  fun decodeBase64ToFileWithDigest(
-    base64: String,
-    temporary: File,
-    maxBytes: Long,
-  ): DigestInfo {
-    val input = android.util.Base64InputStream(
-      base64.byteInputStream(Charsets.US_ASCII),
-      Base64.DEFAULT,
-    )
-    return input.use { copyToFile(it, temporary, maxBytes) }
-  }
-
   fun verifyFile(file: File, expected: DigestInfo, maxBytes: Long): Boolean =
     file.isFile && hashFile(file, maxBytes) == expected
 
@@ -472,13 +459,11 @@ class SizeLimitException : IOException("size limit exceeded")
 
 data class TransactionWriteRequest(
   val uri: Uri,
-  val rewrittenBase64: String,
+  val rewriteSource: AudioTagRewriteSource,
   val changedFields: List<String>,
   val maxBytes: Long,
-  val expectedOriginalSize: Long?,
-  val expectedOriginalSha256: String?,
-  val expectedWrittenSize: Long?,
-  val expectedWrittenSha256: String? = null,
+  val expectedOriginalSize: Long? = null,
+  val expectedOriginalSha256: String? = null,
 )
 
 data class TransactionResult(
@@ -486,6 +471,7 @@ data class TransactionResult(
   val errorCode: String?,
   val message: String,
   val verified: Boolean = false,
+  val noop: Boolean = false,
   val bytesBefore: Long? = null,
   val bytesAfter: Long? = null,
   val transactionId: String? = null,
@@ -598,9 +584,34 @@ class AudioTagTransactionManager(
       )
     }
 
-    val expectedSpace = (store.size(request.uri) ?: 0L) +
-      (request.expectedWrittenSize ?: 0L) +
-      safetyMarginBytes
+    if (request.maxBytes <= 0L) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "InvalidTagData",
+        message = "Maximum file size must be positive.",
+      )
+    }
+    val knownOriginalSize = store.size(request.uri)?.takeIf { it >= 0L }
+    if (knownOriginalSize != null && knownOriginalSize > request.maxBytes) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "FileTooLarge",
+        message = "File exceeds the safe tag write size limit.",
+        bytesBefore = knownOriginalSize,
+      )
+    }
+    val originalReserve = knownOriginalSize ?: request.maxBytes
+    val rewrittenReserve = request.rewriteSource
+      .estimatedOutputSizeUpperBound(originalReserve, request.maxBytes)
+      .coerceIn(0L, request.maxBytes)
+    val expectedSpace = listOf(
+      originalReserve,
+      rewrittenReserve,
+      safetyMarginBytes,
+    ).fold(0L) { total, rawValue ->
+      val value = rawValue.coerceAtLeast(0L)
+      if (Long.MAX_VALUE - total < value) Long.MAX_VALUE else total + value
+    }
     if (storage.availableBytes() < expectedSpace) {
       return@withLock TransactionResult(
         success = false,
@@ -645,7 +656,7 @@ class AudioTagTransactionManager(
         )
       }
       if (
-        request.expectedOriginalSha256.isNullOrBlank() ||
+        !request.expectedOriginalSha256.isNullOrBlank() &&
         request.expectedOriginalSha256.lowercase() != originalDigest.sha256Hex
       ) {
         return@withLock cleanupBeforeMutation(
@@ -677,52 +688,30 @@ class AudioTagTransactionManager(
       phase = WriteExecutionPhase.BACKUP_DURABLE
 
       val rewrittenTemporary = File(directory, "rewritten.tmp")
-      val rewrittenDigest = try {
-        StreamDigests.decodeBase64ToFileWithDigest(
-          base64 = request.rewrittenBase64,
+      val rewriteResult = try {
+        request.rewriteSource.rewrite(
+          original = storage.original(directory),
           temporary = rewrittenTemporary,
           maxBytes = request.maxBytes,
         )
-      } catch (_: IllegalArgumentException) {
+      } catch (error: AudioTagRewriteException) {
         return@withLock cleanupBeforeMutation(
           directory,
           journal,
-          "InvalidTagData",
-          "Rewritten payload is not valid base64.",
+          error.errorCode,
+          error.message ?: "Native audio tag rewrite failed.",
           before = originalDigest.sizeBytes,
         )
       }
+      val rewrittenDigest = rewriteResult.digest
 
-      if (rewrittenDigest.sizeBytes <= 0) {
+      if (rewrittenDigest.sizeBytes <= 0L) {
         return@withLock cleanupBeforeMutation(
           directory,
           journal,
           "InvalidTagData",
           "Rewritten audio payload is empty.",
           before = originalDigest.sizeBytes,
-        )
-      }
-      if (request.expectedWrittenSize != null && request.expectedWrittenSize != rewrittenDigest.sizeBytes) {
-        return@withLock cleanupBeforeMutation(
-          directory,
-          journal,
-          "VerificationFailed",
-          "Rewritten size does not match expected payload.",
-          before = originalDigest.sizeBytes,
-          after = rewrittenDigest.sizeBytes,
-        )
-      }
-      if (
-        !request.expectedWrittenSha256.isNullOrBlank() &&
-        request.expectedWrittenSha256.lowercase() != rewrittenDigest.sha256Hex
-      ) {
-        return@withLock cleanupBeforeMutation(
-          directory,
-          journal,
-          "VerificationFailed",
-          "Rewritten digest does not match expected payload.",
-          before = originalDigest.sizeBytes,
-          after = rewrittenDigest.sizeBytes,
         )
       }
       if (!StreamDigests.verifyFile(rewrittenTemporary, rewrittenDigest, request.maxBytes)) {
@@ -734,6 +723,34 @@ class AudioTagTransactionManager(
           before = originalDigest.sizeBytes,
           after = rewrittenDigest.sizeBytes,
         )
+      }
+
+      if (!rewriteResult.changed || rewrittenDigest == originalDigest) {
+        return@withLock try {
+          storage.cleanup(directory)
+          TransactionResult(
+            success = true,
+            errorCode = null,
+            message = "Tag edit is already satisfied; no SAF mutation was required.",
+            verified = true,
+            noop = true,
+            bytesBefore = originalDigest.sizeBytes,
+            bytesAfter = rewrittenDigest.sizeBytes,
+            transactionId = journal.transactionId,
+          )
+        } catch (_: Throwable) {
+          TransactionResult(
+            success = true,
+            errorCode = null,
+            message = "Tag edit is already satisfied; transaction cleanup will be retried.",
+            verified = true,
+            noop = true,
+            bytesBefore = originalDigest.sizeBytes,
+            bytesAfter = rewrittenDigest.sizeBytes,
+            transactionId = journal.transactionId,
+            cleanupPending = true,
+          )
+        }
       }
 
       storage.promote(rewrittenTemporary, storage.rewritten(directory))

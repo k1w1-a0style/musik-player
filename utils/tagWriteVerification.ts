@@ -1,15 +1,15 @@
-import SystemAudio from 'expo-system-audio';
+import SystemAudio, { type AudioTagWriteRequest } from 'expo-system-audio';
 import type {
   TagEditDraft,
   TagEditableContainer,
   WriteTagsResult,
 } from '../types/TagEdit';
 import type { Song } from '../types/Song';
-import { decodeBase64ToBytes } from './base64';
 import { getUriType } from './tagEditCapability';
 import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 import { applyTagEditToBuffer } from './tagWriterValidation';
+import { buildNativeTagWriteRequest } from './tagWriterNativeRequest';
 
 export const hasTagDeletionIntent = (draft: TagEditDraft): boolean =>
   Boolean(draft.removeCover)
@@ -67,7 +67,7 @@ export const hasUnsupportedMp3TailMetadata = (bytes: Uint8Array): boolean => {
 type TagDeletionVerificationOptions = {
   adapter?: TagFileWriteAdapter;
   maxFileSizeBytes?: number;
-  readContentBase64?: (uri: string, maxBytes: number) => Promise<string | null>;
+  verifyContentDeletion?: (uri: string, request: AudioTagWriteRequest) => Promise<boolean>;
 };
 
 const readWrittenBytes = async (
@@ -84,15 +84,6 @@ const readWrittenBytes = async (
       return undefined;
     }
     const bytes = await adapter.readBytes(uri);
-    return bytes.length <= maxBytes ? bytes : undefined;
-  }
-
-  if (uriType === 'content') {
-    const readContentBase64 = options.readContentBase64
-      ?? ((targetUri: string, limit: number) => SystemAudio.readAudioFileBase64(targetUri, limit));
-    const base64 = await readContentBase64(uri, maxBytes);
-    if (!base64) return undefined;
-    const bytes = decodeBase64ToBytes(base64);
     return bytes.length <= maxBytes ? bytes : undefined;
   }
 
@@ -117,6 +108,12 @@ export const verifyTagDeletionState = async (
   if (!uri) return false;
 
   try {
+    if (getUriType(uri) === 'content') {
+      const maxBytes = options.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
+      const verifier = options.verifyContentDeletion
+        ?? ((targetUri: string, request: AudioTagWriteRequest) => SystemAudio.verifyAudioTagDeletion(targetUri, request));
+      return await verifier(uri, buildNativeTagWriteRequest(draft, container, maxBytes));
+    }
     const writtenBytes = await readWrittenBytes(uri, options);
     if (!writtenBytes?.length) return false;
     if (container === 'mp3' && hasUnsupportedMp3TailMetadata(writtenBytes)) return false;

@@ -10,13 +10,18 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import expo.modules.systemaudio.saf.SafPermissionPolicy
 import expo.modules.systemaudio.saf.AndroidSafContentStore
+import expo.modules.systemaudio.saf.AudioTagRewriteException
+import expo.modules.systemaudio.saf.NativeTagEditRequestParser
+import expo.modules.systemaudio.saf.StreamingAudioTagRewriteSource
+import expo.modules.systemaudio.saf.StreamDigests
+import expo.modules.systemaudio.saf.MAX_SAFE_TAG_WRITE_FILE_BYTES
 import expo.modules.systemaudio.saf.AudioTagTransactionManager
 import expo.modules.systemaudio.saf.TransactionStorage
 import expo.modules.systemaudio.saf.TransactionWriteRequest
 import android.media.audiofx.Equalizer
 import android.net.Uri
-import android.os.Build
 import android.util.Base64
+import android.os.Build
 import android.util.Log
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
@@ -110,15 +115,12 @@ class SystemAudioModule : Module() {
     AsyncFunction("extractMetadataFast") { uri: String ->
       extractFastMetadata(uri)
     }
-
-
-
-    AsyncFunction("readAudioFileBase64") { uri: String, maxBytes: Long? ->
-      readAudioFileBase64(uri, maxBytes ?: MAX_SAFE_TAG_WRITE_FILE_BYTES)
+AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
+      writeAudioTags(uri, request)
     }
 
-    AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
-      writeAudioTags(uri, request)
+    AsyncFunction("verifyAudioTagDeletion") { uri: String, request: Map<String, Any?> ->
+      verifyAudioTagDeletion(uri, request)
     }
 
     AsyncFunction("getAudioTagRecoveryStatus") {
@@ -160,19 +162,6 @@ class SystemAudioModule : Module() {
   }
 
 
-  private fun readAudioFileBase64(uri: String, maxBytes: Long): String? {
-    val parsed = Uri.parse(uri)
-    val size = fileSizeForAnyUri(parsed)
-    if (size != null && size > maxBytes) return null
-    return try {
-      val bytes = readAllBytesFromUri(parsed, maxBytes) ?: return null
-      Base64.encodeToString(bytes, Base64.NO_WRAP)
-    } catch (e: Throwable) {
-      Log.d(TAG, "audio read failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
-      null
-    }
-  }
-
   private fun writeAudioTags(uri: String, request: Map<String, Any?>): Map<String, Any?> {
     val changedFields = (request["changedFields"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
     fun result(tx: expo.modules.systemaudio.saf.TransactionResult): Map<String, Any?> = mapOf(
@@ -183,6 +172,7 @@ class SystemAudioModule : Module() {
       "errorCode" to tx.errorCode,
       "message" to tx.message,
       "verified" to tx.verified,
+      "noop" to tx.noop,
       "bytesBefore" to tx.bytesBefore,
       "bytesAfter" to tx.bytesAfter,
       "transactionId" to tx.transactionId,
@@ -193,29 +183,83 @@ class SystemAudioModule : Module() {
     val parsed = try { Uri.parse(uri) } catch (_: Throwable) {
       return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "URI could not be parsed."))
     }
-    if (parsed.scheme != "content") {
-      return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "Native SAF tag writing only accepts content:// URIs."))
+    if (parsed.scheme != "content" || parsed.authority.isNullOrBlank()) {
+      return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "Native SAF tag writing only accepts valid content:// URIs."))
     }
-    val rewrittenBase64 = request["rewrittenAudioBase64"] as? String
-      ?: return result(expo.modules.systemaudio.saf.TransactionResult(false, "InvalidTagData", "Rewritten audio payload is missing."))
     val ctx = appContext.reactContext ?: return result(expo.modules.systemaudio.saf.TransactionResult(false, "WriteNotImplemented", "Android context is unavailable."))
     return try {
+      val maxBytes = parseTagWriteMaxBytes(request["maxFileSizeBytes"])
+      val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
       val manager = audioTagTransactionManager(ctx)
       result(manager.write(TransactionWriteRequest(
         uri = parsed,
-        rewrittenBase64 = rewrittenBase64,
+        rewriteSource = StreamingAudioTagRewriteSource(spec),
         changedFields = changedFields,
-        maxBytes = (request["maxFileSizeBytes"] as? Number)?.toLong() ?: MAX_SAFE_TAG_WRITE_FILE_BYTES,
+        maxBytes = maxBytes,
         expectedOriginalSize = (request["expectedOriginalSizeBytes"] as? Number)?.toLong(),
         expectedOriginalSha256 = (request["expectedOriginalSha256Hex"] as? String)?.trim()?.lowercase(),
-        expectedWrittenSize = (request["expectedWrittenSizeBytes"] as? Number)?.toLong(),
-        expectedWrittenSha256 = (request["expectedWrittenSha256Hex"] as? String)?.trim()?.lowercase(),
       )))
+    } catch (e: AudioTagRewriteException) {
+      result(expo.modules.systemaudio.saf.TransactionResult(false, e.errorCode, e.message ?: "Native tag rewrite request is invalid."))
     } catch (e: SecurityException) {
       result(expo.modules.systemaudio.saf.TransactionResult(false, "MissingWritePermission", "SAF provider denied write permission: ${e.message}"))
     } catch (e: Throwable) {
       Log.d(TAG, "SAF tag transaction failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
       result(expo.modules.systemaudio.saf.TransactionResult(false, "ReplaceFailed", "SAF transaction failed: ${e.message}"))
+    }
+  }
+
+  private fun parseTagWriteMaxBytes(raw: Any?): Long {
+    if (raw == null) return MAX_SAFE_TAG_WRITE_FILE_BYTES
+    if (raw !is Number) {
+      throw AudioTagRewriteException("InvalidTagData", "Maximum file size must be numeric.")
+    }
+    val numeric = raw.toDouble()
+    if (!numeric.isFinite() || numeric % 1.0 != 0.0) {
+      throw AudioTagRewriteException("InvalidTagData", "Maximum file size must be a finite integer.")
+    }
+    val value = raw.toLong()
+    if (value <= 0L) {
+      throw AudioTagRewriteException("InvalidTagData", "Maximum file size must be positive.")
+    }
+    if (value > MAX_SAFE_TAG_WRITE_FILE_BYTES) {
+      throw AudioTagRewriteException("FileTooLarge", "Maximum file size exceeds the native safety limit.")
+    }
+    return value
+  }
+
+  private fun verifyAudioTagDeletion(uri: String, request: Map<String, Any?>): Boolean {
+    val parsed = try {
+      Uri.parse(uri)
+    } catch (_: Throwable) {
+      return false
+    }
+    if (parsed.scheme != "content" || parsed.authority.isNullOrBlank()) return false
+    val ctx = appContext.reactContext ?: return false
+    val maxBytes = try {
+      parseTagWriteMaxBytes(request["maxFileSizeBytes"])
+    } catch (_: AudioTagRewriteException) {
+      return false
+    }
+    val changedFields = (request["changedFields"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+    val original = File.createTempFile("tag-delete-original-", ".bin", ctx.cacheDir)
+    val rewritten = File.createTempFile("tag-delete-rewritten-", ".bin", ctx.cacheDir)
+    return try {
+      val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
+      if (!spec.hasDeletionIntent) return false
+      val recovery = audioTagTransactionManager(ctx).recoverPendingSummary(parsed)
+      if (!recovery.success) return false
+      val store = AndroidSafContentStore(ctx)
+      val originalDigest = StreamDigests.copyUriToFileWithDigest(store, parsed, original, maxBytes)
+        ?: return false
+      val rewrite = StreamingAudioTagRewriteSource(spec).rewrite(original, rewritten, maxBytes)
+      !rewrite.changed || rewrite.digest == originalDigest
+    } catch (error: Throwable) {
+      Log.d(TAG, "SAF deletion verification failed ${error.javaClass.simpleName}: ${error.message} uri=${uri.safeLogUri()}")
+      false
+    } finally {
+      original.delete()
+      rewritten.delete()
     }
   }
 
@@ -423,7 +467,7 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
           if (comma < 0) null
           else {
             val base64Payload = uri.substring(comma + 1)
-            if (decodedBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
+            if (decodedImageBase64ByteLength(base64Payload) > MAX_PALETTE_IMAGE_BYTES) return null
             val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
             decodeByteArrayForPalette(bytes)
           }
@@ -758,23 +802,24 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
     else -> "jpg"
   }
 
-  private fun decodedBase64ByteLength(value: String): Long {
-    var cleanLength = 0L
-    var last = '\u0000'
-    var secondLast = '\u0000'
-    value.forEach { char ->
-      if (!char.isWhitespace()) {
-        secondLast = last
-        last = char
-        cleanLength += 1
+  /** Computes decoded size for bounded image data URIs only; audio bytes never use Base64. */
+  private fun decodedImageBase64ByteLength(value: String): Long {
+      var cleanLength = 0L
+      var last = ' '
+      var secondLast = ' '
+      value.forEach { char ->
+        if (!char.isWhitespace()) {
+          secondLast = last
+          last = char
+          cleanLength += 1L
+        }
       }
-    }
-    val padding = when {
-      cleanLength >= 2 && secondLast == '=' && last == '=' -> 2L
-      cleanLength >= 1 && last == '=' -> 1L
-      else -> 0L
-    }
-    return (cleanLength * 3L / 4L) - padding
+      val padding = when {
+        cleanLength >= 2L && secondLast == '=' && last == '=' -> 2L
+        cleanLength >= 1L && last == '=' -> 1L
+        else -> 0L
+      }
+      return ((cleanLength * 3L / 4L) - padding).coerceAtLeast(0L)
   }
 
   private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
@@ -793,6 +838,5 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
     private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_PIXELS = 1024 * 1024
-    private const val MAX_SAFE_TAG_WRITE_FILE_BYTES = 50L * 1024L * 1024L
   }
 }
