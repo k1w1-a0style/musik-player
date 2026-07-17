@@ -29,10 +29,14 @@ describe('tagEditCapability', () => {
     expect(cap.uriType).toBe('remote');
   });
 
-  test('android file and SAF content mp3 are readable and writable', () => {
+  test('android file and confirmed SAF content mp3 are readable and writable', () => {
     const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'android');
     const safContentCap = getTagEditCapability(song({
       uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3',
+      fileInfo: { extension: 'mp3', source: 'saf' },
+    }), 'android');
+    const ambiguousTreeCap = getTagEditCapability(song({
+      uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fb.mp3',
       fileInfo: { extension: 'mp3' },
     }), 'android');
     const mediaContentCap = getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android');
@@ -41,6 +45,9 @@ describe('tagEditCapability', () => {
     expect(fileCap.canWrite).toBe(true);
     expect(safContentCap.canRead).toBe(true);
     expect(safContentCap.canWrite).toBe(true);
+    expect(ambiguousTreeCap.canRead).toBe(true);
+    expect(ambiguousTreeCap.canWrite).toBe(false);
+    expect(ambiguousTreeCap.reason).toMatch(/bestätigte SAF-Herkunft/i);
     expect(mediaContentCap.canRead).toBe(true);
     expect(mediaContentCap.canWrite).toBe(false);
   });
@@ -68,12 +75,14 @@ describe('tagEditCapability', () => {
   test('content:// m4a/mp4 require a SAF source signal on Android', () => {
     const mediaM4a = getTagEditCapability(song({ uri: 'content://media/a.m4a', fileInfo: { extension: 'm4a', source: 'media-library' } }), 'android');
     const mediaMp4 = getTagEditCapability(song({ uri: 'content://media/a.mp4', fileInfo: { extension: 'mp4', source: 'media-library' } }), 'android');
+    const ambiguousM4a = getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a' } }), 'android');
     const safM4a = getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android');
     const safMp4 = getTagEditCapability(song({ uri: 'content://tree/a.mp4', fileInfo: { extension: 'mp4', source: 'saf' } }), 'android');
 
     expect(mediaM4a.canWrite).toBe(false);
     expect(mediaMp4.canWrite).toBe(false);
-    expect(mediaM4a.reason).toMatch(/MediaLibrary content:\/\//i);
+    expect(ambiguousM4a.canWrite).toBe(false);
+    expect(mediaM4a.reason).toMatch(/bestätigte SAF-Herkunft/i);
     expect(safM4a.canWrite).toBe(true);
     expect(safMp4.canWrite).toBe(true);
     expect(safM4a.reason).toMatch(/MP3\/M4A\/MP4/i);
