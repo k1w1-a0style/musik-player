@@ -27,8 +27,8 @@
 - Optional ein großes Cover / große Audiodatei für Stabilitätstest
 - SAF-Quelle verfügbar
 - Lokale Datei-Quelle verfügbar
-- SAF-MP3-Testdatei mit bestehender persisted Permission verfügbar
-- SAF-M4A- oder SAF-MP4-Testdatei mit bestehender persisted Permission verfügbar
+- SAF-MP3-Testdatei mit bestehender persisted Write-Permission und Provider-Writable-Flags verfügbar
+- SAF-M4A- oder SAF-MP4-Testdatei mit bestehender persisted Write-Permission und Provider-Writable-Flags verfügbar
 - Testcover zum Hinzufügen/Ersetzen sowie mindestens ein entfernbares embedded Cover verfügbar
 - Theme-Testzustände verfügbar: Graphite, Minimal und Neon Cover jeweils in Hell/Dunkel prüfen
 
@@ -144,11 +144,11 @@ Checkliste:
 - [ ] Tag-Bearbeitung für lokale Datei funktioniert
 - [ ] Cover ersetzen für lokale Datei funktioniert
 - [ ] Cover entfernen für lokale Datei funktioniert
-- [ ] SAF-MP3-Texttag-Speichern funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und unterstütztem Layout
-- [ ] SAF-MP3-Cover hinzufügen/ersetzen funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und unterstütztem Layout
-- [ ] SAF-MP3-embedded-Cover entfernen funktioniert mit bestehender persisted Permission und unterstütztem Layout
-- [ ] SAF-M4A/MP4-Texttag-Speichern funktioniert mit bestehender persisted Permission, Provider-Writable-Flags und sicherem Atom-Layout
-- [ ] SAF-M4A/MP4-Cover hinzufügen/ersetzen/entfernen funktioniert nur bei sicher unterstütztem Atom-Layout
+- [ ] SAF-MP3-Texttag-Speichern funktioniert mit bestehender persisted Write-Permission, Provider-Writable-Flags und unterstütztem Layout
+- [ ] SAF-MP3-Cover hinzufügen/ersetzen funktioniert mit bestehender persisted Write-Permission, Provider-Writable-Flags und unterstütztem Layout
+- [ ] SAF-MP3-embedded-Cover entfernen funktioniert mit bestehender persisted Write-Permission, Provider-Writable-Flags und unterstütztem Layout
+- [ ] SAF-M4A/MP4-Texttag-Speichern funktioniert mit bestehender persisted Write-Permission, Provider-Writable-Flags und sicherem Atom-Layout
+- [ ] SAF-M4A/MP4-Cover hinzufügen/ersetzen/entfernen funktioniert mit bestehender persisted Write-Permission, Provider-Writable-Flags und sicher unterstütztem Atom-Layout
 - [ ] MediaLibrary-`content://`, source-lose Planner-URIs, fehlende SAF-Grants und alte Native-Builds bleiben sichtbar blockiert
 - [ ] Unsupported ID3-/MP4-Layouts bleiben sichtbar blockiert
 - [ ] No-op-Speichern verändert die Datei nicht unnötig
