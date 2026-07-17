@@ -55,7 +55,18 @@ export const writeTagsToFile = async (
   options?: { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: number },
 ): Promise<WriteTagsResult> => {
   const rawUri = song.fileInfo?.uri ?? song.uri;
-  if (getUriType(rawUri) === 'content') return writeTagsToSafContentUri(song, draft, options);
+  if (getUriType(rawUri) === 'content') {
+    if (song.fileInfo?.source === 'media-library') {
+      return toWriteTagsFailureResult(
+        new TagWriterError(
+          'MissingWritePermission',
+          'MediaLibrary content:// tracks require an explicit SAF write grant before tag editing.',
+        ),
+        rawUri,
+      );
+    }
+    return writeTagsToSafContentUri(song, draft, options);
+  }
 
   const writableUri = resolveWritableTagUri(song);
   if (!writableUri.ok) {
