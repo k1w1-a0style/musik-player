@@ -28,13 +28,6 @@ const normalizeContainerCandidate = (value?: string): string | undefined => {
   return undefined;
 };
 
-const looksLikeSafContentUri = (uri?: string): boolean => {
-  const normalized = uri?.toLowerCase() ?? '';
-  return normalized.includes('com.android.externalstorage.documents')
-    || normalized.includes('/tree/')
-    || normalized.includes('/document/');
-};
-
 export const getUriType = (uri?: string): TagEditUriType => {
   if (uri === undefined) return 'unknown';
   const trimmed = uri.trim();
@@ -70,8 +63,14 @@ export const isSupportedTagEditContainer = (song: Song): boolean => getSupported
 
 export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
 
+/**
+ * Planner/UI capability requires confirmed import provenance. URI shape alone is
+ * not a write grant and must not enable the Save action for ambiguous content URIs.
+ * Direct public-writer calls without provenance remain subject to native permission
+ * and provider-writable checks.
+ */
 export const isSafWritableContentSource = (song: Song): boolean =>
-  song.fileInfo?.source === 'saf' || looksLikeSafContentUri(song.fileInfo?.uri ?? song.uri);
+  song.fileInfo?.source === 'saf';
 
 export const getTagEditCapability = (song: Song, platform: string = Platform.OS): TagEditCapability => {
   const uri = song.fileInfo?.uri ?? song.uri;
@@ -102,7 +101,7 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
     } else if (platform !== 'android') {
       reason = 'SAF/content:// Schreiben ist nur in der Android-Development-Build unterstützt.';
     } else {
-      reason = 'MediaLibrary content:// Tracks sind ohne SAF-Schreibfreigabe oder MediaStore-Schreibflow schreibgeschützt.';
+      reason = 'content://-Titel ohne bestätigte SAF-Herkunft sind im Tag-Editor schreibgeschützt.';
     }
     return {
       canRead: true,
