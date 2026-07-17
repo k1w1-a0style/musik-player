@@ -89,7 +89,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(getTagEditCapability(safMp3Song(), 'ios').canWrite).toBe(false);
   });
 
-  test('content:// mp3 cover payload is allowed through native full-buffer rewrite while text-only remains allowed', () => {
+  test('content:// mp3 cover payload is allowed through native streaming rewrite while text-only remains allowed', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
@@ -114,7 +114,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(plan.supportsRollback).toBe(true);
   });
 
-  test('content:// mp3 removeCover is allowed through native full-buffer rewrite', () => {
+  test('content:// mp3 removeCover is allowed through native streaming rewrite', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, removeCover: true },
@@ -135,7 +135,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     expect(assertSafeWriteAllowed(plan)).toBe('WriteNotImplemented');
   });
 
-  test('SAF m4a/mp4 content containers are allowed before native full-buffer rewrite', () => {
+  test('SAF m4a/mp4 content containers are allowed before native streaming rewrite', () => {
     const m4aPlan = createTagWriteOperationPlan(
       song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }),
       draft,

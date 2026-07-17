@@ -65,12 +65,18 @@ describe('tagEditCapability', () => {
     expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
 
-  test('content:// m4a/mp4 stay read-only', () => {
-    const m4a = getTagEditCapability(song({ uri: 'content://music/a.m4a', fileInfo: { extension: 'm4a' } }));
-    const mp4 = getTagEditCapability(song({ uri: 'content://music/a.mp4', fileInfo: { extension: 'mp4' } }));
-    expect(m4a.canWrite).toBe(false);
-    expect(mp4.canWrite).toBe(false);
-    expect(m4a.reason).toMatch(/SAF\/content:\/\//i);
+  test('content:// m4a/mp4 require a SAF source signal on Android', () => {
+    const mediaM4a = getTagEditCapability(song({ uri: 'content://media/a.m4a', fileInfo: { extension: 'm4a', source: 'media-library' } }), 'android');
+    const mediaMp4 = getTagEditCapability(song({ uri: 'content://media/a.mp4', fileInfo: { extension: 'mp4', source: 'media-library' } }), 'android');
+    const safM4a = getTagEditCapability(song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }), 'android');
+    const safMp4 = getTagEditCapability(song({ uri: 'content://tree/a.mp4', fileInfo: { extension: 'mp4', source: 'saf' } }), 'android');
+
+    expect(mediaM4a.canWrite).toBe(false);
+    expect(mediaMp4.canWrite).toBe(false);
+    expect(mediaM4a.reason).toMatch(/MediaLibrary content:\/\//i);
+    expect(safM4a.canWrite).toBe(true);
+    expect(safMp4.canWrite).toBe(true);
+    expect(safM4a.reason).toMatch(/MP3\/M4A\/MP4/i);
   });
 
   test('helpers', () => {
