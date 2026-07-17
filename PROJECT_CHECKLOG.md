@@ -135,7 +135,7 @@ Status: Automatisierte PR-Kette #210 bis #215 ist gemerged; echter Android-Dev-B
 - V6.6 Android Dev-APK Smoke: offen/manuell; bleibt lokaler manueller Schritt nach Merge der V6.6-Fixes und ist nicht als smoke-final markiert.
 - Vollständiger finaler Gesamttest: am 2026-06-12 im V6.6-Final-PR erfolgreich ausgeführt; manuelle Android-Smokes und echte Release-/EAS-Builds bleiben separat.
 - Langfristige Import-/Codec-Erweiterungen: nur separat erweitern, damit SAF-, MIME-, Duration- und Parser-Grenzen gezielt getestet werden können.
-- SAF/content-Tag-Writes: aktuell nur für unterstützte MP3-Texttags mit nativer SAF-Schreibroute freigegeben; Cover-Writes, MP4/M4A-SAF-Writes und unsichere/unsupported Layouts bleiben bewusst blockiert.
+- SAF/content-Tag-Writes: aktuell für unterstützte MP3/M4A/MP4 Texttag- und Cover-Edits über die native SAF-Streaming-Schreibroute freigegeben; MediaLibrary-`content://` ohne SAF-Grant, alte Native-Builds und unsichere/unsupported Layouts bleiben bewusst blockiert.
 
 ## Finale Validierung vor Release oder codex→main-Handoff
 
@@ -156,7 +156,7 @@ Optionale/manuelle Android-Smokes nach Build, SDK-/FileSystem-Änderungen oder N
 - [ ] SAF-Ordnerimport inklusive Timeout-/Abort-Verhalten.
 - [ ] Playback im Vordergrund, Hintergrund, Lockscreen und Notification.
 - [ ] Tag Edit/Cover Replace/Remove für unterstützte writable `file://` Titel.
-- [ ] SAF/content-MP3-Texttag-Write mit bestehender persisted Permission; Cover-Writes und unsupported Layouts müssen sichtbar blockiert bleiben.
+- [ ] SAF/content MP3/M4A/MP4 Texttag- und Cover-Write mit bestehender persisted Permission und Provider-Writable-Flags; fehlende Grants, alte Native-Builds und unsupported Layouts müssen sichtbar blockiert bleiben.
 - [ ] AlbumArtist-Anzeige, Gruppierung und Tag-Editor-Speichern.
 - [ ] AudioInfo-Backfill für bereits importierte Titel ohne Dauer/Bitrate/SampleRate/Channels.
 - [ ] Cover cache cleanup inklusive Orphan-Enumeration.

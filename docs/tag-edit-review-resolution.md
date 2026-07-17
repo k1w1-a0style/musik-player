@@ -51,3 +51,7 @@ It does **not** ship a production-ready MP3/MP4 writer.
 - [x] Temp cleanup failures are non-fatal warnings after successful replace.
 - [x] Capability + planner aligned: supported `file://` is writable; `content://` remains blocked.
 - [x] Adapter base64 fallback no longer relies on global `Buffer`.
+
+## 2026-07 native SAF streaming writer audit
+
+The earlier sections above are historical review notes. Current production behavior now includes the guarded native Android SAF streaming writer for supported MP3/M4A/MP4 text and cover edits. MediaLibrary `content://` without SAF grant, old native builds without the full writer/recovery contract, unsupported ID3/MP4 structures and real-device provider validation gaps remain active release constraints.

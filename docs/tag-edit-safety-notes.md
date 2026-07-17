@@ -2,15 +2,22 @@
 
 ## Current policy
 
-- Guarded real writes are enabled for supported local `file://` audio files on Android.
-- Android SAF MP3 text-tag writes are enabled only for SAF-sourced `content://` tracks with an existing write grant, supported MP3 layout, temporary verification and native write protection.
-- MediaLibrary `content://` tracks without SAF write grant remain read-only.
-- SAF cover writes, SAF MP4/M4A writes and unsupported layouts remain unavailable.
-- Remote, empty or unknown URIs remain read-only and fail before any write attempt.
-- `applyTagEditToBuffer` writes in-memory for:
-  - MP3 via ID3v2.3 with strict 28-bit synchsafe payload-size validation before tag allocation/serialization,
-  - MP4/M4A via a guarded atom-writer path for known-safe layouts only.
-- Unsupported containers throw `UnsupportedFormat`.
+- Guarded real writes are enabled for supported local Android `file://` MP3/M4A/MP4 audio files.
+- The Android TagEditor and write planner enable SAF `content://` writes only for SAF-sourced MP3/M4A/MP4 tracks when the loaded native module exposes the full durable writer/recovery contract.
+- The public writer rejects tracks explicitly identified as `media-library` before any native write. A direct caller that supplies an ambiguous `content://` URI without source metadata is not advertised as writable by the planner and is delegated to the native permission/provider checks.
+- Text-tag writes, cover add/replace and cover removal use the same guarded native writer for accepted MP3/M4A/MP4 SAF requests.
+- Remote, empty, unknown and unsupported containers remain read-only and fail before any write attempt.
+- `atomicReplace=false` for SAF and local-file plans; SAF provider truncate/write behavior remains provider-dependent and must be validated on real Android devices before release.
+
+## SAF streaming contract
+
+- JavaScript does **not** transfer the complete audio file for the native SAF writer.
+- JavaScript sends only the validated tag draft, changed-field list, target container, size limit and optionally one bounded JPEG/PNG cover payload.
+- MP3 rewriting streams audio bytes and keeps only bounded ID3 metadata in memory.
+- MP4/M4A rewriting streams non-`moov` atoms and keeps only the bounded `moov` block in memory.
+- Native code verifies deletion-intent no-ops by re-reading and rewriting through the native path; JVM/Robolectric covers this production logic but does not prove real provider behavior.
+- SAF writes use app-private transaction backup, rollback, restart recovery and post-write byte verification. They do not provide OS-atomic replacement.
+- Provider-dependent SAF truncate/write behavior remains a real device risk.
 
 ## Safe write orchestration
 
@@ -19,21 +26,22 @@ The orchestration plan models:
 - write preconditions,
 - URI and capability gates,
 - backup strategy,
-- temp file strategy,
+- temp/staging strategy,
 - output verification,
 - replace/write expectations,
 - rollback viability,
 - explicit user-facing reasons.
 
-## URI strategy
+## URI and capability strategy
 
 - Remote URIs are read-only and return `UnsupportedUri`.
 - Missing, empty or unknown URI values are rejected before write attempts.
 - Local Android `file://` uses guarded backup, temp, verify and replace flow when the adapter reports safe replace support.
 - iOS/web `file://` remains unavailable until a safe replace primitive exists.
-- Android SAF MP3 `content://` writes use the native SAF route and require a persisted write grant.
-- Non-MP3 SAF formats, SAF cover writes and unsupported SAF layouts stay unavailable.
-- Capability and preflight gates are expected to match the writer behavior.
+- The Android TagEditor/planner requires a SAF source signal, a writable runtime and the full native durable writer contract before enabling `content://` saves.
+- The public writer rejects explicit `media-library` provenance with `MissingWritePermission`. Ambiguous direct `content://` calls without source metadata fall through only to native persisted/direct permission and provider-writable checks; this fallback is not an advertised UI capability.
+- Old native builds that do not expose write, deletion verification, recovery status and recovery APIs are treated as incomplete and blocked.
+- Capability, UI and public-writer gates are aligned for known SAF and MediaLibrary provenance; ambiguous direct API calls remain fail-closed at the native permission layer.
 
 ## Backup, verification and rollback concept
 
@@ -47,74 +55,70 @@ For guarded local writes, flow is:
 6. rollback from backup on failure,
 7. cleanup temp/backup artifacts per policy.
 
-For SAF/content writes, atomic replace guarantees can differ by provider. The Android native SAF route therefore uses a guarded temp copy, byte verification, ContentResolver write and rollback attempt for MP3 text-tag writes only.
+For SAF/content writes, the Android native route:
+
+1. recovers pending transactions for the target,
+2. checks persisted/direct write permission and provider writable flags,
+3. copies the original stream into an app-private durable transaction backup,
+4. verifies backup bytes,
+5. rewrites to a durable app-private staged file,
+6. re-verifies the live original has not changed,
+7. writes via `ContentResolver` truncating output,
+8. hashes the target after write,
+9. rolls back from the app-private backup on detected write/verification failure,
+10. keeps unresolved transactions for restart recovery when cleanup or rollback cannot be completed.
 
 ## Validation retained
 
 - Tag normalization trims values and converts empty strings to `undefined`.
 - Year/track/disc/genre validations remain active.
 - AlbumArtist is part of the editable tag model and maps to MP3 `TPE2` / MP4 `aART` where supported.
-- Cover payload validation accepts only JPEG/PNG with magic-byte checks.
-- `removeCover=true` takes precedence over a provided cover payload.
+- Cover payload validation accepts only JPEG/PNG with magic-byte checks and an 8 MiB native cover limit capped by the active file-size limit.
+- `removeCover=true` takes precedence over a provided cover payload in the JavaScript planner and invalid mixed native requests fail closed.
+- The native file-size limit remains 50 MiB.
 
-## MP3 writer
+## MP3 writer safety boundaries
 
-- Reads existing ID3v2.3/v2.4 headers, removes full old tag including v2.4 footer, and rewrites a new ID3v2.3 tag in memory.
-- Audio bytes after the tag boundary are preserved exactly.
-- Existing unsynchronisation flag remains unavailable to avoid unsafe metadata loss.
-- APIC payload construction avoids large spread-based intermediate JS arrays.
-- Text/COMM payload construction also avoids spread-based intermediate JS arrays.
-- Preserved frame IDs are validated with `[A-Z0-9]{4}`; invalid/non-ASCII IDs are rejected with `InvalidTagData`.
-- Truncated ID3 preambles are rejected as `InvalidTagData` and not treated as audio.
-- Existing ID3v2.4 inputs return original bytes for strict no-op drafts, while actual v2.4 edits remain unavailable.
+- MPEG evidence is checked before every edit intent.
+- MPEG version, layer, bitrate, sample rate, padding and emphasis are validated.
+- The complete first MPEG frame length is checked.
+- Missing, invalid or truncated first MPEG frames are fail-closed as invalid data.
+- ID3v1/APEv2/Lyrics3 tail metadata remains conservatively blocked for deletion intents.
+- The writer streams audio bytes after the ID3 boundary instead of loading the full audio file.
+- Bounded ID3 metadata is kept in memory; oversized ID3 metadata fails closed.
+- Existing ID3v2.2 tags are not written.
+- Existing ID3 unsynchronisation, ID3v2.4 extended headers, ID3v2.4 experimental flags, ID3v2.4 footers, invalid frame IDs, truncated frames and frame sizes above supported bounds remain intentionally unsupported or invalid.
 
-## MP4/M4A writer
+## MP4/M4A writer safety boundaries
 
-- `applyTagEditToBuffer` routes `m4a/mp4` to the in-memory MP4 atom writer.
-- Strict no-op drafts return original bytes before any MP4 structure checks.
+- `mdat` payloads remain unchanged.
+- Non-`moov` top-level atoms are streamed through unchanged.
+- Only a bounded `moov` block is kept in memory.
 - Actual edit intent requires an existing `moov/udta/meta/ilst` path.
-- If a tag change would resize `moov` and any top-level `mdat` appears later in file order, the writer returns `WriteNotImplemented` because `stco/co64` patching is not implemented.
-- If `moov` is after `mdat`, metadata rewrite is allowed.
-- `mdat` bytes are preserved and never rewritten.
-- Device writes are enabled for guarded local `file://` paths only; SAF MP4/M4A writes remain unavailable.
-
-## Controlled local file write activation
-
-- `writeTagsToFile(song, draft)` supports guarded real writes for supported Android `file://` URIs.
-- Flow: read -> in-memory rewrite -> backup `.bak` -> temp `.tmp` -> basic verification -> replace.
-- Adapter capability gate blocks replace early on unsupported platforms before backup/temp creation.
-- If backup/temp/verification fails, replace is never attempted.
-- If replace fails, rollback from backup is attempted; rollback failure throws `RollbackFailed`.
-- Existing-file replace is currently allowed for Android only; iOS remains unavailable until a safe replace primitive exists.
-- Source file read failures are normalized to `UnsupportedUri` errors.
-- Temp verification read failures are normalized to `VerificationFailed` with best-effort temp cleanup.
-- Temp cleanup after successful replace is non-fatal and reported as warning.
-- Capability/planner now align with guarded local file write support.
-
-## Android SAF/content MP3 text-tag write activation
-
-- `writeTagsToSafContentUri(song, draft)` supports MP3 text-tag updates for SAF-sourced `content://` tracks on Android.
-- The capability gate allows this only for Android + MP3 + `fileInfo.source === 'saf'`.
-- The native route checks persisted URI access and provider write flags before writing.
-- The native route works through a temporary file, verifies output and then writes through `ContentResolver`.
-- SAF cover writes are not part of this route.
-- SAF MP4/M4A writes are not part of this route.
-- Unsupported containers and unsupported MP3 layouts remain unavailable.
+- `moov` size changes before a later `mdat` remain blocked because sample-offset patching is not implemented.
+- Equal-size changes before `mdat` remain allowed.
+- Changes when `moov` is after the last `mdat` are allowed for known-safe atom layouts.
+- `largesize` atoms, invalid atom sizes, missing required metadata paths and atoms above the supported 32-bit size bounds remain blocked.
 
 ## Tag Editor UI gate
 
-- `TagEditor` uses capability + orchestration gate before save UI is enabled.
+- `TagEditor` uses capability + orchestration gates before save UI is enabled.
 - No automatic writes on open; writes require explicit confirmation dialog.
 - Local Android `file://` tag and cover updates are enabled where the writer supports the container/layout.
-- Android SAF MP3 text-tag updates are enabled when the track was imported from SAF and write access is still available.
-- MediaLibrary-only `content://`, SAF cover updates, SAF MP4/M4A updates, iOS/web file writes, remote URIs and unsupported containers remain unavailable in the UI.
+- Android SAF MP3/M4A/MP4 text-tag updates, cover add/replace and cover removal are enabled only when the track is SAF-sourced and runtime/native gates pass.
+- MediaLibrary-only `content://`, iOS/web file writes, remote URIs, old native builds and unsupported containers remain unavailable in the UI/planner.
 - After successful save, in-memory metadata is synchronized for songs, current song, playback queue and queue refs.
 - Queue metadata sync also performs best-effort RNTP native metadata updates for queued tracks.
 - `removeCover` successful writes clear `cover` and `coverInfo` in UI state.
 - After successful save, UI state patch uses normalized tag values to match file output.
 - Editor keeps non-Song model form values such as track, disc and comment visible after successful/no-op saves; errors keep user input for correction.
-- Cover replacement is active for supported writable local file tracks.
-- Cover remove and cover replace remain distinct actions.
+- Cover add/replace/remove remain distinct actions.
 - After successful cover replacement, the UI patch may temporarily show the selected picker URI as `cover`/`coverInfo.uri` with `status=embedded`; a later rescan/cache extraction can replace it with a stable embedded-cover URI.
 - Exactly one editable TagEditor UI is active; legacy ID3 editor paths were removed.
 - Tag writes run exclusively through the public TagWriter path; no alternative save path is supported.
+
+## Limits of proof
+
+- JVM/Robolectric checks production logic, native transactions and rewrite boundaries, but it is not a real SAF provider/device validation.
+- Real Android SAF device validation with representative providers remains required before release.
+- This PR step must not be represented as producing an APK, AAB, EAS build or device test unless those actions are actually performed separately.
