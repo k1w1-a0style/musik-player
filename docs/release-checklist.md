@@ -48,7 +48,7 @@ Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-a
 - [ ] Notification-Steuerung funktioniert.
 - [ ] EQ-Modul initialisiert ohne Crash.
 - [ ] Palette/Cover-Extraktion funktioniert ohne Crash.
-- [ ] SAF/content-MP3-Texttag-Write und blockierte SAF-Write-Grenzen bleiben unverändert stabil.
+- [ ] SAF/content MP3/M4A/MP4 Texttag-/Cover-Writes und die blockierten SAF-Write-Grenzen bleiben unverändert stabil.
 - [ ] Tag-Bearbeitung für lokale file://-Titel funktioniert.
 - [ ] Keine regressiven Permission-Änderungen im Android-Manifest.
 
