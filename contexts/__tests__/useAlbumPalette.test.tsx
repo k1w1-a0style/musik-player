@@ -92,7 +92,7 @@ describe('useAlbumPalette', () => {
     });
   });
 
-  test('retains the complete previous visible palette during an artwork transition', async () => {
+  test('resets palette immediately on track change instead of retaining previous palette', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let resolveSecond: (value: { dominant: string }) => void = () => undefined;
     jest
@@ -104,10 +104,6 @@ describe('useAlbumPalette', () => {
         resolveSecond = resolve;
       }));
 
-    const firstEffectivePalette = mergeNativeAndFallbackPalette(
-      { dominant: '#111111' },
-      songWithCover,
-    );
     const secondEffectivePalette = mergeNativeAndFallbackPalette(
       { dominant: '#222222' },
       secondSongWithCover,
@@ -118,14 +114,12 @@ describe('useAlbumPalette', () => {
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette));
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#111111'));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
 
-    expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette);
-    expect(readPalette(getByTestId('palette').props.children)?.vibrant).not.toBe(
-      buildJsFallbackPalette(secondSongWithCover).vibrant,
-    );
+    // Source-keyed immediate reset: palette clears during loading
+    expect(getByTestId('palette').props.children).toBe('');
 
     await act(async () => {
       resolveSecond({ dominant: '#222222' });
@@ -159,7 +153,7 @@ describe('useAlbumPalette', () => {
     expect(readDominant(getByTestId('palette').props.children)).toBe('#222222');
   });
 
-  test('retains the visible palette while extraction is pending and clears it after failure', async () => {
+  test('resets palette immediately when extraction is pending and stays clear after failure', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let rejectSecond: (error: Error) => void = () => undefined;
     jest
@@ -183,11 +177,13 @@ describe('useAlbumPalette', () => {
     await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette));
 
     rerender(<PaletteProbe song={secondSongWithCover} />);
-    expect(readPalette(getByTestId('palette').props.children)).toEqual(firstEffectivePalette);
+    // Immediate reset: no stale palette retention
+    expect(getByTestId('palette').props.children).toBe('');
 
     await act(async () => {
       rejectSecond(new Error('failed'));
     });
+    // Still empty after failure
     await waitFor(() => expect(getByTestId('palette').props.children).toBe(''));
   });
 

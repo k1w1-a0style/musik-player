@@ -7,9 +7,11 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 interface ProgressBarProps {
   currentPosition: number;
   duration: number;
+  /** Called once on release/commit with the final seek position in ms. Triggers native seekTo. */
   onSeek: (position: number) => void;
   onSeekStart?: () => void;
-  onSeekPreview?: (position: number) => void;
+  /** Called during drag for local UI preview only (ratio 0-1). Must NOT trigger native seekTo. */
+  onSeekPreview?: (ratio: number) => void;
   accent?: string;
   accentDark?: string;
 }
@@ -82,6 +84,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
     barWidthRef.current = e.nativeEvent.layout.width;
   }, []);
 
+  // Commit: fires onSeek exactly once with the final position in ms. No throttle.
   const finishSeek = useCallback(() => {
     if (durationRef.current > 0) {
       const target = latestRatioRef.current * durationRef.current;
@@ -103,16 +106,19 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ currentPosition, duration, on
         lastLiveSeekRef.current = 0;
         setDragRatio(ratio);
         onSeekStartRef.current?.();
+        // Fire initial preview with ratio only (no native seek)
+        onSeekPreviewRef.current?.(ratio);
       },
       onPanResponderMove: (_event, gesture) => {
         if (barWidthRef.current <= 0 || durationRef.current <= 0) return;
         const ratio = resolveDragRatio(startRatioRef.current, gesture.dx, barWidthRef.current);
         latestRatioRef.current = ratio;
         setDragRatio(ratio);
+        // Throttled preview callback (ratio only, no native seek)
         const now = Date.now();
         if (now - lastLiveSeekRef.current >= LIVE_SEEK_THROTTLE_MS) {
           lastLiveSeekRef.current = now;
-          onSeekPreviewRef.current?.(ratio * durationRef.current);
+          onSeekPreviewRef.current?.(ratio);
         }
       },
       onPanResponderRelease: finishSeek,
