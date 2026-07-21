@@ -15,10 +15,11 @@ interface ResolvedNativePalette {
 /**
  * Native cover-palette hook.
  *
- * Transition semantics (source-keyed with immediate reset):
+ * Transition semantics (source-keyed with graceful retention):
  * - the palette is always keyed to the current artwork URI;
- * - immediately resets to null on track change when artwork differs,
- *   preventing stale palette from the previous track bleeding through;
+ * - while a new extraction is in flight (track change with different artwork),
+ *   the previously resolved palette is retained to prevent a flash of
+ *   the JS-only fallback bleeding through during the async gap;
  * - once the native palette resolves for the current artwork, merge its
  *   optional fields with the JS fallback for the current song;
  * - when multiple songs share an artwork URI, reuse the raw native extraction
@@ -29,11 +30,13 @@ export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null 
   const [resolvedNativePalette, setResolvedNativePalette] = useState<ResolvedNativePalette | null>(null);
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
   const currentSongRef = useRef(currentSong);
+  const lastEmittedPaletteRef = useRef<PaletteResult | null>(null);
 
   currentSongRef.current = currentSong;
 
-  // Source-keyed: only return a palette when it belongs to the current artwork.
-  // Immediately resets (returns null) on track change — no stale retention.
+  // Source-keyed: return the resolved palette when it belongs to the current artwork.
+  // During loading (artwork changed but new palette not yet resolved), retain the
+  // last emitted palette to avoid a flash of stale JS-only fallback.
   const visiblePalette = useMemo(() => {
     if (!currentArtworkUri) return null;
 
@@ -41,8 +44,16 @@ export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null 
       return mergeNativeAndFallbackPalette(resolvedNativePalette.palette, currentSong);
     }
 
-    return null;
+    // Retain previous palette while loading the new artwork's palette.
+    return lastEmittedPaletteRef.current;
   }, [currentArtworkUri, currentSong, resolvedNativePalette]);
+
+  // Track the last non-null emitted palette for retention during transitions.
+  useEffect(() => {
+    if (visiblePalette !== null) {
+      lastEmittedPaletteRef.current = visiblePalette;
+    }
+  }, [visiblePalette]);
 
   useEffect(() => {
     if (!currentArtworkUri) {
