@@ -1,4 +1,5 @@
 import React from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppThemeProvider } from '../contexts/AppThemeContext';
 import { MusicProvider } from '../contexts/MusicContext';
@@ -9,13 +10,15 @@ interface AppProvidersProps {
 }
 
 const AppProviders: React.FC<AppProvidersProps> = ({ children }) => (
-  <SafeAreaProvider>
-    <AppThemeProvider>
-      <MusicProvider>
-        <PlaybackProgressProvider>{children}</PlaybackProgressProvider>
-      </MusicProvider>
-    </AppThemeProvider>
-  </SafeAreaProvider>
+  <GestureHandlerRootView style={{ flex: 1 }}>
+    <SafeAreaProvider>
+      <AppThemeProvider>
+        <MusicProvider>
+          <PlaybackProgressProvider>{children}</PlaybackProgressProvider>
+        </MusicProvider>
+      </AppThemeProvider>
+    </SafeAreaProvider>
+  </GestureHandlerRootView>
 );
 
 export default AppProviders;
