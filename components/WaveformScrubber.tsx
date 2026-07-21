@@ -11,8 +11,8 @@ interface WaveformScrubberProps {
   duration: number;
   /** Called once on release/commit with the final seek position in ms. Triggers native seekTo. */
   onSeek: (position: number) => void;
-  /** Called during drag for local UI preview only (ratio 0-1). Must NOT trigger native seekTo. */
-  onSeekPreview?: (ratio: number) => void;
+  /** Called during drag for local UI preview only (position in ms). Must NOT trigger native seekTo. */
+  onSeekPreview?: (position: number) => void;
   accent: string;
   restColor?: string;
   height?: number;
@@ -68,7 +68,7 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
     return { points, gap, barWidth, svgWidth };
   }, [waveform.points]);
 
-  // Preview: updates local dragRatio state + fires throttled onSeekPreview (ratio only).
+  // Preview: updates local dragRatio state + fires throttled onSeekPreview (position in ms).
   // Never calls onSeek during drag.
   const previewRatio = useCallback((ratio: number) => {
     latestRatioRef.current = ratio;
@@ -76,18 +76,18 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
     const now = Date.now();
     if (now - lastPreviewAtRef.current >= LIVE_PREVIEW_THROTTLE_MS) {
       lastPreviewAtRef.current = now;
-      onSeekPreview?.(ratio);
+      onSeekPreview?.(ratio * safeDuration);
     }
-  }, [onSeekPreview]);
+  }, [onSeekPreview, safeDuration]);
 
   const startInteraction = useCallback((event: GestureResponderEvent) => {
     const ratio = ratioFromEvent(event, widthRef.current);
     latestRatioRef.current = ratio;
     lastPreviewAtRef.current = 0;
     setDragRatio(ratio);
-    // Fire initial preview (ratio only, no native seek)
-    onSeekPreview?.(ratio);
-  }, [onSeekPreview]);
+    // Fire initial preview (position in ms, no native seek)
+    onSeekPreview?.(ratio * safeDuration);
+  }, [onSeekPreview, safeDuration]);
 
   // Commit: fires onSeek exactly once with the final position in ms. No throttle.
   const finishInteraction = useCallback(() => {
