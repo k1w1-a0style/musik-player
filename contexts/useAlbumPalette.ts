@@ -69,7 +69,7 @@ export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null 
 
       if (!nextPalette) {
         setResolvedNativePalette(null);
-        return:  
+        return;
       }
 
       setResolvedNativePalette({ artworkUri: requestedArtworkUri, palette: nextPalette });
