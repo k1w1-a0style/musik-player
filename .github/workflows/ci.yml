@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, codex]
+    branches: [main, codex, codex-repair-*]
   push:
-    branches: [main, codex]
+    branches: [main, codex, codex-repair-*]
   workflow_dispatch:
 
 permissions:
