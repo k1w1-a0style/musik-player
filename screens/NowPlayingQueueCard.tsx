@@ -1,5 +1,6 @@
 import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { NativeViewGestureHandler } from 'react-native-gesture-handler';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -60,23 +61,28 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
 
   return (
     <View style={[styles.queueListFrame, { maxHeight }]} testID="now-playing-queue-list-frame">
-      <FlatList
-        data={queue}
-        keyExtractor={buildSongKey}
-        renderItem={renderQueueItem}
-        nestedScrollEnabled
-        scrollEnabled
-        showsVerticalScrollIndicator
-        getItemLayout={getQueueItemLayout}
-        style={styles.queueList}
-        contentContainerStyle={styles.queueListContent}
-        ListEmptyComponent={(
-          <View style={styles.emptyState} testID="queue-empty-state">
-            <Text style={[styles.emptyTitle, { color: theme.palette.text.primary }]}>Keine Titel in der Warteschlange</Text>
-            <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
-          </View>
-        )}
-      />
+      {/* NativeViewGestureHandler registers the inner ScrollView with RNGH so the
+          outer vertical SnapPager FlatList cannot steal scroll touches once the
+          user begins scrolling inside the queue (fixes F04 / N1). */}
+      <NativeViewGestureHandler disallowInterruption>
+        <FlatList
+          data={queue}
+          keyExtractor={buildSongKey}
+          renderItem={renderQueueItem}
+          nestedScrollEnabled
+          scrollEnabled
+          showsVerticalScrollIndicator
+          getItemLayout={getQueueItemLayout}
+          style={styles.queueList}
+          contentContainerStyle={styles.queueListContent}
+          ListEmptyComponent={(
+            <View style={styles.emptyState} testID="queue-empty-state">
+              <Text style={[styles.emptyTitle, { color: theme.palette.text.primary }]}>Keine Titel in der Warteschlange</Text>
+              <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
+            </View>
+          )}
+        />
+      </NativeViewGestureHandler>
     </View>
   );
 };
