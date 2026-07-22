@@ -166,7 +166,7 @@ export const displayTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): st
   resolveDisplayTitle(song.title, song.fileInfo?.filename, song.fileInfo?.uri ?? song.uri);
 export const displayArtist = (song: Pick<Song, 'artist'>): string => getDisplayArtistName(song.artist);
 export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlbumName(song.album);
-export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeMetadataText(cleanPersonLikeLabel(song.genre)) ?? UNKNWN_GENRE_LABEL;
+export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeMetadataText(cleanPersonLikeLabel(song.genre)) ?? UNKNOWN_GENRE_LABEL;
 
 export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
   const byKey = new Map<string, Song>();
