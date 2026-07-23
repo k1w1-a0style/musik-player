@@ -37,6 +37,8 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
   const persistedSkinRef = useRef<AppThemeSkin>(DEFAULT_APP_THEME_SKIN);
   const appearanceWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const skinWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const appearanceRequestIdRef = useRef(0);
+  const skinRequestIdRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -66,6 +68,8 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
 
   const setAppearance = useCallback((nextAppearance: AppAppearance) => {
     const normalized = normalizeAppAppearance(nextAppearance);
+    const requestId = appearanceRequestIdRef.current + 1;
+    appearanceRequestIdRef.current = requestId;
     appearanceRef.current = normalized;
     setAppearanceState(normalized);
 
@@ -77,7 +81,7 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
           persistedAppearanceRef.current = normalized;
         } catch (error) {
           console.warn('[AppTheme] Appearance persistence failed; reverting to the last stored value.', error);
-          if (mountedRef.current && appearanceRef.current === normalized) {
+          if (mountedRef.current && appearanceRequestIdRef.current === requestId) {
             const fallback = persistedAppearanceRef.current;
             appearanceRef.current = fallback;
             setAppearanceState(fallback);
@@ -88,6 +92,8 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
 
   const setSkin = useCallback((nextSkin: AppThemeSkin) => {
     const normalized = normalizeAppThemeSkin(nextSkin);
+    const requestId = skinRequestIdRef.current + 1;
+    skinRequestIdRef.current = requestId;
     skinRef.current = normalized;
     setSkinState(normalized);
 
@@ -99,7 +105,7 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
           persistedSkinRef.current = normalized;
         } catch (error) {
           console.warn('[AppTheme] Skin persistence failed; reverting to the last stored value.', error);
-          if (mountedRef.current && skinRef.current === normalized) {
+          if (mountedRef.current && skinRequestIdRef.current === requestId) {
             const fallback = persistedSkinRef.current;
             skinRef.current = fallback;
             setSkinState(fallback);
