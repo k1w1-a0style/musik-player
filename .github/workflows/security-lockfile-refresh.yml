@@ -1,0 +1,74 @@
+name: Security lockfile refresh
+
+on:
+  push:
+    branches: ["security/npm-lockfile-refresh"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: security-lockfile-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout security branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: security/npm-lockfile-refresh
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Regenerate package lock only
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Verify patched ws resolution
+        shell: bash
+        run: |
+          node <<'NODE'
+          const lock = require('./package-lock.json');
+          const ws = lock.packages?.['node_modules/ws'];
+          if (ws?.version !== '8.21.1') {
+            throw new Error(`Expected node_modules/ws 8.21.1, received ${ws?.version ?? 'missing'}`);
+          }
+          console.log(`Verified ws@${ws.version}`);
+          NODE
+          npm ls ws --package-lock-only
+
+      - name: Record audit summaries
+        shell: bash
+        run: |
+          npm audit --json > /tmp/npm-audit-all.json || true
+          npm audit --omit=dev --json > /tmp/npm-audit-prod.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          for (const [label, path] of [['all', '/tmp/npm-audit-all.json'], ['production', '/tmp/npm-audit-prod.json']]) {
+            const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+            console.log(`${label} audit vulnerabilities:`, report.metadata?.vulnerabilities ?? 'unavailable');
+          }
+          NODE
+
+      - name: Commit regenerated lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- package.json
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "::error::npm did not produce a lockfile change"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "security: regenerate lockfile for ws 8.21.1"
+          git push origin HEAD:security/npm-lockfile-refresh
