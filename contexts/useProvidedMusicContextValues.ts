@@ -50,6 +50,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     volume,
     setVolume,
     palette,
+    paletteLoading,
     saveQueueAsPlaylist,
     repeatMode,
   } = value;
@@ -140,6 +141,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         volume,
         setVolume,
         palette,
+        paletteLoading,
         playSong,
         next,
         previous,
@@ -160,6 +162,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       volume,
       setVolume,
       palette,
+      paletteLoading,
       playSong,
       next,
       previous,
