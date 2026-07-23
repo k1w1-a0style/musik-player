@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-23T22:20:01.593Z",
+  "generatedAt": "2026-07-23T22:23:41.840Z",
   "node": "v20.20.2",
   "all": {
     "vulnerabilities": {
@@ -931,8 +931,8 @@
           "node_modules/expo-constants"
         ],
         "fixAvailable": {
-          "name": "expo",
-          "version": "46.0.21",
+          "name": "expo-asset",
+          "version": "57.0.7",
           "isSemVerMajor": true
         }
       },
@@ -1252,101 +1252,1391 @@
     ],
     "error": null
   },
-  "ws": {
-    "rootOverride": "^8.21.1",
-    "lockVersion": "8.21.1",
-    "tree": {
-      "version": "1.0.0",
-      "name": "musik-player",
-      "dependencies": {
-        "expo": {
-          "version": "54.0.35",
-          "resolved": "https://registry.npmjs.org/expo/-/expo-54.0.35.tgz",
-          "overridden": false,
-          "dependencies": {
-            "@expo/cli": {
-              "version": "54.0.25",
-              "resolved": "https://registry.npmjs.org/@expo/cli/-/cli-54.0.25.tgz",
-              "overridden": false,
-              "dependencies": {
-                "@react-native/dev-middleware": {
-                  "version": "0.81.5",
-                  "resolved": "https://registry.npmjs.org/@react-native/dev-middleware/-/dev-middleware-0.81.5.tgz",
-                  "overridden": false,
-                  "dependencies": {
-                    "ws": {
-                      "version": "8.21.1"
-                    }
+  "declared": {
+    "babelCore": "7.29.0",
+    "overrides": {
+      "postcss": "^8.5.10",
+      "ws": "^8.21.1",
+      "@tootallnate/once": "^3.0.1"
+    }
+  },
+  "locked": {
+    "ws": [
+      {
+        "path": "node_modules/ws",
+        "version": "8.21.1"
+      }
+    ],
+    "undici": [
+      {
+        "path": "node_modules/undici",
+        "version": "6.26.0"
+      }
+    ],
+    "tar": [
+      {
+        "path": "node_modules/tar",
+        "version": "7.5.15"
+      }
+    ],
+    "shell-quote": [
+      {
+        "path": "node_modules/shell-quote",
+        "version": "1.8.3"
+      }
+    ],
+    "fast-uri": [
+      {
+        "path": "node_modules/fast-uri",
+        "version": "3.1.2"
+      }
+    ],
+    "form-data": [
+      {
+        "path": "node_modules/form-data",
+        "version": "4.0.5"
+      }
+    ],
+    "js-yaml": [
+      {
+        "path": "node_modules/@expo/xcpretty/node_modules/js-yaml",
+        "version": "4.1.1"
+      },
+      {
+        "path": "node_modules/js-yaml",
+        "version": "3.14.2"
+      }
+    ],
+    "brace-expansion": [
+      {
+        "path": "node_modules/@expo/cli/node_modules/brace-expansion",
+        "version": "2.1.1"
+      },
+      {
+        "path": "node_modules/@jest/reporters/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/@react-native/codegen/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/brace-expansion",
+        "version": "5.0.6"
+      },
+      {
+        "path": "node_modules/jest-config/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/jest-runtime/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/react-native/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/rimraf/node_modules/brace-expansion",
+        "version": "1.1.15"
+      },
+      {
+        "path": "node_modules/test-exclude/node_modules/brace-expansion",
+        "version": "1.1.15"
+      }
+    ],
+    "@babel/core": [
+      {
+        "path": "node_modules/@babel/core",
+        "version": "7.29.0"
+      }
+    ]
+  },
+  "dependencyTree": {
+    "version": "1.0.0",
+    "name": "musik-player",
+    "dependencies": {
+      "@babel/core": {
+        "version": "7.29.0",
+        "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.0.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@babel/helper-module-transforms": {
+            "version": "7.29.7",
+            "resolved": "https://registry.npmjs.org/@babel/helper-module-transforms/-/helper-module-transforms-7.29.7.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/core": {
+                "version": "7.29.0"
+              }
+            }
+          }
+        }
+      },
+      "eslint-plugin-react-hooks": {
+        "version": "7.1.1",
+        "resolved": "https://registry.npmjs.org/eslint-plugin-react-hooks/-/eslint-plugin-react-hooks-7.1.1.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@babel/core": {
+            "version": "7.29.0"
+          }
+        }
+      },
+      "eslint": {
+        "version": "10.2.1",
+        "resolved": "https://registry.npmjs.org/eslint/-/eslint-10.2.1.tgz",
+        "overridden": false,
+        "dependencies": {
+          "minimatch": {
+            "version": "10.2.5",
+            "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-10.2.5.tgz",
+            "overridden": false,
+            "dependencies": {
+              "brace-expansion": {
+                "version": "5.0.6",
+                "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.6.tgz",
+                "overridden": false
+              }
+            }
+          }
+        }
+      },
+      "expo-asset": {
+        "version": "12.0.13",
+        "resolved": "https://registry.npmjs.org/expo-asset/-/expo-asset-12.0.13.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@expo/image-utils": {
+            "version": "0.8.14",
+            "resolved": "https://registry.npmjs.org/@expo/image-utils/-/image-utils-0.8.14.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@expo/require-utils": {
+                "version": "55.0.5",
+                "resolved": "https://registry.npmjs.org/@expo/require-utils/-/require-utils-55.0.5.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
                   }
-                },
-                "ws": {
-                  "version": "8.21.1"
                 }
               }
-            },
-            "@expo/metro": {
-              "version": "54.2.0",
-              "resolved": "https://registry.npmjs.org/@expo/metro/-/metro-54.2.0.tgz",
-              "overridden": false,
-              "dependencies": {
-                "metro": {
-                  "version": "0.83.3",
-                  "resolved": "https://registry.npmjs.org/metro/-/metro-0.83.3.tgz",
-                  "overridden": false,
-                  "dependencies": {
-                    "ws": {
-                      "version": "8.21.1"
+            }
+          }
+        }
+      },
+      "expo-dev-client": {
+        "version": "6.0.21",
+        "resolved": "https://registry.npmjs.org/expo-dev-client/-/expo-dev-client-6.0.21.tgz",
+        "overridden": false,
+        "dependencies": {
+          "expo-dev-launcher": {
+            "version": "6.0.21",
+            "resolved": "https://registry.npmjs.org/expo-dev-launcher/-/expo-dev-launcher-6.0.21.tgz",
+            "overridden": false,
+            "dependencies": {
+              "ajv": {
+                "version": "8.20.0",
+                "resolved": "https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "fast-uri": {
+                    "version": "3.1.2",
+                    "resolved": "https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.2.tgz",
+                    "overridden": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expo": {
+        "version": "54.0.35",
+        "resolved": "https://registry.npmjs.org/expo/-/expo-54.0.35.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@expo/cli": {
+            "version": "54.0.25",
+            "resolved": "https://registry.npmjs.org/@expo/cli/-/cli-54.0.25.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@expo/xcpretty": {
+                "version": "4.4.4",
+                "resolved": "https://registry.npmjs.org/@expo/xcpretty/-/xcpretty-4.4.4.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "js-yaml": {
+                    "version": "4.1.1",
+                    "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.1.tgz",
+                    "overridden": false
+                  }
+                }
+              },
+              "@react-native/dev-middleware": {
+                "version": "0.81.5",
+                "resolved": "https://registry.npmjs.org/@react-native/dev-middleware/-/dev-middleware-0.81.5.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "chromium-edge-launcher": {
+                    "version": "0.2.0",
+                    "resolved": "https://registry.npmjs.org/chromium-edge-launcher/-/chromium-edge-launcher-0.2.0.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "rimraf": {
+                        "version": "3.0.2",
+                        "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-3.0.2.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "glob": {
+                            "version": "7.2.3",
+                            "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+                            "overridden": false,
+                            "dependencies": {
+                              "minimatch": {
+                                "version": "3.1.5",
+                                "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                                "overridden": false,
+                                "dependencies": {
+                                  "brace-expansion": {
+                                    "version": "1.1.15",
+                                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                                    "overridden": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "ws": {
+                    "version": "8.21.1"
+                  }
+                }
+              },
+              "minimatch": {
+                "version": "9.0.9",
+                "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.9.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "brace-expansion": {
+                    "version": "2.1.1",
+                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.1.tgz",
+                    "overridden": false
+                  }
+                }
+              },
+              "tar": {
+                "version": "7.5.15",
+                "resolved": "https://registry.npmjs.org/tar/-/tar-7.5.15.tgz",
+                "overridden": false
+              },
+              "undici": {
+                "version": "6.26.0",
+                "resolved": "https://registry.npmjs.org/undici/-/undici-6.26.0.tgz",
+                "overridden": false
+              },
+              "ws": {
+                "version": "8.21.1"
+              }
+            }
+          },
+          "@expo/metro-config": {
+            "version": "54.0.16",
+            "resolved": "https://registry.npmjs.org/@expo/metro-config/-/metro-config-54.0.16.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/core": {
+                "version": "7.29.0"
+              }
+            }
+          },
+          "@expo/metro": {
+            "version": "54.2.0",
+            "resolved": "https://registry.npmjs.org/@expo/metro/-/metro-54.2.0.tgz",
+            "overridden": false,
+            "dependencies": {
+              "metro-babel-transformer": {
+                "version": "0.83.3",
+                "resolved": "https://registry.npmjs.org/metro-babel-transformer/-/metro-babel-transformer-0.83.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "metro-transform-plugins": {
+                "version": "0.83.3",
+                "resolved": "https://registry.npmjs.org/metro-transform-plugins/-/metro-transform-plugins-0.83.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "metro-transform-worker": {
+                "version": "0.83.3",
+                "resolved": "https://registry.npmjs.org/metro-transform-worker/-/metro-transform-worker-0.83.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "metro": {
+                "version": "0.83.3",
+                "resolved": "https://registry.npmjs.org/metro/-/metro-0.83.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "ws": {
+                    "version": "8.21.1"
+                  }
+                }
+              }
+            }
+          },
+          "babel-preset-expo": {
+            "version": "54.0.11",
+            "resolved": "https://registry.npmjs.org/babel-preset-expo/-/babel-preset-expo-54.0.11.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/plugin-proposal-decorators": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-proposal-decorators/-/plugin-proposal-decorators-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/helper-create-class-features-plugin": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/helper-create-class-features-plugin/-/helper-create-class-features-plugin-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      },
+                      "@babel/helper-replace-supers": {
+                        "version": "7.29.7",
+                        "resolved": "https://registry.npmjs.org/@babel/helper-replace-supers/-/helper-replace-supers-7.29.7.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "@babel/core": {
+                            "version": "7.29.0"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-decorators": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-decorators/-/plugin-syntax-decorators-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@babel/plugin-proposal-export-default-from": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-proposal-export-default-from/-/plugin-proposal-export-default-from-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-syntax-export-default-from": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-export-default-from/-/plugin-syntax-export-default-from-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-class-static-block": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-class-static-block/-/plugin-transform-class-static-block-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-export-namespace-from": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-export-namespace-from/-/plugin-transform-export-namespace-from-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-flow-strip-types": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-flow-strip-types/-/plugin-transform-flow-strip-types-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-syntax-flow": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-flow/-/plugin-syntax-flow-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@babel/plugin-transform-modules-commonjs": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-modules-commonjs/-/plugin-transform-modules-commonjs-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-object-rest-spread": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-object-rest-spread/-/plugin-transform-object-rest-spread-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-transform-destructuring": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-destructuring/-/plugin-transform-destructuring-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@babel/plugin-transform-parameters": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-parameters/-/plugin-transform-parameters-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-private-methods": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-private-methods/-/plugin-transform-private-methods-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-private-property-in-object": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-private-property-in-object/-/plugin-transform-private-property-in-object-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-transform-runtime": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-transform-runtime/-/plugin-transform-runtime-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "babel-plugin-polyfill-corejs2": {
+                    "version": "0.4.17",
+                    "resolved": "https://registry.npmjs.org/babel-plugin-polyfill-corejs2/-/babel-plugin-polyfill-corejs2-0.4.17.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      },
+                      "@babel/helper-define-polyfill-provider": {
+                        "version": "0.6.8",
+                        "resolved": "https://registry.npmjs.org/@babel/helper-define-polyfill-provider/-/helper-define-polyfill-provider-0.6.8.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "@babel/core": {
+                            "version": "7.29.0"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "babel-plugin-polyfill-corejs3": {
+                    "version": "0.13.0",
+                    "resolved": "https://registry.npmjs.org/babel-plugin-polyfill-corejs3/-/babel-plugin-polyfill-corejs3-0.13.0.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "babel-plugin-polyfill-regenerator": {
+                    "version": "0.6.8",
+                    "resolved": "https://registry.npmjs.org/babel-plugin-polyfill-regenerator/-/babel-plugin-polyfill-regenerator-0.6.8.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@babel/preset-react": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/preset-react/-/preset-react-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-transform-react-display-name": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-display-name/-/plugin-transform-react-display-name-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-react-jsx-development": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-development/-/plugin-transform-react-jsx-development-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-react-jsx": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx/-/plugin-transform-react-jsx-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-react-pure-annotations": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-pure-annotations/-/plugin-transform-react-pure-annotations-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@babel/preset-typescript": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/preset-typescript/-/preset-typescript-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-transform-typescript": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-typescript/-/plugin-transform-typescript-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "@react-native/babel-preset": {
+                "version": "0.81.5",
+                "resolved": "https://registry.npmjs.org/@react-native/babel-preset/-/babel-preset-0.81.5.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-syntax-dynamic-import": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-dynamic-import/-/plugin-syntax-dynamic-import-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-nullish-coalescing-operator": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-nullish-coalescing-operator/-/plugin-syntax-nullish-coalescing-operator-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-optional-chaining": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-optional-chaining/-/plugin-syntax-optional-chaining-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-arrow-functions": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-arrow-functions/-/plugin-transform-arrow-functions-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-async-generator-functions": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-async-generator-functions/-/plugin-transform-async-generator-functions-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      },
+                      "@babel/helper-remap-async-to-generator": {
+                        "version": "7.29.7",
+                        "resolved": "https://registry.npmjs.org/@babel/helper-remap-async-to-generator/-/helper-remap-async-to-generator-7.29.7.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "@babel/core": {
+                            "version": "7.29.0"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-async-to-generator": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-async-to-generator/-/plugin-transform-async-to-generator-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-block-scoping": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-block-scoping/-/plugin-transform-block-scoping-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-class-properties": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-class-properties/-/plugin-transform-class-properties-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-classes": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-classes/-/plugin-transform-classes-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-computed-properties": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-computed-properties/-/plugin-transform-computed-properties-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-for-of": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-for-of/-/plugin-transform-for-of-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-function-name": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-function-name/-/plugin-transform-function-name-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-literals": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-literals/-/plugin-transform-literals-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-logical-assignment-operators": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-logical-assignment-operators/-/plugin-transform-logical-assignment-operators-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-named-capturing-groups-regex": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-named-capturing-groups-regex/-/plugin-transform-named-capturing-groups-regex-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      },
+                      "@babel/helper-create-regexp-features-plugin": {
+                        "version": "7.29.7",
+                        "resolved": "https://registry.npmjs.org/@babel/helper-create-regexp-features-plugin/-/helper-create-regexp-features-plugin-7.29.7.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "@babel/core": {
+                            "version": "7.29.0"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-nullish-coalescing-operator": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-nullish-coalescing-operator/-/plugin-transform-nullish-coalescing-operator-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-numeric-separator": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-numeric-separator/-/plugin-transform-numeric-separator-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-optional-catch-binding": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-optional-catch-binding/-/plugin-transform-optional-catch-binding-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-optional-chaining": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-optional-chaining/-/plugin-transform-optional-chaining-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-react-jsx-self": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-self/-/plugin-transform-react-jsx-self-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-react-jsx-source": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-source/-/plugin-transform-react-jsx-source-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-regenerator": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-regenerator/-/plugin-transform-regenerator-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-shorthand-properties": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-shorthand-properties/-/plugin-transform-shorthand-properties-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-spread": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-spread/-/plugin-transform-spread-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-sticky-regex": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-sticky-regex/-/plugin-transform-sticky-regex-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-transform-unicode-regex": {
+                    "version": "7.29.7",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-transform-unicode-regex/-/plugin-transform-unicode-regex-7.29.7.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
                     }
                   }
                 }
               }
             }
           }
-        },
-        "jest-expo": {
-          "version": "54.0.17",
-          "resolved": "https://registry.npmjs.org/jest-expo/-/jest-expo-54.0.17.tgz",
-          "overridden": false,
-          "dependencies": {
-            "jest-environment-jsdom": {
-              "version": "29.7.0",
-              "resolved": "https://registry.npmjs.org/jest-environment-jsdom/-/jest-environment-jsdom-29.7.0.tgz",
-              "overridden": false,
-              "dependencies": {
-                "jsdom": {
-                  "version": "20.0.3",
-                  "resolved": "https://registry.npmjs.org/jsdom/-/jsdom-20.0.3.tgz",
-                  "overridden": false,
-                  "dependencies": {
-                    "ws": {
-                      "version": "8.21.1"
+        }
+      },
+      "jest-expo": {
+        "version": "54.0.17",
+        "resolved": "https://registry.npmjs.org/jest-expo/-/jest-expo-54.0.17.tgz",
+        "overridden": false,
+        "dependencies": {
+          "babel-jest": {
+            "version": "29.7.0",
+            "resolved": "https://registry.npmjs.org/babel-jest/-/babel-jest-29.7.0.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/core": {
+                "version": "7.29.0"
+              },
+              "@jest/transform": {
+                "version": "29.7.0",
+                "resolved": "https://registry.npmjs.org/@jest/transform/-/transform-29.7.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "babel-plugin-istanbul": {
+                "version": "6.1.1",
+                "resolved": "https://registry.npmjs.org/babel-plugin-istanbul/-/babel-plugin-istanbul-6.1.1.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@istanbuljs/load-nyc-config": {
+                    "version": "1.1.0",
+                    "resolved": "https://registry.npmjs.org/@istanbuljs/load-nyc-config/-/load-nyc-config-1.1.0.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "js-yaml": {
+                        "version": "3.14.2",
+                        "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-3.14.2.tgz",
+                        "overridden": false
+                      }
+                    }
+                  },
+                  "istanbul-lib-instrument": {
+                    "version": "5.2.1",
+                    "resolved": "https://registry.npmjs.org/istanbul-lib-instrument/-/istanbul-lib-instrument-5.2.1.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "test-exclude": {
+                    "version": "6.0.0",
+                    "resolved": "https://registry.npmjs.org/test-exclude/-/test-exclude-6.0.0.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "minimatch": {
+                        "version": "3.1.5",
+                        "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "brace-expansion": {
+                            "version": "1.1.15",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                            "overridden": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "babel-preset-jest": {
+                "version": "29.6.3",
+                "resolved": "https://registry.npmjs.org/babel-preset-jest/-/babel-preset-jest-29.6.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              }
+            }
+          },
+          "jest-environment-jsdom": {
+            "version": "29.7.0",
+            "resolved": "https://registry.npmjs.org/jest-environment-jsdom/-/jest-environment-jsdom-29.7.0.tgz",
+            "overridden": false,
+            "dependencies": {
+              "jsdom": {
+                "version": "20.0.3",
+                "resolved": "https://registry.npmjs.org/jsdom/-/jsdom-20.0.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "form-data": {
+                    "version": "4.0.5",
+                    "resolved": "https://registry.npmjs.org/form-data/-/form-data-4.0.5.tgz",
+                    "overridden": false
+                  },
+                  "ws": {
+                    "version": "8.21.1"
+                  }
+                }
+              }
+            }
+          },
+          "jest-snapshot": {
+            "version": "29.7.0",
+            "resolved": "https://registry.npmjs.org/jest-snapshot/-/jest-snapshot-29.7.0.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/core": {
+                "version": "7.29.0"
+              },
+              "@babel/plugin-syntax-jsx": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-jsx/-/plugin-syntax-jsx-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "@babel/plugin-syntax-typescript": {
+                "version": "7.29.7",
+                "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-typescript/-/plugin-syntax-typescript-7.29.7.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  }
+                }
+              },
+              "babel-preset-current-node-syntax": {
+                "version": "1.2.0",
+                "resolved": "https://registry.npmjs.org/babel-preset-current-node-syntax/-/babel-preset-current-node-syntax-1.2.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "@babel/plugin-syntax-async-generators": {
+                    "version": "7.8.4",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-async-generators/-/plugin-syntax-async-generators-7.8.4.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-bigint": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-bigint/-/plugin-syntax-bigint-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-class-properties": {
+                    "version": "7.12.13",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-class-properties/-/plugin-syntax-class-properties-7.12.13.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-class-static-block": {
+                    "version": "7.14.5",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-class-static-block/-/plugin-syntax-class-static-block-7.14.5.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-import-attributes": {
+                    "version": "7.28.6",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-import-attributes/-/plugin-syntax-import-attributes-7.28.6.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-import-meta": {
+                    "version": "7.10.4",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-import-meta/-/plugin-syntax-import-meta-7.10.4.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-json-strings": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-json-strings/-/plugin-syntax-json-strings-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-logical-assignment-operators": {
+                    "version": "7.10.4",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-logical-assignment-operators/-/plugin-syntax-logical-assignment-operators-7.10.4.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-numeric-separator": {
+                    "version": "7.10.4",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-numeric-separator/-/plugin-syntax-numeric-separator-7.10.4.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-object-rest-spread": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-object-rest-spread/-/plugin-syntax-object-rest-spread-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-optional-catch-binding": {
+                    "version": "7.8.3",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-optional-catch-binding/-/plugin-syntax-optional-catch-binding-7.8.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-private-property-in-object": {
+                    "version": "7.14.5",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-private-property-in-object/-/plugin-syntax-private-property-in-object-7.14.5.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  },
+                  "@babel/plugin-syntax-top-level-await": {
+                    "version": "7.14.5",
+                    "resolved": "https://registry.npmjs.org/@babel/plugin-syntax-top-level-await/-/plugin-syntax-top-level-await-7.14.5.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
                     }
                   }
                 }
               }
             }
           }
-        },
-        "react-native": {
-          "version": "0.81.5",
-          "resolved": "https://registry.npmjs.org/react-native/-/react-native-0.81.5.tgz",
-          "overridden": false,
-          "dependencies": {
-            "react-devtools-core": {
-              "version": "6.1.5",
-              "resolved": "https://registry.npmjs.org/react-devtools-core/-/react-devtools-core-6.1.5.tgz",
-              "overridden": false,
-              "dependencies": {
-                "ws": {
-                  "version": "8.21.1"
+        }
+      },
+      "jest": {
+        "version": "29.7.0",
+        "resolved": "https://registry.npmjs.org/jest/-/jest-29.7.0.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@jest/core": {
+            "version": "29.7.0",
+            "resolved": "https://registry.npmjs.org/@jest/core/-/core-29.7.0.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@jest/reporters": {
+                "version": "29.7.0",
+                "resolved": "https://registry.npmjs.org/@jest/reporters/-/reporters-29.7.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "glob": {
+                    "version": "7.2.3",
+                    "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "minimatch": {
+                        "version": "3.1.5",
+                        "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "brace-expansion": {
+                            "version": "1.1.15",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                            "overridden": false
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "istanbul-lib-instrument": {
+                    "version": "6.0.3",
+                    "resolved": "https://registry.npmjs.org/istanbul-lib-instrument/-/istanbul-lib-instrument-6.0.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "@babel/core": {
+                        "version": "7.29.0"
+                      }
+                    }
+                  }
+                }
+              },
+              "jest-config": {
+                "version": "29.7.0",
+                "resolved": "https://registry.npmjs.org/jest-config/-/jest-config-29.7.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "@babel/core": {
+                    "version": "7.29.0"
+                  },
+                  "glob": {
+                    "version": "7.2.3",
+                    "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "minimatch": {
+                        "version": "3.1.5",
+                        "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "brace-expansion": {
+                            "version": "1.1.15",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                            "overridden": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "jest-runtime": {
+                "version": "29.7.0",
+                "resolved": "https://registry.npmjs.org/jest-runtime/-/jest-runtime-29.7.0.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "glob": {
+                    "version": "7.2.3",
+                    "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "minimatch": {
+                        "version": "3.1.5",
+                        "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                        "overridden": false,
+                        "dependencies": {
+                          "brace-expansion": {
+                            "version": "1.1.15",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                            "overridden": false
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
-            },
-            "ws": {
-              "version": "8.21.1",
-              "resolved": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
-              "overridden": true
             }
+          }
+        }
+      },
+      "react-native": {
+        "version": "0.81.5",
+        "resolved": "https://registry.npmjs.org/react-native/-/react-native-0.81.5.tgz",
+        "overridden": false,
+        "dependencies": {
+          "@react-native/codegen": {
+            "version": "0.81.5",
+            "resolved": "https://registry.npmjs.org/@react-native/codegen/-/codegen-0.81.5.tgz",
+            "overridden": false,
+            "dependencies": {
+              "@babel/core": {
+                "version": "7.29.0"
+              },
+              "glob": {
+                "version": "7.2.3",
+                "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "minimatch": {
+                    "version": "3.1.5",
+                    "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                    "overridden": false,
+                    "dependencies": {
+                      "brace-expansion": {
+                        "version": "1.1.15",
+                        "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                        "overridden": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "glob": {
+            "version": "7.2.3",
+            "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+            "overridden": false,
+            "dependencies": {
+              "minimatch": {
+                "version": "3.1.5",
+                "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.5.tgz",
+                "overridden": false,
+                "dependencies": {
+                  "brace-expansion": {
+                    "version": "1.1.15",
+                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
+                    "overridden": false
+                  }
+                }
+              }
+            }
+          },
+          "react-devtools-core": {
+            "version": "6.1.5",
+            "resolved": "https://registry.npmjs.org/react-devtools-core/-/react-devtools-core-6.1.5.tgz",
+            "overridden": false,
+            "dependencies": {
+              "shell-quote": {
+                "version": "1.8.3",
+                "resolved": "https://registry.npmjs.org/shell-quote/-/shell-quote-1.8.3.tgz",
+                "overridden": false
+              },
+              "ws": {
+                "version": "8.21.1"
+              }
+            }
+          },
+          "ws": {
+            "version": "8.21.1",
+            "resolved": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
+            "overridden": true
           }
         }
       }
