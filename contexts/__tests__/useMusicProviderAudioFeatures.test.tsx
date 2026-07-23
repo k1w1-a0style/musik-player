@@ -8,7 +8,10 @@ jest.mock('../useNativeEqualizer', () => ({
 }));
 
 jest.mock('../useAlbumPalette', () => ({
-  useAlbumPalette: jest.fn(() => ({ dominant: '#111111' })),
+  useAlbumPaletteState: jest.fn(() => ({
+    palette: { dominant: '#111111' },
+    isLoading: true,
+  })),
 }));
 
 const Probe = () => {
@@ -22,6 +25,7 @@ const Probe = () => {
     <>
       <Text testID="eq">{String(state.eqNative?.available)}</Text>
       <Text testID="palette">{state.palette?.dominant}</Text>
+      <Text testID="palette-loading">{String(state.paletteLoading)}</Text>
     </>
   );
 };
@@ -32,5 +36,6 @@ describe('useMusicProviderAudioFeatures', () => {
 
     expect(getByTestId('eq').props.children).toBe('true');
     expect(getByTestId('palette').props.children).toBe('#111111');
+    expect(getByTestId('palette-loading').props.children).toBe('true');
   });
 });
