@@ -32,7 +32,7 @@ jobs:
       - name: Install from regenerated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Generate machine-readable audit report
+      - name: Generate detailed machine-readable audit report
         shell: bash
         run: |
           npm audit --json > /tmp/npm-audit-all.json || true
@@ -44,6 +44,27 @@ jobs:
           const all = read('/tmp/npm-audit-all.json');
           const prod = read('/tmp/npm-audit-prod.json');
           const wsTree = read('/tmp/npm-ls-ws.json');
+          const summarize = audit => Object.entries(audit.vulnerabilities ?? {})
+            .map(([name, vulnerability]) => ({
+              name,
+              severity: vulnerability.severity,
+              isDirect: vulnerability.isDirect,
+              range: vulnerability.range,
+              via: (vulnerability.via ?? []).map(item => typeof item === 'string'
+                ? { dependency: item }
+                : {
+                    source: item.source,
+                    name: item.name,
+                    title: item.title,
+                    url: item.url,
+                    severity: item.severity,
+                    range: item.range,
+                  }),
+              effects: vulnerability.effects ?? [],
+              nodes: vulnerability.nodes ?? [],
+              fixAvailable: vulnerability.fixAvailable ?? false,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
           const report = {
             generatedAt: new Date().toISOString(),
             node: process.version,
@@ -51,11 +72,13 @@ jobs:
             all: {
               vulnerabilities: all.metadata?.vulnerabilities ?? null,
               dependencyCounts: all.metadata?.dependencies ?? null,
+              details: summarize(all),
               error: all.error ?? null,
             },
             production: {
               vulnerabilities: prod.metadata?.vulnerabilities ?? null,
               dependencyCounts: prod.metadata?.dependencies ?? null,
+              details: summarize(prod),
               error: prod.error ?? null,
             },
             ws: {
@@ -75,5 +98,5 @@ jobs:
           git add .security-audit-report.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: capture temporary npm audit report"
+          git commit -m "chore: expand temporary npm audit report"
           git push origin HEAD:security/npm-lockfile-refresh
