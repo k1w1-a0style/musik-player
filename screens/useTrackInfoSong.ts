@@ -8,7 +8,7 @@ type TrackInfoRoute = RouteProp<AppStackParamList, 'TrackInfo'>;
 
 export const useTrackInfoSong = () => {
   const route = useRoute<TrackInfoRoute>();
-  const { songs, setSongs } = useLibraryMusicContext();
+  const { songs, setSongs, isReady } = useLibraryMusicContext();
   const songsRef = useRef<Song[]>(songs);
   const songId = route.params.songId;
 
@@ -24,5 +24,6 @@ export const useTrackInfoSong = () => {
     songId,
     songsRef,
     setSongs,
+    isReady,
   };
 };
