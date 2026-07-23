@@ -63,7 +63,7 @@ export const buildArtistKey = (value?: string | null): string => `artist:${norma
 export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
   const albumPart = normalizeAlbumName(song.album);
   const albumArtistNorm = normalizeMetadataText(song.albumArtist);
-  if (!albumArtistNorm) return `album:${albumPart}`;
+  if (albumPart === UNKNOWN_ALBUM_KEY || !albumArtistNorm) return `album:${albumPart}`;
   return `album:${albumPart}::${albumArtistNorm.toLocaleLowerCase('de-DE')}`;
 };
 
