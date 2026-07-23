@@ -13,6 +13,7 @@ type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 interface UseNowPlayingPresentationArgs {
   currentSong: Song | null;
   palette: PaletteResult | null;
+  paletteLoading?: boolean;
 }
 
 interface NowPlayingPresentationState {
@@ -31,19 +32,20 @@ interface NowPlayingPresentationState {
 export const useNowPlayingPresentation = ({
   currentSong,
   palette,
+  paletteLoading = false,
 }: UseNowPlayingPresentationArgs): NowPlayingPresentationState => {
   const appTheme = useOptionalAppTheme()?.theme ?? getAppTheme();
 
-  // Retain the last palette that was backed by native data.
-  // During loading (palette = null), we reuse the last retained palette to avoid
-  // a flash of the JS-only fallback bleeding through during the async gap.
-  // Critically, we retain the full pre-computed palette — not a partial native result —
-  // so we never mix an old song's native fields with a new song's fallback fields.
+  // Retain the last palette only across a confirmed async loading transition.
+  // A terminal null (no artwork, extraction failure, rejection or timeout)
+  // clears the ref so the current song's deterministic fallback takes over.
   const lastNativePaletteRef = useRef<PaletteResult | null>(null);
   if (palette !== null) {
     lastNativePaletteRef.current = palette;
+  } else if (!paletteLoading) {
+    lastNativePaletteRef.current = null;
   }
-  const resolvedPalette = palette ?? lastNativePaletteRef.current;
+  const resolvedPalette = palette ?? (paletteLoading ? lastNativePaletteRef.current : null);
 
   // Native palette wins per-field, JS fallback fills the gaps so the gradient
   // is never the hard black/green brand color and stays deterministic per song.
