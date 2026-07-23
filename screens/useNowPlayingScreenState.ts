@@ -55,6 +55,7 @@ export const useNowPlayingScreenState = () => {
     volume,
     setVolume,
     palette,
+    paletteLoading,
     playSong,
     next,
     previous,
@@ -66,7 +67,7 @@ export const useNowPlayingScreenState = () => {
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
   const menuState = useNowPlayingMenu(currentSong?.id);
   const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
-  const presentation = useNowPlayingPresentation({ currentSong, palette });
+  const presentation = useNowPlayingPresentation({ currentSong, palette, paletteLoading });
   const { mode: controlsMode } = useNowPlayingControlsMode();
   const queueShift = reorderQueue ?? noopQueueShift;
 
