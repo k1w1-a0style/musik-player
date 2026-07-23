@@ -1,12 +1,12 @@
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
-import { useAlbumPalette } from './useAlbumPalette';
+import { useAlbumPaletteState } from './useAlbumPalette';
 import { useNativeEqualizer } from './useNativeEqualizer';
-
 
 export interface MusicProviderAudioFeatures {
   eqNative: EqInitResult | null;
   palette: PaletteResult | null;
+  paletteLoading?: boolean;
 }
 
 export interface MusicProviderAudioFeaturesArgs {
@@ -21,6 +21,6 @@ export const useMusicProviderAudioFeatures = ({
   eqBands,
 }: MusicProviderAudioFeaturesArgs): MusicProviderAudioFeatures => {
   const eqNative = useNativeEqualizer(eqEnabled, eqBands);
-  const palette = useAlbumPalette(currentSong);
-  return { eqNative, palette };
+  const { palette, isLoading: paletteLoading } = useAlbumPaletteState(currentSong);
+  return { eqNative, palette, paletteLoading };
 };
