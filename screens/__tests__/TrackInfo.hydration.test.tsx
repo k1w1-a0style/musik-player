@@ -37,6 +37,7 @@ jest.mock('../useTrackInfoScreenState', () => ({
   useTrackInfoScreenState: () => mockState,
 }));
 
+// A missing song before hydration and a missing song after hydration are distinct UI states.
 describe('TrackInfo hydration state', () => {
   beforeEach(() => {
     mockState = { ...baseState };
