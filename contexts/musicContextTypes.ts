@@ -37,6 +37,7 @@ export interface MusicContextValue {
   applyEqPreset: (p: EqPresetName) => void;
   eqNative: EqInitResult | null;
   palette: PaletteResult | null;
+  paletteLoading?: boolean;
   playlists: Playlist[];
   createPlaylist: (name: string) => Playlist;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
@@ -93,6 +94,7 @@ export interface NowPlayingMusicContextValue {
   volume: number;
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;
+  paletteLoading?: boolean;
   playSong: (song: Song, queue?: Song[]) => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
