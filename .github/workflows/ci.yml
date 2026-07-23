@@ -101,7 +101,7 @@ jobs:
           java -version
           npx --no-install expo prebuild --platform android --no-install --clean
 
-      - name: Android native compile and unit tests \u2013 no APK/EAS build
+      - name: Android native compile and unit tests – no APK/EAS build
         shell: bash
         run: |
           set -uo pipefail
