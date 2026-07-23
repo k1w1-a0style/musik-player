@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import {
@@ -35,9 +35,6 @@ export interface AlbumPaletteState {
 export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteState => {
   const [resolution, setResolution] = useState<NativePaletteResolution | null>(null);
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
-  const currentSongRef = useRef(currentSong);
-
-  currentSongRef.current = currentSong;
 
   const state = useMemo<AlbumPaletteState>(() => {
     if (!currentArtworkUri) {
