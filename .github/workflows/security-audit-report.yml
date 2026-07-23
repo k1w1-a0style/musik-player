@@ -1,0 +1,79 @@
+name: Security audit report
+
+on:
+  push:
+    branches: ["security/npm-lockfile-refresh"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: security-audit-report
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout security branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: security/npm-lockfile-refresh
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install from regenerated lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Generate machine-readable audit report
+        shell: bash
+        run: |
+          npm audit --json > /tmp/npm-audit-all.json || true
+          npm audit --omit=dev --json > /tmp/npm-audit-prod.json || true
+          npm ls ws --json > /tmp/npm-ls-ws.json
+          node <<'NODE'
+          const fs = require('fs');
+          const read = path => JSON.parse(fs.readFileSync(path, 'utf8'));
+          const all = read('/tmp/npm-audit-all.json');
+          const prod = read('/tmp/npm-audit-prod.json');
+          const wsTree = read('/tmp/npm-ls-ws.json');
+          const report = {
+            generatedAt: new Date().toISOString(),
+            node: process.version,
+            npm: process.env.npm_config_user_agent,
+            all: {
+              vulnerabilities: all.metadata?.vulnerabilities ?? null,
+              dependencyCounts: all.metadata?.dependencies ?? null,
+              error: all.error ?? null,
+            },
+            production: {
+              vulnerabilities: prod.metadata?.vulnerabilities ?? null,
+              dependencyCounts: prod.metadata?.dependencies ?? null,
+              error: prod.error ?? null,
+            },
+            ws: {
+              rootOverride: require('./package.json').overrides?.ws ?? null,
+              lockVersion: require('./package-lock.json').packages?.['node_modules/ws']?.version ?? null,
+              tree: wsTree.dependencies?.ws ?? wsTree,
+            },
+          };
+          fs.writeFileSync('.security-audit-report.json', JSON.stringify(report, null, 2) + '\n');
+          console.log(JSON.stringify(report, null, 2));
+          NODE
+
+      - name: Commit temporary audit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add .security-audit-report.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: capture temporary npm audit report"
+          git push origin HEAD:security/npm-lockfile-refresh
