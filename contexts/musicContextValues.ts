@@ -42,6 +42,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'volume'
   | 'setVolume'
   | 'palette'
+  | 'paletteLoading'
   | 'playSong'
   | 'next'
   | 'previous'
@@ -123,6 +124,7 @@ export const buildNowPlayingMusicContextValue = ({
   volume,
   setVolume,
   palette,
+  paletteLoading,
   playSong,
   next,
   previous,
@@ -142,6 +144,7 @@ export const buildNowPlayingMusicContextValue = ({
   volume,
   setVolume,
   palette,
+  ...(paletteLoading === undefined ? {} : { paletteLoading }),
   playSong,
   next,
   previous,
