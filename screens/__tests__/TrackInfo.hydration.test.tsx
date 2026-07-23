@@ -1,5 +1,4 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import TrackInfo from '../TrackInfo';
 
@@ -23,7 +22,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
     theme: {
       palette: {
         primary: '#ffffff',
-        text: { secondary: '#cccccc' },
+        text: { primary: '#ffffff', secondary: '#cccccc' },
       },
     },
   }),
@@ -31,8 +30,6 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 
 jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
 jest.mock('../../components/Screen', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
-jest.mock('../TrackInfoContent', () => () => <Text>Track info content</Text>);
-jest.mock('../TrackInfoNotFound', () => () => <Text>Titel nicht gefunden.</Text>);
 jest.mock('../useTrackInfoScreenState', () => ({
   useTrackInfoScreenState: () => mockState,
 }));
