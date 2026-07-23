@@ -1,49 +1,24 @@
 {
-  "generatedAt": "2026-07-23T22:23:41.840Z",
+  "generatedAt": "2026-07-23T22:28:57.256Z",
   "node": "v20.20.2",
   "all": {
     "vulnerabilities": {
       "info": 0,
-      "low": 1,
+      "low": 0,
       "moderate": 14,
-      "high": 5,
-      "critical": 2,
-      "total": 22
+      "high": 0,
+      "critical": 1,
+      "total": 15
     },
     "dependencyCounts": {
-      "prod": 679,
+      "prod": 677,
       "dev": 244,
       "optional": 12,
       "peer": 0,
       "peerOptional": 0,
-      "total": 934
+      "total": 932
     },
     "details": [
-      {
-        "name": "@babel/core",
-        "severity": "low",
-        "isDirect": true,
-        "range": "<=7.29.0",
-        "via": [
-          {
-            "source": 1123528,
-            "name": "@babel/core",
-            "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
-            "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
-            "severity": "low",
-            "range": "<=7.29.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@babel/core"
-        ],
-        "fixAvailable": {
-          "name": "@babel/core",
-          "version": "7.29.7",
-          "isSemVerMajor": false
-        }
-      },
       {
         "name": "@expo/cli",
         "severity": "moderate",
@@ -168,51 +143,6 @@
         "fixAvailable": true
       },
       {
-        "name": "brace-expansion",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=1.1.15 || 2.0.0 - 2.1.1 || 3.0.0 - 5.0.6",
-        "via": [
-          {
-            "source": 1123896,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": ">=2.0.0 <2.1.2"
-          },
-          {
-            "source": 1123897,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": "<1.1.16"
-          },
-          {
-            "source": 1123898,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": ">=3.0.0 <5.0.7"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@expo/cli/node_modules/brace-expansion",
-          "node_modules/@jest/reporters/node_modules/brace-expansion",
-          "node_modules/@react-native/codegen/node_modules/brace-expansion",
-          "node_modules/brace-expansion",
-          "node_modules/jest-config/node_modules/brace-expansion",
-          "node_modules/jest-runtime/node_modules/brace-expansion",
-          "node_modules/react-native/node_modules/brace-expansion",
-          "node_modules/rimraf/node_modules/brace-expansion",
-          "node_modules/test-exclude/node_modules/brace-expansion"
-        ],
-        "fixAvailable": true
-      },
-      {
         "name": "expo",
         "severity": "moderate",
         "isDirect": true,
@@ -287,8 +217,8 @@
           "node_modules/expo-constants"
         ],
         "fixAvailable": {
-          "name": "expo",
-          "version": "46.0.21",
+          "name": "expo-asset",
+          "version": "57.0.7",
           "isSemVerMajor": true
         }
       },
@@ -355,56 +285,6 @@
         }
       },
       {
-        "name": "fast-uri",
-        "severity": "high",
-        "isDirect": false,
-        "range": "3.0.0 - 3.1.3",
-        "via": [
-          {
-            "source": 1124064,
-            "name": "fast-uri",
-            "title": "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
-            "url": "https://github.com/advisories/GHSA-v2hh-gcrm-f6hx",
-            "severity": "high",
-            "range": ">=3.0.0 <=3.1.3"
-          },
-          {
-            "source": 1124231,
-            "name": "fast-uri",
-            "title": "fast-uri vulnerable to host confusion via failed IDN canonicalization",
-            "url": "https://github.com/advisories/GHSA-4c8g-83qw-93j6",
-            "severity": "high",
-            "range": ">=3.0.0 <3.1.3"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/fast-uri"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "form-data",
-        "severity": "high",
-        "isDirect": false,
-        "range": "4.0.0 - 4.0.5",
-        "via": [
-          {
-            "source": 1120743,
-            "name": "form-data",
-            "title": "form-data: CRLF injection in form-data via unescaped multipart field names and filenames",
-            "url": "https://github.com/advisories/GHSA-hmw2-7cc7-3qxx",
-            "severity": "high",
-            "range": ">=4.0.0 <4.0.6"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/form-data"
-        ],
-        "fixAvailable": true
-      },
-      {
         "name": "jest-expo",
         "severity": "moderate",
         "isDirect": true,
@@ -423,52 +303,6 @@
           "version": "57.0.2",
           "isSemVerMajor": true
         }
-      },
-      {
-        "name": "js-yaml",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=3.14.2 || 4.0.0 - 4.2.0",
-        "via": [
-          {
-            "source": 1121859,
-            "name": "js-yaml",
-            "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
-            "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
-            "severity": "moderate",
-            "range": "<3.15.0"
-          },
-          {
-            "source": 1121860,
-            "name": "js-yaml",
-            "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
-            "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
-            "severity": "moderate",
-            "range": ">=4.0.0 <=4.1.1"
-          },
-          {
-            "source": 1123911,
-            "name": "js-yaml",
-            "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
-            "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
-            "severity": "high",
-            "range": ">=4.0.0 <4.3.0"
-          },
-          {
-            "source": 1123912,
-            "name": "js-yaml",
-            "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
-            "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
-            "severity": "high",
-            "range": ">=3.0.0 <3.15.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@expo/xcpretty/node_modules/js-yaml",
-          "node_modules/js-yaml"
-        ],
-        "fixAvailable": true
       },
       {
         "name": "shell-quote",
@@ -496,104 +330,6 @@
         "effects": [],
         "nodes": [
           "node_modules/shell-quote"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "tar",
-        "severity": "critical",
-        "isDirect": false,
-        "range": "<=7.5.18",
-        "via": [
-          {
-            "source": 1120782,
-            "name": "tar",
-            "title": "node-tar applies PAX size override to intermediary GNU long-name/long-link headers, causing tar parser interpretation differential (file smuggling)",
-            "url": "https://github.com/advisories/GHSA-vmf3-w455-68vh",
-            "severity": "moderate",
-            "range": "<=7.5.15"
-          },
-          {
-            "source": 1123939,
-            "name": "tar",
-            "title": "node-tar: Process crash via PAX numeric path type confusion",
-            "url": "https://github.com/advisories/GHSA-w8wr-v893-vjvp",
-            "severity": "moderate",
-            "range": "<=7.5.17"
-          },
-          {
-            "source": 1123940,
-            "name": "tar",
-            "title": "node-tar: Decompression/parse DoS via unlimited input",
-            "url": "https://github.com/advisories/GHSA-23hp-3jrh-7fpw",
-            "severity": "critical",
-            "range": "<=7.5.18"
-          },
-          {
-            "source": 1123941,
-            "name": "tar",
-            "title": "node-tar: Negative tar entry size causes infinite loop in archive replace",
-            "url": "https://github.com/advisories/GHSA-8x88-c5mf-7j5w",
-            "severity": "high",
-            "range": "<=7.5.17"
-          },
-          {
-            "source": 1123942,
-            "name": "tar",
-            "title": "node-tar: Uncaught Exception DoS via NUL byte in PAX path/linkpath records",
-            "url": "https://github.com/advisories/GHSA-gvwx-54wh-qm9j",
-            "severity": "moderate",
-            "range": "<=7.5.16"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/tar"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "undici",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=6.26.0",
-        "via": [
-          {
-            "source": 1121242,
-            "name": "undici",
-            "title": "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
-            "url": "https://github.com/advisories/GHSA-p88m-4jfj-68fv",
-            "severity": "moderate",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121245,
-            "name": "undici",
-            "title": "undici WebSocket client vulnerable to denial of service via fragment count bypass",
-            "url": "https://github.com/advisories/GHSA-vxpw-j846-p89q",
-            "severity": "high",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121250,
-            "name": "undici",
-            "title": "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse",
-            "url": "https://github.com/advisories/GHSA-35p6-xmwp-9g52",
-            "severity": "low",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121255,
-            "name": "undici",
-            "title": "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
-            "url": "https://github.com/advisories/GHSA-g8m3-5g58-fq7m",
-            "severity": "low",
-            "range": "<6.27.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/undici"
         ],
         "fixAvailable": true
       },
@@ -652,46 +388,21 @@
   "production": {
     "vulnerabilities": {
       "info": 0,
-      "low": 1,
+      "low": 0,
       "moderate": 13,
-      "high": 4,
-      "critical": 2,
-      "total": 20
+      "high": 0,
+      "critical": 1,
+      "total": 14
     },
     "dependencyCounts": {
-      "prod": 679,
+      "prod": 677,
       "dev": 244,
       "optional": 12,
       "peer": 0,
       "peerOptional": 0,
-      "total": 934
+      "total": 932
     },
     "details": [
-      {
-        "name": "@babel/core",
-        "severity": "low",
-        "isDirect": true,
-        "range": "<=7.29.0",
-        "via": [
-          {
-            "source": 1123528,
-            "name": "@babel/core",
-            "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
-            "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
-            "severity": "low",
-            "range": "<=7.29.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@babel/core"
-        ],
-        "fixAvailable": {
-          "name": "@babel/core",
-          "version": "7.29.7",
-          "isSemVerMajor": false
-        }
-      },
       {
         "name": "@expo/cli",
         "severity": "moderate",
@@ -815,48 +526,6 @@
         "fixAvailable": true
       },
       {
-        "name": "brace-expansion",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=1.1.15 || 2.0.0 - 2.1.1 || 3.0.0 - 5.0.6",
-        "via": [
-          {
-            "source": 1123896,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": ">=2.0.0 <2.1.2"
-          },
-          {
-            "source": 1123897,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": "<1.1.16"
-          },
-          {
-            "source": 1123898,
-            "name": "brace-expansion",
-            "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
-            "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
-            "severity": "high",
-            "range": ">=3.0.0 <5.0.7"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@expo/cli/node_modules/brace-expansion",
-          "node_modules/@react-native/codegen/node_modules/brace-expansion",
-          "node_modules/brace-expansion",
-          "node_modules/react-native/node_modules/brace-expansion",
-          "node_modules/rimraf/node_modules/brace-expansion",
-          "node_modules/test-exclude/node_modules/brace-expansion"
-        ],
-        "fixAvailable": true
-      },
-      {
         "name": "expo",
         "severity": "moderate",
         "isDirect": true,
@@ -931,8 +600,8 @@
           "node_modules/expo-constants"
         ],
         "fixAvailable": {
-          "name": "expo-asset",
-          "version": "57.0.7",
+          "name": "expo",
+          "version": "46.0.21",
           "isSemVerMajor": true
         }
       },
@@ -999,81 +668,6 @@
         }
       },
       {
-        "name": "fast-uri",
-        "severity": "high",
-        "isDirect": false,
-        "range": "3.0.0 - 3.1.3",
-        "via": [
-          {
-            "source": 1124064,
-            "name": "fast-uri",
-            "title": "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
-            "url": "https://github.com/advisories/GHSA-v2hh-gcrm-f6hx",
-            "severity": "high",
-            "range": ">=3.0.0 <=3.1.3"
-          },
-          {
-            "source": 1124231,
-            "name": "fast-uri",
-            "title": "fast-uri vulnerable to host confusion via failed IDN canonicalization",
-            "url": "https://github.com/advisories/GHSA-4c8g-83qw-93j6",
-            "severity": "high",
-            "range": ">=3.0.0 <3.1.3"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/fast-uri"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "js-yaml",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=3.14.2 || 4.0.0 - 4.2.0",
-        "via": [
-          {
-            "source": 1121859,
-            "name": "js-yaml",
-            "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
-            "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
-            "severity": "moderate",
-            "range": "<3.15.0"
-          },
-          {
-            "source": 1121860,
-            "name": "js-yaml",
-            "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
-            "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
-            "severity": "moderate",
-            "range": ">=4.0.0 <=4.1.1"
-          },
-          {
-            "source": 1123911,
-            "name": "js-yaml",
-            "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
-            "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
-            "severity": "high",
-            "range": ">=4.0.0 <4.3.0"
-          },
-          {
-            "source": 1123912,
-            "name": "js-yaml",
-            "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
-            "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
-            "severity": "high",
-            "range": ">=3.0.0 <3.15.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/@expo/xcpretty/node_modules/js-yaml",
-          "node_modules/js-yaml"
-        ],
-        "fixAvailable": true
-      },
-      {
         "name": "shell-quote",
         "severity": "critical",
         "isDirect": false,
@@ -1099,104 +693,6 @@
         "effects": [],
         "nodes": [
           "node_modules/shell-quote"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "tar",
-        "severity": "critical",
-        "isDirect": false,
-        "range": "<=7.5.18",
-        "via": [
-          {
-            "source": 1120782,
-            "name": "tar",
-            "title": "node-tar applies PAX size override to intermediary GNU long-name/long-link headers, causing tar parser interpretation differential (file smuggling)",
-            "url": "https://github.com/advisories/GHSA-vmf3-w455-68vh",
-            "severity": "moderate",
-            "range": "<=7.5.15"
-          },
-          {
-            "source": 1123939,
-            "name": "tar",
-            "title": "node-tar: Process crash via PAX numeric path type confusion",
-            "url": "https://github.com/advisories/GHSA-w8wr-v893-vjvp",
-            "severity": "moderate",
-            "range": "<=7.5.17"
-          },
-          {
-            "source": 1123940,
-            "name": "tar",
-            "title": "node-tar: Decompression/parse DoS via unlimited input",
-            "url": "https://github.com/advisories/GHSA-23hp-3jrh-7fpw",
-            "severity": "critical",
-            "range": "<=7.5.18"
-          },
-          {
-            "source": 1123941,
-            "name": "tar",
-            "title": "node-tar: Negative tar entry size causes infinite loop in archive replace",
-            "url": "https://github.com/advisories/GHSA-8x88-c5mf-7j5w",
-            "severity": "high",
-            "range": "<=7.5.17"
-          },
-          {
-            "source": 1123942,
-            "name": "tar",
-            "title": "node-tar: Uncaught Exception DoS via NUL byte in PAX path/linkpath records",
-            "url": "https://github.com/advisories/GHSA-gvwx-54wh-qm9j",
-            "severity": "moderate",
-            "range": "<=7.5.16"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/tar"
-        ],
-        "fixAvailable": true
-      },
-      {
-        "name": "undici",
-        "severity": "high",
-        "isDirect": false,
-        "range": "<=6.26.0",
-        "via": [
-          {
-            "source": 1121242,
-            "name": "undici",
-            "title": "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
-            "url": "https://github.com/advisories/GHSA-p88m-4jfj-68fv",
-            "severity": "moderate",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121245,
-            "name": "undici",
-            "title": "undici WebSocket client vulnerable to denial of service via fragment count bypass",
-            "url": "https://github.com/advisories/GHSA-vxpw-j846-p89q",
-            "severity": "high",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121250,
-            "name": "undici",
-            "title": "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse",
-            "url": "https://github.com/advisories/GHSA-35p6-xmwp-9g52",
-            "severity": "low",
-            "range": "<6.27.0"
-          },
-          {
-            "source": 1121255,
-            "name": "undici",
-            "title": "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
-            "url": "https://github.com/advisories/GHSA-g8m3-5g58-fq7m",
-            "severity": "low",
-            "range": "<6.27.0"
-          }
-        ],
-        "effects": [],
-        "nodes": [
-          "node_modules/undici"
         ],
         "fixAvailable": true
       },
@@ -1253,11 +749,20 @@
     "error": null
   },
   "declared": {
-    "babelCore": "7.29.0",
+    "babelCore": "7.29.7",
     "overrides": {
       "postcss": "^8.5.10",
       "ws": "^8.21.1",
-      "@tootallnate/once": "^3.0.1"
+      "@tootallnate/once": "^3.0.1",
+      "brace-expansion@<2.0.0": "1.1.16",
+      "brace-expansion@>=2.0.0 <3.0.0": "2.1.2",
+      "brace-expansion@>=3.0.0 <6.0.0": "5.0.7",
+      "fast-uri@^3.0.0": "3.1.4",
+      "form-data@^4.0.0": "4.0.6",
+      "js-yaml@<4.0.0": "3.15.0",
+      "js-yaml@>=4.0.0 <5.0.0": "4.3.0",
+      "tar@^7.0.0": "7.5.19",
+      "undici@^6.0.0": "6.27.0"
     }
   },
   "locked": {
@@ -1270,13 +775,13 @@
     "undici": [
       {
         "path": "node_modules/undici",
-        "version": "6.26.0"
+        "version": "6.27.0"
       }
     ],
     "tar": [
       {
         "path": "node_modules/tar",
-        "version": "7.5.15"
+        "version": "7.5.19"
       }
     ],
     "shell-quote": [
@@ -1288,67 +793,67 @@
     "fast-uri": [
       {
         "path": "node_modules/fast-uri",
-        "version": "3.1.2"
+        "version": "3.1.4"
       }
     ],
     "form-data": [
       {
         "path": "node_modules/form-data",
-        "version": "4.0.5"
+        "version": "4.0.6"
       }
     ],
     "js-yaml": [
       {
         "path": "node_modules/@expo/xcpretty/node_modules/js-yaml",
-        "version": "4.1.1"
+        "version": "4.3.0"
       },
       {
-        "path": "node_modules/js-yaml",
-        "version": "3.14.2"
+        "path": "node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml",
+        "version": "3.15.0"
       }
     ],
     "brace-expansion": [
       {
         "path": "node_modules/@expo/cli/node_modules/brace-expansion",
-        "version": "2.1.1"
+        "version": "2.1.2"
       },
       {
         "path": "node_modules/@jest/reporters/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/@react-native/codegen/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/brace-expansion",
-        "version": "5.0.6"
+        "version": "5.0.7"
       },
       {
         "path": "node_modules/jest-config/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/jest-runtime/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/react-native/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/rimraf/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       },
       {
         "path": "node_modules/test-exclude/node_modules/brace-expansion",
-        "version": "1.1.15"
+        "version": "1.1.16"
       }
     ],
     "@babel/core": [
       {
         "path": "node_modules/@babel/core",
-        "version": "7.29.0"
+        "version": "7.29.7"
       }
     ]
   },
@@ -1357,8 +862,8 @@
     "name": "musik-player",
     "dependencies": {
       "@babel/core": {
-        "version": "7.29.0",
-        "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.0.tgz",
+        "version": "7.29.7",
+        "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.7.tgz",
         "overridden": false,
         "dependencies": {
           "@babel/helper-module-transforms": {
@@ -1367,7 +872,7 @@
             "overridden": false,
             "dependencies": {
               "@babel/core": {
-                "version": "7.29.0"
+                "version": "7.29.7"
               }
             }
           }
@@ -1379,7 +884,7 @@
         "overridden": false,
         "dependencies": {
           "@babel/core": {
-            "version": "7.29.0"
+            "version": "7.29.7"
           }
         }
       },
@@ -1394,9 +899,9 @@
             "overridden": false,
             "dependencies": {
               "brace-expansion": {
-                "version": "5.0.6",
-                "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.6.tgz",
-                "overridden": false
+                "version": "5.0.7",
+                "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz",
+                "overridden": true
               }
             }
           }
@@ -1418,7 +923,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               }
@@ -1442,9 +947,9 @@
                 "overridden": false,
                 "dependencies": {
                   "fast-uri": {
-                    "version": "3.1.2",
-                    "resolved": "https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.2.tgz",
-                    "overridden": false
+                    "version": "3.1.4",
+                    "resolved": "https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.4.tgz",
+                    "overridden": true
                   }
                 }
               }
@@ -1468,9 +973,9 @@
                 "overridden": false,
                 "dependencies": {
                   "js-yaml": {
-                    "version": "4.1.1",
-                    "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.1.tgz",
-                    "overridden": false
+                    "version": "4.3.0",
+                    "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.0.tgz",
+                    "overridden": true
                   }
                 }
               },
@@ -1500,9 +1005,9 @@
                                 "overridden": false,
                                 "dependencies": {
                                   "brace-expansion": {
-                                    "version": "1.1.15",
-                                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                                    "overridden": false
+                                    "version": "1.1.16",
+                                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                                    "overridden": true
                                   }
                                 }
                               }
@@ -1523,21 +1028,21 @@
                 "overridden": false,
                 "dependencies": {
                   "brace-expansion": {
-                    "version": "2.1.1",
-                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.1.tgz",
-                    "overridden": false
+                    "version": "2.1.2",
+                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.2.tgz",
+                    "overridden": true
                   }
                 }
               },
               "tar": {
-                "version": "7.5.15",
-                "resolved": "https://registry.npmjs.org/tar/-/tar-7.5.15.tgz",
-                "overridden": false
+                "version": "7.5.19",
+                "resolved": "https://registry.npmjs.org/tar/-/tar-7.5.19.tgz",
+                "overridden": true
               },
               "undici": {
-                "version": "6.26.0",
-                "resolved": "https://registry.npmjs.org/undici/-/undici-6.26.0.tgz",
-                "overridden": false
+                "version": "6.27.0",
+                "resolved": "https://registry.npmjs.org/undici/-/undici-6.27.0.tgz",
+                "overridden": true
               },
               "ws": {
                 "version": "8.21.1"
@@ -1550,7 +1055,7 @@
             "overridden": false,
             "dependencies": {
               "@babel/core": {
-                "version": "7.29.0"
+                "version": "7.29.7"
               }
             }
           },
@@ -1565,7 +1070,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1575,7 +1080,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1585,7 +1090,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1595,7 +1100,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "ws": {
                     "version": "8.21.1"
@@ -1615,7 +1120,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/helper-create-class-features-plugin": {
                     "version": "7.29.7",
@@ -1623,7 +1128,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       },
                       "@babel/helper-replace-supers": {
                         "version": "7.29.7",
@@ -1631,7 +1136,7 @@
                         "overridden": false,
                         "dependencies": {
                           "@babel/core": {
-                            "version": "7.29.0"
+                            "version": "7.29.7"
                           }
                         }
                       }
@@ -1643,7 +1148,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1655,7 +1160,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1665,7 +1170,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1675,7 +1180,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1685,7 +1190,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1695,7 +1200,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-syntax-flow": {
                     "version": "7.29.7",
@@ -1703,7 +1208,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1715,7 +1220,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1725,7 +1230,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-transform-destructuring": {
                     "version": "7.29.7",
@@ -1733,7 +1238,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1745,7 +1250,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1755,7 +1260,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1765,7 +1270,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -1775,7 +1280,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "babel-plugin-polyfill-corejs2": {
                     "version": "0.4.17",
@@ -1783,7 +1288,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       },
                       "@babel/helper-define-polyfill-provider": {
                         "version": "0.6.8",
@@ -1791,7 +1296,7 @@
                         "overridden": false,
                         "dependencies": {
                           "@babel/core": {
-                            "version": "7.29.0"
+                            "version": "7.29.7"
                           }
                         }
                       }
@@ -1803,7 +1308,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1813,7 +1318,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1825,7 +1330,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-transform-react-display-name": {
                     "version": "7.29.7",
@@ -1833,7 +1338,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1843,7 +1348,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1853,7 +1358,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1863,7 +1368,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1875,7 +1380,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-transform-typescript": {
                     "version": "7.29.7",
@@ -1883,7 +1388,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -1895,7 +1400,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-syntax-dynamic-import": {
                     "version": "7.8.3",
@@ -1903,7 +1408,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1913,7 +1418,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1923,7 +1428,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1933,7 +1438,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1943,7 +1448,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       },
                       "@babel/helper-remap-async-to-generator": {
                         "version": "7.29.7",
@@ -1951,7 +1456,7 @@
                         "overridden": false,
                         "dependencies": {
                           "@babel/core": {
-                            "version": "7.29.0"
+                            "version": "7.29.7"
                           }
                         }
                       }
@@ -1963,7 +1468,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1973,7 +1478,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1983,7 +1488,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -1993,7 +1498,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2003,7 +1508,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2013,7 +1518,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2023,7 +1528,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2033,7 +1538,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2043,7 +1548,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2053,7 +1558,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       },
                       "@babel/helper-create-regexp-features-plugin": {
                         "version": "7.29.7",
@@ -2061,7 +1566,7 @@
                         "overridden": false,
                         "dependencies": {
                           "@babel/core": {
-                            "version": "7.29.0"
+                            "version": "7.29.7"
                           }
                         }
                       }
@@ -2073,7 +1578,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2083,7 +1588,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2093,7 +1598,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2103,7 +1608,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2113,7 +1618,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2123,7 +1628,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2133,7 +1638,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2143,7 +1648,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2153,7 +1658,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2163,7 +1668,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2173,7 +1678,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -2194,7 +1699,7 @@
             "overridden": false,
             "dependencies": {
               "@babel/core": {
-                "version": "7.29.0"
+                "version": "7.29.7"
               },
               "@jest/transform": {
                 "version": "29.7.0",
@@ -2202,7 +1707,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -2217,9 +1722,9 @@
                     "overridden": false,
                     "dependencies": {
                       "js-yaml": {
-                        "version": "3.14.2",
-                        "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-3.14.2.tgz",
-                        "overridden": false
+                        "version": "3.15.0",
+                        "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-3.15.0.tgz",
+                        "overridden": true
                       }
                     }
                   },
@@ -2229,7 +1734,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2244,9 +1749,9 @@
                         "overridden": false,
                         "dependencies": {
                           "brace-expansion": {
-                            "version": "1.1.15",
-                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                            "overridden": false
+                            "version": "1.1.16",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                            "overridden": true
                           }
                         }
                       }
@@ -2260,7 +1765,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               }
@@ -2277,9 +1782,9 @@
                 "overridden": false,
                 "dependencies": {
                   "form-data": {
-                    "version": "4.0.5",
-                    "resolved": "https://registry.npmjs.org/form-data/-/form-data-4.0.5.tgz",
-                    "overridden": false
+                    "version": "4.0.6",
+                    "resolved": "https://registry.npmjs.org/form-data/-/form-data-4.0.6.tgz",
+                    "overridden": true
                   },
                   "ws": {
                     "version": "8.21.1"
@@ -2294,7 +1799,7 @@
             "overridden": false,
             "dependencies": {
               "@babel/core": {
-                "version": "7.29.0"
+                "version": "7.29.7"
               },
               "@babel/plugin-syntax-jsx": {
                 "version": "7.29.7",
@@ -2302,7 +1807,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -2312,7 +1817,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   }
                 }
               },
@@ -2322,7 +1827,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "@babel/plugin-syntax-async-generators": {
                     "version": "7.8.4",
@@ -2330,7 +1835,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2340,7 +1845,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2350,7 +1855,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2360,7 +1865,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2370,7 +1875,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2380,7 +1885,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2390,7 +1895,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2400,7 +1905,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2410,7 +1915,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2420,7 +1925,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2430,7 +1935,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2440,7 +1945,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   },
@@ -2450,7 +1955,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -2486,9 +1991,9 @@
                         "overridden": false,
                         "dependencies": {
                           "brace-expansion": {
-                            "version": "1.1.15",
-                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                            "overridden": false
+                            "version": "1.1.16",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                            "overridden": true
                           }
                         }
                       }
@@ -2500,7 +2005,7 @@
                     "overridden": false,
                     "dependencies": {
                       "@babel/core": {
-                        "version": "7.29.0"
+                        "version": "7.29.7"
                       }
                     }
                   }
@@ -2512,7 +2017,7 @@
                 "overridden": false,
                 "dependencies": {
                   "@babel/core": {
-                    "version": "7.29.0"
+                    "version": "7.29.7"
                   },
                   "glob": {
                     "version": "7.2.3",
@@ -2525,9 +2030,9 @@
                         "overridden": false,
                         "dependencies": {
                           "brace-expansion": {
-                            "version": "1.1.15",
-                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                            "overridden": false
+                            "version": "1.1.16",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                            "overridden": true
                           }
                         }
                       }
@@ -2551,9 +2056,9 @@
                         "overridden": false,
                         "dependencies": {
                           "brace-expansion": {
-                            "version": "1.1.15",
-                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                            "overridden": false
+                            "version": "1.1.16",
+                            "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                            "overridden": true
                           }
                         }
                       }
@@ -2576,7 +2081,7 @@
             "overridden": false,
             "dependencies": {
               "@babel/core": {
-                "version": "7.29.0"
+                "version": "7.29.7"
               },
               "glob": {
                 "version": "7.2.3",
@@ -2589,9 +2094,9 @@
                     "overridden": false,
                     "dependencies": {
                       "brace-expansion": {
-                        "version": "1.1.15",
-                        "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                        "overridden": false
+                        "version": "1.1.16",
+                        "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                        "overridden": true
                       }
                     }
                   }
@@ -2610,9 +2115,9 @@
                 "overridden": false,
                 "dependencies": {
                   "brace-expansion": {
-                    "version": "1.1.15",
-                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.15.tgz",
-                    "overridden": false
+                    "version": "1.1.16",
+                    "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+                    "overridden": true
                   }
                 }
               }
