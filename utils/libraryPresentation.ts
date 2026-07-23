@@ -67,6 +67,33 @@ export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
   return `album:${albumPart}::${albumArtistNorm.toLocaleLowerCase('de-DE')}`;
 };
 
+const buildAlbumGroupingKeyResolver = (songs: Song[]): ((song: Song) => string) => {
+  const knownAlbumArtistsByAlbum = new Map<string, Set<string>>();
+
+  for (const song of songs) {
+    const albumPart = normalizeAlbumName(song.album);
+    if (albumPart === UNKNOWN_ALBUM_KEY) continue;
+    const albumArtistNorm = normalizeMetadataText(song.albumArtist)?.toLocaleLowerCase('de-DE');
+    if (!albumArtistNorm) continue;
+    const knownArtists = knownAlbumArtistsByAlbum.get(albumPart);
+    if (knownArtists) knownArtists.add(albumArtistNorm);
+    else knownAlbumArtistsByAlbum.set(albumPart, new Set([albumArtistNorm]));
+  }
+
+  return song => {
+    const albumPart = normalizeAlbumName(song.album);
+    const baseKey = `album:${albumPart}`;
+    if (albumPart === UNKNOWN_ALBUM_KEY) return baseKey;
+
+    const albumArtistNorm = normalizeMetadataText(song.albumArtist)?.toLocaleLowerCase('de-DE');
+    if (albumArtistNorm) return `${baseKey}::${albumArtistNorm}`;
+
+    const knownArtists = knownAlbumArtistsByAlbum.get(albumPart);
+    const inferredAlbumArtist = knownArtists?.size === 1 ? Array.from(knownArtists)[0] : undefined;
+    return inferredAlbumArtist ? `${baseKey}::${inferredAlbumArtist}` : baseKey;
+  };
+};
+
 const normalizedSongUriKey = (song: Song): string | null => {
   const rawUri = song.fileInfo?.uri ?? song.uri;
   if (!rawUri) return null;
@@ -213,8 +240,9 @@ const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, tit
 export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
   const grouped = new Map<string, Song[]>();
   const titles = new Map<string, string>();
+  const resolveAlbumGroupingKey = kind === 'album' ? buildAlbumGroupingKeyResolver(songs) : null;
   for (const song of songs) {
-    const key = kind === 'album' ? buildAlbumKey(song) : kind === 'artist' ? buildArtistKey(song.artist) : `genre:${normalizeLibraryKeyPart(displayGenre(song), UNKNOWN_GENRE_KEY)}`;
+    const key = kind === 'album' ? resolveAlbumGroupingKey!(song) : kind === 'artist' ? buildArtistKey(song.artist) : `genre:${normalizeLibraryKeyPart(displayGenre(song), UNKNOWN_GENRE_KEY)}`;
     const title = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);
     titles.set(key, titles.get(key) ?? title);
     const existing = grouped.get(key);
@@ -231,8 +259,9 @@ export const buildLibraryGroups = (songs: Song[]): { albumGroups: LibraryGroupIt
   const albumTitles = new Map<string, string>();
   const artistTitles = new Map<string, string>();
   const genreTitles = new Map<string, string>();
+  const resolveAlbumGroupingKey = buildAlbumGroupingKeyResolver(songs);
   for (const song of songs) {
-    const albumKey = buildAlbumKey(song);
+    const albumKey = resolveAlbumGroupingKey(song);
     const artistKey = buildArtistKey(song.artist);
     const genreLabel = displayGenre(song);
     const genreKey = `genre:${normalizeLibraryKeyPart(genreLabel, UNKNOWN_GENRE_KEY)}`;
