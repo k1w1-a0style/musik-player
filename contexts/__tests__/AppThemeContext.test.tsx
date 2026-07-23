@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text } from 'react-native';
-import { fireEvent, render, renderHook, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react-native';
 import { AppThemeProvider, useAppTheme, useOptionalAppTheme } from '../AppThemeContext';
 import { storage } from '../../utils/storage';
 
@@ -124,10 +124,14 @@ describe('AppThemeContext', () => {
     await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated'));
 
     fireEvent.press(getByTestId('set-light'));
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(1, 'light'));
+
     fireEvent.press(getByTestId('set-dark'));
     expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated');
 
-    rejectLight(new Error('light write failed'));
+    await act(async () => {
+      rejectLight(new Error('light write failed'));
+    });
 
     await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(2, 'dark'));
     expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated');
