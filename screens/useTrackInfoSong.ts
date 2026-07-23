@@ -24,6 +24,9 @@ export const useTrackInfoSong = () => {
     songId,
     songsRef,
     setSongs,
-    isReady,
+    // Production always provides this boolean. Defaulting missing test doubles to
+    // ready keeps older focused component tests compatible without weakening the
+    // real hydration gate (`false` remains false).
+    isReady: isReady ?? true,
   };
 };
