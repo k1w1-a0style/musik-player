@@ -4,13 +4,14 @@ import { useTrackInfoDerivedState } from './useTrackInfoDerivedState';
 import { useTrackInfoSong } from './useTrackInfoSong';
 
 export const useTrackInfoScreenState = () => {
-  const { song, songsRef, setSongs } = useTrackInfoSong();
+  const { song, songsRef, setSongs, isReady } = useTrackInfoSong();
   const coverState = useTrackInfoCoverState(song);
   const { importedAt } = useTrackInfoDerivedState(song);
   const actions = useTrackInfoActions({ song, songsRef, setSongs });
 
   return {
     song,
+    isReady,
     coverUri: coverState.coverUri,
     coverStatus: coverState.coverStatus,
     coverDimensions: coverState.coverDimensions,
