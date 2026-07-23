@@ -30,7 +30,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
-  useLibraryMusicContext: () => ({ songs: mockSongs, setSongs: mockSetSongs }),
+  useLibraryMusicContext: () => ({ songs: mockSongs, setSongs: mockSetSongs, isReady: true }),
 }));
 
 const TrackInfoStateProbe = () => {
@@ -189,7 +189,7 @@ describe('useTrackInfoScreenState', () => {
     const { getByTestId } = render(<TrackInfoStateProbe />);
 
     expect(getByTestId('state-keys').props.children).toBe(
-      'coverDimensions,coverFailed,coverStatus,coverUri,importedAt,openTagEditor,removeFromLibrary,setCoverFailed,song',
+      'coverDimensions,coverFailed,coverStatus,coverUri,importedAt,isReady,openTagEditor,removeFromLibrary,setCoverFailed,song',
     );
   });
 });
