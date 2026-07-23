@@ -1,0 +1,142 @@
+{
+  "generatedAt": "2026-07-23T22:18:15.848Z",
+  "node": "v20.20.2",
+  "all": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 14,
+      "high": 5,
+      "critical": 2,
+      "total": 22
+    },
+    "dependencyCounts": {
+      "prod": 679,
+      "dev": 244,
+      "optional": 12,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 934
+    },
+    "error": null
+  },
+  "production": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 13,
+      "high": 4,
+      "critical": 2,
+      "total": 20
+    },
+    "dependencyCounts": {
+      "prod": 679,
+      "dev": 244,
+      "optional": 12,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 934
+    },
+    "error": null
+  },
+  "ws": {
+    "rootOverride": "^8.21.1",
+    "lockVersion": "8.21.1",
+    "tree": {
+      "version": "1.0.0",
+      "name": "musik-player",
+      "dependencies": {
+        "expo": {
+          "version": "54.0.35",
+          "resolved": "https://registry.npmjs.org/expo/-/expo-54.0.35.tgz",
+          "overridden": false,
+          "dependencies": {
+            "@expo/cli": {
+              "version": "54.0.25",
+              "resolved": "https://registry.npmjs.org/@expo/cli/-/cli-54.0.25.tgz",
+              "overridden": false,
+              "dependencies": {
+                "@react-native/dev-middleware": {
+                  "version": "0.81.5",
+                  "resolved": "https://registry.npmjs.org/@react-native/dev-middleware/-/dev-middleware-0.81.5.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "ws": {
+                      "version": "8.21.1"
+                    }
+                  }
+                },
+                "ws": {
+                  "version": "8.21.1"
+                }
+              }
+            },
+            "@expo/metro": {
+              "version": "54.2.0",
+              "resolved": "https://registry.npmjs.org/@expo/metro/-/metro-54.2.0.tgz",
+              "overridden": false,
+              "dependencies": {
+                "metro": {
+                  "version": "0.83.3",
+                  "resolved": "https://registry.npmjs.org/metro/-/metro-0.83.3.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "ws": {
+                      "version": "8.21.1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "jest-expo": {
+          "version": "54.0.17",
+          "resolved": "https://registry.npmjs.org/jest-expo/-/jest-expo-54.0.17.tgz",
+          "overridden": false,
+          "dependencies": {
+            "jest-environment-jsdom": {
+              "version": "29.7.0",
+              "resolved": "https://registry.npmjs.org/jest-environment-jsdom/-/jest-environment-jsdom-29.7.0.tgz",
+              "overridden": false,
+              "dependencies": {
+                "jsdom": {
+                  "version": "20.0.3",
+                  "resolved": "https://registry.npmjs.org/jsdom/-/jsdom-20.0.3.tgz",
+                  "overridden": false,
+                  "dependencies": {
+                    "ws": {
+                      "version": "8.21.1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "react-native": {
+          "version": "0.81.5",
+          "resolved": "https://registry.npmjs.org/react-native/-/react-native-0.81.5.tgz",
+          "overridden": false,
+          "dependencies": {
+            "react-devtools-core": {
+              "version": "6.1.5",
+              "resolved": "https://registry.npmjs.org/react-devtools-core/-/react-devtools-core-6.1.5.tgz",
+              "overridden": false,
+              "dependencies": {
+                "ws": {
+                  "version": "8.21.1"
+                }
+              }
+            },
+            "ws": {
+              "version": "8.21.1",
+              "resolved": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
+              "overridden": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
