@@ -29,6 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Regenerate lockfile from declared security constraints
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Install from regenerated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
 
@@ -37,13 +40,13 @@ jobs:
         run: |
           npm audit --json > /tmp/npm-audit-all.json || true
           npm audit --omit=dev --json > /tmp/npm-audit-prod.json || true
-          npm ls ws --json > /tmp/npm-ls-ws.json
+          npm ls ws undici tar shell-quote fast-uri form-data js-yaml brace-expansion @babel/core --json > /tmp/npm-ls-security.json
           node <<'NODE'
           const fs = require('fs');
           const read = path => JSON.parse(fs.readFileSync(path, 'utf8'));
           const all = read('/tmp/npm-audit-all.json');
           const prod = read('/tmp/npm-audit-prod.json');
-          const wsTree = read('/tmp/npm-ls-ws.json');
+          const dependencyTree = read('/tmp/npm-ls-security.json');
           const summarize = audit => Object.entries(audit.vulnerabilities ?? {})
             .map(([name, vulnerability]) => ({
               name,
@@ -65,6 +68,15 @@ jobs:
               fixAvailable: vulnerability.fixAvailable ?? false,
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
+          const packageJson = require('./package.json');
+          const lock = require('./package-lock.json');
+          const trackedPackages = ['ws', 'undici', 'tar', 'shell-quote', 'fast-uri', 'form-data', 'js-yaml', 'brace-expansion', '@babel/core'];
+          const locked = Object.fromEntries(trackedPackages.map(name => [
+            name,
+            Object.entries(lock.packages ?? {})
+              .filter(([path]) => path === `node_modules/${name}` || path.endsWith(`/node_modules/${name}`))
+              .map(([path, value]) => ({ path, version: value.version })),
+          ]));
           const report = {
             generatedAt: new Date().toISOString(),
             node: process.version,
@@ -81,22 +93,28 @@ jobs:
               details: summarize(prod),
               error: prod.error ?? null,
             },
-            ws: {
-              rootOverride: require('./package.json').overrides?.ws ?? null,
-              lockVersion: require('./package-lock.json').packages?.['node_modules/ws']?.version ?? null,
-              tree: wsTree.dependencies?.ws ?? wsTree,
+            declared: {
+              babelCore: packageJson.devDependencies?.['@babel/core'] ?? null,
+              overrides: packageJson.overrides ?? null,
             },
+            locked,
+            dependencyTree,
           };
           fs.writeFileSync('.security-audit-report.json', JSON.stringify(report, null, 2) + '\n');
           console.log(JSON.stringify(report, null, 2));
           NODE
 
-      - name: Commit temporary audit report
+      - name: Commit regenerated lockfile and temporary report
         shell: bash
         run: |
           set -euo pipefail
-          git add .security-audit-report.json
+          git diff --exit-code -- package.json
+          git add package-lock.json .security-audit-report.json
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: expand temporary npm audit report"
+          git commit -m "security: regenerate lockfile and audit report"
           git push origin HEAD:security/npm-lockfile-refresh
