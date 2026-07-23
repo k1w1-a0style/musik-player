@@ -4,7 +4,7 @@ import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useNowPlayingPresentation } from '../useNowPlayingPresentation';
 import { buildJsFallbackPalette, mergeNativeAndFallbackPalette } from '../../utils/jsPaletteFallback';
-import { useAlbumPalette } from '../../contexts/useAlbumPalette';
+import { useAlbumPaletteState } from '../../contexts/useAlbumPalette';
 import type { Song } from '../../types/Song';
 const mockAppTheme = {
   appearance: 'dark',
@@ -134,8 +134,12 @@ describe('useNowPlayingPresentation', () => {
         resolveSecond = resolve;
       }));
     const TransitionProbe = ({ currentSong }: { currentSong: Song }) => {
-      const palette = useAlbumPalette(currentSong);
-      const presentation = useNowPlayingPresentation({ currentSong, palette });
+      const { palette, isLoading } = useAlbumPaletteState(currentSong);
+      const presentation = useNowPlayingPresentation({
+        currentSong,
+        palette,
+        paletteLoading: isLoading,
+      });
       return <Text testID="accent">{presentation.accent}</Text>;
     };
     const firstVisibleAccent = mergeNativeAndFallbackPalette({ dominant: '#111111' }, song).vibrant;
