@@ -136,4 +136,54 @@ describe('AppThemeContext', () => {
     await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(2, 'dark'));
     expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated');
   });
+
+  test('does not roll back a newer identical appearance request when an older one fails', async () => {
+    let rejectFirstLight: (error: Error) => void = () => undefined;
+    mockedStorage.setAppAppearance
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        rejectFirstLight = reject;
+      }))
+      .mockResolvedValueOnce(undefined);
+    const { getByTestId } = renderThemeProvider();
+
+    await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated'));
+
+    fireEvent.press(getByTestId('set-light'));
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(1, 'light'));
+    fireEvent.press(getByTestId('set-light'));
+    expect(getByTestId('theme-state').props.children).toBe('light|graphite|graphite-light|hydrated');
+
+    await act(async () => {
+      rejectFirstLight(new Error('first light write failed'));
+    });
+
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(2, 'light'));
+    expect(getByTestId('theme-state').props.children).toBe('light|graphite|graphite-light|hydrated');
+  });
+
+  test('does not roll back the final skin in an ABA request sequence', async () => {
+    let rejectFirstNeon: (error: Error) => void = () => undefined;
+    mockedStorage.setAppThemeSkin
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        rejectFirstNeon = reject;
+      }))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    const { getByTestId } = renderThemeProvider();
+
+    await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated'));
+
+    fireEvent.press(getByTestId('set-neon'));
+    await waitFor(() => expect(mockedStorage.setAppThemeSkin).toHaveBeenNthCalledWith(1, 'neon-cover'));
+    fireEvent.press(getByTestId('set-graphite'));
+    fireEvent.press(getByTestId('set-neon'));
+    expect(getByTestId('theme-state').props.children).toBe('dark|neon-cover|neon-cover-dark|hydrated');
+
+    await act(async () => {
+      rejectFirstNeon(new Error('first neon write failed'));
+    });
+
+    await waitFor(() => expect(mockedStorage.setAppThemeSkin).toHaveBeenNthCalledWith(3, 'neon-cover'));
+    expect(getByTestId('theme-state').props.children).toBe('dark|neon-cover|neon-cover-dark|hydrated');
+  });
 });
