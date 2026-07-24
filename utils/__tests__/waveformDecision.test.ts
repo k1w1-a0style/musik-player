@@ -42,6 +42,8 @@ describe('waveformDecision', () => {
         'native-empty',
         'native-unusable-shape',
         'native-source-key-changed',
+        'native-timeout',
+        'native-scheduler-unavailable',
         'native-error',
       ];
       rejections.forEach(decision => expect(isNativeWaveformAccepted(decision)).toBe(false));
@@ -49,14 +51,16 @@ describe('waveformDecision', () => {
   });
 
   describe('isNativeWaveformRejectionNoteworthy', () => {
-    test('only flags native-attempted rejections, not normal fallback states', () => {
+    test('only flags source-specific native rejections, not normal or capacity states', () => {
       expect(isNativeWaveformRejectionNoteworthy('native-empty')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-unusable-shape')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-source-key-changed')).toBe(true);
+      expect(isNativeWaveformRejectionNoteworthy('native-timeout')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-error')).toBe(true);
-      // Normal states must never create warning/log noise.
+      // Normal states and transient global capacity must never create warning/log noise.
       expect(isNativeWaveformRejectionNoteworthy('no-uri')).toBe(false);
       expect(isNativeWaveformRejectionNoteworthy('no-native-extractor')).toBe(false);
+      expect(isNativeWaveformRejectionNoteworthy('native-scheduler-unavailable')).toBe(false);
       expect(isNativeWaveformRejectionNoteworthy('native-accepted')).toBe(false);
     });
   });
