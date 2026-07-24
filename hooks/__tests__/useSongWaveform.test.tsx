@@ -45,24 +45,27 @@ describe('useSongWaveform lifecycle', () => {
 
   test('song change aborts A updates/cache and latest B alone becomes visible', async () => {
     const a = deferred<NativeResult>();
+    const songA = song('A');
+    const songB = song('B');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) => uri.includes('A.mp3') ? a.promise : Promise.resolve({ points: peaks }));
     const onDecision = jest.fn();
-    const { result, rerender } = renderHook<ReturnType<typeof useSongWaveform>, { current: Song }>(
+    const hook = renderHook<ReturnType<typeof useSongWaveform>, { current: Song }>(
       ({ current }) => useSongWaveform({ song: current, durationMs: 1000, onWaveformDecision: onDecision }),
-      { initialProps: { current: song('A') } as { current: Song } },
+      { initialProps: { current: songA } },
     );
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
-    rerender({ current: song('B') });
+    hook.rerender({ current: songB });
     await flush();
     a.resolve({ points: peaks });
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
 
-    expect(result.current.sourceKey).toBe(getWaveformSourceKey(song('B')));
-    expect(result.current.waveform).toMatchObject({ source: 'native', sourceKey: getWaveformSourceKey(song('B')) });
+    expect(hook.result.current.sourceKey).toBe(getWaveformSourceKey(songB));
+    expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: getWaveformSourceKey(songB) });
     expect(onDecision).not.toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
     const keys = [...(AsyncStorage as typeof AsyncStorage & { __getStore(): Map<string, string> }).__getStore().keys()].join('|');
-    expect(keys).not.toContain(getWaveformSourceKey(song('A')));
-    expect(keys).toContain(getWaveformSourceKey(song('B')));
+    expect(keys).not.toContain(getWaveformSourceKey(songA));
+    expect(keys).toContain(getWaveformSourceKey(songB));
+    hook.unmount();
   });
 
   test('unmount immediately releases the JS waiter without error telemetry', async () => {
@@ -70,24 +73,29 @@ describe('useSongWaveform lifecycle', () => {
     const currentSong = song('unmount');
     extractor.extractWaveformPeaks.mockReturnValue(native.promise);
     const onDecision = jest.fn();
-    const { unmount } = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000, onWaveformDecision: onDecision }));
+    const hook = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000, onWaveformDecision: onDecision }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
-    unmount();
+    hook.unmount();
     await flush();
     expect(onDecision).not.toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
     expect(jest.getTimerCount()).toBe(0);
     native.resolve({ points: peaks });
+    await flush();
   });
 
   test('timeout releases the waiter once and is reported distinctly', async () => {
+    const native = deferred<NativeResult>();
     const currentSong = song('timeout');
-    extractor.extractWaveformPeaks.mockReturnValue(new Promise(() => undefined));
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
     const onDecision = jest.fn();
-    const { result } = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000, onWaveformDecision: onDecision }));
+    const hook = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000, onWaveformDecision: onDecision }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
-    expect(result.current.loadingNative).toBe(false);
+    expect(hook.result.current.loadingNative).toBe(false);
     expect(onDecision).toHaveBeenCalledTimes(1);
     expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-timeout' }));
+    hook.unmount();
+    native.resolve(null);
+    await flush();
   });
 
   test('same source uses one native flight', async () => {
@@ -102,6 +110,8 @@ describe('useSongWaveform lifecycle', () => {
     await flush();
     expect(first.result.current.waveform.source).toBe('native');
     expect(second.result.current.waveform.source).toBe('native');
+    first.unmount();
+    second.unmount();
   });
 
   test('a superseded queued request never starts after the active flight', async () => {
@@ -122,23 +132,28 @@ describe('useSongWaveform lifecycle', () => {
       'file:///active.mp3',
       'file:///latest.mp3',
     ]);
-    first.unmount(); stale.unmount(); latest.unmount();
+    first.unmount();
+    stale.unmount();
+    latest.unmount();
   });
 
   test('active settlement never bypasses the latest request debounce window', async () => {
     const active = deferred<NativeResult>();
+    const activeSong = song('active-debounce');
+    const middleSong = song('middle-debounce');
+    const latestSong = song('latest-debounce');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) =>
       uri.includes('active-debounce') ? active.promise : Promise.resolve({ points: peaks }));
 
-    const first = renderHook(() => useSongWaveform({ song: song('active-debounce'), durationMs: 1000 }));
+    const first = renderHook(() => useSongWaveform({ song: activeSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
-    const middle = renderHook(() => useSongWaveform({ song: song('middle-debounce'), durationMs: 1000 }));
+    const middle = renderHook(() => useSongWaveform({ song: middleSong, durationMs: 1000 }));
     await flush(40);
     active.resolve({ points: peaks });
     await flush();
     expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///active-debounce.mp3']);
 
-    const latest = renderHook(() => useSongWaveform({ song: song('latest-debounce'), durationMs: 1000 }));
+    const latest = renderHook(() => useSongWaveform({ song: latestSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS - 1);
     expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///active-debounce.mp3']);
     await flush(1);
@@ -147,19 +162,23 @@ describe('useSongWaveform lifecycle', () => {
       'file:///latest-debounce.mp3',
     ]);
 
-    first.unmount(); middle.unmount(); latest.unmount();
+    first.unmount();
+    middle.unmount();
+    latest.unmount();
   });
 
   test('a non-settling timed-out native call does not block the next song', async () => {
     const stuck = deferred<NativeResult>();
+    const stuckSong = song('stuck-one');
+    const afterSong = song('after-stuck');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) =>
       uri.includes('stuck-one') ? stuck.promise : Promise.resolve({ points: peaks }));
 
-    const first = renderHook(() => useSongWaveform({ song: song('stuck-one'), durationMs: 1000 }));
+    const first = renderHook(() => useSongWaveform({ song: stuckSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
     expect(first.result.current.loadingNative).toBe(false);
 
-    const second = renderHook(() => useSongWaveform({ song: song('after-stuck'), durationMs: 1000 }));
+    const second = renderHook(() => useSongWaveform({ song: afterSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual([
       'file:///stuck-one.mp3',
@@ -167,26 +186,33 @@ describe('useSongWaveform lifecycle', () => {
     ]);
     expect(second.result.current.waveform).toMatchObject({ source: 'native' });
 
-    first.unmount(); second.unmount();
+    first.unmount();
+    second.unmount();
+    stuck.resolve(null);
+    await flush();
   });
 
   test('two orphaned native calls open a bounded fail-fast circuit until one settles', async () => {
     const firstNative = deferred<NativeResult>();
     const secondNative = deferred<NativeResult>();
+    const firstSong = song('circuit-one');
+    const secondSong = song('circuit-two');
+    const blockedSong = song('circuit-blocked');
+    const recoveredSong = song('circuit-recovered');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) => {
       if (uri.includes('circuit-one')) return firstNative.promise;
       if (uri.includes('circuit-two')) return secondNative.promise;
       return Promise.resolve({ points: peaks });
     });
 
-    const first = renderHook(() => useSongWaveform({ song: song('circuit-one'), durationMs: 1000 }));
+    const first = renderHook(() => useSongWaveform({ song: firstSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
-    const second = renderHook(() => useSongWaveform({ song: song('circuit-two'), durationMs: 1000 }));
+    const second = renderHook(() => useSongWaveform({ song: secondSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
 
     const onDecision = jest.fn();
-    const blocked = renderHook(() => useSongWaveform({ song: song('circuit-blocked'), durationMs: 1000, onWaveformDecision: onDecision }));
+    const blocked = renderHook(() => useSongWaveform({ song: blockedSong, durationMs: 1000, onWaveformDecision: onDecision }));
     await flush();
     expect(blocked.result.current.loadingNative).toBe(false);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
@@ -194,25 +220,32 @@ describe('useSongWaveform lifecycle', () => {
 
     firstNative.resolve({ points: peaks });
     await flush();
-    const recovered = renderHook(() => useSongWaveform({ song: song('circuit-recovered'), durationMs: 1000 }));
+    const recovered = renderHook(() => useSongWaveform({ song: recoveredSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS + 1);
     expect(recovered.result.current.waveform).toMatchObject({ source: 'native' });
 
-    first.unmount(); second.unmount(); blocked.unmount(); recovered.unmount();
+    first.unmount();
+    second.unmount();
+    blocked.unmount();
+    recovered.unmount();
+    secondNative.resolve(null);
+    await flush();
   });
 
   test('lifecycle reset prevents an old native finalizer from starting a new request early', async () => {
     const stale = deferred<NativeResult>();
+    const staleSong = song('reset-stale');
+    const nextSong = song('reset-next');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) =>
       uri.includes('reset-stale') ? stale.promise : Promise.resolve({ points: peaks }));
 
-    const first = renderHook(() => useSongWaveform({ song: song('reset-stale'), durationMs: 1000 }));
+    const first = renderHook(() => useSongWaveform({ song: staleSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     first.unmount();
     resetWaveformExtractionLifecycleForTests();
 
-    const next = renderHook(() => useSongWaveform({ song: song('reset-next'), durationMs: 1000 }));
+    const next = renderHook(() => useSongWaveform({ song: nextSong, durationMs: 1000 }));
     stale.resolve({ points: peaks });
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS - 1);
     expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///reset-stale.mp3']);
@@ -235,9 +268,10 @@ describe('useSongWaveform lifecycle', () => {
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
     blocked.unmount();
     await flush(WAVEFORM_FAILURE_BACKOFF_MS);
-    renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
+    const retry = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+    retry.unmount();
   });
 
   test('failure backoff map evicts its oldest entry at the configured bound', () => {
@@ -256,8 +290,9 @@ describe('useSongWaveform lifecycle', () => {
     const first = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     first.unmount();
-    renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
+    const second = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
     await flush();
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    second.unmount();
   });
 });
