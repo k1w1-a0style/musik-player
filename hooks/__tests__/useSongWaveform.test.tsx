@@ -192,13 +192,12 @@ describe('useSongWaveform lifecycle', () => {
     await flush();
   });
 
-  test('two orphaned native calls open a bounded fail-fast circuit until one settles', async () => {
+  test('circuit capacity does not back off the blocked song and it recovers immediately', async () => {
     const firstNative = deferred<NativeResult>();
     const secondNative = deferred<NativeResult>();
     const firstSong = song('circuit-one');
     const secondSong = song('circuit-two');
     const blockedSong = song('circuit-blocked');
-    const recoveredSong = song('circuit-recovered');
     extractor.extractWaveformPeaks.mockImplementation((uri: string) => {
       if (uri.includes('circuit-one')) return firstNative.promise;
       if (uri.includes('circuit-two')) return secondNative.promise;
@@ -216,18 +215,22 @@ describe('useSongWaveform lifecycle', () => {
     await flush();
     expect(blocked.result.current.loadingNative).toBe(false);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
-    expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
+    expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
+    expect(getWaveformFailureBackoff(getWaveformSourceKey(blockedSong))).toBeNull();
+    blocked.unmount();
 
     firstNative.resolve({ points: peaks });
     await flush();
-    const recovered = renderHook(() => useSongWaveform({ song: recoveredSong, durationMs: 1000 }));
+    const recovered = renderHook(() => useSongWaveform({ song: blockedSong, durationMs: 1000 }));
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS + 1);
-    expect(recovered.result.current.waveform).toMatchObject({ source: 'native' });
+    expect(recovered.result.current.waveform).toMatchObject({
+      source: 'native',
+      sourceKey: getWaveformSourceKey(blockedSong),
+    });
 
     first.unmount();
     second.unmount();
-    blocked.unmount();
     recovered.unmount();
     secondNative.resolve(null);
     await flush();
