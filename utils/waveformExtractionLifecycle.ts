@@ -44,7 +44,7 @@ interface FailureBackoff {
 let lifecycleGeneration = 0;
 let activeFlight: Flight | null = null;
 let pendingLatest: Pending | null = null;
-const detachedFlights = new Set<Promise<NativeResult>>();
+const detachedFlights = new Set<Flight>();
 const failures = new Map<string, FailureBackoff>();
 
 const clearPendingTimer = (pending: Pending): void => {
@@ -71,6 +71,9 @@ const schedulerCapacityError = (): WaveformSchedulerUnavailableError =>
   new WaveformSchedulerUnavailableError(
     `Native waveform extraction paused after ${MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS} non-settling calls`,
   );
+
+const findDetachedFlight = (sourceKey: string): Flight | undefined =>
+  [...detachedFlights].find(flight => flight.key === sourceKey);
 
 function armPending(pending: Pending): void {
   if (pendingLatest !== pending || pending.settled || activeFlight) return;
@@ -128,7 +131,7 @@ function startPending(pending: Pending): void {
     )
     .finally(() => {
       if (flight.generation !== lifecycleGeneration) return;
-      if (flight.detached) detachedFlights.delete(nativePromise);
+      if (flight.detached) detachedFlights.delete(flight);
       if (activeFlight === flight) activeFlight = null;
       if (pendingLatest) armPending(pendingLatest);
     });
@@ -160,7 +163,7 @@ const detachActiveFlight = (flight: Flight): void => {
   if (activeFlight !== flight || flight.detached) return;
   activeFlight = null;
   flight.detached = true;
-  detachedFlights.add(flight.promise);
+  detachedFlights.add(flight);
 
   if (detachedFlights.size >= MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS && pendingLatest) {
     const blocked = pendingLatest;
@@ -209,9 +212,10 @@ const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResu
 /**
  * JS-side load control. Native work already in progress cannot be hard-cancelled
  * by the current Expo module contract. A timed-out/orphaned call is detached so
- * the latest song can continue, but detached work is bounded. After two
- * non-settling native calls the scheduler fails fast until one settles, avoiding
- * both a global waiter deadlock and unbounded native concurrency.
+ * the latest song can continue, but detached work is bounded. A later request
+ * for the same source rejoins the detached flight instead of starting a duplicate.
+ * After two non-settling native calls the scheduler fails fast until one settles,
+ * avoiding both a global waiter deadlock and unbounded native concurrency.
  */
 export const scheduleNativeWaveformExtraction = (
   sourceKey: string,
@@ -221,6 +225,8 @@ export const scheduleNativeWaveformExtraction = (
   throwIfAborted(signal);
   if (activeFlight?.key === sourceKey) return awaitPending(activeFlight.pending, signal);
   if (pendingLatest?.key === sourceKey) return awaitPending(pendingLatest, signal);
+  const detachedSameSource = findDetachedFlight(sourceKey);
+  if (detachedSameSource) return awaitPending(detachedSameSource.pending, signal);
   if (!activeFlight && detachedFlights.size >= MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS) {
     throw schedulerCapacityError();
   }
