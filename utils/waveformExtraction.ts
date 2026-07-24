@@ -6,6 +6,7 @@ import {
   getWaveformFailureBackoff,
   recordWaveformFailure,
   scheduleNativeWaveformExtraction,
+  WaveformSchedulerUnavailableError,
 } from './waveformExtractionLifecycle';
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceKey } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type SongWaveform } from './waveformTypes';
@@ -110,6 +111,13 @@ export const extractNativeWaveform = async (
     return waveform;
   } catch (error) {
     if (isAbortError(error)) return null;
+    if (error instanceof WaveformSchedulerUnavailableError) {
+      // This is transient global capacity pressure, not a failure of this song.
+      // Do not install a per-source backoff: once an orphan settles the exact
+      // same source must be allowed to retry immediately.
+      report('native-scheduler-unavailable', 0);
+      return null;
+    }
     if (isTimeoutError(error)) {
       recordWaveformFailure(sourceKey, 'native-timeout');
       report('native-timeout', 0);
