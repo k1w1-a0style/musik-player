@@ -27,6 +27,7 @@ export type NativeWaveformDecision =
   | 'native-empty'
   | 'native-unusable-shape'
   | 'native-source-key-changed'
+  | 'native-timeout'
   | 'native-error'
   | 'native-accepted';
 
@@ -72,6 +73,7 @@ export const isNativeWaveformRejectionNoteworthy = (decision: NativeWaveformDeci
   decision === 'native-empty'
   || decision === 'native-unusable-shape'
   || decision === 'native-source-key-changed'
+  || decision === 'native-timeout'
   || decision === 'native-error';
 
 export interface WaveformSourceDiagnostics {

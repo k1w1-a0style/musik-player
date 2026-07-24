@@ -1,5 +1,18 @@
 # Project Checklog
 
+## Waveform-Lifecycle P2-Härtung (2026-07-24)
+
+- [x] Ausgangspunkt war `813449d41cc590ef38c26028b0ce628c9a443161` auf dem für Codex Cloud bereitgestellten lokalen `work`-Branch; die Änderung wurde entsprechend der Handoff-Vorgabe auf dem lokalen Branch `codex` fortgeführt.
+- [x] Befund vor dem Fix: `extractWaveformPeaks()` wurde bereits gestartet an `withTimeout()` übergeben; dessen internes `AbortSignal` erreichte den Extraktionspfad nicht. Der Hook-`active`-Schalter blockierte nur veraltete State-/Cache-Updates. Erfolgreiche Native-Ergebnisse wurden bereits gecacht, während leere, unbrauchbare oder fehlgeschlagene Versuche bei einem späteren Besuch erneut starten konnten. Unit-Tests für `waveformExtraction` und `withTimeout` existierten, aber kein Lifecycle-Test der echten Hook-Implementierung.
+- [x] Gewählte Strategie: ehrliche JS-seitige Latest-only-Lastbegrenzung statt vorgetäuschter Native-Cancellation. Ein Effect-eigener `AbortController` beendet den JS-Wartepfad bei Songwechsel/Unmount sofort. `withTimeout` erhält die cancellable Operation-Form und ihr Signal steuert Debounce, wartende Requests und Subscriber.
+- [x] Native Starts haben eine benannte 120-ms-Debounce-Phase, Single-Flight pro `sourceKey`, global höchstens einen aktiven Native-Aufruf und genau einen neuesten wartenden anderen Song. Nicht mehr benötigte beziehungsweise superseded wartende Requests starten nicht nachträglich.
+- [x] Die Kotlin-Arbeit selbst wird **nicht** hart abgebrochen: Der vorhandene Expo-Vertrag bietet keine Request-ID/Cancel-Funktion. Ein bereits gestarteter Native-Aufruf bleibt bis zum Settlement als aktiver Flight registriert; erst danach kann der neueste relevante Request starten. Daher wurden keine Native-Cancellation-Tests vorgetäuscht.
+- [x] Native Last ist weiterhin intrinsisch begrenzt: `readSampleEnvelope` liest höchstens 2.400 komprimierte Samples über `MediaExtractor`; es findet keine vollständige PCM-Dekodierung statt. `MediaExtractor` und der nur bei Bedarf genutzte `MediaMetadataRetriever` werden in `finally` freigegeben.
+- [x] Leere Ergebnisse, unbrauchbare Shapes, Native-Fehler und Timeouts erhalten einen benannten 30-s-In-Memory-Backoff je `sourceKey`; die Map ist auf 80 Einträge begrenzt. Erfolgreiche Versuche löschen den Eintrag, Ablauf erlaubt einen Retry, erwartete Aborts erzeugen weder Backoff noch `native-error`-Telemetrie.
+- [x] Echte Hook-Regressionstests decken Songwechsel, stale State/Cache, Unmount, Timeout, Single-Flight, Latest-only-Superseding, erwartete Aborts, Backoff/Ablauf und erfolgreichen Cache-Revisit mit Deferred Promises und Fake Timers ab.
+- [x] `utils/sha256.ts` war repositoryweit ohne Import/produktiven Aufrufer und wurde gelöscht. Native SHA-256-Transaktionsintegrität ist davon unabhängig; Cross-Format-Duplikaterkennung/F17 bleibt außerhalb des Scopes.
+- [x] Keine APK, kein AAB, kein EAS-Build und kein Android-`assemble`/`bundle` ausgeführt; Issues #314, #318 und #319 bleiben getrennte Follow-ups.
+
 ## Theme Migration Paket 4 — Rest-Sweep + Guards (2026-07-10)
 
 - [x] Code-seitiger Rest-Sweep für migrierte UI-Bereiche abgeschlossen: verbleibende `../theme`-Imports in Components/Screens wurden auf `APP_THEME_TOKENS` für statische Spacing-/Radii-/Font-Tokens umgestellt; dynamische Farben bleiben über `useAppTheme`/`AppTheme` aufgelöst.

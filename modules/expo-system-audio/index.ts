@@ -241,11 +241,7 @@ export const SystemAudio = {
 
   async extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null> {
     if (!waveformNative?.extractWaveformPeaks) return null;
-    try {
-      return await waveformNative.extractWaveformPeaks(uri, pointCount);
-    } catch {
-      return null;
-    }
+    return waveformNative.extractWaveformPeaks(uri, pointCount);
   },
 
   async getAudioTagRecoveryStatus(): Promise<RecoveryStatusResult> {
