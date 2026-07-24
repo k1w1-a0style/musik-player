@@ -1,6 +1,13 @@
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
-import { withTimeout } from './withTimeout';
+import { isAbortError, isTimeoutError, withTimeout } from './withTimeout';
+import {
+  clearWaveformFailure,
+  getWaveformFailureBackoff,
+  recordWaveformFailure,
+  scheduleNativeWaveformExtraction,
+  WaveformSchedulerUnavailableError,
+} from './waveformExtractionLifecycle';
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceKey } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type SongWaveform } from './waveformTypes';
 import {
@@ -67,15 +74,22 @@ export const extractNativeWaveform = async (
     return null;
   }
 
+  if (getWaveformFailureBackoff(sourceKey)) return null;
+
   try {
     const result = await withTimeout(
-      extractor(uri, pointCount),
+      signal => scheduleNativeWaveformExtraction(
+        sourceKey,
+        () => extractor(uri, pointCount),
+        signal,
+      ),
       WAVEFORM_EXTRACTION_TIMEOUT_MS,
       'Waveform extraction timed out',
       { signal: options?.signal },
     );
     const points = result?.points ?? [];
     if (!result || points.length === 0) {
+      recordWaveformFailure(sourceKey, 'native-empty');
       report('native-empty', 0);
       return null;
     }
@@ -83,6 +97,7 @@ export const extractNativeWaveform = async (
     // normalization; a flat/degenerate native envelope is rejected regardless
     // of container so the deterministic fallback wins consistently.
     if (!hasUsefulNativeShape(points)) {
+      recordWaveformFailure(sourceKey, 'native-unusable-shape');
       report('native-unusable-shape', points.length);
       return null;
     }
@@ -92,8 +107,23 @@ export const extractNativeWaveform = async (
       return null;
     }
     report('native-accepted', points.length);
+    clearWaveformFailure(sourceKey);
     return waveform;
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) return null;
+    if (error instanceof WaveformSchedulerUnavailableError) {
+      // This is transient global capacity pressure, not a failure of this song.
+      // Do not install a per-source backoff: once an orphan settles the exact
+      // same source must be allowed to retry immediately.
+      report('native-scheduler-unavailable', 0);
+      return null;
+    }
+    if (isTimeoutError(error)) {
+      recordWaveformFailure(sourceKey, 'native-timeout');
+      report('native-timeout', 0);
+      return null;
+    }
+    recordWaveformFailure(sourceKey, 'native-error');
     report('native-error', 0);
     return null;
   }

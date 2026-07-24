@@ -8,6 +8,7 @@ import {
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../waveformExtraction';
 import { getWaveformSourceKey } from '../waveformGenerator';
+import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 
 const mockedSystemAudio = SystemAudio as typeof SystemAudio & {
   extractWaveformPeaks?: jest.Mock;
@@ -30,11 +31,13 @@ const dynamicPeaks = [0.04, 0.88, 0.12, 0.76, 0.2, 0.92, 0.34, 0.68, 0.16, 0.84]
 
 describe('waveformExtraction', () => {
   beforeEach(() => {
+    resetWaveformExtractionLifecycleForTests();
     jest.useRealTimers();
     mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue(null);
   });
 
   afterEach(() => {
+    resetWaveformExtractionLifecycleForTests();
     jest.useRealTimers();
     jest.restoreAllMocks();
   });

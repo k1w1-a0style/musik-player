@@ -53,6 +53,23 @@ interface UseSongWaveformResult {
   loadingNative: boolean;
 }
 
+const getCachedWaveformUntilAbort = (
+  sourceKey: string,
+  signal: AbortSignal,
+): Promise<SongWaveform | null> => new Promise(resolve => {
+  let settled = false;
+  const finish = (value: SongWaveform | null): void => {
+    if (settled) return;
+    settled = true;
+    signal.removeEventListener('abort', abort);
+    resolve(value);
+  };
+  const abort = () => finish(null);
+  signal.addEventListener('abort', abort, { once: true });
+  if (signal.aborted) abort();
+  void getCachedWaveform(sourceKey).then(finish, () => finish(null));
+});
+
 export const useSongWaveform = ({
   song,
   durationMs,
@@ -70,6 +87,7 @@ export const useSongWaveform = ({
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setWaveform(immediate);
 
     if (!canExtractNative) {
@@ -77,13 +95,14 @@ export const useSongWaveform = ({
       void setCachedWaveform(immediate);
       return () => {
         active = false;
+        controller.abort();
       };
     }
 
     setLoadingNative(true);
 
     void (async () => {
-      const cached = await getCachedWaveform(sourceKey);
+      const cached = await getCachedWaveformUntilAbort(sourceKey, controller.signal);
       if (!active) return;
       if (cached) {
         setWaveform(cached);
@@ -95,7 +114,11 @@ export const useSongWaveform = ({
         }
       }
 
-      const nativeWaveform = await extractNativeWaveform(song, durationMs, { pointCount, onDecision: onWaveformDecision });
+      const nativeWaveform = await extractNativeWaveform(song, durationMs, {
+        pointCount,
+        signal: controller.signal,
+        onDecision: onWaveformDecision,
+      });
       if (!active) return;
       if (nativeWaveform) {
         setWaveform(nativeWaveform);
@@ -108,6 +131,7 @@ export const useSongWaveform = ({
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, [canExtractNative, durationMs, immediate, onWaveformDecision, pointCount, song, sourceKey]);
 

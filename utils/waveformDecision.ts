@@ -27,6 +27,8 @@ export type NativeWaveformDecision =
   | 'native-empty'
   | 'native-unusable-shape'
   | 'native-source-key-changed'
+  | 'native-timeout'
+  | 'native-scheduler-unavailable'
   | 'native-error'
   | 'native-accepted';
 
@@ -65,13 +67,15 @@ export const isNativeWaveformAccepted = (decision: NativeWaveformDecision): bool
 
 /**
  * A decision is only worth logging when the native path was actually attempted
- * and then rejected. Missing URIs, a device without the native extractor and a
- * clean accept are all normal states and must not create warning noise.
+ * for this source and then rejected. Missing URIs, a device without the native
+ * extractor, transient scheduler-capacity pressure and a clean accept are normal
+ * states and must not create warning noise.
  */
 export const isNativeWaveformRejectionNoteworthy = (decision: NativeWaveformDecision): boolean =>
   decision === 'native-empty'
   || decision === 'native-unusable-shape'
   || decision === 'native-source-key-changed'
+  || decision === 'native-timeout'
   || decision === 'native-error';
 
 export interface WaveformSourceDiagnostics {
