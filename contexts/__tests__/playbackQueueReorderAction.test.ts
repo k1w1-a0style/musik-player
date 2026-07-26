@@ -95,7 +95,7 @@ describe('runReorderQueueAction', () => {
     expect(args.nativeQueueRef.current).toEqual([]);
   });
 
-  test('commits no stale UI state when a newer replacement supersedes native add', async () => {
+  test('finishes an active reorder before a newer replacement observes queue state', async () => {
     const args = createArgs();
     let resolveAdd: () => void = () => undefined;
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
@@ -115,20 +115,20 @@ describe('runReorderQueueAction', () => {
     }
     expect(TrackPlayer.add).toHaveBeenCalled();
 
-    const newerNativeQueue = [songs[2]];
+    let newerReplacementObservedConsistentState = false;
     const newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       expect(isCurrent()).toBe(true);
-      args.nativeQueueRef.current = newerNativeQueue.slice();
+      expect(args.nativeQueueRef.current.map(song => song.id)).toEqual(['s1', 's3', 's2']);
+      expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's3', 's2']);
+      newerReplacementObservedConsistentState = true;
     });
     resolveAdd();
-    await Promise.all([reorderPromise, newerReplacement]);
 
-    expect(args.queueContextRef.current).toEqual(songs);
-    expect(args.baseQueueContextRef.current).toEqual(songs);
-    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
-    expect(args.setCurrentSong).not.toHaveBeenCalled();
-    expect(args.setShuffle).not.toHaveBeenCalled();
-    expect(args.nativeQueueRef.current).toEqual(newerNativeQueue);
+    await expect(reorderPromise).resolves.toBe(true);
+    await newerReplacement;
+
+    expect(newerReplacementObservedConsistentState).toBe(true);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[0], songs[2], songs[1]]);
   });
 
   test('does not move the current track', async () => {
