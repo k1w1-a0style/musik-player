@@ -49,8 +49,32 @@ jobs:
       - name: Verify queue reorder tests
         run: npm test -- --runInBand contexts/__tests__/playbackQueueReorderAction.test.ts
 
-      - name: Verify play-song plan serialization test
-        run: npm test -- --runInBand contexts/__tests__/playbackQueueActionHelpers.test.ts --testNamePattern "builds its plan from the native ref inside the mutation chain"
+      - name: Run play-song plan serialization diagnostic
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npm test -- --runInBand contexts/__tests__/playbackQueueActionHelpers.test.ts --testNamePattern "builds its plan from the native ref inside the mutation chain" 2>&1 | tee play-song-plan-test.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > play-song-plan-test.exit-code
+          exit 0
+
+      - name: Upload play-song plan diagnostic
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: play-song-plan-test
+          path: |
+            play-song-plan-test.log
+            play-song-plan-test.exit-code
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce play-song plan serialization test
+        run: |
+          status=$(cat play-song-plan-test.exit-code)
+          test "$status" -eq 0
 
       - name: Verify active play-song transaction test
         run: npm test -- --runInBand contexts/__tests__/playbackQueueActionHelpers.test.ts --testNamePattern "finishes before a newer replacement observes queue state"
