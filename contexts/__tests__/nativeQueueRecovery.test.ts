@@ -133,6 +133,8 @@ test('rollback verification mismatch falls through to a known final readback wit
   (TrackPlayer.getQueue as jest.Mock)
     .mockRejectedValueOnce(new Error('initial'))
     .mockResolvedValueOnce([songs[1], songs[0]])
+    .mockResolvedValueOnce([songs[1], songs[0]])
+    .mockResolvedValueOnce(songs)
     .mockResolvedValueOnce(songs);
   const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets() });
   expect(result.status).toBe('reconciled');
@@ -217,4 +219,49 @@ test.each([
       snapshotQueue: songs, targetQueue: songs, progress },
   });
   expect(committed.shuffleEnabled).toBe(expected);
+});
+
+test('readback retries a natural active-track transition and binds progress to the stable track', async () => {
+  const queueTracks = songs.map(song => ({ ...song, url: song.uri! }));
+  (TrackPlayer.getQueue as jest.Mock).mockResolvedValue(queueTracks);
+  (TrackPlayer.getActiveTrack as jest.Mock)
+    .mockResolvedValueOnce(queueTracks[0]).mockResolvedValueOnce(queueTracks[1])
+    .mockResolvedValue(queueTracks[1]);
+  (TrackPlayer.getActiveTrackIndex as jest.Mock)
+    .mockResolvedValueOnce(0).mockResolvedValueOnce(1).mockResolvedValue(1);
+  (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position: 99 }).mockResolvedValue({ position: 7 });
+  const result = await readNativeQueueTruth(songs);
+  expect(result).toMatchObject({ activeSong: songs[1], activeTrackId: 's2', activeIndex: 1, progressSeconds: 7 });
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+});
+
+test('readback retries an exact queue-order change with the same ID multiset', async () => {
+  const forward = songs.map(song => ({ ...song, url: song.uri! }));
+  const reverse = [forward[1], forward[0]];
+  (TrackPlayer.getQueue as jest.Mock)
+    .mockResolvedValueOnce(forward).mockResolvedValueOnce(reverse).mockResolvedValue(reverse);
+  (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(reverse[0]);
+  (TrackPlayer.getActiveTrackIndex as jest.Mock).mockResolvedValue(0);
+  const result = await readNativeQueueTruth(songs);
+  expect(result.queue).toEqual([songs[1], songs[0]]);
+});
+
+test('readback rejects a stable duplicate-ID track without a unique index', async () => {
+  const duplicates = [{ ...songs[0] }, { ...songs[0] }];
+  (TrackPlayer.getQueue as jest.Mock).mockResolvedValue(duplicates);
+  (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(duplicates[0]);
+  (TrackPlayer.getActiveTrackIndex as jest.Mock).mockResolvedValue(undefined);
+  await expect(readNativeQueueTruth(duplicates)).rejects.toThrow('unique queue index');
+});
+
+test('readback exposes bounded instability diagnostics after three attempts', async () => {
+  const queueTracks = songs.map(song => ({ ...song, url: song.uri! }));
+  (TrackPlayer.getQueue as jest.Mock).mockResolvedValue(queueTracks);
+  let sample = 0;
+  (TrackPlayer.getActiveTrack as jest.Mock).mockImplementation(async () => queueTracks[(sample++) % 2]);
+  (TrackPlayer.getActiveTrackIndex as jest.Mock).mockImplementation(async () => sample % 2);
+  await expect(readNativeQueueTruth(songs)).rejects.toMatchObject({
+    name: 'NativeQueueReadbackUnstableError', attempts: 3, observations: expect.any(Array),
+  });
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
 });

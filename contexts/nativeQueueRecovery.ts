@@ -101,30 +101,84 @@ const toNativePlaybackState = (state: State): NativePlaybackState => {
   return 'unknown';
 };
 
-export const readNativeQueueTruth = async (knownSongs: Song[]): Promise<NativeQueueReadback> => {
-  const tracks = await TrackPlayer.getQueue();
-  const activeTrack = await TrackPlayer.getActiveTrack();
-  const activeTrackIndex = await TrackPlayer.getActiveTrackIndex();
+export interface NativeQueueReadbackObservation {
+  queueLength: number;
+  finalQueueLength: number;
+  firstTrackId: string | null;
+  secondTrackId: string | null;
+  firstIndex: number;
+  secondIndex: number;
+}
+
+export class NativeQueueReadbackUnstableError extends Error {
+  readonly attempts: number;
+  readonly observations: NativeQueueReadbackObservation[];
+
+  constructor(observations: NativeQueueReadbackObservation[]) {
+    super(`Native queue readback remained unstable after ${observations.length} attempts.`);
+    this.name = 'NativeQueueReadbackUnstableError';
+    this.attempts = observations.length;
+    this.observations = observations;
+  }
+}
+
+const MAX_NATIVE_QUEUE_READBACK_ATTEMPTS = 3;
+const trackIdsMatch = (left: Track[], right: Track[]): boolean => left.length === right.length
+  && left.every((track, index) => normalizedId(track.id) === normalizedId(right[index]?.id));
+const sampleIndex = (value: number | undefined): number => value ?? -1;
+
+const resolveActiveIndex = (queue: Song[], activeTrackId: string | null, sampledIndex: number): number => {
+  if (activeTrackId === null) return -1;
+  if (sampledIndex >= 0) return sampledIndex;
+  const matches = queue.reduce<number[]>((indices, song, index) => {
+    if (normalizedId(song.id) === activeTrackId) indices.push(index);
+    return indices;
+  }, []);
+  if (matches.length !== 1) throw new Error(`Active native track "${activeTrackId}" has no unique queue index.`);
+  return matches[0];
+};
+
+const readStableNativeQueueAttempt = async (knownSongs: Song[]) => {
+  const firstTracks = await TrackPlayer.getQueue();
+  const firstTrack = await TrackPlayer.getActiveTrack();
+  const firstIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
   const progress = await TrackPlayer.getProgress();
   const playback = await TrackPlayer.getPlaybackState();
-  const queue = mapNativeTracksToSongs(tracks, knownSongs);
-  const activeTrackId = normalizedId(activeTrack?.id) ?? null;
-  const activeIndex = activeTrackId === null
-    ? -1
-    : activeTrackIndex ?? queue.findIndex(song => normalizedId(song.id) === activeTrackId);
-  const activeSong = activeIndex >= 0 ? queue[activeIndex] ?? null : null;
-  if (activeTrackId !== null && (activeSong === null || normalizedId(activeSong.id) !== activeTrackId)) {
-    throw new Error(`Active native track "${activeTrackId}" does not match its queue index.`);
-  }
-  return {
-    queue,
-    activeSong,
-    activeTrackId,
-    activeIndex,
-    progressSeconds: progress.position,
-    playbackState: toNativePlaybackState(playback.state),
+  const secondTrack = await TrackPlayer.getActiveTrack();
+  const secondIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
+  const secondTracks = await TrackPlayer.getQueue();
+  const firstTrackId = normalizedId(firstTrack?.id) ?? null;
+  const secondTrackId = normalizedId(secondTrack?.id) ?? null;
+  const observation: NativeQueueReadbackObservation = {
+    queueLength: firstTracks.length, finalQueueLength: secondTracks.length,
+    firstTrackId, secondTrackId, firstIndex, secondIndex,
   };
+  if (firstTrackId !== secondTrackId || firstIndex !== secondIndex || !trackIdsMatch(firstTracks, secondTracks)) {
+    return { observation } as const;
+  }
+  if (secondTrackId === null && secondIndex >= 0) return { observation } as const;
+  const queue = mapNativeTracksToSongs(secondTracks, knownSongs);
+  const activeIndex = resolveActiveIndex(queue, secondTrackId, secondIndex);
+  const activeSong = activeIndex >= 0 ? queue[activeIndex] ?? null : null;
+  if (secondTrackId !== null && (activeSong === null || normalizedId(activeSong.id) !== secondTrackId)) {
+    throw new Error(`Active native track "${secondTrackId}" does not match its queue index.`);
+  }
+  return { observation, readback: {
+    queue, activeSong, activeTrackId: secondTrackId, activeIndex,
+    progressSeconds: progress.position, playbackState: toNativePlaybackState(playback.state),
+  } satisfies NativeQueueReadback } as const;
 };
+
+export const readNativeQueueTruth = async (knownSongs: Song[]): Promise<NativeQueueReadback> => {
+  const observations: NativeQueueReadbackObservation[] = [];
+  for (let attempt = 0; attempt < MAX_NATIVE_QUEUE_READBACK_ATTEMPTS; attempt += 1) {
+    const sample = await readStableNativeQueueAttempt(knownSongs);
+    observations.push(sample.observation);
+    if (sample.readback) return sample.readback;
+  }
+  throw new NativeQueueReadbackUnstableError(observations);
+};
+
 
 export const createNativeQueueMutationSnapshot = async ({
   knownSongs,

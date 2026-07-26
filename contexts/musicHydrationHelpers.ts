@@ -22,7 +22,7 @@ import {
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
-import { commitNativeQueueTruth, readNativeQueueTruth } from './nativeQueueRecovery';
+import { commitNativeQueueTruth, NativeQueueReadbackUnstableError, readNativeQueueTruth } from './nativeQueueRecovery';
 import {
   acquireSongCoverProtection,
   type SongCoverProtectionLease,
@@ -230,7 +230,7 @@ export const runMusicHydration = async ({
       throw error;
     }
   } catch (error) {
-    if (isCancelled()) return;
+    if (isCancelled() || error instanceof NativeQueueReadbackUnstableError) return;
 
     const fallback = await applyHydrationFailureFallback(args, error);
     hydrationCompleted = fallback.status === 'applied';

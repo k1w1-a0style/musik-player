@@ -10,6 +10,7 @@ import {
   recoverNativeQueueMutation,
   type CurrentSongPersistenceResult,
   type NativeQueueRecoveryDiagnostics,
+  NativeQueueReadbackUnstableError,
   type NativeQueueMutationSnapshot,
   type NativeQueueStateTargets,
 } from './nativeQueueRecovery';
@@ -113,7 +114,8 @@ export const applyHydratedNativeQueue = async ({
       try {
         snapshot = await createNativeQueueMutationSnapshot({ knownSongs, shuffleEnabled, targets });
       } catch (error) {
-        return failedResult(targets, 'snapshot', error);
+        const result = failedResult(targets, 'snapshot', error);
+        return error instanceof NativeQueueReadbackUnstableError ? { ...result, nativeStatus: 'stale' } : result;
       }
       if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'stale' };
       if (plan.nativeQueueAction === 'none') {
