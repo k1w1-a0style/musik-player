@@ -154,6 +154,16 @@ export const runMusicHydration = async ({
     });
 
     if (isCancelled()) return;
+    if (hydratedStored.verifiedState === null) {
+      if (hydratedStored.nativeStatus === 'stale') return;
+      const nativeHydrationError = hydratedStored.recoveryErrors?.originalError
+        ?? new Error(`Native queue hydration failed during ${hydratedStored.failureStage}.`);
+      console.warn(
+        '[MusicHydration:TrackPlayerError] Native queue hydration did not produce a verified state.',
+        nativeHydrationError,
+      );
+      throw nativeHydrationError;
+    }
 
     try {
       await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, ...args });
