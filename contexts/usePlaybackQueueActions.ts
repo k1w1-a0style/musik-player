@@ -43,15 +43,13 @@ export const usePlaybackQueueActions = ({
   const queueActionLockRef = useRef<Promise<void>>(Promise.resolve());
   const shuffleRef = useRef(shuffle);
   shuffleRef.current = shuffle;
-
   const enqueueQueueAction = useCallback((action: () => Promise<void>): Promise<void> => {
     const run = queueActionLockRef.current.catch(() => undefined).then(action);
     queueActionLockRef.current = run.catch(() => undefined);
     return run;
   }, []);
-
   const playSong = useCallback(
-    async (song: Song, queue?: Song[]) => enqueueQueueAction(() => runPlaySongQueueAction({
+    async (song: Song, queue?: Song[]) => enqueueQueueAction(async () => { await runPlaySongQueueAction({
       song,
       queue,
       songsRef,
@@ -60,16 +58,18 @@ export const usePlaybackQueueActions = ({
       nativeQueueRef,
       setPlaybackQueue,
       setCurrentSong,
-    })),
-    [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, songsRef],
+      shuffle,
+      shuffleRef,
+      setShuffle,
+    }); }),
+    [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
-
 
   const insertSongIntoQueue = useCallback(
     async (song: Song, position: 'next' | 'end') => {
       let result = false;
       await enqueueQueueAction(async () => {
-        result = await runInsertSongQueueAction({
+        const actionResult = await runInsertSongQueueAction({
           song,
           position,
           songsRef,
@@ -83,23 +83,21 @@ export const usePlaybackQueueActions = ({
           shuffleRef,
           setShuffle,
         });
+        result = actionResult.status === 'applied' || actionResult.status === 'noop';
       });
       return result;
     },
     [baseQueueContextRef, currentSongId, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
-
   const playSongNext = useCallback(
     async (song: Song) => insertSongIntoQueue(song, 'next'),
     [insertSongIntoQueue],
   );
-
   const addSongToQueue = useCallback(
     async (song: Song) => insertSongIntoQueue(song, 'end'),
     [insertSongIntoQueue],
   );
-
-  const toggleShuffle = useCallback(async () => enqueueQueueAction(() => runShuffleQueueAction({
+  const toggleShuffle = useCallback(async () => enqueueQueueAction(async () => { await runShuffleQueueAction({
     songsRef,
     queueContextRef,
     baseQueueContextRef,
@@ -110,7 +108,7 @@ export const usePlaybackQueueActions = ({
     shuffle,
     shuffleRef,
     setShuffle,
-  })), [
+  }); }), [
     baseQueueContextRef,
     currentSongId,
     enqueueQueueAction,
@@ -122,12 +120,11 @@ export const usePlaybackQueueActions = ({
     shuffle,
     songsRef,
   ]);
-
   const reorderQueue = useCallback(
     async (fromIndex: number, toIndex: number) => {
       let result = false;
       await enqueueQueueAction(async () => {
-        result = await runReorderQueueAction({
+        const actionResult = await runReorderQueueAction({
           fromIndex,
           toIndex,
           songsRef,
@@ -141,6 +138,7 @@ export const usePlaybackQueueActions = ({
           shuffleRef,
           setShuffle,
         });
+        result = actionResult.status === 'applied' || actionResult.status === 'noop';
       });
       return result;
     },

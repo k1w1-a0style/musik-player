@@ -2,36 +2,61 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer, { State, type Track } from 'react-native-track-player';
 import type { Song } from '../types/Song';
 import { StorageKeys, storage } from '../utils/storage';
+import { isPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
-import type { PlayableSong } from '../utils/playableSong';
 
-const normalizedId = (value: unknown): string | undefined => {
-  const id = String(value ?? '').trim();
-  return id || undefined;
-};
+export type NativePlaybackState = 'playing' | 'paused' | 'stopped' | 'unknown';
 
-const findKnownSong = (songs: Song[], id: unknown): Song | undefined => {
-  const wanted = normalizedId(id);
-  return wanted ? songs.find(song => normalizedId(song.id) === wanted) : undefined;
-};
+export interface NativeQueueReadback {
+  queue: Song[];
+  activeSong: Song | null;
+  activeTrackId: string | null;
+  activeIndex: number;
+  progressSeconds: number;
+  playbackState: NativePlaybackState;
+}
 
-export interface NativeQueueMutationSnapshot {
+export interface NativeQueueMutationSnapshot extends NativeQueueReadback {
   nativeQueue: Song[];
   logicalQueue: Song[];
   baseQueue: Song[];
   currentSong: Song | null;
-  persistedCurrentSongId: string | null;
-  activeTrackId: string | null;
-  activeIndex: number;
-  progressSeconds: number;
   shuffleEnabled: boolean;
-  wasPlaying: boolean;
+}
+
+export interface NativeQueueRecoveryDiagnostics {
+  initialReadbackError?: unknown;
+  rollbackExecutionError?: unknown;
+  rollbackVerificationError?: unknown;
+  finalReadbackError?: unknown;
+}
+
+export type CurrentSongPersistenceStatus =
+  | 'set-confirmed'
+  | 'remove-confirmed'
+  | 'not-required'
+  | 'unconfirmed'
+  | 'rejected';
+
+export interface CurrentSongPersistenceResult {
+  status: CurrentSongPersistenceStatus;
+  error?: unknown;
+}
+
+interface RecoveredState {
+  queue: Song[];
+  baseQueue: Song[];
+  activeSong: Song | null;
+  shuffleEnabled: boolean;
+  readback: NativeQueueReadback;
+  currentSongPersistence: CurrentSongPersistenceResult;
+  persistenceError?: unknown;
 }
 
 export type NativeQueueRecoveryResult =
-  | { status: 'reconciled'; queue: Song[]; baseQueue: Song[]; activeSong: Song | null; shuffleEnabled: boolean; persistenceError?: unknown }
-  | { status: 'rolled-back'; queue: Song[]; baseQueue: Song[]; activeSong: Song | null; shuffleEnabled: boolean; persistenceError?: unknown }
-  | { status: 'failed'; originalError: unknown; readbackError?: unknown; rollbackError?: unknown; finalReadbackError?: unknown };
+  | ({ status: 'reconciled'; diagnostics?: NativeQueueRecoveryDiagnostics } & RecoveredState)
+  | ({ status: 'rolled-back'; diagnostics?: NativeQueueRecoveryDiagnostics } & RecoveredState)
+  | ({ status: 'failed'; originalError: unknown; persistenceError?: unknown } & NativeQueueRecoveryDiagnostics);
 
 export interface NativeQueueStateTargets {
   nativeQueueRef: MutableRefObject<Song[]>;
@@ -43,24 +68,52 @@ export interface NativeQueueStateTargets {
   setShuffle?: Dispatch<SetStateAction<boolean>>;
 }
 
-interface NativeReadback {
-  queue: Song[];
-  activeSong: Song | null;
-}
+const normalizedId = (value: unknown): string | undefined => {
+  const id = String(value ?? '').trim();
+  return id || undefined;
+};
 
-const mapNativeTracks = (tracks: Track[], knownSongs: Song[]): Song[] => tracks.map(track => {
+const findKnownSong = (songs: Song[], id: unknown): Song | undefined => {
+  const wanted = normalizedId(id);
+  return wanted ? songs.find(song => normalizedId(song.id) === wanted) : undefined;
+};
+
+export const mapNativeTracksToSongs = (tracks: Track[], knownSongs: Song[]): Song[] => tracks.map(track => {
   const song = findKnownSong(knownSongs, track.id);
   if (!song) throw new Error(`Native queue readback contained unknown track "${String(track.id)}".`);
   return song;
 });
 
-export const readNativeQueueTruth = async (knownSongs: Song[]): Promise<NativeReadback> => {
+const toNativePlaybackState = (state: State): NativePlaybackState => {
+  if (state === State.Playing) return 'playing';
+  if (state === State.Paused) return 'paused';
+  if (state === State.Stopped || state === State.None || state === State.Ended) return 'stopped';
+  return 'unknown';
+};
+
+export const readNativeQueueTruth = async (knownSongs: Song[]): Promise<NativeQueueReadback> => {
   const tracks = await TrackPlayer.getQueue();
   const activeTrack = await TrackPlayer.getActiveTrack();
-  const queue = mapNativeTracks(tracks, knownSongs);
-  const activeSong = activeTrack ? findKnownSong(queue, activeTrack.id) : undefined;
-  if (activeTrack && !activeSong) throw new Error(`Active native track "${String(activeTrack.id)}" is unknown.`);
-  return { queue, activeSong: activeSong ?? queue[0] ?? null };
+  const activeTrackIndex = await TrackPlayer.getActiveTrackIndex();
+  const progress = await TrackPlayer.getProgress();
+  const playback = await TrackPlayer.getPlaybackState();
+  const queue = mapNativeTracksToSongs(tracks, knownSongs);
+  const activeTrackId = normalizedId(activeTrack?.id) ?? null;
+  const activeIndex = activeTrackId === null
+    ? -1
+    : activeTrackIndex ?? queue.findIndex(song => normalizedId(song.id) === activeTrackId);
+  const activeSong = activeIndex >= 0 ? queue[activeIndex] ?? null : null;
+  if (activeTrackId !== null && (activeSong === null || normalizedId(activeSong.id) !== activeTrackId)) {
+    throw new Error(`Active native track "${activeTrackId}" does not match its queue index.`);
+  }
+  return {
+    queue,
+    activeSong,
+    activeTrackId,
+    activeIndex,
+    progressSeconds: progress.position,
+    playbackState: toNativePlaybackState(playback.state),
+  };
 };
 
 export const createNativeQueueMutationSnapshot = async ({
@@ -74,68 +127,81 @@ export const createNativeQueueMutationSnapshot = async ({
   shuffleEnabled: boolean;
   targets: NativeQueueStateTargets;
 }): Promise<NativeQueueMutationSnapshot> => {
-  const candidates = [...knownSongs, ...targets.nativeQueueRef.current];
-  const tracks = await TrackPlayer.getQueue();
-  const activeTrack = await TrackPlayer.getActiveTrack();
-  const nativeQueue = mapNativeTracks(tracks, candidates);
-  const [progress, playbackState, persistedCurrentSongId] = await Promise.all([
-    TrackPlayer.getProgress(),
-    TrackPlayer.getPlaybackState(),
-    storage.getCurrentSongId(),
-  ]);
-  const activeTrackId = normalizedId(activeTrack?.id) ?? null;
+  const readback = await readNativeQueueTruth([...knownSongs, ...targets.nativeQueueRef.current]);
   return {
-    nativeQueue,
+    ...readback,
+    nativeQueue: readback.queue.slice(),
     logicalQueue: targets.queueContextRef.current.slice(),
     baseQueue: targets.baseQueueContextRef.current.slice(),
-    currentSong: currentSong ?? findKnownSong(candidates, activeTrackId) ?? null,
-    persistedCurrentSongId,
-    activeTrackId,
-    activeIndex: activeTrackId ? nativeQueue.findIndex(song => normalizedId(song.id) === activeTrackId) : -1,
-    progressSeconds: progress.position,
+    currentSong,
     shuffleEnabled,
-    wasPlaying: playbackState.state === State.Playing,
   };
 };
 
-const sameSongSet = (left: Song[], right: Song[]): boolean => left.length === right.length
-  && left.every(song => findKnownSong(right, song.id));
-
-export const deriveRecoveredShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
-  sameSongSet(queue, baseQueue)
-  && queue.some((song, index) => normalizedId(song.id) !== normalizedId(baseQueue[index]?.id));
-
-const persistActiveSong = async (activeSong: Song | null, librarySongs: Song[]): Promise<unknown | undefined> => {
-  try {
-    const inLibrary = activeSong && findKnownSong(librarySongs, activeSong.id);
-    const confirmed = inLibrary
-      ? await storage.set(StorageKeys.CURRENT_SONG_ID, normalizedId(activeSong.id))
-      : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-    if (confirmed === false) throw new Error('Current-song persistence was not confirmed.');
-    return undefined;
-  } catch (error) {
-    return error;
+const idCounts = (songs: Song[]): Map<string, number> | null => {
+  const counts = new Map<string, number>();
+  for (const song of songs) {
+    const id = normalizedId(song.id);
+    if (!id) return null;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
   }
+  return counts;
 };
 
-const chooseSemanticBaseQueue = (queue: Song[], preferredBase: Song[]): Song[] =>
-  queue.length > 0 && queue.every(song => findKnownSong(preferredBase, song.id))
-    ? preferredBase.slice()
-    : queue.slice();
+export const hasSameNormalizedIdMultiset = (left: Song[], right: Song[]): boolean => {
+  if (left.length !== right.length) return false;
+  const leftCounts = idCounts(left);
+  const rightCounts = idCounts(right);
+  if (!leftCounts || !rightCounts || leftCounts.size !== rightCounts.size) return false;
+  return [...leftCounts].every(([id, count]) => rightCounts.get(id) === count);
+};
+
+const hasSameQueueOrder = (left: Song[], right: Song[]): boolean => left.length === right.length
+  && left.every((song, index) => normalizedId(song.id) === normalizedId(right[index]?.id));
+
+export const deriveBaseQueue = (queue: Song[], preferredBaseQueue: Song[]): Song[] =>
+  hasSameNormalizedIdMultiset(queue, preferredBaseQueue) ? preferredBaseQueue.slice() : queue.slice();
+
+export const deriveRecoveredShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
+  hasSameNormalizedIdMultiset(queue, baseQueue) && !hasSameQueueOrder(queue, baseQueue);
+
+export const persistNativeCurrentSong = async (
+  activeSong: Song | null,
+  librarySongs: Song[],
+  previousId?: string | null,
+): Promise<CurrentSongPersistenceResult> => {
+  const activeId = normalizedId(activeSong?.id) ?? null;
+  const librarySong = activeId ? findKnownSong(librarySongs, activeId) : undefined;
+  const desiredId = librarySong ? activeId : null;
+  if (previousId !== undefined && normalizedId(previousId) === (desiredId ?? undefined)) {
+    return { status: 'not-required' };
+  }
+  try {
+    const confirmed = desiredId
+      ? await storage.set(StorageKeys.CURRENT_SONG_ID, desiredId)
+      : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
+    if (confirmed === false) return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
+    return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
+  } catch (error) {
+    return { status: 'rejected', error };
+  }
+};
 
 export const commitNativeQueueTruth = async ({
   readback,
   preferredBaseQueue,
   librarySongs,
   targets,
+  previousPersistedId,
 }: {
-  readback: NativeReadback;
+  readback: NativeQueueReadback;
   preferredBaseQueue: Song[];
   librarySongs: Song[];
   targets: NativeQueueStateTargets;
-}): Promise<Omit<Extract<NativeQueueRecoveryResult, { status: 'reconciled' }>, 'status'>> => {
+  previousPersistedId?: string | null;
+}): Promise<RecoveredState> => {
   const queue = readback.queue.slice();
-  const baseQueue = chooseSemanticBaseQueue(queue, preferredBaseQueue);
+  const baseQueue = deriveBaseQueue(queue, preferredBaseQueue);
   const shuffleEnabled = deriveRecoveredShuffleState(queue, baseQueue);
   targets.nativeQueueRef.current = queue.slice();
   targets.queueContextRef.current = queue.slice();
@@ -144,63 +210,99 @@ export const commitNativeQueueTruth = async ({
   targets.setCurrentSong(readback.activeSong);
   if (targets.shuffleRef) targets.shuffleRef.current = shuffleEnabled;
   targets.setShuffle?.(shuffleEnabled);
-  const persistenceError = await persistActiveSong(readback.activeSong, librarySongs);
-  return { queue, baseQueue, activeSong: readback.activeSong, shuffleEnabled, persistenceError };
+  const currentSongPersistence = await persistNativeCurrentSong(readback.activeSong, librarySongs, previousPersistedId);
+  return {
+    queue,
+    baseQueue,
+    activeSong: readback.activeSong,
+    shuffleEnabled,
+    readback,
+    currentSongPersistence,
+    persistenceError: currentSongPersistence.error,
+  };
 };
 
-export const rollbackNativeQueueSnapshot = async (snapshot: NativeQueueMutationSnapshot): Promise<void> => {
+export const executeNativeQueueRollback = async (snapshot: NativeQueueMutationSnapshot): Promise<void> => {
   await TrackPlayer.reset();
-  if (snapshot.nativeQueue.length > 0) {
-    await TrackPlayer.add(snapshot.nativeQueue.map(song => toTrackPlayerTrack(song as PlayableSong)));
+  if (snapshot.nativeQueue.length === 0) return;
+  const playableQueue = snapshot.nativeQueue.filter(isPlayableSong);
+  if (playableQueue.length !== snapshot.nativeQueue.length) throw new Error('Snapshot queue contains an unplayable song.');
+  await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+  if (snapshot.activeIndex >= 0) await TrackPlayer.skip(snapshot.activeIndex);
+  await TrackPlayer.seekTo(snapshot.progressSeconds);
+  if (snapshot.playbackState === 'playing') await TrackPlayer.play();
+  else if (snapshot.playbackState === 'paused') await TrackPlayer.pause();
+  else if (snapshot.playbackState === 'stopped') await TrackPlayer.stop();
+};
+
+const ROLLBACK_PROGRESS_TOLERANCE_SECONDS = 0.25;
+
+export const verifyNativeQueueRollback = (
+  snapshot: NativeQueueMutationSnapshot,
+  readback: NativeQueueReadback,
+): void => {
+  if (!hasSameQueueOrder(snapshot.nativeQueue, readback.queue)) throw new Error('Rollback queue order differs from snapshot.');
+  if (snapshot.activeTrackId !== readback.activeTrackId) throw new Error('Rollback active track differs from snapshot.');
+  if (snapshot.activeIndex !== readback.activeIndex) throw new Error('Rollback active index differs from snapshot.');
+  if (Math.abs(snapshot.progressSeconds - readback.progressSeconds) > ROLLBACK_PROGRESS_TOLERANCE_SECONDS) {
+    throw new Error('Rollback progress differs from snapshot.');
   }
-  if (snapshot.activeIndex > 0) await TrackPlayer.skip(snapshot.activeIndex);
-  if (snapshot.progressSeconds > 0 && snapshot.nativeQueue.length > 0) await TrackPlayer.seekTo(snapshot.progressSeconds);
-  if (snapshot.nativeQueue.length > 0) {
-    if (snapshot.wasPlaying) await TrackPlayer.play();
-    else await TrackPlayer.pause();
+  if (snapshot.playbackState !== 'unknown' && snapshot.playbackState !== readback.playbackState) {
+    throw new Error('Rollback playback state differs from snapshot.');
   }
 };
 
-export const recoverNativeQueueMutation = async ({
-  originalError,
-  snapshot,
-  knownSongs,
-  librarySongs,
-  targets,
-  preferredBaseQueue = snapshot.baseQueue,
-}: {
+interface RecoveryArgs {
   originalError: unknown;
   snapshot: NativeQueueMutationSnapshot;
   knownSongs: Song[];
   librarySongs: Song[];
   targets: NativeQueueStateTargets;
   preferredBaseQueue?: Song[];
-}): Promise<NativeQueueRecoveryResult> => {
-  let readbackError: unknown;
-  try {
-    const readback = await readNativeQueueTruth(knownSongs);
-    return { status: 'reconciled', ...await commitNativeQueueTruth({ readback, preferredBaseQueue, librarySongs, targets }) };
-  } catch (error) {
-    readbackError = error;
-  }
+}
 
-  let rollbackError: unknown;
-  try {
-    await rollbackNativeQueueSnapshot(snapshot);
-    const verified = await readNativeQueueTruth(knownSongs);
-    return { status: 'rolled-back', ...await commitNativeQueueTruth({
-      readback: verified, preferredBaseQueue: snapshot.baseQueue, librarySongs, targets,
-    }) };
-  } catch (error) {
-    rollbackError = error;
-  }
+const reconcileReadback = async (
+  status: 'reconciled' | 'rolled-back',
+  readback: NativeQueueReadback,
+  args: RecoveryArgs,
+  diagnostics?: NativeQueueRecoveryDiagnostics,
+): Promise<NativeQueueRecoveryResult> => ({
+  status,
+  ...await commitNativeQueueTruth({
+    readback,
+    preferredBaseQueue: status === 'rolled-back' ? args.snapshot.baseQueue : args.preferredBaseQueue ?? args.snapshot.baseQueue,
+    librarySongs: args.librarySongs,
+    targets: args.targets,
+  }),
+  diagnostics,
+});
 
+export const recoverNativeQueueMutation = async (args: RecoveryArgs): Promise<NativeQueueRecoveryResult> => {
+  const diagnostics: NativeQueueRecoveryDiagnostics = {};
   try {
-    const finalReadback = await readNativeQueueTruth(knownSongs);
-    return { status: 'reconciled', ...await commitNativeQueueTruth({
-      readback: finalReadback, preferredBaseQueue, librarySongs, targets,
-    }) };
-  } catch (finalReadbackError) {
-    return { status: 'failed', originalError, readbackError, rollbackError, finalReadbackError };
+    return await reconcileReadback('reconciled', await readNativeQueueTruth(args.knownSongs), args);
+  } catch (error) {
+    diagnostics.initialReadbackError = error;
+  }
+  try {
+    await executeNativeQueueRollback(args.snapshot);
+  } catch (error) {
+    diagnostics.rollbackExecutionError = error;
+  }
+  if (!diagnostics.rollbackExecutionError) {
+    try {
+      const readback = await readNativeQueueTruth(args.knownSongs);
+      verifyNativeQueueRollback(args.snapshot, readback);
+      return reconcileReadback('rolled-back', readback, args, diagnostics);
+    } catch (error) {
+      diagnostics.rollbackVerificationError = error;
+    }
+  }
+  try {
+    const finalReadback = await readNativeQueueTruth(args.knownSongs);
+    return reconcileReadback('reconciled', finalReadback, args, diagnostics);
+  } catch (error) {
+    diagnostics.finalReadbackError = error;
+    return { status: 'failed', originalError: args.originalError, ...diagnostics };
   }
 };

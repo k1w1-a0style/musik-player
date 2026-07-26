@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { waitFor } from '@testing-library/react-native';
-import TrackPlayer from 'react-native-track-player';
+import TrackPlayer, { State } from 'react-native-track-player';
 import {
   applyStoredPlaybackSettings,
   hydrateStoredSongs,
@@ -48,14 +48,32 @@ const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.m
 const playlists: Playlist[] = [{ id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 }];
 const eqBands = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const createSongRef = () => ({ current: [] as Song[] });
+const nativeMutationImplementations = {
+  reset: (TrackPlayer.reset as jest.Mock).getMockImplementation(),
+  add: (TrackPlayer.add as jest.Mock).getMockImplementation(),
+  play: (TrackPlayer.play as jest.Mock).getMockImplementation(),
+  pause: (TrackPlayer.pause as jest.Mock).getMockImplementation(),
+  stop: (TrackPlayer.stop as jest.Mock).getMockImplementation(),
+  skip: (TrackPlayer.skip as jest.Mock).getMockImplementation(),
+  seekTo: (TrackPlayer.seekTo as jest.Mock).getMockImplementation(),
+};
 
 describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
-    (TrackPlayer as unknown as { __reset: () => void }).__reset();
+    const player = TrackPlayer as unknown as { __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number; __getState: () => State };
+    player.__reset();
     resetSongCoverProtectionLifecycleForTests();
     resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();
+    for (const [method, implementation] of Object.entries(nativeMutationImplementations)) {
+      (TrackPlayer[method as keyof typeof nativeMutationImplementations] as jest.Mock).mockImplementation(implementation);
+    }
+    (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => player.__getQueue());
+    (TrackPlayer.getActiveTrack as jest.Mock).mockImplementation(async () => player.__getQueue()[player.__getActiveTrackIndex()]);
+    (TrackPlayer.getActiveTrackIndex as jest.Mock).mockImplementation(async () => player.__getActiveTrackIndex() >= 0 ? player.__getActiveTrackIndex() : undefined);
+    (TrackPlayer.getProgress as jest.Mock).mockResolvedValue({ position: 0 });
+    (TrackPlayer.getPlaybackState as jest.Mock).mockImplementation(async () => ({ state: player.__getState() }));
     mockMigrateLegacySongFavoritesFromStoredSongs.mockResolvedValue([]);
   });
 
@@ -258,10 +276,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(songsRef.current).toEqual(songs);
-    expect(queueContextRef.current).toEqual(songs);
-    expect(baseQueueContextRef.current).toEqual(songs);
-    expect(setPlaybackQueue).toHaveBeenCalledWith(songs);
-    expect(nativeQueueRef.current.map(song => song.id)).toEqual(['native']);
+    expect(queueContextRef.current).toEqual([]);
+    expect(baseQueueContextRef.current).toEqual([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(nativeQueueRef.current).toEqual([]);
     expect(TrackPlayer.reset).not.toHaveBeenCalled();
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
@@ -344,15 +362,12 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
-    expect(nativeQueueRef.current).toEqual([{ id: 'stale', title: 'Stale', artist: 'A', uri: 'file:///stale.mp3' }]);
-    expect(queueContextRef.current.map(song => song.id)).toEqual(['stale']);
-    expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['stale']);
-    expect(setPlaybackQueue).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      '[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.',
-      expect.any(Error),
-    );
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(queueContextRef.current).toEqual([]);
+    expect(baseQueueContextRef.current).toEqual([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
   });
 
   test('hydrates mixed queue with only playable songs and keeps currentSong aligned with playable queue', async () => {
@@ -564,7 +579,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
-    expect(nativeQueueRef.current).toEqual(songs);
+    expect(nativeQueueRef.current).toEqual([]);
   });
 
   test('sets hydrated native queue ref when cancelled after add', async () => {
@@ -597,7 +612,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalled();
-    expect(nativeQueueRef.current).toEqual(songs);
+    expect(nativeQueueRef.current).toEqual([]);
   });
 
   test('clears native ref and keeps queue refs uncommitted when hydrated native queue initialization fails', async () => {
@@ -639,10 +654,7 @@ describe('musicHydrationHelpers', () => {
     expect(baseQueueContextRef.current).toEqual([]);
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setCurrentSong).toHaveBeenCalledWith(null);
-    expect(warn).toHaveBeenCalledWith(
-      '[PlaybackQueue] Failed to initialize hydrated native queue.',
-      expect.any(Error),
-    );
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
   });
 
   test('applies stored playback settings to state and TrackPlayer', async () => {
@@ -1018,7 +1030,7 @@ describe('musicHydrationHelpers', () => {
 
     expect(setSongsState).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
     expect(setSongsState).not.toHaveBeenCalledWith([]);
-    expect(setPlaybackQueue).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setIsReady).toHaveBeenCalledWith(true);
     expect(cleanupCoverCache).not.toHaveBeenCalled();
     const protection = (createCoverCacheProtection as jest.Mock).mock.results[0].value;

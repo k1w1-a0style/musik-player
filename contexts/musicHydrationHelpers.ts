@@ -12,7 +12,6 @@ import {
 } from './musicHydrationPlan';
 import {
   applyHydratedNativeQueue,
-  clearNativeQueueAfterMalformedRestoredSong,
   type HydratedNativeQueueResult,
 } from './musicHydrationNativeQueue';
 import { applyStoredPlaybackSettings } from './musicHydrationPlaybackSettings';
@@ -21,7 +20,6 @@ import {
   persistHydratedSongsIfNeeded,
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
-import { StorageKeys, storage } from '../utils/storage';
 import {
   acquireSongCoverProtection,
   type SongCoverProtectionLease,
@@ -31,39 +29,6 @@ import type {
   RunMusicHydrationArgs,
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
-import type { HydrationPlan } from './musicHydrationPlan';
-
-const commitHydratedNativeResult = async (
-  plan: HydrationPlan,
-  nativeResult: Exclude<HydratedNativeQueueResult, { status: 'failed' }>,
-  stored: StoredMusicHydrationState,
-  targets: Pick<HydrateStoredSongsArgs, 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef' | 'setPlaybackQueue' | 'setCurrentSong'>,
-): Promise<StoredMusicHydrationState> => {
-  const leavesNativeQueueUntouched = plan.nativeQueueAction === 'none';
-  const confirmedQueue = leavesNativeQueueUntouched ? plan.playableQueue.slice() : nativeResult.queue.slice();
-  if (!leavesNativeQueueUntouched) targets.nativeQueueRef.current = confirmedQueue.slice();
-  targets.queueContextRef.current = confirmedQueue.slice();
-  const planIds = new Set(plan.hydratedQueue.map(song => song.id));
-  const confirmedBase = plan.hydratedQueue.length === confirmedQueue.length
-    && confirmedQueue.every(song => planIds.has(song.id)) ? plan.hydratedQueue : confirmedQueue;
-  targets.baseQueueContextRef.current = confirmedBase.slice();
-  targets.setPlaybackQueue(confirmedQueue.slice());
-  const activeSong = leavesNativeQueueUntouched ? plan.restoredSong ?? null : nativeResult.activeSong;
-  targets.setCurrentSong(activeSong);
-  const confirmedId = activeSong?.id ?? null;
-  try {
-    if (confirmedId !== stored.currentSongId) {
-      const persisted = confirmedId
-        ? await storage.set(StorageKeys.CURRENT_SONG_ID, confirmedId)
-        : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-      if (persisted === false) throw new Error('Hydrated current-song persistence was not confirmed.');
-    }
-  } catch (error) {
-    nativeResult.persistenceError = error;
-    console.warn('[MusicHydration] Native queue recovered but current-song persistence failed.', error);
-  }
-  return { ...applyHydrationPlanToStoredState(stored, plan), currentSongId: confirmedId };
-};
 
 const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
   try {
@@ -91,6 +56,18 @@ export { loadStoredMusicHydrationState } from './musicHydrationLoad';
 export { createHydrationPlan, sanitizeStoredPlaylistsForHydration } from './musicHydrationPlan';
 export { applyStoredPlaybackSettings } from './musicHydrationPlaybackSettings';
 
+export type HydrateStoredSongsResult = StoredMusicHydrationState & HydratedNativeQueueResult;
+
+const withoutNativeMutation = (stored: StoredMusicHydrationState): HydrateStoredSongsResult => ({
+  ...stored,
+  nativeStatus: 'noop',
+  queue: [],
+  baseQueue: [],
+  activeSong: null,
+  shuffleEnabled: stored.shuffle ?? false,
+  currentSongPersistence: { status: 'not-required' },
+});
+
 export const hydrateStoredSongs = async ({
   stored,
   songsRef,
@@ -101,13 +78,13 @@ export const hydrateStoredSongs = async ({
   setCurrentSong,
   setPlaybackQueue,
   isCancelled,
-}: HydrateStoredSongsArgs): Promise<StoredMusicHydrationState> => {
-  if (!stored.songs) return stored;
+}: HydrateStoredSongsArgs): Promise<HydrateStoredSongsResult> => {
+  if (!stored.songs) return withoutNativeMutation(stored);
 
   const coverLease = acquireSongCoverProtection(stored.songs);
   try {
     const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
-    if (isCancelled()) return stored;
+    if (isCancelled()) return withoutNativeMutation(stored);
 
     coverLease.updateSnapshot(sanitizedSongs);
     const plan = createHydrationPlan(stored, sanitizedSongs);
@@ -122,28 +99,25 @@ export const hydrateStoredSongs = async ({
       await cleanupHydratedSongCovers(plan.hydratedSongs);
       coverLease.markConfirmedAfterCleanup();
     }
-    if (isCancelled()) return stored;
+    if (isCancelled()) return withoutNativeMutation(stored);
 
     await persistHydratedPlaylistsIfNeeded(plan);
-    if (isCancelled()) return stored;
+    if (isCancelled()) return withoutNativeMutation(stored);
 
     const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
 
-    const nativeResult = plan.nativeQueueAction === 'clearMalformedCurrent'
-      ? (await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef)
-        ? { status: 'applied' as const, queue: [] as Song[], activeSong: null }
-        : { status: 'failed' as const, queue: nativeQueueRef.current, activeSong: null,
-          recoveryError: new Error('Failed to clear malformed hydrated queue.') })
-      : await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
-
-    if (nativeResult.status === 'failed') {
-      return hydratedStored;
-    }
-    if (isCancelled()) return hydratedStored;
-
-    return commitHydratedNativeResult(plan, nativeResult, stored, {
-      nativeQueueRef, queueContextRef, baseQueueContextRef, setPlaybackQueue, setCurrentSong,
+    const nativeResult = await applyHydratedNativeQueue({
+      plan,
+      nativeQueueRef,
+      isCancelled,
+      librarySongs: plan.hydratedSongs,
+      shuffleEnabled: stored.shuffle ?? false,
+      targets: { nativeQueueRef, queueContextRef, baseQueueContextRef, setPlaybackQueue, setCurrentSong },
     });
+    const persistedCurrentSongId = nativeResult.currentSongPersistence.status === 'set-confirmed'
+      ? nativeResult.activeSong?.id ?? null
+      : nativeResult.currentSongPersistence.status === 'remove-confirmed' ? null : stored.currentSongId;
+    return { ...hydratedStored, ...nativeResult, currentSongId: persistedCurrentSongId };
   } finally {
     coverLease.releaseCurrentOwner();
   }
