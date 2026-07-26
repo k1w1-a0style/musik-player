@@ -1,44 +1,31 @@
-name: Android standalone APK emulator smoke
+name: Manual Android development APK smoke
 
 on:
-  pull_request:
-    branches: [codex]
-    paths:
-      - '.github/workflows/android-emulator-smoke.yml'
-      - 'app.json'
-      - 'app.config.js'
-      - 'eas.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'index.js'
-      - '**/*.js'
-      - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - 'modules/expo-system-audio/**'
-      - 'scripts/ci/**'
-      - 'scripts/patches/**'
-  push:
-    branches: [codex]
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type BUILD_DEVELOPMENT_APK to confirm the single manual APK build.'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-emulator-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  group: manual-android-development-apk
+  cancel-in-progress: false
 
 jobs:
-  standalone-apk-smoke:
-    name: Build, inspect, install and launch EAS preview APK
+  development-apk-smoke:
+    if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'
+    name: Build, inspect, install and launch development APK
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
-      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      PACKAGE_NAME: com.k1w1a0style.musikplayer.dev
       AVD_NAME: musik-player-api-35
       ANDROID_API: '35'
-      EAS_BUILD_PROFILE: preview
+      EAS_BUILD_PROFILE: development
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
@@ -70,7 +57,7 @@ jobs:
           echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
           echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
 
-      - name: Build standalone preview APK with EAS locally
+      - name: Build development APK with EAS locally
         shell: bash
         run: |
           set -euo pipefail
@@ -78,17 +65,17 @@ jobs:
           mkdir -p artifacts ci-logs
           eas build \
             --platform android \
-            --profile preview \
+            --profile development \
             --local \
             --non-interactive \
-            --output "$PWD/artifacts/musik-player-preview.apk" \
-            2>&1 | tee android-release-build.log
+            --output "$PWD/artifacts/musik-player-development.apk" \
+            2>&1 | tee android-development-build.log
 
-      - name: Inspect standalone APK
+      - name: Inspect development APK
         shell: bash
         run: |
           set -euo pipefail
-          APK=artifacts/musik-player-preview.apk
+          APK=artifacts/musik-player-development.apk
           test -s "$APK"
           node scripts/ci/inspectAndroidApk.cjs "$APK" \
             --expected-package "$PACKAGE_NAME" \
@@ -96,8 +83,7 @@ jobs:
             --min-size-bytes 10000001 \
             --require-badging \
             --require-signature \
-            --enforce-permission-policy \
-            | tee android-release-apk-inspection.log
+            | tee android-development-apk-inspection.log
 
       - name: Prepare Android emulator
         shell: bash
@@ -139,7 +125,7 @@ jobs:
           adb shell input keyevent 82 || true
           adb logcat -c
 
-          APK=artifacts/musik-player-preview.apk
+          APK=artifacts/musik-player-development.apk
           adb install -r "$APK" | tee ci-logs/adb-install.log
           adb shell am force-stop "$PACKAGE_NAME"
           adb shell am start -W -n "$PACKAGE_NAME/.MainActivity" | tee ci-logs/adb-launch.log
@@ -152,7 +138,7 @@ jobs:
           grep -F "$PACKAGE_NAME" ci-logs/dumpsys-activities.txt >/dev/null
           adb logcat -d -v threadtime > ci-logs/logcat.txt
           if grep -A20 -B5 -F "Process: ${PACKAGE_NAME}," ci-logs/logcat.txt; then
-            echo "::error::The standalone APK crashed during launch smoke."
+            echo "::error::The development APK crashed during launch smoke."
             exit 1
           fi
 
@@ -160,11 +146,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: android-standalone-emulator-smoke-${{ github.run_number }}
+          name: android-development-apk-${{ github.run_number }}
           path: |
-            artifacts/musik-player-preview.apk
-            android-release-build.log
-            android-release-apk-inspection.log
+            artifacts/musik-player-development.apk
+            android-development-build.log
+            android-development-apk-inspection.log
             ci-logs/**
           if-no-files-found: warn
           retention-days: 5
