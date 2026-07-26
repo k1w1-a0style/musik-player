@@ -72,11 +72,19 @@ export const applyHydratedNativeQueue = async ({
   }
 };
 
-export const resetNativeQueueAfterHydrationFailure = async (): Promise<void> => {
+export const resetNativeQueueAfterHydrationFailure = async (
+  nativeQueueRef: MutableRefObject<Song[]>,
+): Promise<boolean> => {
   try {
-    await TrackPlayer.reset();
+    return await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      if (!isCurrent()) return false;
+      await TrackPlayer.reset();
+      nativeQueueRef.current = [];
+      return true;
+    });
   } catch (resetError) {
     console.warn('[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.', resetError);
+    return false;
   }
 };
 
