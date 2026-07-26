@@ -19,11 +19,12 @@ export const clearNativeQueueAfterMalformedRestoredSong = async (
   nativeQueueRef: MutableRefObject<Song[]>,
 ): Promise<boolean> => {
   try {
-    await runExclusiveNativeQueueReplacement(async () => {
+    return await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      if (!isCurrent()) return false;
       await TrackPlayer.reset();
       nativeQueueRef.current = [];
+      return true;
     });
-    return true;
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
     return false;
