@@ -1,0 +1,216 @@
+name: Fix queue reorder transaction
+
+on:
+  pull_request:
+    branches: [codex]
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/fix-queue-reorder-transaction.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-queue-reorder-transaction
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/deep-scan-final-2026-07-25'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: fix/deep-scan-final-2026-07-25
+          fetch-depth: 0
+
+      - name: Apply exact queue transaction patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          source_path = Path('contexts/playbackQueueActionHelpers.ts')
+          source = source_path.read_text()
+          old = '''    const previousQueue = queueContextRef.current.slice();
+              const previousBaseQueue = baseQueueContextRef.current.slice();
+              const previousShuffle = shuffleRef?.current ?? shuffle;
+              const previousNativeQueue = nativeQueueRef.current.slice();
+              const previousSelectedSong = activeSongId
+                ? currentQueue.find(song => normalizeSongId(song.id) === normalizeSongId(activeSongId))
+                : undefined;
+
+              const progress = await TrackPlayer.getProgress();
+              if (!isCurrent()) return 'stale';
+
+              applyPlaybackQueueState({
+                queueContextRef,
+                baseQueueContextRef,
+                setPlaybackQueue,
+                setCurrentSong,
+                orderedQueue: plan.queue,
+                baseQueue: plan.queue,
+                selectedSong: plan.selectedSong,
+              });
+              if (previousShuffle) {
+                if (shuffleRef) shuffleRef.current = false;
+                setShuffle(false);
+              }
+
+              try {
+                const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+                  toPlayableSongs(plan.queue),
+                  nativeQueueRef,
+                  progress.position,
+                  context,
+                  plan.currentIndex,
+                );
+                if (!rebuilt || !isCurrent()) return 'stale';
+                return 'applied';
+              } catch (error) {
+                console.warn('[PlaybackQueue] Reorder failed; rolling back queue.', error);
+                applyPlaybackQueueState({
+                  queueContextRef,
+                  baseQueueContextRef,
+                  setPlaybackQueue,
+                  setCurrentSong,
+                  orderedQueue: previousQueue,
+                  baseQueue: previousBaseQueue,
+                  selectedSong: previousSelectedSong,
+                });
+                if (shuffleRef) shuffleRef.current = previousShuffle;
+                setShuffle(previousShuffle);
+                nativeQueueRef.current = previousNativeQueue;
+                return 'failed';
+              }
+          '''.replace('              ', '    ')
+          new = '''    const previousShuffle = shuffleRef?.current ?? shuffle;
+              const progress = await TrackPlayer.getProgress();
+              if (!isCurrent()) return 'stale';
+
+              try {
+                const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+                  toPlayableSongs(plan.queue),
+                  nativeQueueRef,
+                  progress.position,
+                  context,
+                  plan.currentIndex,
+                );
+                if (!rebuilt || !isCurrent()) return 'stale';
+
+                applyPlaybackQueueState({
+                  queueContextRef,
+                  baseQueueContextRef,
+                  setPlaybackQueue,
+                  setCurrentSong,
+                  orderedQueue: plan.queue,
+                  baseQueue: plan.queue,
+                  selectedSong: plan.selectedSong,
+                });
+                if (previousShuffle) {
+                  if (shuffleRef) shuffleRef.current = false;
+                  setShuffle(false);
+                }
+                return 'applied';
+              } catch (error) {
+                console.warn('[PlaybackQueue] Reorder failed; keeping previous UI state.', error);
+                return 'failed';
+              }
+          '''.replace('              ', '    ')
+          if source.count(old) != 1:
+              raise SystemExit(f'Expected exactly one queue block, found {source.count(old)}')
+          source_path.write_text(source.replace(old, new))
+
+          test_path = Path('contexts/__tests__/playbackQueueReorderAction.test.ts')
+          tests = test_path.read_text()
+          tests = tests.replace(
+              "import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';",
+              "import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';",
+          )
+          marker = """  test('does not move the current track', async () => {"""
+          additions = """  test('keeps UI state unchanged and native ref truthful when native rebuild fails after reset', async () => {
+              const args = createArgs();
+              (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
+
+              await expect(runReorderQueueAction({
+                ...args,
+                fromIndex: 2,
+                toIndex: 1,
+                currentSongId: 's1',
+                shuffle: false,
+                setShuffle: args.setShuffle,
+              })).resolves.toBe(false);
+
+              expect(args.queueContextRef.current).toEqual(songs);
+              expect(args.baseQueueContextRef.current).toEqual(songs);
+              expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+              expect(args.setCurrentSong).not.toHaveBeenCalled();
+              expect(args.setShuffle).not.toHaveBeenCalled();
+              expect(args.nativeQueueRef.current).toEqual([]);
+            });
+
+            test('commits no stale UI state when a newer replacement supersedes native add', async () => {
+              const args = createArgs();
+              let resolveAdd: () => void = () => undefined;
+              (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
+                resolveAdd = resolve;
+              }));
+
+              const reorderPromise = runReorderQueueAction({
+                ...args,
+                fromIndex: 2,
+                toIndex: 1,
+                currentSongId: 's1',
+                shuffle: false,
+                setShuffle: args.setShuffle,
+              });
+              await Promise.resolve();
+              await Promise.resolve();
+              await Promise.resolve();
+              await Promise.resolve();
+              expect(TrackPlayer.add).toHaveBeenCalled();
+
+              const newerNativeQueue = [songs[2]];
+              const newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+                expect(isCurrent()).toBe(true);
+                args.nativeQueueRef.current = newerNativeQueue.slice();
+              });
+              resolveAdd();
+              await Promise.all([reorderPromise, newerReplacement]);
+
+              expect(args.queueContextRef.current).toEqual(songs);
+              expect(args.baseQueueContextRef.current).toEqual(songs);
+              expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+              expect(args.setCurrentSong).not.toHaveBeenCalled();
+              expect(args.setShuffle).not.toHaveBeenCalled();
+              expect(args.nativeQueueRef.current).toEqual(newerNativeQueue);
+            });
+
+          """.replace('            ', '  ')
+          if tests.count(marker) != 1:
+              raise SystemExit(f'Expected exactly one test marker, found {tests.count(marker)}')
+          test_path.write_text(tests.replace(marker, additions + marker))
+          PY
+          git diff --check
+          test "$(git diff --name-only | paste -sd, -)" = 'contexts/__tests__/playbackQueueReorderAction.test.ts,contexts/playbackQueueActionHelpers.ts'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify focused queue tests and typecheck
+        run: |
+          npm test -- --runInBand contexts/__tests__/playbackQueueReorderAction.test.ts contexts/__tests__/playbackQueueActionHelpers.test.ts
+          npm run typecheck
+
+      - name: Commit queue transaction fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add contexts/playbackQueueActionHelpers.ts contexts/__tests__/playbackQueueReorderAction.test.ts
+          git commit -m 'fix(queue): commit reorder state only after native success'
+          git push origin HEAD:fix/deep-scan-final-2026-07-25
