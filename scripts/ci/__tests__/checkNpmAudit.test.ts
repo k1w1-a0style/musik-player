@@ -64,7 +64,7 @@ describe('npm audit policy gate', () => {
     expect(result.failures).toEqual([]);
   });
 
-  it('collapses npm audit effect entries that do not own an advisory', () => {
+  it('collapses an effect only when it points to a known blocking advisory root', () => {
     const result = evaluateAudit({
       audit: audit({
         'brace-expansion': braceExpansion,
@@ -76,6 +76,32 @@ describe('npm audit policy gate', () => {
     });
     expect(result.failures).toEqual([]);
     expect(result.warnings.join('\n')).toContain('collapsed transitive effect entries: 1');
+  });
+
+  it('fails a blocking effect that points to an unknown advisory root', () => {
+    const result = evaluateAudit({
+      audit: audit({
+        minimatch: { severity: 'high', via: ['missing-root'], nodes: ['node_modules/minimatch'] },
+      }),
+      policy: { schemaVersion: 1, exceptions: [] },
+      lock: lock(),
+      today: '2026-07-26',
+    });
+    expect(result.failures).toContain(
+      'minimatch: blocking effect references unknown advisory roots [missing-root]',
+    );
+  });
+
+  it('fails a blocking entry without an advisory source or dependency root', () => {
+    const result = evaluateAudit({
+      audit: audit({ dangerous: { severity: 'high', via: [], nodes: ['node_modules/dangerous'] } }),
+      policy: { schemaVersion: 1, exceptions: [] },
+      lock: lock(),
+      today: '2026-07-26',
+    });
+    expect(result.failures).toContain(
+      'dangerous: blocking vulnerability has no advisory source or dependency root',
+    );
   });
 
   it('fails an unexpected high advisory root', () => {
