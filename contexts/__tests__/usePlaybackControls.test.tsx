@@ -98,8 +98,12 @@ describe('usePlaybackControls', () => {
 
   test('serializes volume writes and commits only the latest queued slider value', async () => {
     const firstWrite = deferred<void>();
+    const firstWriteStarted = deferred<void>();
     (TrackPlayer.setVolume as jest.Mock)
-      .mockImplementationOnce(() => firstWrite.promise)
+      .mockImplementationOnce(() => {
+        firstWriteStarted.resolve();
+        return firstWrite.promise;
+      })
       .mockResolvedValue(undefined);
     const hook = renderHook(() => usePlaybackControls());
 
@@ -108,7 +112,7 @@ describe('usePlaybackControls', () => {
     let latestRequest!: Promise<void>;
     await act(async () => {
       firstRequest = hook.result.current.setVolume(0.2);
-      await Promise.resolve();
+      await firstWriteStarted.promise;
       middleRequest = hook.result.current.setVolume(0.5);
       latestRequest = hook.result.current.setVolume(0.8);
     });

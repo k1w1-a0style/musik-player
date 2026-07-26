@@ -53,10 +53,19 @@ test('queue reorder target includes auto-scroll distance and never crosses the c
   })).toBe(6);
 });
 
-test('queue edge zones request controlled upward or downward auto-scroll', () => {
-  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -120, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
-  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 120, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
-  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+test('queue edge zones use current movement direction rather than cumulative translation', () => {
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -120, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
+  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 120, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 0, movementDirection: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 20, movementDirection: 1, scrollOffset: 0, viewportHeight: 400 })).toBe(0);
+});
+
+test('queue auto-scroll follows direction reversals while cumulative drag keeps its sign', () => {
+  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 100, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
+  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 80, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -100, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -80, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 100, movementDirection: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
 });
 
 test('renders drag handles for upcoming tracks only', () => {

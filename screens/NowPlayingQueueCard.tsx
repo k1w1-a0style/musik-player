@@ -15,19 +15,21 @@ const QUEUE_AUTO_SCROLL_INTERVAL_MS = 32;
 export const resolveQueueAutoScrollDirection = ({
   index,
   dragY,
+  movementDirection,
   scrollOffset,
   viewportHeight,
 }: {
   index: number;
   dragY: number;
+  movementDirection: -1 | 0 | 1;
   scrollOffset: number;
   viewportHeight: number;
 }): -1 | 0 | 1 => {
   if (viewportHeight <= 0) return 0;
   const visibleTop = index * QUEUE_ROW_HEIGHT - scrollOffset + dragY;
   const visibleBottom = visibleTop + QUEUE_ROW_HEIGHT;
-  if (visibleTop < QUEUE_EDGE_SCROLL_ZONE) return -1;
-  if (visibleBottom > viewportHeight - QUEUE_EDGE_SCROLL_ZONE) return 1;
+  if (movementDirection < 0 && visibleTop < QUEUE_EDGE_SCROLL_ZONE) return -1;
+  if (movementDirection > 0 && visibleBottom > viewportHeight - QUEUE_EDGE_SCROLL_ZONE) return 1;
   return 0;
 };
 const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number) => ({
@@ -61,7 +63,6 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
   const viewportHeightRef = React.useRef(0);
   const autoScrollDirectionRef = React.useRef<-1 | 0 | 1>(0);
   const autoScrollTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-
   const currentIndex = React.useMemo(
     () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
     [currentSongId, queue],
@@ -94,10 +95,11 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({
     }, QUEUE_AUTO_SCROLL_INTERVAL_MS);
   }, [queue.length, stopAutoScroll]);
 
-  const handleDragPosition = React.useCallback((index: number, dragY: number) => {
+  const handleDragPosition = React.useCallback((index: number, dragY: number, movementDirection: -1 | 0 | 1) => {
     const direction = resolveQueueAutoScrollDirection({
       index,
       dragY,
+      movementDirection,
       scrollOffset: scrollOffsetRef.current,
       viewportHeight: viewportHeightRef.current,
     });

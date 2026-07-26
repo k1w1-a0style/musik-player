@@ -336,7 +336,10 @@ const addImportErrorDetail = (
 ): void => {
   const normalizedUri = normalizeImportUriForDedupe(uri) ?? uri;
   const code = importErrorCode(error);
-  const key = `${normalizedUri}|${phase}|${code}`;
+  // A recoverable primary failure and a terminal fallback failure are distinct
+  // parts of the import contract, even when both happen to share an error
+  // class/code. Do not let the earlier diagnostic hide the terminal failure.
+  const key = `${normalizedUri}|${phase}|${code}|${recoverable ? 'recoverable' : 'terminal'}`;
   if (seenDetails.has(key)) return;
   seenDetails.add(key);
   errorDetails.push({

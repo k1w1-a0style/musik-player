@@ -29,6 +29,7 @@ describe('runPlaybackUiAction', () => {
 
     release();
     await first;
+    action.mockResolvedValueOnce(undefined);
     await runPlaybackUiAction('toggle', action, { dropIfPending: true });
     expect(action).toHaveBeenCalledTimes(2);
   });
