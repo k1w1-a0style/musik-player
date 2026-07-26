@@ -10,7 +10,7 @@ const SOURCE_EXTENSIONS = new Set([
 ]);
 const SOURCE_FILENAMES = new Set(['Dockerfile', 'Gemfile', 'Podfile']);
 const SKIPPED_DIRECTORIES = new Set([
-  '.git', '.gradle', '.idea', '.expo', 'android', 'artifacts', 'build', 'coverage',
+  '.git', '.gradle', '.idea', '.expo', 'artifacts', 'build', 'coverage',
   'dist', 'node_modules', 'vendor',
 ]);
 
@@ -51,14 +51,18 @@ const scanSourceNulBytes = root => collectSourceFiles(root).flatMap(file => {
 
 const main = () => {
   const root = path.resolve(process.argv[2] || '.');
-  const findings = scanSourceNulBytes(root);
+  const files = collectSourceFiles(root);
+  const findings = files.flatMap(file => {
+    const offsets = findNulByteOffsets(fs.readFileSync(file));
+    return offsets.length > 0 ? [{ file: path.relative(root, file), offsets }] : [];
+  });
   if (findings.length > 0) {
     for (const finding of findings) {
       console.error(`Forbidden NUL byte in ${finding.file} at byte offset(s): ${finding.offsets.join(', ')}`);
     }
     process.exit(1);
   }
-  console.log(`Source NUL-byte gate passed (${collectSourceFiles(root).length} text source files scanned).`);
+  console.log(`Source NUL-byte gate passed (${files.length} text source files scanned).`);
 };
 
 if (require.main === module) main();
