@@ -2,7 +2,7 @@ import TrackPlayer, { State } from 'react-native-track-player';
 import type { Song } from '../../types/Song';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 import { createHydrationPlan } from '../musicHydrationPlan';
-import { applyHydratedNativeQueue } from '../musicHydrationNativeQueue';
+import { applyHydratedNativeQueue, type HydratedNativeQueueResult } from '../musicHydrationNativeQueue';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///1.mp3' },
@@ -22,6 +22,10 @@ const restore = () => {
 const targets = () => ({ nativeQueueRef: ref(), queueContextRef: ref(), baseQueueContextRef: ref(),
   setPlaybackQueue: jest.fn(), setCurrentSong: jest.fn(), setShuffle: jest.fn(), shuffleRef: { current: false } });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
+function expectVerified(result: HydratedNativeQueueResult): asserts result is Extract<HydratedNativeQueueResult, { verifiedState: 'confirmed' }> {
+  expect(result.verifiedState).toBe('confirmed');
+  if (result.verifiedState === null) throw new Error('Expected verified hydration state.');
+}
 
 beforeEach(() => { player.__reset(); restore(); jest.clearAllMocks(); restore(); resetNativeQueueMutationLockForTests(); });
 
@@ -39,6 +43,7 @@ test('full hydration reject after native side effect reconciles the full queue',
   (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (...args: unknown[]) => { await add(...args); throw new Error('ack'); });
   const result = await applyHydratedNativeQueue({ plan, nativeQueueRef: state.nativeQueueRef, targets: state, isCancelled: () => false });
   expect(result.nativeStatus).toBe('reconciled');
+  expectVerified(result);
   expect(result.queue).toEqual(songs);
 });
 
@@ -48,6 +53,7 @@ test('partial hydration reject publishes only known tracks actually present', as
   (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (tracks: Song[]) => { await add(tracks[0]); throw new Error('partial'); });
   const result = await applyHydratedNativeQueue({ plan, nativeQueueRef: state.nativeQueueRef, targets: state, isCancelled: () => false });
   expect(result.nativeStatus).toBe('reconciled');
+  expectVerified(result);
   expect(result.queue).toEqual([songs[0]]);
   expect(result.baseQueue).toEqual([songs[0]]);
 });
@@ -62,6 +68,7 @@ test('cancellation during an effective add still commits confirmed native truth'
   const promise = applyHydratedNativeQueue({ plan, nativeQueueRef: state.nativeQueueRef, targets: state, isCancelled: () => cancelled });
   await started.promise; cancelled = true; release.resolve();
   const result = await promise;
+  expectVerified(result);
   expect(result.queue).toEqual(songs);
   expect(state.queueContextRef.current).toEqual(songs);
 });
@@ -83,6 +90,31 @@ test('queue with no active track persists no invented current song', async () =>
   (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue(undefined);
   (TrackPlayer.getActiveTrackIndex as jest.Mock).mockResolvedValue(undefined);
   const result = await applyHydratedNativeQueue({ plan, nativeQueueRef: state.nativeQueueRef, targets: state, isCancelled: () => false });
+  expectVerified(result);
   expect(result.activeSong).toBeNull();
   expect(state.setCurrentSong).toHaveBeenCalledWith(null);
+});
+
+test('early cancellation with an existing queue never invents an empty verified state', async () => {
+  await TrackPlayer.add(songs.map(song => ({ ...song, url: song.uri! })));
+  const state = targets(); state.nativeQueueRef.current = songs.slice();
+  state.queueContextRef.current = songs.slice(); state.baseQueueContextRef.current = songs.slice();
+  const result = await applyHydratedNativeQueue({
+    plan: createHydrationPlan(stored, songs), nativeQueueRef: state.nativeQueueRef,
+    targets: state, isCancelled: () => true,
+  });
+  expect(result).toMatchObject({ nativeStatus: 'stale', verifiedState: null });
+  expect(result).not.toHaveProperty('queue');
+  expect(result.verifiedState === null && result.lastKnownUnverifiedState.nativeQueueRef).toEqual(songs);
+});
+
+test('snapshot failure is classified without publishing ref contents as verified queue', async () => {
+  const state = targets(); state.nativeQueueRef.current = songs.slice();
+  (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('snapshot failed'));
+  const result = await applyHydratedNativeQueue({
+    plan: createHydrationPlan(stored, songs), nativeQueueRef: state.nativeQueueRef,
+    targets: state, isCancelled: () => false,
+  });
+  expect(result).toMatchObject({ nativeStatus: 'failed', verifiedState: null, failureStage: 'snapshot' });
+  expect(result).not.toHaveProperty('queue');
 });

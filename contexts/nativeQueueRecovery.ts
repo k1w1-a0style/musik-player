@@ -18,18 +18,22 @@ export interface NativeQueueReadback {
 
 export interface NativeQueueMutationSnapshot extends NativeQueueReadback {
   nativeQueue: Song[];
-  logicalQueue: Song[];
   baseQueue: Song[];
-  currentSong: Song | null;
   shuffleEnabled: boolean;
 }
 
 export interface NativeQueueRecoveryDiagnostics {
+  originalError: unknown;
   initialReadbackError?: unknown;
   rollbackExecutionError?: unknown;
   rollbackVerificationError?: unknown;
   finalReadbackError?: unknown;
 }
+
+export type NativeQueueShuffleStrategy =
+  | { kind: 'confirmed-action'; enabled: boolean }
+  | { kind: 'restore-snapshot'; enabled: boolean }
+  | { kind: 'derive-from-order' };
 
 export type CurrentSongPersistenceStatus =
   | 'set-confirmed'
@@ -54,9 +58,9 @@ interface RecoveredState {
 }
 
 export type NativeQueueRecoveryResult =
-  | ({ status: 'reconciled'; diagnostics?: NativeQueueRecoveryDiagnostics } & RecoveredState)
-  | ({ status: 'rolled-back'; diagnostics?: NativeQueueRecoveryDiagnostics } & RecoveredState)
-  | ({ status: 'failed'; originalError: unknown; persistenceError?: unknown } & NativeQueueRecoveryDiagnostics);
+  | ({ status: 'reconciled'; diagnostics: NativeQueueRecoveryDiagnostics } & RecoveredState)
+  | ({ status: 'rolled-back'; diagnostics: NativeQueueRecoveryDiagnostics } & RecoveredState)
+  | ({ status: 'failed'; persistenceError?: unknown; diagnostics: NativeQueueRecoveryDiagnostics });
 
 export interface NativeQueueStateTargets {
   nativeQueueRef: MutableRefObject<Song[]>;
@@ -118,12 +122,10 @@ export const readNativeQueueTruth = async (knownSongs: Song[]): Promise<NativeQu
 
 export const createNativeQueueMutationSnapshot = async ({
   knownSongs,
-  currentSong,
   shuffleEnabled,
   targets,
 }: {
   knownSongs: Song[];
-  currentSong: Song | null;
   shuffleEnabled: boolean;
   targets: NativeQueueStateTargets;
 }): Promise<NativeQueueMutationSnapshot> => {
@@ -131,9 +133,7 @@ export const createNativeQueueMutationSnapshot = async ({
   return {
     ...readback,
     nativeQueue: readback.queue.slice(),
-    logicalQueue: targets.queueContextRef.current.slice(),
     baseQueue: targets.baseQueueContextRef.current.slice(),
-    currentSong,
     shuffleEnabled,
   };
 };
@@ -165,6 +165,14 @@ export const deriveBaseQueue = (queue: Song[], preferredBaseQueue: Song[]): Song
 export const deriveRecoveredShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
   hasSameNormalizedIdMultiset(queue, baseQueue) && !hasSameQueueOrder(queue, baseQueue);
 
+export const resolveShuffleState = (
+  strategy: NativeQueueShuffleStrategy,
+  queue: Song[],
+  baseQueue: Song[],
+): boolean => strategy.kind === 'derive-from-order'
+  ? deriveRecoveredShuffleState(queue, baseQueue)
+  : strategy.enabled;
+
 export const persistNativeCurrentSong = async (
   activeSong: Song | null,
   librarySongs: Song[],
@@ -193,16 +201,18 @@ export const commitNativeQueueTruth = async ({
   librarySongs,
   targets,
   previousPersistedId,
+  shuffleStrategy,
 }: {
   readback: NativeQueueReadback;
   preferredBaseQueue: Song[];
   librarySongs: Song[];
   targets: NativeQueueStateTargets;
   previousPersistedId?: string | null;
+  shuffleStrategy: NativeQueueShuffleStrategy;
 }): Promise<RecoveredState> => {
   const queue = readback.queue.slice();
   const baseQueue = deriveBaseQueue(queue, preferredBaseQueue);
-  const shuffleEnabled = deriveRecoveredShuffleState(queue, baseQueue);
+  const shuffleEnabled = resolveShuffleState(shuffleStrategy, queue, baseQueue);
   targets.nativeQueueRef.current = queue.slice();
   targets.queueContextRef.current = queue.slice();
   targets.baseQueueContextRef.current = baseQueue.slice();
@@ -259,13 +269,14 @@ interface RecoveryArgs {
   librarySongs: Song[];
   targets: NativeQueueStateTargets;
   preferredBaseQueue?: Song[];
+  reconciliationShuffleStrategy: NativeQueueShuffleStrategy;
 }
 
 const reconcileReadback = async (
   status: 'reconciled' | 'rolled-back',
   readback: NativeQueueReadback,
   args: RecoveryArgs,
-  diagnostics?: NativeQueueRecoveryDiagnostics,
+  diagnostics: NativeQueueRecoveryDiagnostics,
 ): Promise<NativeQueueRecoveryResult> => ({
   status,
   ...await commitNativeQueueTruth({
@@ -273,14 +284,17 @@ const reconcileReadback = async (
     preferredBaseQueue: status === 'rolled-back' ? args.snapshot.baseQueue : args.preferredBaseQueue ?? args.snapshot.baseQueue,
     librarySongs: args.librarySongs,
     targets: args.targets,
+    shuffleStrategy: status === 'rolled-back'
+      ? { kind: 'restore-snapshot', enabled: args.snapshot.shuffleEnabled }
+      : args.reconciliationShuffleStrategy,
   }),
   diagnostics,
 });
 
 export const recoverNativeQueueMutation = async (args: RecoveryArgs): Promise<NativeQueueRecoveryResult> => {
-  const diagnostics: NativeQueueRecoveryDiagnostics = {};
+  const diagnostics: NativeQueueRecoveryDiagnostics = { originalError: args.originalError };
   try {
-    return await reconcileReadback('reconciled', await readNativeQueueTruth(args.knownSongs), args);
+    return await reconcileReadback('reconciled', await readNativeQueueTruth(args.knownSongs), args, diagnostics);
   } catch (error) {
     diagnostics.initialReadbackError = error;
   }
@@ -303,6 +317,6 @@ export const recoverNativeQueueMutation = async (args: RecoveryArgs): Promise<Na
     return reconcileReadback('reconciled', finalReadback, args, diagnostics);
   } catch (error) {
     diagnostics.finalReadbackError = error;
-    return { status: 'failed', originalError: args.originalError, ...diagnostics };
+    return { status: 'failed', diagnostics };
   }
 };

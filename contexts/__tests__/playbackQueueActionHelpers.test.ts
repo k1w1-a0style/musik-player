@@ -134,3 +134,26 @@ test('shuffle recovery blocks a newer replacement through readback and persisten
   await Promise.all([shuffle, newer]);
   expect(newerStarted).toBe(true);
 });
+
+test('Shuffle-On keeps explicit intent for a one-song queue', async () => {
+  await seed([songs[0]]);
+  const input = args([songs[0]]);
+  const result = await runShuffleQueueAction({ ...input, currentSongId: 's1' });
+  expect(result.status).toBe('applied');
+  expect(input.shuffleRef.current).toBe(true);
+  expect(input.setShuffle).toHaveBeenCalledWith(true);
+});
+
+test('Shuffle-On and Shuffle-Off preserve explicit intent when random order is identical', async () => {
+  await seed(songs);
+  const input = args(songs);
+  const random = jest.spyOn(Math, 'random').mockReturnValue(0.999);
+  const enabled = await runShuffleQueueAction({ ...input, currentSongId: 's1' });
+  expect(enabled.status).toBe('applied');
+  expect(input.queueContextRef.current).toEqual(songs);
+  expect(input.shuffleRef.current).toBe(true);
+  const disabled = await runShuffleQueueAction({ ...input, currentSongId: 's1', shuffle: true });
+  expect(disabled.status).toBe('applied');
+  expect(input.shuffleRef.current).toBe(false);
+  random.mockRestore();
+});

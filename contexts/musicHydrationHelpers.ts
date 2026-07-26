@@ -58,14 +58,20 @@ export { applyStoredPlaybackSettings } from './musicHydrationPlaybackSettings';
 
 export type HydrateStoredSongsResult = StoredMusicHydrationState & HydratedNativeQueueResult;
 
-const withoutNativeMutation = (stored: StoredMusicHydrationState): HydrateStoredSongsResult => ({
+const withoutNativeMutation = (
+  stored: StoredMusicHydrationState,
+  refs: Pick<HydrateStoredSongsArgs, 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef'>,
+): HydrateStoredSongsResult => ({
   ...stored,
-  nativeStatus: 'noop',
-  queue: [],
-  baseQueue: [],
-  activeSong: null,
-  shuffleEnabled: stored.shuffle ?? false,
+  nativeStatus: 'stale',
+  verifiedState: null,
+  lastKnownUnverifiedState: {
+    nativeQueueRef: refs.nativeQueueRef.current.slice(),
+    logicalQueue: refs.queueContextRef.current.slice(),
+    baseQueue: refs.baseQueueContextRef.current.slice(),
+  },
   currentSongPersistence: { status: 'not-required' },
+  failureStage: 'snapshot',
 });
 
 export const hydrateStoredSongs = async ({
@@ -79,12 +85,13 @@ export const hydrateStoredSongs = async ({
   setPlaybackQueue,
   isCancelled,
 }: HydrateStoredSongsArgs): Promise<HydrateStoredSongsResult> => {
-  if (!stored.songs) return withoutNativeMutation(stored);
+  const refs = { nativeQueueRef, queueContextRef, baseQueueContextRef };
+  if (!stored.songs) return withoutNativeMutation(stored, refs);
 
   const coverLease = acquireSongCoverProtection(stored.songs);
   try {
     const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
-    if (isCancelled()) return withoutNativeMutation(stored);
+    if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     coverLease.updateSnapshot(sanitizedSongs);
     const plan = createHydrationPlan(stored, sanitizedSongs);
@@ -99,10 +106,10 @@ export const hydrateStoredSongs = async ({
       await cleanupHydratedSongCovers(plan.hydratedSongs);
       coverLease.markConfirmedAfterCleanup();
     }
-    if (isCancelled()) return withoutNativeMutation(stored);
+    if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     await persistHydratedPlaylistsIfNeeded(plan);
-    if (isCancelled()) return withoutNativeMutation(stored);
+    if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
 
@@ -114,6 +121,7 @@ export const hydrateStoredSongs = async ({
       shuffleEnabled: stored.shuffle ?? false,
       targets: { nativeQueueRef, queueContextRef, baseQueueContextRef, setPlaybackQueue, setCurrentSong },
     });
+    if (nativeResult.verifiedState === null) return { ...hydratedStored, ...nativeResult };
     const persistedCurrentSongId = nativeResult.currentSongPersistence.status === 'set-confirmed'
       ? nativeResult.activeSong?.id ?? null
       : nativeResult.currentSongPersistence.status === 'remove-confirmed' ? null : stored.currentSongId;
@@ -157,8 +165,8 @@ export const runMusicHydration = async ({
   } catch (error) {
     if (isCancelled()) return;
 
-    await applyHydrationFailureFallback(args, error);
-    hydrationCompleted = true;
+    const fallback = await applyHydrationFailureFallback(args, error);
+    hydrationCompleted = fallback.status === 'applied';
   } finally {
     if (!isCancelled() && hydrationCompleted) setIsReady(true);
   }

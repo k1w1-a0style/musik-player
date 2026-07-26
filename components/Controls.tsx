@@ -144,7 +144,7 @@ const Controls: React.FC<ControlsProps> = ({
         <PressScale
           testID="controls-shuffle"
           accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
-          onPress={toggleShuffle}
+          onPress={async () => { await toggleShuffle(); }}
           size={36}
           active={shuffle}
           accentColor={resolvedAccentColor}

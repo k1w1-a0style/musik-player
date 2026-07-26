@@ -1,7 +1,7 @@
 import TrackPlayer, { State } from 'react-native-track-player';
 import type { Song } from '../../types/Song';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
-import { runReorderQueueAction } from '../playbackQueueActionHelpers';
+import { runReorderQueueAction, runShuffleQueueAction } from '../playbackQueueActionHelpers';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///1.mp3' },
@@ -62,4 +62,18 @@ test('direct reorder after recovered insert uses the committed native truth', as
   const second = await runReorderQueueAction({ ...input, fromIndex: 1, toIndex: 2, currentSongId: 's1', shuffle: false });
   expect(['applied', 'reconciled']).toContain(second.status);
   expect(input.nativeQueueRef.current).toEqual(input.queueContextRef.current);
+});
+
+test('later unshuffle after reorder recovery restores only the confirmed semantic base', async () => {
+  const shuffled = [songs[1], songs[0], songs[2]];
+  await seed(shuffled);
+  const input = createArgs(shuffled); input.shuffleRef.current = true;
+  (TrackPlayer.play as jest.Mock).mockRejectedValueOnce(new Error('reorder failed'));
+  await runReorderQueueAction({ ...input, fromIndex: 2, toIndex: 1, currentSongId: 's2', shuffle: true });
+  expect(input.shuffleRef.current).toBe(true);
+  const unshuffle = await runShuffleQueueAction({ ...input, currentSongId: 's2', shuffle: true });
+  expect(unshuffle.status).toBe('applied');
+  expect(input.queueContextRef.current).toEqual(songs);
+  expect(input.baseQueueContextRef.current).toEqual(songs);
+  expect(input.shuffleRef.current).toBe(false);
 });

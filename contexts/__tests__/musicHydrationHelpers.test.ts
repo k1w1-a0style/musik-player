@@ -1318,7 +1318,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(warn).toHaveBeenCalledWith(
-      '[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.',
+      '[MusicHydration:TrackPlayerError] Failed to apply serialized hydration fallback.',
       expect.any(Error),
     );
   });

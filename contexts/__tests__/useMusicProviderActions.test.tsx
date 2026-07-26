@@ -62,7 +62,7 @@ describe('useMusicProviderActions', () => {
   });
 
   test('composes playback, library, and playlist domain actions without changing public action names', () => {
-    const playback = { playSong: noopAsync, playSongNext: async () => true, addSongToQueue: async () => true, toggleShuffle: noopAsync };
+    const playback = { playSong: async () => ({ status: 'noop' as const }), playSongNext: async () => ({ status: 'noop' as const }), addSongToQueue: async () => ({ status: 'noop' as const }), toggleShuffle: async () => ({ status: 'noop' as const }) };
     const library = { setSongs: noop, addSongs: noop, updateSongMetadata: noop, applySongMetadataPatches: noop };
     const playlists = {
       createPlaylist: () => playlist,

@@ -3,6 +3,7 @@ import type { Song } from '../../types/Song';
 import { storage } from '../../utils/storage';
 import {
   createNativeQueueMutationSnapshot,
+  commitNativeQueueTruth,
   deriveBaseQueue,
   executeNativeQueueRollback,
   hasSameNormalizedIdMultiset,
@@ -23,8 +24,7 @@ const targets = () => ({
   setPlaybackQueue: jest.fn(), setCurrentSong: jest.fn(), setShuffle: jest.fn(), shuffleRef: { current: false },
 });
 const snapshot = (overrides: Partial<NativeQueueMutationSnapshot> = {}): NativeQueueMutationSnapshot => ({
-  queue: songs, nativeQueue: songs, logicalQueue: songs, baseQueue: songs, currentSong: songs[0],
-  activeSong: songs[0], activeTrackId: 's1', activeIndex: 0, progressSeconds: 0,
+  queue: songs, nativeQueue: songs, baseQueue: songs, activeSong: songs[0], activeTrackId: 's1', activeIndex: 0, progressSeconds: 0,
   shuffleEnabled: false, playbackState: 'paused', ...overrides,
 });
 
@@ -71,11 +71,11 @@ test('getQueue and getActiveTrack failures stay observable', async () => {
   await expect(readNativeQueueTruth(songs)).rejects.toThrow('active failed');
 });
 
-test('snapshot contains queue, current, progress, shuffle and playback state without reading storage', async () => {
+test('snapshot contains queue, progress, shuffle and playback state without reading storage', async () => {
   await TrackPlayer.add(songs.map(song => ({ ...song, url: song.uri! })));
   const storageSpy = jest.spyOn(storage, 'getCurrentSongId').mockRejectedValue(new Error('storage failed'));
-  const result = await createNativeQueueMutationSnapshot({ knownSongs: songs, currentSong: songs[0], shuffleEnabled: true, targets: targets() });
-  expect(result).toMatchObject({ nativeQueue: songs, currentSong: songs[0], activeIndex: 0, shuffleEnabled: true, playbackState: 'paused' });
+  const result = await createNativeQueueMutationSnapshot({ knownSongs: songs, shuffleEnabled: true, targets: targets() });
+  expect(result).toMatchObject({ nativeQueue: songs, activeIndex: 0, shuffleEnabled: true, playbackState: 'paused' });
   expect(storageSpy).not.toHaveBeenCalled();
 });
 
@@ -111,19 +111,22 @@ test('rollback verification checks order, active state, progress and playback', 
 });
 
 test('known initial readback reconciles without rollback', async () => {
+  const originalError = new Error('original');
   const stateTargets = targets();
   (TrackPlayer.getQueue as jest.Mock).mockResolvedValue([]);
-  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, targets: stateTargets });
+  const result = await recoverNativeQueueMutation({ originalError, snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: stateTargets });
   expect(result.status).toBe('reconciled');
+  expect(result.diagnostics.originalError).toBe(originalError);
   expect(TrackPlayer.reset).not.toHaveBeenCalled();
 });
 
 test('unknown initial readback performs and verifies rollback', async () => {
   await TrackPlayer.add(songs.map(song => ({ ...song, url: song.uri! })));
   (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('initial'));
-  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, targets: targets() });
+  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets() });
   expect(result.status).toBe('rolled-back');
-  expect(result.status === 'rolled-back' && result.diagnostics?.initialReadbackError).toBeInstanceOf(Error);
+  expect(result.status === 'rolled-back' && result.diagnostics.initialReadbackError).toBeInstanceOf(Error);
+  expect(result.diagnostics.originalError).toBeInstanceOf(Error);
 });
 
 test('rollback verification mismatch falls through to a known final readback with diagnostics', async () => {
@@ -131,16 +134,65 @@ test('rollback verification mismatch falls through to a known final readback wit
     .mockRejectedValueOnce(new Error('initial'))
     .mockResolvedValueOnce([songs[1], songs[0]])
     .mockResolvedValueOnce(songs);
-  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, targets: targets() });
+  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets() });
   expect(result.status).toBe('reconciled');
-  expect(result.status === 'reconciled' && result.diagnostics?.rollbackVerificationError).toBeInstanceOf(Error);
+  expect(result.status === 'reconciled' && result.diagnostics.rollbackVerificationError).toBeInstanceOf(Error);
+  expect(result.diagnostics.originalError).toBeInstanceOf(Error);
 });
 
 test('all readbacks and rollback execution failing returns separate errors', async () => {
   (TrackPlayer.getQueue as jest.Mock).mockRejectedValue(new Error('readback'));
   (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('rollback'));
-  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, targets: targets() });
-  expect(result).toMatchObject({ status: 'failed', originalError: expect.any(Error), initialReadbackError: expect.any(Error), rollbackExecutionError: expect.any(Error), finalReadbackError: expect.any(Error) });
+  const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets() });
+  expect(result).toMatchObject({ status: 'failed', diagnostics: { originalError: expect.any(Error), initialReadbackError: expect.any(Error), rollbackExecutionError: expect.any(Error), finalReadbackError: expect.any(Error) } });
+});
+
+test.each([true, false])('verified rollback restores explicit shuffle intent %s', async shuffleEnabled => {
+  await TrackPlayer.add(songs.map(song => ({ ...song, url: song.uri! })));
+  (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('initial'));
+  const result = await recoverNativeQueueMutation({
+    originalError: new Error('mutation'), snapshot: snapshot({ shuffleEnabled }), knownSongs: songs,
+    librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets(),
+  });
+  expect(result.status).toBe('rolled-back');
+  expect(result.status === 'rolled-back' && result.shuffleEnabled).toBe(shuffleEnabled);
+});
+
+test('rollback without an active track is not claimed when add activates the first track', async () => {
+  (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('initial'));
+  const result = await recoverNativeQueueMutation({
+    originalError: new Error('mutation'),
+    snapshot: snapshot({ activeSong: null, activeTrackId: null, activeIndex: -1 }),
+    knownSongs: songs, librarySongs: songs,
+    reconciliationShuffleStrategy: { kind: 'restore-snapshot', enabled: false }, targets: targets(),
+  });
+  expect(result.status).toBe('reconciled');
+  expect(result.status === 'reconciled' && result.activeSong).toEqual(songs[0]);
+  expect(result.status === 'reconciled' && result.diagnostics.rollbackVerificationError).toBeInstanceOf(Error);
+});
+
+test.each([
+  [{ kind: 'confirmed-action', enabled: true } as const, true],
+  [{ kind: 'confirmed-action', enabled: false } as const, false],
+] as const)('confirmed shuffle action keeps intent with identical order', async (shuffleStrategy, expected) => {
+  const stateTargets = targets();
+  const readback = snapshot();
+  const committed = await commitNativeQueueTruth({
+    readback, preferredBaseQueue: songs, librarySongs: songs, targets: stateTargets, shuffleStrategy,
+  });
+  expect(committed.shuffleEnabled).toBe(expected);
+  expect(stateTargets.shuffleRef.current).toBe(expected);
+  expect(stateTargets.setShuffle).toHaveBeenCalledWith(expected);
+});
+
+test('one-song shuffle can remain explicitly enabled', async () => {
+  const oneSong = [songs[0]];
+  const committed = await commitNativeQueueTruth({
+    readback: { ...snapshot(), queue: oneSong, activeSong: songs[0], activeTrackId: 's1', activeIndex: 0 },
+    preferredBaseQueue: oneSong, librarySongs: songs, targets: targets(),
+    shuffleStrategy: { kind: 'confirmed-action', enabled: true },
+  });
+  expect(committed.shuffleEnabled).toBe(true);
 });
 
 test.each([

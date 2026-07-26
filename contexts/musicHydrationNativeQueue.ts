@@ -10,6 +10,7 @@ import {
   recoverNativeQueueMutation,
   type CurrentSongPersistenceResult,
   type NativeQueueRecoveryDiagnostics,
+  type NativeQueueMutationSnapshot,
   type NativeQueueStateTargets,
 } from './nativeQueueRecovery';
 import type { HydrationPlan } from './musicHydrationPlan';
@@ -24,8 +25,9 @@ export interface ApplyHydratedNativeQueueArgs {
   shuffleEnabled?: boolean;
 }
 
-export interface HydratedNativeQueueResult {
-  nativeStatus: 'applied' | 'reconciled' | 'rolled-back' | 'failed' | 'stale' | 'noop';
+interface VerifiedHydratedNativeQueueResult {
+  nativeStatus: 'applied' | 'reconciled' | 'rolled-back' | 'noop';
+  verifiedState: 'confirmed';
   queue: Song[];
   baseQueue: Song[];
   activeSong: Song | null;
@@ -35,14 +37,36 @@ export interface HydratedNativeQueueResult {
   persistenceError?: unknown;
 }
 
-const failedResult = (nativeQueueRef: MutableRefObject<Song[]>, error?: unknown): HydratedNativeQueueResult => ({
+interface UnverifiedHydratedNativeQueueResult {
+  nativeStatus: 'failed' | 'stale';
+  verifiedState: null;
+  lastKnownUnverifiedState: {
+    nativeQueueRef: Song[];
+    logicalQueue: Song[];
+    baseQueue: Song[];
+  };
+  currentSongPersistence: CurrentSongPersistenceResult;
+  recoveryErrors?: NativeQueueRecoveryDiagnostics;
+  failureStage: 'snapshot' | 'mutation' | 'readback' | 'commit' | 'exclusive-action';
+}
+
+export type HydratedNativeQueueResult = VerifiedHydratedNativeQueueResult | UnverifiedHydratedNativeQueueResult;
+
+const failedResult = (
+  targets: NativeQueueStateTargets,
+  failureStage: UnverifiedHydratedNativeQueueResult['failureStage'],
+  error?: unknown,
+): UnverifiedHydratedNativeQueueResult => ({
   nativeStatus: 'failed',
-  queue: nativeQueueRef.current.slice(),
-  baseQueue: nativeQueueRef.current.slice(),
-  activeSong: null,
-  shuffleEnabled: false,
+  verifiedState: null,
+  lastKnownUnverifiedState: {
+    nativeQueueRef: targets.nativeQueueRef.current.slice(),
+    logicalQueue: targets.queueContextRef.current.slice(),
+    baseQueue: targets.baseQueueContextRef.current.slice(),
+  },
   currentSongPersistence: { status: 'not-required' },
-  recoveryErrors: error ? { finalReadbackError: error } : undefined,
+  recoveryErrors: error ? { originalError: error } : undefined,
+  failureStage,
 });
 
 const targetsForNativeRef = (nativeQueueRef: MutableRefObject<Song[]>): NativeQueueStateTargets => ({
@@ -54,11 +78,12 @@ const targetsForNativeRef = (nativeQueueRef: MutableRefObject<Song[]>): NativeQu
 });
 
 const toHydrationResult = (
-  nativeStatus: HydratedNativeQueueResult['nativeStatus'],
+  nativeStatus: VerifiedHydratedNativeQueueResult['nativeStatus'],
   state: Awaited<ReturnType<typeof commitNativeQueueTruth>>,
   recoveryErrors?: NativeQueueRecoveryDiagnostics,
 ): HydratedNativeQueueResult => ({
   nativeStatus,
+  verifiedState: 'confirmed',
   queue: state.queue,
   baseQueue: state.baseQueue,
   activeSong: state.activeSong,
@@ -82,13 +107,17 @@ export const applyHydratedNativeQueue = async ({
     : undefined;
   try {
     return await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
-      if (!isCurrent() || isCancelled()) return { ...failedResult(nativeQueueRef), nativeStatus: 'stale' };
-      const snapshot = await createNativeQueueMutationSnapshot({
-        knownSongs, currentSong: plan.restoredSong, shuffleEnabled, targets,
-      });
+      if (!isCurrent() || isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'stale' };
+      let snapshot: NativeQueueMutationSnapshot;
+      try {
+        snapshot = await createNativeQueueMutationSnapshot({ knownSongs, shuffleEnabled, targets });
+      } catch (error) {
+        return failedResult(targets, 'snapshot', error);
+      }
       if (plan.nativeQueueAction === 'none') {
         const state = await commitNativeQueueTruth({
           readback: snapshot, preferredBaseQueue: snapshot.baseQueue, librarySongs, targets, previousPersistedId,
+          shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
         });
         return toHydrationResult('noop', state);
       }
@@ -97,6 +126,7 @@ export const applyHydratedNativeQueue = async ({
         if (isCancelled()) {
           const state = await commitNativeQueueTruth({
             readback: await readNativeQueueTruth(knownSongs), preferredBaseQueue: [], librarySongs, targets, previousPersistedId,
+            shuffleStrategy: { kind: 'confirmed-action', enabled: false },
           });
           return toHydrationResult('reconciled', state);
         }
@@ -108,18 +138,21 @@ export const applyHydratedNativeQueue = async ({
         const readback = await readNativeQueueTruth(knownSongs);
         const state = await commitNativeQueueTruth({
           readback, preferredBaseQueue: plan.hydratedQueue, librarySongs, targets, previousPersistedId,
+          shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
         });
         return toHydrationResult('applied', state);
       } catch (error) {
         const recovery = await recoverNativeQueueMutation({
           originalError: error, snapshot, knownSongs, librarySongs, targets,
           preferredBaseQueue: plan.hydratedQueue,
+          reconciliationShuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
         });
         if (recovery.status === 'failed') {
-          return { ...failedResult(nativeQueueRef, error), recoveryErrors: recovery };
+          return { ...failedResult(targets, 'readback', error), recoveryErrors: recovery.diagnostics };
         }
         return {
           nativeStatus: recovery.status,
+          verifiedState: 'confirmed',
           queue: recovery.queue,
           baseQueue: recovery.baseQueue,
           activeSong: recovery.activeSong,
@@ -131,33 +164,7 @@ export const applyHydratedNativeQueue = async ({
       }
     });
   } catch (error) {
-    return failedResult(nativeQueueRef, error);
-  }
-};
-
-export const clearNativeQueueAfterMalformedRestoredSong = async (
-  nativeQueueRef: MutableRefObject<Song[]>,
-): Promise<boolean> => {
-  try {
-    await TrackPlayer.reset();
-    nativeQueueRef.current = [];
-    return true;
-  } catch (error) {
-    console.warn('[PlaybackQueue] Failed to reset native queue after dropping malformed restored song.', error);
-    return false;
-  }
-};
-
-export const resetNativeQueueAfterHydrationFailure = async (
-  nativeQueueRef: MutableRefObject<Song[]>,
-): Promise<boolean> => {
-  try {
-    await TrackPlayer.reset();
-    nativeQueueRef.current = [];
-    return true;
-  } catch (error) {
-    console.warn('[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.', error);
-    return false;
+    return failedResult(targets, 'exclusive-action', error);
   }
 };
 

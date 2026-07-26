@@ -21,7 +21,7 @@ export interface PlaylistActionsArgs {
   playlists: Playlist[];
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
   songsRef: MutableRefObject<Song[]>;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<unknown>;
 }
 
 export interface PlaylistActions {

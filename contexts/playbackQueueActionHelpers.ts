@@ -17,7 +17,6 @@ import {
   commitNativeQueueTruth,
   createNativeQueueMutationSnapshot,
   deriveBaseQueue,
-  deriveRecoveredShuffleState,
   readNativeQueueTruth,
   recoverNativeQueueMutation,
   type NativeQueueMutationSnapshot,
@@ -98,19 +97,11 @@ const normalizeSongId = (songId?: string): string | undefined => {
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
   (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
 
-const findSongByNormalizedId = (songs: Song[], songId?: string): Song | undefined => {
-  const normalizedId = normalizeSongId(songId);
-  return normalizedId ? songs.find(song => normalizeSongId(song.id) === normalizedId) : undefined;
-};
-
 interface ReconcileNativeQueueArgs extends Pick<PlaybackQueueActionRefs,
   'queueContextRef' | 'baseQueueContextRef' | 'nativeQueueRef' | 'setPlaybackQueue' | 'setCurrentSong'> {
   knownSongs: Song[];
   baseQueue?: Song[];
 }
-
-const deriveShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
-  deriveRecoveredShuffleState(queue, baseQueue);
 
 export const reconcilePlaybackQueueFromNative = async ({
   knownSongs,
@@ -128,8 +119,9 @@ export const reconcilePlaybackQueueFromNative = async ({
     preferredBaseQueue: baseQueue ?? readback.queue,
     librarySongs: knownSongs,
     targets: { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong },
+    shuffleStrategy: { kind: 'derive-from-order' },
   });
-  return { status: 'reconciled', ...committed };
+  return { status: 'reconciled', diagnostics: { originalError: new Error('Explicit native reconciliation.') }, ...committed };
 };
 
 const buildQueueWithInsertedSong = ({
@@ -300,7 +292,8 @@ const recoverInsertQueueFailure = async (
 ): Promise<NativeQueueActionResult> => {
   const { song, shuffleRef, setShuffle } = args;
   const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
-    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue });
+    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue,
+    reconciliationShuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled } });
   if (recovery.status === 'failed') {
     console.warn('[PlaybackQueue] Insert recovery failed.', recovery);
     return { status: 'failed', recovery };
@@ -313,11 +306,13 @@ const recoverInsertQueueFailure = async (
     ? deriveBaseQueue(recovery.queue, candidateBaseQueue)
     : recovery.queue.slice();
   args.baseQueueContextRef.current = semanticBaseQueue.slice();
-  const nativeIsShuffled = deriveShuffleState(recovery.queue, semanticBaseQueue);
+  const nativeIsShuffled = snapshot.shuffleEnabled;
   if (shuffleRef) shuffleRef.current = nativeIsShuffled;
   setShuffle(nativeIsShuffled);
   console.warn('[PlaybackQueue] Insert failed; reconciled to native state.', error);
-  return { status: recovery.status, recovery };
+  return { status: recovery.status, recovery: {
+    ...recovery, baseQueue: semanticBaseQueue, shuffleEnabled: nativeIsShuffled,
+  } };
 };
 
 const recoverShuffleQueueFailure = async (
@@ -328,14 +323,12 @@ const recoverShuffleQueueFailure = async (
 ): Promise<NativeQueueActionResult> => {
   const knownSongs = [...args.songsRef.current, ...args.queueContextRef.current, ...snapshot.nativeQueue];
   const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
-    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue });
+    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue,
+    reconciliationShuffleStrategy: { kind: 'confirmed-action', enabled: !snapshot.shuffleEnabled } });
   if (recovery.status === 'failed') {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', recovery);
     return { status: 'failed', recovery };
   }
-  const nativeIsShuffled = deriveShuffleState(recovery.queue, previousBaseQueue);
-  if (args.shuffleRef) args.shuffleRef.current = nativeIsShuffled;
-  args.setShuffle(nativeIsShuffled);
   console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
   return { status: recovery.status, recovery };
 };
@@ -366,7 +359,6 @@ export const runPlaySongQueueAction = async ({
       setCurrentSong, shuffleRef, setShuffle };
     const snapshot = await createNativeQueueMutationSnapshot({
       knownSongs,
-      currentSong: findSongByNormalizedId(queueContextRef.current, plan.requestedSong.id) ?? null,
       shuffleEnabled: shuffleRef?.current ?? shuffle,
       targets,
     });
@@ -376,11 +368,13 @@ export const runPlaySongQueueAction = async ({
       const readback = await readNativeQueueTruth(knownSongs);
       await commitNativeQueueTruth({
         readback, preferredBaseQueue: plan.queueWithRequested, librarySongs: songsRef.current, targets,
+        shuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled },
       });
       return { status: 'applied' };
     } catch (error) {
       const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
-        librarySongs: songsRef.current, targets });
+        librarySongs: songsRef.current, targets,
+        reconciliationShuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled } });
       return recovery.status === 'failed'
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
@@ -418,14 +412,12 @@ export const runInsertSongQueueAction = async ({
     const activeSongId = activeTrack?.id ?? currentSongId;
     const activeQueue = queueContextRef.current.length > 0 ? queueContextRef.current.slice() : nativeQueueRef.current.slice();
     const nativeQueue = nativeQueueRef.current.length > 0 ? nativeQueueRef.current.slice() : activeQueue.slice();
-    const selectedSong = findSongByNormalizedId(activeQueue, activeSongId) ?? findSongByNormalizedId(nativeQueue, activeSongId);
     const nativeInsertIndex = getNativeInsertIndex({ nativeQueue, activeSongId, position });
     const plan = buildQueueWithInsertedSong({ queue: nativeQueue, song, insertIndex: nativeInsertIndex });
     if (!plan.changed) return { status: 'noop' };
     const previousBaseQueue = baseQueueContextRef.current.slice();
     const snapshot = await createNativeQueueMutationSnapshot({
       knownSongs: [...songsRef.current, ...activeQueue, ...nativeQueue, song],
-      currentSong: selectedSong ?? null,
       shuffleEnabled: shuffleRef?.current ?? shuffle,
       targets: actionArgs,
     });
@@ -441,6 +433,7 @@ export const runInsertSongQueueAction = async ({
           : plan.queue,
         librarySongs: songsRef.current,
         targets: actionArgs,
+        shuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled },
       });
       return { status: 'applied' };
     } catch (error) {
@@ -486,7 +479,6 @@ export const runReorderQueueAction = async ({
       setCurrentSong, shuffleRef, setShuffle };
     const snapshot = await createNativeQueueMutationSnapshot({
       knownSongs: [...songsRef.current, ...currentQueue, ...nativeQueueRef.current],
-      currentSong: findSongByNormalizedId(currentQueue, activeSongId) ?? null,
       shuffleEnabled: previousShuffle,
       targets,
     });
@@ -506,12 +498,14 @@ export const runReorderQueueAction = async ({
         preferredBaseQueue: previousShuffle ? snapshot.baseQueue : plan.queue,
         librarySongs: songsRef.current,
         targets,
+        shuffleStrategy: { kind: 'confirmed-action', enabled: previousShuffle },
       });
       return { status: 'applied' };
     } catch (error) {
       const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot,
         knownSongs: [...songsRef.current, ...plan.queue, ...snapshot.nativeQueue],
-        librarySongs: songsRef.current, targets, preferredBaseQueue: snapshot.baseQueue });
+        librarySongs: songsRef.current, targets, preferredBaseQueue: snapshot.baseQueue,
+        reconciliationShuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled } });
       if (recovery.status === 'failed') console.warn('[PlaybackQueue] Reorder recovery failed.', recovery);
       console.warn('[PlaybackQueue] Reorder failed; reconciled to native state.', error);
       return recovery.status === 'failed'
@@ -564,7 +558,6 @@ export const runShuffleQueueAction = async ({
     const { nextQueue, nextBaseQueue, selectedSong } = plan;
     mutationSnapshot = await createNativeQueueMutationSnapshot({
       knownSongs: [...songsRef.current, ...currentQueue, ...nativeQueueRef.current],
-      currentSong: selectedSong ?? null,
       shuffleEnabled,
       targets: actionArgs,
     });
@@ -581,6 +574,7 @@ export const runShuffleQueueAction = async ({
     const readback = await readNativeQueueTruth([...songsRef.current, ...nextQueue]);
     await commitNativeQueueTruth({
       readback, preferredBaseQueue: nextBaseQueue, librarySongs: songsRef.current, targets: actionArgs,
+      shuffleStrategy: { kind: 'confirmed-action', enabled: !shuffleEnabled },
     });
     if (!isCurrent()) return { status: 'stale' };
     return { status: 'applied' };
