@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - fix/deep-scan-2026-07-25
+  pull_request:
+    branches:
+      - codex
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
   group: deep-scan-bootstrap-fix-2026-07-25
@@ -14,6 +22,7 @@ concurrency:
 
 jobs:
   apply:
+    if: github.event_name == 'push' || github.head_ref == 'fix/deep-scan-2026-07-25'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -21,6 +30,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node 20
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
@@ -34,7 +44,7 @@ jobs:
           EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
           EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
           EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
-          TRANSPORT_HEAD: ${{ github.sha }}
+          TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           TARGET_BRANCH: fix/deep-scan-2026-07-25
         shell: bash
         run: |
