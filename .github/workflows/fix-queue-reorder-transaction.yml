@@ -36,8 +36,32 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Verify focused queue tests
-        run: npm test -- --runInBand contexts/__tests__/playbackQueueReorderAction.test.ts contexts/__tests__/playbackQueueActionHelpers.test.ts
+      - name: Run focused queue tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npm test -- --runInBand contexts/__tests__/playbackQueueReorderAction.test.ts contexts/__tests__/playbackQueueActionHelpers.test.ts 2>&1 | tee queue-transaction-tests.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > queue-transaction-tests.exit-code
+          exit 0
+
+      - name: Upload focused queue test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: queue-transaction-tests
+          path: |
+            queue-transaction-tests.log
+            queue-transaction-tests.exit-code
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce focused queue tests
+        run: |
+          status=$(cat queue-transaction-tests.exit-code)
+          test "$status" -eq 0
 
       - name: Verify TypeScript
         run: npm run typecheck
