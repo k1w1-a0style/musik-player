@@ -36,16 +36,20 @@ describe('nativeEqualizerHelpers', () => {
 
   test('serializes native initialization so a stale session cannot replace a newer one', async () => {
     let resolveFirst!: (value: EqInitResult) => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>(resolve => {
+      markFirstStarted = resolve;
+    });
     jest.spyOn(SystemAudio, 'eqInit')
       .mockImplementationOnce(() => new Promise(resolve => {
+        markFirstStarted();
         resolveFirst = resolve;
       }))
       .mockResolvedValueOnce(eqNative);
 
     const first = initNativeEqualizer();
     const second = initNativeEqualizer();
-    await Promise.resolve();
-    await Promise.resolve();
+    await firstStarted;
 
     expect(SystemAudio.eqInit).toHaveBeenCalledTimes(1);
     resolveFirst(eqNative);

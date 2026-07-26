@@ -33,28 +33,28 @@ describe('useLibrarySortMode', () => {
     });
 
     expect(result.current.sortMode).toBe('trackNumber');
-    expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('trackNumber');
+    await waitFor(() => expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('trackNumber'));
 
     act(() => {
       result.current.cycleSortMode();
     });
 
     expect(result.current.sortMode).toBe('year');
-    expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('year');
+    await waitFor(() => expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('year'));
 
     act(() => {
       result.current.cycleSortMode();
     });
 
     expect(result.current.sortMode).toBe('recentlyAdded');
-    expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('recentlyAdded');
+    await waitFor(() => expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('recentlyAdded'));
 
     act(() => {
       result.current.cycleSortMode();
     });
 
     expect(result.current.sortMode).toBe('alphabet');
-    expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('alphabet');
+    await waitFor(() => expect(mockedStorage.setLibrarySortMode).toHaveBeenLastCalledWith('alphabet'));
   });
 
   test('sets and persists an explicit sort mode', async () => {
@@ -66,6 +66,6 @@ describe('useLibrarySortMode', () => {
     });
 
     expect(result.current.sortMode).toBe('recentlyAdded');
-    expect(mockedStorage.setLibrarySortMode).toHaveBeenCalledWith('recentlyAdded');
+    await waitFor(() => expect(mockedStorage.setLibrarySortMode).toHaveBeenCalledWith('recentlyAdded'));
   });
 });

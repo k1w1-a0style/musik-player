@@ -110,7 +110,12 @@ const drainPersistQueue = async (
       }
 
       try {
-        await storage.set(key, request.value);
+        const confirmed = await storage.set(key, request.value);
+        if (confirmed !== true) {
+          console.warn('[MusicPersistence] Failed to persist setting.', { key, error: undefined });
+          resolveRequest(request, { status: 'failed' });
+          continue;
+        }
         persistedRefs[key] = request.serialized;
         const nextRequest = queueState.pendingRequest as PendingPersistRequest | undefined;
         if (nextRequest?.serialized === request.serialized) {

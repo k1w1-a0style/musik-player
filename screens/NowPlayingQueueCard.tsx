@@ -26,8 +26,11 @@ export const resolveQueueAutoScrollDirection = ({
   if (viewportHeight <= 0) return 0;
   const visibleTop = index * QUEUE_ROW_HEIGHT - scrollOffset + dragY;
   const visibleBottom = visibleTop + QUEUE_ROW_HEIGHT;
-  if (visibleTop < QUEUE_EDGE_SCROLL_ZONE) return -1;
-  if (visibleBottom > viewportHeight - QUEUE_EDGE_SCROLL_ZONE) return 1;
+  // dragY is a translation from the row's resting position, not a viewport
+  // coordinate. Require motion toward an edge so a neutral gesture never
+  // starts scrolling merely because its row already rests inside an edge zone.
+  if (dragY < 0 && visibleTop < QUEUE_EDGE_SCROLL_ZONE) return -1;
+  if (dragY > 0 && visibleBottom > viewportHeight - QUEUE_EDGE_SCROLL_ZONE) return 1;
   return 0;
 };
 const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number) => ({

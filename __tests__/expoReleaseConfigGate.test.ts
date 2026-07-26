@@ -19,9 +19,11 @@ const baseConfig = {
     ],
     blockedPermissions: [
       'android.permission.RECORD_AUDIO',
+      'android.permission.CAMERA',
       'android.permission.READ_MEDIA_IMAGES',
       'android.permission.READ_MEDIA_VIDEO',
       'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.SYSTEM_ALERT_WINDOW',
     ],
   },
   newArchEnabled: false,

@@ -79,6 +79,6 @@ describe('useLibrarySongViewMode', () => {
     });
 
     expect(result.current.viewMode).toBe('gridLarge');
-    expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridLarge');
+    await waitFor(() => expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridLarge'));
   });
 });
