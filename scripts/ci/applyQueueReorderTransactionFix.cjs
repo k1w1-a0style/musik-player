@@ -143,10 +143,9 @@ const additions = `  test('keeps UI state unchanged and native ref truthful when
       shuffle: false,
       setShuffle: args.setShuffle,
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let attempt = 0; attempt < 20 && !(TrackPlayer.add as jest.Mock).mock.calls.length; attempt += 1) {
+      await Promise.resolve();
+    }
     expect(TrackPlayer.add).toHaveBeenCalled();
 
     const newerNativeQueue = [songs[2]];
