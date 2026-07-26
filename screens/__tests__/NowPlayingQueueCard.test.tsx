@@ -68,6 +68,26 @@ test('queue auto-scroll follows direction reversals while cumulative drag keeps 
   expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 100, movementDirection: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
 });
 
+test.each([
+  ['lower', 1, 0, 120, 220],
+  ['upper', -1, 220, -120, 0],
+] as const)('%s edge auto-scroll stops on the next tick after scrolling moves the row out of its edge zone', (_edge, direction, initialOffset, dragY, outsideOffset) => {
+  jest.useFakeTimers();
+  let scrollOffset = initialOffset;
+  const tick = jest.fn();
+  const timer = setInterval(() => {
+    if (resolveQueueAutoScrollDirection({ index: 5, dragY, movementDirection: direction,
+      scrollOffset, viewportHeight: 220 }) !== direction) clearInterval(timer);
+    else tick();
+  }, 32);
+  expect(jest.getTimerCount()).toBe(1);
+  scrollOffset = outsideOffset;
+  jest.advanceTimersByTime(32);
+  expect(jest.getTimerCount()).toBe(0);
+  expect(tick).not.toHaveBeenCalled();
+  jest.useRealTimers();
+});
+
 test('renders drag handles for upcoming tracks only', () => {
   const onPlayQueueItem = jest.fn();
   const onQueueShift = jest.fn();

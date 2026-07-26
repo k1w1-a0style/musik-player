@@ -38,6 +38,29 @@ test('successful hydration commits only full native readback', async () => {
   expect(state.setCurrentSong).toHaveBeenCalledWith(songs[0]);
 });
 
+test('clearMalformedCurrent removes an unknown native track without mapping a snapshot', async () => {
+  const staleTrack = { id: 'removed-song', title: 'Removed', artist: 'A', url: 'file:///removed.mp3' };
+  await TrackPlayer.add(staleTrack);
+  const state = targets();
+  const removeSpy = jest.spyOn(storage, 'remove');
+  const plan = createHydrationPlan({ ...stored, currentSongId: staleTrack.id }, songs);
+
+  expect(plan.nativeQueueAction).toBe('clearMalformedCurrent');
+  const result = await applyHydratedNativeQueue({
+    plan, nativeQueueRef: state.nativeQueueRef, targets: state,
+    librarySongs: songs, isCancelled: () => false,
+  });
+
+  expect(result).toMatchObject({ nativeStatus: 'applied', verifiedState: 'confirmed', queue: [], activeSong: null });
+  expect(player.__getQueue()).toEqual([]);
+  expect(state.nativeQueueRef.current).toEqual([]);
+  expect(state.queueContextRef.current).toEqual([]);
+  expect(state.setCurrentSong).toHaveBeenCalledWith(null);
+  expect(removeSpy).toHaveBeenCalled();
+  expect(plan.hydratedSongs).toEqual(songs);
+  expect(plan.normalizedPlaylists).toBe(stored.playlists);
+});
+
 test('full hydration reject after native side effect reconciles the full queue', async () => {
   const state = targets(); const plan = createHydrationPlan(stored, songs);
   const add = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
@@ -80,7 +103,7 @@ test.each([
   });
   await snapshotStarted.promise; cancelled = true; releaseSnapshot.resolve();
   const result = await promise;
-  expect(result).toMatchObject({ nativeStatus: 'stale', verifiedState: null });
+  expect(result).toMatchObject({ nativeStatus: 'cancelled', verifiedState: null });
   expect(TrackPlayer.reset).not.toHaveBeenCalled();
   expect(TrackPlayer.add).not.toHaveBeenCalled();
   expect(state.nativeQueueRef.current).toEqual(songs);
@@ -137,7 +160,7 @@ test('early cancellation with an existing queue never invents an empty verified 
     plan: createHydrationPlan(stored, songs), nativeQueueRef: state.nativeQueueRef,
     targets: state, isCancelled: () => true,
   });
-  expect(result).toMatchObject({ nativeStatus: 'stale', verifiedState: null });
+  expect(result).toMatchObject({ nativeStatus: 'cancelled', verifiedState: null });
   expect(result).not.toHaveProperty('queue');
   expect(result.verifiedState === null && result.lastKnownUnverifiedState.nativeQueueRef).toEqual(songs);
 });

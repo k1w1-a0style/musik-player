@@ -22,7 +22,7 @@ import {
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
-import { commitNativeQueueTruth, NativeQueueReadbackUnstableError, readNativeQueueTruth } from './nativeQueueRecovery';
+import { commitNativeQueueTruth, readNativeQueueTruth } from './nativeQueueRecovery';
 import {
   acquireSongCoverProtection,
   type SongCoverProtectionLease,
@@ -69,7 +69,7 @@ const withoutNativeMutation = (
 ): HydrateStoredSongsResult => ({
   ...stored,
   libraryHydrationStatus: stored.songs === null ? 'empty-missing-key' : 'stored',
-  nativeStatus: 'stale',
+  nativeStatus: 'cancelled',
   verifiedState: null,
   lastKnownUnverifiedState: {
     nativeQueueRef: refs.nativeQueueRef.current.slice(),
@@ -84,7 +84,7 @@ export const verifySupersededHydration = async (
   nativeResult: HydratedNativeQueueResult,
   args: Pick<HydrateStoredSongsArgs, 'songsRef' | 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef' | 'setPlaybackQueue' | 'setCurrentSong'>,
 ): Promise<HydratedNativeQueueResult> => {
-  if (nativeResult.nativeStatus !== 'stale') return nativeResult;
+  if (nativeResult.nativeStatus !== 'superseded') return nativeResult;
   const originalError = nativeResult.recoveryErrors?.originalError
     ?? new Error('Native queue hydration was superseded before it started.');
   try {
@@ -194,6 +194,24 @@ export const hydrateStoredSongs = async ({
   }
 };
 
+const hydrateWithReadbackRetries = async (
+  stored: StoredMusicHydrationState,
+  isCancelled: () => boolean,
+  args: Omit<RunMusicHydrationArgs, 'setIsReady' | 'isCancelled'>,
+): Promise<HydrateStoredSongsResult> => {
+  const maxAttempts = 3;
+  let result: HydrateStoredSongsResult | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    result = await hydrateStoredSongs({ stored, isCancelled, ...args });
+    if (result.nativeStatus !== 'readback-unstable' || isCancelled()) return result;
+    console.warn(`[MusicHydration:ReadbackUnstable] Native readback attempt ${attempt}/${maxAttempts} was unstable.`,
+      result.recoveryErrors?.originalError);
+    if (attempt < maxAttempts) await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+  }
+  if (!result) throw new Error('Hydration produced no result.');
+  return result;
+};
+
 export const runMusicHydration = async ({
   setIsReady,
   isCancelled,
@@ -211,13 +229,23 @@ export const runMusicHydration = async ({
 
     if (isCancelled()) return;
 
-    const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args }).catch(error => {
+    const hydratedStored = await hydrateWithReadbackRetries(stored, isCancelled, args).catch(error => {
       console.warn('[MusicHydration:SanitizeError] Failed while hydrating stored songs.', error);
       throw error;
     });
 
     if (isCancelled()) return;
     if (hydratedStored.verifiedState === null) {
+      if (hydratedStored.nativeStatus === 'readback-unstable') {
+        console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable after 3 serialized hydration attempts.',
+          hydratedStored.recoveryErrors?.originalError);
+        // Preserve the hydrated library and preferences. A destructive reset
+        // cannot make an unstable reader truthful; surfacing the provider as
+        // ready avoids permanent loading and permits a later provider retry.
+        await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, skipShuffle: false, ...args });
+        hydrationCompleted = true;
+        return;
+      }
       throw hydratedStored.recoveryErrors?.originalError
         ?? new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
     }
@@ -230,7 +258,7 @@ export const runMusicHydration = async ({
       throw error;
     }
   } catch (error) {
-    if (isCancelled() || error instanceof NativeQueueReadbackUnstableError) return;
+    if (isCancelled()) return;
 
     const fallback = await applyHydrationFailureFallback(args, error);
     hydrationCompleted = fallback.status === 'applied';
