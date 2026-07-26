@@ -11,6 +11,7 @@ interface UseLibraryMetadataRefreshLifecycleOptions {
 interface UseLibraryMetadataRefreshLifecycleResult {
   startRefresh: () => MetadataRefreshGeneration;
   isCurrentRefresh: (generation: MetadataRefreshGeneration) => boolean;
+  ownsRefresh: (generation: MetadataRefreshGeneration) => boolean;
   ensureCurrentRefresh: (generation: MetadataRefreshGeneration) => void;
   finishRefresh: (generation: MetadataRefreshGeneration) => void;
   cancelRefresh: () => boolean;
@@ -35,6 +36,10 @@ export const useLibraryMetadataRefreshLifecycle = ({
 
   const isCurrentRefresh = useCallback((generation: MetadataRefreshGeneration): boolean =>
     activeRefreshRef.current?.id === generation.id && !generation.controller.signal.aborted,
+  []);
+
+  const ownsRefresh = useCallback((generation: MetadataRefreshGeneration): boolean =>
+    activeRefreshRef.current?.id === generation.id,
   []);
 
   const ensureCurrentRefresh = useCallback((generation: MetadataRefreshGeneration): void => {
@@ -63,5 +68,5 @@ export const useLibraryMetadataRefreshLifecycle = ({
 
   const isRefreshActive = useCallback((): boolean => activeRefreshRef.current !== null, []);
 
-  return { startRefresh, isCurrentRefresh, ensureCurrentRefresh, finishRefresh, cancelRefresh, isRefreshActive };
+  return { startRefresh, isCurrentRefresh, ownsRefresh, ensureCurrentRefresh, finishRefresh, cancelRefresh, isRefreshActive };
 };

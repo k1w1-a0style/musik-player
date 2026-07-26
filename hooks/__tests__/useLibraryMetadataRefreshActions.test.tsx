@@ -12,6 +12,10 @@ import {
 } from '../../utils/libraryImportFlow';
 import { OperationAbortError, TimeoutError } from '../../utils/withTimeout';
 import { MetadataRefreshPartialError } from '../../utils/songMetadataRefresh';
+import {
+  getMetadataRefreshOperationState,
+  resetMetadataRefreshOperationForTests,
+} from '../../utils/metadataRefreshOperation';
 
 const song = (id: string, title = id): Song => ({
   id,
@@ -85,6 +89,7 @@ const HookHarness = ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetMetadataRefreshOperationForTests();
 });
 
 afterEach(() => {
@@ -222,6 +227,46 @@ test('supersedes a rapid earlier refresh and starts the latest request', async (
   expect(showAlert).toHaveBeenCalledTimes(1);
   expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
   expect(setLoading).toHaveBeenLastCalledWith(false);
+});
+
+test('does not let a superseded refresh complete the latest operation as cancelled', async () => {
+  let firstStartedResolve!: () => void;
+  const firstStarted = new Promise<void>(resolve => { firstStartedResolve = resolve; });
+  let firstReleasedResolve!: () => void;
+  const firstReleased = new Promise<void>(resolve => { firstReleasedResolve = resolve; });
+  let latestResolve!: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void;
+  const latest = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => { latestResolve = resolve; });
+  const refreshSongsFromId3Impl = jest.fn()
+    .mockImplementationOnce(async (_songs: Song[], options?: { signal?: AbortSignal }) => {
+      firstStartedResolve();
+      await firstReleased;
+      const signal = options?.signal;
+      if (signal?.aborted) throw signal.reason;
+      return { songs: [song('stale')], updated: 1, skipped: 0, failed: 0, errors: [] };
+    })
+    .mockReturnValueOnce(latest);
+  const requests: Promise<void>[] = [];
+  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const screen = render(
+    <HookHarness
+      songs={[song('old')]}
+      refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      onRefreshRequest={request => requests.push(request)}
+    />,
+  );
+
+  fireEvent.press(screen.getByText('refresh'));
+  await firstStarted;
+  fireEvent.press(screen.getByText('refresh'));
+  firstReleasedResolve();
+  await requests[0];
+
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(getMetadataRefreshOperationState().status).toBe('running');
+
+  latestResolve({ songs: [song('latest')], updated: 1, skipped: 0, failed: 0, errors: [] });
+  await requests[1];
+  expect(getMetadataRefreshOperationState().status).toBe('completed');
 });
 
 test('does not apply stale metadata refresh result after timeout', async () => {

@@ -36,6 +36,7 @@ export const useLibraryMetadataRefreshActions = ({
   const {
     startRefresh,
     isCurrentRefresh,
+    ownsRefresh,
     ensureCurrentRefresh,
     finishRefresh,
     cancelRefresh,
@@ -84,21 +85,21 @@ export const useLibraryMetadataRefreshActions = ({
       if (isTimeoutError(error)) {
         console.warn('[LibraryRefresh] Metadata refresh timed out.', error);
         console.warn(`[LibraryRefresh] Metadata refresh timed out after ${Math.round(importTimeoutMs / 1000)}s. processed=0/${songs.length} updated=0 skipped=0 failed=0 lastSongId=none partialApplied=false`, error);
-        completeMetadataRefreshOperation('resumable');
+        if (ownsRefresh(generation)) completeMetadataRefreshOperation('resumable');
       } else if (!isCurrentRefresh(generation) || isAbortError(error)) {
         console.warn('[LibraryRefresh] Metadata refresh cancelled.', error);
-        completeMetadataRefreshOperation('cancelled');
+        if (ownsRefresh(generation)) completeMetadataRefreshOperation('cancelled');
         return;
       } else {
         console.warn('[LibraryRefresh] Metadata refresh failed.', error);
-        completeMetadataRefreshOperation('failed');
+        if (ownsRefresh(generation)) completeMetadataRefreshOperation('failed');
       }
       showAlert(getMetadataUpdateStoppedAlert(error));
     } finally {
       endMetadataRefreshActivity();
       finishRefresh(generation);
     }
-  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
+  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, ownsRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
 
   return {
     refreshMetadataFromFiles,
