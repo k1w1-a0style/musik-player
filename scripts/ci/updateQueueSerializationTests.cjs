@@ -104,16 +104,20 @@ replaceOnce(
   });`,
 `  test('runPlaySongQueueAction finishes before a newer replacement observes queue state', async () => {
     const args = createQueueArgs();
+    let signalAddStarted: () => void = () => undefined;
+    const addStarted = new Promise<void>(resolve => {
+      signalAddStarted = resolve;
+    });
     let resolveAdd: () => void = () => undefined;
-    (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
-      resolveAdd = resolve;
-    }));
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => {
+      signalAddStarted();
+      return new Promise<void>(resolve => {
+        resolveAdd = resolve;
+      });
+    });
 
     const playPromise = runPlaySongQueueAction({ ...args, song: songs[1] });
-    for (let attempt = 0; attempt < 20 && !(TrackPlayer.add as jest.Mock).mock.calls.length; attempt += 1) {
-      await Promise.resolve();
-    }
-    expect(TrackPlayer.add).toHaveBeenCalled();
+    await addStarted;
 
     let newerReplacementObservedConsistentState = false;
     const newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
@@ -177,10 +181,17 @@ replaceOnce(
     args.baseQueueContextRef.current = songs.slice();
     args.nativeQueueRef.current = songs.slice();
     (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's2' });
+    let signalAddStarted: () => void = () => undefined;
+    const addStarted = new Promise<void>(resolve => {
+      signalAddStarted = resolve;
+    });
     let resolveAdd: () => void = () => undefined;
-    (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
-      resolveAdd = resolve;
-    }));
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => {
+      signalAddStarted();
+      return new Promise<void>(resolve => {
+        resolveAdd = resolve;
+      });
+    });
     const setShuffle = jest.fn();
 
     const shufflePromise = runShuffleQueueAction({
@@ -189,8 +200,7 @@ replaceOnce(
       shuffle: false,
       setShuffle,
     });
-    await flushMicrotasks();
-    expect(TrackPlayer.add).toHaveBeenCalled();
+    await addStarted;
 
     let newerReplacementObservedConsistentState = false;
     const newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
