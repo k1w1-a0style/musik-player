@@ -361,30 +361,9 @@ export const runReorderQueueAction = async ({
     if (!plan) return 'failed';
     if (!plan.changed) return 'noop';
 
-    const previousQueue = queueContextRef.current.slice();
-    const previousBaseQueue = baseQueueContextRef.current.slice();
     const previousShuffle = shuffleRef?.current ?? shuffle;
-    const previousNativeQueue = nativeQueueRef.current.slice();
-    const previousSelectedSong = activeSongId
-      ? currentQueue.find(song => normalizeSongId(song.id) === normalizeSongId(activeSongId))
-      : undefined;
-
     const progress = await TrackPlayer.getProgress();
     if (!isCurrent()) return 'stale';
-
-    applyPlaybackQueueState({
-      queueContextRef,
-      baseQueueContextRef,
-      setPlaybackQueue,
-      setCurrentSong,
-      orderedQueue: plan.queue,
-      baseQueue: plan.queue,
-      selectedSong: plan.selectedSong,
-    });
-    if (previousShuffle) {
-      if (shuffleRef) shuffleRef.current = false;
-      setShuffle(false);
-    }
 
     try {
       const rebuilt = await rebuildNativePlaybackQueueUnlocked(
@@ -395,21 +374,23 @@ export const runReorderQueueAction = async ({
         plan.currentIndex,
       );
       if (!rebuilt || !isCurrent()) return 'stale';
-      return 'applied';
-    } catch (error) {
-      console.warn('[PlaybackQueue] Reorder failed; rolling back queue.', error);
+
       applyPlaybackQueueState({
         queueContextRef,
         baseQueueContextRef,
         setPlaybackQueue,
         setCurrentSong,
-        orderedQueue: previousQueue,
-        baseQueue: previousBaseQueue,
-        selectedSong: previousSelectedSong,
+        orderedQueue: plan.queue,
+        baseQueue: plan.queue,
+        selectedSong: plan.selectedSong,
       });
-      if (shuffleRef) shuffleRef.current = previousShuffle;
-      setShuffle(previousShuffle);
-      nativeQueueRef.current = previousNativeQueue;
+      if (previousShuffle) {
+        if (shuffleRef) shuffleRef.current = false;
+        setShuffle(false);
+      }
+      return 'applied';
+    } catch (error) {
+      console.warn('[PlaybackQueue] Reorder failed; keeping previous UI state.', error);
       return 'failed';
     }
   }).catch(error => {
