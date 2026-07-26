@@ -12,6 +12,13 @@ const replaceOnce = (oldText, newText, label) => {
 };
 
 replaceOnce(
+`import { toPlayableSongs } from '../../utils/playableSong';`,
+`import { toPlayableSongs } from '../../utils/playableSong';
+import { toTrackPlayerTrack } from '../../utils/trackPlayerTrack';`,
+'playback helper imports',
+);
+
+replaceOnce(
 `  test('runPlaySongQueueAction builds its plan from the native ref inside the mutation chain', async () => {
     const args = createQueueArgs();
     args.nativeQueueRef.current = [];
@@ -46,7 +53,11 @@ replaceOnce(
       await new Promise<void>(resolve => {
         releaseBlocker = resolve;
       });
+      await TrackPlayer.reset();
+      await TrackPlayer.add(songs.map(toTrackPlayerTrack));
       args.nativeQueueRef.current = songs.slice();
+      (TrackPlayer.reset as jest.Mock).mockClear();
+      (TrackPlayer.add as jest.Mock).mockClear();
     });
     await blockerStarted;
 
