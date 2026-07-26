@@ -60,16 +60,21 @@ describe('musicHydrationNativeQueue', () => {
     warn.mockRestore();
   });
 
-  test('does not set native queue ref when add succeeds after a newer replacement is observed', async () => {
+  test('keeps native queue ref truthful when a newer replacement is queued during add', async () => {
     const plan = createHydrationPlan(stored, songs);
     const nativeQueueRef = createSongRef();
+    let newerReplacement: Promise<void> | undefined;
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
-      void runExclusiveNativeQueueReplacement(async () => undefined);
+      newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+        expect(isCurrent()).toBe(true);
+        expect(nativeQueueRef.current).toEqual(songs);
+      });
     });
 
-    await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false });
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+    await newerReplacement;
 
-    expect(nativeQueueRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual(songs);
   });
 
   test('resets but does not add or play when hydration produces an empty native queue on first launch', async () => {
@@ -130,5 +135,4 @@ describe('musicHydrationNativeQueue', () => {
     info.mockRestore();
     warn.mockRestore();
   });
-
 });
