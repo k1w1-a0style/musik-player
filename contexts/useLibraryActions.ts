@@ -126,8 +126,10 @@ const syncNativeQueueToLibrary = async (
 
       if (playableQueue.length > 0) {
         await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-        if (isStaleSync() || !isCurrent()) return false;
+        // The bridge call cannot be cancelled. Reflect the real native queue
+        // before handing the React commit to a newer library-sync version.
         nativeQueueRef.current = playableQueue.slice();
+        if (isStaleSync() || !isCurrent()) return false;
       }
 
       if (isStaleSync() || !isCurrent()) return false;
