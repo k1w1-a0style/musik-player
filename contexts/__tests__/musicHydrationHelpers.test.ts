@@ -1374,3 +1374,15 @@ describe('musicHydrationHelpers', () => {
     expect(setIsReady).not.toHaveBeenCalled();
   });
 });
+
+test('superseded hydration settings never overwrite the newer shuffle intent', async () => {
+  const setShuffle = jest.fn();
+  await applyStoredPlaybackSettings({
+    stored: { songs: [], playlists: null, eqEnabled: null, eqBands: null, eqPreset: null,
+      volume: null, repeatMode: null, shuffle: false, currentSongId: null },
+    setPlaylists: jest.fn(), setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(),
+    setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
+    skipShuffle: true,
+  });
+  expect(setShuffle).not.toHaveBeenCalled();
+});

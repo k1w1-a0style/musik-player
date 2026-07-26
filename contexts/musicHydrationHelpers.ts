@@ -104,7 +104,7 @@ export const verifySupersededHydration = async (
         nativeStatus: 'reconciled', verifiedState: 'confirmed', queue: state.queue,
         baseQueue: state.baseQueue, activeSong: state.activeSong, shuffleEnabled: state.shuffleEnabled,
         currentSongPersistence: state.currentSongPersistence,
-        recoveryErrors: { originalError }, persistenceError: state.persistenceError,
+        recoveryErrors: { originalError }, persistenceError: state.persistenceError, superseded: true,
       };
     });
   } catch (error) {
@@ -223,7 +223,7 @@ export const runMusicHydration = async ({
     }
 
     try {
-      await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, ...args });
+      await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, skipShuffle: hydratedStored.superseded === true, ...args });
       hydrationCompleted = true;
     } catch (error) {
       console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);

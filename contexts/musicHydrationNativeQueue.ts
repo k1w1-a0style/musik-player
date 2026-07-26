@@ -35,6 +35,7 @@ interface VerifiedHydratedNativeQueueResult {
   currentSongPersistence: CurrentSongPersistenceResult;
   recoveryErrors?: NativeQueueRecoveryDiagnostics;
   persistenceError?: unknown;
+  superseded?: true;
 }
 
 interface UnverifiedHydratedNativeQueueResult {
@@ -114,6 +115,7 @@ export const applyHydratedNativeQueue = async ({
       } catch (error) {
         return failedResult(targets, 'snapshot', error);
       }
+      if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'stale' };
       if (plan.nativeQueueAction === 'none') {
         const state = await commitNativeQueueTruth({
           readback: snapshot, preferredBaseQueue: snapshot.baseQueue, librarySongs, targets, previousPersistedId,

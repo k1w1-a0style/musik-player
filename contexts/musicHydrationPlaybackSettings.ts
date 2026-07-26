@@ -14,7 +14,8 @@ export const applyStoredPlaybackSettings = async ({
   setRepeatMode,
   setShuffle,
   isCancelled = () => false,
-}: ApplyStoredPlaybackSettingsArgs & { isCancelled?: () => boolean }): Promise<void> => {
+  skipShuffle = false,
+}: ApplyStoredPlaybackSettingsArgs & { isCancelled?: () => boolean; skipShuffle?: boolean }): Promise<void> => {
   const nativeWrites: Promise<unknown>[] = [];
   if (stored.volume != null) nativeWrites.push(applyVolumeToTrackPlayer(stored.volume));
   if (stored.repeatMode != null) nativeWrites.push(applyRepeatModeToTrackPlayer(stored.repeatMode));
@@ -37,5 +38,5 @@ export const applyStoredPlaybackSettings = async ({
   if (stored.eqPreset != null) setEqPreset(stored.eqPreset);
   if (stored.volume != null) setVolumeState(stored.volume);
   if (stored.repeatMode != null) setRepeatMode(stored.repeatMode);
-  if (stored.shuffle != null) setShuffle(stored.shuffle);
+  if (!skipShuffle && stored.shuffle != null) setShuffle(stored.shuffle);
 };

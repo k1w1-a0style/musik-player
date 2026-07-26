@@ -2,6 +2,7 @@ import TrackPlayer, { State } from 'react-native-track-player';
 import type { Song } from '../../types/Song';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 import { createHydrationPlan } from '../musicHydrationPlan';
+import { storage } from '../../utils/storage';
 import { applyHydratedNativeQueue, type HydratedNativeQueueResult } from '../musicHydrationNativeQueue';
 
 const songs: Song[] = [
@@ -56,6 +57,39 @@ test('partial hydration reject publishes only known tracks actually present', as
   expectVerified(result);
   expect(result.queue).toEqual([songs[0]]);
   expect(result.baseQueue).toEqual([songs[0]]);
+});
+
+
+test.each([
+  ['initialize', stored],
+  ['none', { ...stored, currentSongId: null }],
+] as const)('cancellation after snapshot prevents every %s side effect', async (_label, storedState) => {
+  const state = targets();
+  state.nativeQueueRef.current = songs.slice();
+  state.queueContextRef.current = songs.slice();
+  state.baseQueueContextRef.current = songs.slice();
+  const snapshotStarted = deferred(); const releaseSnapshot = deferred(); let cancelled = false;
+  const getQueue = (TrackPlayer.getQueue as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.getQueue as jest.Mock).mockImplementationOnce(async () => {
+    snapshotStarted.resolve(); await releaseSnapshot.promise; return getQueue();
+  });
+  const setSpy = jest.spyOn(storage, 'set'); const removeSpy = jest.spyOn(storage, 'remove');
+  const promise = applyHydratedNativeQueue({
+    plan: createHydrationPlan(storedState, songs), nativeQueueRef: state.nativeQueueRef,
+    targets: state, isCancelled: () => cancelled,
+  });
+  await snapshotStarted.promise; cancelled = true; releaseSnapshot.resolve();
+  const result = await promise;
+  expect(result).toMatchObject({ nativeStatus: 'stale', verifiedState: null });
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  expect(TrackPlayer.add).not.toHaveBeenCalled();
+  expect(state.nativeQueueRef.current).toEqual(songs);
+  expect(state.queueContextRef.current).toEqual(songs);
+  expect(state.baseQueueContextRef.current).toEqual(songs);
+  expect(state.setPlaybackQueue).not.toHaveBeenCalled();
+  expect(state.setCurrentSong).not.toHaveBeenCalled();
+  expect(state.setShuffle).not.toHaveBeenCalled();
+  expect(setSpy).not.toHaveBeenCalled(); expect(removeSpy).not.toHaveBeenCalled();
 });
 
 test('cancellation during an effective add still commits confirmed native truth', async () => {
