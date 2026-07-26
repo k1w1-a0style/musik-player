@@ -48,7 +48,7 @@ jobs:
             echo "Target branch already exists: $TARGET_BRANCH" >&2
             exit 1
           fi
-          cp .github/eas-compact-scripts.tar.gz.b64 /tmp/eas-compact-scripts.tar.gz.b64
+          cat .github/eas-compact-scripts.tar.gz.b64.part-* > /tmp/eas-compact-scripts.tar.gz.b64
           echo "$EXPECTED_B64_SHA256  /tmp/eas-compact-scripts.tar.gz.b64" | sha256sum --check --strict
           base64 --decode /tmp/eas-compact-scripts.tar.gz.b64 > /tmp/eas-compact-scripts.tar.gz
           echo "$EXPECTED_TAR_SHA256  /tmp/eas-compact-scripts.tar.gz" | sha256sum --check --strict
