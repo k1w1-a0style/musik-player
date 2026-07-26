@@ -71,6 +71,33 @@ const validateException = (entry, today) => {
 
 const difference = (left, right) => left.filter(value => !right.includes(value));
 
+const createBlockingAdvisoryPathResolver = vulnerabilities => {
+  const memo = new Map();
+
+  const resolve = (packageName, visiting = new Set()) => {
+    if (memo.has(packageName)) return memo.get(packageName);
+    const vulnerability = vulnerabilities[packageName];
+    if (!vulnerability || !isBlocking(vulnerability.severity)) {
+      memo.set(packageName, false);
+      return false;
+    }
+    if (advisorySourcesFor(vulnerability).length > 0) {
+      memo.set(packageName, true);
+      return true;
+    }
+    if (visiting.has(packageName)) return false;
+
+    const nextVisiting = new Set(visiting);
+    nextVisiting.add(packageName);
+    const result = dependencyRootsFor(vulnerability)
+      .some(dependency => resolve(dependency, nextVisiting));
+    memo.set(packageName, result);
+    return result;
+  };
+
+  return resolve;
+};
+
 const evaluateAudit = ({ audit, policy, lock, today }) => {
   if (audit.auditReportVersion !== 2 || !audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') {
     return { failures: ['unsupported or incomplete npm audit JSON'], warnings: [] };
@@ -93,11 +120,7 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
 
   const blockingEntries = Object.entries(audit.vulnerabilities)
     .filter(([, vulnerability]) => isBlocking(vulnerability?.severity));
-  const blockingRoots = new Set(
-    blockingEntries
-      .filter(([, vulnerability]) => advisorySourcesFor(vulnerability).length > 0)
-      .map(([packageName]) => packageName),
-  );
+  const hasBlockingAdvisoryPath = createBlockingAdvisoryPathResolver(audit.vulnerabilities);
 
   const usedExceptions = new Set();
   let blockingRootCount = 0;
@@ -106,14 +129,15 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
     const severity = vulnerability?.severity;
     const advisorySources = advisorySourcesFor(vulnerability);
     if (advisorySources.length === 0) {
-      const dependencyRoots = dependencyRootsFor(vulnerability);
-      if (dependencyRoots.length === 0) {
+      const dependencies = dependencyRootsFor(vulnerability);
+      if (dependencies.length === 0) {
         failures.push(`${packageName}: blocking vulnerability has no advisory source or dependency root`);
         continue;
       }
-      const unknownRoots = dependencyRoots.filter(root => !blockingRoots.has(root));
-      if (unknownRoots.length > 0) {
-        failures.push(`${packageName}: blocking effect references unknown advisory roots [${unknownRoots.join(', ')}]`);
+      if (!hasBlockingAdvisoryPath(packageName)) {
+        failures.push(
+          `${packageName}: blocking effect has no path to a known blocking advisory root [${dependencies.join(', ')}]`,
+        );
         continue;
       }
       collapsedEffectCount += 1;
@@ -189,6 +213,7 @@ if (require.main === module) main();
 
 module.exports = {
   advisorySourcesFor,
+  createBlockingAdvisoryPathResolver,
   dependencyRootsFor,
   evaluateAudit,
   packageVersionsFromLock,
