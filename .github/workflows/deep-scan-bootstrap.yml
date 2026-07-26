@@ -1,0 +1,82 @@
+name: Apply deep-scan fixes
+
+on:
+  push:
+    branches:
+      - fix/deep-scan-2026-07-25
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deep-scan-bootstrap-fix-2026-07-25
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout transport head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 20.20.2
+          cache: npm
+
+      - name: Reconstruct, verify and apply patch
+        env:
+          BASE_SHA: 496d0c713424ce9f21aa9f69f3a2b4b6c02e700e
+          EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
+          EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
+          EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
+          TRANSPORT_HEAD: ${{ github.sha }}
+          TARGET_BRANCH: fix/deep-scan-2026-07-25
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git merge-base --is-ancestor "$BASE_SHA" "$TRANSPORT_HEAD"
+
+          cat .github/deep-scan-fix.v2.patch.gz.b64.part-* > /tmp/deep-scan-fix.patch.gz.b64
+          echo "$EXPECTED_B64_SHA256  /tmp/deep-scan-fix.patch.gz.b64" | sha256sum --check --strict
+
+          base64 --decode /tmp/deep-scan-fix.patch.gz.b64 > /tmp/deep-scan-fix.patch.gz
+          echo "$EXPECTED_GZIP_SHA256  /tmp/deep-scan-fix.patch.gz" | sha256sum --check --strict
+
+          gzip --decompress --stdout /tmp/deep-scan-fix.patch.gz > /tmp/deep-scan-fix.patch
+          echo "$EXPECTED_PATCH_SHA256  /tmp/deep-scan-fix.patch" | sha256sum --check --strict
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git reset --hard "$BASE_SHA"
+          git clean -fdx
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+
+          git apply --check --whitespace=error-all /tmp/deep-scan-fix.patch
+          git apply --index --whitespace=error-all /tmp/deep-scan-fix.patch
+
+          npx --yes npm@10.8.2 install \
+            --package-lock-only \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund
+
+          git add --all
+          git diff --cached --check
+          git diff --cached --stat
+          test -n "$(git diff --cached --name-only)"
+
+          git commit -m "fix: resolve deep-scan findings"
+          FINAL_SHA="$(git rev-parse HEAD)"
+
+          git push \
+            --force-with-lease="refs/heads/${TARGET_BRANCH}:${TRANSPORT_HEAD}" \
+            origin "HEAD:refs/heads/${TARGET_BRANCH}"
+
+          echo "Applied verified patch as ${FINAL_SHA}" >> "$GITHUB_STEP_SUMMARY"
