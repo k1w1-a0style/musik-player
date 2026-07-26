@@ -1,4 +1,4 @@
-name: Android release APK emulator smoke
+name: Android standalone APK emulator smoke
 
 on:
   pull_request:
@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/android-emulator-smoke.yml'
       - 'app.json'
+      - 'app.config.js'
+      - 'eas.json'
       - 'package.json'
       - 'package-lock.json'
       - 'index.js'
@@ -28,14 +30,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-apk-smoke:
-    name: Build, install and launch release APK
+  standalone-apk-smoke:
+    name: Build, inspect, install and launch EAS preview APK
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 75
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-player-api-35
       ANDROID_API: '35'
+      EAS_BUILD_PROFILE: preview
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
       - name: Checkout
@@ -48,6 +52,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: 20.0.0
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
@@ -59,21 +70,25 @@ jobs:
           echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
           echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
 
-      - name: Generate Android project
-        run: npx --no-install expo prebuild --platform android --no-install --clean
-
-      - name: Build release APK
+      - name: Build standalone preview APK with EAS locally
         shell: bash
         run: |
           set -euo pipefail
-          cd android
-          ./gradlew :app:assembleRelease --no-daemon --console=plain | tee ../android-release-build.log
+          test -n "${EXPO_TOKEN:-}"
+          mkdir -p artifacts ci-logs
+          eas build \
+            --platform android \
+            --profile preview \
+            --local \
+            --non-interactive \
+            --output "$PWD/artifacts/musik-player-preview.apk" \
+            2>&1 | tee android-release-build.log
 
-      - name: Inspect release APK
+      - name: Inspect standalone APK
         shell: bash
         run: |
           set -euo pipefail
-          APK=android/app/build/outputs/apk/release/app-release.apk
+          APK=artifacts/musik-player-preview.apk
           test -s "$APK"
           node scripts/ci/inspectAndroidApk.cjs "$APK" \
             --expected-package "$PACKAGE_NAME" \
@@ -124,7 +139,7 @@ jobs:
           adb shell input keyevent 82 || true
           adb logcat -c
 
-          APK=android/app/build/outputs/apk/release/app-release.apk
+          APK=artifacts/musik-player-preview.apk
           adb install -r "$APK" | tee ci-logs/adb-install.log
           adb shell am force-stop "$PACKAGE_NAME"
           adb shell am start -W -n "$PACKAGE_NAME/.MainActivity" | tee ci-logs/adb-launch.log
@@ -137,7 +152,7 @@ jobs:
           grep -F "$PACKAGE_NAME" ci-logs/dumpsys-activities.txt >/dev/null
           adb logcat -d -v threadtime > ci-logs/logcat.txt
           if grep -A20 -B5 -F "Process: ${PACKAGE_NAME}," ci-logs/logcat.txt; then
-            echo "::error::The release APK crashed during launch smoke."
+            echo "::error::The standalone APK crashed during launch smoke."
             exit 1
           fi
 
@@ -145,9 +160,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: android-release-emulator-smoke-${{ github.run_number }}
+          name: android-standalone-emulator-smoke-${{ github.run_number }}
           path: |
-            android/app/build/outputs/apk/release/app-release.apk
+            artifacts/musik-player-preview.apk
             android-release-build.log
             android-release-apk-inspection.log
             ci-logs/**
