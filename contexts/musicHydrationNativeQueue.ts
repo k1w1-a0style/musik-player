@@ -57,8 +57,11 @@ export const applyHydratedNativeQueue = async ({
       }
 
       await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
-      if (isCancelled() || !isCurrent()) return false;
+      // TrackPlayer.add is not cancellable. Once it resolves, the ref must
+      // immediately describe the native queue even if this hydration became
+      // obsolete while the bridge call was in flight.
       nativeQueueRef.current = plan.playableQueue.slice();
+      if (isCancelled() || !isCurrent()) return false;
       return true;
     });
     return applied;
@@ -85,7 +88,7 @@ export const resetNativeQueueAfterHydrationFailure = async (): Promise<void> => 
  * emitted. When we do have library songs but none are playable (missing URIs
  * on all rows) we keep the loud warning because that indicates a real problem.
  */
-const logEmptyPlayableQueueHydration = (plan: HydrationPlan): void => {
+const logEmptyPlayableQueue = (plan: HydrationPlan): void => {
   const context = buildEmptyPlayableQueueHydrationContext(plan);
   if (isEmptyPlayableQueueLegitimate(plan)) {
     // eslint-disable-next-line no-console
