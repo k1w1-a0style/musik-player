@@ -1,0 +1,53 @@
+name: Fix play-song transaction
+
+on:
+  pull_request:
+    branches: [codex]
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/fix-play-song-transaction.yml'
+      - 'scripts/ci/applyPlaySongTransactionFix.cjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-play-song-transaction
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/deep-scan-final-2026-07-25'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: fix/deep-scan-final-2026-07-25
+          fetch-depth: 0
+
+      - name: Apply exact play-song transaction patch
+        run: |
+          node scripts/ci/applyPlaySongTransactionFix.cjs
+          git diff --check
+          test "$(git diff --name-only | paste -sd, -)" = 'contexts/__tests__/playbackQueueActionHelpers.test.ts,contexts/playbackQueueActionHelpers.ts'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify focused playback queue tests
+        run: npm test -- --runInBand contexts/__tests__/playbackQueueActionHelpers.test.ts contexts/__tests__/playbackQueueReorderAction.test.ts
+
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Commit play-song transaction fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add contexts/playbackQueueActionHelpers.ts contexts/__tests__/playbackQueueActionHelpers.test.ts
+          git commit -m 'fix(queue): serialize play-song plan and state commit'
+          git push origin HEAD:fix/deep-scan-final-2026-07-25
