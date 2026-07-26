@@ -7,9 +7,14 @@ const { validateAndroidPermissions } = require('./androidPermissionPolicy.cjs');
 const manifestPath = process.argv[2] || 'android/app/src/main/AndroidManifest.xml';
 const xml = fs.readFileSync(manifestPath, 'utf8');
 const permissions = new Set();
-const permissionRegex = /<uses-permission\b[^>]*\bandroid:name="([^"]+)"[^>]*>/g;
+const permissionRegex = /<uses-permission\b[^>]*>/g;
 let match;
-while ((match = permissionRegex.exec(xml)) !== null) permissions.add(match[1]);
+while ((match = permissionRegex.exec(xml)) !== null) {
+  const tag = match[0];
+  if (/\btools:node="remove"/.test(tag)) continue;
+  const name = tag.match(/\bandroid:name="([^"]+)"/)?.[1];
+  if (name) permissions.add(name);
+}
 
 const failures = validateAndroidPermissions(permissions)
   .map(failure => `Generated AndroidManifest ${failure}`);

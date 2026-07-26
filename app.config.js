@@ -32,7 +32,13 @@ module.exports = ({ config }) => {
     Array.isArray(android.blockedPermissions) ? android.blockedPermissions : [],
   );
   if (!isDevelopmentBuild) {
-    blockedPermissions.add('android.permission.SYSTEM_ALERT_WINDOW');
+    [
+      'android.permission.CAMERA',
+      'android.permission.RECORD_AUDIO',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+    ].forEach(permission => blockedPermissions.add(permission));
   }
   android.blockedPermissions = [...blockedPermissions];
 

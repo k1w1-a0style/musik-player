@@ -31,6 +31,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' }}
     name: Android Release Build
     runs-on: ubuntu-latest
     timeout-minutes: 60

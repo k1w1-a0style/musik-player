@@ -61,16 +61,14 @@ const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, 
 export const pausePlaybackExplicitly = async (
   shouldPause: SleepTimerExpiryGuard = () => true,
 ): Promise<boolean> => {
-  const state = (await TrackPlayer.getPlaybackState()).state;
-  if (!shouldPause()) return false;
-  if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
-
-  await runExclusiveNativePlaybackControl(async () => {
-    if (!shouldPause()) return;
+  return runExclusiveNativePlaybackControl(async () => {
+    if (!shouldPause()) return false;
+    const state = (await TrackPlayer.getPlaybackState()).state;
+    if (!shouldPause()) return false;
+    if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
     await TrackPlayer.pause();
+    return shouldPause();
   });
-
-  return shouldPause();
 };
 
 export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Promise<boolean> => {
