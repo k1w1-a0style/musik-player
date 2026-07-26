@@ -30,12 +30,16 @@ const requiredAndroidPermissions = [
 ];
 const forbiddenAndroidPermissions = [
   MIC_PERMISSION,
+  'android.permission.CAMERA',
+  'android.permission.SYSTEM_ALERT_WINDOW',
 ];
 const requiredBlockedPermissions = [
   MIC_PERMISSION,
+  'android.permission.CAMERA',
   'android.permission.READ_MEDIA_IMAGES',
   'android.permission.READ_MEDIA_VIDEO',
   'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+  'android.permission.SYSTEM_ALERT_WINDOW',
 ];
 
 for (const permission of requiredAndroidPermissions) {
