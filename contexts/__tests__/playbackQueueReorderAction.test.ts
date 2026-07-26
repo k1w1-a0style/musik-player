@@ -74,7 +74,7 @@ describe('runReorderQueueAction', () => {
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(42);
   });
 
-  test('keeps UI state unchanged and native ref truthful when native rebuild fails after reset', async () => {
+  test('reconciles every queue representation when native add fails after reset', async () => {
     const args = createArgs();
     (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
 
@@ -87,10 +87,10 @@ describe('runReorderQueueAction', () => {
       setShuffle: args.setShuffle,
     })).resolves.toBe(false);
 
-    expect(args.queueContextRef.current).toEqual(songs);
-    expect(args.baseQueueContextRef.current).toEqual(songs);
-    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
-    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.queueContextRef.current).toEqual([]);
+    expect(args.baseQueueContextRef.current).toEqual([]);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(null);
     expect(args.setShuffle).not.toHaveBeenCalled();
     expect(args.nativeQueueRef.current).toEqual([]);
   });

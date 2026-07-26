@@ -5,9 +5,10 @@ import {
   runExclusiveNativeQueueReplacement,
 } from '../nativeQueueMutationLock';
 
-const flushMicrotasks = async (): Promise<void> => {
-  await Promise.resolve();
-  await Promise.resolve();
+const createDeferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>(promiseResolve => { resolve = promiseResolve; });
+  return { promise, resolve };
 };
 
 describe('nativeQueueMutationLock', () => {
@@ -26,7 +27,6 @@ describe('nativeQueueMutationLock', () => {
         events.push('control');
       });
 
-      await flushMicrotasks();
       replacementIsCurrentAfterControlIntent = isCurrent();
       events.push('replacement:end');
     });
@@ -40,24 +40,24 @@ describe('nativeQueueMutationLock', () => {
   });
 
   test('a newer intent does not invalidate a replacement that already started', async () => {
-    let releaseFirstReplacement: () => void = () => undefined;
+    const firstStarted = createDeferred();
+    const releaseFirst = createDeferred();
     let firstReplacementIsCurrent = false;
     let secondReplacementIsCurrent = false;
 
     const firstReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
-      await new Promise<void>(resolve => {
-        releaseFirstReplacement = resolve;
-      });
+      firstStarted.resolve();
+      await releaseFirst.promise;
       firstReplacementIsCurrent = isCurrent();
     });
 
-    await flushMicrotasks();
+    await firstStarted.promise;
 
     const secondReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       secondReplacementIsCurrent = isCurrent();
     });
 
-    releaseFirstReplacement();
+    releaseFirst.resolve();
     await Promise.all([firstReplacement, secondReplacement]);
 
     expect(firstReplacementIsCurrent).toBe(true);
@@ -66,13 +66,13 @@ describe('nativeQueueMutationLock', () => {
   });
 
   test('an older queued replacement starts stale when a newer intent overtakes it', async () => {
-    let releaseControl: () => void = () => undefined;
+    const controlStarted = createDeferred();
+    const releaseControl = createDeferred();
     const control = runExclusiveNativePlaybackControl(async () => {
-      await new Promise<void>(resolve => {
-        releaseControl = resolve;
-      });
+      controlStarted.resolve();
+      await releaseControl.promise;
     });
-    await flushMicrotasks();
+    await controlStarted.promise;
 
     let firstReplacementIsCurrent = true;
     let secondReplacementIsCurrent = false;
@@ -83,7 +83,7 @@ describe('nativeQueueMutationLock', () => {
       secondReplacementIsCurrent = isCurrent();
     });
 
-    releaseControl();
+    releaseControl.resolve();
     await Promise.all([control, firstReplacement, secondReplacement]);
 
     expect(firstReplacementIsCurrent).toBe(false);
@@ -107,14 +107,14 @@ describe('nativeQueueMutationLock', () => {
   });
 
   test('resetNativeQueueMutationLockForTests clears replacement version and pending chain', async () => {
-    let releaseBlockedReplacement: () => void = () => undefined;
+    const replacementStarted = createDeferred();
+    const releaseBlockedReplacement = createDeferred();
     const blockedReplacement = runExclusiveNativeQueueReplacement(async () => {
-      await new Promise<void>(resolve => {
-        releaseBlockedReplacement = resolve;
-      });
+      replacementStarted.resolve();
+      await releaseBlockedReplacement.promise;
     });
 
-    await flushMicrotasks();
+    await replacementStarted.promise;
     expect(getNativeQueueReplacementVersion()).toBe(1);
 
     resetNativeQueueMutationLockForTests();
@@ -124,7 +124,7 @@ describe('nativeQueueMutationLock', () => {
       events.push('control:after-reset');
     });
 
-    releaseBlockedReplacement();
+    releaseBlockedReplacement.resolve();
     await blockedReplacement;
 
     expect(getNativeQueueReplacementVersion()).toBe(0);

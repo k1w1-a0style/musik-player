@@ -87,6 +87,51 @@ const findSongByNormalizedId = (songs: Song[], songId?: string): Song | undefine
   return normalizedId ? songs.find(song => normalizeSongId(song.id) === normalizedId) : undefined;
 };
 
+interface ReconcileNativeQueueArgs extends Pick<PlaybackQueueActionRefs,
+  'queueContextRef' | 'baseQueueContextRef' | 'nativeQueueRef' | 'setPlaybackQueue' | 'setCurrentSong'> {
+  knownSongs: Song[];
+  baseQueue?: Song[];
+}
+
+export const reconcilePlaybackQueueFromNative = async ({
+  knownSongs,
+  queueContextRef,
+  baseQueueContextRef,
+  nativeQueueRef,
+  setPlaybackQueue,
+  setCurrentSong,
+  baseQueue,
+}: ReconcileNativeQueueArgs): Promise<Song[]> => {
+  const [nativeTracks, activeTrack] = await Promise.all([
+    TrackPlayer.getQueue(),
+    TrackPlayer.getActiveTrack(),
+  ]);
+  const candidates = [...knownSongs, ...nativeQueueRef.current, ...queueContextRef.current];
+  const reconciledQueue = nativeTracks.flatMap(track => {
+    const song = findSongByNormalizedId(candidates, String(track.id));
+    return song ? [song] : [];
+  });
+  if (reconciledQueue.length !== nativeTracks.length) {
+    throw new Error('Native queue readback contained unknown tracks.');
+  }
+  const selectedSong = findSongByNormalizedId(reconciledQueue, activeTrack?.id?.toString())
+    ?? reconciledQueue[0];
+  nativeQueueRef.current = reconciledQueue.slice();
+  applyPlaybackQueueState({
+    queueContextRef,
+    baseQueueContextRef,
+    setPlaybackQueue,
+    setCurrentSong,
+    orderedQueue: reconciledQueue,
+    baseQueue: baseQueue ?? reconciledQueue,
+    selectedSong,
+  });
+  if (!selectedSong) setCurrentSong(null);
+  if (selectedSong) await persistRequestedSongId(selectedSong, knownSongs);
+  else await storage.remove(StorageKeys.CURRENT_SONG_ID);
+  return reconciledQueue;
+};
+
 const buildQueueWithInsertedSong = ({
   queue,
   song,
@@ -206,6 +251,53 @@ export const rebuildNativePlaybackQueue = async (
   if (!rebuilt) throw new NativeQueueReplacementStaleError();
 });
 
+type PlaySongQueuePlan = NonNullable<ReturnType<typeof buildPlaySongQueuePlan>>;
+
+const rebuildForPlayPlan = async (
+  plan: PlaySongQueuePlan,
+  nativeQueueRef: MutableRefObject<Song[]>,
+  context: NativeQueueReplacementContext,
+): Promise<Song[] | undefined> => {
+  const orderedQueue = plan.rebuildOrderedQueue;
+  const startIndex = orderedQueue.findIndex(
+    item => normalizeSongId(item.id) === normalizeSongId(plan.requestedSong.id),
+  );
+  const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+    orderedQueue,
+    nativeQueueRef,
+    undefined,
+    context,
+    startIndex,
+  );
+  return rebuilt && context.isCurrent() ? orderedQueue : undefined;
+};
+
+const executePlaySongPlan = async (
+  plan: PlaySongQueuePlan,
+  nativeQueueRef: MutableRefObject<Song[]>,
+  context: NativeQueueReplacementContext,
+): Promise<Song[] | undefined> => {
+  if (!plan.canReuseNativeQueue) return rebuildForPlayPlan(plan, nativeQueueRef, context);
+  try {
+    const activeTrack = await TrackPlayer.getActiveTrack();
+    if (!context.isCurrent()) return undefined;
+    if (activeTrack?.id !== plan.requestedSong.id) await TrackPlayer.skip(plan.nativeIndex);
+    await TrackPlayer.play();
+    return context.isCurrent() ? plan.reusableOrderedQueue : undefined;
+  } catch (error) {
+    console.warn('[PlaybackQueue] Native reuse failed, rebuilding queue.', error);
+    return context.isCurrent() ? rebuildForPlayPlan(plan, nativeQueueRef, context) : undefined;
+  }
+};
+
+const persistCurrentSongAfterPlayback = async (song: Song, librarySongs: Song[]): Promise<void> => {
+  try {
+    await persistRequestedSongId(song, librarySongs);
+  } catch (error) {
+    console.warn('[PlaybackQueue] Failed to persist current song after successful playback.', error);
+  }
+};
+
 export const runPlaySongQueueAction = async ({
   song,
   queue,
@@ -217,74 +309,34 @@ export const runPlaySongQueueAction = async ({
   setCurrentSong,
 }: RunPlaySongQueueActionArgs): Promise<void> => {
   await runExclusiveNativeQueueReplacement(async context => {
-    const { isCurrent } = context;
-    if (!isCurrent()) return;
-
+    if (!context.isCurrent()) return;
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
     const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
     if (!plan) {
       console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
       return;
     }
-
-    const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
-    let orderedQueue = plan.rebuildOrderedQueue;
-
-    if (canReuseNativeQueue) {
-      try {
-        const activeTrack = await TrackPlayer.getActiveTrack();
-        if (!isCurrent()) return;
-        if (activeTrack?.id !== requestedSong.id) {
-          await TrackPlayer.skip(nativeIndex);
-          if (!isCurrent()) return;
-        }
-        await TrackPlayer.play();
-        if (!isCurrent()) return;
-        orderedQueue = plan.reusableOrderedQueue;
-      } catch (error) {
-        console.warn('[PlaybackQueue] Native skip failed, rebuilding queue.', error);
-        if (!isCurrent()) return;
-        const orderedStartIndex = orderedQueue.findIndex(
-          item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id),
-        );
-        const rebuilt = await rebuildNativePlaybackQueueUnlocked(
-          orderedQueue,
-          nativeQueueRef,
-          undefined,
-          context,
-          orderedStartIndex,
-        );
-        if (!rebuilt || !isCurrent()) return;
-      }
-    } else {
-      const orderedStartIndex = orderedQueue.findIndex(
-        item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id),
-      );
-      const rebuilt = await rebuildNativePlaybackQueueUnlocked(
-        orderedQueue,
-        nativeQueueRef,
-        undefined,
-        context,
-        orderedStartIndex,
-      );
-      if (!rebuilt || !isCurrent()) return;
+    let orderedQueue: Song[] | undefined;
+    try {
+      orderedQueue = await executePlaySongPlan(plan, nativeQueueRef, context);
+    } catch (error) {
+      await reconcilePlaybackQueueFromNative({
+        knownSongs: [...songsRef.current, ...sourceQueue],
+        queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong,
+      });
+      throw error;
     }
-
+    if (!orderedQueue) return;
     applyPlaybackQueueState({
       queueContextRef,
       baseQueueContextRef,
       setPlaybackQueue,
       setCurrentSong,
       orderedQueue,
-      baseQueue: queueWithRequested,
-      selectedSong: requestedSong,
+      baseQueue: plan.queueWithRequested,
+      selectedSong: plan.requestedSong,
     });
-
-    try {
-      await persistRequestedSongId(requestedSong, songsRef.current);
-    } catch (error) {
-      console.warn('[PlaybackQueue] Failed to persist current song after successful playback.', error);
-    }
+    await persistCurrentSongAfterPlayback(plan.requestedSong, songsRef.current);
   });
 };
 
@@ -408,7 +460,11 @@ export const runReorderQueueAction = async ({
       }
       return 'applied';
     } catch (error) {
-      console.warn('[PlaybackQueue] Reorder failed; keeping previous UI state.', error);
+      await reconcilePlaybackQueueFromNative({
+        knownSongs: [...songsRef.current, ...plan.queue],
+        queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong,
+      });
+      console.warn('[PlaybackQueue] Reorder failed; reconciled to native state.', error);
       return 'failed';
     }
   }).catch(error => {
@@ -482,7 +538,16 @@ export const runShuffleQueueAction = async ({
     if (shuffleRef) shuffleRef.current = nextShuffle;
     setShuffle(nextShuffle);
     return 'applied';
-  }).catch(error => {
+  }).catch(async error => {
+    const previousBaseQueue = baseQueueContextRef.current.slice();
+    const reconciledQueue = await reconcilePlaybackQueueFromNative({
+      knownSongs: [...songsRef.current, ...queueContextRef.current],
+      baseQueue: previousBaseQueue,
+      queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong,
+    });
+    const nativeIsShuffled = reconciledQueue.some((song, index) => song.id !== previousBaseQueue[index]?.id);
+    if (shuffleRef) shuffleRef.current = nativeIsShuffled;
+    setShuffle(nativeIsShuffled);
     console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
     return 'failed' as const;
   });

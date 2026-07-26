@@ -715,10 +715,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={[songs[1], songs[2]]}
       />,
     );
@@ -728,10 +728,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={songs}
       />,
     );
@@ -754,10 +754,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={[songs[1], songs[2]]}
       />,
     );
