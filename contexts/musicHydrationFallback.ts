@@ -8,7 +8,7 @@ export const applyHydrationFailureFallback = async (
   error: unknown,
 ): Promise<void> => {
   applyHydrationFailureState(args);
-  await resetNativeQueueAfterHydrationFailure();
+  await resetNativeQueueAfterHydrationFailure(args.nativeQueueRef);
   clearPersistedCurrentSongIdAfterFailure();
   console.warn('[MusicHydration:Fatal] Falling back to safe empty state after hydration failure.', error);
 };
