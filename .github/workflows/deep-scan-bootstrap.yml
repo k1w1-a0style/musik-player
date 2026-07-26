@@ -26,7 +26,7 @@ env:
   EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
   EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
   TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-  TARGET_BRANCH: fix/deep-scan-2026-07-25
+  TARGET_BRANCH: fix/deep-scan-final-2026-07-25
 
 jobs:
   apply:
@@ -52,6 +52,10 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TRANSPORT_HEAD"
           git merge-base --is-ancestor "$BASE_SHA" "$TRANSPORT_HEAD"
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH"; then
+            echo "Target branch already exists: $TARGET_BRANCH" >&2
+            exit 1
+          fi
 
       - name: Reconstruct and verify patch hashes
         shell: bash
@@ -84,6 +88,13 @@ jobs:
             --no-audit \
             --no-fund
 
+      - name: Prepare workflow handoff to GitHub connector
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source="$BASE_SHA" --staged --worktree -- .github/workflows
+          test -z "$(git diff --name-only -- .github/workflows)"
+
       - name: Validate staged result
         shell: bash
         run: |
@@ -92,10 +103,11 @@ jobs:
           git diff --cached --check
           git diff --cached --stat
           test -n "$(git diff --cached --name-only)"
+          test -z "$(git diff --cached --name-only -- .github/workflows)"
           test ! -e .github/workflows/deep-scan-bootstrap.yml
           test -z "$(find .github -maxdepth 1 -name 'deep-scan-fix*.part-*' -print -quit)"
 
-      - name: Commit final source tree
+      - name: Commit final source tree without workflow files
         shell: bash
         run: |
           set -euo pipefail
@@ -104,11 +116,9 @@ jobs:
           git commit -m "fix: resolve deep-scan findings"
           echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Replace transport branch atomically
+      - name: Publish new final branch
         shell: bash
         run: |
           set -euo pipefail
-          git push \
-            --force-with-lease="refs/heads/${TARGET_BRANCH}:${TRANSPORT_HEAD}" \
-            origin "HEAD:refs/heads/${TARGET_BRANCH}"
-          echo "Applied verified patch as ${FINAL_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          echo "Published source tree ${FINAL_SHA} to ${TARGET_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
