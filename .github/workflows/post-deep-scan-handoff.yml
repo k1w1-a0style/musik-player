@@ -1,0 +1,176 @@
+name: Complete deep-scan handoff
+
+on:
+  push:
+    branches:
+      - fix/deep-scan-2026-07-25
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: complete-deep-scan-handoff-2026-07-25
+  cancel-in-progress: false
+
+env:
+  INTEGRATION_PR: '322'
+  HANDOFF_PR: '313'
+  TRANSPORT_PR: '321'
+  MARKER: '<!-- deep-scan-2026-07-25-final -->'
+
+jobs:
+  handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Wait for verified integration merge
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${INTEGRATION_PR}")
+            merged_at=$(jq -r '.merged_at // ""' <<<"$pr")
+            state=$(jq -r '.state' <<<"$pr")
+            if [ -n "$merged_at" ]; then
+              merge_sha=$(jq -r '.merge_commit_sha' <<<"$pr")
+              test -n "$merge_sha"
+              echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$state" = closed ]; then
+              echo "::error::Integration PR closed without merge."
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for integration merge."
+          exit 1
+
+      - name: Wait for green codex push verification
+        id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${MERGE_SHA}&event=push&per_page=100")
+            ci_run=$(jq -r '[.workflow_runs[] | select(.name == "CI")][0].id // ""' <<<"$runs")
+            apk_run=$(jq -r '[.workflow_runs[] | select(.name == "Android release APK emulator smoke")][0].id // ""' <<<"$runs")
+            if [ -n "$ci_run" ] && [ -n "$apk_run" ]; then
+              ci_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ci_run}" --jq '.status')
+              ci_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ci_run}" --jq '.conclusion // ""')
+              apk_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${apk_run}" --jq '.status')
+              apk_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${apk_run}" --jq '.conclusion // ""')
+              if [ "$ci_status" = completed ] && [ "$ci_conclusion" != success ]; then exit 1; fi
+              if [ "$apk_status" = completed ] && [ "$apk_conclusion" != success ]; then exit 1; fi
+              if [ "$ci_status" = completed ] && [ "$ci_conclusion" = success ] && \
+                 [ "$apk_status" = completed ] && [ "$apk_conclusion" = success ]; then
+                echo "ci=$ci_run" >> "$GITHUB_OUTPUT"
+                echo "apk=$apk_run" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for green codex verification."
+          exit 1
+
+      - name: Close completed follow-up issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+          CI_RUN: ${{ steps.runs.outputs.ci }}
+          APK_RUN: ${{ steps.runs.outputs.apk }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for issue in 314 318; do
+            state=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${issue}" --jq '.state')
+            if [ "$state" = open ]; then
+              gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --reason completed \
+                --comment "Behoben und nach \`codex\` integriert als \`${MERGE_SHA}\`. Post-Merge-CI \`${CI_RUN}\` und Android-Release-APK-/Emulator-Smoke \`${APK_RUN}\` sind grün."
+            fi
+          done
+
+      - name: Keep Expo migration follow-up explicit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          comments=$(gh api "repos/${GITHUB_REPOSITORY}/issues/319/comments?per_page=100" --paginate --jq '.[].body')
+          if ! grep -Fq "$MARKER" <<<"$comments"; then
+            gh issue comment 319 --repo "$GITHUB_REPOSITORY" --body "${MARKER}
+          Deep-Scan-Fixes wurden als \`${MERGE_SHA}\` nach \`codex\` integriert. Der Supply-Chain-Gate blockiert neue High/Critical-Funde; die verbleibende Expo-SDK-gebundene Moderate-Kette bleibt bewusst in diesem Issue offen und wird nicht durch einen riskanten Zwangs-Downgrade kaschiert."
+          fi
+
+      - name: Update codex-to-main handoff PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+          CI_RUN: ${{ steps.runs.outputs.ci }}
+          APK_RUN: ${{ steps.runs.outputs.apk }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${HANDOFF_PR}")
+          test "$(jq -r '.state' <<<"$pr")" = open
+          test "$(jq -r '.draft' <<<"$pr")" = true
+          test "$(jq -r '.head.ref' <<<"$pr")" = codex
+          test "$(jq -r '.base.ref' <<<"$pr")" = main
+          body=$(jq -r '.body // ""' <<<"$pr")
+          if ! grep -Fq "$MARKER" <<<"$body"; then
+            section=$(cat <<EOF
+
+          ${MARKER}
+          ## Deep-Scan-Integration – 26. Juli 2026
+
+          - Konsolidierte Deep-Scan- und Sonet-Befunde nach \`codex\` integriert: \`${MERGE_SHA}\`.
+          - Post-Merge-CI vollständig grün: Run \`${CI_RUN}\`.
+          - Android-Release-APK gebaut, geprüft, installiert und im Emulator gestartet: Run \`${APK_RUN}\`.
+          - Supply-Chain-Gate, Complexity-Gate, Manifest-/APK-Permission-Allowlist und Native-/Kotlin-Tests sind aktiv.
+          - Issues #314 und #318 sind erledigt; #319 bleibt für die kontrollierte Expo-SDK-Migration offen.
+
+          **Status bleibt Draft / kein Merge nach \`main\`:** Der reale Samsung-/Huawei-Geräte-Smoke mit tatsächlichen SAF-Providern, Notification/Lockscreen, Prozessneustart und Recovery bleibt das letzte manuelle Release-Gate.
+          EOF
+            )
+            new_body="${body}${section}"
+            jq -n --arg body "$new_body" '{body:$body}' > /tmp/pr313.json
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/${HANDOFF_PR}" --input /tmp/pr313.json >/dev/null
+          fi
+
+      - name: Close obsolete transport PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TRANSPORT_PR}" --jq '.state')
+          if [ "$state" = open ]; then
+            gh pr close "$TRANSPORT_PR" --repo "$GITHUB_REPOSITORY" \
+              --comment "Transport abgeschlossen. Der verifizierte Quellcode wurde über PR #322 als \`${MERGE_SHA}\` nach \`codex\` integriert; dieser Bootstrap-/Chunk-PR wird nicht gemergt."
+          fi
+
+      - name: Handoff summary
+        env:
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+          CI_RUN: ${{ steps.runs.outputs.ci }}
+          APK_RUN: ${{ steps.runs.outputs.apk }}
+        run: |
+          {
+            echo '## Deep-scan handoff complete'
+            echo "- codex merge: ${MERGE_SHA}"
+            echo "- post-merge CI: ${CI_RUN}"
+            echo "- post-merge APK/emulator: ${APK_RUN}"
+            echo '- PR #313 remains draft; real Samsung/Huawei smoke remains open.'
+          } >> "$GITHUB_STEP_SUMMARY"
