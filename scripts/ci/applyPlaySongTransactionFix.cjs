@@ -1,5 +1,6 @@
 'use strict';
 
+// One-shot, branch-scoped patcher. The workflow deletes this file after the verified commit.
 const fs = require('fs');
 
 const replaceExactlyOnce = (source, oldText, newText, label) => {
