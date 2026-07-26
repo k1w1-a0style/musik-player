@@ -39,9 +39,9 @@ describe('nativeQueueMutationLock', () => {
     expect(events).toEqual(['replacement:start', 'replacement:end', 'control']);
   });
 
-  test('newer queue replacement intents still invalidate older replacements', async () => {
+  test('a newer intent does not invalidate a replacement that already started', async () => {
     let releaseFirstReplacement: () => void = () => undefined;
-    let firstReplacementIsCurrent = true;
+    let firstReplacementIsCurrent = false;
     let secondReplacementIsCurrent = false;
 
     const firstReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
@@ -59,6 +59,32 @@ describe('nativeQueueMutationLock', () => {
 
     releaseFirstReplacement();
     await Promise.all([firstReplacement, secondReplacement]);
+
+    expect(firstReplacementIsCurrent).toBe(true);
+    expect(secondReplacementIsCurrent).toBe(true);
+    expect(getNativeQueueReplacementVersion()).toBe(2);
+  });
+
+  test('an older queued replacement starts stale when a newer intent overtakes it', async () => {
+    let releaseControl: () => void = () => undefined;
+    const control = runExclusiveNativePlaybackControl(async () => {
+      await new Promise<void>(resolve => {
+        releaseControl = resolve;
+      });
+    });
+    await flushMicrotasks();
+
+    let firstReplacementIsCurrent = true;
+    let secondReplacementIsCurrent = false;
+    const firstReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      firstReplacementIsCurrent = isCurrent();
+    });
+    const secondReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      secondReplacementIsCurrent = isCurrent();
+    });
+
+    releaseControl();
+    await Promise.all([control, firstReplacement, secondReplacement]);
 
     expect(firstReplacementIsCurrent).toBe(false);
     expect(secondReplacementIsCurrent).toBe(true);
