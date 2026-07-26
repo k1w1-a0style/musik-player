@@ -18,7 +18,7 @@ jobs:
   quality-gates:
     name: Typecheck, tests, coverage, lint, config gates
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Supply-chain audit gate
+      - name: Capture production dependency audit
         shell: bash
         run: |
           set -uo pipefail
@@ -43,7 +43,23 @@ jobs:
           npm audit --omit=dev --json > ci-logs/npm-audit-production.json
           audit_status=$?
           set -e
+          printf '%s\n' "$audit_status" > ci-logs/npm-audit-production.exit-code
+          node -e "JSON.parse(require('fs').readFileSync('ci-logs/npm-audit-production.json', 'utf8'))"
           echo "npm audit exited with $audit_status; policy evaluation uses the complete JSON report."
+
+      - name: Upload production dependency audit
+        if: ${{ always() && hashFiles('ci-logs/npm-audit-production.json') != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-audit-production
+          path: |
+            ci-logs/npm-audit-production.json
+            ci-logs/npm-audit-production.exit-code
+          if-no-files-found: error
+          retention-days: 5
+
+      - name: Enforce production dependency audit policy
+        run: |
           node scripts/ci/checkNpmAudit.cjs \
             ci-logs/npm-audit-production.json \
             security/npm-audit-exceptions.json \
@@ -64,7 +80,7 @@ jobs:
           exit 0
 
       - name: Upload Jest coverage diagnostic log
-        if: always()
+        if: ${{ always() && hashFiles('jest-coverage.exit-code') != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: jest-coverage-log
@@ -92,12 +108,16 @@ jobs:
 
       - name: Expo config release gate
         shell: bash
+        env:
+          EAS_BUILD_PROFILE: production
         run: |
           set -euo pipefail
           npx --no-install expo config --json > expo-config.json
           node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
 
       - name: Generated Android manifest permission gate
+        env:
+          EAS_BUILD_PROFILE: production
         run: npm run check:android-permissions
 
       - name: Select JDK 17 for Android Kotlin compile
@@ -113,6 +133,8 @@ jobs:
 
       - name: Generate Android project for native checks
         shell: bash
+        env:
+          EAS_BUILD_PROFILE: production
         run: |
           set -euo pipefail
           echo "No APK/AAB/EAS build is performed in this workflow."
@@ -133,7 +155,7 @@ jobs:
           exit 0
 
       - name: Upload native Gradle diagnostic log and JUnit reports
-        if: always()
+        if: ${{ always() && hashFiles('native-gradle.exit-code') != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-gradle-log
