@@ -65,6 +65,9 @@ jobs:
             security/npm-audit-exceptions.json \
             package-lock.json
 
+      - name: Source NUL-byte gate
+        run: npm run check:source-nul
+
       - name: Typecheck
         run: npm run typecheck
 
