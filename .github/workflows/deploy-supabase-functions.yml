@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: supabase-triggered-eas-build-${{ github.event.inputs.job_id }}
+  # Serialize this legacy service-role bridge instead of interpolating untrusted input.
+  group: supabase-triggered-eas-build-legacy
   cancel-in-progress: false
 
 jobs:
@@ -35,11 +36,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "$JOB_ID" ]; then
-            echo "::error::Job ID fehlt!"
+          UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          if [[ ! "${JOB_ID:-}" =~ ${UUID_RE} ]]; then
+            echo "::error::job_id must be a canonical UUID."
             exit 1
           fi
-          echo "✓ Job ID: $JOB_ID"
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required."
+            exit 1
+          fi
+          # A canonical UUID contains only URL-safe characters; keep a separate env name so
+          # every PostgREST call uses the validated value rather than raw input.
+          JOB_ID_ENCODED="$JOB_ID"
+          echo "JOB_ID_ENCODED=${JOB_ID_ENCODED}" >> "$GITHUB_ENV"
+          echo "✓ Validated Supabase build job UUID."
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -62,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -75,9 +85,15 @@ jobs:
           set -euo pipefail
           BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
           echo "$BUILD_OUTPUT"
-          BUILD_ID=$(echo "$BUILD_OUTPUT" | sed -nE 's/.*Build ID: ([a-f0-9-]+).*/\1/p' | head -n 1)
+          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+          BUILD_URL="$(echo "$BUILD_OUTPUT" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
+          BUILD_ID="$(echo "$BUILD_URL" | grep -oE "${UUID_RE}$" || true)"
           if [ -z "$BUILD_ID" ]; then
-            BUILD_ID="unknown"
+            BUILD_ID="$(echo "$BUILD_OUTPUT" | grep -oE "Build ID:[[:space:]]*${UUID_RE}" | grep -oE "${UUID_RE}" | head -n1 || true)"
+          fi
+          if [ -z "$BUILD_ID" ]; then
+            echo "::error::EAS accepted the build command but no build UUID could be extracted. Refusing to mark the job completed."
+            exit 1
           fi
           echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
 
@@ -86,7 +102,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -97,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
