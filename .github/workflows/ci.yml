@@ -34,6 +34,21 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Supply-chain audit gate
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p ci-logs
+          set +e
+          npm audit --omit=dev --json > ci-logs/npm-audit-production.json
+          audit_status=$?
+          set -e
+          echo "npm audit exited with $audit_status; policy evaluation uses the complete JSON report."
+          node scripts/ci/checkNpmAudit.cjs \
+            ci-logs/npm-audit-production.json \
+            security/npm-audit-exceptions.json \
+            package-lock.json
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -71,6 +86,9 @@ jobs:
 
       - name: Lint
         run: npm run lint:ci
+
+      - name: Code complexity regression gate
+        run: npm run check:complexity
 
       - name: Expo config release gate
         shell: bash
