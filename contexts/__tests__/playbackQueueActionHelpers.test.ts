@@ -430,6 +430,30 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[0]);
   });
 
+  test('runInsertSongQueueAction does not add to shuffled base queue when native add rejects without side effect', async () => {
+    const args = createQueueArgs();
+    const shuffledQueue = [songs[2], songs[0]];
+    const baseQueue = [songs[0], songs[2]];
+    const shuffleRef = { current: true };
+    args.queueContextRef.current = shuffledQueue.slice();
+    args.baseQueueContextRef.current = baseQueue.slice();
+    args.nativeQueueRef.current = shuffledQueue.slice();
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's3' });
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('add rejected'));
+    (TrackPlayer.getQueue as jest.Mock).mockResolvedValue(shuffledQueue);
+
+    await expect(runInsertSongQueueAction({
+      ...args, song: songs[1], currentSongId: 's3', position: 'next', shuffle: true, shuffleRef,
+    })).resolves.toBe(false);
+
+    expect(args.nativeQueueRef.current).toEqual(shuffledQueue);
+    expect(args.queueContextRef.current).toEqual(shuffledQueue);
+    expect(args.baseQueueContextRef.current).toEqual(baseQueue);
+    expect(args.baseQueueContextRef.current).not.toContainEqual(songs[1]);
+    expect(shuffleRef.current).toBe(true);
+    expect(args.setShuffle).toHaveBeenCalledWith(true);
+  });
+
   test('runs shuffle queue action and rebuilds native queue', async () => {
     const args = createQueueArgs();
     args.queueContextRef.current = songs.slice();
@@ -633,7 +657,7 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.baseQueueContextRef.current).toEqual(songs);
     expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[2]]);
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);
-    expect(setShuffle).toHaveBeenCalledWith(true);
+    expect(setShuffle).toHaveBeenCalledWith(false);
   });
 
   test('runShuffleQueueAction leaves UI state unchanged when native rebuild fails', async () => {
@@ -651,7 +675,7 @@ describe('playbackQueueActionHelpers', () => {
       setShuffle,
     });
 
-    expect(setShuffle).toHaveBeenCalledWith(true);
+    expect(setShuffle).toHaveBeenCalledWith(false);
     expect(args.setPlaybackQueue).toHaveBeenCalledWith([songs[2]]);
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);
     expect(args.queueContextRef.current).toEqual([songs[2]]);

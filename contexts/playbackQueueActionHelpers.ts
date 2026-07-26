@@ -93,12 +93,25 @@ interface ReconcileNativeQueueArgs extends Pick<PlaybackQueueActionRefs,
   baseQueue?: Song[];
 }
 
-export type NativeQueueRecoveryResult = {
-  status: 'reconciled';
-  queue: Song[];
-  activeSong: Song | null;
-  persistenceError?: unknown;
-};
+export type NativeQueueRecoveryResult =
+  | { status: 'reconciled'; queue: Song[]; activeSong: Song | null; persistenceError?: unknown }
+  | { status: 'rolled-back'; queue: Song[]; activeSong: Song | null; persistenceError?: unknown }
+  | {
+    status: 'failed';
+    originalError: unknown;
+    readbackError?: unknown;
+    rollbackError?: unknown;
+    finalReadbackError?: unknown;
+  };
+
+const hasSameSongIdSet = (left: Song[], right: Song[]): boolean =>
+  left.length === right.length
+  && new Set(left.map(song => normalizeSongId(song.id))).size === left.length
+  && left.every(song => right.some(item => normalizeSongId(item.id) === normalizeSongId(song.id)));
+
+const deriveShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
+  hasSameSongIdSet(queue, baseQueue)
+  && queue.some((song, index) => normalizeSongId(song.id) !== normalizeSongId(baseQueue[index]?.id));
 
 export const reconcilePlaybackQueueFromNative = async ({
   knownSongs,
@@ -108,7 +121,7 @@ export const reconcilePlaybackQueueFromNative = async ({
   setPlaybackQueue,
   setCurrentSong,
   baseQueue,
-}: ReconcileNativeQueueArgs): Promise<NativeQueueRecoveryResult> => {
+}: ReconcileNativeQueueArgs): Promise<Extract<NativeQueueRecoveryResult, { status: 'reconciled' }>> => {
   const [nativeTracks, activeTrack] = await Promise.all([
     TrackPlayer.getQueue(),
     TrackPlayer.getActiveTrack(),
@@ -318,17 +331,20 @@ const recoverInsertQueueFailure = async (
   error: unknown,
 ): Promise<'failed'> => {
   const { song, shuffle, shuffleRef, setShuffle } = args;
-  const semanticBaseQueue = (shuffleRef?.current ?? shuffle)
-    ? buildQueueWithInsertedSong({ queue: previousBaseQueue, song, insertIndex: previousBaseQueue.length }).queue
-    : undefined;
   const recovery = await reconcilePlaybackQueueFromNative({
     knownSongs,
-    baseQueue: semanticBaseQueue,
     ...args,
   });
-  const nativeIsShuffled = semanticBaseQueue
-    ? recovery.queue.some((item, index) => item.id !== semanticBaseQueue[index]?.id)
-    : false;
+  const insertedNatively = recovery.queue.some(item => normalizeSongId(item.id) === normalizeSongId(song.id));
+  const previousBaseStillKnown = previousBaseQueue.filter(baseSong =>
+    recovery.queue.some(item => normalizeSongId(item.id) === normalizeSongId(baseSong.id)));
+  const semanticBaseQueue = (shuffleRef?.current ?? shuffle)
+    ? (insertedNatively
+      ? buildQueueWithInsertedSong({ queue: previousBaseStillKnown, song, insertIndex: previousBaseStillKnown.length }).queue
+      : previousBaseStillKnown)
+    : recovery.queue;
+  args.baseQueueContextRef.current = semanticBaseQueue.slice();
+  const nativeIsShuffled = deriveShuffleState(recovery.queue, semanticBaseQueue);
   if (shuffleRef) shuffleRef.current = nativeIsShuffled;
   setShuffle(nativeIsShuffled);
   console.warn('[PlaybackQueue] Insert failed; reconciled to native state.', error);
@@ -345,7 +361,7 @@ const recoverShuffleQueueFailure = async (
     baseQueue: previousBaseQueue,
     ...args,
   });
-  const nativeIsShuffled = recovery.queue.some((song, index) => song.id !== previousBaseQueue[index]?.id);
+  const nativeIsShuffled = deriveShuffleState(recovery.queue, previousBaseQueue);
   if (args.shuffleRef) args.shuffleRef.current = nativeIsShuffled;
   args.setShuffle(nativeIsShuffled);
   console.warn('[PlaybackQueue] Failed to rebuild queue during shuffle toggle.', error);
