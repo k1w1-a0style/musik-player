@@ -28,6 +28,11 @@ const advisorySourcesFor = vulnerability => {
     .sort((left, right) => left - right);
 };
 
+const dependencyRootsFor = vulnerability => {
+  const via = Array.isArray(vulnerability?.via) ? vulnerability.via : [];
+  return [...new Set(via.filter(item => typeof item === 'string' && item))].sort();
+};
+
 const packageVersionsFromLock = (lock, packageName, vulnerability) => {
   const declaredNodes = Array.isArray(vulnerability?.nodes)
     ? vulnerability.nodes.filter(node => typeof node === 'string' && node)
@@ -86,15 +91,31 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
     }
   }
 
+  const blockingEntries = Object.entries(audit.vulnerabilities)
+    .filter(([, vulnerability]) => isBlocking(vulnerability?.severity));
+  const blockingRoots = new Set(
+    blockingEntries
+      .filter(([, vulnerability]) => advisorySourcesFor(vulnerability).length > 0)
+      .map(([packageName]) => packageName),
+  );
+
   const usedExceptions = new Set();
   let blockingRootCount = 0;
   let collapsedEffectCount = 0;
-  for (const [packageName, vulnerability] of Object.entries(audit.vulnerabilities)) {
+  for (const [packageName, vulnerability] of blockingEntries) {
     const severity = vulnerability?.severity;
-    if (!isBlocking(severity)) continue;
-
     const advisorySources = advisorySourcesFor(vulnerability);
     if (advisorySources.length === 0) {
+      const dependencyRoots = dependencyRootsFor(vulnerability);
+      if (dependencyRoots.length === 0) {
+        failures.push(`${packageName}: blocking vulnerability has no advisory source or dependency root`);
+        continue;
+      }
+      const unknownRoots = dependencyRoots.filter(root => !blockingRoots.has(root));
+      if (unknownRoots.length > 0) {
+        failures.push(`${packageName}: blocking effect references unknown advisory roots [${unknownRoots.join(', ')}]`);
+        continue;
+      }
       collapsedEffectCount += 1;
       continue;
     }
@@ -168,6 +189,7 @@ if (require.main === module) main();
 
 module.exports = {
   advisorySourcesFor,
+  dependencyRootsFor,
   evaluateAudit,
   packageVersionsFromLock,
   validateException,
