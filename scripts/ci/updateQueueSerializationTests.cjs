@@ -12,6 +12,57 @@ const replaceOnce = (oldText, newText, label) => {
 };
 
 replaceOnce(
+`  test('runPlaySongQueueAction builds its plan from the native ref inside the mutation chain', async () => {
+    const args = createQueueArgs();
+    args.nativeQueueRef.current = [];
+    let releaseBlocker: () => void = () => undefined;
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      await new Promise<void>(resolve => {
+        releaseBlocker = resolve;
+      });
+      args.nativeQueueRef.current = songs.slice();
+    });
+    await flushMicrotasks();
+
+    const playPromise = runPlaySongQueueAction({ ...args, song: songs[2], queue: songs });
+    releaseBlocker();
+    await Promise.all([blocker, playPromise]);
+
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect(args.nativeQueueRef.current).toEqual(songs);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);
+  });`,
+`  test('runPlaySongQueueAction builds its plan from the native ref inside the mutation chain', async () => {
+    const args = createQueueArgs();
+    args.nativeQueueRef.current = [];
+    let signalBlockerStarted: () => void = () => undefined;
+    const blockerStarted = new Promise<void>(resolve => {
+      signalBlockerStarted = resolve;
+    });
+    let releaseBlocker: () => void = () => undefined;
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      signalBlockerStarted();
+      await new Promise<void>(resolve => {
+        releaseBlocker = resolve;
+      });
+      args.nativeQueueRef.current = songs.slice();
+    });
+    await blockerStarted;
+
+    const playPromise = runPlaySongQueueAction({ ...args, song: songs[2], queue: songs });
+    releaseBlocker();
+    await Promise.all([blocker, playPromise]);
+
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect(args.nativeQueueRef.current).toEqual(songs);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);
+  });`,
+'play-song plan serialization timing test',
+);
+
+replaceOnce(
 `  test('runPlaySongQueueAction commits no stale UI state when superseded during native add', async () => {
     const args = createQueueArgs();
     let resolveAdd: () => void = () => undefined;
