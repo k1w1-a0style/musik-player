@@ -1,0 +1,224 @@
+name: Finalize verified deep-scan integration
+
+on:
+  push:
+    branches:
+      - fix/deep-scan-2026-07-25
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: finalize-deep-scan-integration-2026-07-25
+  cancel-in-progress: false
+
+env:
+  PR_NUMBER: '322'
+  EXPECTED_HEAD_SHA: 0570b980b1de109974e3445ab37c307c93d74c54
+  EXPECTED_CODEX_SHA: 496d0c713424ce9f21aa9f69f3a2b4b6c02e700e
+  PREMERGE_CI_RUN_ID: '30182350764'
+  PREMERGE_APK_RUN_ID: '30182350776'
+  PACKAGE_NAME: com.k1w1a0style.musikplayer
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Wait for exact pre-merge verification runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 100); do
+            ci_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREMERGE_CI_RUN_ID}" --jq '.status')
+            ci_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREMERGE_CI_RUN_ID}" --jq '.conclusion // ""')
+            apk_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREMERGE_APK_RUN_ID}" --jq '.status')
+            apk_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREMERGE_APK_RUN_ID}" --jq '.conclusion // ""')
+            echo "CI: ${ci_status}/${ci_conclusion}; APK: ${apk_status}/${apk_conclusion}"
+
+            if [ "$ci_status" = completed ] && [ "$ci_conclusion" != success ]; then
+              echo "::error::Pre-merge CI failed: ${ci_conclusion}"
+              exit 1
+            fi
+            if [ "$apk_status" = completed ] && [ "$apk_conclusion" != success ]; then
+              echo "::error::Pre-merge APK smoke failed: ${apk_conclusion}"
+              exit 1
+            fi
+            if [ "$ci_status" = completed ] && [ "$ci_conclusion" = success ] && \
+               [ "$apk_status" = completed ] && [ "$apk_conclusion" = success ]; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for pre-merge verification."
+          exit 1
+
+      - name: Independently inspect APK smoke artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/apk-evidence
+          mkdir -p /tmp/apk-evidence
+          gh run download "$PREMERGE_APK_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir /tmp/apk-evidence
+
+          apk=$(find /tmp/apk-evidence -type f -name '*.apk' -print -quit)
+          inspection=$(find /tmp/apk-evidence -type f -name 'android-release-apk-inspection.log' -print -quit)
+          install_log=$(find /tmp/apk-evidence -type f -name 'adb-install.log' -print -quit)
+          launch_log=$(find /tmp/apk-evidence -type f -name 'adb-launch.log' -print -quit)
+          process_log=$(find /tmp/apk-evidence -type f -name 'app-process.log' -print -quit)
+          logcat=$(find /tmp/apk-evidence -type f -name 'logcat.txt' -print -quit)
+
+          test -n "$apk" && test -s "$apk"
+          test -n "$inspection" && test -s "$inspection"
+          test -n "$install_log" && grep -Fx 'Success' "$install_log"
+          test -n "$launch_log" && grep -F 'Status: ok' "$launch_log"
+          grep -F "$PACKAGE_NAME" "$launch_log"
+          test -n "$process_log" && grep -Eq '^appPid=[0-9]+$' "$process_log"
+          grep -F "$PACKAGE_NAME" "$inspection"
+          if [ -n "$logcat" ] && grep -F "Process: ${PACKAGE_NAME}," "$logcat"; then
+            echo "::error::Crash signature found in emulator logcat."
+            exit 1
+          fi
+
+          sha256sum "$apk" | tee /tmp/apk-sha256.txt
+          stat --printf='apkSizeBytes=%s\n' "$apk" | tee /tmp/apk-size.txt
+
+      - name: Verify immutable PR and codex state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_json=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          merged_at=$(jq -r '.merged_at // ""' <<<"$pr_json")
+          if [ -n "$merged_at" ]; then
+            merge_sha=$(jq -r '.merge_commit_sha' <<<"$pr_json")
+            echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+            echo 'already_merged=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          test "$(jq -r '.state' <<<"$pr_json")" = open
+          test "$(jq -r '.draft' <<<"$pr_json")" = false
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+          test "$(jq -r '.head.ref' <<<"$pr_json")" = 'fix/deep-scan-final-2026-07-25'
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = codex
+          codex_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/codex" --jq '.object.sha')
+          test "$codex_sha" = "$EXPECTED_CODEX_SHA"
+          echo 'already_merged=false' >> "$GITHUB_OUTPUT"
+
+      - name: Record pre-merge evidence on PR
+        if: steps.state.outputs.already_merged == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_sha=$(cut -d' ' -f1 /tmp/apk-sha256.txt)
+          apk_size=$(cut -d= -f2 /tmp/apk-size.txt)
+          cat > /tmp/premerge-comment.md <<EOF
+          ## Finaler automatischer Integrationsnachweis
+
+          - Head unverändert: \`${EXPECTED_HEAD_SHA}\`
+          - Haupt-CI: Run \`${PREMERGE_CI_RUN_ID}\` vollständig grün
+          - Release-APK-/Emulator-Smoke: Run \`${PREMERGE_APK_RUN_ID}\` vollständig grün
+          - APK SHA-256: \`${apk_sha}\`
+          - APK-Größe: \`${apk_size}\` Byte
+          - Installation: \`Success\`
+          - Start: \`Status: ok\`
+          - App-Prozess vorhanden; keine Crash-Signatur im Start-Logcat
+          - Paket-/Signatur-/Permission-Prüfung wurde vom grünen APK-Inspect-Schritt erzwungen
+
+          Der Merge erfolgt nur mit exakt diesem Head und unverändertem \`codex\`-Ausgangs-SHA.
+          EOF
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file /tmp/premerge-comment.md
+
+      - name: Squash merge into codex
+        if: steps.state.outputs.already_merged == 'false'
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          merge_json=$(gh api --method PUT "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/merge" \
+            -f sha="$EXPECTED_HEAD_SHA" \
+            -f merge_method='squash' \
+            -f commit_title='fix: resolve deep-scan findings and harden Android release gates' \
+            -f commit_message='Integrate the reviewed deep-scan fixes, regression tests, supply-chain and permission gates, hardened EAS workflows, and verified Android release APK emulator smoke.')
+          test "$(jq -r '.merged' <<<"$merge_json")" = true
+          merge_sha=$(jq -r '.sha' <<<"$merge_json")
+          test -n "$merge_sha"
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve merge SHA
+        id: merged
+        shell: bash
+        run: |
+          set -euo pipefail
+          merge_sha='${{ steps.merge.outputs.merge_sha }}'
+          if [ -z "$merge_sha" ]; then
+            merge_sha='${{ steps.state.outputs.merge_sha }}'
+          fi
+          test -n "$merge_sha"
+          echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for post-merge codex CI and APK smoke
+        id: postmerge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merged.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ci_run=''
+          apk_run=''
+          for attempt in $(seq 1 120); do
+            runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${MERGE_SHA}&event=push&per_page=100")
+            ci_run=$(jq -r '[.workflow_runs[] | select(.name == "CI")][0].id // ""' <<<"$runs")
+            apk_run=$(jq -r '[.workflow_runs[] | select(.name == "Android release APK emulator smoke")][0].id // ""' <<<"$runs")
+
+            if [ -n "$ci_run" ] && [ -n "$apk_run" ]; then
+              ci_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ci_run}" --jq '.status')
+              ci_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ci_run}" --jq '.conclusion // ""')
+              apk_status=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${apk_run}" --jq '.status')
+              apk_conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${apk_run}" --jq '.conclusion // ""')
+              echo "Post-merge CI ${ci_run}: ${ci_status}/${ci_conclusion}; APK ${apk_run}: ${apk_status}/${apk_conclusion}"
+              if [ "$ci_status" = completed ] && [ "$ci_conclusion" != success ]; then exit 1; fi
+              if [ "$apk_status" = completed ] && [ "$apk_conclusion" != success ]; then exit 1; fi
+              if [ "$ci_status" = completed ] && [ "$ci_conclusion" = success ] && \
+                 [ "$apk_status" = completed ] && [ "$apk_conclusion" = success ]; then
+                echo "ci_run=$ci_run" >> "$GITHUB_OUTPUT"
+                echo "apk_run=$apk_run" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for post-merge codex verification."
+          exit 1
+
+      - name: Record completed codex verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merged.outputs.sha }}
+          CI_RUN: ${{ steps.postmerge.outputs.ci_run }}
+          APK_RUN: ${{ steps.postmerge.outputs.apk_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Merged as \`${MERGE_SHA}\`. Post-merge \`codex\` verification is green: CI run \`${CI_RUN}\`, Android release APK/emulator run \`${APK_RUN}\`."
+          {
+            echo "## Deep-scan integration complete"
+            echo "- Merge SHA: ${MERGE_SHA}"
+            echo "- Post-merge CI run: ${CI_RUN}"
+            echo "- Post-merge APK/emulator run: ${APK_RUN}"
+          } >> "$GITHUB_STEP_SUMMARY"
