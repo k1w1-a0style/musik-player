@@ -4,6 +4,7 @@ import { runMusicHydration } from '../musicHydrationHelpers';
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 
+const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
 const createSongRef = () => ({ current: [] as Song[] });
 
 const createRunMusicHydrationArgs = (isCancelled: () => boolean) => ({
@@ -27,6 +28,7 @@ const createRunMusicHydrationArgs = (isCancelled: () => boolean) => ({
 
 describe('music hydration failure fallback readiness', () => {
   beforeEach(async () => {
+    (TrackPlayer as unknown as { __reset: () => void }).__reset();
     await AsyncStorage.clear();
     jest.clearAllMocks();
   });
@@ -78,6 +80,36 @@ describe('music hydration failure fallback readiness', () => {
 
     expect(args.nativeQueueRef.current).toEqual([]);
     expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration:TrackPlayerError] Failed to apply serialized hydration fallback.',
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+  test('routes an unverified native hydration result through fallback and withholds readiness when fallback also fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await storage.set(StorageKeys.SONGS, songs);
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
+    const args = createRunMusicHydrationArgs(() => false);
+
+    (TrackPlayer.reset as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('rollback reset boom'))
+      .mockRejectedValueOnce(new Error('fallback reset boom'));
+    (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('add boom'));
+    (TrackPlayer.getQueue as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('initial readback boom'))
+      .mockRejectedValueOnce(new Error('final readback boom'));
+
+    await runMusicHydration(args);
+
+    expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[MusicHydration:TrackPlayerError] Native queue hydration did not produce a verified state.',
+      expect.any(Error),
+    );
     expect(warn).toHaveBeenCalledWith(
       '[MusicHydration:TrackPlayerError] Failed to apply serialized hydration fallback.',
       expect.any(Error),
