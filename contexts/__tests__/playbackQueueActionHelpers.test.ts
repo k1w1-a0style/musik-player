@@ -45,6 +45,7 @@ const createQueueArgs = () => ({
 
 describe('playbackQueueActionHelpers', () => {
   beforeEach(async () => {
+    (TrackPlayer as unknown as { __reset: () => void }).__reset();
     resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
     jest.clearAllMocks();
@@ -197,7 +198,7 @@ describe('playbackQueueActionHelpers', () => {
     releaseBlocker.resolve();
     await Promise.all([blocker, playPromise]);
 
-    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
     expect(args.nativeQueueRef.current).toEqual(songs);
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);

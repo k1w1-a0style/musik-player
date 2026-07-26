@@ -51,6 +51,7 @@ const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationHelpers', () => {
   beforeEach(async () => {
+    (TrackPlayer as unknown as { __reset: () => void }).__reset();
     resetSongCoverProtectionLifecycleForTests();
     resetNativeQueueMutationLockForTests();
     await AsyncStorage.clear();
@@ -219,7 +220,7 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(setCurrentSong).not.toHaveBeenCalled();
+    expect(setCurrentSong).toHaveBeenCalledWith(null);
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
     expect(nativeQueueRef.current).toEqual([]);
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
@@ -343,7 +344,7 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
     expect(nativeQueueRef.current).toEqual([{ id: 'stale', title: 'Stale', artist: 'A', uri: 'file:///stale.mp3' }]);
     expect(queueContextRef.current.map(song => song.id)).toEqual(['stale']);
     expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['stale']);
@@ -634,10 +635,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(nativeQueueRef.current).toEqual([]);
-    expect(queueContextRef.current.map(song => song.id)).toEqual(['old']);
-    expect(baseQueueContextRef.current.map(song => song.id)).toEqual(['old']);
-    expect(setPlaybackQueue).not.toHaveBeenCalled();
-    expect(setCurrentSong).not.toHaveBeenCalled();
+    expect(queueContextRef.current).toEqual([]);
+    expect(baseQueueContextRef.current).toEqual([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(setCurrentSong).toHaveBeenCalledWith(null);
     expect(warn).toHaveBeenCalledWith(
       '[PlaybackQueue] Failed to initialize hydrated native queue.',
       expect.any(Error),

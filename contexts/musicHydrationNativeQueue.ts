@@ -15,6 +15,27 @@ export interface ApplyHydratedNativeQueueArgs {
   isCancelled: () => boolean;
 }
 
+export type HydratedNativeQueueResult =
+  | { status: 'applied' | 'reconciled'; queue: Song[]; activeSong: Song | null; recoveryError?: unknown; persistenceError?: unknown }
+  | { status: 'failed'; queue: Song[]; activeSong: Song | null; recoveryError: unknown; readbackError?: unknown };
+
+const normalizedId = (value: unknown): string => String(value ?? '').trim();
+
+const readHydratedQueue = async (knownSongs: Song[]): Promise<{ queue: Song[]; activeSong: Song | null }> => {
+  const tracks = await TrackPlayer.getQueue();
+  const active = await TrackPlayer.getActiveTrack();
+  const queue = tracks.map(track => {
+    const song = knownSongs.find(item => normalizedId(item.id) === normalizedId(track.id));
+    if (!song) throw new Error(`Hydrated native queue contains unknown track "${String(track.id)}".`);
+    return song;
+  });
+  const activeSong = active
+    ? queue.find(song => normalizedId(song.id) === normalizedId(active.id)) ?? null
+    : queue[0] ?? null;
+  if (active && !activeSong) throw new Error(`Hydrated active track "${String(active.id)}" is unknown.`);
+  return { queue, activeSong };
+};
+
 export const clearNativeQueueAfterMalformedRestoredSong = async (
   nativeQueueRef: MutableRefObject<Song[]>,
 ): Promise<boolean> => {
@@ -35,23 +56,29 @@ export const applyHydratedNativeQueue = async ({
   plan,
   nativeQueueRef,
   isCancelled,
-}: ApplyHydratedNativeQueueArgs): Promise<boolean> => {
-  if (plan.nativeQueueAction === 'none' || plan.nativeQueueAction === 'clearMalformedCurrent') return true;
+}: ApplyHydratedNativeQueueArgs): Promise<HydratedNativeQueueResult> => {
+  if (plan.nativeQueueAction === 'none' || plan.nativeQueueAction === 'clearMalformedCurrent') {
+    return { status: 'applied', queue: nativeQueueRef.current.slice(), activeSong: plan.restoredSong ?? null };
+  }
 
   try {
-    const applied = await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+    return await runExclusiveNativeQueueReplacement(async ({ isCurrent }): Promise<HydratedNativeQueueResult> => {
       try {
-      if (isCancelled() || !isCurrent()) return false;
+      if (isCancelled() || !isCurrent()) {
+        return { status: 'failed', queue: nativeQueueRef.current.slice(), activeSong: null,
+          recoveryError: new Error('Hydration was cancelled before native mutation.') };
+      }
       await TrackPlayer.reset();
       nativeQueueRef.current = [];
 
       if (isCancelled() || !isCurrent()) {
-        return false;
+        return { status: 'failed', queue: [], activeSong: null,
+          recoveryError: new Error('Hydration was cancelled after reset.') };
       }
 
       if (plan.playableQueue.length === 0) {
         logEmptyPlayableQueueHydration(plan);
-        return true;
+        return { status: 'applied', queue: [], activeSong: null };
       }
 
       await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
@@ -59,24 +86,26 @@ export const applyHydratedNativeQueue = async ({
       // immediately describe the native queue even if this hydration became
       // obsolete while the bridge call was in flight.
       nativeQueueRef.current = plan.playableQueue.slice();
-      if (isCancelled() || !isCurrent()) return false;
-      return true;
+      const activeSong = plan.restoredSong
+        ?? plan.playableQueue[0]
+        ?? null;
+      return { status: 'applied', queue: plan.playableQueue.slice(), activeSong };
       } catch (error) {
-        const nativeTracks = await TrackPlayer.getQueue();
-        const recoveredQueue = nativeTracks.flatMap(track => {
-          const song = plan.playableQueue.find(item => String(item.id) === String(track.id));
-          return song ? [song] : [];
-        });
-        if (recoveredQueue.length !== nativeTracks.length) throw error;
-        nativeQueueRef.current = recoveredQueue;
-        console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
-        return false;
+        try {
+          const recovered = await readHydratedQueue([...plan.playableQueue, ...nativeQueueRef.current]);
+          nativeQueueRef.current = recovered.queue.slice();
+          console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
+          return { status: 'reconciled', ...recovered, recoveryError: error };
+        } catch (readbackError) {
+          console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
+          return { status: 'failed', queue: nativeQueueRef.current.slice(), activeSong: null,
+            recoveryError: error, readbackError };
+        }
       }
     });
-    return applied;
   } catch (error) {
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
-    return false;
+    return { status: 'failed', queue: nativeQueueRef.current.slice(), activeSong: null, recoveryError: error };
   }
 };
 

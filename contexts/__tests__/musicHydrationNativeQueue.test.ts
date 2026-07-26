@@ -20,6 +20,7 @@ const createSongRef = () => ({ current: [] as Song[] });
 
 describe('musicHydrationNativeQueue', () => {
   beforeEach(() => {
+    (TrackPlayer as unknown as { __reset: () => void }).__reset();
     jest.clearAllMocks();
     resetNativeQueueMutationLockForTests();
   });
@@ -71,7 +72,7 @@ describe('musicHydrationNativeQueue', () => {
       });
     });
 
-    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toEqual(expect.objectContaining({ status: 'applied' }));
     await newerReplacement;
 
     expect(nativeQueueRef.current).toEqual(songs);
@@ -84,7 +85,7 @@ describe('musicHydrationNativeQueue', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
 
-    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toEqual(expect.objectContaining({ status: 'applied' }));
 
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
     expect(TrackPlayer.add).not.toHaveBeenCalled();
@@ -118,7 +119,7 @@ describe('musicHydrationNativeQueue', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const info = jest.spyOn(console, 'info').mockImplementation(() => undefined);
 
-    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toBe(true);
+    await expect(applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled: () => false })).resolves.toEqual(expect.objectContaining({ status: 'applied' }));
 
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
     expect(TrackPlayer.add).not.toHaveBeenCalled();

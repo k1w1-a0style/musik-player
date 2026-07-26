@@ -26,6 +26,7 @@ const createArgs = () => ({
 
 describe('runReorderQueueAction', () => {
   beforeEach(() => {
+    (TrackPlayer as unknown as { __reset: () => void }).__reset();
     resetNativeQueueMutationLockForTests();
     jest.clearAllMocks();
     (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's1' });
@@ -87,10 +88,10 @@ describe('runReorderQueueAction', () => {
       setShuffle: args.setShuffle,
     })).resolves.toBe(false);
 
-    expect(args.queueContextRef.current).toEqual([]);
-    expect(args.baseQueueContextRef.current).toEqual([]);
-    expect(args.setPlaybackQueue).toHaveBeenCalledWith([]);
-    expect(args.setCurrentSong).toHaveBeenCalledWith(null);
+    expect(args.queueContextRef.current).toEqual(songs);
+    expect(args.baseQueueContextRef.current).toEqual(songs);
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
     expect(args.setShuffle).not.toHaveBeenCalled();
     expect(args.nativeQueueRef.current).toEqual([]);
   });

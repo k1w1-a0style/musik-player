@@ -13,6 +13,17 @@ import {
   type NativeQueueReplacementContext,
   runExclusiveNativeQueueReplacement,
 } from '../utils/nativeQueueMutationLock';
+import {
+  commitNativeQueueTruth,
+  createNativeQueueMutationSnapshot,
+  deriveRecoveredShuffleState,
+  readNativeQueueTruth,
+  recoverNativeQueueMutation,
+  type NativeQueueMutationSnapshot,
+  type NativeQueueRecoveryResult,
+} from './nativeQueueRecovery';
+
+export type { NativeQueueMutationSnapshot, NativeQueueRecoveryResult } from './nativeQueueRecovery';
 
 interface ApplyPlaybackQueueStateArgs {
   queueContextRef: MutableRefObject<Song[]>;
@@ -93,25 +104,8 @@ interface ReconcileNativeQueueArgs extends Pick<PlaybackQueueActionRefs,
   baseQueue?: Song[];
 }
 
-export type NativeQueueRecoveryResult =
-  | { status: 'reconciled'; queue: Song[]; activeSong: Song | null; persistenceError?: unknown }
-  | { status: 'rolled-back'; queue: Song[]; activeSong: Song | null; persistenceError?: unknown }
-  | {
-    status: 'failed';
-    originalError: unknown;
-    readbackError?: unknown;
-    rollbackError?: unknown;
-    finalReadbackError?: unknown;
-  };
-
-const hasSameSongIdSet = (left: Song[], right: Song[]): boolean =>
-  left.length === right.length
-  && new Set(left.map(song => normalizeSongId(song.id))).size === left.length
-  && left.every(song => right.some(item => normalizeSongId(item.id) === normalizeSongId(song.id)));
-
 const deriveShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
-  hasSameSongIdSet(queue, baseQueue)
-  && queue.some((song, index) => normalizeSongId(song.id) !== normalizeSongId(baseQueue[index]?.id));
+  deriveRecoveredShuffleState(queue, baseQueue);
 
 export const reconcilePlaybackQueueFromNative = async ({
   knownSongs,
@@ -122,40 +116,15 @@ export const reconcilePlaybackQueueFromNative = async ({
   setCurrentSong,
   baseQueue,
 }: ReconcileNativeQueueArgs): Promise<Extract<NativeQueueRecoveryResult, { status: 'reconciled' }>> => {
-  const [nativeTracks, activeTrack] = await Promise.all([
-    TrackPlayer.getQueue(),
-    TrackPlayer.getActiveTrack(),
-  ]);
   const candidates = [...knownSongs, ...nativeQueueRef.current, ...queueContextRef.current];
-  const reconciledQueue = nativeTracks.flatMap(track => {
-    const song = findSongByNormalizedId(candidates, String(track.id));
-    return song ? [song] : [];
+  const readback = await readNativeQueueTruth(candidates);
+  const committed = await commitNativeQueueTruth({
+    readback,
+    preferredBaseQueue: baseQueue ?? readback.queue,
+    librarySongs: knownSongs,
+    targets: { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong },
   });
-  if (reconciledQueue.length !== nativeTracks.length) {
-    throw new Error('Native queue readback contained unknown tracks.');
-  }
-  const selectedSong = findSongByNormalizedId(reconciledQueue, activeTrack?.id?.toString())
-    ?? reconciledQueue[0];
-  nativeQueueRef.current = reconciledQueue.slice();
-  applyPlaybackQueueState({
-    queueContextRef,
-    baseQueueContextRef,
-    setPlaybackQueue,
-    setCurrentSong,
-    orderedQueue: reconciledQueue,
-    baseQueue: baseQueue ?? reconciledQueue,
-    selectedSong,
-  });
-  if (!selectedSong) setCurrentSong(null);
-  let persistenceError: unknown;
-  try {
-    if (selectedSong) await persistRequestedSongId(selectedSong, knownSongs);
-    else await storage.remove(StorageKeys.CURRENT_SONG_ID);
-  } catch (error) {
-    persistenceError = error;
-    console.warn('[PlaybackQueue] Queue reconciled but current-song persistence failed.', error);
-  }
-  return { status: 'reconciled', queue: reconciledQueue, activeSong: selectedSong ?? null, persistenceError };
+  return { status: 'reconciled', ...committed };
 };
 
 const buildQueueWithInsertedSong = ({
@@ -201,16 +170,19 @@ export const persistRequestedSongId = async (
 ): Promise<void> => {
   const requestedSongId = normalizeSongId(requestedSong.id);
   if (!requestedSongId) {
-    await storage.remove(StorageKeys.CURRENT_SONG_ID);
+    const removed = await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
+    if (removed === false) throw new Error('Current-song removal was not confirmed.');
     return;
   }
 
   const isLibrarySong = librarySongs.some(item => normalizeSongId(item.id) === requestedSongId);
   if (isLibrarySong) {
-    await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSongId);
+    const stored = await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSongId);
+    if (!stored) throw new Error('Current-song persistence was not confirmed.');
     return;
   }
-  await storage.remove(StorageKeys.CURRENT_SONG_ID);
+  const removed = await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
+  if (removed === false) throw new Error('Current-song removal was not confirmed.');
 };
 
 export const applyPlaybackQueueState = ({
@@ -328,13 +300,16 @@ const recoverInsertQueueFailure = async (
   args: RunInsertSongQueueActionArgs,
   knownSongs: Song[],
   previousBaseQueue: Song[],
+  snapshot: NativeQueueMutationSnapshot,
   error: unknown,
 ): Promise<'failed'> => {
   const { song, shuffle, shuffleRef, setShuffle } = args;
-  const recovery = await reconcilePlaybackQueueFromNative({
-    knownSongs,
-    ...args,
-  });
+  const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
+    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue });
+  if (recovery.status === 'failed') {
+    console.warn('[PlaybackQueue] Insert recovery failed.', recovery);
+    return 'failed';
+  }
   const insertedNatively = recovery.queue.some(item => normalizeSongId(item.id) === normalizeSongId(song.id));
   const previousBaseStillKnown = previousBaseQueue.filter(baseSong =>
     recovery.queue.some(item => normalizeSongId(item.id) === normalizeSongId(baseSong.id)));
@@ -354,13 +329,16 @@ const recoverInsertQueueFailure = async (
 const recoverShuffleQueueFailure = async (
   args: RunShuffleQueueActionArgs,
   previousBaseQueue: Song[],
+  snapshot: NativeQueueMutationSnapshot,
   error: unknown,
 ): Promise<'failed'> => {
-  const recovery = await reconcilePlaybackQueueFromNative({
-    knownSongs: [...args.songsRef.current, ...args.queueContextRef.current],
-    baseQueue: previousBaseQueue,
-    ...args,
-  });
+  const knownSongs = [...args.songsRef.current, ...args.queueContextRef.current, ...snapshot.nativeQueue];
+  const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
+    librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue });
+  if (recovery.status === 'failed') {
+    console.warn('[PlaybackQueue] Shuffle recovery failed.', recovery);
+    return 'failed';
+  }
   const nativeIsShuffled = deriveShuffleState(recovery.queue, previousBaseQueue);
   if (args.shuffleRef) args.shuffleRef.current = nativeIsShuffled;
   args.setShuffle(nativeIsShuffled);
@@ -386,14 +364,20 @@ export const runPlaySongQueueAction = async ({
       console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
       return;
     }
+    const knownSongs = [...songsRef.current, ...sourceQueue, ...nativeQueueRef.current];
+    const targets = { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong };
+    const snapshot = await createNativeQueueMutationSnapshot({
+      knownSongs,
+      currentSong: findSongByNormalizedId(queueContextRef.current, plan.requestedSong.id) ?? null,
+      shuffleEnabled: false,
+      targets,
+    });
     let orderedQueue: Song[] | undefined;
     try {
       orderedQueue = await executePlaySongPlan(plan, nativeQueueRef, context);
     } catch (error) {
-      await reconcilePlaybackQueueFromNative({
-        knownSongs: [...songsRef.current, ...sourceQueue],
-        queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong,
-      });
+      await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
+        librarySongs: songsRef.current, targets });
       throw error;
     }
     if (!orderedQueue) return;
@@ -446,6 +430,12 @@ export const runInsertSongQueueAction = async ({
     const plan = buildQueueWithInsertedSong({ queue: nativeQueue, song, insertIndex: nativeInsertIndex });
     if (!plan.changed) return 'noop';
     const previousBaseQueue = baseQueueContextRef.current.slice();
+    const snapshot = await createNativeQueueMutationSnapshot({
+      knownSongs: [...songsRef.current, ...activeQueue, ...nativeQueue, song],
+      currentSong: selectedSong ?? null,
+      shuffleEnabled: shuffleRef?.current ?? shuffle,
+      targets: actionArgs,
+    });
 
     try {
       await TrackPlayer.add(toTrackPlayerTrack(song), plan.insertIndex);
@@ -467,7 +457,7 @@ export const runInsertSongQueueAction = async ({
       }
       return 'applied';
     } catch (error) {
-      return recoverInsertQueueFailure(actionArgs, [...activeQueue, ...nativeQueue, song], previousBaseQueue, error);
+      return recoverInsertQueueFailure(actionArgs, [...activeQueue, ...nativeQueue, song], previousBaseQueue, snapshot, error);
     }
   }).catch(error => {
     console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
@@ -507,6 +497,14 @@ export const runReorderQueueAction = async ({
     const previousShuffle = shuffleRef?.current ?? shuffle;
     const progress = await TrackPlayer.getProgress();
     if (!isCurrent()) return 'stale';
+    const targets = { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue,
+      setCurrentSong, shuffleRef, setShuffle };
+    const snapshot = await createNativeQueueMutationSnapshot({
+      knownSongs: [...songsRef.current, ...currentQueue, ...nativeQueueRef.current],
+      currentSong: findSongByNormalizedId(currentQueue, activeSongId) ?? null,
+      shuffleEnabled: previousShuffle,
+      targets,
+    });
 
     try {
       const rebuilt = await rebuildNativePlaybackQueueUnlocked(
@@ -533,10 +531,10 @@ export const runReorderQueueAction = async ({
       }
       return 'applied';
     } catch (error) {
-      await reconcilePlaybackQueueFromNative({
-        knownSongs: [...songsRef.current, ...plan.queue],
-        queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong,
-      });
+      const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot,
+        knownSongs: [...songsRef.current, ...plan.queue, ...snapshot.nativeQueue],
+        librarySongs: songsRef.current, targets, preferredBaseQueue: snapshot.baseQueue });
+      if (recovery.status === 'failed') console.warn('[PlaybackQueue] Reorder recovery failed.', recovery);
       console.warn('[PlaybackQueue] Reorder failed; reconciled to native state.', error);
       return 'failed';
     }
@@ -566,11 +564,10 @@ export const runShuffleQueueAction = async ({
     const { isCurrent } = context;
     if (!isCurrent()) return 'stale';
     const previousBaseQueue = baseQueueContextRef.current.slice();
-
+    let mutationSnapshot: NativeQueueMutationSnapshot | undefined;
     try {
     const current = await TrackPlayer.getActiveTrack();
     if (!isCurrent()) return 'stale';
-
     const currentQueue = getCurrentQueueSnapshot(queueContextRef.current, songsRef.current);
     const currentBaseQueue = baseQueueContextRef.current.slice();
     const shuffleEnabled = shuffleRef?.current ?? shuffle;
@@ -585,12 +582,17 @@ export const runShuffleQueueAction = async ({
       console.warn('[PlaybackQueue] Shuffle queue plan is empty; skipping toggle.');
       return 'failed';
     }
-
     const pos = await TrackPlayer.getProgress();
     if (!isCurrent()) return 'stale';
-
     const { nextQueue, nextBaseQueue, selectedSong } = plan;
-    const selectedIndex = selectedSong ? nextQueue.findIndex(song => normalizeSongId(song.id) === normalizeSongId(selectedSong.id)) : 0;
+    mutationSnapshot = await createNativeQueueMutationSnapshot({
+      knownSongs: [...songsRef.current, ...currentQueue, ...nativeQueueRef.current],
+      currentSong: selectedSong ?? null,
+      shuffleEnabled,
+      targets: actionArgs,
+    });
+    const selectedIndex = selectedSong
+      ? nextQueue.findIndex(song => normalizeSongId(song.id) === normalizeSongId(selectedSong.id)) : 0;
     const rebuilt = await rebuildNativePlaybackQueueUnlocked(
       nextQueue,
       nativeQueueRef,
@@ -599,7 +601,6 @@ export const runShuffleQueueAction = async ({
       selectedIndex,
     );
     if (!rebuilt || !isCurrent()) return 'stale';
-
     applyPlaybackQueueState({
       queueContextRef,
       baseQueueContextRef,
@@ -610,13 +611,13 @@ export const runShuffleQueueAction = async ({
       selectedSong,
     });
     if (!isCurrent()) return 'stale';
-
     const nextShuffle = !shuffleEnabled;
     if (shuffleRef) shuffleRef.current = nextShuffle;
     setShuffle(nextShuffle);
     return 'applied';
     } catch (error) {
-      return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, error);
+      if (!mutationSnapshot) throw error;
+      return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, error);
     }
   }).catch(error => {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', error);
