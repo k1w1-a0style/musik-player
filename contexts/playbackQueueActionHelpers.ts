@@ -170,9 +170,10 @@ export const rebuildNativePlaybackQueueUnlocked = async (
   await TrackPlayer.reset();
   nativeQueueRef.current = [];
   if (!isCurrent()) return false;
-
   if (queue.length > 0) {
     await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    // Publish native truth immediately after the non-cancellable bridge call.
+    nativeQueueRef.current = queue.slice();
     if (!isCurrent()) return false;
   }
 
@@ -192,7 +193,6 @@ export const rebuildNativePlaybackQueueUnlocked = async (
     if (!isCurrent()) return false;
   }
 
-  nativeQueueRef.current = queue.length > 0 ? queue.slice() : [];
   return true;
 };
 
@@ -288,7 +288,6 @@ export const runPlaySongQueueAction = async ({
   });
 };
 
-
 export const runInsertSongQueueAction = async ({
   song,
   currentSongId,
@@ -324,8 +323,8 @@ export const runInsertSongQueueAction = async ({
 
     try {
       await TrackPlayer.add(toTrackPlayerTrack(song), plan.insertIndex);
-      if (!isCurrent()) return 'stale';
       nativeQueueRef.current = plan.queue.slice();
+      if (!isCurrent()) return 'stale';
       applyPlaybackQueueState({
         queueContextRef,
         baseQueueContextRef,

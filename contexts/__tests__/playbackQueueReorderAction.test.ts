@@ -98,8 +98,13 @@ describe('runReorderQueueAction', () => {
   test('finishes an active reorder before a newer replacement observes queue state', async () => {
     const args = createArgs();
     let resolveAdd: () => void = () => undefined;
+    let signalAddStarted: () => void = () => undefined;
+    const addStarted = new Promise<void>(resolve => {
+      signalAddStarted = resolve;
+    });
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
       resolveAdd = resolve;
+      signalAddStarted();
     }));
 
     const reorderPromise = runReorderQueueAction({
@@ -110,9 +115,7 @@ describe('runReorderQueueAction', () => {
       shuffle: false,
       setShuffle: args.setShuffle,
     });
-    for (let attempt = 0; attempt < 20 && !(TrackPlayer.add as jest.Mock).mock.calls.length; attempt += 1) {
-      await Promise.resolve();
-    }
+    await addStarted;
     expect(TrackPlayer.add).toHaveBeenCalled();
 
     let newerReplacementObservedConsistentState = false;
