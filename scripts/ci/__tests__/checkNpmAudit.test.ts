@@ -64,21 +64,28 @@ describe('npm audit policy gate', () => {
     expect(result.failures).toEqual([]);
   });
 
-  it('collapses an effect only when it points to a known blocking advisory root', () => {
+  it('collapses a multi-hop blocking effect chain that reaches a known advisory root', () => {
     const result = evaluateAudit({
       audit: audit({
         'brace-expansion': braceExpansion,
         minimatch: { severity: 'high', via: ['brace-expansion'], nodes: ['node_modules/minimatch'] },
+        glob: { severity: 'high', via: ['minimatch'], nodes: ['node_modules/glob'] },
+        expo: { severity: 'high', via: ['glob', 'tar'], nodes: ['node_modules/expo'] },
+        tar: {
+          severity: 'moderate',
+          via: [{ source: 1124000, name: 'tar', severity: 'moderate' }],
+          nodes: ['node_modules/tar'],
+        },
       }),
       policy,
       lock: vulnerableLock(),
       today: '2026-07-26',
     });
     expect(result.failures).toEqual([]);
-    expect(result.warnings.join('\n')).toContain('collapsed transitive effect entries: 1');
+    expect(result.warnings.join('\n')).toContain('collapsed transitive effect entries: 3');
   });
 
-  it('fails a blocking effect that points to an unknown advisory root', () => {
+  it('fails a blocking effect that has no path to a known blocking advisory root', () => {
     const result = evaluateAudit({
       audit: audit({
         minimatch: { severity: 'high', via: ['missing-root'], nodes: ['node_modules/minimatch'] },
@@ -88,8 +95,24 @@ describe('npm audit policy gate', () => {
       today: '2026-07-26',
     });
     expect(result.failures).toContain(
-      'minimatch: blocking effect references unknown advisory roots [missing-root]',
+      'minimatch: blocking effect has no path to a known blocking advisory root [missing-root]',
     );
+  });
+
+  it('fails a cyclic blocking effect graph without an advisory root', () => {
+    const result = evaluateAudit({
+      audit: audit({
+        alpha: { severity: 'high', via: ['beta'], nodes: ['node_modules/alpha'] },
+        beta: { severity: 'high', via: ['alpha'], nodes: ['node_modules/beta'] },
+      }),
+      policy: { schemaVersion: 1, exceptions: [] },
+      lock: lock(),
+      today: '2026-07-26',
+    });
+    expect(result.failures).toEqual(expect.arrayContaining([
+      'alpha: blocking effect has no path to a known blocking advisory root [beta]',
+      'beta: blocking effect has no path to a known blocking advisory root [alpha]',
+    ]));
   });
 
   it('fails a blocking entry without an advisory source or dependency root', () => {
