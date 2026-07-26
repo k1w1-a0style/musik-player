@@ -1,4 +1,4 @@
-name: Publish hardened EAS workflow
+name: Publish compact EAS workflow scripts
 
 on:
   push:
@@ -14,16 +14,17 @@ permissions:
   contents: write
 
 concurrency:
-  group: deep-scan-eas-workflow-handoff-2026-07-25
+  group: deep-scan-eas-scripts-handoff-2026-07-25
   cancel-in-progress: false
 
 env:
   FINAL_BASE_SHA: 91058d2e41dec8da910a1fff1d1334e83a767abf
   FINAL_BASE_BRANCH: fix/deep-scan-final-2026-07-25
-  TARGET_BRANCH: fix/deep-scan-eas-workflow-2026-07-25
-  EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
-  EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
-  EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
+  TARGET_BRANCH: fix/deep-scan-eas-scripts-2026-07-25
+  EXPECTED_B64_SHA256: f676b3e7a0985f9f6b04ff079d93037fdfac49abeee16645bdfe021a96f4eb41
+  EXPECTED_TAR_SHA256: c425e5a11d71c04729af89b70e6431cfee666387e484066c96daa4faafc35d39
+  EXPECTED_AUTOFIX_SHA256: 8ff2f1a58acbfec5ad58c7f3477dc9ebcf9d30f8dad64865086547ba11c39f9b
+  EXPECTED_BUILD_SHA256: 415ad6c9d5f5083cdd84fecabd551a2cb730896bf9b3939e9d3d594b9cc7e96f
   TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
@@ -38,7 +39,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Verify and reconstruct source patch
+      - name: Verify compact script archive
         shell: bash
         run: |
           set -euo pipefail
@@ -47,14 +48,18 @@ jobs:
             echo "Target branch already exists: $TARGET_BRANCH" >&2
             exit 1
           fi
-          cat .github/deep-scan-fix.v2.patch.gz.b64.part-* > /tmp/deep-scan-fix.patch.gz.b64
-          echo "$EXPECTED_B64_SHA256  /tmp/deep-scan-fix.patch.gz.b64" | sha256sum --check --strict
-          base64 --decode /tmp/deep-scan-fix.patch.gz.b64 > /tmp/deep-scan-fix.patch.gz
-          echo "$EXPECTED_GZIP_SHA256  /tmp/deep-scan-fix.patch.gz" | sha256sum --check --strict
-          gzip --decompress --stdout /tmp/deep-scan-fix.patch.gz > /tmp/deep-scan-fix.patch
-          echo "$EXPECTED_PATCH_SHA256  /tmp/deep-scan-fix.patch" | sha256sum --check --strict
+          cp .github/eas-compact-scripts.tar.gz.b64 /tmp/eas-compact-scripts.tar.gz.b64
+          echo "$EXPECTED_B64_SHA256  /tmp/eas-compact-scripts.tar.gz.b64" | sha256sum --check --strict
+          base64 --decode /tmp/eas-compact-scripts.tar.gz.b64 > /tmp/eas-compact-scripts.tar.gz
+          echo "$EXPECTED_TAR_SHA256  /tmp/eas-compact-scripts.tar.gz" | sha256sum --check --strict
+          mkdir -p /tmp/eas-compact-scripts
+          tar -xzf /tmp/eas-compact-scripts.tar.gz -C /tmp/eas-compact-scripts
+          echo "$EXPECTED_AUTOFIX_SHA256  /tmp/eas-compact-scripts/scripts/ci/easWorkflowAutofix.sh" | sha256sum --check --strict
+          echo "$EXPECTED_BUILD_SHA256  /tmp/eas-compact-scripts/scripts/ci/easWorkflowBuild.sh" | sha256sum --check --strict
+          bash -n /tmp/eas-compact-scripts/scripts/ci/easWorkflowAutofix.sh
+          bash -n /tmp/eas-compact-scripts/scripts/ci/easWorkflowBuild.sh
 
-      - name: Apply only the reusable EAS workflow
+      - name: Apply only the two EAS helper scripts
         shell: bash
         run: |
           set -euo pipefail
@@ -62,21 +67,20 @@ jobs:
           test "$(git rev-parse refs/remotes/origin/final-base)" = "$FINAL_BASE_SHA"
           git checkout --detach "$FINAL_BASE_SHA"
           git clean -fdx
-          git apply --check --whitespace=error-all \
-            --include='.github/workflows/eas-build.yml' \
-            /tmp/deep-scan-fix.patch
-          git apply --index --whitespace=error-all \
-            --include='.github/workflows/eas-build.yml' \
-            /tmp/deep-scan-fix.patch
-          test "$(git diff --cached --name-only)" = '.github/workflows/eas-build.yml'
+          install -D -m 0755 /tmp/eas-compact-scripts/scripts/ci/easWorkflowAutofix.sh scripts/ci/easWorkflowAutofix.sh
+          install -D -m 0755 /tmp/eas-compact-scripts/scripts/ci/easWorkflowBuild.sh scripts/ci/easWorkflowBuild.sh
+          echo "$EXPECTED_AUTOFIX_SHA256  scripts/ci/easWorkflowAutofix.sh" | sha256sum --check --strict
+          echo "$EXPECTED_BUILD_SHA256  scripts/ci/easWorkflowBuild.sh" | sha256sum --check --strict
+          git add scripts/ci/easWorkflowAutofix.sh scripts/ci/easWorkflowBuild.sh
+          test "$(git diff --cached --name-only | paste -sd, -)" = 'scripts/ci/easWorkflowAutofix.sh,scripts/ci/easWorkflowBuild.sh'
           git diff --cached --check
 
-      - name: Commit and publish one-file workflow branch
+      - name: Commit and publish script branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "ci: harden reusable EAS build workflow"
+          git commit -m "ci: add reusable EAS workflow helpers"
           git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
           echo "Published $(git rev-parse HEAD) to ${TARGET_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
