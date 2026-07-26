@@ -1,4 +1,19 @@
 {
   "schemaVersion": 1,
-  "exceptions": []
+  "exceptions": [
+    {
+      "package": "brace-expansion",
+      "severity": "high",
+      "advisorySources": [
+        1124334
+      ],
+      "expectedVersions": [
+        "1.1.16",
+        "2.1.2"
+      ],
+      "issue": "https://github.com/k1w1-a0style/musik-player/issues/319",
+      "expiresOn": "2026-08-31",
+      "reason": "Expo SDK 54 and React Native 0.81 CLI tooling still resolve legacy brace-expansion majors. The patched 5.x line is pinned immediately; the excepted 1.x and 2.x nodes are build-time-only and tracked for removal with the controlled SDK migration."
+    }
+  ]
 }
