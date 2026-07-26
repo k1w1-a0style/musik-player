@@ -13,7 +13,8 @@
     "test:coverage": "jest --coverage",
     "test:silent": "jest --runInBand",
     "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs",
-    "inspect:android-apk": "node scripts/ci/inspectAndroidApk.cjs"
+    "inspect:android-apk": "node scripts/ci/inspectAndroidApk.cjs",
+    "check:complexity": "node scripts/ci/checkCodeComplexity.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "0.4.1",
@@ -80,6 +81,7 @@
     "js-yaml@>=3.0.0 <4.0.0": "3.15.0",
     "js-yaml@>=4.0.0 <5.0.0": "4.3.0",
     "tar@^7.0.0": "7.5.19",
-    "undici@^6.0.0": "6.27.0"
+    "undici@^6.0.0": "6.27.0",
+    "shell-quote": "1.10.0"
   }
 }

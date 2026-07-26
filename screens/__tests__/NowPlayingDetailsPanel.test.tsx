@@ -2,7 +2,6 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingDetailsPanel from '../NowPlayingDetailsPanel';
 import type { Song } from '../../types/Song';
-import { theme } from '../../theme';
 const mockAppTheme = {
   appearance: 'dark',
   skin: 'graphite',
@@ -95,8 +94,8 @@ describe('NowPlayingDetailsPanel queue track list', () => {
 
     expect(JSON.stringify(getByTestId('queue-row-s1').props.style)).toContain('#F9E27D');
     expect(JSON.stringify(getByTestId('queue-active-indicator-s1').props.style)).toContain('#F9E27D');
-    expect(JSON.stringify(getByText('One').props.style)).toContain(theme.palette.text.primary);
-    expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(theme.palette.text.primary);
+    expect(JSON.stringify(getByText('One').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
+    expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
     expect(JSON.stringify(getByText('One').props.style)).not.toContain('#101820');
     expect(JSON.stringify(getByText('Aktiv').props.style)).not.toContain('#101820');
   });

@@ -171,7 +171,7 @@ test('does not apply songs when refresh updated count is zero', async () => {
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
-test('cancels stale overlapping refresh and lets the latest refresh win', async () => {
+test('ignores a rapid second manual refresh while the first is active', async () => {
   let resolveRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
   const refreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
     resolveRefresh = resolve;
@@ -190,10 +190,11 @@ test('cancels stale overlapping refresh and lets the latest refresh win', async 
   fireEvent.press(screen.getByText('refresh'));
   fireEvent.press(screen.getByText('refresh'));
 
-  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2);
+  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(1);
+  expect(setLoading).toHaveBeenCalledWith(true);
   resolveRefresh({ songs: [song('updated', 'Fresh')], updated: 1, skipped: 0, failed: 0, errors: [] });
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
-  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(warnSpy).not.toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
 });
 
 test('does not apply stale metadata refresh result after timeout', async () => {

@@ -33,14 +33,17 @@ export const resolveWritableTagUri = (song: Song): WritableTagUriResolution => {
     };
   }
   if (uriType === 'content') {
-    return {
-      ok: false,
-      status: 'permissionDenied',
-      reason: 'MissingWritePermission',
-      message: 'SAF/content:// write flow is not supported for tag editing yet.',
-      source,
-      uriType,
-    };
+    if (song.fileInfo?.source === 'media-library') {
+      return {
+        ok: false,
+        status: 'permissionDenied',
+        reason: 'MissingWritePermission',
+        message: 'MediaLibrary content:// tracks require an explicit SAF write grant before tag editing.',
+        source,
+        uriType,
+      };
+    }
+    return { ok: true, uri, source: source ?? 'song', uriType };
   }
   if (uriType !== 'file') {
     return {
@@ -56,8 +59,21 @@ export const resolveWritableTagUri = (song: Song): WritableTagUriResolution => {
   return { ok: true, uri, source: source ?? 'song', uriType };
 };
 
+export const resolveWritableFileTagUri = (song: Song): WritableTagUriResolution => {
+  const resolution = resolveWritableTagUri(song);
+  if (!resolution.ok || resolution.uriType === 'file') return resolution;
+  return {
+    ok: false,
+    status: 'permissionDenied',
+    reason: 'MissingWritePermission',
+    message: 'This file-replacement path only accepts file:// targets; SAF uses the native transaction writer.',
+    source: resolution.source,
+    uriType: resolution.uriType,
+  };
+};
+
 export const buildTagWritePayload = (song: Song, draft: TagEditDraft): TagWritePayload => {
-  const writableUri = resolveWritableTagUri(song);
+  const writableUri = resolveWritableFileTagUri(song);
   if (!writableUri.ok) {
     throw new TagWriterError(writableUri.reason, writableUri.message);
   }

@@ -10,6 +10,23 @@ import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle'
 import { DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN, isAppAppearance, isAppThemeSkin, type AppAppearance, type AppThemeSkin } from './appTheme';
 
 const PREFIX = '@musikplayer:';
+
+export type StorageOperation = 'get' | 'set' | 'remove';
+
+export class StorageOperationError extends Error {
+  readonly operation: StorageOperation;
+  readonly key: string;
+  readonly originalError: unknown;
+
+  constructor(operation: StorageOperation, key: string, originalError: unknown) {
+    super(`Storage ${operation} failed for key "${key}".`);
+    this.name = 'StorageOperationError';
+    this.operation = operation;
+    this.key = key;
+    this.originalError = originalError;
+  }
+}
+
 const MIN_EQ_GAIN = -12;
 const MAX_EQ_GAIN = 12;
 
@@ -405,9 +422,17 @@ export const withScanFoldersMutationLock = async <T,>(operation: () => Promise<T
 
 export const storage: StorageApi = {
   async get(key: string): Promise<unknown | null> {
+    let raw: string | null;
     try {
-      const raw = await AsyncStorage.getItem(storageKey(key));
-      if (raw == null) return null;
+      raw = await AsyncStorage.getItem(storageKey(key));
+    } catch (error) {
+      throw new StorageOperationError('get', key, error);
+    }
+    if (raw == null) return null;
+
+    // Corrupt legacy JSON is a recoverable data problem, unlike an I/O failure.
+    // Preserve the historical null fallback so hydration can sanitize it.
+    try {
       return parseStoredValue(key, raw);
     } catch {
       return null;
@@ -417,15 +442,15 @@ export const storage: StorageApi = {
     try {
       await AsyncStorage.setItem(storageKey(key), JSON.stringify(normalizeValueForWrite(key, value)));
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      throw new StorageOperationError('set', key, error);
     }
   },
   async remove(key: string): Promise<void> {
     try {
       await AsyncStorage.removeItem(storageKey(key));
-    } catch {
-      /* ignore */
+    } catch (error) {
+      throw new StorageOperationError('remove', key, error);
     }
   },
   async getSongs() {

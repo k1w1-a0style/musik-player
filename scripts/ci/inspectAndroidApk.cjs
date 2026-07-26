@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { validateAndroidPermissions } = require('./androidPermissionPolicy.cjs');
 
 const tools = new Map();
 
@@ -37,6 +38,9 @@ const parseCliArgs = argv => {
       case '--require-signature':
         options.requireSignature = true;
         break;
+      case '--enforce-permission-policy':
+        options.enforcePermissionPolicy = true;
+        break;
       case '--help':
       case '-h':
         options.help = true;
@@ -60,6 +64,7 @@ const usage = () => [
   '  --min-size-bytes <bytes>      Fail unless APK size is at least this many bytes.',
   '  --require-badging             Fail if aapt/aapt2 metadata cannot be read.',
   '  --require-signature           Fail if apksigner is missing or verification fails.',
+  '  --enforce-permission-policy    Fail on missing or unexpected release permissions.',
 ].join('\n');
 
 const candidateSdkToolPaths = name => {
@@ -253,6 +258,9 @@ const inspectApk = options => {
       info('nativeCode', badging.nativeCode || 'none');
       info('permissions', badging.permissions.length ? badging.permissions.sort().join(',') : 'none');
       const failures = validateBadging(badging, options);
+      if (options.enforcePermissionPolicy) {
+        failures.push(...validateAndroidPermissions(badging.permissions));
+      }
       if (failures.length > 0) {
         console.error(failures.map(item => `error: ${item}`).join('\n'));
         process.exit(1);
@@ -306,5 +314,6 @@ module.exports = {
   parseAttributes,
   parseBadging,
   parseNativeCode,
+  validateBadging,
   inspectApk,
 };

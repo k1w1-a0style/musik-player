@@ -151,7 +151,6 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 24, left: 0 }),
 }));
 jest.mock('../../components/Controls', () => () => null);
-jest.mock('../../components/ProgressBar', () => () => null);
 jest.mock('../../components/WaveformScrubber', () => () => null);
 jest.mock('../../components/VolumeSlider', () => () => null);
 jest.mock('../../components/GlassCard', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);

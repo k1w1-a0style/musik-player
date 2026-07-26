@@ -1,4 +1,5 @@
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
+import { NativeModules } from 'react-native';
 import {
   applyNativeEqualizerBands,
   applyNativeEqualizerEnabled,
@@ -20,14 +21,46 @@ const eqNative: EqInitResult = {
 describe('nativeEqualizerHelpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock).mockResolvedValue(17);
   });
 
   test('initializes native equalizer and returns null on failure', async () => {
     jest.spyOn(SystemAudio, 'eqInit').mockResolvedValueOnce(eqNative);
     await expect(initNativeEqualizer()).resolves.toEqual(eqNative);
+    expect(SystemAudio.eqInit).toHaveBeenCalledWith(17);
 
     jest.spyOn(SystemAudio, 'eqInit').mockRejectedValueOnce(new Error('failed'));
     await expect(initNativeEqualizer()).resolves.toBeNull();
+  });
+
+
+  test('serializes native initialization so a stale session cannot replace a newer one', async () => {
+    let resolveFirst!: (value: EqInitResult) => void;
+    jest.spyOn(SystemAudio, 'eqInit')
+      .mockImplementationOnce(() => new Promise(resolve => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValueOnce(eqNative);
+
+    const first = initNativeEqualizer();
+    const second = initNativeEqualizer();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(SystemAudio.eqInit).toHaveBeenCalledTimes(1);
+    resolveFirst(eqNative);
+    await expect(first).resolves.toEqual(eqNative);
+    await expect(second).resolves.toEqual(eqNative);
+    expect(SystemAudio.eqInit).toHaveBeenCalledTimes(2);
+  });
+
+  test('fails closed without a valid TrackPlayer audio session', async () => {
+    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock).mockResolvedValue(0);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(initNativeEqualizer(controller.signal)).resolves.toBeNull();
+    expect(SystemAudio.eqInit).not.toHaveBeenCalled();
   });
 
   test('releases native equalizer', () => {

@@ -1,6 +1,6 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
-import { cancelSleepTimer, enforceExpiredSleepTimer } from './sleepTimerController';
+import { cancelSleepTimer, enforceExpiredSleepTimer, restorePersistedSleepTimer } from './sleepTimerController';
 
 const logRemotePlaybackError = (action: string, error: unknown): void => {
   console.warn(`[PlaybackService] Remote ${action} failed`, error);
@@ -18,6 +18,9 @@ const normalizeJumpInterval = (interval: unknown): number =>
  * Handles remote controls from Lockscreen / Notification / Bluetooth.
  */
 export const PlaybackService = async (): Promise<void> => {
+  void restorePersistedSleepTimer().catch(error => {
+    console.warn('[PlaybackService] Sleep timer restore failed', error);
+  });
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
     handleRemotePlaybackAction('play', () => runExclusiveNativePlaybackControl(() => TrackPlayer.play()));
   });

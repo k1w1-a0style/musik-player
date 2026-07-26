@@ -10,8 +10,8 @@ export type HydratedSongsPersistResult =
 export const persistHydratedSongsIfNeeded = async (plan: HydrationPlan): Promise<HydratedSongsPersistResult> => {
   if (!plan.shouldPersistSongs) return { status: 'not-needed' };
   try {
-    const stored = await storage.set(StorageKeys.SONGS, plan.hydratedSongs);
-    return stored ? { status: 'confirmed' } : { status: 'unconfirmed' };
+    await storage.set(StorageKeys.SONGS, plan.hydratedSongs);
+    return { status: 'confirmed' };
   } catch (error) {
     return { status: 'unconfirmed', error };
   }

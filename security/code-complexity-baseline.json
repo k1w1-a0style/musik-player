@@ -1,0 +1,369 @@
+{
+  "schemaVersion": 1,
+  "defaultLimits": {
+    "complexity": 15,
+    "maxLines": 80
+  },
+  "exceptions": {
+    "components/Controls.tsx::Controls#1": {
+      "maxComplexity": 9,
+      "maxLines": 111,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/LibraryImportStatus.tsx::LibraryImportStatus#1": {
+      "maxComplexity": 16,
+      "maxLines": 82,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/LibrarySortControl.tsx::LibrarySortControl#1": {
+      "maxComplexity": 1,
+      "maxLines": 81,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/LibraryTabContent.tsx::LibraryTabContent#1": {
+      "maxComplexity": 12,
+      "maxLines": 173,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/MiniPlayer.tsx::MiniPlayerComponent#1": {
+      "maxComplexity": 12,
+      "maxLines": 98,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/SongCard.tsx::<memo-callback>#1": {
+      "maxComplexity": 16,
+      "maxLines": 17,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/SongCard.tsx::SongCardComponent#1": {
+      "maxComplexity": 19,
+      "maxLines": 163,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/VolumeSlider.tsx::VolumeSlider#1": {
+      "maxComplexity": 4,
+      "maxLines": 104,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "components/WaveformScrubber.tsx::WaveformScrubber#1": {
+      "maxComplexity": 7,
+      "maxLines": 103,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/AppThemeContext.tsx::AppThemeProvider#1": {
+      "maxComplexity": 1,
+      "maxLines": 115,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/playbackQueueActionHelpers.ts::rebuildNativePlaybackQueueUnlocked#1": {
+      "maxComplexity": 16,
+      "maxLines": 38,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/playbackQueueActionHelpers.ts::runReorderQueueAction#1": {
+      "maxComplexity": 2,
+      "maxLines": 85,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/songCoverProtectionLifecycle.ts::acquireSongCoverProtection#1": {
+      "maxComplexity": 6,
+      "maxLines": 108,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/useLibraryActions.ts::useLibraryActions#1": {
+      "maxComplexity": 1,
+      "maxLines": 130,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/useMusicContextValue.ts::useMusicContextValue#1": {
+      "maxComplexity": 1,
+      "maxLines": 134,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/usePlaybackControls.ts::usePlaybackControls#1": {
+      "maxComplexity": 5,
+      "maxLines": 153,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/usePlaybackQueueActions.ts::usePlaybackQueueActions#1": {
+      "maxComplexity": 1,
+      "maxLines": 131,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/usePlaylistActions.ts::usePlaylistActions#1": {
+      "maxComplexity": 2,
+      "maxLines": 104,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "contexts/useProvidedMusicContextValues.ts::useProvidedMusicContextValues#1": {
+      "maxComplexity": 1,
+      "maxLines": 154,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryAudioInfoBackfill.ts::<useEffect-callback>#2": {
+      "maxComplexity": 3,
+      "maxLines": 94,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryAudioInfoBackfill.ts::useLibraryAudioInfoBackfill#1": {
+      "maxComplexity": 1,
+      "maxLines": 111,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryComponentProps.ts::useLibraryComponentProps#1": {
+      "maxComplexity": 1,
+      "maxLines": 169,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryController.ts::useLibraryController#1": {
+      "maxComplexity": 1,
+      "maxLines": 237,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryControllerActions.ts::useLibraryControllerActions#1": {
+      "maxComplexity": 1,
+      "maxLines": 88,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryCoverBackfill.ts::<useEffect-callback>#3": {
+      "maxComplexity": 3,
+      "maxLines": 121,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryCoverBackfill.ts::useLibraryCoverBackfill#1": {
+      "maxComplexity": 1,
+      "maxLines": 143,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryImportActions.ts::useLibraryImportActions#1": {
+      "maxComplexity": 1,
+      "maxLines": 82,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryMetadataRefreshActions.ts::useLibraryMetadataRefreshActions#1": {
+      "maxComplexity": 1,
+      "maxLines": 87,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryMetadataRefreshRunner.ts::<useCallback-callback>#1": {
+      "maxComplexity": 16,
+      "maxLines": 86,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryMetadataRefreshRunner.ts::mergeMetadataRefreshResult#1": {
+      "maxComplexity": 17,
+      "maxLines": 29,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "hooks/useLibraryMetadataRefreshRunner.ts::useLibraryMetadataRefreshRunner#1": {
+      "maxComplexity": 1,
+      "maxLines": 111,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlaying.tsx::NowPlayingScreenInner#1": {
+      "maxComplexity": 2,
+      "maxLines": 166,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingCoverArtwork.tsx::NowPlayingCoverArtwork#1": {
+      "maxComplexity": 5,
+      "maxLines": 139,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingMenuModal.tsx::NowPlayingMenuModal#1": {
+      "maxComplexity": 5,
+      "maxLines": 93,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingQueueCard.tsx::NowPlayingQueueCard#1": {
+      "maxComplexity": 1,
+      "maxLines": 120,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingQueuePreviewRow.tsx::<React.memo-callback>#1": {
+      "maxComplexity": 14,
+      "maxLines": 136,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingSnapPager.tsx::NowPlayingSnapPager#1": {
+      "maxComplexity": 3,
+      "maxLines": 114,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingSoundCloudView.tsx::NowPlayingSoundCloudView#1": {
+      "maxComplexity": 2,
+      "maxLines": 145,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/NowPlayingSoundCloudView.tsx::renderOverlay#1": {
+      "maxComplexity": 4,
+      "maxLines": 89,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/PlaylistDetail.tsx::PlaylistDetail#1": {
+      "maxComplexity": 9,
+      "maxLines": 406,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/Settings.tsx::Settings#1": {
+      "maxComplexity": 1,
+      "maxLines": 149,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/SoundCloudTrackCarousel.tsx::SoundCloudTrackCarousel#1": {
+      "maxComplexity": 2,
+      "maxLines": 120,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/TagEditorCoverControls.tsx::TagEditorCoverControls#1": {
+      "maxComplexity": 21,
+      "maxLines": 118,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/tagEditorHelpers.ts::blockingReasonMessage#1": {
+      "maxComplexity": 16,
+      "maxLines": 24,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useNowPlayingScreenState.ts::useNowPlayingScreenState#1": {
+      "maxComplexity": 3,
+      "maxLines": 81,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useTagEditorCapability.ts::<useMemo-callback>#1": {
+      "maxComplexity": 23,
+      "maxLines": 57,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useTagEditorSaveFlow.ts::<useCallback-callback>#1": {
+      "maxComplexity": 17,
+      "maxLines": 71,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useTagEditorSaveFlow.ts::buildTagVerificationSeedSong#1": {
+      "maxComplexity": 16,
+      "maxLines": 48,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useTagEditorSaveFlow.ts::useTagEditorSaveFlow#1": {
+      "maxComplexity": 1,
+      "maxLines": 96,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "screens/useTagEditorScreenState.ts::useTagEditorScreenState#1": {
+      "maxComplexity": 2,
+      "maxLines": 90,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/coverCache.ts::cacheBase64Cover#1": {
+      "maxComplexity": 22,
+      "maxLines": 70,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/id3Parser.ts::decodeAPIC#1": {
+      "maxComplexity": 18,
+      "maxLines": 29,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/id3Parser.ts::decodeComm#1": {
+      "maxComplexity": 16,
+      "maxLines": 31,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/id3Parser.ts::findMp4Tags#1": {
+      "maxComplexity": 18,
+      "maxLines": 49,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/id3Parser.ts::parseId3TextFramesByRange#1": {
+      "maxComplexity": 18,
+      "maxLines": 56,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/id3Parser.ts::readUtf8#1": {
+      "maxComplexity": 18,
+      "maxLines": 59,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/imageMime.ts::detectImageMimeFromBytes#1": {
+      "maxComplexity": 23,
+      "maxLines": 14,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/mediaLibraryImport.ts::buildSongFromImportSource#1": {
+      "maxComplexity": 17,
+      "maxLines": 52,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/mediaLibraryImport.ts::classifySafNativeReadErrorMessage#1": {
+      "maxComplexity": 28,
+      "maxLines": 6,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/mediaLibraryImport.ts::readAudioUrisFromSafDirectory#1": {
+      "maxComplexity": 2,
+      "maxLines": 99,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/mediaLibraryImport.ts::scanFromSafFolders#1": {
+      "maxComplexity": 9,
+      "maxLines": 86,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/mediaLibraryImport.ts::walk#1": {
+      "maxComplexity": 19,
+      "maxLines": 54,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/songAudioInfoBackfill.ts::mergeNativeAudioInfoIntoSong#1": {
+      "maxComplexity": 30,
+      "maxLines": 51,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/songMetadataRefresh.ts::refreshSongsFromId3#1": {
+      "maxComplexity": 5,
+      "maxLines": 169,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/storage.ts::validateStoredValue#1": {
+      "maxComplexity": 29,
+      "maxLines": 52,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriteOrchestrator.ts::buildTagWritePlan#1": {
+      "maxComplexity": 16,
+      "maxLines": 61,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriteOrchestrator.ts::validateWritePreconditions#1": {
+      "maxComplexity": 17,
+      "maxLines": 31,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriterFileReplace.ts::writeTagsToFileOrThrow#1": {
+      "maxComplexity": 1,
+      "maxLines": 85,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriterId3.ts::parseFrames#1": {
+      "maxComplexity": 18,
+      "maxLines": 54,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriterId3.ts::readId3Header#1": {
+      "maxComplexity": 20,
+      "maxLines": 45,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/tagWriterMp4.ts::applyMp4TagEditToBuffer#1": {
+      "maxComplexity": 24,
+      "maxLines": 100,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    },
+    "utils/waveformExtraction.ts::extractNativeWaveform#1": {
+      "maxComplexity": 14,
+      "maxLines": 105,
+      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
+    }
+  }
+}

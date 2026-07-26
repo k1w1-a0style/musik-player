@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import {
   DEFAULT_APP_APPEARANCE,
   DEFAULT_APP_THEME_SKIN,
@@ -9,6 +9,7 @@ import {
   type AppTheme,
   type AppThemeSkin,
 } from '../utils/appTheme';
+import { useHydratedStoredPreference } from '../hooks/useHydratedStoredPreference';
 import { storage } from '../utils/storage';
 
 export interface AppThemeContextValue {
@@ -26,102 +27,43 @@ interface AppThemeProviderProps {
   children: React.ReactNode;
 }
 
+const loadAppAppearance = (): Promise<AppAppearance> => storage.getAppAppearance();
+const persistAppAppearance = (appearance: AppAppearance): Promise<void> => storage.setAppAppearance(appearance);
+const loadAppThemeSkin = (): Promise<AppThemeSkin> => storage.getAppThemeSkin();
+const persistAppThemeSkin = (skin: AppThemeSkin): Promise<void> => storage.setAppThemeSkin(skin);
+
 export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) => {
-  const [appearance, setAppearanceState] = useState<AppAppearance>(DEFAULT_APP_APPEARANCE);
-  const [skin, setSkinState] = useState<AppThemeSkin>(DEFAULT_APP_THEME_SKIN);
-  const [isHydrated, setHydrated] = useState(false);
-  const mountedRef = useRef(true);
-  const appearanceRef = useRef<AppAppearance>(DEFAULT_APP_APPEARANCE);
-  const skinRef = useRef<AppThemeSkin>(DEFAULT_APP_THEME_SKIN);
-  const persistedAppearanceRef = useRef<AppAppearance>(DEFAULT_APP_APPEARANCE);
-  const persistedSkinRef = useRef<AppThemeSkin>(DEFAULT_APP_THEME_SKIN);
-  const appearanceWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const skinWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const appearanceRequestIdRef = useRef(0);
-  const skinRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    void (async () => {
-      const [storedAppearance, storedSkin] = await Promise.all([
-        storage.getAppAppearance().catch(() => DEFAULT_APP_APPEARANCE),
-        storage.getAppThemeSkin().catch(() => DEFAULT_APP_THEME_SKIN),
-      ]);
-
-      if (!mountedRef.current) return;
-      const hydratedAppearance = normalizeAppAppearance(storedAppearance);
-      const hydratedSkin = normalizeAppThemeSkin(storedSkin);
-      appearanceRef.current = hydratedAppearance;
-      skinRef.current = hydratedSkin;
-      persistedAppearanceRef.current = hydratedAppearance;
-      persistedSkinRef.current = hydratedSkin;
-      setAppearanceState(hydratedAppearance);
-      setSkinState(hydratedSkin);
-      setHydrated(true);
-    })();
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const setAppearance = useCallback((nextAppearance: AppAppearance) => {
-    const normalized = normalizeAppAppearance(nextAppearance);
-    const requestId = appearanceRequestIdRef.current + 1;
-    appearanceRequestIdRef.current = requestId;
-    appearanceRef.current = normalized;
-    setAppearanceState(normalized);
-
-    appearanceWriteQueueRef.current = appearanceWriteQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        try {
-          await storage.setAppAppearance(normalized);
-          persistedAppearanceRef.current = normalized;
-        } catch (error) {
-          console.warn('[AppTheme] Appearance persistence failed; reverting to the last stored value.', error);
-          if (mountedRef.current && appearanceRequestIdRef.current === requestId) {
-            const fallback = persistedAppearanceRef.current;
-            appearanceRef.current = fallback;
-            setAppearanceState(fallback);
-          }
-        }
-      });
-  }, []);
-
-  const setSkin = useCallback((nextSkin: AppThemeSkin) => {
-    const normalized = normalizeAppThemeSkin(nextSkin);
-    const requestId = skinRequestIdRef.current + 1;
-    skinRequestIdRef.current = requestId;
-    skinRef.current = normalized;
-    setSkinState(normalized);
-
-    skinWriteQueueRef.current = skinWriteQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        try {
-          await storage.setAppThemeSkin(normalized);
-          persistedSkinRef.current = normalized;
-        } catch (error) {
-          console.warn('[AppTheme] Skin persistence failed; reverting to the last stored value.', error);
-          if (mountedRef.current && skinRequestIdRef.current === requestId) {
-            const fallback = persistedSkinRef.current;
-            skinRef.current = fallback;
-            setSkinState(fallback);
-          }
-        }
-      });
-  }, []);
+  const {
+    value: appearance,
+    setValue: setAppearance,
+    isHydrated: isAppearanceHydrated,
+  } = useHydratedStoredPreference<AppAppearance>({
+    defaultValue: DEFAULT_APP_APPEARANCE,
+    load: loadAppAppearance,
+    persist: persistAppAppearance,
+    normalize: normalizeAppAppearance,
+    label: 'app-appearance',
+  });
+  const {
+    value: skin,
+    setValue: setSkin,
+    isHydrated: isSkinHydrated,
+  } = useHydratedStoredPreference<AppThemeSkin>({
+    defaultValue: DEFAULT_APP_THEME_SKIN,
+    load: loadAppThemeSkin,
+    persist: persistAppThemeSkin,
+    normalize: normalizeAppThemeSkin,
+    label: 'app-theme-skin',
+  });
 
   const value = useMemo<AppThemeContextValue>(() => ({
     appearance,
     skin,
     theme: getAppTheme(appearance, skin),
-    isHydrated,
+    isHydrated: isAppearanceHydrated && isSkinHydrated,
     setAppearance,
     setSkin,
-  }), [appearance, isHydrated, setAppearance, setSkin, skin]);
+  }), [appearance, isAppearanceHydrated, isSkinHydrated, setAppearance, setSkin, skin]);
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;
 };

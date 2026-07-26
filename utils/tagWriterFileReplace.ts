@@ -1,6 +1,6 @@
 import type { Song } from '../types/Song';
 import type { TagEditDraft, WriteTagsResult } from '../types/TagEdit';
-import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
+import { resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
 import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 import { areBytesEqual } from './tagWriterBytes';
 import { withUriWriteLock } from './tagWriterLocks';
@@ -166,8 +166,7 @@ export const writeTagsToFileOrThrow = async (
       );
     }
     validateTagWriteDraftOrThrow(draft);
-    const maxFileSizeBytes =
-      options?.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
+    const maxFileSizeBytes = resolveSafeTagWriteMaxFileSizeBytes(options?.maxFileSizeBytes);
     const info = await readTargetInfo(adapter, uri);
     if (!info.exists)
       throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');

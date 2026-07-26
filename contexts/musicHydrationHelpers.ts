@@ -140,7 +140,7 @@ export const runMusicHydration = async ({
     if (isCancelled()) return;
 
     try {
-      applyStoredPlaybackSettings({ stored: hydratedStored, ...args });
+      await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, ...args });
       hydrationCompleted = true;
     } catch (error) {
       console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);

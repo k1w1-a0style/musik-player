@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { State } from 'react-native-track-player';
 import { waitFor } from '@testing-library/react-native';
 import {
@@ -6,6 +7,7 @@ import {
   getSleepTimerDeadlineMs,
   isSleepTimerActive,
   resetSleepTimerForTests,
+  restorePersistedSleepTimer,
   startSleepTimer,
   subscribeToSleepTimer,
 } from '../sleepTimerController';
@@ -221,6 +223,57 @@ describe('sleepTimerController', () => {
     expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
     expect(warn).not.toHaveBeenCalled();
     expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('persists, restores, and schedules an active timer across a JS restart', async () => {
+    startSleepTimer(15);
+    const deadline = getSleepTimerDeadlineMs();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      '@musikplayer:sleepTimerDeadlineMs',
+      String(deadline),
+    );
+
+    resetSleepTimerForTests({ preservePersisted: true });
+    expect(isSleepTimerActive()).toBe(false);
+
+    await expect(restorePersistedSleepTimer()).resolves.toBe(true);
+    expect(getSleepTimerDeadlineMs()).toBe(deadline);
+
+    trackPlayerTestApi.__setState(State.Playing);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await jest.runOnlyPendingTimersAsync();
+
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('enforces an already expired persisted timer during restore', async () => {
+    trackPlayerTestApi.__setState(State.Playing);
+    await AsyncStorage.setItem('@musikplayer:sleepTimerDeadlineMs', String(Date.now() - 1));
+    resetSleepTimerForTests({ preservePersisted: true });
+
+    await expect(restorePersistedSleepTimer()).resolves.toBe(false);
+
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+    await Promise.resolve();
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('@musikplayer:sleepTimerDeadlineMs');
+  });
+
+  test('a late persisted read cannot replace a newly started timer', async () => {
+    const persistedRead = createDeferred<string | null>();
+    (AsyncStorage.getItem as jest.Mock).mockReturnValueOnce(persistedRead.promise);
+    const restore = restorePersistedSleepTimer();
+
+    startSleepTimer(30);
+    const newDeadline = getSleepTimerDeadlineMs();
+    persistedRead.resolve(String(Date.now() + 5 * 60 * 1000));
+
+    await expect(restore).resolves.toBe(false);
+    expect(getSleepTimerDeadlineMs()).toBe(newDeadline);
   });
 
   test('exposes the deadline after start and replacement', () => {

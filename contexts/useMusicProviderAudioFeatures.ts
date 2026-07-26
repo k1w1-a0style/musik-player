@@ -20,7 +20,7 @@ export const useMusicProviderAudioFeatures = ({
   eqEnabled,
   eqBands,
 }: MusicProviderAudioFeaturesArgs): MusicProviderAudioFeatures => {
-  const eqNative = useNativeEqualizer(eqEnabled, eqBands);
+  const eqNative = useNativeEqualizer(eqEnabled, eqBands, currentSong?.id ?? null);
   const { palette, isLoading: paletteLoading } = useAlbumPaletteState(currentSong);
   return { eqNative, palette, paletteLoading };
 };

@@ -4,7 +4,7 @@ import { getTagEditCapability, getSupportedContainer } from './tagEditCapability
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
 import { mergeId3v23TagIntoMp3Buffer } from './tagWriterId3';
 import { applyMp4TagEditToBuffer } from './tagWriterMp4';
-import { resolveWritableTagUri } from './tagWriterPayload';
+import { resolveWritableFileTagUri } from './tagWriterPayload';
 import { TagWriterError } from './tagWriterError';
 
 export const validateTagWriteDraftOrThrow = (draft: TagEditDraft): void => {
@@ -38,7 +38,7 @@ export const applyTagEditToBuffer = (
 };
 
 export const ensureTagEditWriteAllowed = (song: Song, platform?: string): void => {
-  const writableUri = resolveWritableTagUri(song);
+  const writableUri = resolveWritableFileTagUri(song);
   if (!writableUri.ok) throw new TagWriterError(writableUri.reason, writableUri.message);
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);

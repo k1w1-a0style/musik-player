@@ -80,6 +80,25 @@ describe('Android APK inspector', () => {
     expect(result.stdout).toContain('signatureStatus: failed');
   });
 
+  it('applies the same permission allowlist to parsed APK metadata', () => {
+    const result = spawnSync(
+      process.execPath,
+      ['-e', `const { validateBadging } = require(${JSON.stringify(inspectorScript)});
+        const policy = require(${JSON.stringify(path.join(__dirname, '..', 'scripts', 'ci', 'androidPermissionPolicy.cjs'))});
+        const badging = { name: 'app', minSdkVersion: '24', targetSdkVersion: '36', permissions: [
+          ...policy.REQUIRED_ANDROID_PERMISSIONS,
+          'android.permission.BODY_SENSORS',
+        ] };
+        console.log(JSON.stringify([...validateBadging(badging, {}), ...policy.validateAndroidPermissions(badging.permissions)]));`],
+      { encoding: 'utf8' },
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toContain(
+      'contains unexpected permission outside the release allowlist: android.permission.BODY_SENSORS',
+    );
+  });
+
   it('parses realistic aapt badging output including label, SDKs, ABIs, and permissions', () => {
     const parsed = parseBadgingViaNode(`package: name='com.k1w1a0style.musikplayer.dev' versionCode='1' versionName='1.0.0'
 application-label:'k1w1-Musik'

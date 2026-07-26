@@ -63,6 +63,15 @@ describe('generated AndroidManifest permission gate', () => {
     );
   });
 
+  it('fails when an undeclared permission is present', () => {
+    const result = runGate([...requiredPermissions, 'android.permission.BODY_SENSORS']);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Generated AndroidManifest contains unexpected permission outside the release allowlist: android.permission.BODY_SENSORS',
+    );
+  });
+
   it('fails when visual media permissions are present', () => {
     const result = runGate([
       ...requiredPermissions,

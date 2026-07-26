@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { waitFor } from '@testing-library/react-native';
 import { PlaybackService } from '../PlaybackService';
@@ -19,6 +20,15 @@ describe('PlaybackService', () => {
     resetSleepTimerForTests();
     jest.clearAllMocks();
     jest.restoreAllMocks();
+  });
+
+  test('registers remote playback controls without waiting for a hanging sleep timer restore', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockReturnValueOnce(new Promise<string | null>(() => undefined));
+
+    await PlaybackService();
+
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePause)).toHaveLength(1);
   });
 
   test('registers remote playback controls', async () => {

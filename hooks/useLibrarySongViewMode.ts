@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { storage } from '../utils/storage';
 import {
   DEFAULT_LIBRARY_SONG_VIEW_MODE,
   getNextLibrarySongViewMode,
   type LibrarySongViewMode,
 } from '../utils/libraryViewMode';
+import { useHydratedStoredPreference } from './useHydratedStoredPreference';
 
 export interface UseLibrarySongViewModeResult {
   viewMode: LibrarySongViewMode;
@@ -12,31 +13,24 @@ export interface UseLibrarySongViewModeResult {
   cycleViewMode: () => void;
 }
 
-export const useLibrarySongViewMode = (): UseLibrarySongViewModeResult => {
-  const [viewMode, setViewModeState] = useState<LibrarySongViewMode>(DEFAULT_LIBRARY_SONG_VIEW_MODE);
+const normalizeSongViewMode = (mode: LibrarySongViewMode): LibrarySongViewMode => mode;
 
-  useEffect(() => {
-    let active = true;
-    void storage.getLibrarySongViewMode().then(stored => {
-      if (active) setViewModeState(stored);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+export const useLibrarySongViewMode = (): UseLibrarySongViewModeResult => {
+  const { value: viewMode, setValue: setViewModeState } = useHydratedStoredPreference({
+    defaultValue: DEFAULT_LIBRARY_SONG_VIEW_MODE,
+    load: storage.getLibrarySongViewMode,
+    persist: storage.setLibrarySongViewMode,
+    normalize: normalizeSongViewMode,
+    label: 'library-song-view',
+  });
 
   const setViewMode = useCallback((mode: LibrarySongViewMode) => {
     setViewModeState(mode);
-    void storage.setLibrarySongViewMode(mode);
-  }, []);
+  }, [setViewModeState]);
 
   const cycleViewMode = useCallback(() => {
-    setViewModeState(previous => {
-      const next = getNextLibrarySongViewMode(previous);
-      void storage.setLibrarySongViewMode(next);
-      return next;
-    });
-  }, []);
+    setViewModeState(previous => getNextLibrarySongViewMode(previous));
+  }, [setViewModeState]);
 
   return { viewMode, setViewMode, cycleViewMode };
 };

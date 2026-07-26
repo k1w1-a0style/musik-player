@@ -9,6 +9,10 @@ interface NowPlayingQueuePreviewRowProps {
   index?: number;
   queueLength?: number;
   rowHeight?: number;
+  minShiftIndex?: number;
+  getScrollOffset?: () => number;
+  onDragPosition?: (index: number, dragY: number) => void;
+  onDragEnd?: () => void;
   title: string;
   artist: string;
   isCurrent: boolean;
@@ -19,12 +23,39 @@ interface NowPlayingQueuePreviewRowProps {
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+const getZeroScrollOffset = (): number => 0;
+
+export const resolveQueueReorderTargetIndex = ({
+  index,
+  dy,
+  rowHeight,
+  startScrollOffset,
+  currentScrollOffset,
+  minIndex,
+  maxIndex,
+}: {
+  index: number;
+  dy: number;
+  rowHeight: number;
+  startScrollOffset: number;
+  currentScrollOffset: number;
+  minIndex: number;
+  maxIndex: number;
+}): number => {
+  const scrollDelta = currentScrollOffset - startScrollOffset;
+  const deltaRows = Math.round((dy + scrollDelta) / Math.max(1, rowHeight));
+  return clamp(index + deltaRows, minIndex, maxIndex);
+};
 
 const NowPlayingQueuePreviewRow = React.memo(({
   id,
   index = 0,
   queueLength = 0,
   rowHeight = 44,
+  minShiftIndex = 1,
+  getScrollOffset = getZeroScrollOffset,
+  onDragPosition,
+  onDragEnd,
   title,
   artist,
   isCurrent,
@@ -38,18 +69,26 @@ const NowPlayingQueuePreviewRow = React.memo(({
   const [dragEnabled, setDragEnabled] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const [dragY, setDragY] = React.useState(0);
-  const canDrag = canShift && !!onShift && queueLength > 1 && index > 0;
+  const canDrag = canShift && !!onShift && queueLength > 1 && index >= minShiftIndex;
+  const dragStartScrollOffsetRef = React.useRef(0);
 
-  const resolveTargetIndex = React.useCallback((gesture: Pick<PanResponderGestureState, 'dy'>): number => {
-    const deltaRows = Math.round(gesture.dy / Math.max(1, rowHeight));
-    return clamp(index + deltaRows, 1, Math.max(1, queueLength - 1));
-  }, [index, queueLength, rowHeight]);
+  const resolveTargetIndex = React.useCallback((gesture: Pick<PanResponderGestureState, 'dy'>): number =>
+    resolveQueueReorderTargetIndex({
+      index,
+      dy: gesture.dy,
+      rowHeight,
+      startScrollOffset: dragStartScrollOffsetRef.current,
+      currentScrollOffset: getScrollOffset(),
+      minIndex: minShiftIndex,
+      maxIndex: Math.max(minShiftIndex, queueLength - 1),
+    }), [getScrollOffset, index, minShiftIndex, queueLength, rowHeight]);
 
   const resetDragState = React.useCallback(() => {
+    onDragEnd?.();
     setDragging(false);
     setDragY(0);
     setDragEnabled(false);
-  }, []);
+  }, [onDragEnd]);
 
   const finishDrag = React.useCallback((gesture: Pick<PanResponderGestureState, 'dy'>) => {
     const targetIndex = resolveTargetIndex(gesture);
@@ -64,17 +103,20 @@ const NowPlayingQueuePreviewRow = React.memo(({
     onMoveShouldSetPanResponder: (_event, gesture) => canDrag && dragEnabled && Math.abs(gesture.dy) > 4,
     onPanResponderGrant: () => {
       if (!canDrag) return;
+      dragStartScrollOffsetRef.current = getScrollOffset();
       setDragging(true);
       setDragY(0);
+      onDragPosition?.(index, 0);
     },
     onPanResponderMove: (_event, gesture) => {
       if (!canDrag) return;
       setDragY(gesture.dy);
+      onDragPosition?.(index, gesture.dy);
     },
     onPanResponderRelease: (_event, gesture) => finishDrag(gesture),
-    onPanResponderTerminate: (_event, gesture) => finishDrag(gesture),
+    onPanResponderTerminate: () => resetDragState(),
     onShouldBlockNativeResponder: () => false,
-  }), [canDrag, dragEnabled, finishDrag]);
+  }), [canDrag, dragEnabled, finishDrag, getScrollOffset, index, onDragPosition, resetDragState]);
 
   const handlePress = React.useCallback(() => {
     if (dragEnabled) {

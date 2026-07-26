@@ -235,10 +235,14 @@ describe('storage', () => {
   });
 
   describe('read failure semantics', () => {
-    test('storage.get returns null when AsyncStorage.getItem rejects', async () => {
+    test('storage.get exposes AsyncStorage read failures with operation context', async () => {
       jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('read failed'));
 
-      await expect(storage.get(StorageKeys.SONGS)).resolves.toBeNull();
+      await expect(storage.get(StorageKeys.SONGS)).rejects.toMatchObject({
+        name: 'StorageOperationError',
+        operation: 'get',
+        key: StorageKeys.SONGS,
+      });
     });
 
     test('typed list getters propagate AsyncStorage read failures', async () => {
@@ -271,16 +275,24 @@ describe('storage', () => {
   });
 
   describe('write/remove failure semantics', () => {
-    test('storage.set returns false when AsyncStorage.setItem rejects', async () => {
+    test('storage.set rejects with operation context when AsyncStorage.setItem fails', async () => {
       jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('write failed'));
 
-      await expect(storage.set(StorageKeys.SONGS, [])).resolves.toBe(false);
+      await expect(storage.set(StorageKeys.SONGS, [])).rejects.toMatchObject({
+        name: 'StorageOperationError',
+        operation: 'set',
+        key: StorageKeys.SONGS,
+      });
     });
 
-    test('storage.remove does not throw when AsyncStorage.removeItem rejects', async () => {
+    test('storage.remove rejects with operation context when AsyncStorage.removeItem fails', async () => {
       jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('remove failed'));
 
-      await expect(storage.remove(StorageKeys.SONGS)).resolves.toBeUndefined();
+      await expect(storage.remove(StorageKeys.SONGS)).rejects.toMatchObject({
+        name: 'StorageOperationError',
+        operation: 'remove',
+        key: StorageKeys.SONGS,
+      });
     });
 
     test('storage.remove removes known JSON-backed keys', async () => {

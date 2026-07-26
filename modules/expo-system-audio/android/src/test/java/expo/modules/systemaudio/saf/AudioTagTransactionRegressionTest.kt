@@ -34,6 +34,78 @@ class AudioTagTransactionRegressionTest {
     ShadowStatFs.reset()
   }
 
+  @Test fun journalRoundTripPersistsRecoveryByteBudget() {
+    val journal = TransactionJournal(
+      transactionId = "tx-budget",
+      targetUri = uri.toString(),
+      state = TransactionState.PREPARING,
+      createdAtEpochMs = 1,
+      updatedAtEpochMs = 2,
+      maxBytes = 4096,
+    )
+
+    val parsed = TransactionJournal.fromJson(journal.toJson())
+
+    assertEquals(2, parsed.schemaVersion)
+    assertEquals(4096L, parsed.maxBytes)
+  }
+
+  @Test fun legacyJournalUsesFiniteHistoricalRecoveryBudget() {
+    val legacy = TransactionJournal(
+      schemaVersion = 1,
+      transactionId = "tx-legacy",
+      targetUri = uri.toString(),
+      state = TransactionState.PREPARING,
+      createdAtEpochMs = 1,
+      updatedAtEpochMs = 2,
+    ).toJson().replace(Regex(",\"maxBytes\":\\d+"), "")
+
+    val parsed = TransactionJournal.fromJson(legacy)
+
+    assertEquals(1, parsed.schemaVersion)
+    assertEquals(MAX_SAFE_TAG_WRITE_FILE_BYTES, parsed.maxBytes)
+  }
+
+  @Test fun journalRejectsRecoveryBudgetAboveWriterHardLimit() {
+    val oversized = TransactionJournal(
+      transactionId = "tx-oversized",
+      targetUri = uri.toString(),
+      state = TransactionState.PREPARING,
+      createdAtEpochMs = 1,
+      updatedAtEpochMs = 2,
+    ).toJson().replace(
+      "\"maxBytes\":$MAX_SAFE_TAG_WRITE_FILE_BYTES",
+      "\"maxBytes\":${MAX_SAFE_TAG_WRITE_FILE_BYTES + 1}",
+    )
+
+    assertThrows(IllegalArgumentException::class.java) {
+      TransactionJournal.fromJson(oversized)
+    }
+  }
+
+  @Test fun transactionManagerRejectsWriteBudgetAboveHardLimitBeforeTouchingProvider() {
+    val root = createTempDir(prefix = "saf-invalid-write-budget-")
+    val store = MemoryStore("original".toByteArray())
+    val result = AudioTagTransactionManager(
+      TransactionStorage(root, NoopDirectorySync),
+      store,
+      0,
+    ).write(
+      TransactionWriteRequest(
+        uri = uri,
+        rewriteSource = staticRewriteSource("rewritten".toByteArray()),
+        changedFields = listOf("title"),
+        maxBytes = MAX_SAFE_TAG_WRITE_FILE_BYTES + 1,
+      ),
+    )
+
+    assertFalse(result.success)
+    assertEquals("FileTooLarge", result.errorCode)
+    assertEquals(0, store.reads)
+    assertEquals(0, store.writes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
   @Test fun writeIntentJournalFailureDoesNotMutateTargetOrEscapeCleanup() {
     val root = createTempDir(prefix = "saf-write-intent-failure-")
     val sync = object : DirectoryDurabilitySync {

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import {
   Pause,
@@ -14,6 +14,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { RepeatMode } from '../types/Song';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
   off: 'Wiederholung aus',
@@ -25,7 +26,7 @@ interface PressScaleProps {
   children: React.ReactNode;
   testID: string;
   accessibilityLabel: string;
-  onPress: () => void;
+  onPress: () => void | Promise<void>;
   disabled?: boolean;
   size?: number;
   primary?: boolean;
@@ -47,6 +48,9 @@ const PressScale: React.FC<PressScaleProps> = ({
   accentDarkColor,
 }) => {
   const { theme } = useAppTheme();
+  const handlePress = useCallback(() => {
+    void runPlaybackUiAction(testID, onPress, { dropIfPending: testID !== 'controls-repeat' });
+  }, [onPress, testID]);
 
   return (
     <Pressable
@@ -54,7 +58,7 @@ const PressScale: React.FC<PressScaleProps> = ({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled}
       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       style={[

@@ -11,7 +11,7 @@ export {
   validateId3PayloadSize,
 } from './tagWriterId3';
 export { applyMp4TagEditToBuffer } from './tagWriterMp4';
-export { buildTagWritePayload, resolveWritableTagUri } from './tagWriterPayload';
+export { buildTagWritePayload, resolveWritableFileTagUri, resolveWritableTagUri } from './tagWriterPayload';
 export {
   applyTagEditToBuffer,
   ensureTagEditWriteAllowed,

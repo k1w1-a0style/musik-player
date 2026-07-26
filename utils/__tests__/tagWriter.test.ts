@@ -8,6 +8,7 @@ import {
   buildTagWritePayload,
   resolveWritableTagUri,
   validateId3PayloadSize,
+  DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
 } from '../tagWriter';
 import {
   ensureTagEditWriteAllowed,
@@ -639,7 +640,12 @@ describe('tag writable URI resolution', () => {
   });
 
   test('resolveWritableTagUri handles content and remote URIs explicitly', () => {
-    expect(resolveWritableTagUri(song({ uri: 'content://a.mp3', fileInfo: { extension: 'mp3' } }))).toMatchObject({
+    expect(resolveWritableTagUri(song({ uri: 'content://a.mp3', fileInfo: { extension: 'mp3', source: 'saf' } }))).toMatchObject({
+      ok: true,
+      uri: 'content://a.mp3',
+      uriType: 'content',
+    });
+    expect(resolveWritableTagUri(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }))).toMatchObject({
       ok: false,
       status: 'permissionDenied',
       reason: 'MissingWritePermission',
@@ -941,6 +947,22 @@ describe('writeTagsToFile safe file writes', () => {
     expect(copySpy).not.toHaveBeenCalled();
   });
 
+  test('runtime options cannot widen the hard file-write safety ceiling', async () => {
+    const uri = 'file:///a.mp3';
+    const { adapter } = mkAdapter({ [uri]: u8(1, 2, 3) });
+    const readSpy = jest.spyOn(adapter, 'readBytes');
+
+    await expectWriteFailure(
+      writeTagsToFile(
+        song({ uri, fileInfo: { extension: 'mp3' } }),
+        { songId: '1', tags: { title: 'X' } },
+        { adapter, maxFileSizeBytes: DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES + 1 },
+      ),
+      'FileTooLarge',
+    );
+    expect(readSpy).not.toHaveBeenCalled();
+  });
+
   test('verification failure blocks replace when temp bytes differ from rewritten payload', async () => {
     const uri = 'file:///a.mp3';
     const { adapter, ops, files } = mkAdapter({ [uri]: u8(1, 2, 3) });
@@ -1200,6 +1222,23 @@ describe('writeTagsToFile SAF/content native route', () => {
         changedFields: ['title'],
       }),
     );
+  });
+
+  test('runtime options cannot widen the hard SAF safety ceiling', async () => {
+    const native = {
+      isAvailable: true,
+      hasNativeTagWriter: true,
+      writeAudioTags: jest.fn(),
+    };
+    const { writeTagsToFile: write } = loadWithNative(native);
+    const result = await write(
+      song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3' } }),
+      { songId: '1', tags: { title: 'X' } },
+      { maxFileSizeBytes: DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES + 1 },
+    );
+
+    expect(result).toMatchObject({ status: 'writeFailed', errorCode: 'FileTooLarge' });
+    expect(native.writeAudioTags).not.toHaveBeenCalled();
   });
 
   test('file:// keeps using the existing adapter path', async () => {

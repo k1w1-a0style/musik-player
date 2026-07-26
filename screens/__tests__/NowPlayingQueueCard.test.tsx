@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import NowPlayingQueueCard from '../NowPlayingQueueCard';
+import NowPlayingQueueCard, { resolveQueueAutoScrollDirection } from '../NowPlayingQueueCard';
+import { resolveQueueReorderTargetIndex } from '../NowPlayingQueuePreviewRow';
 import type { Song } from '../../types/Song';
 import { getAppTheme } from '../../utils/appTheme';
 let mockAppTheme: {
@@ -29,6 +30,34 @@ const queue: Song[] = [
   { id: 's2', title: 'Two', artist: 'B' },
   { id: 's3', title: 'Three', artist: 'C' },
 ];
+
+test('queue reorder target includes auto-scroll distance and never crosses the current-song boundary', () => {
+  expect(resolveQueueReorderTargetIndex({
+    index: 10,
+    dy: 44,
+    rowHeight: 44,
+    startScrollOffset: 100,
+    currentScrollOffset: 188,
+    minIndex: 6,
+    maxIndex: 20,
+  })).toBe(13);
+
+  expect(resolveQueueReorderTargetIndex({
+    index: 8,
+    dy: -500,
+    rowHeight: 44,
+    startScrollOffset: 200,
+    currentScrollOffset: 120,
+    minIndex: 6,
+    maxIndex: 20,
+  })).toBe(6);
+});
+
+test('queue edge zones request controlled upward or downward auto-scroll', () => {
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -120, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
+  expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 120, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+});
 
 test('renders drag handles for upcoming tracks only', () => {
   const onPlayQueueItem = jest.fn();

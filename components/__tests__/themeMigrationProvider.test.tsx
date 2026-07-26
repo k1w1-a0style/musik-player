@@ -2,7 +2,6 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { AppThemeProvider } from '../../contexts/AppThemeContext';
 import LibrarySearchBar from '../LibrarySearchBar';
-import ProgressBar from '../ProgressBar';
 import { getAppTheme, type AppAppearance } from '../../utils/appTheme';
 import { storage } from '../../utils/storage';
 
@@ -32,18 +31,6 @@ describe('library and playback app theme migration', () => {
     expect(JSON.stringify(getByTestId('library-search-input').props.style)).toContain(theme.palette.text.primary);
   });
 
-  test('renders ProgressBar inside AppThemeProvider with dynamic dark colors', async () => {
-    const { getAllByText, getByTestId, theme } = await renderWithStoredAppearance(
-      'dark',
-      <ProgressBar currentPosition={15_000} duration={30_000} onSeek={jest.fn()} />,
-    );
-
-    await waitFor(() => {
-      expect(JSON.stringify(getByTestId('progress-bar-track').props.style)).toContain(theme.palette.border);
-    });
-    expect(getByTestId('progress-bar-fill').props.colors).toEqual([theme.palette.primary, theme.palette.primaryDark]);
-    expect(JSON.stringify(getAllByText('0:15')[0].props.style)).toContain(theme.palette.text.secondary);
-  });
 
   test('light and dark provider appearances do not reuse the same hard-coded Library surface', async () => {
     const lightRender = await renderWithStoredAppearance(

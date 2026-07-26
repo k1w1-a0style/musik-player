@@ -27,6 +27,10 @@ describe('mediaLibraryImport', () => {
     (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValue(null);
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(null);
+    (cacheBase64Cover as jest.Mock).mockReset();
+    (cacheBase64Cover as jest.Mock).mockImplementation(async (_id: string, cover?: string) =>
+      cover ? 'file:///cover.jpg' : undefined,
+    );
   });
 
   afterEach(() => {
@@ -117,24 +121,33 @@ describe('mediaLibraryImport', () => {
     expect(unhandled).not.toHaveBeenCalled();
   });
 
-  test('SAF timeout session skip blocks only the timed-out URI and is resettable', async () => {
+  test('SAF timeout session skip is scoped to an explicit scan-local set', async () => {
+    const timedOutDirectoryUris = new Set<string>();
     const read = jest.fn((uri: string) => {
       if (uri === 'content://root/hangs') return new Promise<string[]>(() => undefined);
       return Promise.resolve([`${uri}/song.mp3`]);
     });
 
     await expect(
-      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, { readTimeoutMs: 1 }),
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, {
+        readTimeoutMs: 1,
+        timedOutDirectoryUris,
+      }),
     ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
     await expect(
-      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, { readTimeoutMs: 1 }),
+      mediaImport.readSafDirectoryWithTimeout('content://root/hangs', read, {
+        readTimeoutMs: 1,
+        timedOutDirectoryUris,
+      }),
     ).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadSessionSkipError);
     await expect(
-      mediaImport.readSafDirectoryWithTimeout('content://root/other', read, { readTimeoutMs: 100 }),
+      mediaImport.readSafDirectoryWithTimeout('content://root/other', read, {
+        readTimeoutMs: 100,
+        timedOutDirectoryUris,
+      }),
     ).resolves.toEqual(['content://root/other/song.mp3']);
 
     expect(read).toHaveBeenCalledTimes(2);
-    mediaImport.resetSafTimedOutUrisForTests();
     await expect(
       mediaImport.readSafDirectoryWithTimeout('content://root/hangs', async () => ['content://root/hangs/retry.mp3'], {
         readTimeoutMs: 100,
@@ -757,6 +770,26 @@ describe('mediaLibraryImport', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
+
+  test('a new SAF scan retries a directory that timed out in a previous scan', async () => {
+    const read = StorageAccessFramework.readDirectoryAsync as jest.Mock;
+    read.mockImplementationOnce(() => new Promise<string[]>(() => undefined));
+
+    await expect(mediaImport.scanFromSafFolders(
+      [{ id: 'f1', name: 'Music', uri: 'content://timeout-root', addedAt: 1, enabled: true }] as any,
+      { readTimeoutMs: 1 },
+    )).resolves.toMatchObject({ songs: [], errors: ['content://timeout-root'] });
+
+    read.mockResolvedValueOnce(['content://timeout-root/recovered.mp3']);
+    const retry = await mediaImport.scanFromSafFolders(
+      [{ id: 'f1', name: 'Music', uri: 'content://timeout-root', addedAt: 1, enabled: true }] as any,
+      { readTimeoutMs: 100, loadNativeCover: false, readId3Tags: false },
+    );
+
+    expect(retry.songs.map(song => song.uri)).toEqual(['content://timeout-root/recovered.mp3']);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   test('readAudioUrisFromSafDirectory abort does not look like a native folder error', async () => {
     const controller = new AbortController();
     const read = jest.fn(() => {
@@ -966,6 +999,37 @@ describe('mediaLibraryImport', () => {
 
     expect(result.songs).toHaveLength(1);
     expect(result.errors).toHaveLength(0);
+  });
+
+
+  test('a file that fails both primary and fallback enrichment does not abort later SAF files', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
+      'content://dir/bad.mp3',
+      'content://dir/good.mp3',
+    ]);
+    (cacheBase64Cover as jest.Mock).mockImplementation(async (id: string) => {
+      if (id.includes('/bad.mp3')) throw new Error('cover cache failed');
+      return undefined;
+    });
+
+    const result = await mediaImport.scanFromSafFolders([
+      { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
+    ] as any, { loadNativeCover: false, readId3Tags: false });
+
+    expect(result.songs.map(song => song.uri)).toEqual(['content://dir/good.mp3']);
+    expect(result.errors).toEqual(['content://dir/bad.mp3']);
+    expect(result.errorDetails).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        uri: 'content://dir/bad.mp3',
+        phase: 'songBuild',
+        recoverable: true,
+      }),
+      expect.objectContaining({
+        uri: 'content://dir/bad.mp3',
+        phase: 'songBuild',
+        recoverable: false,
+      }),
+    ]));
   });
 
   test('saf import collects root folder errors', async () => {

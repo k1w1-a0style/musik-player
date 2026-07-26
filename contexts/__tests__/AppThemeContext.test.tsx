@@ -80,6 +80,57 @@ describe('AppThemeContext', () => {
     await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated'));
   });
 
+  test('does not let late hydration overwrite a newer user selection', async () => {
+    let resolveAppearance!: (value: 'dark' | 'light') => void;
+    mockedStorage.getAppAppearance.mockImplementationOnce(() => new Promise(resolve => {
+      resolveAppearance = resolve;
+    }));
+    const { getByTestId } = renderThemeProvider();
+
+    fireEvent.press(getByTestId('set-light'));
+    expect(getByTestId('theme-state').props.children).toBe('light|graphite|graphite-light|loading');
+
+    await act(async () => {
+      resolveAppearance('dark');
+    });
+
+    await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('light|graphite|graphite-light|hydrated'));
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenCalledWith('light'));
+  });
+
+  test('does not let late hydration replace the rollback anchor after a successful user write', async () => {
+    let resolveHydration!: (value: 'dark' | 'light') => void;
+    let rejectSecondWrite!: (error: Error) => void;
+    mockedStorage.getAppAppearance.mockImplementationOnce(() => new Promise(resolve => {
+      resolveHydration = resolve;
+    }));
+    mockedStorage.setAppAppearance
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        rejectSecondWrite = reject;
+      }));
+    const { getByTestId } = renderThemeProvider();
+
+    fireEvent.press(getByTestId('set-light'));
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(1, 'light'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fireEvent.press(getByTestId('set-dark'));
+    await waitFor(() => expect(mockedStorage.setAppAppearance).toHaveBeenNthCalledWith(2, 'dark'));
+
+    await act(async () => {
+      resolveHydration('dark');
+    });
+    await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('dark|graphite|graphite-dark|hydrated'));
+
+    await act(async () => {
+      rejectSecondWrite(new Error('second write failed'));
+    });
+    await waitFor(() => expect(getByTestId('theme-state').props.children).toBe('light|graphite|graphite-light|hydrated'));
+  });
+
   test('updates and persists appearance and skin changes', async () => {
     const { getByTestId } = renderThemeProvider();
 

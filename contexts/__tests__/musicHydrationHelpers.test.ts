@@ -644,7 +644,7 @@ describe('musicHydrationHelpers', () => {
     );
   });
 
-  test('applies stored playback settings to state and TrackPlayer', () => {
+  test('applies stored playback settings to state and TrackPlayer', async () => {
     const stored: StoredMusicHydrationState = {
       songs: null,
       playlists,
@@ -664,7 +664,7 @@ describe('musicHydrationHelpers', () => {
     const setRepeatMode = jest.fn();
     const setShuffle = jest.fn();
 
-    applyStoredPlaybackSettings({
+    await applyStoredPlaybackSettings({
       stored,
       setPlaylists,
       setEqEnabledState,
@@ -690,7 +690,7 @@ describe('musicHydrationHelpers', () => {
     const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 };
     const setPlaylists = jest.fn();
 
-    applyStoredPlaybackSettings({
+    await applyStoredPlaybackSettings({
       stored: {
         songs,
         playlists: [dirtyPlaylist],
@@ -719,10 +719,10 @@ describe('musicHydrationHelpers', () => {
     ]);
   });
 
-  test('skips invalid stored eq band arrays when applying settings', () => {
+  test('skips invalid stored eq band arrays when applying settings', async () => {
     const setEqBandsState = jest.fn();
 
-    applyStoredPlaybackSettings({
+    await applyStoredPlaybackSettings({
       stored: {
         songs: null,
         playlists: null,
@@ -744,6 +744,45 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(setEqBandsState).not.toHaveBeenCalled();
+  });
+
+  test('does not commit playback state until stored native writes finish', async () => {
+    let resolveVolume!: () => void;
+    (TrackPlayer.setVolume as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
+      resolveVolume = resolve;
+    }));
+    const setVolumeState = jest.fn();
+    const setRepeatMode = jest.fn();
+
+    const applying = applyStoredPlaybackSettings({
+      stored: {
+        songs: null,
+        playlists: null,
+        eqEnabled: null,
+        eqBands: null,
+        eqPreset: null,
+        volume: 0.65,
+        repeatMode: 'all',
+        shuffle: null,
+        currentSongId: null,
+      },
+      setPlaylists: jest.fn(),
+      setEqEnabledState: jest.fn(),
+      setEqBandsState: jest.fn(),
+      setEqPreset: jest.fn(),
+      setVolumeState,
+      setRepeatMode,
+      setShuffle: jest.fn(),
+    });
+
+    await Promise.resolve();
+    expect(setVolumeState).not.toHaveBeenCalled();
+    expect(setRepeatMode).not.toHaveBeenCalled();
+
+    resolveVolume();
+    await applying;
+    expect(setVolumeState).toHaveBeenCalledWith(0.65);
+    expect(setRepeatMode).toHaveBeenCalledWith('all');
   });
 
   test('runs full music hydration and marks provider ready', async () => {

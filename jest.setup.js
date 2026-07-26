@@ -8,3 +8,10 @@ console.error = (...args) => {
   if (msg.includes('useNativeDriver') || msg.includes('Animated:')) return;
   origError(...args);
 };
+
+
+// RNTP is patched in production to expose the active ExoPlayer audio session.
+// Tests default to a stable valid session; focused tests can override it.
+const { NativeModules } = require('react-native');
+NativeModules.TrackPlayerModule = NativeModules.TrackPlayerModule || {};
+NativeModules.TrackPlayerModule.getAudioSessionId = jest.fn().mockResolvedValue(17);
