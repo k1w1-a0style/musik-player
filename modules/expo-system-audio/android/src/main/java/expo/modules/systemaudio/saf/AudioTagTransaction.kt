@@ -252,6 +252,9 @@ object AndroidDirectoryDurabilitySync : DirectoryDurabilitySync {
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
+  private val availableBytesProvider: (File) -> Long = { directory ->
+    StatFs(directory.absolutePath).availableBytes
+  },
 ) {
   companion object {
     const val MAX_JOURNAL_BYTES = 64 * 1024
@@ -361,10 +364,10 @@ class TransactionStorage(
     return next
   }
 
-  fun availableBytes(): Long = try {
-    StatFs(root.absolutePath).availableBytes
+  fun availableBytes(): Long? = try {
+    availableBytesProvider(root).takeIf { it >= 0L }
   } catch (_: Throwable) {
-    Long.MAX_VALUE
+    null
   }
 
   private fun ensureDirectory(directory: File) {
@@ -636,7 +639,15 @@ class AudioTagTransactionManager(
       val value = rawValue.coerceAtLeast(0L)
       if (Long.MAX_VALUE - total < value) Long.MAX_VALUE else total + value
     }
-    if (storage.availableBytes() < expectedSpace) {
+    val availableBytes = storage.availableBytes()
+    if (availableBytes == null) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "InsufficientStorage",
+        message = "App-private storage capacity could not be verified.",
+      )
+    }
+    if (availableBytes < expectedSpace) {
       return@withLock TransactionResult(
         success = false,
         errorCode = "InsufficientStorage",

@@ -106,6 +106,25 @@ class AudioTagTransactionRegressionTest {
     assertTrue(root.listFiles().isNullOrEmpty())
   }
 
+  @Test fun storageCapacityProbeFailureFailsClosedBeforeProviderAccess() {
+    val root = createTempDir(prefix = "saf-storage-probe-failure-")
+    val store = MemoryStore("original".toByteArray())
+    val storage = TransactionStorage(root, NoopDirectorySync) {
+      throw IOException("statfs unavailable")
+    }
+
+    val result = AudioTagTransactionManager(storage, store, 0).write(
+      request("original".toByteArray(), "rewritten".toByteArray()),
+    )
+
+    assertFalse(result.success)
+    assertEquals("InsufficientStorage", result.errorCode)
+    assertTrue(result.message.contains("could not be verified"))
+    assertEquals(0, store.reads)
+    assertEquals(0, store.writes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
   @Test fun writeIntentJournalFailureDoesNotMutateTargetOrEscapeCleanup() {
     val root = createTempDir(prefix = "saf-write-intent-failure-")
     val sync = object : DirectoryDurabilitySync {
