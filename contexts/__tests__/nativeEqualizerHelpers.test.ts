@@ -18,6 +18,14 @@ const eqNative: EqInitResult = {
   ],
 };
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(res => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 describe('nativeEqualizerHelpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -35,27 +43,57 @@ describe('nativeEqualizerHelpers', () => {
 
 
   test('serializes native initialization so a stale session cannot replace a newer one', async () => {
-    let resolveFirst!: (value: EqInitResult) => void;
-    let markFirstStarted!: () => void;
-    const firstStarted = new Promise<void>(resolve => {
-      markFirstStarted = resolve;
-    });
+    const sessionLookupStarted = deferred<void>();
+    const sessionIdRelease = deferred<number>();
+    const eqInitStarted = deferred<void>();
+    const eqInitRelease = deferred<EqInitResult>();
+    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock)
+      .mockImplementationOnce(() => {
+        sessionLookupStarted.resolve();
+        return sessionIdRelease.promise;
+      })
+      .mockResolvedValueOnce(23);
     jest.spyOn(SystemAudio, 'eqInit')
-      .mockImplementationOnce(() => new Promise(resolve => {
-        markFirstStarted();
-        resolveFirst = resolve;
-      }))
+      .mockImplementationOnce(() => {
+        eqInitStarted.resolve();
+        return eqInitRelease.promise;
+      })
       .mockResolvedValueOnce(eqNative);
 
     const first = initNativeEqualizer();
     const second = initNativeEqualizer();
-    await firstStarted;
+    await sessionLookupStarted.promise;
+    expect(SystemAudio.eqInit).not.toHaveBeenCalled();
+    sessionIdRelease.resolve(17);
+    await eqInitStarted.promise;
 
     expect(SystemAudio.eqInit).toHaveBeenCalledTimes(1);
-    resolveFirst(eqNative);
+    eqInitRelease.resolve(eqNative);
     await expect(first).resolves.toEqual(eqNative);
     await expect(second).resolves.toEqual(eqNative);
     expect(SystemAudio.eqInit).toHaveBeenCalledTimes(2);
+    expect(SystemAudio.eqInit).toHaveBeenNthCalledWith(2, 23);
+  });
+
+  test('aborts a pending session lookup without blocking a later initialization', async () => {
+    const sessionLookupStarted = deferred<void>();
+    const neverReleased = new Promise<number>(() => undefined);
+    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock)
+      .mockImplementationOnce(() => {
+        sessionLookupStarted.resolve();
+        return neverReleased;
+      })
+      .mockResolvedValueOnce(29);
+    jest.spyOn(SystemAudio, 'eqInit').mockResolvedValueOnce(eqNative);
+    const controller = new AbortController();
+
+    const aborted = initNativeEqualizer(controller.signal);
+    await sessionLookupStarted.promise;
+    controller.abort();
+
+    await expect(aborted).resolves.toBeNull();
+    await expect(initNativeEqualizer()).resolves.toEqual(eqNative);
+    expect(SystemAudio.eqInit).toHaveBeenCalledWith(29);
   });
 
   test('fails closed without a valid TrackPlayer audio session', async () => {

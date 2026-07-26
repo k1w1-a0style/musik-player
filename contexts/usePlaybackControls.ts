@@ -3,7 +3,6 @@ import { State, usePlaybackState } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import {
   applyRepeatModeToTrackPlayer,
-  applyVolumeToTrackPlayer,
   getNextRepeatMode,
   seekToMillis,
   skipToNextSafely,
@@ -11,6 +10,7 @@ import {
   stopTrackPlayerPlayback,
   toggleTrackPlayerPlayback,
 } from './playbackControlHelpers';
+import { useSerializedVolumeWriter } from './useSerializedVolumeWriter';
 
 export interface PlaybackControls {
   isPlaying: boolean;
@@ -43,9 +43,7 @@ export const usePlaybackControls = (): PlaybackControls => {
   const isMountedRef = useRef(false);
   const repeatModeRef = useRef<RepeatMode>('off');
   const repeatWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const confirmedVolumeRef = useRef(1);
-  const volumeRequestIdRef = useRef(0);
-  const volumeWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const { confirmedVolumeRef, setVolume } = useSerializedVolumeWriter(isMountedRef, setVolumeValue);
 
   const rawIsPlaying = playback.state === State.Playing;
   const isBuffering = playback.state === State.Buffering || playback.state === State.Loading;
@@ -84,7 +82,7 @@ export const usePlaybackControls = (): PlaybackControls => {
       confirmedVolumeRef.current = next;
       return next;
     });
-  }, []);
+  }, [confirmedVolumeRef]);
 
   const togglePlayPause = useCallback(async () => {
     await toggleTrackPlayerPlayback();
@@ -138,35 +136,6 @@ export const usePlaybackControls = (): PlaybackControls => {
       });
     repeatWriteQueueRef.current = operation;
     return operation;
-  }, []);
-
-  const setVolume = useCallback((nextVolume: number): Promise<void> => {
-    const clampedVolume = Math.max(0, Math.min(1, Number.isFinite(nextVolume) ? nextVolume : 1));
-    const requestId = volumeRequestIdRef.current + 1;
-    volumeRequestIdRef.current = requestId;
-
-    // Preview the latest finger position immediately. Native writes remain
-    // serialized below, so an older bridge call can never finish after a newer
-    // one and overwrite it.
-    if (isMountedRef.current) setVolumeValue(clampedVolume);
-
-    const operation = volumeWriteQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        // Collapse all queued intermediate slider positions to the latest one.
-        if (requestId !== volumeRequestIdRef.current) return;
-        const appliedVolume = await applyVolumeToTrackPlayer(clampedVolume);
-        confirmedVolumeRef.current = appliedVolume;
-      });
-
-    const guardedOperation = operation.catch(error => {
-      if (requestId === volumeRequestIdRef.current && isMountedRef.current) {
-        setVolumeValue(confirmedVolumeRef.current);
-      }
-      throw error;
-    });
-    volumeWriteQueueRef.current = guardedOperation;
-    return guardedOperation;
   }, []);
 
   return {

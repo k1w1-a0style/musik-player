@@ -13,6 +13,29 @@ interface TrackPlayerNativeAudioSessionModule {
 const EQ_SESSION_ATTEMPTS = 12;
 const EQ_SESSION_RETRY_MS = 250;
 let equalizerInitQueue: Promise<void> = Promise.resolve();
+const ABORTED = Symbol('native-equalizer-aborted');
+
+const waitForValueOrAbort = <T>(operation: Promise<T>, signal?: AbortSignal): Promise<T | typeof ABORTED> => {
+  if (!signal) return operation;
+  if (signal.aborted) return Promise.resolve(ABORTED);
+  return new Promise(resolve => {
+    const handleAbort = () => {
+      signal.removeEventListener('abort', handleAbort);
+      resolve(ABORTED);
+    };
+    signal.addEventListener('abort', handleAbort, { once: true });
+    void operation.then(
+      value => {
+        signal.removeEventListener('abort', handleAbort);
+        resolve(value);
+      },
+      () => {
+        signal.removeEventListener('abort', handleAbort);
+        resolve(null as T);
+      },
+    );
+  });
+};
 
 const waitForRetry = (signal?: AbortSignal): Promise<void> => new Promise(resolve => {
   if (signal?.aborted) {
@@ -41,7 +64,8 @@ export const getTrackPlayerAudioSessionId = async (): Promise<number | null> => 
 
 const performNativeEqualizerInit = async (signal?: AbortSignal): Promise<EqInitResult | null> => {
   for (let attempt = 0; attempt < EQ_SESSION_ATTEMPTS && !signal?.aborted; attempt += 1) {
-    const audioSessionId = await getTrackPlayerAudioSessionId();
+    const audioSessionId = await waitForValueOrAbort(getTrackPlayerAudioSessionId(), signal);
+    if (audioSessionId === ABORTED) return null;
     if (signal?.aborted) return null;
     if (audioSessionId !== null) {
       try {

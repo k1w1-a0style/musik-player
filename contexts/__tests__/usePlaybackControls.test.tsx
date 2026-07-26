@@ -132,6 +132,37 @@ describe('usePlaybackControls', () => {
     hook.unmount();
   });
 
+  test('continues with the latest queued volume after an earlier write fails', async () => {
+    const firstWrite = deferred<void>();
+    const firstWriteStarted = deferred<void>();
+    (TrackPlayer.setVolume as jest.Mock)
+      .mockImplementationOnce(() => {
+        firstWriteStarted.resolve();
+        return firstWrite.promise;
+      })
+      .mockResolvedValueOnce(undefined);
+    const hook = renderHook(() => usePlaybackControls());
+
+    let firstRequest!: Promise<void>;
+    let latestRequest!: Promise<void>;
+    await act(async () => {
+      firstRequest = hook.result.current.setVolume(0.2);
+      await firstWriteStarted.promise;
+      latestRequest = hook.result.current.setVolume(0.8);
+    });
+
+    await act(async () => {
+      firstWrite.reject(new Error('first write failed'));
+      await expect(firstRequest).rejects.toThrow('first write failed');
+      await expect(latestRequest).resolves.toBeUndefined();
+    });
+
+    expect(TrackPlayer.setVolume).toHaveBeenNthCalledWith(1, 0.2);
+    expect(TrackPlayer.setVolume).toHaveBeenNthCalledWith(2, 0.8);
+    expect(hook.result.current.volume).toBe(0.8);
+    hook.unmount();
+  });
+
   test('serializes rapid repeat taps without reusing a stale rendered mode', async () => {
     const firstWrite = deferred<void>();
     (TrackPlayer.setRepeatMode as jest.Mock)

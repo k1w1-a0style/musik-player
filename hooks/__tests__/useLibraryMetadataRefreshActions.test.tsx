@@ -181,30 +181,47 @@ test('does not apply songs when refresh updated count is zero', async () => {
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
-test('ignores a rapid second manual refresh while the first is active', async () => {
-  let resolveRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
-  const refreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
-    resolveRefresh = resolve;
-  });
-  const refreshSongsFromId3Impl = jest.fn().mockReturnValue(refreshPromise);
+test('supersedes a rapid earlier refresh and starts the latest request', async () => {
+  let firstStartedResolve!: () => void;
+  const firstStarted = new Promise<void>(resolve => { firstStartedResolve = resolve; });
+  let firstReleasedResolve!: () => void;
+  const firstReleased = new Promise<void>(resolve => { firstReleasedResolve = resolve; });
+  const refreshSongsFromId3Impl = jest.fn()
+    .mockImplementationOnce(async (_songs: Song[], options?: { signal?: AbortSignal }) => {
+      firstStartedResolve();
+      await firstReleased;
+      if (options?.signal?.aborted) throw options.signal.reason;
+      return { songs: [song('stale')], updated: 1, skipped: 0, failed: 0, errors: [] };
+    })
+    .mockResolvedValueOnce({ songs: [song('latest')], updated: 1, skipped: 0, failed: 0, errors: [] });
   const setLoading = jest.fn();
+  const setSongs = jest.fn();
+  const showAlert = jest.fn();
   const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const requests: Promise<void>[] = [];
   const screen = render(
     <HookHarness
       songs={[song('old')]}
       setLoading={setLoading}
+      setSongs={setSongs}
+      showAlert={showAlert}
       refreshSongsFromId3Impl={refreshSongsFromId3Impl}
+      onRefreshRequest={request => requests.push(request)}
     />,
   );
 
   fireEvent.press(screen.getByText('refresh'));
+  await firstStarted;
   fireEvent.press(screen.getByText('refresh'));
+  firstReleasedResolve();
+  await Promise.all(requests);
 
-  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(1);
-  expect(setLoading).toHaveBeenCalledWith(true);
-  resolveRefresh({ songs: [song('updated', 'Fresh')], updated: 1, skipped: 0, failed: 0, errors: [] });
-  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
-  expect(warnSpy).not.toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2);
+  expect(setSongs).toHaveBeenCalledTimes(1);
+  expect(setSongs).toHaveBeenCalledWith([song('latest')]);
+  expect(showAlert).toHaveBeenCalledTimes(1);
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
 });
 
 test('does not apply stale metadata refresh result after timeout', async () => {
