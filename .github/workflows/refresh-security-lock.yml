@@ -7,6 +7,16 @@ on:
     paths:
       - package.json
       - .github/workflows/refresh-security-lock.yml
+  pull_request:
+    branches:
+      - codex
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - package.json
+      - .github/workflows/refresh-security-lock.yml
 
 permissions:
   contents: write
@@ -17,6 +27,7 @@ concurrency:
 
 jobs:
   refresh:
+    if: github.event_name == 'push' || github.head_ref == 'fix/deep-scan-final-2026-07-25'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
