@@ -1,6 +1,7 @@
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import type { SongMetadataPatchesById } from './useLibraryActions';
+import type { NativeQueueActionResult } from './playbackQueueActionHelpers';
 
 export type PlaylistSongMoveDirection = 'up' | 'down';
 
@@ -14,17 +15,17 @@ export interface MusicContextValue {
   playbackQueue: Song[];
   isPlaying: boolean;
   isBuffering: boolean;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  playSongNext: (song: Song) => Promise<boolean>;
-  addSongToQueue: (song: Song) => Promise<boolean>;
-  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
+  playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
+  playSongNext: (song: Song) => Promise<NativeQueueActionResult>;
+  addSongToQueue: (song: Song) => Promise<NativeQueueActionResult>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<NativeQueueActionResult>;
   togglePlayPause: () => Promise<void>;
   stop: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
   shuffle: boolean;
-  toggleShuffle: () => Promise<void>;
+  toggleShuffle: () => Promise<NativeQueueActionResult>;
   repeatMode: RepeatMode;
   cycleRepeatMode: () => Promise<void>;
   volume: number;
@@ -54,9 +55,9 @@ export interface LibraryMusicContextValue {
   songs: Song[];
   setSongs: (s: Song[]) => void;
   currentSong: Song | null;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  playSongNext: (song: Song) => Promise<boolean>;
-  addSongToQueue: (song: Song) => Promise<boolean>;
+  playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
+  playSongNext: (song: Song) => Promise<NativeQueueActionResult>;
+  addSongToQueue: (song: Song) => Promise<NativeQueueActionResult>;
   isReady: boolean;
   isPlaying: boolean;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
@@ -95,10 +96,10 @@ export interface NowPlayingMusicContextValue {
   setVolume: (v: number) => Promise<void>;
   palette: PaletteResult | null;
   paletteLoading?: boolean;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
-  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<boolean>;
+  reorderQueue?: (fromIndex: number, toIndex: number) => Promise<NativeQueueActionResult>;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
   repeatMode: RepeatMode;
   canSkip: boolean;

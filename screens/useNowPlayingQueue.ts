@@ -2,11 +2,12 @@ import { useCallback, useMemo } from 'react';
 import type { Song } from '../types/Song';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { buildNowPlayingQueue, buildQueueById } from './nowPlayingHelpers';
+import type { NativeQueueActionResult } from '../contexts/playbackQueueActionHelpers';
 
 interface UseNowPlayingQueueArgs {
   playbackQueue: Song[];
   currentSong: Song | null;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
 }
 
 interface NowPlayingQueueState {

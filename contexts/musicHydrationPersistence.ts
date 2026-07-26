@@ -42,9 +42,3 @@ export const persistSanitizedPlaylistsInBackground = (playlists: Playlist[]): vo
     console.warn('[MusicHydration] Failed to persist sanitized playlists.', error);
   });
 };
-
-export const clearPersistedCurrentSongIdAfterFailure = (): void => {
-  void storage.remove(StorageKeys.CURRENT_SONG_ID).catch(removeError => {
-    console.warn('[MusicHydration:StorageError] Failed to clear current song id after hydration failure.', removeError);
-  });
-};

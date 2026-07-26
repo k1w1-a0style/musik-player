@@ -53,6 +53,27 @@ describe('music hydration failure fallback readiness', () => {
     removeSpy.mockRestore();
   });
 
+  test('routes an unverified native hydration through fallback without applying playback settings', async () => {
+    await storage.set(StorageKeys.SONGS, [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
+    await storage.set(StorageKeys.VOLUME, 0.25);
+    (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('snapshot unavailable'));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const args = createRunMusicHydrationArgs(() => false);
+
+    await runMusicHydration(args);
+
+    expect(args.setVolumeState).not.toHaveBeenCalled();
+    expect(args.setRepeatMode).not.toHaveBeenCalled();
+    expect(args.nativeQueueRef.current).toEqual([]);
+    expect(args.queueContextRef.current).toEqual([]);
+    expect(args.baseQueueContextRef.current).toEqual([]);
+    expect(args.setPlaybackQueue).toHaveBeenLastCalledWith([]);
+    expect(args.setCurrentSong).toHaveBeenLastCalledWith(null);
+    expect(args.setShuffle).toHaveBeenLastCalledWith(false);
+    expect(args.setIsReady).toHaveBeenCalledWith(true);
+    warn.mockRestore();
+  });
+
   test('keeps provider not-ready when hydration failure flow is cancelled', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
@@ -68,7 +89,7 @@ describe('music hydration failure fallback readiness', () => {
     warn.mockRestore();
   });
 
-  test('marks provider ready even when native reset fails after fallback', async () => {
+  test('keeps provider not-ready when serialized fallback cannot verify native reset', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
     (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset boom'));
@@ -77,9 +98,9 @@ describe('music hydration failure fallback readiness', () => {
     await runMusicHydration(args);
 
     expect(args.nativeQueueRef.current).toEqual([]);
-    expect(args.setIsReady).toHaveBeenCalledWith(true);
+    expect(args.setIsReady).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
-      '[MusicHydration:TrackPlayerError] Failed to reset native queue after hydration failure.',
+      '[MusicHydration:TrackPlayerError] Failed to apply serialized hydration fallback.',
       expect.any(Error),
     );
     warn.mockRestore();

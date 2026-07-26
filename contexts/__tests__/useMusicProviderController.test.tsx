@@ -90,8 +90,8 @@ describe('useMusicProviderController', () => {
     };
     const actions: ReturnType<typeof useMusicProviderDomainActions> = {
       playSong: jest.fn(),
-  playSongNext: jest.fn(async () => true),
-  addSongToQueue: jest.fn(async () => true),
+  playSongNext: jest.fn(async () => ({ status: 'noop' as const })),
+  addSongToQueue: jest.fn(async () => ({ status: 'noop' as const })),
       toggleShuffle: jest.fn(),
       setSongs: noop,
       addSongs: noop,
