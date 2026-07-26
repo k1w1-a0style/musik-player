@@ -1,4 +1,4 @@
-name: Apply deep-scan fixes
+name: Publish hardened EAS workflow
 
 on:
   push:
@@ -8,59 +8,45 @@ on:
     branches:
       - codex
     types:
-      - opened
-      - reopened
       - synchronize
 
 permissions:
   contents: write
-  pull-requests: read
 
 concurrency:
-  group: deep-scan-bootstrap-fix-2026-07-25
+  group: deep-scan-eas-workflow-handoff-2026-07-25
   cancel-in-progress: false
 
 env:
-  BASE_SHA: 496d0c713424ce9f21aa9f69f3a2b4b6c02e700e
+  FINAL_BASE_SHA: 91058d2e41dec8da910a1fff1d1334e83a767abf
+  FINAL_BASE_BRANCH: fix/deep-scan-final-2026-07-25
+  TARGET_BRANCH: fix/deep-scan-eas-workflow-2026-07-25
   EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
   EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
   EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
   TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-  TARGET_BRANCH: fix/deep-scan-final-2026-07-25
 
 jobs:
-  apply:
+  publish:
     if: github.event_name == 'push' || github.head_ref == 'fix/deep-scan-2026-07-25'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
-      - name: Checkout transport head
+      - name: Checkout transport data
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Set up Node 20
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: 20.20.2
-          cache: npm
-
-      - name: Verify transport ancestry
+      - name: Verify and reconstruct source patch
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TRANSPORT_HEAD"
-          git merge-base --is-ancestor "$BASE_SHA" "$TRANSPORT_HEAD"
           if git ls-remote --exit-code --heads origin "$TARGET_BRANCH"; then
             echo "Target branch already exists: $TARGET_BRANCH" >&2
             exit 1
           fi
-
-      - name: Reconstruct and verify patch hashes
-        shell: bash
-        run: |
-          set -euo pipefail
           cat .github/deep-scan-fix.v2.patch.gz.b64.part-* > /tmp/deep-scan-fix.patch.gz.b64
           echo "$EXPECTED_B64_SHA256  /tmp/deep-scan-fix.patch.gz.b64" | sha256sum --check --strict
           base64 --decode /tmp/deep-scan-fix.patch.gz.b64 > /tmp/deep-scan-fix.patch.gz
@@ -68,57 +54,29 @@ jobs:
           gzip --decompress --stdout /tmp/deep-scan-fix.patch.gz > /tmp/deep-scan-fix.patch
           echo "$EXPECTED_PATCH_SHA256  /tmp/deep-scan-fix.patch" | sha256sum --check --strict
 
-      - name: Reset to base and apply patch
+      - name: Apply only the reusable EAS workflow
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard "$BASE_SHA"
+          git fetch origin "refs/heads/${FINAL_BASE_BRANCH}:refs/remotes/origin/final-base"
+          test "$(git rev-parse refs/remotes/origin/final-base)" = "$FINAL_BASE_SHA"
+          git checkout --detach "$FINAL_BASE_SHA"
           git clean -fdx
-          test "$(git rev-parse HEAD)" = "$BASE_SHA"
-          git apply --check --whitespace=error-all /tmp/deep-scan-fix.patch
-          git apply --index --whitespace=error-all /tmp/deep-scan-fix.patch
-
-      - name: Regenerate npm lockfile
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx --yes npm@10.8.2 install \
-            --package-lock-only \
-            --ignore-scripts \
-            --no-audit \
-            --no-fund
-
-      - name: Prepare workflow handoff to GitHub connector
-        shell: bash
-        run: |
-          set -euo pipefail
-          git restore --source="$BASE_SHA" --staged --worktree -- .github/workflows
-          test -z "$(git diff --name-only -- .github/workflows)"
-
-      - name: Validate staged result
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add --all
+          git apply --check --whitespace=error-all \
+            --include='.github/workflows/eas-build.yml' \
+            /tmp/deep-scan-fix.patch
+          git apply --index --whitespace=error-all \
+            --include='.github/workflows/eas-build.yml' \
+            /tmp/deep-scan-fix.patch
+          test "$(git diff --cached --name-only)" = '.github/workflows/eas-build.yml'
           git diff --cached --check
-          git diff --cached --stat
-          test -n "$(git diff --cached --name-only)"
-          test -z "$(git diff --cached --name-only -- .github/workflows)"
-          test ! -e .github/workflows/deep-scan-bootstrap.yml
-          test -z "$(find .github -maxdepth 1 -name 'deep-scan-fix*.part-*' -print -quit)"
 
-      - name: Commit final source tree without workflow files
+      - name: Commit and publish one-file workflow branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix: resolve deep-scan findings"
-          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-
-      - name: Publish new final branch
-        shell: bash
-        run: |
-          set -euo pipefail
+          git commit -m "ci: harden reusable EAS build workflow"
           git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
-          echo "Published source tree ${FINAL_SHA} to ${TARGET_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published $(git rev-parse HEAD) to ${TARGET_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
