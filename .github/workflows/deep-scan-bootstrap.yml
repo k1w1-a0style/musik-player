@@ -20,6 +20,14 @@ concurrency:
   group: deep-scan-bootstrap-fix-2026-07-25
   cancel-in-progress: false
 
+env:
+  BASE_SHA: 496d0c713424ce9f21aa9f69f3a2b4b6c02e700e
+  EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
+  EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
+  EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
+  TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+  TARGET_BRANCH: fix/deep-scan-2026-07-25
+
 jobs:
   apply:
     if: github.event_name == 'push' || github.head_ref == 'fix/deep-scan-2026-07-25'
@@ -38,55 +46,69 @@ jobs:
           node-version: 20.20.2
           cache: npm
 
-      - name: Reconstruct, verify and apply patch
-        env:
-          BASE_SHA: 496d0c713424ce9f21aa9f69f3a2b4b6c02e700e
-          EXPECTED_B64_SHA256: 5ba38c9352c1a9fb5a59611196aa87d713a4abff2a0af46de6b091f4c2acd4b2
-          EXPECTED_GZIP_SHA256: abb3b155a01837a87f3e812acc71e07827c83254bcf885a8d509fdc670669ec3
-          EXPECTED_PATCH_SHA256: f81d0566d65fc9e13b13589600da4b1f5a9e9237308519f652668090d1e7b0d0
-          TRANSPORT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          TARGET_BRANCH: fix/deep-scan-2026-07-25
+      - name: Verify transport ancestry
         shell: bash
         run: |
           set -euo pipefail
-
+          test "$(git rev-parse HEAD)" = "$TRANSPORT_HEAD"
           git merge-base --is-ancestor "$BASE_SHA" "$TRANSPORT_HEAD"
 
+      - name: Reconstruct and verify patch hashes
+        shell: bash
+        run: |
+          set -euo pipefail
           cat .github/deep-scan-fix.v2.patch.gz.b64.part-* > /tmp/deep-scan-fix.patch.gz.b64
           echo "$EXPECTED_B64_SHA256  /tmp/deep-scan-fix.patch.gz.b64" | sha256sum --check --strict
-
           base64 --decode /tmp/deep-scan-fix.patch.gz.b64 > /tmp/deep-scan-fix.patch.gz
           echo "$EXPECTED_GZIP_SHA256  /tmp/deep-scan-fix.patch.gz" | sha256sum --check --strict
-
           gzip --decompress --stdout /tmp/deep-scan-fix.patch.gz > /tmp/deep-scan-fix.patch
           echo "$EXPECTED_PATCH_SHA256  /tmp/deep-scan-fix.patch" | sha256sum --check --strict
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+      - name: Reset to base and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
           git reset --hard "$BASE_SHA"
           git clean -fdx
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
-
           git apply --check --whitespace=error-all /tmp/deep-scan-fix.patch
           git apply --index --whitespace=error-all /tmp/deep-scan-fix.patch
 
+      - name: Regenerate npm lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
           npx --yes npm@10.8.2 install \
             --package-lock-only \
             --ignore-scripts \
             --no-audit \
             --no-fund
 
+      - name: Validate staged result
+        shell: bash
+        run: |
+          set -euo pipefail
           git add --all
           git diff --cached --check
           git diff --cached --stat
           test -n "$(git diff --cached --name-only)"
+          test ! -e .github/workflows/deep-scan-bootstrap.yml
+          test -z "$(find .github -maxdepth 1 -name 'deep-scan-fix*.part-*' -print -quit)"
 
+      - name: Commit final source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "fix: resolve deep-scan findings"
-          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
+      - name: Replace transport branch atomically
+        shell: bash
+        run: |
+          set -euo pipefail
           git push \
             --force-with-lease="refs/heads/${TARGET_BRANCH}:${TRANSPORT_HEAD}" \
             origin "HEAD:refs/heads/${TARGET_BRANCH}"
-
           echo "Applied verified patch as ${FINAL_SHA}" >> "$GITHUB_STEP_SUMMARY"
