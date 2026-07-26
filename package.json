@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings=0",
     "check:android-permissions": "node scripts/ci/checkGeneratedAndroidManifestPermissions.cjs",
+    "check:source-nul": "node scripts/ci/checkSourceNulBytes.cjs",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:silent": "jest --runInBand",
