@@ -104,7 +104,18 @@ export const hydrateStoredSongs = async ({
       ? await clearNativeQueueAfterMalformedRestoredSong(nativeQueueRef)
       : await applyHydratedNativeQueue({ plan, nativeQueueRef, isCancelled });
 
-    if (isCancelled() || !nativeQueueApplied) return hydratedStored;
+    if (!nativeQueueApplied) {
+      // A cancelled hydration may still have completed a non-cancellable add.
+      // Commit the matching logical snapshot rather than leaving split-brain.
+      const nativeMatchesPlan = nativeQueueRef.current.length === plan.playableQueue.length
+        && nativeQueueRef.current.every((song, index) => song.id === plan.playableQueue[index]?.id);
+      if (nativeMatchesPlan && nativeQueueRef.current.length > 0) {
+        applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
+        applyHydratedCurrentSongState(plan, { setCurrentSong });
+      }
+      return hydratedStored;
+    }
+    if (isCancelled()) return hydratedStored;
 
     applyHydratedQueueState(plan, { queueContextRef, baseQueueContextRef, setPlaybackQueue });
     applyHydratedCurrentSongState(plan, { setCurrentSong });

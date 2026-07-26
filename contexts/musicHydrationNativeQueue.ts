@@ -38,13 +38,11 @@ export const applyHydratedNativeQueue = async ({
 }: ApplyHydratedNativeQueueArgs): Promise<boolean> => {
   if (plan.nativeQueueAction === 'none' || plan.nativeQueueAction === 'clearMalformedCurrent') return true;
 
-  let didResetNativeQueue = false;
-
   try {
     const applied = await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      try {
       if (isCancelled() || !isCurrent()) return false;
       await TrackPlayer.reset();
-      didResetNativeQueue = true;
       nativeQueueRef.current = [];
 
       if (isCancelled() || !isCurrent()) {
@@ -63,10 +61,20 @@ export const applyHydratedNativeQueue = async ({
       nativeQueueRef.current = plan.playableQueue.slice();
       if (isCancelled() || !isCurrent()) return false;
       return true;
+      } catch (error) {
+        const nativeTracks = await TrackPlayer.getQueue();
+        const recoveredQueue = nativeTracks.flatMap(track => {
+          const song = plan.playableQueue.find(item => String(item.id) === String(track.id));
+          return song ? [song] : [];
+        });
+        if (recoveredQueue.length !== nativeTracks.length) throw error;
+        nativeQueueRef.current = recoveredQueue;
+        console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
+        return false;
+      }
     });
     return applied;
   } catch (error) {
-    if (didResetNativeQueue) nativeQueueRef.current = [];
     console.warn('[PlaybackQueue] Failed to initialize hydrated native queue.', error);
     return false;
   }

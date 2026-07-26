@@ -153,4 +153,17 @@ describe('GitHub workflow CI strategy', () => {
     expect(triggeredWorkflow).not.toContain("|| 'preview'");
   });
 
+  it('fails closed for cloud EAS builds while retaining the confirmed manual development smoke', () => {
+    for (const file of ['eas-build.yml', 'release-build.yml', 'deploy-supabase-functions.yml']) {
+      expect(readWorkflow(file)).toContain("vars.ENABLE_CLOUD_EAS_BUILDS == 'true'");
+    }
+
+    const smoke = readWorkflow('android-emulator-smoke.yml');
+    expect(smoke).toContain('workflow_dispatch:');
+    expect(smoke).toContain("if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).not.toContain('pull_request:');
+    expect(smoke).not.toContain('push:');
+    expect(smoke).not.toContain('repository_dispatch:');
+  });
+
 });

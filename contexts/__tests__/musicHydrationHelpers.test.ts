@@ -534,7 +534,7 @@ describe('musicHydrationHelpers', () => {
     await waitFor(() => expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5));
   });
 
-  test('does not set hydrated native queue ref when add is superseded before commit', async () => {
+  test('sets hydrated native queue ref when add is superseded after starting', async () => {
     const nativeQueueRef = createSongRef();
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
       void runExclusiveNativeQueueReplacement(async () => undefined);
@@ -563,10 +563,10 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
-    expect(nativeQueueRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual(songs);
   });
 
-  test('does not set hydrated native queue ref when cancelled after add', async () => {
+  test('sets hydrated native queue ref when cancelled after add', async () => {
     const nativeQueueRef = createSongRef();
     let cancelled = false;
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
@@ -596,7 +596,7 @@ describe('musicHydrationHelpers', () => {
     });
 
     expect(TrackPlayer.add).toHaveBeenCalled();
-    expect(nativeQueueRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual(songs);
   });
 
   test('clears native ref and keeps queue refs uncommitted when hydrated native queue initialization fails', async () => {

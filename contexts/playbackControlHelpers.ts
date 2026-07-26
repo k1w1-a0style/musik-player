@@ -26,12 +26,18 @@ export const normalizeSeekSeconds = (millis: number): number => {
 };
 
 export const toggleTrackPlayerPlayback = async (): Promise<void> => {
-  const state = (await TrackPlayer.getPlaybackState()).state;
-  if (state === State.Playing) {
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.pause());
-    return;
-  }
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.play());
+  await runExclusiveNativePlaybackControl(async () => {
+    const state = (await TrackPlayer.getPlaybackState()).state;
+    if (state === State.Playing) {
+      await TrackPlayer.pause();
+      return;
+    }
+    await TrackPlayer.play();
+  });
+};
+
+export const stopTrackPlayerPlayback = async (): Promise<void> => {
+  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop());
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {

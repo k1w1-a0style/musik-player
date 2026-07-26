@@ -74,7 +74,7 @@ describe('runReorderQueueAction', () => {
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(42);
   });
 
-  test('keeps UI state unchanged and native ref truthful when native rebuild fails after reset', async () => {
+  test('reconciles every queue representation when native add fails after reset', async () => {
     const args = createArgs();
     (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('native add failed'));
 
@@ -87,10 +87,10 @@ describe('runReorderQueueAction', () => {
       setShuffle: args.setShuffle,
     })).resolves.toBe(false);
 
-    expect(args.queueContextRef.current).toEqual(songs);
-    expect(args.baseQueueContextRef.current).toEqual(songs);
-    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
-    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.queueContextRef.current).toEqual([]);
+    expect(args.baseQueueContextRef.current).toEqual([]);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(null);
     expect(args.setShuffle).not.toHaveBeenCalled();
     expect(args.nativeQueueRef.current).toEqual([]);
   });
@@ -98,8 +98,13 @@ describe('runReorderQueueAction', () => {
   test('finishes an active reorder before a newer replacement observes queue state', async () => {
     const args = createArgs();
     let resolveAdd: () => void = () => undefined;
+    let signalAddStarted: () => void = () => undefined;
+    const addStarted = new Promise<void>(resolve => {
+      signalAddStarted = resolve;
+    });
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
       resolveAdd = resolve;
+      signalAddStarted();
     }));
 
     const reorderPromise = runReorderQueueAction({
@@ -110,9 +115,7 @@ describe('runReorderQueueAction', () => {
       shuffle: false,
       setShuffle: args.setShuffle,
     });
-    for (let attempt = 0; attempt < 20 && !(TrackPlayer.add as jest.Mock).mock.calls.length; attempt += 1) {
-      await Promise.resolve();
-    }
+    await addStarted;
     expect(TrackPlayer.add).toHaveBeenCalled();
 
     let newerReplacementObservedConsistentState = false;
