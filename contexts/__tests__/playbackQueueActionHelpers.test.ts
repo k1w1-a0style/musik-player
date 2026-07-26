@@ -407,6 +407,29 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
   });
 
+  test('runInsertSongQueueAction reconciles a native insert that rejects after applying its side effect', async () => {
+    const args = createQueueArgs();
+    args.queueContextRef.current = [songs[0], songs[2]];
+    args.baseQueueContextRef.current = [songs[0], songs[2]];
+    args.nativeQueueRef.current = [songs[0], songs[2]];
+    const nativeQueue = [songs[0], songs[2]];
+    (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's1' });
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (track: Song, index: number) => {
+      nativeQueue.splice(index, 0, track);
+      throw new Error('bridge acknowledgement failed');
+    });
+    (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => nativeQueue);
+
+    await expect(runInsertSongQueueAction({ ...args, song: songs[1], currentSongId: 's1', position: 'next' }))
+      .resolves.toBe(false);
+
+    expect(args.nativeQueueRef.current.map(item => item.id)).toEqual(['s1', 's2', 's3']);
+    expect(args.queueContextRef.current).toEqual(args.nativeQueueRef.current);
+    expect(args.baseQueueContextRef.current).toEqual(args.nativeQueueRef.current);
+    expect(args.setPlaybackQueue).toHaveBeenCalledWith(args.nativeQueueRef.current);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[0]);
+  });
+
   test('runs shuffle queue action and rebuilds native queue', async () => {
     const args = createQueueArgs();
     args.queueContextRef.current = songs.slice();
@@ -463,7 +486,8 @@ describe('playbackQueueActionHelpers', () => {
     expect((TrackPlayer.play as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       setShuffle.mock.invocationCallOrder[0],
     );
-    expect(setShuffle).toHaveBeenCalledWith(true);
+    const nativeIsShuffled = args.nativeQueueRef.current.some((song, index) => song.id !== songs[index]?.id);
+    expect(setShuffle).toHaveBeenCalledWith(nativeIsShuffled);
   });
 
   test('runShuffleQueueAction builds its plan from refs read inside the replacement context', async () => {
@@ -546,6 +570,8 @@ describe('playbackQueueActionHelpers', () => {
     args.queueContextRef.current = songs.slice();
     args.baseQueueContextRef.current = songs.slice();
     args.nativeQueueRef.current = songs.slice();
+    (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () =>
+      (TrackPlayer as unknown as { __getQueue: () => Song[] }).__getQueue());
     (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 's1' });
     (TrackPlayer.seekTo as jest.Mock).mockRejectedValueOnce(new Error('seek failed'));
     const setShuffle = jest.fn();
@@ -563,7 +589,8 @@ describe('playbackQueueActionHelpers', () => {
     expect(args.baseQueueContextRef.current).toEqual(songs);
     expect(args.setPlaybackQueue).toHaveBeenCalledWith(args.queueContextRef.current);
     expect(args.setCurrentSong).toHaveBeenCalledWith(songs[0]);
-    expect(setShuffle).toHaveBeenCalledWith(true);
+    const recoveredShuffle = args.nativeQueueRef.current.some((song, index) => song.id !== songs[index]?.id);
+    expect(setShuffle).toHaveBeenCalledWith(recoveredShuffle);
   });
 
   test('runShuffleQueueAction uses exactly one native replacement intent', async () => {
