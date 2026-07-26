@@ -1,0 +1,155 @@
+name: Android release APK emulator smoke
+
+on:
+  pull_request:
+    branches: [codex]
+    paths:
+      - '.github/workflows/android-emulator-smoke.yml'
+      - 'app.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.js'
+      - '**/*.js'
+      - '**/*.cjs'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - 'modules/expo-system-audio/**'
+      - 'scripts/ci/**'
+      - 'scripts/patches/**'
+  push:
+    branches: [codex]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-emulator-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-apk-smoke:
+    name: Build, install and launch release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      AVD_NAME: musik-player-api-35
+      ANDROID_API: '35'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Select JDK 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${JAVA_HOME_17_X64:-}"
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Android project
+        run: npx --no-install expo prebuild --platform android --no-install --clean
+
+      - name: Build release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew :app:assembleRelease --no-daemon --console=plain | tee ../android-release-build.log
+
+      - name: Inspect release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          node scripts/ci/inspectAndroidApk.cjs "$APK" \
+            --expected-package "$PACKAGE_NAME" \
+            --expected-label "k1w1-Musik" \
+            --min-size-bytes 10000001 \
+            --require-badging \
+            --require-signature \
+            --enforce-permission-policy \
+            | tee android-release-apk-inspection.log
+
+      - name: Prepare Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' \
+            'emulator' \
+            "system-images;android-${ANDROID_API};google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force \
+            --name "$AVD_NAME" \
+            --package "system-images;android-${ANDROID_API};google_apis;x86_64" \
+            --device pixel_6
+
+      - name: Boot emulator, install and launch APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "$AVD_NAME" \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -gpu swiftshader_indirect \
+            -camera-back none \
+            -camera-front none \
+            > ci-logs/emulator.log 2>&1 &
+          echo $! > ci-logs/emulator.pid
+
+          adb wait-for-device
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell input keyevent 82 || true
+          adb logcat -c
+
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          adb install -r "$APK" | tee ci-logs/adb-install.log
+          adb shell am force-stop "$PACKAGE_NAME"
+          adb shell am start -W -n "$PACKAGE_NAME/.MainActivity" | tee ci-logs/adb-launch.log
+          sleep 8
+
+          pid=$(adb shell pidof "$PACKAGE_NAME" | tr -d '\r')
+          test -n "$pid"
+          echo "appPid=$pid" | tee ci-logs/app-process.log
+          adb shell dumpsys activity activities > ci-logs/dumpsys-activities.txt
+          grep -F "$PACKAGE_NAME" ci-logs/dumpsys-activities.txt >/dev/null
+          adb logcat -d -v threadtime > ci-logs/logcat.txt
+          if grep -A20 -B5 -F "Process: ${PACKAGE_NAME}," ci-logs/logcat.txt; then
+            echo "::error::The release APK crashed during launch smoke."
+            exit 1
+          fi
+
+      - name: Upload APK and smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-release-emulator-smoke-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android-release-build.log
+            android-release-apk-inspection.log
+            ci-logs/**
+          if-no-files-found: warn
+          retention-days: 5
