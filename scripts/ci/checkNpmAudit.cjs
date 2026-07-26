@@ -20,17 +20,36 @@ const readJson = file => {
 const severityRank = Object.freeze({ info: 0, low: 1, moderate: 2, high: 3, critical: 4 });
 const isBlocking = severity => (severityRank[severity] ?? -1) >= severityRank.high;
 
-const packageVersionFromLock = (lock, packageName) => {
-  const node = lock.packages?.[`node_modules/${packageName}`];
-  return typeof node?.version === 'string' ? node.version : null;
+const advisorySourcesFor = vulnerability => {
+  const via = Array.isArray(vulnerability?.via) ? vulnerability.via : [];
+  return [...new Set(via
+    .filter(item => item && typeof item === 'object' && Number.isInteger(item.source))
+    .map(item => item.source))]
+    .sort((left, right) => left - right);
+};
+
+const packageVersionsFromLock = (lock, packageName, vulnerability) => {
+  const declaredNodes = Array.isArray(vulnerability?.nodes)
+    ? vulnerability.nodes.filter(node => typeof node === 'string' && node)
+    : [];
+  const nodes = declaredNodes.length > 0 ? declaredNodes : [`node_modules/${packageName}`];
+  return [...new Set(nodes
+    .map(node => lock.packages?.[node]?.version)
+    .filter(version => typeof version === 'string' && version))]
+    .sort();
 };
 
 const validateException = (entry, today) => {
   if (!entry || typeof entry !== 'object') return 'exception must be an object';
   if (typeof entry.package !== 'string' || !entry.package) return 'exception package is required';
   if (!isBlocking(entry.severity)) return `${entry.package}: exception severity must be high or critical`;
-  if (!Array.isArray(entry.expectedVersions) || entry.expectedVersions.length === 0) {
+  if (!Array.isArray(entry.expectedVersions) || entry.expectedVersions.length === 0
+      || entry.expectedVersions.some(version => typeof version !== 'string' || !version)) {
     return `${entry.package}: expectedVersions must contain at least one exact version`;
+  }
+  if (!Array.isArray(entry.advisorySources) || entry.advisorySources.length === 0
+      || entry.advisorySources.some(source => !Number.isInteger(source) || source <= 0)) {
+    return `${entry.package}: advisorySources must contain at least one positive integer source id`;
   }
   if (typeof entry.issue !== 'string' || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(entry.issue)) {
     return `${entry.package}: issue must be a concrete GitHub issue URL`;
@@ -44,6 +63,8 @@ const validateException = (entry, today) => {
   if (entry.expiresOn < today) return `${entry.package}: exception expired on ${entry.expiresOn}`;
   return null;
 };
+
+const difference = (left, right) => left.filter(value => !right.includes(value));
 
 const evaluateAudit = ({ audit, policy, lock, today }) => {
   if (audit.auditReportVersion !== 2 || !audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') {
@@ -66,24 +87,50 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
   }
 
   const usedExceptions = new Set();
+  let blockingRootCount = 0;
+  let collapsedEffectCount = 0;
   for (const [packageName, vulnerability] of Object.entries(audit.vulnerabilities)) {
     const severity = vulnerability?.severity;
     if (!isBlocking(severity)) continue;
 
+    const advisorySources = advisorySourcesFor(vulnerability);
+    if (advisorySources.length === 0) {
+      collapsedEffectCount += 1;
+      continue;
+    }
+    blockingRootCount += 1;
+
     const exception = exceptions.get(packageName);
     if (!exception) {
-      failures.push(`${packageName}: unexpected ${severity} vulnerability`);
+      failures.push(`${packageName}: unexpected ${severity} advisory root (${advisorySources.join(', ')})`);
       continue;
     }
     usedExceptions.add(packageName);
     if (exception.severity !== severity) {
       failures.push(`${packageName}: vulnerability severity changed from excepted ${exception.severity} to ${severity}`);
     }
-    const installedVersion = packageVersionFromLock(lock, packageName);
-    if (!installedVersion) {
-      failures.push(`${packageName}: package version is missing from package-lock.json`);
-    } else if (!exception.expectedVersions.includes(installedVersion)) {
-      failures.push(`${packageName}: installed ${installedVersion} is not one of the explicitly excepted versions (${exception.expectedVersions.join(', ')})`);
+
+    const expectedSources = [...new Set(exception.advisorySources)].sort((left, right) => left - right);
+    const unexpectedSources = difference(advisorySources, expectedSources);
+    const staleSources = difference(expectedSources, advisorySources);
+    if (unexpectedSources.length > 0 || staleSources.length > 0) {
+      failures.push(
+        `${packageName}: advisory sources changed; current [${advisorySources.join(', ')}], excepted [${expectedSources.join(', ')}]`,
+      );
+    }
+
+    const installedVersions = packageVersionsFromLock(lock, packageName, vulnerability);
+    if (installedVersions.length === 0) {
+      failures.push(`${packageName}: vulnerable package versions are missing from package-lock.json`);
+      continue;
+    }
+    const expectedVersions = [...new Set(exception.expectedVersions)].sort();
+    const unexpectedVersions = difference(installedVersions, expectedVersions);
+    const staleVersions = difference(expectedVersions, installedVersions);
+    if (unexpectedVersions.length > 0 || staleVersions.length > 0) {
+      failures.push(
+        `${packageName}: vulnerable versions changed; installed [${installedVersions.join(', ')}], excepted [${expectedVersions.join(', ')}]`,
+      );
     }
   }
 
@@ -95,6 +142,7 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
 
   const counts = audit.metadata?.vulnerabilities ?? {};
   warnings.push(`audit counts: ${Number(counts.critical ?? 0)} critical, ${Number(counts.high ?? 0)} high, ${Number(counts.moderate ?? 0)} moderate`);
+  warnings.push(`blocking advisory roots: ${blockingRootCount}; collapsed transitive effect entries: ${collapsedEffectCount}`);
   return { failures, warnings };
 };
 
@@ -113,9 +161,14 @@ const main = () => {
     console.error(result.failures.map(item => `- ${item}`).join('\n'));
     process.exit(1);
   }
-  console.log('npm audit policy passed: no unapproved high or critical vulnerabilities.');
+  console.log('npm audit policy passed: no unapproved high or critical advisory roots.');
 };
 
 if (require.main === module) main();
 
-module.exports = { evaluateAudit, packageVersionFromLock, validateException };
+module.exports = {
+  advisorySourcesFor,
+  evaluateAudit,
+  packageVersionsFromLock,
+  validateException,
+};
