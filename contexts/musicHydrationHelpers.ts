@@ -9,6 +9,7 @@ import { loadStoredMusicHydrationState } from './musicHydrationLoad';
 import {
   applyHydrationPlanToStoredState,
   createHydrationPlan,
+  sanitizeStoredPlaylistsForHydration,
 } from './musicHydrationPlan';
 import {
   applyHydratedNativeQueue,
@@ -20,6 +21,8 @@ import {
   persistHydratedSongsIfNeeded,
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
+import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { commitNativeQueueTruth, readNativeQueueTruth } from './nativeQueueRecovery';
 import {
   acquireSongCoverProtection,
   type SongCoverProtectionLease,
@@ -56,13 +59,16 @@ export { loadStoredMusicHydrationState } from './musicHydrationLoad';
 export { createHydrationPlan, sanitizeStoredPlaylistsForHydration } from './musicHydrationPlan';
 export { applyStoredPlaybackSettings } from './musicHydrationPlaybackSettings';
 
-export type HydrateStoredSongsResult = StoredMusicHydrationState & HydratedNativeQueueResult;
+export type HydrateStoredSongsResult = StoredMusicHydrationState & HydratedNativeQueueResult & {
+  libraryHydrationStatus: 'empty-missing-key' | 'stored';
+};
 
 const withoutNativeMutation = (
   stored: StoredMusicHydrationState,
   refs: Pick<HydrateStoredSongsArgs, 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef'>,
 ): HydrateStoredSongsResult => ({
   ...stored,
+  libraryHydrationStatus: stored.songs === null ? 'empty-missing-key' : 'stored',
   nativeStatus: 'stale',
   verifiedState: null,
   lastKnownUnverifiedState: {
@@ -73,6 +79,61 @@ const withoutNativeMutation = (
   currentSongPersistence: { status: 'not-required' },
   failureStage: 'snapshot',
 });
+
+export const verifySupersededHydration = async (
+  nativeResult: HydratedNativeQueueResult,
+  args: Pick<HydrateStoredSongsArgs, 'songsRef' | 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef' | 'setPlaybackQueue' | 'setCurrentSong'>,
+): Promise<HydratedNativeQueueResult> => {
+  if (nativeResult.nativeStatus !== 'stale') return nativeResult;
+  const originalError = nativeResult.recoveryErrors?.originalError
+    ?? new Error('Native queue hydration was superseded before it started.');
+  try {
+    return await runExclusiveNativePlaybackControl(async () => {
+      const knownSongs = [
+        ...args.songsRef.current, ...args.nativeQueueRef.current,
+        ...args.queueContextRef.current, ...args.baseQueueContextRef.current,
+      ];
+      const state = await commitNativeQueueTruth({
+        readback: await readNativeQueueTruth(knownSongs),
+        preferredBaseQueue: args.baseQueueContextRef.current,
+        librarySongs: args.songsRef.current,
+        targets: args,
+        shuffleStrategy: { kind: 'derive-from-order' },
+      });
+      return {
+        nativeStatus: 'reconciled', verifiedState: 'confirmed', queue: state.queue,
+        baseQueue: state.baseQueue, activeSong: state.activeSong, shuffleEnabled: state.shuffleEnabled,
+        currentSongPersistence: state.currentSongPersistence,
+        recoveryErrors: { originalError }, persistenceError: state.persistenceError,
+      };
+    });
+  } catch (error) {
+    return {
+      ...nativeResult, nativeStatus: 'failed', failureStage: 'readback',
+      recoveryErrors: { originalError, finalReadbackError: error },
+    };
+  }
+};
+
+const createStoredHydrationPlan = (stored: StoredMusicHydrationState, sanitizedSongs: Song[]) => {
+  const plan = createHydrationPlan(stored, sanitizedSongs);
+  if (stored.songs !== null) return plan;
+  const normalizedPlaylists = sanitizeStoredPlaylistsForHydration(stored);
+  return {
+    ...plan,
+    normalizedPlaylists,
+    shouldPersistPlaylists: normalizedPlaylists != null && normalizedPlaylists !== stored.playlists,
+  };
+};
+
+const toHydratedStoredState = (
+  stored: StoredMusicHydrationState,
+  plan: ReturnType<typeof createHydrationPlan>,
+): StoredMusicHydrationState & { libraryHydrationStatus: 'empty-missing-key' | 'stored' } => {
+  const planned = applyHydrationPlanToStoredState(stored, plan);
+  if (stored.songs !== null) return { ...planned, libraryHydrationStatus: 'stored' };
+  return { ...planned, songs: null, libraryHydrationStatus: 'empty-missing-key' };
+};
 
 export const hydrateStoredSongs = async ({
   stored,
@@ -86,15 +147,14 @@ export const hydrateStoredSongs = async ({
   isCancelled,
 }: HydrateStoredSongsArgs): Promise<HydrateStoredSongsResult> => {
   const refs = { nativeQueueRef, queueContextRef, baseQueueContextRef };
-  if (!stored.songs) return withoutNativeMutation(stored, refs);
-
-  const coverLease = acquireSongCoverProtection(stored.songs);
+  const sourceSongs = stored.songs ?? [];
+  const coverLease = acquireSongCoverProtection(sourceSongs);
   try {
-    const sanitizedSongs = await sanitizeSongsForStorage(stored.songs, coverLease.protection);
+    const sanitizedSongs = await sanitizeSongsForStorage(sourceSongs, coverLease.protection);
     if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     coverLease.updateSnapshot(sanitizedSongs);
-    const plan = createHydrationPlan(stored, sanitizedSongs);
+    const plan = createStoredHydrationPlan(stored, sanitizedSongs);
 
     applyHydratedSongsState(plan, { songsRef, setSongsState });
 
@@ -111,15 +171,18 @@ export const hydrateStoredSongs = async ({
     await persistHydratedPlaylistsIfNeeded(plan);
     if (isCancelled()) return withoutNativeMutation(stored, refs);
 
-    const hydratedStored = applyHydrationPlanToStoredState(stored, plan);
+    const hydratedStored = toHydratedStoredState(stored, plan);
 
-    const nativeResult = await applyHydratedNativeQueue({
+    const initialNativeResult = await applyHydratedNativeQueue({
       plan,
       nativeQueueRef,
       isCancelled,
       librarySongs: plan.hydratedSongs,
       shuffleEnabled: stored.shuffle ?? false,
       targets: { nativeQueueRef, queueContextRef, baseQueueContextRef, setPlaybackQueue, setCurrentSong },
+    });
+    const nativeResult = isCancelled() ? initialNativeResult : await verifySupersededHydration(initialNativeResult, {
+      songsRef, nativeQueueRef, queueContextRef, baseQueueContextRef, setPlaybackQueue, setCurrentSong,
     });
     if (nativeResult.verifiedState === null) return { ...hydratedStored, ...nativeResult };
     const persistedCurrentSongId = nativeResult.currentSongPersistence.status === 'set-confirmed'
@@ -155,7 +218,8 @@ export const runMusicHydration = async ({
 
     if (isCancelled()) return;
     if (hydratedStored.verifiedState === null) {
-      throw new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
+      throw hydratedStored.recoveryErrors?.originalError
+        ?? new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
     }
 
     try {

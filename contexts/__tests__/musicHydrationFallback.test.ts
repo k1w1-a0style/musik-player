@@ -4,6 +4,7 @@ import type { Song } from '../../types/Song';
 import { StorageKeys, storage } from '../../utils/storage';
 import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
 import { applyHydrationFailureFallback } from '../musicHydrationFallback';
+import { verifySupersededHydration } from '../musicHydrationHelpers';
 
 const song: Song = { id: 's1', title: 'One', artist: 'A', uri: 'file:///1.mp3' };
 const ref = (current: Song[] = []) => ({ current });
@@ -74,4 +75,43 @@ test('play replacement requested after fallback cannot observe reset before stat
   releaseReset.resolve();
   await Promise.all([fallback, play]);
   expect(observedCommittedState).toBe(true);
+});
+
+test.each(['play', 'reorder', 'shuffle'])('superseded hydration verifies after newer %s action without resetting it', async () => {
+  const args = createArgs();
+  const blockerStarted = deferred();
+  const releaseBlocker = deferred();
+  const newerStarted = deferred();
+  const blocker = runExclusiveNativeQueueReplacement(async () => {
+    blockerStarted.resolve();
+    await releaseBlocker.promise;
+  });
+  await blockerStarted.promise;
+  const newer = runExclusiveNativeQueueReplacement(async () => {
+    await TrackPlayer.reset();
+    await TrackPlayer.add([{ ...song, url: song.uri! }]);
+    args.nativeQueueRef.current = [song];
+    args.queueContextRef.current = [song];
+    args.baseQueueContextRef.current = [song];
+    newerStarted.resolve();
+  });
+  const staleResult = {
+    nativeStatus: 'stale' as const,
+    verifiedState: null,
+    lastKnownUnverifiedState: { nativeQueueRef: [], logicalQueue: [], baseQueue: [] },
+    currentSongPersistence: { status: 'not-required' as const },
+    failureStage: 'snapshot' as const,
+  };
+  const verification = verifySupersededHydration(staleResult, args);
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  releaseBlocker.resolve();
+  await newerStarted.promise;
+  const result = await verification;
+  await Promise.all([blocker, newer]);
+  expect(result).toMatchObject({ nativeStatus: 'reconciled', verifiedState: 'confirmed', queue: [song], activeSong: song });
+  expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+  expect(args.nativeQueueRef.current).toEqual([song]);
+  expect(args.queueContextRef.current).toEqual([song]);
+  expect(args.setCurrentSong).toHaveBeenCalledWith(song);
+  expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
 });
