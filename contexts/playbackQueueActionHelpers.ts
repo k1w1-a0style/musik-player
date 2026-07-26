@@ -11,7 +11,6 @@ import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
   type NativeQueueReplacementContext,
-  runExclusiveNativePlaybackControl,
   runExclusiveNativeQueueReplacement,
 } from '../utils/nativeQueueMutationLock';
 
@@ -217,56 +216,76 @@ export const runPlaySongQueueAction = async ({
   setPlaybackQueue,
   setCurrentSong,
 }: RunPlaySongQueueActionArgs): Promise<void> => {
-  const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
-  const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
-  if (!plan) {
-    console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
-    return;
-  }
+  await runExclusiveNativeQueueReplacement(async context => {
+    const { isCurrent } = context;
+    if (!isCurrent()) return;
 
-  const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
+    const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
+    const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
+    if (!plan) {
+      console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
+      return;
+    }
 
-  if (canReuseNativeQueue) {
-    const orderedQueue = plan.reusableOrderedQueue;
+    const { requestedSong, queueWithRequested, nativeIndex, canReuseNativeQueue } = plan;
+    let orderedQueue = plan.rebuildOrderedQueue;
 
-    try {
-      await runExclusiveNativePlaybackControl(async () => {
+    if (canReuseNativeQueue) {
+      try {
         const activeTrack = await TrackPlayer.getActiveTrack();
+        if (!isCurrent()) return;
         if (activeTrack?.id !== requestedSong.id) {
           await TrackPlayer.skip(nativeIndex);
+          if (!isCurrent()) return;
         }
         await TrackPlayer.play();
-      });
-      applyPlaybackQueueState({
-        queueContextRef,
-        baseQueueContextRef,
-        setPlaybackQueue,
-        setCurrentSong,
+        if (!isCurrent()) return;
+        orderedQueue = plan.reusableOrderedQueue;
+      } catch (error) {
+        console.warn('[PlaybackQueue] Native skip failed, rebuilding queue.', error);
+        if (!isCurrent()) return;
+        const orderedStartIndex = orderedQueue.findIndex(
+          item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id),
+        );
+        const rebuilt = await rebuildNativePlaybackQueueUnlocked(
+          orderedQueue,
+          nativeQueueRef,
+          undefined,
+          context,
+          orderedStartIndex,
+        );
+        if (!rebuilt || !isCurrent()) return;
+      }
+    } else {
+      const orderedStartIndex = orderedQueue.findIndex(
+        item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id),
+      );
+      const rebuilt = await rebuildNativePlaybackQueueUnlocked(
         orderedQueue,
-        baseQueue: queueWithRequested,
-        selectedSong: requestedSong,
-      });
-      await persistRequestedSongId(requestedSong, songsRef.current);
-      return;
-    } catch (error) {
-      console.warn('[PlaybackQueue] Native skip failed, rebuilding queue.', error);
-      // Fall through to a full queue rebuild if native skip is unavailable/fails.
+        nativeQueueRef,
+        undefined,
+        context,
+        orderedStartIndex,
+      );
+      if (!rebuilt || !isCurrent()) return;
     }
-  }
 
-  const orderedQueue = plan.rebuildOrderedQueue;
-  const orderedStartIndex = orderedQueue.findIndex(item => normalizeSongId(item.id) === normalizeSongId(requestedSong.id));
-  await rebuildNativePlaybackQueue(orderedQueue, nativeQueueRef, undefined, orderedStartIndex);
-  applyPlaybackQueueState({
-    queueContextRef,
-    baseQueueContextRef,
-    setPlaybackQueue,
-    setCurrentSong,
-    orderedQueue,
-    baseQueue: queueWithRequested,
-    selectedSong: requestedSong,
+    applyPlaybackQueueState({
+      queueContextRef,
+      baseQueueContextRef,
+      setPlaybackQueue,
+      setCurrentSong,
+      orderedQueue,
+      baseQueue: queueWithRequested,
+      selectedSong: requestedSong,
+    });
+
+    try {
+      await persistRequestedSongId(requestedSong, songsRef.current);
+    } catch (error) {
+      console.warn('[PlaybackQueue] Failed to persist current song after successful playback.', error);
+    }
   });
-  await persistRequestedSongId(requestedSong, songsRef.current);
 };
 
 

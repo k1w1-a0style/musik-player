@@ -182,6 +182,57 @@ describe('playbackQueueActionHelpers', () => {
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s2');
   });
 
+  test('runPlaySongQueueAction builds its plan from the native ref inside the mutation chain', async () => {
+    const args = createQueueArgs();
+    args.nativeQueueRef.current = [];
+    let releaseBlocker: () => void = () => undefined;
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      await new Promise<void>(resolve => {
+        releaseBlocker = resolve;
+      });
+      args.nativeQueueRef.current = songs.slice();
+    });
+    await flushMicrotasks();
+
+    const playPromise = runPlaySongQueueAction({ ...args, song: songs[2], queue: songs });
+    releaseBlocker();
+    await Promise.all([blocker, playPromise]);
+
+    expect(TrackPlayer.reset).not.toHaveBeenCalled();
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(2);
+    expect(args.nativeQueueRef.current).toEqual(songs);
+    expect(args.setCurrentSong).toHaveBeenCalledWith(songs[2]);
+  });
+
+  test('runPlaySongQueueAction commits no stale UI state when superseded during native add', async () => {
+    const args = createQueueArgs();
+    let resolveAdd: () => void = () => undefined;
+    (TrackPlayer.add as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
+      resolveAdd = resolve;
+    }));
+
+    const playPromise = runPlaySongQueueAction({ ...args, song: songs[1] });
+    for (let attempt = 0; attempt < 20 && !(TrackPlayer.add as jest.Mock).mock.calls.length; attempt += 1) {
+      await Promise.resolve();
+    }
+    expect(TrackPlayer.add).toHaveBeenCalled();
+
+    const newerNativeQueue = [songs[2]];
+    const newerReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      expect(isCurrent()).toBe(true);
+      args.nativeQueueRef.current = newerNativeQueue.slice();
+    });
+    resolveAdd();
+    await Promise.all([playPromise, newerReplacement]);
+
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.queueContextRef.current).toEqual([]);
+    expect(args.baseQueueContextRef.current).toEqual([]);
+    expect(args.nativeQueueRef.current).toEqual(newerNativeQueue);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
   test('runPlaySongQueueAction skips playback for songs without playable uri', async () => {
     const args = createQueueArgs();
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
