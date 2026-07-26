@@ -30,10 +30,16 @@ export interface NativeQueueRecoveryDiagnostics {
   finalReadbackError?: unknown;
 }
 
+export type NativeQueueReplacementProgress =
+  | 'not-started' | 'reset-confirmed' | 'add-started' | 'queue-replacement-confirmed'
+  | 'active-track-confirmed' | 'progress-confirmed' | 'playback-confirmed';
+
 export type NativeQueueShuffleStrategy =
   | { kind: 'confirmed-action'; enabled: boolean }
   | { kind: 'restore-snapshot'; enabled: boolean }
-  | { kind: 'derive-from-order' };
+  | { kind: 'derive-from-order' }
+  | { kind: 'recover-replacement'; snapshotEnabled: boolean; requestedEnabled: boolean;
+      snapshotQueue: Song[]; targetQueue: Song[]; progress: NativeQueueReplacementProgress };
 
 export type CurrentSongPersistenceStatus =
   | 'set-confirmed'
@@ -156,14 +162,23 @@ export const hasSameNormalizedIdMultiset = (left: Song[], right: Song[]): boolea
   return [...leftCounts].every(([id, count]) => rightCounts.get(id) === count);
 };
 
-const hasSameQueueOrder = (left: Song[], right: Song[]): boolean => left.length === right.length
+export const hasSameNormalizedQueueOrder = (left: Song[], right: Song[]): boolean => left.length === right.length
   && left.every((song, index) => normalizedId(song.id) === normalizedId(right[index]?.id));
 
 export const deriveBaseQueue = (queue: Song[], preferredBaseQueue: Song[]): Song[] =>
   hasSameNormalizedIdMultiset(queue, preferredBaseQueue) ? preferredBaseQueue.slice() : queue.slice();
 
 export const deriveRecoveredShuffleState = (queue: Song[], baseQueue: Song[]): boolean =>
-  hasSameNormalizedIdMultiset(queue, baseQueue) && !hasSameQueueOrder(queue, baseQueue);
+  hasSameNormalizedIdMultiset(queue, baseQueue) && !hasSameNormalizedQueueOrder(queue, baseQueue);
+
+const resolveReplacementShuffleState = (
+  strategy: Extract<NativeQueueShuffleStrategy, { kind: 'recover-replacement' }>,
+  queue: Song[],
+): boolean => {
+  const replacementStarted = strategy.progress !== 'not-started' && strategy.progress !== 'reset-confirmed';
+  if (replacementStarted && hasSameNormalizedQueueOrder(queue, strategy.targetQueue)) return strategy.requestedEnabled;
+  return strategy.snapshotEnabled;
+};
 
 export const resolveShuffleState = (
   strategy: NativeQueueShuffleStrategy,
@@ -171,7 +186,9 @@ export const resolveShuffleState = (
   baseQueue: Song[],
 ): boolean => strategy.kind === 'derive-from-order'
   ? deriveRecoveredShuffleState(queue, baseQueue)
-  : strategy.enabled;
+  : strategy.kind === 'recover-replacement'
+    ? resolveReplacementShuffleState(strategy, queue)
+    : strategy.enabled;
 
 export const persistNativeCurrentSong = async (
   activeSong: Song | null,
@@ -251,7 +268,7 @@ export const verifyNativeQueueRollback = (
   snapshot: NativeQueueMutationSnapshot,
   readback: NativeQueueReadback,
 ): void => {
-  if (!hasSameQueueOrder(snapshot.nativeQueue, readback.queue)) throw new Error('Rollback queue order differs from snapshot.');
+  if (!hasSameNormalizedQueueOrder(snapshot.nativeQueue, readback.queue)) throw new Error('Rollback queue order differs from snapshot.');
   if (snapshot.activeTrackId !== readback.activeTrackId) throw new Error('Rollback active track differs from snapshot.');
   if (snapshot.activeIndex !== readback.activeIndex) throw new Error('Rollback active index differs from snapshot.');
   if (Math.abs(snapshot.progressSeconds - readback.progressSeconds) > ROLLBACK_PROGRESS_TOLERANCE_SECONDS) {

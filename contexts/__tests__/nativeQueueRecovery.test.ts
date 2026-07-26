@@ -206,3 +206,15 @@ test.each([
   await expect(persistNativeCurrentSong(activeSong, songs)).resolves.toMatchObject({ status });
   spy.mockRestore();
 });
+
+test.each([
+  ['reset failed', 'not-started', false],
+  ['replacement confirmed', 'queue-replacement-confirmed', true],
+] as const)('identical snapshot and target queue uses progress when %s', async (_label, progress, expected) => {
+  const committed = await commitNativeQueueTruth({
+    readback: snapshot(), preferredBaseQueue: songs, librarySongs: songs, targets: targets(),
+    shuffleStrategy: { kind: 'recover-replacement', snapshotEnabled: false, requestedEnabled: true,
+      snapshotQueue: songs, targetQueue: songs, progress },
+  });
+  expect(committed.shuffleEnabled).toBe(expected);
+});

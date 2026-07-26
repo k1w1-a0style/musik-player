@@ -157,3 +157,51 @@ test('Shuffle-On and Shuffle-Off preserve explicit intent when random order is i
   expect(input.shuffleRef.current).toBe(false);
   random.mockRestore();
 });
+
+test.each([
+  ['Shuffle-On', false],
+  ['Shuffle-Off', true],
+] as const)('%s reset rejection preserves snapshot shuffle intent', async (_label, enabled) => {
+  await seed(songs);
+  const input = args(songs); input.shuffleRef.current = enabled;
+  (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+  const result = await runShuffleQueueAction({ ...input, shuffle: enabled, currentSongId: 's1' });
+  expect(result.status).toBe('reconciled');
+  expect(input.shuffleRef.current).toBe(enabled);
+  expect(input.setShuffle).toHaveBeenLastCalledWith(enabled);
+  expect(input.queueContextRef.current).toEqual(songs);
+});
+
+test('shuffle add rejection without side effect preserves snapshot intent and confirmed empty queue', async () => {
+  await seed(songs); const input = args(songs);
+  (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('add failed'));
+  const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
+  expect(result.status).toBe('reconciled');
+  expect(input.shuffleRef.current).toBe(false);
+  expect(input.queueContextRef.current).toEqual([]);
+});
+
+test('shuffle full add side effect followed by rejection confirms requested intent', async () => {
+  await seed(songs); const input = args(songs);
+  const add = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (...callArgs: unknown[]) => {
+    await add(...callArgs); throw new Error('add acknowledgement failed');
+  });
+  const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
+  expect(result.status).toBe('reconciled');
+  expect(input.shuffleRef.current).toBe(true);
+  expect(input.setShuffle).toHaveBeenLastCalledWith(true);
+  expect(input.queueContextRef.current).toHaveLength(songs.length);
+});
+
+test('shuffle partial add rejection never confirms requested intent', async () => {
+  await seed(songs); const input = args(songs);
+  const add = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (tracks: unknown[]) => {
+    await add([tracks[0]]); throw new Error('partial add');
+  });
+  const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
+  expect(result.status).toBe('reconciled');
+  expect(input.shuffleRef.current).toBe(false);
+  expect(input.queueContextRef.current).toHaveLength(1);
+});

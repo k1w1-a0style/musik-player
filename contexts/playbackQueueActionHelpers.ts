@@ -21,6 +21,7 @@ import {
   recoverNativeQueueMutation,
   type NativeQueueMutationSnapshot,
   type NativeQueueRecoveryResult,
+  type NativeQueueReplacementProgress,
 } from './nativeQueueRecovery';
 
 export type { NativeQueueMutationSnapshot, NativeQueueRecoveryResult } from './nativeQueueRecovery';
@@ -197,37 +198,53 @@ export const applyPlaybackQueueState = ({
   if (selectedSong) setCurrentSong(selectedSong);
 };
 
+const replaceNativeQueueTracks = async (
+  queue: PlayableSong[],
+  nativeQueueRef: MutableRefObject<Song[]>,
+  isCurrent: () => boolean,
+  onProgress?: (progress: NativeQueueReplacementProgress) => void,
+): Promise<boolean> => {
+  await TrackPlayer.reset();
+  onProgress?.('reset-confirmed');
+  nativeQueueRef.current = [];
+  if (!isCurrent()) return false;
+  if (queue.length > 0) {
+    onProgress?.('add-started');
+    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    onProgress?.('queue-replacement-confirmed');
+  }
+  return isCurrent();
+};
+
 export const rebuildNativePlaybackQueueUnlocked = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
   replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent'>,
   startIndex = 0,
+  onProgress?: (progress: NativeQueueReplacementProgress) => void,
 ): Promise<boolean> => {
   const isCurrent = replacementContext?.isCurrent ?? (() => true);
 
   if (!isCurrent()) return false;
-  await TrackPlayer.reset();
-  nativeQueueRef.current = [];
-  if (!isCurrent()) return false;
-  if (queue.length > 0) {
-    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
-    if (!isCurrent()) return false;
-  }
+  if (!await replaceNativeQueueTracks(queue, nativeQueueRef, isCurrent, onProgress)) return false;
 
   const safeStartIndex = Number.isInteger(startIndex) && startIndex > 0 && startIndex < queue.length ? startIndex : 0;
   if (safeStartIndex > 0) {
     await TrackPlayer.skip(safeStartIndex);
+    onProgress?.('active-track-confirmed');
     if (!isCurrent()) return false;
   }
 
   if (resumePositionSeconds !== undefined && queue.length > 0) {
     await TrackPlayer.seekTo(resumePositionSeconds);
+    onProgress?.('progress-confirmed');
     if (!isCurrent()) return false;
   }
 
   if (queue.length > 0) {
     await TrackPlayer.play();
+    onProgress?.('playback-confirmed');
     if (!isCurrent()) return false;
   }
   nativeQueueRef.current = (await readNativeQueueTruth(queue)).queue.slice();
@@ -319,12 +336,17 @@ const recoverShuffleQueueFailure = async (
   args: RunShuffleQueueActionArgs,
   previousBaseQueue: Song[],
   snapshot: NativeQueueMutationSnapshot,
+  targetQueue: Song[],
+  requestedShuffleEnabled: boolean,
+  progress: NativeQueueReplacementProgress,
   error: unknown,
 ): Promise<NativeQueueActionResult> => {
   const knownSongs = [...args.songsRef.current, ...args.queueContextRef.current, ...snapshot.nativeQueue];
   const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
     librarySongs: args.songsRef.current, targets: args, preferredBaseQueue: previousBaseQueue,
-    reconciliationShuffleStrategy: { kind: 'confirmed-action', enabled: !snapshot.shuffleEnabled } });
+    reconciliationShuffleStrategy: { kind: 'recover-replacement',
+      snapshotEnabled: snapshot.shuffleEnabled, requestedEnabled: requestedShuffleEnabled,
+      snapshotQueue: snapshot.nativeQueue, targetQueue, progress } });
   if (recovery.status === 'failed') {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', recovery);
     return { status: 'failed', recovery };
@@ -536,6 +558,9 @@ export const runShuffleQueueAction = async ({
     if (!isCurrent()) return { status: 'stale' };
     const previousBaseQueue = baseQueueContextRef.current.slice();
     let mutationSnapshot: NativeQueueMutationSnapshot | undefined;
+    let progress: NativeQueueReplacementProgress = 'not-started';
+    let targetQueue: Song[] = [];
+    let requestedShuffleEnabled = !shuffle;
     try {
     const current = await TrackPlayer.getActiveTrack();
     if (!isCurrent()) return { status: 'stale' };
@@ -556,6 +581,8 @@ export const runShuffleQueueAction = async ({
     const pos = await TrackPlayer.getProgress();
     if (!isCurrent()) return { status: 'stale' };
     const { nextQueue, nextBaseQueue, selectedSong } = plan;
+    targetQueue = nextQueue;
+    requestedShuffleEnabled = !shuffleEnabled;
     mutationSnapshot = await createNativeQueueMutationSnapshot({
       knownSongs: [...songsRef.current, ...currentQueue, ...nativeQueueRef.current],
       shuffleEnabled,
@@ -569,6 +596,7 @@ export const runShuffleQueueAction = async ({
       pos.position,
       context,
       selectedIndex,
+      nextProgress => { progress = nextProgress; },
     );
     if (!rebuilt || !isCurrent()) return { status: 'stale' };
     const readback = await readNativeQueueTruth([...songsRef.current, ...nextQueue]);
@@ -580,7 +608,8 @@ export const runShuffleQueueAction = async ({
     return { status: 'applied' };
     } catch (error) {
       if (!mutationSnapshot) throw error;
-      return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, error);
+      return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, targetQueue,
+        requestedShuffleEnabled, progress, error);
     }
   }).catch(error => {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', error);
