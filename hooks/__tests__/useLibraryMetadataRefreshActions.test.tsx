@@ -44,6 +44,7 @@ interface HookHarnessProps {
   refreshSongsFromId3Impl?: jest.Mock;
   withTimeoutImpl?: <T>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), timeoutMs: number, timeoutMessage: string, options?: { signal?: AbortSignal }) => Promise<T>;
   applySongMetadataPatches?: jest.Mock;
+  onRefreshRequest?: (request: Promise<void>) => void;
 }
 
 const HookHarness = ({
@@ -56,6 +57,7 @@ const HookHarness = ({
   refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 0, failed: 0 }),
   withTimeoutImpl = operation => (typeof operation === 'function' ? operation(new AbortController().signal) : operation),
   applySongMetadataPatches,
+  onRefreshRequest,
 }: HookHarnessProps) => {
   const actions = useLibraryMetadataRefreshActions({
     songs,
@@ -72,7 +74,10 @@ const HookHarness = ({
 
   return (
     <View>
-      <Button title="refresh" onPress={() => void actions.refreshMetadataFromFiles()} />
+      <Button title="refresh" onPress={() => {
+        const request = actions.refreshMetadataFromFiles();
+        onRefreshRequest?.(request);
+      }} />
       <Button title="cancel" onPress={() => actions.cancelRefresh()} />
     </View>
   );
@@ -274,31 +279,40 @@ test('cancels an active refresh before starting another without applying stale s
   const firstStarted = new Promise<void>(resolve => {
     markFirstStarted = resolve;
   });
+  let markFirstAborted!: () => void;
+  const firstAborted = new Promise<void>(resolve => {
+    markFirstAborted = resolve;
+  });
   let resolveLatestRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
   const latestRefreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
     resolveLatestRefresh = resolve;
   });
   const refreshSongsFromId3Impl = jest
     .fn()
-    .mockImplementationOnce(() => {
+    .mockImplementationOnce((_songs: Song[], options?: { signal?: AbortSignal }) => {
       markFirstStarted();
-      return new Promise(() => undefined);
+      const signal = options?.signal;
+      return new Promise<never>((_resolve, reject) => {
+        const handleAbort = () => {
+          signal?.removeEventListener('abort', handleAbort);
+          markFirstAborted();
+          reject(signal?.reason ?? new OperationAbortError('Metadata refresh cancelled'));
+        };
+        if (signal?.aborted) handleAbort();
+        else signal?.addEventListener('abort', handleAbort, { once: true });
+      });
     })
     .mockReturnValueOnce(latestRefreshPromise);
   const setSongs = jest.fn();
   const setLoading = jest.fn();
   const setImportStatus = jest.fn();
   const showAlert = jest.fn();
-  const abortError = new OperationAbortError('Metadata refresh superseded by a newer refresh');
   const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const withTimeoutImpl = <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), _timeoutMs: number, _timeoutMessage: string, options?: { signal?: AbortSignal }): Promise<T> => {
     const signal = options?.signal ?? new AbortController().signal;
-    const operationPromise = typeof operation === 'function' ? operation(signal) : operation;
-    const abortPromise = new Promise<never>((_, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason ?? abortError), { once: true });
-    });
-    return Promise.race([operationPromise, abortPromise]);
+    return typeof operation === 'function' ? operation(signal) : operation;
   };
+  const refreshRequests: Promise<void>[] = [];
   const screen = render(
     <HookHarness
       songs={[song('old')]}
@@ -308,6 +322,7 @@ test('cancels an active refresh before starting another without applying stale s
       showAlert={showAlert}
       refreshSongsFromId3Impl={refreshSongsFromId3Impl}
       withTimeoutImpl={withTimeoutImpl}
+      onRefreshRequest={request => refreshRequests.push(request)}
     />,
   );
 
@@ -315,10 +330,15 @@ test('cancels an active refresh before starting another without applying stale s
   await firstStarted;
   fireEvent.press(screen.getByText('cancel'));
 
-  await waitFor(() => expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error)));
+  await firstAborted;
+  await refreshRequests[0];
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
   fireEvent.press(screen.getByText('refresh'));
 
   resolveLatestRefresh({ songs: [song('latest', 'Latest')], updated: 1, skipped: 0, failed: 0, errors: [] });
+  await refreshRequests[1];
 
   await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('latest', 'Latest')]));
   expect(showAlert).toHaveBeenCalledTimes(1);
