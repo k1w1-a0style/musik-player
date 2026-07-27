@@ -1424,10 +1424,10 @@ describe('musicHydrationHelpers', () => {
       return player.__getQueue();
     });
     const queueContextRef = createSongRef(); const nativeQueueRef = createSongRef();
-    const setIsReady = jest.fn(); const setPlaybackQueue = jest.fn();
+    const setIsReady = jest.fn(); const setPlaybackQueue = jest.fn(); const setHydrationStatus = jest.fn();
     await runMusicHydration({
       songsRef: createSongRef(), queueContextRef, baseQueueContextRef: createSongRef(), nativeQueueRef,
-      setIsReady, setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue,
+      setIsReady, setHydrationStatus, setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue,
       setPlaylists: jest.fn(), setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(),
       setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(),
       setShuffle: jest.fn(), isCancelled: () => false,
@@ -1436,7 +1436,9 @@ describe('musicHydrationHelpers', () => {
     expect(nativeQueueRef.current).toEqual([]);
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
-    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(setIsReady).not.toHaveBeenCalled();
+    expect(setHydrationStatus).toHaveBeenCalledWith('degraded');
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
   });
 
   test('does not mark provider ready when hydration is cancelled', async () => {

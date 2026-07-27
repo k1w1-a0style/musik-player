@@ -69,7 +69,10 @@ describe('useMusicProviderState', () => {
     expect(getByTestId('shuffle').props.children).toBe('true');
     act(() => fireEvent.press(getByTestId('degrade')));
     expect(getByTestId('hydration-status').props.children).toBe('degraded');
-    act(() => fireEvent.press(getByTestId('retry')));
+    act(() => {
+      fireEvent.press(getByTestId('retry'));
+      fireEvent.press(getByTestId('retry'));
+    });
     expect(getByTestId('retry-token').props.children).toBe(1);
   });
 });

@@ -218,6 +218,11 @@ export const runMusicHydration = async ({
     });
 
     if (isCancelled()) return;
+    if (hydratedStored.verifiedState === 'confirmed' && hydratedStored.planStatus === 'retry-required') {
+      console.error('[MusicHydration:RetryRequired] Native truth was verified but the stored hydration plan was not restored.');
+      setHydrationStatus?.('degraded');
+      return;
+    }
     if (hydratedStored.verifiedState === null) {
       if (hydratedStored.nativeStatus === 'readback-unstable') {
         console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',

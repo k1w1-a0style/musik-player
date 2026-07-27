@@ -299,6 +299,7 @@ export const commitNativeQueueTruth = async ({
   targets,
   previousPersistedId,
   shuffleStrategy,
+  persistCurrentSong = true,
 }: {
   readback: NativeQueueReadback;
   preferredBaseQueue: Song[];
@@ -306,6 +307,7 @@ export const commitNativeQueueTruth = async ({
   targets: NativeQueueStateTargets;
   previousPersistedId?: string | null;
   shuffleStrategy: NativeQueueShuffleStrategy;
+  persistCurrentSong?: boolean;
 }): Promise<RecoveredState> => {
   const queue = readback.queue.slice();
   const baseQueue = deriveBaseQueue(queue, preferredBaseQueue);
@@ -317,7 +319,9 @@ export const commitNativeQueueTruth = async ({
   targets.setCurrentSong(readback.activeSong);
   if (targets.shuffleRef) targets.shuffleRef.current = shuffleEnabled;
   targets.setShuffle?.(shuffleEnabled);
-  const currentSongPersistence = await persistNativeCurrentSong(readback.activeSong, librarySongs, previousPersistedId);
+  const currentSongPersistence = persistCurrentSong
+    ? await persistNativeCurrentSong(readback.activeSong, librarySongs, previousPersistedId)
+    : { status: 'not-required' as const };
   return {
     queue,
     baseQueue,

@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Playlist, Song } from '../types/Song';
 
 export interface MusicProviderState {
@@ -22,8 +22,21 @@ export interface MusicProviderState {
 
 export const useMusicProviderState = (): MusicProviderState => {
   const [isReady, setIsReady] = useState(false);
-  const [hydrationStatus, setHydrationStatus] = useState<'loading' | 'ready' | 'degraded'>('loading');
+  const [hydrationStatus, setHydrationStatusState] = useState<'loading' | 'ready' | 'degraded'>('loading');
   const [hydrationRetryToken, setHydrationRetryToken] = useState(0);
+  const retryPendingRef = useRef(false);
+  const setHydrationStatus = useCallback<Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>>(next => {
+    setHydrationStatusState(previous => {
+      const value = typeof next === 'function' ? next(previous) : next;
+      if (value !== 'loading') retryPendingRef.current = false;
+      return value;
+    });
+  }, []);
+  const retryHydration = useCallback(() => {
+    if (hydrationStatus !== 'degraded' || retryPendingRef.current) return;
+    retryPendingRef.current = true;
+    setHydrationRetryToken(value => value + 1);
+  }, [hydrationStatus]);
   const [songs, setSongsState] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
@@ -34,7 +47,7 @@ export const useMusicProviderState = (): MusicProviderState => {
     hydrationStatus,
     setHydrationStatus,
     hydrationRetryToken,
-    retryHydration: () => setHydrationRetryToken(value => value + 1),
+    retryHydration,
     isReady,
     setIsReady,
     songs,

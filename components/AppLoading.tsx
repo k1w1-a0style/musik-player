@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import {
@@ -9,7 +9,9 @@ import {
   getAppTheme,
 } from '../utils/appTheme';
 
-const AppLoading: React.FC = () => {
+interface AppLoadingProps { degraded?: boolean; onRetry?: () => void }
+
+const AppLoading: React.FC<AppLoadingProps> = ({ degraded = false, onRetry }) => {
   const appTheme = useOptionalAppTheme();
   const fallbackTheme = useMemo(
     () => getAppTheme(DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN),
@@ -35,9 +37,14 @@ const AppLoading: React.FC = () => {
         k1w1-Musik
       </Text>
       <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]} testID="app-loading-subtitle">
-        Deine Bibliothek wird vorbereitet
+        {degraded ? 'Die Wiedergabewarteschlange konnte nicht bestätigt werden.' : 'Deine Bibliothek wird vorbereitet'}
       </Text>
-      <ActivityIndicator size="large" color={theme.palette.primary} testID="app-loading-spinner" />
+      {degraded ? (
+        <Pressable accessibilityRole="button" onPress={onRetry} testID="hydration-retry-button"
+          style={[styles.retryButton, { backgroundColor: theme.palette.primary }]}>
+          <Text style={[styles.retryText, { color: theme.palette.background }]}>Erneut versuchen</Text>
+        </Pressable>
+      ) : <ActivityIndicator size="large" color={theme.palette.primary} testID="app-loading-spinner" />}
     </View>
   );
 };
@@ -70,6 +77,8 @@ const styles = StyleSheet.create({
     marginBottom: APP_THEME_TOKENS.spacing.md,
     textAlign: 'center',
   },
+  retryButton: { borderRadius: APP_THEME_TOKENS.radii.input, paddingHorizontal: 18, paddingVertical: 10 },
+  retryText: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
 });
 
 export default AppLoading;
