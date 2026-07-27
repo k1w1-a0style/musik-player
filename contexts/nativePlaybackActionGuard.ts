@@ -1,12 +1,14 @@
 import type { Song } from '../types/Song';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
 import type { NativeQueueActionResult } from './playbackQueueActionHelpers';
 
 export type HydrationStatus = 'loading' | 'ready' | 'degraded' | 'retry-required';
+type BlockedHydrationStatus = Exclude<HydrationStatus, 'ready'>;
 
 export class NativePlaybackBlockedError extends Error {
-  readonly hydrationStatus: Exclude<HydrationStatus, 'ready'>;
+  readonly hydrationStatus: BlockedHydrationStatus;
 
-  constructor(hydrationStatus: Exclude<HydrationStatus, 'ready'>) {
+  constructor(hydrationStatus: BlockedHydrationStatus) {
     super(`Native playback is blocked while hydration status is "${hydrationStatus}".`);
     this.name = 'NativePlaybackBlockedError';
     this.hydrationStatus = hydrationStatus;
@@ -27,32 +29,49 @@ export interface NativePlaybackActions {
   stop: () => Promise<void>;
 }
 
+const resolveBlockedStatus = (renderStatus: HydrationStatus | undefined): BlockedHydrationStatus | null => {
+  if (renderStatus === undefined) return null;
+  const gate = getNativeHydrationGate();
+  const effectiveStatus = gate.owned ? gate.status : renderStatus;
+  return effectiveStatus === 'ready' ? null : effectiveStatus;
+};
+
+const blockedQueueResult = (status: BlockedHydrationStatus): NativeQueueActionResult => ({
+  status: 'failed',
+  error: new NativePlaybackBlockedError(status),
+});
+
 export const guardNativePlaybackActions = (
   hydrationStatus: HydrationStatus | undefined,
   actions: NativePlaybackActions,
 ): NativePlaybackActions => {
-  if (hydrationStatus === undefined || hydrationStatus === 'ready') return actions;
+  if (hydrationStatus === undefined) return actions;
 
-  const blockedError = (): NativePlaybackBlockedError => new NativePlaybackBlockedError(hydrationStatus);
-  const blockedQueue = async (): Promise<NativeQueueActionResult> => ({
-    status: 'failed',
-    error: blockedError(),
-  });
-  const blockedControl = async (): Promise<void> => {
-    throw blockedError();
+  const guardQueue = <TArgs extends unknown[]>(
+    action: (...args: TArgs) => Promise<NativeQueueActionResult>,
+  ) => async (...args: TArgs): Promise<NativeQueueActionResult> => {
+    const blockedStatus = resolveBlockedStatus(hydrationStatus);
+    return blockedStatus ? blockedQueueResult(blockedStatus) : action(...args);
+  };
+  const guardControl = <TArgs extends unknown[]>(
+    action: (...args: TArgs) => Promise<void>,
+  ) => async (...args: TArgs): Promise<void> => {
+    const blockedStatus = resolveBlockedStatus(hydrationStatus);
+    if (blockedStatus) throw new NativePlaybackBlockedError(blockedStatus);
+    await action(...args);
   };
 
   return {
-    playSong: blockedQueue,
-    playSongNext: blockedQueue,
-    addSongToQueue: blockedQueue,
-    reorderQueue: blockedQueue,
-    toggleShuffle: blockedQueue,
-    playPlaylist: blockedControl,
-    next: blockedControl,
-    previous: blockedControl,
-    togglePlayPause: blockedControl,
-    seekTo: blockedControl,
-    stop: blockedControl,
+    playSong: guardQueue(actions.playSong),
+    playSongNext: guardQueue(actions.playSongNext),
+    addSongToQueue: guardQueue(actions.addSongToQueue),
+    reorderQueue: guardQueue(actions.reorderQueue),
+    toggleShuffle: guardQueue(actions.toggleShuffle),
+    playPlaylist: guardControl(actions.playPlaylist),
+    next: guardControl(actions.next),
+    previous: guardControl(actions.previous),
+    togglePlayPause: guardControl(actions.togglePlayPause),
+    seekTo: guardControl(actions.seekTo),
+    stop: guardControl(actions.stop),
   };
 };
