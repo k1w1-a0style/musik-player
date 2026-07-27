@@ -38,4 +38,5 @@ export interface HydrateStoredSongsArgs {
 
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>;
 }

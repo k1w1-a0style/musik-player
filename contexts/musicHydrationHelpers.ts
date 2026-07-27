@@ -194,27 +194,9 @@ export const hydrateStoredSongs = async ({
   }
 };
 
-const hydrateWithReadbackRetries = async (
-  stored: StoredMusicHydrationState,
-  isCancelled: () => boolean,
-  args: Omit<RunMusicHydrationArgs, 'setIsReady' | 'isCancelled'>,
-): Promise<HydrateStoredSongsResult> => {
-  const maxAttempts = 3;
-  let result: HydrateStoredSongsResult | undefined;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    result = await hydrateStoredSongs({ stored, isCancelled, ...args });
-    if (result.nativeStatus !== 'readback-unstable' || isCancelled()) return result;
-    console.warn(`[MusicHydration:ReadbackUnstable] Native readback attempt ${attempt}/${maxAttempts} was unstable.`,
-      result.recoveryErrors?.originalError);
-    if (isCancelled()) return result;
-    if (attempt < maxAttempts) await new Promise(resolve => setTimeout(resolve, 50 * attempt));
-  }
-  if (!result) throw new Error('Hydration produced no result.');
-  return result;
-};
-
 export const runMusicHydration = async ({
   setIsReady,
+  setHydrationStatus,
   isCancelled,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
@@ -230,7 +212,7 @@ export const runMusicHydration = async ({
 
     if (isCancelled()) return;
 
-    const hydratedStored = await hydrateWithReadbackRetries(stored, isCancelled, args).catch(error => {
+    const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args }).catch(error => {
       console.warn('[MusicHydration:SanitizeError] Failed while hydrating stored songs.', error);
       throw error;
     });
@@ -238,13 +220,9 @@ export const runMusicHydration = async ({
     if (isCancelled()) return;
     if (hydratedStored.verifiedState === null) {
       if (hydratedStored.nativeStatus === 'readback-unstable') {
-        console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable after 3 serialized hydration attempts.',
+        console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',
           hydratedStored.recoveryErrors?.originalError);
-        // Preserve the hydrated library and preferences. A destructive reset
-        // cannot make an unstable reader truthful; surfacing the provider as
-        // ready avoids permanent loading and permits a later provider retry.
-        await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, skipShuffle: false, ...args });
-        hydrationCompleted = true;
+        setHydrationStatus?.('degraded');
         return;
       }
       throw hydratedStored.recoveryErrors?.originalError
@@ -264,6 +242,9 @@ export const runMusicHydration = async ({
     const fallback = await applyHydrationFailureFallback(args, error);
     hydrationCompleted = fallback.status === 'applied';
   } finally {
-    if (!isCancelled() && hydrationCompleted) setIsReady(true);
+    if (!isCancelled() && hydrationCompleted) {
+      setIsReady(true);
+      setHydrationStatus?.('ready');
+    }
   }
 };

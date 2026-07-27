@@ -6,6 +6,8 @@ import type { NativeQueueActionResult } from './playbackQueueActionHelpers';
 export type PlaylistSongMoveDirection = 'up' | 'down';
 
 export interface MusicContextValue {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded';
+  retryHydration?: () => void;
   songs: Song[];
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;

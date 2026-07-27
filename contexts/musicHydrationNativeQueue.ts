@@ -88,18 +88,21 @@ const toHydrationResult = (
   recoveryErrors,
   persistenceError: state.persistenceError,
 });
-const clearMalformedNativeCurrent = async ({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled }: {
+const clearMalformedNativeCurrent = async ({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled, isCancelled }: {
   knownSongs: Song[]; librarySongs: Song[]; targets: NativeQueueStateTargets;
-  previousPersistedId?: string | null; shuffleEnabled: boolean;
+  previousPersistedId?: string | null; shuffleEnabled: boolean; isCancelled: () => boolean;
 }): Promise<HydratedNativeQueueResult> => {
+  if (isCancelled()) return { ...failedResult(targets, 'mutation'), nativeStatus: 'cancelled' };
   try {
     try {
       await TrackPlayer.reset();
     } catch (initialResetError) {
+      if (isCancelled()) return { ...failedResult(targets, 'mutation', initialResetError), nativeStatus: 'cancelled' };
       console.warn('[MusicHydration:MalformedCurrentCleanup] Retrying rejected native reset.', initialResetError);
       await TrackPlayer.reset();
     }
     const readback = await readNativeQueueTruth(knownSongs);
+    if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled' };
     if (readback.queue.length !== 0 || readback.activeSong !== null) {
       throw new Error('Malformed-current cleanup did not produce an empty native queue.');
     }
@@ -115,6 +118,52 @@ const clearMalformedNativeCurrent = async ({ knownSongs, librarySongs, targets, 
       : result;
   }
 };
+
+const retryPostMutationReadback = async ({ knownSongs, librarySongs, targets, previousPersistedId,
+  shuffleEnabled, preferredBaseQueue, isCancelled, recoveryErrors }: {
+  knownSongs: Song[]; librarySongs: Song[]; targets: NativeQueueStateTargets; previousPersistedId?: string | null;
+  shuffleEnabled: boolean; preferredBaseQueue: Song[]; isCancelled: () => boolean;
+  recoveryErrors: NativeQueueRecoveryDiagnostics;
+}): Promise<HydratedNativeQueueResult> => {
+  for (let attempt = 2; attempt <= 3; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 50 * (attempt - 1)));
+    if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled', recoveryErrors };
+    console.warn(`[MusicHydration:ReadbackUnstable] Retrying native truth readback ${attempt}/3.`, recoveryErrors);
+    if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled', recoveryErrors };
+    try {
+      const readback = await readNativeQueueTruth(knownSongs);
+      if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled', recoveryErrors };
+      const state = await commitNativeQueueTruth({
+        readback, preferredBaseQueue, librarySongs, targets, previousPersistedId,
+        shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
+      });
+      return toHydrationResult('reconciled', state, recoveryErrors);
+    } catch (error) {
+      if (!(error instanceof NativeQueueReadbackUnstableError)) {
+        return { ...failedResult(targets, 'readback', error), recoveryErrors: { ...recoveryErrors, finalReadbackError: error } };
+      }
+    }
+  }
+  return { ...failedResult(targets, 'readback', recoveryErrors.originalError), nativeStatus: 'readback-unstable', recoveryErrors };
+};
+
+const createHydrationSnapshot = async ({ knownSongs, shuffleEnabled, targets, isCancelled }: {
+  knownSongs: Song[]; shuffleEnabled: boolean; targets: NativeQueueStateTargets; isCancelled: () => boolean;
+}): Promise<NativeQueueMutationSnapshot | HydratedNativeQueueResult> => {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await createNativeQueueMutationSnapshot({ knownSongs, shuffleEnabled, targets });
+    } catch (error) {
+      if (!(error instanceof NativeQueueReadbackUnstableError) || attempt === 3) {
+        const result = failedResult(targets, 'snapshot', error);
+        return error instanceof NativeQueueReadbackUnstableError ? { ...result, nativeStatus: 'readback-unstable' } : result;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+      if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'cancelled' };
+    }
+  }
+  return { ...failedResult(targets, 'snapshot'), nativeStatus: 'readback-unstable' };
+};
 export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancelled,
   targets = targetsForNativeRef(nativeQueueRef), librarySongs = plan.hydratedSongs, shuffleEnabled = false,
 }: ApplyHydratedNativeQueueArgs): Promise<HydratedNativeQueueResult> => {
@@ -129,15 +178,11 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
       // Sole mapping exception: this planned cleanup verifies an empty readback
       // before publishing state, instead of mapping the obsolete native track.
       if (plan.nativeQueueAction === 'clearMalformedCurrent') {
-        return clearMalformedNativeCurrent({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled });
+        return clearMalformedNativeCurrent({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled, isCancelled });
       }
-      let snapshot: NativeQueueMutationSnapshot;
-      try {
-        snapshot = await createNativeQueueMutationSnapshot({ knownSongs, shuffleEnabled, targets });
-      } catch (error) {
-        const result = failedResult(targets, 'snapshot', error);
-        return error instanceof NativeQueueReadbackUnstableError ? { ...result, nativeStatus: 'readback-unstable' } : result;
-      }
+      const snapshotResult = await createHydrationSnapshot({ knownSongs, shuffleEnabled, targets, isCancelled });
+      if ('nativeStatus' in snapshotResult) return snapshotResult;
+      const snapshot = snapshotResult;
       if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'cancelled' };
       if (plan.nativeQueueAction === 'none') {
         const state = await commitNativeQueueTruth({
@@ -174,9 +219,11 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
         });
         if (recovery.status === 'failed') {
           const result = { ...failedResult(targets, 'readback', error), recoveryErrors: recovery.diagnostics };
-          return classifyNativeQueueRecoveryFailure(recovery.diagnostics) === 'readback-unstable'
-            ? { ...result, nativeStatus: 'readback-unstable' }
-            : result;
+          if (classifyNativeQueueRecoveryFailure(recovery.diagnostics) !== 'readback-unstable') return result;
+          return retryPostMutationReadback({
+            knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled,
+            preferredBaseQueue: plan.hydratedQueue, isCancelled, recoveryErrors: recovery.diagnostics,
+          });
         }
         return {
           nativeStatus: recovery.status,

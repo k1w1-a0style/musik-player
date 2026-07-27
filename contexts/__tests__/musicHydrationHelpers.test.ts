@@ -1365,10 +1365,10 @@ describe('musicHydrationHelpers', () => {
     const queueContextRef = { current: retainedQueue.slice() };
     const baseQueueContextRef = { current: retainedQueue.slice() };
     const nativeQueueRef = { current: retainedQueue.slice() };
-    const setIsReady = jest.fn(); const setShuffle = jest.fn();
+    const setIsReady = jest.fn(); const setShuffle = jest.fn(); const setHydrationStatus = jest.fn();
 
     await runMusicHydration({
-      songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef, setIsReady,
+      songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef, setIsReady, setHydrationStatus,
       setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue: jest.fn(),
       setPlaylists: jest.fn(), setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(),
       setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
@@ -1380,8 +1380,9 @@ describe('musicHydrationHelpers', () => {
     expect(baseQueueContextRef.current).toEqual(retainedQueue);
     expect(nativeQueueRef.current).toEqual(retainedQueue);
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
-    expect(setShuffle).toHaveBeenCalledWith(true);
-    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(setShuffle).not.toHaveBeenCalled();
+    expect(setIsReady).not.toHaveBeenCalled();
+    expect(setHydrationStatus).toHaveBeenCalledWith('degraded');
   });
 
   test('cancellation after an unstable post-mutation attempt starts no further retry mutation', async () => {
@@ -1431,10 +1432,10 @@ describe('musicHydrationHelpers', () => {
       setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(),
       setShuffle: jest.fn(), isCancelled: () => false,
     });
-    expect(queueContextRef.current).toEqual(songs);
-    expect(nativeQueueRef.current).toEqual(songs);
-    expect(setPlaybackQueue).toHaveBeenCalledWith(songs);
-    expect(TrackPlayer.reset).toHaveBeenCalledTimes(3);
+    expect(queueContextRef.current).toEqual([]);
+    expect(nativeQueueRef.current).toEqual([]);
+    expect(setPlaybackQueue).toHaveBeenCalledWith([]);
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
     expect(setIsReady).toHaveBeenCalledWith(true);
   });
 

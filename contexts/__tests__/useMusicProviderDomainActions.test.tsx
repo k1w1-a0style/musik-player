@@ -70,6 +70,19 @@ describe('useMusicProviderDomainActions', () => {
     jest.clearAllMocks();
   });
 
+  test('blocks queue mutations while hydration is degraded', async () => {
+    const nativePlay = jest.fn(async () => ({ status: 'applied' as const }));
+    mockedUseMusicProviderActions.mockReturnValue({
+      playSong: nativePlay, playSongNext: nativePlay, addSongToQueue: nativePlay,
+      reorderQueue: nativePlay, toggleShuffle: nativePlay, playPlaylist: jest.fn(async () => undefined),
+    } as never);
+    const degradedRuntime = { ...runtime, state: { ...runtime.state, hydrationStatus: 'degraded' as const } };
+    const { result } = renderHook(() => useMusicProviderDomainActions(degradedRuntime));
+    await expect(result.current.playSong(song)).resolves.toMatchObject({ status: 'failed' });
+    await expect(result.current.toggleShuffle()).resolves.toMatchObject({ status: 'failed' });
+    expect(nativePlay).not.toHaveBeenCalled();
+  });
+
   test('derives currentSongId once from runtime state and passes only action dependencies', () => {
     const actions = {
       playSong: async () => ({ status: 'noop' as const }),

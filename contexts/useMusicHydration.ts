@@ -8,6 +8,8 @@ interface UseMusicHydrationArgs {
   baseQueueContextRef: MutableRefObject<Song[]>;
   nativeQueueRef: MutableRefObject<Song[]>;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>;
+  hydrationRetryToken?: number;
   setSongsState: Dispatch<SetStateAction<Song[]>>;
   setCurrentSong: Dispatch<SetStateAction<Song | null>>;
   setPlaybackQueue: Dispatch<SetStateAction<Song[]>>;
@@ -26,6 +28,8 @@ export const useMusicHydration = ({
   baseQueueContextRef,
   nativeQueueRef,
   setIsReady,
+  setHydrationStatus,
+  hydrationRetryToken,
   setSongsState,
   setCurrentSong,
   setPlaybackQueue,
@@ -39,6 +43,8 @@ export const useMusicHydration = ({
 }: UseMusicHydrationArgs): void => {
   useEffect(() => {
     let cancelled = false;
+    setIsReady(false);
+    setHydrationStatus?.('loading');
 
     void runMusicHydration({
       songsRef,
@@ -46,6 +52,7 @@ export const useMusicHydration = ({
       baseQueueContextRef,
       nativeQueueRef,
       setIsReady,
+      setHydrationStatus,
       setSongsState,
       setCurrentSong,
       setPlaybackQueue,
@@ -66,5 +73,5 @@ export const useMusicHydration = ({
     // setters are stable hand-off targets for that initial run, not signals for
     // restarting persisted-state hydration.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrationRetryToken]);
 };
