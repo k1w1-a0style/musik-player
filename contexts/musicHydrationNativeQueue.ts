@@ -9,15 +9,16 @@ import {
   createNativeQueueMutationSnapshot,
   readNativeQueueTruth,
   recoverNativeQueueMutation,
+  persistNativeCurrentSong,
   type CurrentSongPersistenceResult,
   type NativeQueueRecoveryDiagnostics,
   NativeQueueReadbackUnstableError,
-  hasSameNormalizedQueueOrder,
   type NativeQueueMutationSnapshot,
   type NativeQueueStateTargets,
 } from './nativeQueueRecovery';
 import type { HydrationPlan } from './musicHydrationPlan';
 import { buildEmptyPlayableQueueHydrationContext, isEmptyPlayableQueueLegitimate } from './musicHydrationEmptyQueueLog';
+import { createNativeHydrationExpectation, evaluateNativeHydrationFulfillment, type NativeHydrationExpectation } from './nativeHydrationPlanFulfillment';
 export interface ApplyHydratedNativeQueueArgs {
   plan: HydrationPlan;
   nativeQueueRef: MutableRefObject<Song[]>;
@@ -52,6 +53,8 @@ interface UnverifiedHydratedNativeQueueResult {
   failureStage: 'snapshot' | 'mutation' | 'readback' | 'commit' | 'exclusive-action';
 }
 export type HydratedNativeQueueResult = VerifiedHydratedNativeQueueResult | UnverifiedHydratedNativeQueueResult;
+const isHydrationResult = (value: NativeQueueMutationSnapshot | HydratedNativeQueueResult): value is HydratedNativeQueueResult =>
+  'nativeStatus' in value;
 const failedResult = (
   targets: NativeQueueStateTargets,
   failureStage: UnverifiedHydratedNativeQueueResult['failureStage'],
@@ -114,17 +117,31 @@ const clearMalformedNativeCurrent = async ({ knownSongs, librarySongs, targets, 
     });
     return toHydrationResult('applied', state);
   } catch (error) {
+    try {
+      const readback = await readNativeQueueTruth(knownSongs);
+      if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled' };
+      if (readback.queue.length === 0 && readback.activeSong === null && readback.activeIndex === -1) {
+        const state = await commitNativeQueueTruth({
+          readback, preferredBaseQueue: [], librarySongs, targets, previousPersistedId,
+          shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
+        });
+        return toHydrationResult('reconciled', state);
+      }
+    } catch (readbackError) {
+      if (readbackError instanceof NativeQueueReadbackUnstableError) {
+        return { ...failedResult(targets, 'readback', readbackError), nativeStatus: 'readback-unstable' };
+      }
+    }
     const result = failedResult(targets, 'readback', error);
     return error instanceof NativeQueueReadbackUnstableError
       ? { ...result, nativeStatus: 'readback-unstable' }
       : result;
   }
 };
-
 const retryPostMutationReadback = async ({ knownSongs, librarySongs, targets, previousPersistedId,
-  shuffleEnabled, preferredBaseQueue, targetQueue, isCancelled, recoveryErrors }: {
+  shuffleEnabled, preferredBaseQueue, expectation, isCancelled, recoveryErrors }: {
   knownSongs: Song[]; librarySongs: Song[]; targets: NativeQueueStateTargets; previousPersistedId?: string | null;
-  shuffleEnabled: boolean; preferredBaseQueue: Song[]; targetQueue: Song[]; isCancelled: () => boolean;
+  shuffleEnabled: boolean; preferredBaseQueue: Song[]; expectation: NativeHydrationExpectation; isCancelled: () => boolean;
   recoveryErrors: NativeQueueRecoveryDiagnostics;
 }): Promise<HydratedNativeQueueResult> => {
   for (let attempt = 2; attempt <= 3; attempt += 1) {
@@ -135,14 +152,14 @@ const retryPostMutationReadback = async ({ knownSongs, librarySongs, targets, pr
     try {
       const readback = await readNativeQueueTruth(knownSongs);
       if (isCancelled()) return { ...failedResult(targets, 'readback'), nativeStatus: 'cancelled', recoveryErrors };
-      const planFulfilled = hasSameNormalizedQueueOrder(readback.queue, targetQueue);
+      const fulfillment = evaluateNativeHydrationFulfillment(expectation, readback);
       const state = await commitNativeQueueTruth({
         readback, preferredBaseQueue, librarySongs, targets, previousPersistedId,
         shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
-        persistCurrentSong: planFulfilled,
+        persistCurrentSong: fulfillment.fulfilled,
       });
       return { ...toHydrationResult('reconciled', state, recoveryErrors),
-        planStatus: planFulfilled ? 'fulfilled' : 'retry-required' };
+        planStatus: fulfillment.fulfilled ? 'fulfilled' : 'retry-required' };
     } catch (error) {
       if (!(error instanceof NativeQueueReadbackUnstableError)) {
         return { ...failedResult(targets, 'readback', error), recoveryErrors: { ...recoveryErrors, finalReadbackError: error } };
@@ -151,7 +168,6 @@ const retryPostMutationReadback = async ({ knownSongs, librarySongs, targets, pr
   }
   return { ...failedResult(targets, 'readback', recoveryErrors.originalError), nativeStatus: 'readback-unstable', recoveryErrors };
 };
-
 const createHydrationSnapshot = async ({ knownSongs, shuffleEnabled, targets, isCancelled }: {
   knownSongs: Song[]; shuffleEnabled: boolean; targets: NativeQueueStateTargets; isCancelled: () => boolean;
 }): Promise<NativeQueueMutationSnapshot | HydratedNativeQueueResult> => {
@@ -168,6 +184,28 @@ const createHydrationSnapshot = async ({ knownSongs, shuffleEnabled, targets, is
     }
   }
   return { ...failedResult(targets, 'snapshot'), nativeStatus: 'readback-unstable' };
+};
+const toRecoveredHydrationResult = async (
+  recovery: Exclude<Awaited<ReturnType<typeof recoverNativeQueueMutation>>, { status: 'failed' }>,
+  expectation: NativeHydrationExpectation,
+  librarySongs: Song[],
+  previousPersistedId?: string | null,
+): Promise<HydratedNativeQueueResult> => {
+  const fulfillment = evaluateNativeHydrationFulfillment(expectation, recovery.readback);
+  const currentSongPersistence = fulfillment.fulfilled
+    ? await persistNativeCurrentSong(recovery.activeSong, librarySongs, previousPersistedId)
+    : { status: 'not-required' as const };
+  return {
+    nativeStatus: recovery.status, verifiedState: 'confirmed', queue: recovery.queue,
+    baseQueue: recovery.baseQueue, activeSong: recovery.activeSong, shuffleEnabled: recovery.shuffleEnabled,
+    currentSongPersistence, recoveryErrors: recovery.diagnostics,
+    persistenceError: currentSongPersistence.error,
+    planStatus: fulfillment.fulfilled ? 'fulfilled' : 'retry-required',
+  };
+};
+const applyHydrationPlanQueue = async (plan: HydrationPlan): Promise<void> => {
+  if (plan.playableQueue.length === 0) logEmptyPlayableQueueHydration(plan);
+  else await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
 };
 export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancelled,
   targets = targetsForNativeRef(nativeQueueRef), librarySongs = plan.hydratedSongs, shuffleEnabled = false,
@@ -186,15 +224,18 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
         return clearMalformedNativeCurrent({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled, isCancelled });
       }
       const snapshotResult = await createHydrationSnapshot({ knownSongs, shuffleEnabled, targets, isCancelled });
-      if ('nativeStatus' in snapshotResult) return snapshotResult;
+      if (isHydrationResult(snapshotResult)) return snapshotResult;
       const snapshot = snapshotResult;
+      const expectation = createNativeHydrationExpectation(plan, snapshot);
       if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'cancelled' };
       if (plan.nativeQueueAction === 'none') {
+        const fulfillment = evaluateNativeHydrationFulfillment(expectation, snapshot);
         const state = await commitNativeQueueTruth({
           readback: snapshot, preferredBaseQueue: snapshot.baseQueue, librarySongs, targets, previousPersistedId,
           shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
+          persistCurrentSong: fulfillment.fulfilled,
         });
-        return toHydrationResult('noop', state);
+        return { ...toHydrationResult('noop', state), planStatus: fulfillment.fulfilled ? 'fulfilled' : 'retry-required' };
       }
       try {
         await TrackPlayer.reset();
@@ -205,43 +246,32 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
           });
           return toHydrationResult('reconciled', state);
         }
-        if (plan.playableQueue.length === 0) {
-          if (plan.playableQueue.length === 0) logEmptyPlayableQueueHydration(plan);
-        } else {
-          await TrackPlayer.add(plan.playableQueue.map(toTrackPlayerTrack));
-        }
+        await applyHydrationPlanQueue(plan);
         const readback = await readNativeQueueTruth(knownSongs);
+        const fulfillment = evaluateNativeHydrationFulfillment(expectation, readback);
         const state = await commitNativeQueueTruth({
           readback, preferredBaseQueue: plan.hydratedQueue, librarySongs, targets, previousPersistedId,
           shuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
+          persistCurrentSong: fulfillment.fulfilled,
         });
-        return toHydrationResult('applied', state);
+        return { ...toHydrationResult('applied', state), planStatus: fulfillment.fulfilled ? 'fulfilled' : 'retry-required' };
       } catch (error) {
         const recovery = await recoverNativeQueueMutation({
           originalError: error, snapshot, knownSongs, librarySongs, targets,
           preferredBaseQueue: plan.hydratedQueue,
           reconciliationShuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
+          persistCurrentSong: false,
         });
         if (recovery.status === 'failed') {
           const result = { ...failedResult(targets, 'readback', error), recoveryErrors: recovery.diagnostics };
           if (classifyNativeQueueRecoveryFailure(recovery.diagnostics) !== 'readback-unstable') return result;
           return retryPostMutationReadback({
             knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled,
-            preferredBaseQueue: plan.hydratedQueue, targetQueue: plan.playableQueue,
+            preferredBaseQueue: plan.hydratedQueue, expectation,
             isCancelled, recoveryErrors: recovery.diagnostics,
           });
         }
-        return {
-          nativeStatus: recovery.status,
-          verifiedState: 'confirmed',
-          queue: recovery.queue,
-          baseQueue: recovery.baseQueue,
-          activeSong: recovery.activeSong,
-          shuffleEnabled: recovery.shuffleEnabled,
-          currentSongPersistence: recovery.currentSongPersistence,
-          recoveryErrors: recovery.diagnostics,
-          persistenceError: recovery.persistenceError,
-        };
+        return toRecoveredHydrationResult(recovery, expectation, librarySongs, previousPersistedId);
       }
     });
   } catch (error) {

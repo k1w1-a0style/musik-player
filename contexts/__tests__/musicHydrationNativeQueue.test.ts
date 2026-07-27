@@ -93,6 +93,21 @@ test('clearMalformedCurrent cancellation after rejected reset prevents a second 
   expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
 });
 
+test('clearMalformedCurrent reconciles when the second reset is effective but rejects', async () => {
+  await TrackPlayer.add({ id: 'removed', url: 'file:///removed.mp3' });
+  const state = targets(); const reset = (TrackPlayer.reset as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.reset as jest.Mock)
+    .mockRejectedValueOnce(new Error('first reset rejected'))
+    .mockImplementationOnce(async (...args: unknown[]) => { await reset(...args); throw new Error('second acknowledgement rejected'); });
+  const result = await applyHydratedNativeQueue({
+    plan: createHydrationPlan({ ...stored, currentSongId: 'removed' }, songs),
+    nativeQueueRef: state.nativeQueueRef, targets: state, isCancelled: () => false,
+  });
+  expect(result).toMatchObject({ nativeStatus: 'reconciled', verifiedState: 'confirmed', queue: [] });
+  expect(player.__getQueue()).toEqual([]);
+  expect(state.setCurrentSong).toHaveBeenCalledWith(null);
+});
+
 test('clearMalformedCurrent cancellation after empty readback suppresses stale setters', async () => {
   const state = targets(); const readStarted = deferred(); const releaseRead = deferred(); let cancelled = false;
   (TrackPlayer.getQueue as jest.Mock).mockImplementationOnce(async () => {

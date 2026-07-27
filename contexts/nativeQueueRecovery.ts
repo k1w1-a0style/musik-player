@@ -371,6 +371,7 @@ interface RecoveryArgs {
   targets: NativeQueueStateTargets;
   preferredBaseQueue?: Song[];
   reconciliationShuffleStrategy: NativeQueueShuffleStrategy;
+  persistCurrentSong?: boolean;
 }
 
 const reconcileReadback = async (
@@ -388,6 +389,7 @@ const reconcileReadback = async (
     shuffleStrategy: status === 'rolled-back'
       ? { kind: 'restore-snapshot', enabled: args.snapshot.shuffleEnabled }
       : args.reconciliationShuffleStrategy,
+    persistCurrentSong: args.persistCurrentSong,
   }),
   diagnostics,
 });

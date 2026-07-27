@@ -21,7 +21,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     >
       {value.hydrationStatus === 'ready' || value.hydrationStatus === undefined
         ? children
-        : <AppLoading degraded={value.hydrationStatus === 'degraded'} onRetry={value.retryHydration} />}
+        : <AppLoading degraded={value.hydrationStatus === 'degraded' || value.hydrationStatus === 'retry-required'} onRetry={value.retryHydration} />}
     </MusicContextProviders>
   );
 };

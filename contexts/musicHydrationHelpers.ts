@@ -32,6 +32,17 @@ import type {
   RunMusicHydrationArgs,
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
+import { publishNativeHydrationGate } from '../utils/nativeHydrationGate';
+import type { NativeHydrationGateOwner, NativeHydrationGateStatus } from '../utils/nativeHydrationGate';
+
+const publishHydrationStatus = (
+  owner: NativeHydrationGateOwner | undefined,
+  setter: RunMusicHydrationArgs['setHydrationStatus'],
+  status: NativeHydrationGateStatus,
+): void => {
+  if (owner && !publishNativeHydrationGate(owner, status)) return;
+  setter?.(status);
+};
 
 const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
   try {
@@ -197,6 +208,7 @@ export const hydrateStoredSongs = async ({
 export const runMusicHydration = async ({
   setIsReady,
   setHydrationStatus,
+  gateOwner,
   isCancelled,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
@@ -220,14 +232,14 @@ export const runMusicHydration = async ({
     if (isCancelled()) return;
     if (hydratedStored.verifiedState === 'confirmed' && hydratedStored.planStatus === 'retry-required') {
       console.error('[MusicHydration:RetryRequired] Native truth was verified but the stored hydration plan was not restored.');
-      setHydrationStatus?.('degraded');
+      publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
       return;
     }
     if (hydratedStored.verifiedState === null) {
       if (hydratedStored.nativeStatus === 'readback-unstable') {
         console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',
           hydratedStored.recoveryErrors?.originalError);
-        setHydrationStatus?.('degraded');
+        publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
         return;
       }
       throw hydratedStored.recoveryErrors?.originalError
@@ -249,7 +261,7 @@ export const runMusicHydration = async ({
   } finally {
     if (!isCancelled() && hydrationCompleted) {
       setIsReady(true);
-      setHydrationStatus?.('ready');
+      publishHydrationStatus(gateOwner, setHydrationStatus, 'ready');
     }
   }
 };

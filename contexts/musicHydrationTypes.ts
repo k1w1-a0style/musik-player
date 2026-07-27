@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
+import type { NativeHydrationGateOwner } from '../utils/nativeHydrationGate';
 
 export interface StoredMusicHydrationState {
   songs: Song[] | null;
@@ -38,5 +39,6 @@ export interface HydrateStoredSongsArgs {
 
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
-  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>;
+  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
+  gateOwner?: NativeHydrationGateOwner;
 }

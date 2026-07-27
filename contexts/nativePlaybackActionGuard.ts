@@ -2,7 +2,6 @@ import type { Song } from '../types/Song';
 import type { NativeQueueActionResult } from './playbackQueueActionHelpers';
 
 export type HydrationStatus = 'loading' | 'ready' | 'degraded' | 'retry-required';
-
 export interface NativePlaybackActions {
   playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
   playSongNext: (song: Song) => Promise<NativeQueueActionResult>;

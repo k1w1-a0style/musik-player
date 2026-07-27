@@ -1437,7 +1437,7 @@ describe('musicHydrationHelpers', () => {
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(TrackPlayer.reset).toHaveBeenCalledTimes(2);
     expect(setIsReady).not.toHaveBeenCalled();
-    expect(setHydrationStatus).toHaveBeenCalledWith('degraded');
+    expect(setHydrationStatus).toHaveBeenCalledWith('retry-required');
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
   });
 

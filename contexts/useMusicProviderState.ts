@@ -2,8 +2,8 @@ import { useCallback, useRef, useState, type Dispatch, type SetStateAction } fro
 import type { Playlist, Song } from '../types/Song';
 
 export interface MusicProviderState {
-  hydrationStatus?: 'loading' | 'ready' | 'degraded';
-  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>;
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   retryHydration?: () => void;
   isReady: boolean;
@@ -22,10 +22,10 @@ export interface MusicProviderState {
 
 export const useMusicProviderState = (): MusicProviderState => {
   const [isReady, setIsReady] = useState(false);
-  const [hydrationStatus, setHydrationStatusState] = useState<'loading' | 'ready' | 'degraded'>('loading');
+  const [hydrationStatus, setHydrationStatusState] = useState<'loading' | 'ready' | 'degraded' | 'retry-required'>('loading');
   const [hydrationRetryToken, setHydrationRetryToken] = useState(0);
   const retryPendingRef = useRef(false);
-  const setHydrationStatus = useCallback<Dispatch<SetStateAction<'loading' | 'ready' | 'degraded'>>>(next => {
+  const setHydrationStatus = useCallback<Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>>(next => {
     setHydrationStatusState(previous => {
       const value = typeof next === 'function' ? next(previous) : next;
       if (value !== 'loading') retryPendingRef.current = false;
@@ -33,7 +33,7 @@ export const useMusicProviderState = (): MusicProviderState => {
     });
   }, []);
   const retryHydration = useCallback(() => {
-    if (hydrationStatus !== 'degraded' || retryPendingRef.current) return;
+    if ((hydrationStatus !== 'degraded' && hydrationStatus !== 'retry-required') || retryPendingRef.current) return;
     retryPendingRef.current = true;
     setHydrationRetryToken(value => value + 1);
   }, [hydrationStatus]);
