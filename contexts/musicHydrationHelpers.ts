@@ -206,6 +206,7 @@ const hydrateWithReadbackRetries = async (
     if (result.nativeStatus !== 'readback-unstable' || isCancelled()) return result;
     console.warn(`[MusicHydration:ReadbackUnstable] Native readback attempt ${attempt}/${maxAttempts} was unstable.`,
       result.recoveryErrors?.originalError);
+    if (isCancelled()) return result;
     if (attempt < maxAttempts) await new Promise(resolve => setTimeout(resolve, 50 * attempt));
   }
   if (!result) throw new Error('Hydration produced no result.');

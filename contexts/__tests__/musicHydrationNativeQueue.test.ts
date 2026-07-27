@@ -82,6 +82,58 @@ test('partial hydration reject publishes only known tracks actually present', as
   expect(result.baseQueue).toEqual([songs[0]]);
 });
 
+test('post-mutation recovery with exclusively unstable readbacks remains retryable', async () => {
+  const state = targets();
+  const forward = songs.map(song => ({ ...song, url: song.uri! }));
+  const reverse = [forward[1], forward[0]];
+  let queueRead = 0;
+  (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => {
+    queueRead += 1;
+    if (queueRead <= 2) return [];
+    return queueRead % 2 === 0 ? forward : reverse;
+  });
+
+  const result = await applyHydratedNativeQueue({
+    plan: createHydrationPlan(stored, songs), nativeQueueRef: state.nativeQueueRef,
+    targets: state, isCancelled: () => false,
+  });
+
+  expect(result).toMatchObject({ nativeStatus: 'readback-unstable', verifiedState: null, failureStage: 'readback' });
+  expect(result.recoveryErrors).toMatchObject({
+    originalError: { name: 'NativeQueueReadbackUnstableError' },
+    initialReadbackError: { name: 'NativeQueueReadbackUnstableError' },
+    rollbackVerificationError: { name: 'NativeQueueReadbackUnstableError' },
+    finalReadbackError: { name: 'NativeQueueReadbackUnstableError' },
+  });
+  expect(state.nativeQueueRef.current).toEqual([]);
+  expect(state.queueContextRef.current).toEqual([]);
+  expect(state.setPlaybackQueue).not.toHaveBeenCalled();
+});
+
+test('unknown-track and rollback bridge failures remain fatal after mutation', async () => {
+  const unknown = [{ id: 'unknown-native-track', url: 'file:///unknown.mp3' }];
+  for (const rollbackFails of [false, true]) {
+    player.__reset(); restore(); jest.clearAllMocks(); restore(); resetNativeQueueMutationLockForTests();
+    const state = targets(); let queueRead = 0;
+    (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => (++queueRead <= 2 ? [] : unknown));
+    if (rollbackFails) {
+      const reset = (TrackPlayer.reset as jest.Mock).getMockImplementation()!;
+      let resets = 0;
+      (TrackPlayer.reset as jest.Mock).mockImplementation(async (...args: unknown[]) => {
+        resets += 1;
+        if (resets === 2) throw new Error('rollback bridge failed');
+        return reset(...args);
+      });
+    }
+    const result = await applyHydratedNativeQueue({
+      plan: createHydrationPlan(stored, songs), nativeQueueRef: state.nativeQueueRef,
+      targets: state, isCancelled: () => false,
+    });
+    expect(result).toMatchObject({ nativeStatus: 'failed', verifiedState: null });
+    if (rollbackFails) expect(result.recoveryErrors?.rollbackExecutionError).toEqual(new Error('rollback bridge failed'));
+  }
+});
+
 
 test.each([
   ['initialize', stored],

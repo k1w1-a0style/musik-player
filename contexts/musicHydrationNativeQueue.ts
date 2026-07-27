@@ -5,6 +5,7 @@ import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutation
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
   commitNativeQueueTruth,
+  classifyNativeQueueRecoveryFailure,
   createNativeQueueMutationSnapshot,
   readNativeQueueTruth,
   recoverNativeQueueMutation,
@@ -125,11 +126,8 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
     return await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       if (!isCurrent()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'superseded' };
       if (isCancelled()) return { ...failedResult(targets, 'snapshot'), nativeStatus: 'cancelled' };
-      // This is the sole fail-open mapping exception. The cleanup is explicitly
-      // intended to remove a persisted current track which no longer belongs to
-      // the library, so taking the normal Song-mapped snapshot would reject the
-      // very native track we need to clear. No native state is published until
-      // reset has been verified by a normal (necessarily empty) readback.
+      // Sole mapping exception: this planned cleanup verifies an empty readback
+      // before publishing state, instead of mapping the obsolete native track.
       if (plan.nativeQueueAction === 'clearMalformedCurrent') {
         return clearMalformedNativeCurrent({ knownSongs, librarySongs, targets, previousPersistedId, shuffleEnabled });
       }
@@ -175,7 +173,10 @@ export const applyHydratedNativeQueue = async ({ plan, nativeQueueRef, isCancell
           reconciliationShuffleStrategy: { kind: 'confirmed-action', enabled: shuffleEnabled },
         });
         if (recovery.status === 'failed') {
-          return { ...failedResult(targets, 'readback', error), recoveryErrors: recovery.diagnostics };
+          const result = { ...failedResult(targets, 'readback', error), recoveryErrors: recovery.diagnostics };
+          return classifyNativeQueueRecoveryFailure(recovery.diagnostics) === 'readback-unstable'
+            ? { ...result, nativeStatus: 'readback-unstable' }
+            : result;
         }
         return {
           nativeStatus: recovery.status,

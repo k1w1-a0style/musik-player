@@ -30,6 +30,32 @@ export interface NativeQueueRecoveryDiagnostics {
   finalReadbackError?: unknown;
 }
 
+export type NativeQueueRecoveryFailureClassification = 'readback-unstable' | 'fatal';
+
+const RECOVERY_READBACK_ERROR_KEYS = [
+  'originalError',
+  'initialReadbackError',
+  'rollbackVerificationError',
+  'finalReadbackError',
+] as const satisfies readonly (keyof NativeQueueRecoveryDiagnostics)[];
+
+/**
+ * Classifies only a completely failed recovery. Instability is fail-open only
+ * when rollback execution itself succeeded and every recorded error from the
+ * mutation/readback/verification stages is the bounded unstable-readback type.
+ */
+export const classifyNativeQueueRecoveryFailure = (
+  diagnostics: NativeQueueRecoveryDiagnostics,
+): NativeQueueRecoveryFailureClassification => {
+  if (diagnostics.rollbackExecutionError !== undefined) return 'fatal';
+  const errors = RECOVERY_READBACK_ERROR_KEYS
+    .map(key => diagnostics[key])
+    .filter((error): error is unknown => error !== undefined);
+  return errors.length > 0 && errors.every(error => error instanceof NativeQueueReadbackUnstableError)
+    ? 'readback-unstable'
+    : 'fatal';
+};
+
 export type NativeQueueReplacementProgress =
   | 'not-started' | 'reset-confirmed' | 'add-started' | 'queue-replacement-confirmed'
   | 'active-track-confirmed' | 'progress-confirmed' | 'playback-confirmed';
