@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer, { State, type Track } from 'react-native-track-player';
 import type { Song } from '../types/Song';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
 import { StorageKeys, storage } from '../utils/storage';
 import { isPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
@@ -270,6 +271,55 @@ export const resolveShuffleState = (
     ? resolveReplacementShuffleState(strategy, queue)
     : strategy.enabled;
 
+type CurrentSongPersistenceQueue = {
+  chain: Promise<void>;
+  pending: number;
+};
+
+const currentSongPersistenceQueue: CurrentSongPersistenceQueue = {
+  chain: Promise.resolve(),
+  pending: 0,
+};
+
+const enqueueCurrentSongPersistence = async <T,>(
+  operation: (hadPendingPredecessor: boolean) => Promise<T>,
+): Promise<T> => {
+  const hadPendingPredecessor = currentSongPersistenceQueue.pending > 0;
+  currentSongPersistenceQueue.pending += 1;
+  const run = currentSongPersistenceQueue.chain
+    .catch(() => undefined)
+    .then(() => operation(hadPendingPredecessor));
+  currentSongPersistenceQueue.chain = run.then(() => undefined, () => undefined);
+  try {
+    return await run;
+  } finally {
+    currentSongPersistenceQueue.pending -= 1;
+  }
+};
+
+export const resetCurrentSongPersistenceQueueForTests = (): void => {
+  currentSongPersistenceQueue.chain = Promise.resolve();
+  currentSongPersistenceQueue.pending = 0;
+};
+
+const captureCurrentSongPersistenceGeneration = (): (() => boolean) => {
+  const captured = getNativeHydrationGate();
+  return () => {
+    const current = getNativeHydrationGate();
+    return current.generation === captured.generation && current.owned === captured.owned;
+  };
+};
+
+const readPersistedCurrentSongId = async (): Promise<string | null> =>
+  normalizedId(await storage.get(StorageKeys.CURRENT_SONG_ID)) ?? null;
+
+const writePersistedCurrentSongId = async (songId: string | null): Promise<boolean> => {
+  const confirmed = songId
+    ? await storage.set(StorageKeys.CURRENT_SONG_ID, songId)
+    : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
+  return confirmed !== false;
+};
+
 export const persistNativeCurrentSong = async (
   activeSong: Song | null,
   librarySongs: Song[],
@@ -278,18 +328,43 @@ export const persistNativeCurrentSong = async (
   const activeId = normalizedId(activeSong?.id) ?? null;
   const librarySong = activeId ? findKnownSong(librarySongs, activeId) : undefined;
   const desiredId = librarySong ? activeId : null;
-  if (previousId !== undefined && normalizedId(previousId) === (desiredId ?? undefined)) {
-    return { status: 'not-required' };
-  }
-  try {
-    const confirmed = desiredId
-      ? await storage.set(StorageKeys.CURRENT_SONG_ID, desiredId)
-      : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-    if (confirmed === false) return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
-    return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
-  } catch (error) {
-    return { status: 'rejected', error };
-  }
+  const isGenerationCurrent = captureCurrentSongPersistenceGeneration();
+
+  return enqueueCurrentSongPersistence(async hadPendingPredecessor => {
+    if (!isGenerationCurrent()) return { status: 'not-required' };
+
+    let previousPersistedId: string | null;
+    try {
+      previousPersistedId = !hadPendingPredecessor && previousId !== undefined
+        ? normalizedId(previousId) ?? null
+        : await readPersistedCurrentSongId();
+    } catch (error) {
+      return { status: 'rejected', error };
+    }
+
+    if (!isGenerationCurrent()) return { status: 'not-required' };
+    if ((previousId !== undefined || hadPendingPredecessor) && previousPersistedId === desiredId) {
+      return { status: 'not-required' };
+    }
+
+    try {
+      if (!await writePersistedCurrentSongId(desiredId)) {
+        return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
+      }
+      if (isGenerationCurrent()) {
+        return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
+      }
+      if (!await writePersistedCurrentSongId(previousPersistedId)) {
+        return {
+          status: 'unconfirmed',
+          error: new Error('Stale current-song persistence restoration was not confirmed.'),
+        };
+      }
+      return { status: 'not-required' };
+    } catch (error) {
+      return { status: 'rejected', error };
+    }
+  });
 };
 
 export const commitNativeQueueTruth = async ({
