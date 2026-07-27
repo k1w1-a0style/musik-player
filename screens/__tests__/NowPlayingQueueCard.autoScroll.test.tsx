@@ -11,6 +11,7 @@ type MockQueueRowProps = {
   onDragEnd?: () => void;
 };
 
+const MockView = View;
 const mockQueueRowProps = new Map<string, MockQueueRowProps>();
 const mockAppTheme = {
   appearance: 'dark' as const,
@@ -30,7 +31,7 @@ jest.mock('../NowPlayingQueuePreviewRow', () => ({
   __esModule: true,
   default: (props: MockQueueRowProps) => {
     mockQueueRowProps.set(props.id, props);
-    return <View testID={`mock-queue-row-${props.id}`} />;
+    return <MockView testID={`mock-queue-row-${props.id}`} />;
   },
 }));
 
@@ -73,26 +74,27 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     const flatList = getFlatList(getByTestId);
     const row = mockQueueRowProps.get('s6');
     if (!row?.onDragPosition || !row.onDragEnd) throw new Error('Expected mocked queue row drag callbacks.');
+    const baselineTimerCount = jest.getTimerCount();
 
     fireEvent(flatList, 'layout', { nativeEvent: { layout: { height: 220 } } });
     fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 0 } } });
 
     act(() => row.onDragPosition?.(5, 120, 1));
-    expect(jest.getTimerCount()).toBe(1);
+    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
 
     fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 236 } } });
     act(() => jest.advanceTimersByTime(32));
     expect(scrollToOffsetSpy).not.toHaveBeenCalled();
-    expect(jest.getTimerCount()).toBe(0);
+    expect(jest.getTimerCount()).toBe(baselineTimerCount);
 
     fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 0 } } });
     act(() => row.onDragPosition?.(5, 120, 1));
     act(() => jest.advanceTimersByTime(32));
     expect(scrollToOffsetSpy).toHaveBeenCalledWith({ offset: 12, animated: false });
-    expect(jest.getTimerCount()).toBe(1);
+    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
 
     act(() => row.onDragEnd?.());
-    expect(jest.getTimerCount()).toBe(0);
+    expect(jest.getTimerCount()).toBe(baselineTimerCount);
     unmount();
   });
 });
