@@ -4,6 +4,7 @@ import LibraryFolderRow from '../components/LibraryFolderRow';
 import LibraryPlaylistRow from '../components/LibraryPlaylistRow';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import type {
   LibraryRendererOpenPlaylistDetail,
   LibraryRendererPlayPlaylist,
@@ -30,7 +31,9 @@ export const useLibraryPlaylistFolderRenderers = ({
     <LibraryPlaylistRow
       playlist={item}
       onOpen={playlistId => void onOpenPlaylistDetail?.(playlistId)}
-      onPlay={playlistId => void playPlaylist(playlistId)}
+      onPlay={playlistId => {
+        void runPlaybackUiAction(`library-playlist-${playlistId}`, () => playPlaylist(playlistId), { dropIfPending: true });
+      }}
     />
   ), [onOpenPlaylistDetail, playPlaylist]);
 

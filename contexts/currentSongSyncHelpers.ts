@@ -59,6 +59,15 @@ export const findTrackSongById = (
   return undefined;
 };
 
+const persistCurrentSongIdSafely = (
+  persistCurrentSongId: SyncCurrentSongFromTrackArgs['persistCurrentSongId'],
+  song: Song | null,
+): void => {
+  void persistCurrentSongId(song).catch(error => {
+    console.warn('[CurrentSongSync] Failed to persist active track.', error);
+  });
+};
+
 export const syncCurrentSongFromActiveTrackEvent = ({
   event,
   songSources,
@@ -70,16 +79,16 @@ export const syncCurrentSongFromActiveTrackEvent = ({
 
   if (parsed.kind === 'clear') {
     setCurrentSong(null);
-    void persistCurrentSongId(null);
+    persistCurrentSongIdSafely(persistCurrentSongId, null);
     return;
   }
 
   const song = findTrackSongById(parsed.trackId, songSources);
   if (!song) {
     setCurrentSong(null);
-    void persistCurrentSongId(null);
+    persistCurrentSongIdSafely(persistCurrentSongId, null);
     return;
   }
   setCurrentSong(song);
-  void persistCurrentSongId(song);
+  persistCurrentSongIdSafely(persistCurrentSongId, song);
 };

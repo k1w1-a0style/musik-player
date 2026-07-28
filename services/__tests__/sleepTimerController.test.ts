@@ -15,6 +15,7 @@ import {
   resetNativeQueueMutationLockForTests,
   runExclusiveNativeQueueReplacement,
 } from '../../utils/nativeQueueMutationLock';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -38,6 +39,7 @@ describe('sleepTimerController', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
     trackPlayerTestApi.__reset();
     resetSleepTimerForTests();
     jest.clearAllMocks();
@@ -62,6 +64,16 @@ describe('sleepTimerController', () => {
       expect(isSleepTimerActive()).toBe(false);
     },
   );
+
+  test.each(['degraded', 'retry-required'] as const)('expiry remains a safety action while user gate is %s', async status => {
+    publishNativeHydrationGate(acquireNativeHydrationGate(), status);
+    trackPlayerTestApi.__setState(State.Playing);
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+  });
 
   test.each([State.Paused, State.Stopped, State.Ready, State.None, State.Ended])(
     'clears expired sleep timers without native playback changes when playback state is %s',

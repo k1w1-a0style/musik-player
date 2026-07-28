@@ -1,6 +1,9 @@
 import { useCallback, useRef, type MutableRefObject } from 'react';
 import type { Song } from '../types/Song';
-import { StorageKeys, storage } from '../utils/storage';
+import {
+  assertCurrentSongPersistenceSucceeded,
+  persistCurrentSongIdSerialized,
+} from '../utils/currentSongPersistence';
 
 export interface MusicPlaybackRefs {
   songsRef: MutableRefObject<Song[]>;
@@ -21,18 +24,12 @@ export const persistCurrentSongIdForLibrary = async (
   songs: Song[],
 ): Promise<void> => {
   const songId = normalizeCurrentSongIdForPersistence(song?.id);
-  if (!songId) {
-    await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    return;
-  }
-
-  const existsInLibrary = songs.some(item => normalizeCurrentSongIdForPersistence(item.id) === songId);
-  if (!existsInLibrary) {
-    await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    return;
-  }
-
-  await storage.set(StorageKeys.CURRENT_SONG_ID, songId);
+  const existsInLibrary = !!songId
+    && songs.some(item => normalizeCurrentSongIdForPersistence(item.id) === songId);
+  const result = await persistCurrentSongIdSerialized({
+    resolveDesiredId: () => existsInLibrary ? songId : null,
+  });
+  assertCurrentSongPersistenceSucceeded(result);
 };
 
 export const useMusicPlaybackRefs = (songs: Song[]): MusicPlaybackRefs => {

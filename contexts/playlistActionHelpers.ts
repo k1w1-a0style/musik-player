@@ -72,7 +72,7 @@ export const runPlayPlaylistAction = async ({
   playlistId: string;
   playlists: Playlist[];
   songs: Song[];
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<unknown>;
 }): Promise<void> => {
   const playlist = playlists.find(item => item.id === playlistId);
   if (!playlist) return;

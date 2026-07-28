@@ -17,6 +17,10 @@ const StateProbe = () => {
     setPlaylists,
     shuffle,
     setShuffle,
+    hydrationStatus,
+    setHydrationStatus,
+    hydrationRetryToken,
+    retryHydration,
   } = useMusicProviderState();
 
   return (
@@ -27,6 +31,10 @@ const StateProbe = () => {
       <Text testID="queue">{playbackQueue.length}</Text>
       <Text testID="playlists">{playlists.length}</Text>
       <Text testID="shuffle">{String(shuffle)}</Text>
+      <Text testID="hydration-status">{hydrationStatus}</Text>
+      <Text testID="retry-token">{hydrationRetryToken}</Text>
+      <Button testID="degrade" title="degrade" onPress={() => setHydrationStatus?.('degraded')} />
+      <Button testID="retry" title="retry" onPress={() => retryHydration?.()} />
       <Button testID="hydrate" title="hydrate" onPress={() => {
         setIsReady(true);
         setSongsState([{ id: 's1', title: 'One', artist: 'A' }]);
@@ -49,6 +57,7 @@ describe('useMusicProviderState', () => {
     expect(getByTestId('queue').props.children).toBe(0);
     expect(getByTestId('playlists').props.children).toBe(0);
     expect(getByTestId('shuffle').props.children).toBe('false');
+    expect(getByTestId('hydration-status').props.children).toBe('loading');
 
     act(() => fireEvent.press(getByTestId('hydrate')));
 
@@ -58,5 +67,12 @@ describe('useMusicProviderState', () => {
     expect(getByTestId('queue').props.children).toBe(1);
     expect(getByTestId('playlists').props.children).toBe(1);
     expect(getByTestId('shuffle').props.children).toBe('true');
+    act(() => fireEvent.press(getByTestId('degrade')));
+    expect(getByTestId('hydration-status').props.children).toBe('degraded');
+    act(() => {
+      fireEvent.press(getByTestId('retry'));
+      fireEvent.press(getByTestId('retry'));
+    });
+    expect(getByTestId('retry-token').props.children).toBe(1);
   });
 });

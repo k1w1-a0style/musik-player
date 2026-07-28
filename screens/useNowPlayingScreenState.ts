@@ -21,7 +21,7 @@ export const buildSavedQueuePlaylistName = (date = new Date()): string => {
   return `Gespeicherte Warteschlange — ${ts}`;
 };
 
-const noopQueueShift = async (): Promise<boolean> => false;
+const noopQueueShift = async () => ({ status: 'noop' as const });
 
 export const getAdjacentNowPlayingSongs = (
   playbackQueue: Song[],

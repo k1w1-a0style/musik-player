@@ -12,21 +12,17 @@ import type {
 } from './musicContextTypes';
 import { useMusicContextValue } from './useMusicContextValue';
 import { useSleepTimer } from '../screens/useSleepTimer';
-
 export interface ProvidedMusicContextValues {
   value: MusicContextValue;
   libraryValue: LibraryMusicContextValue;
   miniPlayerValue: MiniPlayerMusicContextValue;
   nowPlayingValue: NowPlayingMusicContextValue;
 }
-
 export const useProvidedMusicContextValues = (input: MusicContextValue): ProvidedMusicContextValues => {
   const value = useMusicContextValue(input);
   const {
-    songs,
-    setSongs,
-    currentSong,
-    playSong,
+    songs, setSongs,
+    currentSong, playSong,
     playSongNext,
     addSongToQueue,
     reorderQueue,
@@ -53,8 +49,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     paletteLoading,
     saveQueueAsPlaylist,
     repeatMode,
+    hydrationStatus, retryHydration,
   } = value;
-
   const libraryValue = useMemo(
     () =>
       buildLibraryMusicContextValue({
@@ -76,6 +72,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         removeSongFromPlaylist,
         moveSongInPlaylist,
         playPlaylist,
+        hydrationStatus, retryHydration,
       }),
     [
       songs,
@@ -96,9 +93,9 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       removeSongFromPlaylist,
       moveSongInPlaylist,
       playPlaylist,
+      hydrationStatus, retryHydration,
     ],
   );
-
   const miniPlayerValue = useMemo(
     () =>
       buildMiniPlayerMusicContextValue({
@@ -108,6 +105,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         next,
         previous,
         playbackQueue,
+        hydrationStatus, retryHydration,
       }),
     [
       currentSong,
@@ -116,16 +114,15 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       next,
       previous,
       playbackQueue,
+      hydrationStatus, retryHydration,
     ],
   );
-
   const {
     sleepTimerActive,
     sleepTimerRemainingSeconds,
     startSleepTimer,
     cancelSleepTimer,
   } = useSleepTimer();
-
   const nowPlayingValue = useMemo(
     () =>
       buildNowPlayingMusicContextValue({
@@ -148,6 +145,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         reorderQueue,
         saveQueueAsPlaylist,
         repeatMode,
+        hydrationStatus, retryHydration,
       }),
     [
       playbackQueue,
@@ -169,8 +167,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       reorderQueue,
       saveQueueAsPlaylist,
       repeatMode,
+      hydrationStatus, retryHydration,
     ],
   );
-
   return { value, libraryValue, miniPlayerValue, nowPlayingValue };
 };

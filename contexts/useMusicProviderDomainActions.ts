@@ -10,11 +10,13 @@ const getCurrentSongId = ({ state }: MusicProviderRuntime): string | undefined =
 
 export const useMusicProviderDomainActions = (
   runtime: MusicProviderRuntime,
-): MusicProviderDomainActions =>
-  useMusicProviderActions(
+): MusicProviderDomainActions => {
+  const actions = useMusicProviderActions(
     buildMusicProviderActionsInput({
       playbackRefs: runtime.refs,
       providerState: runtime.state,
       currentSongId: getCurrentSongId(runtime),
     }),
   );
+  return actions;
+};
