@@ -16,6 +16,7 @@ export interface CurrentSongPersistenceResult {
 export interface PersistCurrentSongIdArgs {
   resolveDesiredId: (persistedId: string | null) => string | null | undefined;
   knownPreviousId?: string | null;
+  isCurrent?: () => boolean;
 }
 
 type CurrentSongPersistenceQueue = {
@@ -75,11 +76,13 @@ const writePersistedCurrentSongId = async (songId: string | null): Promise<boole
 export const persistCurrentSongIdSerialized = async ({
   resolveDesiredId,
   knownPreviousId,
+  isCurrent,
 }: PersistCurrentSongIdArgs): Promise<CurrentSongPersistenceResult> => {
   const isGenerationCurrent = captureCurrentSongPersistenceGeneration();
+  const isRequestCurrent = (): boolean => isGenerationCurrent() && (isCurrent?.() ?? true);
 
   return enqueueCurrentSongPersistence(async hadPendingPredecessor => {
-    if (!isGenerationCurrent()) return { status: 'not-required' };
+    if (!isRequestCurrent()) return { status: 'not-required' };
 
     let previousPersistedId: string | null;
     try {
@@ -90,7 +93,7 @@ export const persistCurrentSongIdSerialized = async ({
       return { status: 'rejected', error };
     }
 
-    if (!isGenerationCurrent()) return { status: 'not-required' };
+    if (!isRequestCurrent()) return { status: 'not-required' };
 
     let desiredId: string | null | undefined;
     try {
@@ -108,7 +111,7 @@ export const persistCurrentSongIdSerialized = async ({
       if (!await writePersistedCurrentSongId(desiredId)) {
         return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
       }
-      if (isGenerationCurrent()) {
+      if (isRequestCurrent()) {
         return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
       }
       if (!await writePersistedCurrentSongId(previousPersistedId)) {
