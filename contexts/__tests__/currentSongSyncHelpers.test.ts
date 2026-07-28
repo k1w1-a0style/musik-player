@@ -87,6 +87,24 @@ describe('currentSongSyncHelpers', () => {
     expect(persistCurrentSongId).toHaveBeenNthCalledWith(2, null);
   });
 
+  test('consumes active-track persistence rejection without an unhandled promise', async () => {
+    const error = new Error('write failed');
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const persistCurrentSongId = jest.fn(async () => { throw error; });
+
+    syncCurrentSongFromActiveTrackEvent({
+      event: { track: { id: 's1' } },
+      songSources: [[librarySong]],
+      setCurrentSong: jest.fn(),
+      persistCurrentSongId,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(warn).toHaveBeenCalledWith('[CurrentSongSync] Failed to persist active track.', error);
+    warn.mockRestore();
+  });
+
   test('ignores malformed events with no track information', () => {
     const setCurrentSong = jest.fn();
     const persistCurrentSongId = jest.fn(async () => undefined);
