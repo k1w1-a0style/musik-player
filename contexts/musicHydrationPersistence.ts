@@ -28,7 +28,7 @@ export const persistHydratedPlaylistsIfNeeded = async (plan: HydrationPlan): Pro
 };
 
 export const persistHydratedCurrentSongIdIfNeeded = async (plan: HydrationPlan): Promise<void> => {
-  if (plan.currentSongPersistence.action === 'none') return;
+  if (plan.currentSongPersistence.action === 'keep') return;
 
   if (plan.currentSongPersistence.action === 'remove') {
     console.warn('[MusicHydration] Restored current song is not playable; clearing persisted current song id.', {
