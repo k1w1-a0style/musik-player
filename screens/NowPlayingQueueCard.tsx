@@ -101,13 +101,10 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
   }, [queue.length, stopAutoScroll]);
   const handleDragPosition = React.useCallback((index: number, dragY: number, movementDirection: -1 | 0 | 1) => {
     const previousDrag = dragPositionRef.current;
-    const startsNewDrag = !previousDrag || previousDrag.index !== index;
-    const drag: QueueDragPosition = {
-      index,
-      dragY,
-      movementDirection,
-      startScrollOffset: startsNewDrag ? scrollOffsetRef.current : previousDrag.startScrollOffset,
-    };
+    const startScrollOffset = previousDrag?.index === index
+      ? previousDrag.startScrollOffset
+      : scrollOffsetRef.current;
+    const drag: QueueDragPosition = { index, dragY, movementDirection, startScrollOffset };
     dragPositionRef.current = drag;
     const direction = resolveQueueAutoScrollDirection({
       index,
