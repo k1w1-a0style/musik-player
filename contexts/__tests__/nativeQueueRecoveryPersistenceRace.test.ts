@@ -9,6 +9,7 @@ import {
   persistNativeCurrentSong,
   resetCurrentSongPersistenceQueueForTests,
 } from '../nativeQueueRecovery';
+import { persistCurrentSongIdForLibrary } from '../useMusicPlaybackRefs';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///1.mp3' },
@@ -90,6 +91,27 @@ test('a newer hydration generation is serialized after stale-write restoration a
 
   await expect(staleWrite).resolves.toEqual({ status: 'not-required' });
   await expect(newestWrite).resolves.toEqual({ status: 'set-confirmed' });
+  expect(persistence.getPersistedId()).toBe('s3');
+  expect(persistence.setSpy.mock.calls).toEqual([
+    [StorageKeys.CURRENT_SONG_ID, 's2'],
+    [StorageKeys.CURRENT_SONG_ID, 's1'],
+    [StorageKeys.CURRENT_SONG_ID, 's3'],
+  ]);
+});
+
+test('a newer active-track event shares the recovery queue and wins after stale restoration', async () => {
+  acquireNativeHydrationGate();
+  const persistence = mockPersistedCurrentSong('s1');
+
+  const staleRecoveryWrite = persistNativeCurrentSong(songs[1], songs);
+  await persistence.firstWriteStarted.promise;
+
+  acquireNativeHydrationGate();
+  const activeTrackWrite = persistCurrentSongIdForLibrary(songs[2], songs);
+  persistence.releaseFirstWrite.resolve();
+
+  await expect(staleRecoveryWrite).resolves.toEqual({ status: 'not-required' });
+  await expect(activeTrackWrite).resolves.toBeUndefined();
   expect(persistence.getPersistedId()).toBe('s3');
   expect(persistence.setSpy.mock.calls).toEqual([
     [StorageKeys.CURRENT_SONG_ID, 's2'],
