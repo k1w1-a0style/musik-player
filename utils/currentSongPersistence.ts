@@ -73,6 +73,48 @@ const writePersistedCurrentSongId = async (songId: string | null): Promise<boole
   return confirmed !== false;
 };
 
+const resolvePreviousPersistedId = async (
+  hadPendingPredecessor: boolean,
+  knownPreviousId: string | null | undefined,
+): Promise<string | null> => {
+  if (!hadPendingPredecessor && knownPreviousId !== undefined) {
+    return normalizeSongId(knownPreviousId) ?? null;
+  }
+  return readPersistedCurrentSongId();
+};
+
+const normalizeDesiredId = (resolved: string | null | undefined): string | null | undefined => {
+  if (resolved === undefined) return undefined;
+  return normalizeSongId(resolved) ?? null;
+};
+
+const confirmedResult = (desiredId: string | null): CurrentSongPersistenceResult =>
+  desiredId
+    ? { status: 'set-confirmed' }
+    : { status: 'remove-confirmed' };
+
+const commitDesiredCurrentSongId = async ({
+  desiredId,
+  previousPersistedId,
+  isRequestCurrent,
+}: {
+  desiredId: string | null;
+  previousPersistedId: string | null;
+  isRequestCurrent: () => boolean;
+}): Promise<CurrentSongPersistenceResult> => {
+  if (!await writePersistedCurrentSongId(desiredId)) {
+    return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
+  }
+  if (isRequestCurrent()) return confirmedResult(desiredId);
+  if (!await writePersistedCurrentSongId(previousPersistedId)) {
+    return {
+      status: 'unconfirmed',
+      error: new Error('Stale current-song persistence restoration was not confirmed.'),
+    };
+  }
+  return { status: 'not-required' };
+};
+
 export const persistCurrentSongIdSerialized = async ({
   resolveDesiredId,
   knownPreviousId,
@@ -86,9 +128,7 @@ export const persistCurrentSongIdSerialized = async ({
 
     let previousPersistedId: string | null;
     try {
-      previousPersistedId = !hadPendingPredecessor && knownPreviousId !== undefined
-        ? normalizeSongId(knownPreviousId) ?? null
-        : await readPersistedCurrentSongId();
+      previousPersistedId = await resolvePreviousPersistedId(hadPendingPredecessor, knownPreviousId);
     } catch (error) {
       return { status: 'rejected', error };
     }
@@ -97,30 +137,16 @@ export const persistCurrentSongIdSerialized = async ({
 
     let desiredId: string | null | undefined;
     try {
-      const resolved = resolveDesiredId(previousPersistedId);
-      desiredId = resolved === undefined ? undefined : normalizeSongId(resolved) ?? null;
+      desiredId = normalizeDesiredId(resolveDesiredId(previousPersistedId));
     } catch (error) {
       return { status: 'rejected', error };
     }
 
-    if (desiredId === undefined || desiredId === previousPersistedId) {
-      return { status: 'not-required' };
-    }
+    if (desiredId === undefined) return { status: 'not-required' };
+    if (desiredId === previousPersistedId) return { status: 'not-required' };
 
     try {
-      if (!await writePersistedCurrentSongId(desiredId)) {
-        return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
-      }
-      if (isRequestCurrent()) {
-        return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
-      }
-      if (!await writePersistedCurrentSongId(previousPersistedId)) {
-        return {
-          status: 'unconfirmed',
-          error: new Error('Stale current-song persistence restoration was not confirmed.'),
-        };
-      }
-      return { status: 'not-required' };
+      return await commitDesiredCurrentSongId({ desiredId, previousPersistedId, isRequestCurrent });
     } catch (error) {
       return { status: 'rejected', error };
     }
