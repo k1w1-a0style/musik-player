@@ -1,10 +1,13 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Playlist, Song } from '../types/Song';
+import {
+  assertCurrentSongPersistenceSucceeded,
+  persistCurrentSongIdSerialized,
+} from '../utils/currentSongPersistence';
 import { prunePlaylists } from '../utils/playlistState';
 import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toPlayableSongs } from '../utils/playableSong';
-import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import {
@@ -86,13 +89,13 @@ const cleanupCurrentSongIdAfterLibraryUpdate = async (
 
   try {
     if (isStaleCleanup()) return;
-    const currentSongId = await storage.get(StorageKeys.CURRENT_SONG_ID);
+    const result = await persistCurrentSongIdSerialized({
+      isCurrent: () => !isStaleCleanup(),
+      resolveDesiredId: persistedId =>
+        persistedId && !validSongIds.has(persistedId) ? null : undefined,
+    });
     if (isStaleCleanup()) return;
-    const normalizedCurrentSongId = currentSongId?.trim();
-    if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
-      if (isStaleCleanup()) return;
-      await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    }
+    assertCurrentSongPersistenceSucceeded(result);
   } catch (error) {
     if (isStaleCleanup()) return;
     console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
