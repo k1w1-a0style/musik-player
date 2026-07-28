@@ -44,6 +44,12 @@ interface NowPlayingQueueCardProps {
   canShiftQueue: boolean;
   accentColor: string;
 }
+interface QueueDragPosition {
+  index: number;
+  dragY: number;
+  movementDirection: -1 | 0 | 1;
+  startScrollOffset: number;
+}
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, currentSongId, maxHeight,
   onPlayQueueItem, onQueueShift, canShiftQueue, accentColor,
 }) => {
@@ -53,7 +59,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
   const viewportHeightRef = React.useRef(0);
   const autoScrollDirectionRef = React.useRef<-1 | 0 | 1>(0);
   const autoScrollTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const dragPositionRef = React.useRef<{ index: number; dragY: number; movementDirection: -1 | 0 | 1 } | null>(null);
+  const dragPositionRef = React.useRef<QueueDragPosition | null>(null);
   const currentIndex = React.useMemo(
     () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
     [currentSongId, queue],
@@ -73,8 +79,10 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
     autoScrollTimerRef.current = setInterval(() => {
       const drag = dragPositionRef.current;
       if (!drag || resolveQueueAutoScrollDirection({
-        ...drag,
-        scrollOffset: scrollOffsetRef.current,
+        index: drag.index,
+        dragY: drag.dragY,
+        movementDirection: drag.movementDirection,
+        scrollOffset: drag.startScrollOffset,
         viewportHeight: viewportHeightRef.current,
       }) !== direction) {
         stopAutoScroll();
@@ -92,12 +100,20 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
     }, QUEUE_AUTO_SCROLL_INTERVAL_MS);
   }, [queue.length, stopAutoScroll]);
   const handleDragPosition = React.useCallback((index: number, dragY: number, movementDirection: -1 | 0 | 1) => {
-    dragPositionRef.current = { index, dragY, movementDirection };
+    const previousDrag = dragPositionRef.current;
+    const startsNewDrag = !previousDrag || previousDrag.index !== index || (dragY === 0 && movementDirection === 0);
+    const drag: QueueDragPosition = {
+      index,
+      dragY,
+      movementDirection,
+      startScrollOffset: startsNewDrag ? scrollOffsetRef.current : previousDrag.startScrollOffset,
+    };
+    dragPositionRef.current = drag;
     const direction = resolveQueueAutoScrollDirection({
       index,
       dragY,
       movementDirection,
-      scrollOffset: scrollOffsetRef.current,
+      scrollOffset: drag.startScrollOffset,
       viewportHeight: viewportHeightRef.current,
     });
     if (direction === 0) stopAutoScroll();
