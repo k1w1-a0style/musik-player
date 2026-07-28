@@ -96,7 +96,7 @@ test.each(['play', 'reorder', 'shuffle'])('superseded hydration verifies after n
     newerStarted.resolve();
   });
   const staleResult = {
-    nativeStatus: 'stale' as const,
+    nativeStatus: 'superseded' as const,
     verifiedState: null,
     lastKnownUnverifiedState: { nativeQueueRef: [], logicalQueue: [], baseQueue: [] },
     currentSongPersistence: { status: 'not-required' as const },

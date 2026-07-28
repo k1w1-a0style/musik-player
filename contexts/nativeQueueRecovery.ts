@@ -1,9 +1,14 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer, { State, type Track } from 'react-native-track-player';
 import type { Song } from '../types/Song';
-import { StorageKeys, storage } from '../utils/storage';
+import {
+  persistCurrentSongIdSerialized,
+  resetCurrentSongPersistenceQueueForTests,
+} from '../utils/currentSongPersistence';
 import { isPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+
+export { resetCurrentSongPersistenceQueueForTests };
 
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped' | 'unknown';
 
@@ -29,6 +34,32 @@ export interface NativeQueueRecoveryDiagnostics {
   rollbackVerificationError?: unknown;
   finalReadbackError?: unknown;
 }
+
+export type NativeQueueRecoveryFailureClassification = 'readback-unstable' | 'fatal';
+
+const RECOVERY_READBACK_ERROR_KEYS = [
+  'originalError',
+  'initialReadbackError',
+  'rollbackVerificationError',
+  'finalReadbackError',
+] as const satisfies readonly (keyof NativeQueueRecoveryDiagnostics)[];
+
+/**
+ * Classifies only a completely failed recovery. Instability is fail-open only
+ * when rollback execution itself succeeded and every recorded error from the
+ * mutation/readback/verification stages is the bounded unstable-readback type.
+ */
+export const classifyNativeQueueRecoveryFailure = (
+  diagnostics: NativeQueueRecoveryDiagnostics,
+): NativeQueueRecoveryFailureClassification => {
+  if (diagnostics.rollbackExecutionError !== undefined) return 'fatal';
+  const errors = RECOVERY_READBACK_ERROR_KEYS
+    .map(key => diagnostics[key])
+    .filter((error): error is unknown => error !== undefined);
+  return errors.length > 0 && errors.every(error => error instanceof NativeQueueReadbackUnstableError)
+    ? 'readback-unstable'
+    : 'fatal';
+};
 
 export type NativeQueueReplacementProgress =
   | 'not-started' | 'reset-confirmed' | 'add-started' | 'queue-replacement-confirmed'
@@ -252,18 +283,10 @@ export const persistNativeCurrentSong = async (
   const activeId = normalizedId(activeSong?.id) ?? null;
   const librarySong = activeId ? findKnownSong(librarySongs, activeId) : undefined;
   const desiredId = librarySong ? activeId : null;
-  if (previousId !== undefined && normalizedId(previousId) === (desiredId ?? undefined)) {
-    return { status: 'not-required' };
-  }
-  try {
-    const confirmed = desiredId
-      ? await storage.set(StorageKeys.CURRENT_SONG_ID, desiredId)
-      : await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-    if (confirmed === false) return { status: 'unconfirmed', error: new Error('Current-song persistence was not confirmed.') };
-    return { status: desiredId ? 'set-confirmed' : 'remove-confirmed' };
-  } catch (error) {
-    return { status: 'rejected', error };
-  }
+  return persistCurrentSongIdSerialized({
+    knownPreviousId: previousId,
+    resolveDesiredId: () => desiredId,
+  });
 };
 
 export const commitNativeQueueTruth = async ({
@@ -273,6 +296,7 @@ export const commitNativeQueueTruth = async ({
   targets,
   previousPersistedId,
   shuffleStrategy,
+  persistCurrentSong = true,
 }: {
   readback: NativeQueueReadback;
   preferredBaseQueue: Song[];
@@ -280,6 +304,7 @@ export const commitNativeQueueTruth = async ({
   targets: NativeQueueStateTargets;
   previousPersistedId?: string | null;
   shuffleStrategy: NativeQueueShuffleStrategy;
+  persistCurrentSong?: boolean;
 }): Promise<RecoveredState> => {
   const queue = readback.queue.slice();
   const baseQueue = deriveBaseQueue(queue, preferredBaseQueue);
@@ -291,7 +316,9 @@ export const commitNativeQueueTruth = async ({
   targets.setCurrentSong(readback.activeSong);
   if (targets.shuffleRef) targets.shuffleRef.current = shuffleEnabled;
   targets.setShuffle?.(shuffleEnabled);
-  const currentSongPersistence = await persistNativeCurrentSong(readback.activeSong, librarySongs, previousPersistedId);
+  const currentSongPersistence = persistCurrentSong
+    ? await persistNativeCurrentSong(readback.activeSong, librarySongs, previousPersistedId)
+    : { status: 'not-required' as const };
   return {
     queue,
     baseQueue,
@@ -341,6 +368,7 @@ interface RecoveryArgs {
   targets: NativeQueueStateTargets;
   preferredBaseQueue?: Song[];
   reconciliationShuffleStrategy: NativeQueueShuffleStrategy;
+  persistCurrentSong?: boolean;
 }
 
 const reconcileReadback = async (
@@ -358,6 +386,7 @@ const reconcileReadback = async (
     shuffleStrategy: status === 'rolled-back'
       ? { kind: 'restore-snapshot', enabled: args.snapshot.shuffleEnabled }
       : args.reconciliationShuffleStrategy,
+    persistCurrentSong: args.persistCurrentSong,
   }),
   diagnostics,
 });

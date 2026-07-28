@@ -6,6 +6,8 @@ import type { NativeQueueActionResult } from './playbackQueueActionHelpers';
 export type PlaylistSongMoveDirection = 'up' | 'down';
 
 export interface MusicContextValue {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  retryHydration?: () => void;
   songs: Song[];
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;
@@ -52,6 +54,8 @@ export interface MusicContextValue {
 }
 
 export interface LibraryMusicContextValue {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  retryHydration?: () => void;
   songs: Song[];
   setSongs: (s: Song[]) => void;
   currentSong: Song | null;
@@ -73,6 +77,8 @@ export interface LibraryMusicContextValue {
 }
 
 export interface MiniPlayerMusicContextValue {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  retryHydration?: () => void;
   currentSong: Song | null;
   isPlaying: boolean;
   togglePlayPause: () => Promise<void>;
@@ -83,6 +89,8 @@ export interface MiniPlayerMusicContextValue {
 }
 
 export interface NowPlayingMusicContextValue {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  retryHydration?: () => void;
   playbackQueue: Song[];
   currentSong: Song | null;
   seekTo: (millis: number) => Promise<void>;

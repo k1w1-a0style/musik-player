@@ -1,13 +1,13 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
+import { assertCurrentSongPersistenceSucceeded } from '../utils/currentSongPersistence';
 import { isPlayableSong, toPlayableSongs, type PlayableSong } from '../utils/playableSong';
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
 } from '../utils/playbackPlan';
 import { buildQueueReorderPlan } from '../utils/queueReorder';
-import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
   type NativeQueueReplacementContext,
@@ -17,6 +17,7 @@ import {
   commitNativeQueueTruth,
   createNativeQueueMutationSnapshot,
   deriveBaseQueue,
+  persistNativeCurrentSong,
   readNativeQueueTruth,
   recoverNativeQueueMutation,
   type NativeQueueMutationSnapshot,
@@ -166,21 +167,8 @@ export const persistRequestedSongId = async (
   requestedSong: Song,
   librarySongs: Song[],
 ): Promise<void> => {
-  const requestedSongId = normalizeSongId(requestedSong.id);
-  if (!requestedSongId) {
-    const removed = await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-    if (removed === false) throw new Error('Current-song removal was not confirmed.');
-    return;
-  }
-
-  const isLibrarySong = librarySongs.some(item => normalizeSongId(item.id) === requestedSongId);
-  if (isLibrarySong) {
-    const stored = await storage.set(StorageKeys.CURRENT_SONG_ID, requestedSongId);
-    if (!stored) throw new Error('Current-song persistence was not confirmed.');
-    return;
-  }
-  const removed = await (storage.remove(StorageKeys.CURRENT_SONG_ID) as Promise<unknown>);
-  if (removed === false) throw new Error('Current-song removal was not confirmed.');
+  const result = await persistNativeCurrentSong(requestedSong, librarySongs);
+  assertCurrentSongPersistenceSucceeded(result);
 };
 
 export const applyPlaybackQueueState = ({

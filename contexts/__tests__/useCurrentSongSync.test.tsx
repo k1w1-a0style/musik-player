@@ -5,6 +5,7 @@ import TrackPlayer, { Event } from 'react-native-track-player';
 import { findTrackSongById, useCurrentSongSync } from '../useCurrentSongSync';
 import { normalizeActiveTrackId } from '../currentSongSyncHelpers';
 import type { Song } from '../../types/Song';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 const librarySong: Song = { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' };
 const queueSong: Song = { id: 's2', title: 'Two', artist: 'B', uri: 'file:///s2.mp3' };
@@ -36,6 +37,9 @@ const SyncProbe = ({ persistCurrentSongId }: { persistCurrentSongId: (song: Song
 
 describe('useCurrentSongSync', () => {
   beforeEach(() => {
+    resetNativeHydrationGateForTests();
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
     jest.clearAllMocks();
   });
 
@@ -70,6 +74,17 @@ describe('useCurrentSongSync', () => {
 
     expect(getByTestId('current').props.children).toBe('s2');
     expect(persistCurrentSongId).toHaveBeenCalledWith(queueSong);
+  });
+
+  test.each(['loading', 'degraded', 'retry-required'] as const)('ignores active-track persistence while gate is %s', status => {
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, status);
+    const persistCurrentSongId = jest.fn(async () => undefined);
+    const { getByTestId } = render(<SyncProbe persistCurrentSongId={persistCurrentSongId} />);
+    act(() => trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { track: null }));
+    act(() => trackPlayerMock.__trigger(Event.PlaybackActiveTrackChanged, { track: { id: 's2' } }));
+    expect(getByTestId('current').props.children).toBe('');
+    expect(persistCurrentSongId).not.toHaveBeenCalled();
   });
 
   test('syncs current song for active track id with surrounding whitespace', () => {

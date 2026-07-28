@@ -1,13 +1,26 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 import { cancelSleepTimer, enforceExpiredSleepTimer, restorePersistedSleepTimer } from './sleepTimerController';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
 
 const logRemotePlaybackError = (action: string, error: unknown): void => {
   console.warn(`[PlaybackService] Remote ${action} failed`, error);
 };
 
 const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>): void => {
-  run().catch(error => logRemotePlaybackError(action, error));
+  const queuedAt = getNativeHydrationGate();
+  if (queuedAt.status !== 'ready' || !queuedAt.owned) {
+    console.warn('[PlaybackService] Remote action blocked', { action, gateStatus: queuedAt.status, reason: 'native-hydration-not-ready' });
+    return;
+  }
+  runExclusiveNativePlaybackControl(async () => {
+    const current = getNativeHydrationGate();
+    if (current.status !== 'ready' || !current.owned || current.revision !== queuedAt.revision) {
+      console.warn('[PlaybackService] Remote action blocked', { action, gateStatus: current.status, reason: 'native-hydration-changed-before-execution' });
+      return;
+    }
+    await run();
+  }).catch(error => logRemotePlaybackError(action, error));
 };
 
 const normalizeJumpInterval = (interval: unknown): number =>
@@ -22,35 +35,35 @@ export const PlaybackService = async (): Promise<void> => {
     console.warn('[PlaybackService] Sleep timer restore failed', error);
   });
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
-    handleRemotePlaybackAction('play', () => runExclusiveNativePlaybackControl(() => TrackPlayer.play()));
+    handleRemotePlaybackAction('play', () => TrackPlayer.play());
   });
   TrackPlayer.addEventListener(Event.RemotePause, () => {
-    handleRemotePlaybackAction('pause', () => runExclusiveNativePlaybackControl(() => TrackPlayer.pause()));
+    handleRemotePlaybackAction('pause', () => TrackPlayer.pause());
   });
   TrackPlayer.addEventListener(Event.RemoteStop, () => {
-    handleRemotePlaybackAction('stop', () => runExclusiveNativePlaybackControl(() => TrackPlayer.stop()));
+    handleRemotePlaybackAction('stop', () => TrackPlayer.stop());
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    handleRemotePlaybackAction('next', () => runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext()));
+    handleRemotePlaybackAction('next', () => TrackPlayer.skipToNext());
   });
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    handleRemotePlaybackAction('previous', () => runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious()));
+    handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious());
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
       return;
     }
 
-    handleRemotePlaybackAction('seek', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(position)));
+    handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {
-    handleRemotePlaybackAction('jump forward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(normalizeJumpInterval(interval))));
+    handleRemotePlaybackAction('jump forward', () => TrackPlayer.seekBy(normalizeJumpInterval(interval)));
   });
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => {
-    handleRemotePlaybackAction('jump backward', () => runExclusiveNativePlaybackControl(() => TrackPlayer.seekBy(-normalizeJumpInterval(interval))));
+    handleRemotePlaybackAction('jump backward', () => TrackPlayer.seekBy(-normalizeJumpInterval(interval)));
   });
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, () => {
-    handleRemotePlaybackAction('sleep timer expiry', () => enforceExpiredSleepTimer());
+    enforceExpiredSleepTimer().catch(error => logRemotePlaybackError('sleep timer expiry', error));
   });
 };
 

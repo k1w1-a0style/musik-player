@@ -22,7 +22,7 @@ import {
 } from './musicHydrationPersistence';
 import { setupTrackPlayer } from '../utils/trackPlayerSetup';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
-import { commitNativeQueueTruth, NativeQueueReadbackUnstableError, readNativeQueueTruth } from './nativeQueueRecovery';
+import { commitNativeQueueTruth, readNativeQueueTruth } from './nativeQueueRecovery';
 import {
   acquireSongCoverProtection,
   type SongCoverProtectionLease,
@@ -32,6 +32,17 @@ import type {
   RunMusicHydrationArgs,
   StoredMusicHydrationState,
 } from './musicHydrationTypes';
+import { publishNativeHydrationGate } from '../utils/nativeHydrationGate';
+import type { NativeHydrationGateOwner, NativeHydrationGateStatus } from '../utils/nativeHydrationGate';
+
+const publishHydrationStatus = (
+  owner: NativeHydrationGateOwner | undefined,
+  setter: RunMusicHydrationArgs['setHydrationStatus'],
+  status: NativeHydrationGateStatus,
+): void => {
+  if (owner && !publishNativeHydrationGate(owner, status)) return;
+  setter?.(status);
+};
 
 const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
   try {
@@ -69,7 +80,7 @@ const withoutNativeMutation = (
 ): HydrateStoredSongsResult => ({
   ...stored,
   libraryHydrationStatus: stored.songs === null ? 'empty-missing-key' : 'stored',
-  nativeStatus: 'stale',
+  nativeStatus: 'cancelled',
   verifiedState: null,
   lastKnownUnverifiedState: {
     nativeQueueRef: refs.nativeQueueRef.current.slice(),
@@ -84,7 +95,7 @@ export const verifySupersededHydration = async (
   nativeResult: HydratedNativeQueueResult,
   args: Pick<HydrateStoredSongsArgs, 'songsRef' | 'nativeQueueRef' | 'queueContextRef' | 'baseQueueContextRef' | 'setPlaybackQueue' | 'setCurrentSong'>,
 ): Promise<HydratedNativeQueueResult> => {
-  if (nativeResult.nativeStatus !== 'stale') return nativeResult;
+  if (nativeResult.nativeStatus !== 'superseded') return nativeResult;
   const originalError = nativeResult.recoveryErrors?.originalError
     ?? new Error('Native queue hydration was superseded before it started.');
   try {
@@ -196,6 +207,8 @@ export const hydrateStoredSongs = async ({
 
 export const runMusicHydration = async ({
   setIsReady,
+  setHydrationStatus,
+  gateOwner,
   isCancelled,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
@@ -217,7 +230,18 @@ export const runMusicHydration = async ({
     });
 
     if (isCancelled()) return;
+    if (hydratedStored.verifiedState === 'confirmed' && hydratedStored.planStatus === 'retry-required') {
+      console.error('[MusicHydration:RetryRequired] Native truth was verified but the stored hydration plan was not restored.');
+      publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
+      return;
+    }
     if (hydratedStored.verifiedState === null) {
+      if (hydratedStored.nativeStatus === 'readback-unstable') {
+        console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',
+          hydratedStored.recoveryErrors?.originalError);
+        publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
+        return;
+      }
       throw hydratedStored.recoveryErrors?.originalError
         ?? new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
     }
@@ -230,11 +254,14 @@ export const runMusicHydration = async ({
       throw error;
     }
   } catch (error) {
-    if (isCancelled() || error instanceof NativeQueueReadbackUnstableError) return;
+    if (isCancelled()) return;
 
     const fallback = await applyHydrationFailureFallback(args, error);
     hydrationCompleted = fallback.status === 'applied';
   } finally {
-    if (!isCancelled() && hydrationCompleted) setIsReady(true);
+    if (!isCancelled() && hydrationCompleted) {
+      setIsReady(true);
+      publishHydrationStatus(gateOwner, setHydrationStatus, 'ready');
+    }
   }
 };

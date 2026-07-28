@@ -1,6 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { MusicContextProviders } from './MusicContextProviders';
 import { useMusicProviderController } from './useMusicProviderController';
+import AppLoading from '../components/AppLoading';
 export {
   useLibraryMusicContext,
   useMiniPlayerMusicContext,
@@ -18,7 +19,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       miniPlayerValue={miniPlayerValue}
       nowPlayingValue={nowPlayingValue}
     >
-      {children}
+      {value.hydrationStatus === 'ready' || value.hydrationStatus === undefined
+        ? children
+        : <AppLoading degraded={value.hydrationStatus === 'degraded' || value.hydrationStatus === 'retry-required'} onRetry={value.retryHydration} />}
     </MusicContextProviders>
   );
 };

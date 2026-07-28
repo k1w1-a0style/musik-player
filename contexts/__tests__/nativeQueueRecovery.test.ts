@@ -3,6 +3,7 @@ import type { Song } from '../../types/Song';
 import { storage } from '../../utils/storage';
 import {
   createNativeQueueMutationSnapshot,
+  classifyNativeQueueRecoveryFailure,
   commitNativeQueueTruth,
   deriveBaseQueue,
   executeNativeQueueRollback,
@@ -10,8 +11,10 @@ import {
   persistNativeCurrentSong,
   readNativeQueueTruth,
   recoverNativeQueueMutation,
+  NativeQueueReadbackUnstableError,
   verifyNativeQueueRollback,
   type NativeQueueMutationSnapshot,
+  type NativeQueueRecoveryDiagnostics,
 } from '../nativeQueueRecovery';
 
 const songs: Song[] = [
@@ -147,6 +150,21 @@ test('all readbacks and rollback execution failing returns separate errors', asy
   (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('rollback'));
   const result = await recoverNativeQueueMutation({ originalError: new Error('original'), snapshot: snapshot(), knownSongs: songs, librarySongs: songs, reconciliationShuffleStrategy: { kind: 'derive-from-order' }, targets: targets() });
   expect(result).toMatchObject({ status: 'failed', diagnostics: { originalError: expect.any(Error), initialReadbackError: expect.any(Error), rollbackExecutionError: expect.any(Error), finalReadbackError: expect.any(Error) } });
+});
+
+const unstableError = () => new NativeQueueReadbackUnstableError([]);
+
+test('failed recovery is readback-unstable only when every relevant diagnostic is unstable', () => {
+  const diagnostics: NativeQueueRecoveryDiagnostics = {
+    originalError: unstableError(),
+    initialReadbackError: unstableError(),
+    rollbackVerificationError: unstableError(),
+    finalReadbackError: unstableError(),
+  };
+  expect(classifyNativeQueueRecoveryFailure(diagnostics)).toBe('readback-unstable');
+  expect(classifyNativeQueueRecoveryFailure({ ...diagnostics, finalReadbackError: new Error('unknown track') })).toBe('fatal');
+  expect(classifyNativeQueueRecoveryFailure({ ...diagnostics, rollbackExecutionError: new Error('bridge') })).toBe('fatal');
+  expect(classifyNativeQueueRecoveryFailure({ originalError: new Error('mutation') })).toBe('fatal');
 });
 
 test.each([true, false])('verified rollback restores explicit shuffle intent %s', async shuffleEnabled => {
