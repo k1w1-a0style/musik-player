@@ -188,6 +188,6 @@ const styles = StyleSheet.create({
   queueListContent: { flexGrow: 1, paddingBottom: 16 },
   emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   emptyTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
-  emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6 },
+  emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
 });
 export default NowPlayingQueueCard;
