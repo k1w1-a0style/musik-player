@@ -96,6 +96,20 @@ test('a caller that becomes stale during its write restores the previous value',
   ]);
 });
 
+test('an explicit same-value request still confirms the storage operation', async () => {
+  const persistence = mockPersistence('s1');
+
+  const write = persistCurrentSongIdSerialized({ resolveDesiredId: () => 's1' });
+  await persistence.firstWriteStarted.promise;
+  persistence.releaseFirstWrite.resolve();
+
+  await expect(write).resolves.toEqual({ status: 'set-confirmed' });
+  expect(persistence.getPersistedId()).toBe('s1');
+  expect(persistence.setSpy.mock.calls).toEqual([
+    [StorageKeys.CURRENT_SONG_ID, 's1'],
+  ]);
+});
+
 test('an undefined desired id is a confirmed no-op', async () => {
   const persistence = mockPersistence('s1');
 
