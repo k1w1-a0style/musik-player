@@ -59,7 +59,7 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     mockQueueRowProps.clear();
   });
 
-  test('revalidates edge eligibility on the real timer and stops on drag end', () => {
+  test('keeps edge eligibility anchored to the pointer and stops on pointer exit or drag end', () => {
     const { getByTestId, unmount } = render(
       <NowPlayingQueueCard
         queue={queue}
@@ -82,15 +82,17 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     act(() => row.onDragPosition?.(5, 120, 1));
     expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
 
-    fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 236 } } });
-    act(() => jest.advanceTimersByTime(32));
-    expect(scrollToOffsetSpy).not.toHaveBeenCalled();
+    act(() => jest.advanceTimersByTime(32 * 10));
+    expect(scrollToOffsetSpy).toHaveBeenCalledTimes(10);
+    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 120, animated: false });
+    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
+
+    act(() => row.onDragPosition?.(5, -120, 1));
     expect(jest.getTimerCount()).toBe(baselineTimerCount);
 
-    fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 0 } } });
     act(() => row.onDragPosition?.(5, 120, 1));
     act(() => jest.advanceTimersByTime(32));
-    expect(scrollToOffsetSpy).toHaveBeenCalledWith({ offset: 12, animated: false });
+    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 132, animated: false });
     expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
 
     act(() => row.onDragEnd?.());
