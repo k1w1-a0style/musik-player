@@ -17,6 +17,7 @@ export interface PersistCurrentSongIdArgs {
   resolveDesiredId: (persistedId: string | null) => string | null | undefined;
   knownPreviousId?: string | null;
   isCurrent?: () => boolean;
+  confirmSameValue?: boolean;
 }
 
 type CurrentSongPersistenceQueue = {
@@ -131,6 +132,7 @@ export const persistCurrentSongIdSerialized = async ({
   resolveDesiredId,
   knownPreviousId,
   isCurrent,
+  confirmSameValue = false,
 }: PersistCurrentSongIdArgs): Promise<CurrentSongPersistenceResult> => {
   const isGenerationCurrent = captureCurrentSongPersistenceGeneration();
   const isRequestCurrent = (): boolean => isGenerationCurrent() && (isCurrent?.() ?? true);
@@ -167,6 +169,7 @@ export const persistCurrentSongIdSerialized = async ({
     }
 
     if (desiredId === undefined) return { status: 'not-required' };
+    if (!confirmSameValue && desiredId === previousPersistedId) return { status: 'not-required' };
 
     try {
       return await commitDesiredCurrentSongId({ desiredId, previousPersistedId, isRequestCurrent });
