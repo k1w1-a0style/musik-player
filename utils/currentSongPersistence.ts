@@ -24,6 +24,10 @@ type CurrentSongPersistenceQueue = {
   pending: number;
 };
 
+type PrefetchedCurrentSongId =
+  | { status: 'fulfilled'; value: string | null }
+  | { status: 'rejected'; error: unknown };
+
 const currentSongPersistenceQueue: CurrentSongPersistenceQueue = {
   chain: Promise.resolve(),
   pending: 0,
@@ -66,6 +70,12 @@ const captureCurrentSongPersistenceGeneration = (): (() => boolean) => {
 const readPersistedCurrentSongId = async (): Promise<string | null> =>
   normalizeSongId(await storage.get(StorageKeys.CURRENT_SONG_ID)) ?? null;
 
+const prefetchPersistedCurrentSongId = (): Promise<PrefetchedCurrentSongId> =>
+  readPersistedCurrentSongId().then(
+    value => ({ status: 'fulfilled', value }),
+    error => ({ status: 'rejected', error }),
+  );
+
 const writePersistedCurrentSongId = async (songId: string | null): Promise<boolean> => {
   const confirmed = songId
     ? await storage.set(StorageKeys.CURRENT_SONG_ID, songId)
@@ -76,11 +86,13 @@ const writePersistedCurrentSongId = async (songId: string | null): Promise<boole
 const resolvePreviousPersistedId = async (
   hadPendingPredecessor: boolean,
   knownPreviousId: string | null | undefined,
+  prefetchedPreviousId: Promise<PrefetchedCurrentSongId>,
 ): Promise<string | null> => {
-  if (!hadPendingPredecessor && knownPreviousId !== undefined) {
-    return normalizeSongId(knownPreviousId) ?? null;
-  }
-  return readPersistedCurrentSongId();
+  if (hadPendingPredecessor) return readPersistedCurrentSongId();
+  if (knownPreviousId !== undefined) return normalizeSongId(knownPreviousId) ?? null;
+  const prefetched = await prefetchedPreviousId;
+  if (prefetched.status === 'rejected') throw prefetched.error;
+  return prefetched.value;
 };
 
 const normalizeDesiredId = (resolved: string | null | undefined): string | null | undefined => {
@@ -122,13 +134,25 @@ export const persistCurrentSongIdSerialized = async ({
 }: PersistCurrentSongIdArgs): Promise<CurrentSongPersistenceResult> => {
   const isGenerationCurrent = captureCurrentSongPersistenceGeneration();
   const isRequestCurrent = (): boolean => isGenerationCurrent() && (isCurrent?.() ?? true);
+  if (!isRequestCurrent()) return { status: 'not-required' };
+
+  const prefetchedPreviousId = knownPreviousId === undefined
+    ? prefetchPersistedCurrentSongId()
+    : Promise.resolve<PrefetchedCurrentSongId>({
+      status: 'fulfilled',
+      value: normalizeSongId(knownPreviousId) ?? null,
+    });
 
   return enqueueCurrentSongPersistence(async hadPendingPredecessor => {
     if (!isRequestCurrent()) return { status: 'not-required' };
 
     let previousPersistedId: string | null;
     try {
-      previousPersistedId = await resolvePreviousPersistedId(hadPendingPredecessor, knownPreviousId);
+      previousPersistedId = await resolvePreviousPersistedId(
+        hadPendingPredecessor,
+        knownPreviousId,
+        prefetchedPreviousId,
+      );
     } catch (error) {
       return { status: 'rejected', error };
     }
@@ -143,7 +167,6 @@ export const persistCurrentSongIdSerialized = async ({
     }
 
     if (desiredId === undefined) return { status: 'not-required' };
-    if (desiredId === previousPersistedId) return { status: 'not-required' };
 
     try {
       return await commitDesiredCurrentSongId({ desiredId, previousPersistedId, isRequestCurrent });
