@@ -50,6 +50,18 @@ interface QueueDragPosition {
   movementDirection: -1 | 0 | 1;
   startScrollOffset: number;
 }
+const createQueueDragPosition = (
+  previousDrag: QueueDragPosition | null,
+  index: number,
+  dragY: number,
+  movementDirection: -1 | 0 | 1,
+  scrollOffset: number,
+): QueueDragPosition => ({
+  index,
+  dragY,
+  movementDirection,
+  startScrollOffset: previousDrag?.index === index ? previousDrag.startScrollOffset : scrollOffset,
+});
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, currentSongId, maxHeight,
   onPlayQueueItem, onQueueShift, canShiftQueue, accentColor,
 }) => {
@@ -100,11 +112,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
     }, QUEUE_AUTO_SCROLL_INTERVAL_MS);
   }, [queue.length, stopAutoScroll]);
   const handleDragPosition = React.useCallback((index: number, dragY: number, movementDirection: -1 | 0 | 1) => {
-    const previousDrag = dragPositionRef.current;
-    const startScrollOffset = previousDrag?.index === index
-      ? previousDrag.startScrollOffset
-      : scrollOffsetRef.current;
-    const drag: QueueDragPosition = { index, dragY, movementDirection, startScrollOffset };
+    const drag = createQueueDragPosition(dragPositionRef.current, index, dragY, movementDirection, scrollOffsetRef.current);
     dragPositionRef.current = drag;
     const direction = resolveQueueAutoScrollDirection({
       index,
@@ -180,6 +188,6 @@ const styles = StyleSheet.create({
   queueListContent: { flexGrow: 1, paddingBottom: 16 },
   emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   emptyTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
-  emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6 },
 });
 export default NowPlayingQueueCard;
