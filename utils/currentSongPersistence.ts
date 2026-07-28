@@ -132,7 +132,7 @@ export const persistCurrentSongIdSerialized = async ({
   resolveDesiredId,
   knownPreviousId,
   isCurrent,
-  confirmSameValue = false,
+  confirmSameValue = knownPreviousId === undefined,
 }: PersistCurrentSongIdArgs): Promise<CurrentSongPersistenceResult> => {
   const isGenerationCurrent = captureCurrentSongPersistenceGeneration();
   const isRequestCurrent = (): boolean => isGenerationCurrent() && (isCurrent?.() ?? true);
