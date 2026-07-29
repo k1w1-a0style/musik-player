@@ -33,11 +33,11 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
       return;
     }
     await TrackPlayer.play();
-  });
+  }, { requireStableReadyHydration: true });
 };
 
 export const stopTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop());
+  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), { requireStableReadyHydration: true });
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
@@ -48,7 +48,7 @@ export const seekToMillis = async (millis: number): Promise<void> => {
 
 export const skipToNextSafely = async (): Promise<void> => {
   try {
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext());
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), { requireStableReadyHydration: true });
   } catch (error) {
     console.warn('[Playback] skipToNext failed.', error);
   }
@@ -58,14 +58,14 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
     const { position } = await TrackPlayer.getProgress();
     if (position > 3) {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0));
+      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), { requireStableReadyHydration: true });
       return;
     }
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious());
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious(), { requireStableReadyHydration: true });
   } catch (error) {
     console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
     try {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0));
+      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), { requireStableReadyHydration: true });
     } catch (seekError) {
       console.warn('[Playback] fallback restart failed.', seekError);
     }

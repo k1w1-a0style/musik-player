@@ -389,7 +389,7 @@ export const runPlaySongQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
+  }, { requireStableReadyHydration: true }).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
 
 export const runInsertSongQueueAction = async ({
   song,
@@ -449,7 +449,7 @@ export const runInsertSongQueueAction = async ({
     } catch (error) {
       return recoverInsertQueueFailure(actionArgs, [...activeQueue, ...nativeQueue, song], previousBaseQueue, snapshot, error);
     }
-  }).catch(error => {
+  }, { requireStableReadyHydration: true }).catch(error => {
     console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -522,7 +522,7 @@ export const runReorderQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }).catch(error => {
+  }, { requireStableReadyHydration: true }).catch(error => {
     console.warn('[PlaybackQueue] Failed to reorder queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -599,7 +599,7 @@ export const runShuffleQueueAction = async ({
       return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, targetQueue,
         requestedShuffleEnabled, progress, error);
     }
-  }).catch(error => {
+  }, { requireStableReadyHydration: true }).catch(error => {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });

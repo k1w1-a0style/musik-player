@@ -1,9 +1,28 @@
 import { requestLatestSeek, isSeekDraining, resetSeekControllerForTests } from '../seekController';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../nativeHydrationGate';
 
 describe('seekController', () => {
   beforeEach(() => {
     resetSeekControllerForTests();
+    resetNativeHydrationGateForTests();
     jest.clearAllMocks();
+  });
+
+  test('drops a coalesced seek when hydration changes before its native execution', async () => {
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
+    let releaseFirst!: () => void;
+    const seek = jest.fn(() => new Promise<void>(resolve => { releaseFirst = resolve; }));
+
+    const first = requestLatestSeek(1000, seek);
+    void requestLatestSeek(9000, seek);
+    const nextOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(nextOwner, 'loading');
+    releaseFirst();
+    await first;
+
+    expect(seek).toHaveBeenCalledTimes(1);
+    expect(seek).toHaveBeenCalledWith(1);
   });
 
   test('converts milliseconds to seconds for a single seek', async () => {

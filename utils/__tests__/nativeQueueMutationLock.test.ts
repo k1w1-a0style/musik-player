@@ -4,6 +4,11 @@ import {
   runExclusiveNativePlaybackControl,
   runExclusiveNativeQueueReplacement,
 } from '../nativeQueueMutationLock';
+import {
+  acquireNativeHydrationGate,
+  publishNativeHydrationGate,
+  resetNativeHydrationGateForTests,
+} from '../nativeHydrationGate';
 
 const createDeferred = () => {
   let resolve!: () => void;
@@ -14,6 +19,30 @@ const createDeferred = () => {
 describe('nativeQueueMutationLock', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
+  });
+
+  test('does not execute a ready playback control after a new hydration generation starts', async () => {
+    const blockerStarted = createDeferred();
+    const releaseBlocker = createDeferred();
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      blockerStarted.resolve();
+      await releaseBlocker.promise;
+    });
+    await blockerStarted.promise;
+
+    const firstOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(firstOwner, 'ready');
+    const nativeAction = jest.fn(async () => undefined);
+    const queued = runExclusiveNativePlaybackControl(nativeAction, { requireStableReadyHydration: true });
+
+    const nextOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(nextOwner, 'loading');
+    releaseBlocker.resolve();
+
+    await blocker;
+    await expect(queued).rejects.toMatchObject({ name: 'NativeMutationHydrationStaleError' });
+    expect(nativeAction).not.toHaveBeenCalled();
   });
 
   test('playback controls serialize without invalidating an active queue replacement', async () => {
