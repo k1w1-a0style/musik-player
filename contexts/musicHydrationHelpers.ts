@@ -44,6 +44,20 @@ const publishHydrationStatus = (
   setter?.(status);
 };
 
+const completeHydrationFallback = (
+  fallback: Awaited<ReturnType<typeof applyHydrationFailureFallback>>,
+  isCancelled: () => boolean,
+  gateOwner: NativeHydrationGateOwner | undefined,
+  setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
+): boolean => {
+  if (isCancelled()) return false;
+  if (fallback.status === 'failed') {
+    publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
+    return false;
+  }
+  return true;
+};
+
 const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
   try {
     await cleanupCoverCache(songs);
@@ -256,8 +270,8 @@ export const runMusicHydration = async ({
   } catch (error) {
     if (isCancelled()) return;
 
-    const fallback = await applyHydrationFailureFallback(args, error);
-    hydrationCompleted = fallback.status === 'applied';
+    const fallback = await applyHydrationFailureFallback({ ...args, isCancelled }, error);
+    hydrationCompleted = completeHydrationFallback(fallback, isCancelled, gateOwner, setHydrationStatus);
   } finally {
     if (!isCancelled() && hydrationCompleted) {
       setIsReady(true);

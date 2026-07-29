@@ -12,6 +12,7 @@ const createRunMusicHydrationArgs = (isCancelled: () => boolean) => ({
   baseQueueContextRef: createSongRef(),
   nativeQueueRef: createSongRef(),
   setIsReady: jest.fn(),
+  setHydrationStatus: jest.fn(),
   setSongsState: jest.fn(),
   setCurrentSong: jest.fn(),
   setPlaybackQueue: jest.fn(),
@@ -49,6 +50,7 @@ describe('music hydration failure fallback readiness', () => {
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(removeSpy).toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
     expect(args.setIsReady).toHaveBeenCalledWith(true);
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('ready');
     warn.mockRestore();
     removeSpy.mockRestore();
   });
@@ -141,10 +143,51 @@ describe('music hydration failure fallback readiness', () => {
 
     expect(args.nativeQueueRef.current).toEqual([]);
     expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
+    expect(args.setHydrationStatus).not.toHaveBeenCalledWith('ready');
     expect(warn).toHaveBeenCalledWith(
       '[MusicHydration:TrackPlayerError] Failed to apply serialized hydration fallback.',
       expect.any(Error),
     );
+    warn.mockRestore();
+  });
+
+  test('publishes degraded without committing state when fallback readback fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
+    (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('readback boom'));
+    const args = createRunMusicHydrationArgs(() => false);
+
+    await runMusicHydration(args);
+
+    expect(args.setSongsState).not.toHaveBeenCalled();
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
+    expect(args.setShuffle).not.toHaveBeenCalled();
+    expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
+    expect(args.setHydrationStatus).not.toHaveBeenCalledWith('ready');
+    warn.mockRestore();
+  });
+
+  test('does not publish or commit fallback result after cancellation', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
+    let cancelled = false;
+    const reset = (TrackPlayer.reset as jest.Mock).getMockImplementation()!;
+    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
+      await reset();
+      cancelled = true;
+    });
+    const args = createRunMusicHydrationArgs(() => cancelled);
+
+    await runMusicHydration(args);
+
+    expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(args.setHydrationStatus).not.toHaveBeenCalled();
+    expect(args.setSongsState).not.toHaveBeenCalled();
+    expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+    expect(args.setCurrentSong).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });

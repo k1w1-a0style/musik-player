@@ -11,6 +11,7 @@ const ref = (current: Song[] = []) => ({ current });
 const createArgs = () => ({
   songsRef: ref([song]), queueContextRef: ref([song]), baseQueueContextRef: ref([song]), nativeQueueRef: ref([song]),
   setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue: jest.fn(), setShuffle: jest.fn(),
+  isCancelled: () => false,
 });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
 

@@ -10,7 +10,6 @@ import type { RunMusicHydrationArgs } from './musicHydrationTypes';
 type HydrationFallbackArgs = Omit<
   RunMusicHydrationArgs,
   | 'setIsReady'
-  | 'isCancelled'
   | 'setPlaylists'
   | 'setEqEnabledState'
   | 'setEqBandsState'
@@ -31,11 +30,13 @@ export const applyHydrationFailureFallback = async (
   if (!isCurrent()) return { status: 'failed', diagnostics };
   try {
     await TrackPlayer.reset();
+    if (args.isCancelled() || !isCurrent()) return { status: 'failed', diagnostics };
     const readback = await readNativeQueueTruth([
       ...args.songsRef.current,
       ...args.nativeQueueRef.current,
       ...args.queueContextRef.current,
     ]);
+    if (args.isCancelled() || !isCurrent()) return { status: 'failed', diagnostics };
     await commitNativeQueueTruth({
       readback,
       preferredBaseQueue: [],
