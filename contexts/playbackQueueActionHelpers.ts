@@ -24,6 +24,11 @@ import {
   type NativeQueueRecoveryResult,
   type NativeQueueReplacementProgress,
 } from './nativeQueueRecovery';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
+
+const stableReadyHydrationOptions = () => getNativeHydrationGate().owned
+  ? { requireStableReadyHydration: true as const }
+  : undefined;
 
 export type { NativeQueueMutationSnapshot, NativeQueueRecoveryResult } from './nativeQueueRecovery';
 
@@ -389,7 +394,7 @@ export const runPlaySongQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }, { requireStableReadyHydration: true }).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
+  }, stableReadyHydrationOptions()).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
 
 export const runInsertSongQueueAction = async ({
   song,
@@ -449,7 +454,7 @@ export const runInsertSongQueueAction = async ({
     } catch (error) {
       return recoverInsertQueueFailure(actionArgs, [...activeQueue, ...nativeQueue, song], previousBaseQueue, snapshot, error);
     }
-  }, { requireStableReadyHydration: true }).catch(error => {
+  }, stableReadyHydrationOptions()).catch(error => {
     console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -522,7 +527,7 @@ export const runReorderQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }, { requireStableReadyHydration: true }).catch(error => {
+  }, stableReadyHydrationOptions()).catch(error => {
     console.warn('[PlaybackQueue] Failed to reorder queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -599,7 +604,7 @@ export const runShuffleQueueAction = async ({
       return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, targetQueue,
         requestedShuffleEnabled, progress, error);
     }
-  }, { requireStableReadyHydration: true }).catch(error => {
+  }, stableReadyHydrationOptions()).catch(error => {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });

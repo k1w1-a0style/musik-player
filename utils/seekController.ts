@@ -10,6 +10,8 @@ import { getNativeHydrationGate, type NativeHydrationGateSnapshot } from './nati
  * the native player (last value wins).
  */
 export type NativeSeek = (seconds: number) => Promise<void>;
+interface NativeSeekOptions { requireStableReadyHydration?: boolean }
+type CapturedHydrationGate = NativeHydrationGateSnapshot | null | undefined;
 
 const toSafeSeconds = (millis: number): number =>
   Number.isFinite(millis) && millis > 0 ? millis / 1000 : 0;
@@ -19,10 +21,17 @@ const defaultNativeSeek: NativeSeek = (seconds) => TrackPlayer.seekTo(seconds);
 let pendingTargetMillis: number | null = null;
 let draining = false;
 let drainPromise: Promise<void> | null = null;
-let pendingHydrationGate: NativeHydrationGateSnapshot | null = null;
+let pendingHydrationGate: CapturedHydrationGate;
 
-const isGateCurrent = (captured: NativeHydrationGateSnapshot | null): boolean => {
-  if (!captured) return true;
+const captureHydrationGate = (options?: NativeSeekOptions): CapturedHydrationGate => {
+  if (!options?.requireStableReadyHydration) return undefined;
+  const gate = getNativeHydrationGate();
+  return gate.owned && gate.status === 'ready' ? gate : null;
+};
+
+const isGateCurrent = (captured: CapturedHydrationGate): boolean => {
+  if (captured === undefined) return true;
+  if (captured === null) return false;
   const current = getNativeHydrationGate();
   return current.owned && current.status === 'ready'
     && current.generation === captured.generation && current.revision === captured.revision;
@@ -31,10 +40,12 @@ const isGateCurrent = (captured: NativeHydrationGateSnapshot | null): boolean =>
 export const requestLatestSeek = async (
   millis: number,
   seek: NativeSeek = defaultNativeSeek,
+  options?: NativeSeekOptions,
 ): Promise<void> => {
+  const hydrationGate = captureHydrationGate(options);
+  if (hydrationGate === null) return;
   pendingTargetMillis = millis;
-  const gate = getNativeHydrationGate();
-  pendingHydrationGate = gate.owned && gate.status === 'ready' ? gate : null;
+  pendingHydrationGate = hydrationGate;
   if (drainPromise) return drainPromise;
 
   draining = true;
@@ -44,7 +55,7 @@ export const requestLatestSeek = async (
         const target = pendingTargetMillis;
         const targetGate = pendingHydrationGate;
         pendingTargetMillis = null;
-        pendingHydrationGate = null;
+        pendingHydrationGate = undefined;
         if (!isGateCurrent(targetGate)) continue;
         try {
           await seek(toSafeSeconds(target));
@@ -65,7 +76,7 @@ export const isSeekDraining = (): boolean => draining;
 
 export const resetSeekControllerForTests = (): void => {
   pendingTargetMillis = null;
-  pendingHydrationGate = null;
+  pendingHydrationGate = undefined;
   draining = false;
   drainPromise = null;
 };

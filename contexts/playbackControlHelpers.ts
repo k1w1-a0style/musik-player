@@ -3,6 +3,11 @@ import type { RepeatMode } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 import { requestLatestSeek } from '../utils/seekController';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
+
+const stableReadyHydrationOptions = () => getNativeHydrationGate().owned
+  ? { requireStableReadyHydration: true as const }
+  : undefined;
 
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
@@ -33,22 +38,22 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
       return;
     }
     await TrackPlayer.play();
-  }, { requireStableReadyHydration: true });
+  }, stableReadyHydrationOptions());
 };
 
 export const stopTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), { requireStableReadyHydration: true });
+  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), stableReadyHydrationOptions());
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
   // Seeking runs on a dedicated lane that coalesces rapid scrub updates and is
   // not serialized behind native queue rebuilds or metadata jobs.
-  await requestLatestSeek(millis);
+  await requestLatestSeek(millis, undefined, stableReadyHydrationOptions());
 };
 
 export const skipToNextSafely = async (): Promise<void> => {
   try {
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), { requireStableReadyHydration: true });
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), stableReadyHydrationOptions());
   } catch (error) {
     console.warn('[Playback] skipToNext failed.', error);
   }
@@ -58,14 +63,14 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
     const { position } = await TrackPlayer.getProgress();
     if (position > 3) {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), { requireStableReadyHydration: true });
+      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), stableReadyHydrationOptions());
       return;
     }
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious(), { requireStableReadyHydration: true });
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious(), stableReadyHydrationOptions());
   } catch (error) {
     console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
     try {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), { requireStableReadyHydration: true });
+      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), stableReadyHydrationOptions());
     } catch (seekError) {
       console.warn('[Playback] fallback restart failed.', seekError);
     }

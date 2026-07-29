@@ -6,18 +6,17 @@ export interface NativeQueueReplacementContext {
 }
 
 interface NativeMutationOptions { requireStableReadyHydration?: boolean }
+type CapturedHydrationGate = NativeHydrationGateSnapshot | null | undefined;
 
-const captureHydrationGate = (options?: NativeMutationOptions): NativeHydrationGateSnapshot | undefined => {
+const captureHydrationGate = (options?: NativeMutationOptions): CapturedHydrationGate => {
   if (!options?.requireStableReadyHydration) return undefined;
   const gate = getNativeHydrationGate();
-  // The public provider guard blocks calls made while hydration is not ready.
-  // Keep legacy/internal direct callers usable, but bind every admitted ready
-  // action to that exact generation and revision until native execution.
-  return gate.owned && gate.status === 'ready' ? gate : undefined;
+  return gate.owned && gate.status === 'ready' ? gate : null;
 };
 
-const isCapturedHydrationGateCurrent = (captured?: NativeHydrationGateSnapshot): boolean => {
-  if (!captured) return true;
+const isCapturedHydrationGateCurrent = (captured: CapturedHydrationGate): boolean => {
+  if (captured === undefined) return true;
+  if (captured === null) return false;
   const current = getNativeHydrationGate();
   return captured.owned && captured.status === 'ready'
     && current.owned && current.status === 'ready'
@@ -46,10 +45,12 @@ export const runExclusiveNativeQueueReplacement = async <T>(
   options?: NativeMutationOptions,
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
+  if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
   const replacementVersion = markNativeQueueReplacementIntent();
   const run = nativeMutationChain
     .catch(() => undefined)
     .then(() => {
+      if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
       // Native queue mutations are not cancellable once reset/add/skip has begun.
       // Decide staleness exactly once when this queued action starts: an older
       // action that has not started yet may be skipped, while an active action
@@ -57,7 +58,7 @@ export const runExclusiveNativeQueueReplacement = async <T>(
       const currentAtStart = nativeQueueReplacementVersion === replacementVersion;
       return action({
         replacementVersion,
-        isCurrent: () => currentAtStart && isCapturedHydrationGateCurrent(hydrationGate),
+        isCurrent: () => currentAtStart,
       });
     });
 
@@ -70,6 +71,7 @@ export const runExclusiveNativePlaybackControl = async <T>(
   options?: NativeMutationOptions,
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
+  if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
   const run = nativeMutationChain.catch(() => undefined).then(() => {
     if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
     return action();

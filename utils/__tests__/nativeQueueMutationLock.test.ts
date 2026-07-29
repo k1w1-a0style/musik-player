@@ -22,6 +22,107 @@ describe('nativeQueueMutationLock', () => {
     resetNativeHydrationGateForTests();
   });
 
+  test.each(['unowned', 'loading', 'degraded', 'retry-required'] as const)(
+    'fails closed for a protected playback control captured while the gate is %s',
+    async status => {
+      if (status !== 'unowned') {
+        const owner = acquireNativeHydrationGate();
+        publishNativeHydrationGate(owner, status);
+      }
+      const nativeAction = jest.fn(async () => undefined);
+
+      await expect(runExclusiveNativePlaybackControl(nativeAction, {
+        requireStableReadyHydration: true,
+      })).rejects.toMatchObject({ name: 'NativeMutationHydrationStaleError' });
+      expect(nativeAction).not.toHaveBeenCalled();
+    },
+  );
+
+  test('keeps an unprotected playback control compatible without a ready gate', async () => {
+    const nativeAction = jest.fn(async () => undefined);
+
+    await runExclusiveNativePlaybackControl(nativeAction);
+
+    expect(nativeAction).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails closed before versioning a protected replacement without a ready gate', async () => {
+    const runningStarted = createDeferred();
+    const releaseRunning = createDeferred();
+    let runningIsCurrent = false;
+    const running = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      runningStarted.resolve();
+      await releaseRunning.promise;
+      runningIsCurrent = isCurrent();
+    });
+    await runningStarted.promise;
+    const callback = jest.fn(async () => undefined);
+
+    await expect(runExclusiveNativeQueueReplacement(callback, {
+      requireStableReadyHydration: true,
+    })).rejects.toMatchObject({ name: 'NativeMutationHydrationStaleError' });
+    expect(callback).not.toHaveBeenCalled();
+    expect(getNativeQueueReplacementVersion()).toBe(1);
+
+    releaseRunning.resolve();
+    await running;
+    expect(runningIsCurrent).toBe(true);
+  });
+
+  test('does not start a protected replacement after its ready snapshot becomes stale', async () => {
+    const blockerStarted = createDeferred();
+    const releaseBlocker = createDeferred();
+    const blocker = runExclusiveNativePlaybackControl(async () => {
+      blockerStarted.resolve();
+      await releaseBlocker.promise;
+    });
+    await blockerStarted.promise;
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
+    const callback = jest.fn(async () => undefined);
+    const replacement = runExclusiveNativeQueueReplacement(callback, { requireStableReadyHydration: true });
+
+    acquireNativeHydrationGate();
+    releaseBlocker.resolve();
+
+    await blocker;
+    await expect(replacement).rejects.toMatchObject({ name: 'NativeMutationHydrationStaleError' });
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  test('keeps replacement current after its ready start validation succeeds', async () => {
+    const actionStarted = createDeferred();
+    const releaseNativeStep = createDeferred();
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
+    let currentAfterNativeStep = false;
+    const replacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+      actionStarted.resolve();
+      await releaseNativeStep.promise;
+      currentAfterNativeStep = isCurrent();
+    }, { requireStableReadyHydration: true });
+    await actionStarted.promise;
+
+    acquireNativeHydrationGate();
+    releaseNativeStep.resolve();
+    await replacement;
+
+    expect(currentAfterNativeStep).toBe(true);
+  });
+
+  test('executes protected playback and replacement exactly once while ready remains stable', async () => {
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
+    const control = jest.fn(async () => undefined);
+    const replacement = jest.fn(async () => undefined);
+
+    await runExclusiveNativePlaybackControl(control, { requireStableReadyHydration: true });
+    await runExclusiveNativeQueueReplacement(replacement, { requireStableReadyHydration: true });
+
+    expect(control).toHaveBeenCalledTimes(1);
+    expect(replacement).toHaveBeenCalledTimes(1);
+  });
+
   test('does not execute a ready playback control after a new hydration generation starts', async () => {
     const blockerStarted = createDeferred();
     const releaseBlocker = createDeferred();

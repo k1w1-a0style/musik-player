@@ -14,8 +14,8 @@ describe('seekController', () => {
     let releaseFirst!: () => void;
     const seek = jest.fn(() => new Promise<void>(resolve => { releaseFirst = resolve; }));
 
-    const first = requestLatestSeek(1000, seek);
-    void requestLatestSeek(9000, seek);
+    const first = requestLatestSeek(1000, seek, { requireStableReadyHydration: true });
+    void requestLatestSeek(9000, seek, { requireStableReadyHydration: true });
     const nextOwner = acquireNativeHydrationGate();
     publishNativeHydrationGate(nextOwner, 'loading');
     releaseFirst();
@@ -23,6 +23,33 @@ describe('seekController', () => {
 
     expect(seek).toHaveBeenCalledTimes(1);
     expect(seek).toHaveBeenCalledWith(1);
+  });
+
+  test.each(['unowned', 'loading', 'degraded', 'retry-required'] as const)(
+    'settles a protected seek without native execution while the gate is %s',
+    async status => {
+      if (status !== 'unowned') {
+        const owner = acquireNativeHydrationGate();
+        publishNativeHydrationGate(owner, status);
+      }
+      const seek = jest.fn().mockResolvedValue(undefined);
+
+      await expect(requestLatestSeek(5000, seek, {
+        requireStableReadyHydration: true,
+      })).resolves.toBeUndefined();
+      expect(seek).not.toHaveBeenCalled();
+    },
+  );
+
+  test('executes a protected seek exactly once while ready remains stable', async () => {
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
+    const seek = jest.fn().mockResolvedValue(undefined);
+
+    await requestLatestSeek(5000, seek, { requireStableReadyHydration: true });
+
+    expect(seek).toHaveBeenCalledTimes(1);
+    expect(seek).toHaveBeenCalledWith(5);
   });
 
   test('converts milliseconds to seconds for a single seek', async () => {
