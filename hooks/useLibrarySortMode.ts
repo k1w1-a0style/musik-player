@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { storage } from '../utils/storage';
 import {
   DEFAULT_LIBRARY_SORT_MODE,
   getNextLibrarySortMode,
   type LibrarySortMode,
 } from '../utils/librarySort';
+import { useHydratedStoredPreference } from './useHydratedStoredPreference';
 
 export interface UseLibrarySortModeResult {
   sortMode: LibrarySortMode;
@@ -12,31 +13,24 @@ export interface UseLibrarySortModeResult {
   cycleSortMode: () => void;
 }
 
-export const useLibrarySortMode = (): UseLibrarySortModeResult => {
-  const [sortMode, setSortModeState] = useState<LibrarySortMode>(DEFAULT_LIBRARY_SORT_MODE);
+const normalizeSortMode = (mode: LibrarySortMode): LibrarySortMode => mode;
 
-  useEffect(() => {
-    let active = true;
-    void storage.getLibrarySortMode().then(stored => {
-      if (active) setSortModeState(stored);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+export const useLibrarySortMode = (): UseLibrarySortModeResult => {
+  const { value: sortMode, setValue: setSortModeState } = useHydratedStoredPreference({
+    defaultValue: DEFAULT_LIBRARY_SORT_MODE,
+    load: storage.getLibrarySortMode,
+    persist: storage.setLibrarySortMode,
+    normalize: normalizeSortMode,
+    label: 'library-sort',
+  });
 
   const setSortMode = useCallback((mode: LibrarySortMode) => {
     setSortModeState(mode);
-    void storage.setLibrarySortMode(mode);
-  }, []);
+  }, [setSortModeState]);
 
   const cycleSortMode = useCallback(() => {
-    setSortModeState(previous => {
-      const next = getNextLibrarySortMode(previous);
-      void storage.setLibrarySortMode(next);
-      return next;
-    });
-  }, []);
+    setSortModeState(previous => getNextLibrarySortMode(previous));
+  }, [setSortModeState]);
 
   return { sortMode, setSortMode, cycleSortMode };
 };

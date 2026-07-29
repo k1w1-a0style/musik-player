@@ -67,8 +67,10 @@ const TrackPlayer = {
     currentIdx = -1;
     state = State.None;
   }),
-  add: jest.fn(async tracks => {
-    queue = queue.concat(tracks);
+  add: jest.fn(async (tracks, insertBeforeIndex) => {
+    const additions = Array.isArray(tracks) ? tracks : [tracks];
+    if (typeof insertBeforeIndex === 'number') queue.splice(insertBeforeIndex, 0, ...additions);
+    else queue = queue.concat(additions);
     if (currentIdx === -1 && queue.length > 0) {
       currentIdx = 0;
       trigger(Event.PlaybackActiveTrackChanged, { track: queue[0] });
@@ -116,6 +118,7 @@ const TrackPlayer = {
   }),
   getQueue: jest.fn(async () => queue),
   getActiveTrack: jest.fn(async () => queue[currentIdx]),
+  getActiveTrackIndex: jest.fn(async () => currentIdx >= 0 ? currentIdx : undefined),
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),
   updateMetadataForTrack: jest.fn(async (trackIndex, metadata) => {
@@ -144,6 +147,8 @@ const TrackPlayer = {
     listeners = new Map();
   },
   __getQueue: () => queue,
+  __getActiveTrackIndex: () => currentIdx,
+  __getState: () => state,
   __getRepeatMode: () => repeatMode,
   __getListeners: event => Array.from(listeners.get(event) ?? []),
   __trigger: trigger,

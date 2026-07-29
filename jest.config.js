@@ -58,5 +58,35 @@ module.exports = {
       functions: 75,
       lines: 75,
     },
+    './utils/mediaLibraryImport.ts': {
+      statements: 85,
+      branches: 72,
+      functions: 85,
+      lines: 85,
+    },
+    './utils/storage.ts': {
+      statements: 92,
+      branches: 85,
+      functions: 90,
+      lines: 92,
+    },
+    './contexts/useLibraryActions.ts': {
+      statements: 85,
+      branches: 75,
+      functions: 85,
+      lines: 85,
+    },
+    './utils/tagWriteOrchestrator.ts': {
+      statements: 90,
+      branches: 85,
+      functions: 85,
+      lines: 90,
+    },
+    './utils/waveformExtractionLifecycle.ts': {
+      statements: 75,
+      branches: 65,
+      functions: 85,
+      lines: 75,
+    },
   },
 };

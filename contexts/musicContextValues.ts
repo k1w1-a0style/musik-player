@@ -25,11 +25,13 @@ type LibraryMusicContextInput = Pick<
   | 'removeSongFromPlaylist'
   | 'moveSongInPlaylist'
   | 'playPlaylist'
+  | 'hydrationStatus'
+  | 'retryHydration'
 >;
 
 type MiniPlayerMusicContextInput = Pick<
   MusicContextValue,
-  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue'
+  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'hydrationStatus' | 'retryHydration'
 >;
 
 type NowPlayingMusicContextInput = Pick<
@@ -49,6 +51,8 @@ type NowPlayingMusicContextInput = Pick<
   | 'reorderQueue'
   | 'saveQueueAsPlaylist'
   | 'repeatMode'
+  | 'hydrationStatus'
+  | 'retryHydration'
 > & Pick<
   NowPlayingMusicContextValue,
   'sleepTimerActive' | 'sleepTimerRemainingSeconds' | 'startSleepTimer' | 'cancelSleepTimer'
@@ -73,6 +77,8 @@ export const buildLibraryMusicContextValue = ({
   removeSongFromPlaylist,
   moveSongInPlaylist,
   playPlaylist,
+  hydrationStatus,
+  retryHydration,
 }: LibraryMusicContextInput): LibraryMusicContextValue => ({
   songs,
   setSongs,
@@ -92,6 +98,8 @@ export const buildLibraryMusicContextValue = ({
   removeSongFromPlaylist,
   moveSongInPlaylist,
   playPlaylist,
+  ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
+  ...(retryHydration === undefined ? {} : { retryHydration }),
 });
 
 export const buildMiniPlayerMusicContextValue = ({
@@ -101,6 +109,8 @@ export const buildMiniPlayerMusicContextValue = ({
   next,
   previous,
   playbackQueue,
+  hydrationStatus,
+  retryHydration,
 }: MiniPlayerMusicContextInput): MiniPlayerMusicContextValue => ({
   currentSong,
   isPlaying,
@@ -109,6 +119,8 @@ export const buildMiniPlayerMusicContextValue = ({
   previous,
   canSkipNext: currentSong !== null && playbackQueue.length > 1,
   canSkipPrevious: currentSong !== null,
+  ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
+  ...(retryHydration === undefined ? {} : { retryHydration }),
 });
 
 export const buildNowPlayingMusicContextValue = ({
@@ -131,6 +143,8 @@ export const buildNowPlayingMusicContextValue = ({
   reorderQueue,
   saveQueueAsPlaylist,
   repeatMode,
+  hydrationStatus,
+  retryHydration,
 }: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
   playbackQueue,
   currentSong,
@@ -152,4 +166,6 @@ export const buildNowPlayingMusicContextValue = ({
   saveQueueAsPlaylist,
   repeatMode,
   canSkip: playbackQueue.length > 1,
+  ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
+  ...(retryHydration === undefined ? {} : { retryHydration }),
 });

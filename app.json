@@ -26,6 +26,7 @@
         "backgroundColor": "#0A0A0A"
       },
       "blockedPermissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
@@ -40,6 +41,13 @@
           "granularPermissions": [
             "audio"
           ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "./modules/expo-system-audio/app.plugin.js"

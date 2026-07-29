@@ -6,7 +6,7 @@ export const MAX_WAVEFORM_FAILURE_BACKOFF_ENTRIES = 80;
 export const MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS = 2;
 
 type NativeResult = { points: number[]; durationMs?: number } | null;
-type NativeOperation = () => Promise<NativeResult>;
+type NativeOperation = (signal: AbortSignal) => Promise<NativeResult>;
 
 export class WaveformSchedulerUnavailableError extends Error {
   constructor(message = 'Native waveform extraction is temporarily unavailable') {
@@ -34,6 +34,7 @@ interface Flight {
   pending: Pending;
   generation: number;
   detached: boolean;
+  controller: AbortController;
 }
 
 interface FailureBackoff {
@@ -114,13 +115,15 @@ function startPending(pending: Pending): void {
   }
 
   pendingLatest = null;
-  const nativePromise = Promise.resolve().then(pending.operation);
+  const controller = new AbortController();
+  const nativePromise = Promise.resolve().then(() => pending.operation(controller.signal));
   const flight: Flight = {
     key: pending.key,
     promise: nativePromise,
     pending,
     generation: pending.generation,
     detached: false,
+    controller,
   };
   activeFlight = flight;
 
@@ -162,6 +165,7 @@ const makePending = (key: string, operation: NativeOperation): Pending => {
 const detachActiveFlight = (flight: Flight): void => {
   if (activeFlight !== flight || flight.detached) return;
   activeFlight = null;
+  flight.controller.abort(new OperationAbortError('Waveform request no longer needed'));
   flight.detached = true;
   detachedFlights.add(flight);
 
@@ -210,8 +214,9 @@ const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResu
 };
 
 /**
- * JS-side load control. Native work already in progress cannot be hard-cancelled
- * by the current Expo module contract. A timed-out/orphaned call is detached so
+ * JS-side load control. The operation receives a per-flight AbortSignal so a
+ * cancellation-capable native module can stop work promptly. Older native builds
+ * are still protected by the bounded detached-flight fallback. An orphaned call is detached so
  * the latest song can continue, but detached work is bounded. A later request
  * for the same source rejoins the detached flight instead of starting a duplicate.
  * After two non-settling native calls the scheduler fails fast until one settles,
@@ -269,8 +274,17 @@ export const clearWaveformFailure = (sourceKey: string): void => {
 
 export const resetWaveformExtractionLifecycleForTests = (): void => {
   lifecycleGeneration += 1;
-  if (pendingLatest) rejectPending(pendingLatest, new OperationAbortError('Waveform lifecycle reset'));
+  const resetError = new OperationAbortError('Waveform lifecycle reset');
+  if (pendingLatest) rejectPending(pendingLatest, resetError);
   pendingLatest = null;
+  if (activeFlight) {
+    rejectPending(activeFlight.pending, resetError);
+    activeFlight.controller.abort(resetError);
+  }
+  for (const flight of detachedFlights) {
+    rejectPending(flight.pending, resetError);
+    flight.controller.abort(resetError);
+  }
   activeFlight = null;
   detachedFlights.clear();
   failures.clear();

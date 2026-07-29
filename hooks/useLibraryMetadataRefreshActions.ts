@@ -59,6 +59,7 @@ export const useLibraryMetadataRefreshActions = ({
 
   const refreshMetadataFromFiles = useCallback(async (): Promise<void> => {
     setMenuOpen(false);
+    if (isRefreshActive()) return;
     const availability = buildMetadataRefreshAvailabilityResult(songs.length);
     if (availability.kind === 'empty') {
       showAlert(availability.alert);
@@ -98,7 +99,7 @@ export const useLibraryMetadataRefreshActions = ({
       endMetadataRefreshActivity();
       finishRefresh(generation);
     }
-  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
+  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, isRefreshActive, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
 
   return {
     refreshMetadataFromFiles,

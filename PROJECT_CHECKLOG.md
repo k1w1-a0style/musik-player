@@ -1,5 +1,24 @@
 # Project Checklog
 
+## Konsolidierte Deep-Scan-Härtung (2026-07-25)
+
+- [x] Ausgangspunkt ist `codex` auf `496d0c713424ce9f21aa9f69f3a2b4b6c02e700e`; sämtliche Änderungen werden auf `fix/deep-scan-2026-07-25` integriert und erst nach vollständiger CI-/Review-Evidenz nach `codex` übernommen.
+- [x] SAF-Imports verwenden pro Scan begrenzte Timeout-Zustände; ein doppelter Datei-Fallbackfehler wird strukturiert erfasst und beendet nicht mehr den gesamten Ordnerimport.
+- [x] Library-Pruning behauptet nach einem fehlgeschlagenen nativen Queue-Reset keine falsche Synchronität; Queue und aktueller Song bleiben bis zur erfolgreichen Reconciliation konsistent.
+- [x] Lautstärke-, Repeat-, Hydration- und Preference-Writes sind gegen Out-of-order-Completion, Doppeltipps und verspätete Storage-Reads abgesichert.
+- [x] UI-Playback-Promises laufen über eine gemeinsame Fehlergrenze; Native-Rejections werden nicht mehr unhandled verworfen.
+- [x] Der Equalizer wird ausschließlich an eine bestätigte TrackPlayer-Audio-Session gebunden, serialisiert initialisiert und bei Stale-Init/Unmount zuverlässig freigegeben; der globale Output-Mix wird nicht mehr verwendet.
+- [x] SAF-Tag-Writes sind fail-closed, verwenden ein persistiertes endliches Recovery-Budget und können die harte 50-MiB-Sicherheitsgrenze weder in JavaScript noch nativ per Runtime-Option erweitern.
+- [x] Waveform-Aufträge besitzen Request-IDs und echte native Cancel-Checks; verwaiste Calls bleiben zusätzlich durch den bestehenden Scheduler begrenzt.
+- [x] Sleep-Timer-Deadline und Aktion werden persistiert und beim Playback-Service-Start generation-sicher rekonstruiert, ohne die Registrierung der Remote-Handler zu blockieren.
+- [x] Queue-Reorder unterstützt Rand-Autoscroll mit scrolloffset-korrektem Zielindex; ein schneller zweiter manueller Metadaten-Refresh startet keine unnötige Native-I/O-Runde.
+- [x] Zwölf nicht erreichbare Legacy-App-Dateien samt verwaisten Tests wurden entfernt; NUL-Bytes im Kotlin-Quelltext sind beseitigt.
+- [x] ID3-Parser, ID3-Writer und Tag-Write-Plan wurden in kleinere, prüfbare Schritte zerlegt; der Parser lieferte in 437 generierten gültigen und beschädigten ID3v2.2/2.3/2.4-Fällen keine Abweichung zum Ausgangsverhalten.
+- [x] CI enthält Per-File-Coverage, Komplexitäts-/Funktionslängen-Gates, eine explizite Android-Permission-Allowlist, einen Release-APK-/API-35-Emulator-Smoke sowie einen blockierenden npm-Audit-Check für neue High-/Critical-Funde.
+- [x] Der frühere `shell-quote@1.8.3`-Critical-Blocker wird durch die inzwischen veröffentlichte Version `1.10.0` ersetzt; die temporäre Audit-Ausnahme wurde entfernt.
+- [ ] Vollständige GitHub-CI, Release-APK-/Emulator-Smoke und abschließender Codex-PR-Review auf dem finalen Fix-Head stehen vor dem Integrations-Merge noch aus.
+- [ ] Ein echter Samsung-/Huawei-Geräte-Smoke mit realen SAF-Providern bleibt trotz Emulator-/APK-Gate zwingendes Release-Kriterium.
+
 ## Waveform-Lifecycle P2-Härtung (2026-07-24)
 
 - [x] Ausgangspunkt war `813449d41cc590ef38c26028b0ce628c9a443161`; die Umsetzung liegt in PR #320 auf `pxmg1j-codex/harte-den-waveform-lifecycle` gegen `codex` und wird nicht als direkter `codex`-Commit ausgegeben.

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import AppLoading from '../AppLoading';
 
 const mockAppTheme = {
@@ -60,4 +60,13 @@ test('renders safely before the app theme provider is mounted', () => {
 
   expect(getByTestId('app-loading')).toBeTruthy();
   expect(getByText('k1w1-Musik')).toBeTruthy();
+});
+
+test('renders a visible degraded message and retry action', () => {
+  const onRetry = jest.fn();
+  const { getByTestId, getByText, queryByTestId } = render(<AppLoading degraded onRetry={onRetry} />);
+  expect(getByText('Die Wiedergabewarteschlange konnte nicht bestätigt werden.')).toBeTruthy();
+  expect(queryByTestId('app-loading-spinner')).toBeNull();
+  fireEvent.press(getByTestId('hydration-retry-button'));
+  expect(onRetry).toHaveBeenCalledTimes(1);
 });

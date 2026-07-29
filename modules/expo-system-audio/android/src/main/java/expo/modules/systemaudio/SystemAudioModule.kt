@@ -38,19 +38,21 @@ import kotlin.math.roundToInt
  * Bridges Android's Equalizer API and the androidx.palette color extraction
  * to JavaScript.
  *
- * The Equalizer is attached to audioSession=0 (output mix) which affects
- * all audio coming out of the device while the app holds the effect.
- * Requires MODIFY_AUDIO_SETTINGS (auto-granted at install on most devices).
+ * The Equalizer is attached only to the active TrackPlayer audio session.
+ * Invalid or unavailable sessions fail closed; the device output mix is never used.
+ * Requires MODIFY_AUDIO_SETTINGS.
  */
 class SystemAudioModule : Module() {
   private var equalizer: Equalizer? = null
+  private var equalizerAudioSessionId: Int? = null
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
 
     // ---------- Equalizer ----------
 
-    AsyncFunction("eqInit") {
-      ensureEqualizer()
+    AsyncFunction("eqInit") { audioSessionId: Int ->
+      if (audioSessionId <= 0) return@AsyncFunction null
+      ensureEqualizer(audioSessionId)
       val eq = equalizer ?: return@AsyncFunction null
       val range = eq.bandLevelRange
       val bands = (0 until eq.numberOfBands).map { i ->
@@ -70,13 +72,16 @@ class SystemAudioModule : Module() {
     }
 
     Function("eqSetEnabled") { enabled: Boolean ->
-      ensureEqualizer()
-      equalizer?.enabled = enabled
-      enabled
+      val eq = equalizer ?: return@Function false
+      try {
+        eq.enabled = enabled
+        eq.enabled == enabled
+      } catch (_: Throwable) {
+        false
+      }
     }
 
     Function("eqSetBandLevel") { band: Int, millibel: Int ->
-      ensureEqualizer()
       val eq = equalizer ?: return@Function false
       try {
         val clamped = millibel.coerceIn(eq.bandLevelRange[0].toInt(), eq.bandLevelRange[1].toInt())
@@ -434,13 +439,15 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
     }
   }
 
-  private fun ensureEqualizer() {
-    if (equalizer == null) {
-      try {
-        equalizer = Equalizer(0, 0).apply { enabled = true }
-      } catch (_: Throwable) {
-        equalizer = null
-      }
+  private fun ensureEqualizer(audioSessionId: Int) {
+    if (equalizer != null && equalizerAudioSessionId == audioSessionId) return
+    releaseEqualizer()
+    try {
+      equalizer = Equalizer(0, audioSessionId).apply { enabled = true }
+      equalizerAudioSessionId = audioSessionId
+    } catch (_: Throwable) {
+      equalizer = null
+      equalizerAudioSessionId = null
     }
   }
 
@@ -450,6 +457,7 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
       equalizer?.release()
     } catch (_: Throwable) {}
     equalizer = null
+    equalizerAudioSessionId = null
   }
 
   private fun hex(rgb: Int): String {
@@ -805,8 +813,8 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
   /** Computes decoded size for bounded image data URIs only; audio bytes never use Base64. */
   private fun decodedImageBase64ByteLength(value: String): Long {
       var cleanLength = 0L
-      var last = ' '
-      var secondLast = ' '
+      var last = '\u0000'
+      var secondLast = '\u0000'
       value.forEach { char ->
         if (!char.isWhitespace()) {
           secondLast = last

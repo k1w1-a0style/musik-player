@@ -138,7 +138,7 @@ type RecoveryRunResult = {
 };
 
 declare class ExpoSystemAudioModule extends NativeModule {
-  eqInit(): Promise<EqInitResult | null>;
+  eqInit(audioSessionId: number): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
   eqSetBandLevel(band: number, millibel: number): boolean;
   eqRelease(): void;
@@ -153,7 +153,8 @@ declare class ExpoSystemAudioModule extends NativeModule {
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
-  extractWaveformPeaks?(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null>;
+  extractWaveformPeaks?(uri: string, pointCount?: number, requestId?: string): Promise<WaveformPeaksResult | null>;
+  cancelWaveformExtraction?(requestId: string): boolean;
 }
 
 const native: ExpoSystemAudioModule | null = (() => {
@@ -190,14 +191,20 @@ const hasNativeMetadataFastPath =
 const hasNativeWaveformExtraction =
   waveformNative !== null && typeof waveformNative.extractWaveformPeaks === 'function';
 
+const hasNativeWaveformCancellation =
+  hasNativeWaveformExtraction && typeof waveformNative?.cancelWaveformExtraction === 'function';
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
   hasNativeMetadataFastPath,
   hasNativeWaveformExtraction,
+  hasNativeWaveformCancellation,
 
-  async eqInit(): Promise<EqInitResult | null> {
-    return native ? native.eqInit() : null;
+  async eqInit(audioSessionId: number): Promise<EqInitResult | null> {
+    return native && Number.isInteger(audioSessionId) && audioSessionId > 0
+      ? native.eqInit(audioSessionId)
+      : null;
   },
 
   eqSetEnabled(enabled: boolean): boolean {
@@ -239,9 +246,15 @@ export const SystemAudio = {
     }
   },
 
-  async extractWaveformPeaks(uri: string, pointCount?: number): Promise<WaveformPeaksResult | null> {
+  async extractWaveformPeaks(uri: string, pointCount?: number, requestId?: string): Promise<WaveformPeaksResult | null> {
     if (!waveformNative?.extractWaveformPeaks) return null;
-    return waveformNative.extractWaveformPeaks(uri, pointCount);
+    return requestId === undefined
+      ? waveformNative.extractWaveformPeaks(uri, pointCount)
+      : waveformNative.extractWaveformPeaks(uri, pointCount, requestId);
+  },
+
+  cancelWaveformExtraction(requestId: string): boolean {
+    return waveformNative?.cancelWaveformExtraction?.(requestId) ?? false;
   },
 
   async getAudioTagRecoveryStatus(): Promise<RecoveryStatusResult> {

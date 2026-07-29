@@ -17,6 +17,10 @@ import {
 } from './waveformDecision';
 
 export const WAVEFORM_EXTRACTION_TIMEOUT_MS = 8_000;
+let waveformRequestSequence = 0;
+
+const nextWaveformRequestId = (): string =>
+  `waveform-${Date.now().toString(36)}-${(++waveformRequestSequence).toString(36)}`;
 
 export const resolveWaveformUri = (song: Song | null | undefined): string | undefined =>
   song?.fileInfo?.uri ?? song?.uri;
@@ -62,8 +66,12 @@ export const extractNativeWaveform = async (
     });
   };
   const extractor = (SystemAudio as typeof SystemAudio & {
-    extractWaveformPeaks?: (uri: string, pointCount?: number) => Promise<{ points: number[]; durationMs?: number } | null>;
+    extractWaveformPeaks?: (uri: string, pointCount?: number, requestId?: string) => Promise<{ points: number[]; durationMs?: number } | null>;
   }).extractWaveformPeaks;
+  const cancellationApi = SystemAudio as typeof SystemAudio & {
+    hasNativeWaveformCancellation?: boolean;
+    cancelWaveformExtraction?: (requestId: string) => boolean;
+  };
 
   if (!uri) {
     report('no-uri', 0);
@@ -80,7 +88,20 @@ export const extractNativeWaveform = async (
     const result = await withTimeout(
       signal => scheduleNativeWaveformExtraction(
         sourceKey,
-        () => extractor(uri, pointCount),
+        async nativeSignal => {
+          if (!cancellationApi.hasNativeWaveformCancellation || !cancellationApi.cancelWaveformExtraction) {
+            return extractor(uri, pointCount);
+          }
+          const requestId = nextWaveformRequestId();
+          const cancel = () => { cancellationApi.cancelWaveformExtraction?.(requestId); };
+          nativeSignal.addEventListener('abort', cancel, { once: true });
+          try {
+            if (nativeSignal.aborted) cancel();
+            return await extractor(uri, pointCount, requestId);
+          } finally {
+            nativeSignal.removeEventListener('abort', cancel);
+          }
+        },
         signal,
       ),
       WAVEFORM_EXTRACTION_TIMEOUT_MS,

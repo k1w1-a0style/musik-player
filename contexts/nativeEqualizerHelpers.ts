@@ -1,16 +1,69 @@
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
+import { NativeModules } from 'react-native';
 import {
   buildNativeEqBandUpdates,
   canUseNativeEq,
   shouldApplyNativeEqBands,
 } from '../utils/audioEffects';
 
-export const initNativeEqualizer = async (): Promise<EqInitResult | null> => {
+interface TrackPlayerNativeAudioSessionModule {
+  getAudioSessionId?: () => Promise<number | null>;
+}
+
+const EQ_SESSION_ATTEMPTS = 12;
+const EQ_SESSION_RETRY_MS = 250;
+let equalizerInitQueue: Promise<void> = Promise.resolve();
+
+const waitForRetry = (signal?: AbortSignal): Promise<void> => new Promise(resolve => {
+  if (signal?.aborted) {
+    resolve();
+    return;
+  }
+  const finish = () => {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', finish);
+    resolve();
+  };
+  const timeout = setTimeout(finish, EQ_SESSION_RETRY_MS);
+  signal?.addEventListener('abort', finish, { once: true });
+});
+
+export const getTrackPlayerAudioSessionId = async (): Promise<number | null> => {
+  const trackPlayer = NativeModules.TrackPlayerModule as TrackPlayerNativeAudioSessionModule | undefined;
+  if (typeof trackPlayer?.getAudioSessionId !== 'function') return null;
   try {
-    return await SystemAudio.eqInit();
+    const sessionId = await trackPlayer.getAudioSessionId();
+    return Number.isInteger(sessionId) && Number(sessionId) > 0 ? Number(sessionId) : null;
   } catch {
     return null;
   }
+};
+
+const performNativeEqualizerInit = async (signal?: AbortSignal): Promise<EqInitResult | null> => {
+  for (let attempt = 0; attempt < EQ_SESSION_ATTEMPTS && !signal?.aborted; attempt += 1) {
+    const audioSessionId = await getTrackPlayerAudioSessionId();
+    if (signal?.aborted) return null;
+    if (audioSessionId !== null) {
+      try {
+        return await SystemAudio.eqInit(audioSessionId);
+      } catch {
+        return null;
+      }
+    }
+    if (attempt + 1 < EQ_SESSION_ATTEMPTS) await waitForRetry(signal);
+  }
+  return null;
+};
+
+export const initNativeEqualizer = (signal?: AbortSignal): Promise<EqInitResult | null> => {
+  // The native Equalizer is a singleton. Serializing initialization prevents a
+  // stale, slow session lookup from replacing a newer TrackPlayer session after
+  // React effect cleanup/replay or a track-session change.
+  const operation = equalizerInitQueue
+    .catch(() => undefined)
+    .then(() => performNativeEqualizerInit(signal));
+  equalizerInitQueue = operation.then(() => undefined, () => undefined);
+  return operation;
 };
 
 export const releaseNativeEqualizer = (): void => {

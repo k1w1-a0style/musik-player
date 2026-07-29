@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from 'react-native';
+import { Button, View } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLibraryMetadataRefreshActions } from '../useLibraryMetadataRefreshActions';
 import type { Song } from '../../types/Song';
@@ -44,6 +44,7 @@ interface HookHarnessProps {
   refreshSongsFromId3Impl?: jest.Mock;
   withTimeoutImpl?: <T>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), timeoutMs: number, timeoutMessage: string, options?: { signal?: AbortSignal }) => Promise<T>;
   applySongMetadataPatches?: jest.Mock;
+  onRefreshRequest?: (request: Promise<void>) => void;
 }
 
 const HookHarness = ({
@@ -56,6 +57,7 @@ const HookHarness = ({
   refreshSongsFromId3Impl = jest.fn().mockResolvedValue({ songs: [song('updated')], updated: 1, skipped: 0, failed: 0 }),
   withTimeoutImpl = operation => (typeof operation === 'function' ? operation(new AbortController().signal) : operation),
   applySongMetadataPatches,
+  onRefreshRequest,
 }: HookHarnessProps) => {
   const actions = useLibraryMetadataRefreshActions({
     songs,
@@ -70,7 +72,15 @@ const HookHarness = ({
     applySongMetadataPatches,
   });
 
-  return <Button title="refresh" onPress={() => void actions.refreshMetadataFromFiles()} />;
+  return (
+    <View>
+      <Button title="refresh" onPress={() => {
+        const request = actions.refreshMetadataFromFiles();
+        onRefreshRequest?.(request);
+      }} />
+      <Button title="cancel" onPress={() => actions.cancelRefresh()} />
+    </View>
+  );
 };
 
 beforeEach(() => {
@@ -171,7 +181,7 @@ test('does not apply songs when refresh updated count is zero', async () => {
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
-test('cancels stale overlapping refresh and lets the latest refresh win', async () => {
+test('ignores a rapid second manual refresh while the first is active', async () => {
   let resolveRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
   const refreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
     resolveRefresh = resolve;
@@ -190,10 +200,11 @@ test('cancels stale overlapping refresh and lets the latest refresh win', async 
   fireEvent.press(screen.getByText('refresh'));
   fireEvent.press(screen.getByText('refresh'));
 
-  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(2);
+  expect(refreshSongsFromId3Impl).toHaveBeenCalledTimes(1);
+  expect(setLoading).toHaveBeenCalledWith(true);
   resolveRefresh({ songs: [song('updated', 'Fresh')], updated: 1, skipped: 0, failed: 0, errors: [] });
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
-  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(warnSpy).not.toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
 });
 
 test('does not apply stale metadata refresh result after timeout', async () => {
@@ -263,29 +274,45 @@ test('shows stopped alert and clears loading when refresh throws', async () => {
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
-test('cancels stale overlapping refresh without applying stale state or stopped alert', async () => {
+test('cancels an active refresh before starting another without applying stale state or stopped alert', async () => {
+  let markFirstStarted!: () => void;
+  const firstStarted = new Promise<void>(resolve => {
+    markFirstStarted = resolve;
+  });
+  let markFirstAborted!: () => void;
+  const firstAborted = new Promise<void>(resolve => {
+    markFirstAborted = resolve;
+  });
   let resolveLatestRefresh: (value: { songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }) => void = () => undefined;
   const latestRefreshPromise = new Promise<{ songs: Song[]; updated: number; skipped: number; failed: number; errors: never[] }>(resolve => {
     resolveLatestRefresh = resolve;
   });
   const refreshSongsFromId3Impl = jest
     .fn()
-    .mockReturnValueOnce(new Promise(() => undefined))
+    .mockImplementationOnce((_songs: Song[], options?: { signal?: AbortSignal }) => {
+      markFirstStarted();
+      const signal = options?.signal;
+      return new Promise<never>((_resolve, reject) => {
+        const handleAbort = () => {
+          signal?.removeEventListener('abort', handleAbort);
+          markFirstAborted();
+          reject(signal?.reason ?? new OperationAbortError('Metadata refresh cancelled'));
+        };
+        if (signal?.aborted) handleAbort();
+        else signal?.addEventListener('abort', handleAbort, { once: true });
+      });
+    })
     .mockReturnValueOnce(latestRefreshPromise);
   const setSongs = jest.fn();
   const setLoading = jest.fn();
   const setImportStatus = jest.fn();
   const showAlert = jest.fn();
-  const abortError = new OperationAbortError('Metadata refresh superseded by a newer refresh');
   const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   const withTimeoutImpl = <T,>(operation: Promise<T> | ((signal: AbortSignal) => Promise<T>), _timeoutMs: number, _timeoutMessage: string, options?: { signal?: AbortSignal }): Promise<T> => {
     const signal = options?.signal ?? new AbortController().signal;
-    const operationPromise = typeof operation === 'function' ? operation(signal) : operation;
-    const abortPromise = new Promise<never>((_, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason ?? abortError), { once: true });
-    });
-    return Promise.race([operationPromise, abortPromise]);
+    return typeof operation === 'function' ? operation(signal) : operation;
   };
+  const refreshRequests: Promise<void>[] = [];
   const screen = render(
     <HookHarness
       songs={[song('old')]}
@@ -295,17 +322,23 @@ test('cancels stale overlapping refresh without applying stale state or stopped 
       showAlert={showAlert}
       refreshSongsFromId3Impl={refreshSongsFromId3Impl}
       withTimeoutImpl={withTimeoutImpl}
+      onRefreshRequest={request => refreshRequests.push(request)}
     />,
   );
 
   fireEvent.press(screen.getByText('refresh'));
+  await firstStarted;
+  fireEvent.press(screen.getByText('cancel'));
+
+  await firstAborted;
+  await refreshRequests[0];
+  expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
   fireEvent.press(screen.getByText('refresh'));
 
-  await waitFor(() => expect(warnSpy).toHaveBeenCalledWith('[LibraryRefresh] Metadata refresh cancelled.', expect.any(Error)));
-  expect(setLoading).not.toHaveBeenCalledWith(false);
-  expect(setImportStatus).not.toHaveBeenCalledWith(null);
-
   resolveLatestRefresh({ songs: [song('latest', 'Latest')], updated: 1, skipped: 0, failed: 0, errors: [] });
+  await refreshRequests[1];
 
   await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('latest', 'Latest')]));
   expect(showAlert).toHaveBeenCalledTimes(1);

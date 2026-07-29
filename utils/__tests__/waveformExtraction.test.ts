@@ -12,6 +12,8 @@ import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionL
 
 const mockedSystemAudio = SystemAudio as typeof SystemAudio & {
   extractWaveformPeaks?: jest.Mock;
+  hasNativeWaveformCancellation?: boolean;
+  cancelWaveformExtraction?: jest.Mock;
 };
 
 const baseSong: Song = {
@@ -34,6 +36,8 @@ describe('waveformExtraction', () => {
     resetWaveformExtractionLifecycleForTests();
     jest.useRealTimers();
     mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue(null);
+    mockedSystemAudio.hasNativeWaveformCancellation = false;
+    mockedSystemAudio.cancelWaveformExtraction = jest.fn().mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -129,6 +133,30 @@ describe('waveformExtraction', () => {
       await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
 
       await expect(extraction).resolves.toBeNull();
+    });
+
+    test('cancels native work by request id when the JS waiter aborts', async () => {
+      jest.useFakeTimers();
+      mockedSystemAudio.hasNativeWaveformCancellation = true;
+      mockedSystemAudio.extractWaveformPeaks = jest.fn(
+        () => new Promise<{ points: number[]; durationMs?: number } | null>(() => undefined),
+      );
+      mockedSystemAudio.cancelWaveformExtraction = jest.fn().mockReturnValue(true);
+      const controller = new AbortController();
+
+      const extraction = extractNativeWaveform(baseSong, 1000, { signal: controller.signal });
+      await jest.advanceTimersByTimeAsync(120);
+      expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledWith(
+        'file:///preferred.mp3',
+        72,
+        expect.stringMatching(/^waveform-/),
+      );
+
+      controller.abort();
+      await expect(extraction).resolves.toBeNull();
+      expect(mockedSystemAudio.cancelWaveformExtraction).toHaveBeenCalledWith(
+        expect.stringMatching(/^waveform-/),
+      );
     });
 
     test('returns native waveform for useful native peaks', async () => {

@@ -4,13 +4,15 @@ import type { MusicProviderState } from './useMusicProviderState';
 
 type ContextStateInput = Pick<
   MusicContextValue,
-  'songs' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady'
+  'songs' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady' | 'hydrationStatus' | 'retryHydration'
 >;
 
 type EffectsStateInput = Pick<
   MusicProviderEffectsArgs,
   | 'isReady'
   | 'setIsReady'
+  | 'setHydrationStatus'
+  | 'hydrationRetryToken'
   | 'songs'
   | 'setSongsState'
   | 'currentSongSetter'
@@ -28,6 +30,8 @@ export const buildMusicProviderContextStateInput = ({
   playlists,
   shuffle,
   isReady,
+  hydrationStatus,
+  retryHydration,
 }: MusicProviderState): ContextStateInput => ({
   songs,
   currentSong,
@@ -35,11 +39,15 @@ export const buildMusicProviderContextStateInput = ({
   playlists,
   shuffle,
   isReady,
+  hydrationStatus,
+  retryHydration,
 });
 
 export const buildMusicProviderEffectsStateInput = ({
   isReady,
   setIsReady,
+  setHydrationStatus,
+  hydrationRetryToken,
   songs,
   setSongsState,
   setCurrentSong,
@@ -51,6 +59,8 @@ export const buildMusicProviderEffectsStateInput = ({
 }: MusicProviderState): EffectsStateInput => ({
   isReady,
   setIsReady,
+  setHydrationStatus,
+  hydrationRetryToken,
   songs,
   setSongsState,
   currentSongSetter: setCurrentSong,

@@ -30,15 +30,16 @@ type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
 const fn = jest.fn();
 const asyncFn = jest.fn(async () => undefined);
+const queueActionFn = jest.fn(async () => ({ status: 'noop' as const }));
 const elementFn = jest.fn(() => React.createElement(React.Fragment));
 
 const mockMusicContext: MockLibraryMusicContext = {
   songs: [],
   setSongs: fn,
   currentSong: null,
-  playSong: asyncFn,
-  playSongNext: async () => true,
-  addSongToQueue: async () => true,
+  playSong: queueActionFn,
+  playSongNext: async () => ({ status: 'noop' as const }),
+  addSongToQueue: async () => ({ status: 'noop' as const }),
   isReady: true,
   isPlaying: false,
   updateSongMetadata: fn,

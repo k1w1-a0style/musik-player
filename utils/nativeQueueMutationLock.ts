@@ -19,10 +19,17 @@ export const runExclusiveNativeQueueReplacement = async <T>(
   const replacementVersion = markNativeQueueReplacementIntent();
   const run = nativeMutationChain
     .catch(() => undefined)
-    .then(() => action({
-      replacementVersion,
-      isCurrent: () => nativeQueueReplacementVersion === replacementVersion,
-    }));
+    .then(() => {
+      // Native queue mutations are not cancellable once reset/add/skip has begun.
+      // Decide staleness exactly once when this queued action starts: an older
+      // action that has not started yet may be skipped, while an active action
+      // remains valid until it has restored a truthful native/ref/UI state.
+      const currentAtStart = nativeQueueReplacementVersion === replacementVersion;
+      return action({
+        replacementVersion,
+        isCurrent: () => currentAtStart,
+      });
+    });
 
   nativeMutationChain = run.catch(() => undefined);
   return run;

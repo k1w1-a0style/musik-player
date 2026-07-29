@@ -45,7 +45,8 @@ type EffectsEqualizerInput = Pick<
 
 export const buildMusicProviderContextPlaybackInput = (
   playback: PlaybackControls,
-  actions: Pick<MusicContextValue, 'playSong' | 'playSongNext' | 'addSongToQueue' | 'reorderQueue' | 'toggleShuffle'>,
+  actions: Pick<MusicContextValue, 'playSong' | 'playSongNext' | 'addSongToQueue' | 'reorderQueue' | 'toggleShuffle'>
+    & Partial<Pick<MusicContextValue, 'togglePlayPause' | 'stop' | 'seekTo' | 'next' | 'previous'>>,
 ): ContextPlaybackInput => ({
   isPlaying: playback.isPlaying,
   isBuffering: playback.isBuffering,
@@ -53,11 +54,11 @@ export const buildMusicProviderContextPlaybackInput = (
   playSongNext: actions.playSongNext,
   addSongToQueue: actions.addSongToQueue,
   reorderQueue: actions.reorderQueue,
-  togglePlayPause: playback.togglePlayPause,
-  stop: playback.stop,
-  seekTo: playback.seekTo,
-  next: playback.next,
-  previous: playback.previous,
+  togglePlayPause: actions.togglePlayPause ?? playback.togglePlayPause,
+  stop: actions.stop ?? playback.stop,
+  seekTo: actions.seekTo ?? playback.seekTo,
+  next: actions.next ?? playback.next,
+  previous: actions.previous ?? playback.previous,
   toggleShuffle: actions.toggleShuffle,
   repeatMode: playback.repeatMode,
   cycleRepeatMode: playback.cycleRepeatMode,

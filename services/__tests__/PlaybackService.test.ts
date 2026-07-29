@@ -1,8 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { waitFor } from '@testing-library/react-native';
 import { PlaybackService } from '../PlaybackService';
 import { resetSleepTimerForTests, startSleepTimer } from '../sleepTimerController';
-import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -15,10 +17,21 @@ const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
 describe('PlaybackService', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
+    publishNativeHydrationGate(acquireNativeHydrationGate(), 'ready');
     trackPlayerTestApi.__reset();
     resetSleepTimerForTests();
     jest.clearAllMocks();
     jest.restoreAllMocks();
+  });
+
+  test('registers remote playback controls without waiting for a hanging sleep timer restore', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockReturnValueOnce(new Promise<string | null>(() => undefined));
+
+    await PlaybackService();
+
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePause)).toHaveLength(1);
   });
 
   test('registers remote playback controls', async () => {
@@ -42,6 +55,26 @@ describe('PlaybackService', () => {
     expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpForward)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.RemoteJumpBackward)).toHaveLength(1);
     expect(trackPlayerTestApi.__getListeners(Event.PlaybackProgressUpdated)).toHaveLength(1);
+  });
+
+  test.each([
+    ['loading', Event.RemotePrevious, TrackPlayer.skipToPrevious, undefined],
+    ['degraded', Event.RemoteNext, TrackPlayer.skipToNext, undefined],
+    ['retry-required', Event.RemoteSeek, TrackPlayer.seekTo, { position: 12 }],
+    ['degraded', Event.RemotePlay, TrackPlayer.play, undefined],
+    ['degraded', Event.RemotePause, TrackPlayer.pause, undefined],
+    ['degraded', Event.RemoteStop, TrackPlayer.stop, undefined],
+    ['degraded', Event.RemoteJumpForward, TrackPlayer.seekBy, { interval: 5 }],
+    ['degraded', Event.RemoteJumpBackward, TrackPlayer.seekBy, { interval: 5 }],
+  ] as const)('blocks %s remote action %s without native calls', async (status, event, nativeAction, payload) => {
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, status);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(event, payload);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote action blocked',
+      expect.objectContaining({ gateStatus: status })));
+    expect(nativeAction).not.toHaveBeenCalled();
   });
 
   test('runs remote play action', async () => {
@@ -99,6 +132,21 @@ describe('PlaybackService', () => {
     expect((TrackPlayer.play as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       (TrackPlayer.stop as jest.Mock).mock.invocationCallOrder[0],
     );
+  });
+
+  test('rechecks hydration gate inside the lock before a queued remote action', async () => {
+    let release!: () => void; let started!: () => void;
+    const startedPromise = new Promise<void>(resolve => { started = resolve; });
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      started(); await new Promise<void>(resolve => { release = resolve; });
+    });
+    await startedPromise;
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'degraded');
+    release(); await blocker;
+    await waitFor(() => expect(TrackPlayer.skipToNext).not.toHaveBeenCalled());
   });
 
   test('logs remote action failures', async () => {

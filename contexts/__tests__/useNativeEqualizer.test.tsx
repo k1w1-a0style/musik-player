@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
 import { useNativeEqualizer } from '../useNativeEqualizer';
 
@@ -15,8 +15,8 @@ const eqNative: EqInitResult = {
   ],
 };
 
-const NativeEqProbe = ({ enabled, bands }: { enabled: boolean; bands: number[] }) => {
-  const native = useNativeEqualizer(enabled, bands);
+const NativeEqProbe = ({ enabled, bands, sessionKey = null }: { enabled: boolean; bands: number[]; sessionKey?: string | null }) => {
+  const native = useNativeEqualizer(enabled, bands, sessionKey);
   return <Text testID="available">{String(native?.available ?? false)}</Text>;
 };
 
@@ -49,6 +49,50 @@ describe('useNativeEqualizer', () => {
     await waitFor(() => expect(getByTestId('available').props.children).toBe('false'));
 
     expect(SystemAudio.eqSetBandLevel).not.toHaveBeenCalled();
+  });
+
+  test('keeps the working equalizer active while a replacement session initializes', async () => {
+    let resolveReplacement!: (value: EqInitResult) => void;
+    jest.spyOn(SystemAudio, 'eqInit')
+      .mockResolvedValueOnce(eqNative)
+      .mockImplementationOnce(() => new Promise(resolve => {
+        resolveReplacement = resolve;
+      }));
+
+    const view = render(
+      <NativeEqProbe enabled={false} bands={new Array(10).fill(0)} sessionKey="song-a" />,
+    );
+    await waitFor(() => expect(SystemAudio.eqInit).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('available').props.children).toBe('true'));
+    (SystemAudio.eqRelease as jest.Mock).mockClear();
+
+    view.rerender(
+      <NativeEqProbe enabled={false} bands={new Array(10).fill(0)} sessionKey="song-b" />,
+    );
+    await waitFor(() => expect(SystemAudio.eqInit).toHaveBeenCalledTimes(2));
+    expect(SystemAudio.eqRelease).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveReplacement(eqNative);
+    });
+    expect(SystemAudio.eqRelease).not.toHaveBeenCalled();
+    view.unmount();
+    expect(SystemAudio.eqRelease).toHaveBeenCalledTimes(1);
+  });
+
+  test('releases an equalizer that initializes after the final unmount', async () => {
+    let resolveInit!: (value: EqInitResult) => void;
+    jest.spyOn(SystemAudio, 'eqInit').mockImplementationOnce(() => new Promise(resolve => {
+      resolveInit = resolve;
+    }));
+
+    const view = render(<NativeEqProbe enabled={false} bands={new Array(10).fill(0)} />);
+    await waitFor(() => expect(SystemAudio.eqInit).toHaveBeenCalled());
+    view.unmount();
+    expect(SystemAudio.eqRelease).toHaveBeenCalledTimes(1);
+
+    resolveInit(eqNative);
+    await waitFor(() => expect(SystemAudio.eqRelease).toHaveBeenCalledTimes(2));
   });
 
   test('releases native EQ on unmount', async () => {

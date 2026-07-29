@@ -481,170 +481,182 @@ const hasUnsupportedFrameFlags = (majorVersion: number, flag1: number, flag2: nu
 const hasFrameUnsynchronization = (majorVersion: number, flag2: number): boolean =>
   majorVersion === 4 && (flag2 & 0x02) !== 0;
 
+interface ParsedId3FrameContext {
+  tags: Id3Tags;
+  includeCover: boolean;
+  commentFallback?: string;
+}
+
+const applyDecodedComment = (
+  context: ParsedId3FrameContext,
+  frameBytes: Uint8Array,
+  bodyStart: number,
+  bodyEnd: number,
+): void => {
+  const comment = decodeComm(frameBytes, bodyStart, bodyEnd);
+  if (!comment?.text) return;
+  if (!comment.description) context.tags.comment = comment.text;
+  else if (!context.commentFallback) context.commentFallback = comment.text;
+};
+
+const applyId3v22Frame = (
+  context: ParsedId3FrameContext,
+  id: string,
+  frameBytes: Uint8Array,
+  bodyStart: number,
+  bodyEnd: number,
+): void => {
+  const text = () => decodeText(frameBytes, bodyStart, bodyEnd);
+  switch (id) {
+    case 'TT2': context.tags.title = text(); break;
+    case 'TP1': context.tags.artist = text(); break;
+    case 'TP2': context.tags.albumArtist = text(); break;
+    case 'TAL': context.tags.album = text(); break;
+    case 'TYE': context.tags.year = text(); break;
+    case 'TCO': context.tags.genre = normalizeId3Genre(text()); break;
+    case 'TRK': context.tags.trackNumber = text(); break;
+    case 'TPA': context.tags.discNumber = text(); break;
+    case 'COM': applyDecodedComment(context, frameBytes, bodyStart, bodyEnd); break;
+    case 'PIC': {
+      if (!context.includeCover || context.tags.cover) break;
+      const cover = decodePIC(frameBytes, bodyStart, bodyEnd);
+      if (cover) context.tags.cover = cover;
+      break;
+    }
+    default: break;
+  }
+};
+
+const applyId3v23OrV24Frame = (
+  context: ParsedId3FrameContext,
+  id: string,
+  frameBytes: Uint8Array,
+  bodyStart: number,
+  bodyEnd: number,
+): void => {
+  const text = () => decodeText(frameBytes, bodyStart, bodyEnd);
+  switch (id) {
+    case 'TIT2': context.tags.title = text(); break;
+    case 'TPE1': context.tags.artist = text(); break;
+    case 'TPE2': context.tags.albumArtist = text(); break;
+    case 'TALB': context.tags.album = text(); break;
+    case 'TYER':
+    case 'TDRC': context.tags.year = text(); break;
+    case 'TCON': context.tags.genre = normalizeId3Genre(text()); break;
+    case 'TRCK': context.tags.trackNumber = text(); break;
+    case 'TPOS': context.tags.discNumber = text(); break;
+    case 'COMM': applyDecodedComment(context, frameBytes, bodyStart, bodyEnd); break;
+    case 'APIC': {
+      if (!context.includeCover || context.tags.cover) break;
+      const cover = decodeAPIC(frameBytes, bodyStart, bodyEnd);
+      if (cover) context.tags.cover = cover;
+      break;
+    }
+    default: break;
+  }
+};
+
+const finalizeParsedId3Frames = (context: ParsedId3FrameContext): Id3Tags => {
+  if (!context.tags.comment && context.commentFallback) {
+    context.tags.comment = context.commentFallback;
+  }
+  return context.tags;
+};
+
+const parseId3v22Frames = (
+  frameBytes: Uint8Array,
+  context: ParsedId3FrameContext,
+): Id3Tags => {
+  let position = 0;
+  while (position + 6 <= frameBytes.length) {
+    const id = readLatin1(frameBytes, position, position + 3);
+    if (!id || id.charCodeAt(0) === 0 || !/^[A-Z0-9]{3}$/.test(id)) break;
+    const frameSize = (frameBytes[position + 3] << 16)
+      | (frameBytes[position + 4] << 8)
+      | frameBytes[position + 5];
+    const bodyStart = position + 6;
+    const bodyEnd = bodyStart + frameSize;
+    if (frameSize <= 0 || bodyEnd > frameBytes.length) break;
+    applyId3v22Frame(context, id, frameBytes, bodyStart, bodyEnd);
+    position = bodyEnd;
+  }
+  return finalizeParsedId3Frames(context);
+};
+
+const parseId3v23OrV24Frames = (
+  frameBytesForWalk: Uint8Array,
+  majorVersion: 3 | 4,
+  hasTagUnsynchronization: boolean,
+  context: ParsedId3FrameContext,
+): Id3Tags => {
+  let position = 0;
+  while (position + 10 <= frameBytesForWalk.length) {
+    const id = readLatin1(frameBytesForWalk, position, position + 4);
+    if (!id || id.charCodeAt(0) === 0 || !/^[A-Z0-9]{4}$/.test(id)) break;
+    const frameSize = majorVersion === 4
+      ? decodeSyncsafe(frameBytesForWalk, position + 4)
+      : decodeSize(frameBytesForWalk, position + 4);
+    if (frameSize === undefined || frameSize <= 0 || position + 10 + frameSize > frameBytesForWalk.length) break;
+
+    const frameFlag1 = frameBytesForWalk[position + 8];
+    const frameFlag2 = frameBytesForWalk[position + 9];
+    if (hasUnsupportedFrameFlags(majorVersion, frameFlag1, frameFlag2)) {
+      position += 10 + frameSize;
+      continue;
+    }
+
+    const rawBodyStart = position + 10;
+    const rawBodyEnd = rawBodyStart + frameSize;
+    const removeFrameUnsync = !hasTagUnsynchronization
+      && hasFrameUnsynchronization(majorVersion, frameFlag2);
+    const frameBytes = removeFrameUnsync
+      ? removeUnsynchronization(frameBytesForWalk.subarray(rawBodyStart, rawBodyEnd))
+      : frameBytesForWalk;
+    applyId3v23OrV24Frame(
+      context,
+      id,
+      frameBytes,
+      removeFrameUnsync ? 0 : rawBodyStart,
+      removeFrameUnsync ? frameBytes.length : rawBodyEnd,
+    );
+    position += 10 + frameSize;
+  }
+  return finalizeParsedId3Frames(context);
+};
+
+const isSupportedId3Header = (bytes: Uint8Array): boolean =>
+  bytes.length >= 10
+  && bytes[0] === 0x49
+  && bytes[1] === 0x44
+  && bytes[2] === 0x33;
+
 /**
  * Parse ID3 tags from a raw Uint8Array (first ~1MB of the file is usually enough).
  * Supports common ID3v2.2/v2.3/v2.4 text and cover frames.
  */
 export const parseId3Buffer = (bytes: Uint8Array, options: Pick<ParseId3Options, 'includeCover'> = {}): Id3Tags => {
-  const includeCover = shouldIncludeCover(options);
-  const tags: Id3Tags = {};
-  if (
-    bytes.length < 10 ||
-    bytes[0] !== 0x49 || // I
-    bytes[1] !== 0x44 || // D
-    bytes[2] !== 0x33 //    3
-  ) {
-    return tags;
-  }
+  if (!isSupportedId3Header(bytes)) return {};
   const majorVersion = bytes[3];
-  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
+  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return {};
   const flags = bytes[5];
   const totalSize = decodeSyncsafe(bytes, 6);
-  if (totalSize === undefined) return tags;
-  const rawEnd = Math.min(bytes.length, 10 + totalSize);
-  const rawTagBytes = bytes.subarray(10, rawEnd);
+  if (totalSize === undefined) return {};
+
+  const rawTagBytes = bytes.subarray(10, Math.min(bytes.length, 10 + totalSize));
   const hasTagUnsynchronization = (flags & 0x80) !== 0;
-  const rawTagEnd = rawTagBytes.length;
   const rawFrameStart = majorVersion === 2
     ? 0
-    : skipExtendedId3Header(rawTagBytes, majorVersion, flags, 0, rawTagEnd);
-  const frameBytesForWalk = hasTagUnsynchronization
-    ? removeUnsynchronization(rawTagBytes.subarray(rawFrameStart, rawTagEnd))
-    : rawTagBytes.subarray(rawFrameStart, rawTagEnd);
-  const end = frameBytesForWalk.length;
-
-  let p = 0;
-  let commentFallback: string | undefined;
-  if (majorVersion === 2) {
-    while (p + 6 <= end) {
-      const id = readLatin1(frameBytesForWalk, p, p + 3);
-      if (!id || id.charCodeAt(0) === 0) break;
-      if (!/^[A-Z0-9]{3}$/.test(id)) break;
-      const frameSize = (frameBytesForWalk[p + 3] << 16) | (frameBytesForWalk[p + 4] << 8) | frameBytesForWalk[p + 5];
-      if (frameSize <= 0 || p + 6 + frameSize > end) break;
-      const bodyStart = p + 6;
-      const bodyEnd = bodyStart + frameSize;
-      const frameBytes = frameBytesForWalk;
-      switch (id) {
-        case 'TT2':
-          tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TP1':
-          tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TP2':
-          tags.albumArtist = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TAL':
-          tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TYE':
-          tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TCO':
-          tags.genre = normalizeId3Genre(decodeText(frameBytes, bodyStart, bodyEnd));
-          break;
-        case 'TRK':
-          tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'TPA':
-          tags.discNumber = decodeText(frameBytes, bodyStart, bodyEnd);
-          break;
-        case 'COM': {
-          const comm = decodeComm(frameBytes, bodyStart, bodyEnd);
-          if (comm?.text) {
-            if (!comm.description) tags.comment = comm.text;
-            else if (!commentFallback) commentFallback = comm.text;
-          }
-          break;
-        }
-        case 'PIC': {
-          if (includeCover && !tags.cover) {
-            const cover = decodePIC(frameBytes, bodyStart, bodyEnd);
-            if (cover) tags.cover = cover;
-          }
-          break;
-        }
-        default:
-          break;
-      }
-      p += 6 + frameSize;
-    }
-    if (!tags.comment && commentFallback) tags.comment = commentFallback;
-    return tags;
-  }
-  while (p + 10 <= end) {
-    const id = readLatin1(frameBytesForWalk, p, p + 4);
-    if (!id || id.charCodeAt(0) === 0) break;
-    if (!/^[A-Z0-9]{4}$/.test(id)) break;
-
-    const frameSize =
-      majorVersion === 4 ? decodeSyncsafe(frameBytesForWalk, p + 4) : decodeSize(frameBytesForWalk, p + 4);
-    if (frameSize === undefined || frameSize <= 0 || p + 10 + frameSize > end) break;
-
-    const frameFlag1 = frameBytesForWalk[p + 8];
-    const frameFlag2 = frameBytesForWalk[p + 9];
-    if (hasUnsupportedFrameFlags(majorVersion, frameFlag1, frameFlag2)) {
-      p += 10 + frameSize;
-      continue;
-    }
-
-    const rawBodyStart = p + 10;
-    const rawBodyEnd = rawBodyStart + frameSize;
-    const shouldRemoveFrameUnsync = !hasTagUnsynchronization && hasFrameUnsynchronization(majorVersion, frameFlag2);
-    const frameBytes = shouldRemoveFrameUnsync
-      ? removeUnsynchronization(frameBytesForWalk.subarray(rawBodyStart, rawBodyEnd))
-      : frameBytesForWalk;
-    const bodyStart = shouldRemoveFrameUnsync ? 0 : rawBodyStart;
-    const bodyEnd = shouldRemoveFrameUnsync ? frameBytes.length : rawBodyEnd;
-
-    switch (id) {
-      case 'TIT2':
-        tags.title = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TPE1':
-        tags.artist = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TPE2':
-        tags.albumArtist = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TALB':
-        tags.album = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TYER':
-      case 'TDRC':
-        tags.year = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TCON':
-        tags.genre = normalizeId3Genre(decodeText(frameBytes, bodyStart, bodyEnd));
-        break;
-      case 'TRCK':
-        tags.trackNumber = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'TPOS':
-        tags.discNumber = decodeText(frameBytes, bodyStart, bodyEnd);
-        break;
-      case 'COMM': {
-        const comm = decodeComm(frameBytes, bodyStart, bodyEnd);
-        if (comm?.text) {
-          if (!comm.description) tags.comment = comm.text;
-          else if (!commentFallback) commentFallback = comm.text;
-        }
-        break;
-      }
-      case 'APIC':
-        if (includeCover && !tags.cover) {
-          const cover = decodeAPIC(frameBytes, bodyStart, bodyEnd);
-          if (cover) tags.cover = cover;
-        }
-        break;
-      default:
-        break;
-    }
-    p += 10 + frameSize;
-  }
-  if (!tags.comment && commentFallback) tags.comment = commentFallback;
-  return tags;
+    : skipExtendedId3Header(rawTagBytes, majorVersion, flags, 0, rawTagBytes.length);
+  const frameBytes = hasTagUnsynchronization
+    ? removeUnsynchronization(rawTagBytes.subarray(rawFrameStart))
+    : rawTagBytes.subarray(rawFrameStart);
+  const context: ParsedId3FrameContext = {
+    tags: {},
+    includeCover: shouldIncludeCover(options),
+  };
+  return majorVersion === 2
+    ? parseId3v22Frames(frameBytes, context)
+    : parseId3v23OrV24Frames(frameBytes, majorVersion, hasTagUnsynchronization, context);
 };
 
 const MP4_CONTAINER_ATOMS = new Set([
@@ -914,6 +926,46 @@ const applyTextFrame = (tags: Id3Tags, id: string, frameBytes: Uint8Array): void
   if (text) tags[key] = text;
 };
 
+interface Id3RangeFrameHeader {
+  id: string;
+  headerLength: number;
+  frameSize: number;
+  unsupported: boolean;
+}
+
+const decodeId3RangeFrameHeader = (
+  header: Uint8Array,
+  majorVersion: 2 | 3 | 4,
+): Id3RangeFrameHeader | null => {
+  const headerLength = majorVersion === 2 ? 6 : 10;
+  if (header.length < headerLength) return null;
+  const idLength = majorVersion === 2 ? 3 : 4;
+  const id = readLatin1(header, 0, idLength);
+  if (!id || id.charCodeAt(0) === 0 || !new RegExp(`^[A-Z0-9]{${idLength}}$`).test(id)) return null;
+  const frameSize = majorVersion === 2
+    ? (header[3] << 16) | (header[4] << 8) | header[5]
+    : majorVersion === 4
+      ? decodeSyncsafe(header, 4)
+      : decodeSize(header, 4);
+  if (frameSize === undefined || frameSize <= 0) return null;
+  return {
+    id,
+    headerLength,
+    frameSize,
+    unsupported: majorVersion !== 2 && hasUnsupportedFrameFlags(majorVersion, header[8], header[9]),
+  };
+};
+
+const isReadableId3TextFrame = (
+  id: string,
+  frameSize: number,
+  bodyBytesRead: number,
+  bodyReadLimit: number,
+): boolean =>
+  (id in TEXT_FRAME_IDS || id === 'COMM' || id === 'COM')
+  && frameSize <= ID3_TEXT_FRAME_READ_LIMIT
+  && bodyBytesRead + frameSize <= bodyReadLimit;
+
 type ReadRange = (position: number, length: number) => Promise<Uint8Array>;
 
 const parseId3TextFramesByRange = async (
@@ -921,78 +973,243 @@ const parseId3TextFramesByRange = async (
   readRange: ReadRange,
   options: Pick<ParseId3Options, 'signal' | 'maxFrameScanBytes' | 'maxFrameOffsetBytes' | 'maxFrameBodyReadBytes'> = {},
 ): Promise<Id3Tags> => {
-  const tags: Id3Tags = {};
-  if (
-    initialBytes.length < 10 ||
-    initialBytes[0] !== 0x49 ||
-    initialBytes[1] !== 0x44 ||
-    initialBytes[2] !== 0x33
-  ) {
-    return tags;
-  }
+  if (!isSupportedId3Header(initialBytes)) return {};
   const majorVersion = initialBytes[3];
-  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return tags;
+  if (majorVersion !== 2 && majorVersion !== 3 && majorVersion !== 4) return {};
   const flags = initialBytes[5];
-  if ((flags & 0x80) !== 0) return tags;
+  if ((flags & 0x80) !== 0) return {};
   const totalSize = decodeSyncsafe(initialBytes, 6);
-  if (totalSize === undefined) return tags;
+  if (totalSize === undefined) return {};
+
+  const tags: Id3Tags = {};
   const scanEnd = Math.min(10 + totalSize, clampPositiveLimit(options.maxFrameOffsetBytes, ID3_FRAME_SCAN_LIMIT));
   const bodyReadLimit = clampNonNegativeLimit(
     options.maxFrameBodyReadBytes ?? options.maxFrameScanBytes,
     ID3_FRAME_SCAN_LIMIT,
   );
   let bodyBytesRead = 0;
-  let p = 10;
+  let position = 10;
   if (majorVersion !== 2) {
-    const rawTagEnd = Math.min(initialBytes.length, scanEnd) - 10;
-    p += skipExtendedId3Header(
-      initialBytes.subarray(10, Math.min(initialBytes.length, scanEnd)),
+    const availableTagBytes = initialBytes.subarray(10, Math.min(initialBytes.length, scanEnd));
+    position += skipExtendedId3Header(
+      availableTagBytes,
       majorVersion,
       flags,
       0,
-      rawTagEnd,
+      availableTagBytes.length,
     );
   }
 
-  while (p + (majorVersion === 2 ? 6 : 10) <= scanEnd) {
+  while (position + (majorVersion === 2 ? 6 : 10) <= scanEnd) {
     throwIfParseAborted(options.signal);
-    const headerLength = majorVersion === 2 ? 6 : 10;
-    const header = p + headerLength <= initialBytes.length
-      ? initialBytes.subarray(p, p + headerLength)
-      : await readRange(p, headerLength);
+    const expectedHeaderLength = majorVersion === 2 ? 6 : 10;
+    const headerBytes = position + expectedHeaderLength <= initialBytes.length
+      ? initialBytes.subarray(position, position + expectedHeaderLength)
+      : await readRange(position, expectedHeaderLength);
     throwIfParseAborted(options.signal);
-    if (header.length < headerLength) break;
-    const id = readLatin1(header, 0, majorVersion === 2 ? 3 : 4);
-    if (!id || id.charCodeAt(0) === 0) break;
-    if (!new RegExp(`^[A-Z0-9]{${majorVersion === 2 ? 3 : 4}}$`).test(id)) break;
-    const frameSize = majorVersion === 2
-      ? (header[3] << 16) | (header[4] << 8) | header[5]
-      : majorVersion === 4
-        ? decodeSyncsafe(header, 4)
-        : decodeSize(header, 4);
-    if (frameSize === undefined || frameSize <= 0) break;
-    if (majorVersion !== 2 && hasUnsupportedFrameFlags(majorVersion, header[8], header[9])) {
-      p += headerLength + frameSize;
-      continue;
-    }
-    if (
-      (id in TEXT_FRAME_IDS || id === 'COMM' || id === 'COM') &&
-      frameSize <= ID3_TEXT_FRAME_READ_LIMIT &&
-      bodyBytesRead + frameSize <= bodyReadLimit
-    ) {
-      const bodyStart = p + headerLength;
-      const body = bodyStart + frameSize <= initialBytes.length
-        ? initialBytes.subarray(bodyStart, bodyStart + frameSize)
-        : await readRange(bodyStart, frameSize);
+    const header = decodeId3RangeFrameHeader(headerBytes, majorVersion);
+    if (!header) break;
+    if (!header.unsupported && isReadableId3TextFrame(header.id, header.frameSize, bodyBytesRead, bodyReadLimit)) {
+      const bodyStart = position + header.headerLength;
+      const body = bodyStart + header.frameSize <= initialBytes.length
+        ? initialBytes.subarray(bodyStart, bodyStart + header.frameSize)
+        : await readRange(bodyStart, header.frameSize);
       throwIfParseAborted(options.signal);
-      if (body.length === frameSize) {
-        bodyBytesRead += frameSize;
-        applyTextFrame(tags, id, body);
+      if (body.length === header.frameSize) {
+        bodyBytesRead += header.frameSize;
+        applyTextFrame(tags, header.id, body);
       }
     }
-    p += headerLength + frameSize;
+    position += header.headerLength + header.frameSize;
   }
   return tags;
+};
+
+interface Id3UriFileHandle {
+  readBytes: (length: number) => Uint8Array;
+  offset: number | null;
+  close?: () => void;
+}
+
+interface Id3UriFile {
+  bytes: () => Promise<Uint8Array>;
+  open?: () => Id3UriFileHandle;
+}
+
+interface Id3UriParseContext {
+  normalizedUri: string;
+  includeCover: boolean;
+  maxHeadBytes: number;
+  maxTailBytes: number;
+  maxFrameOffsetBytes: number;
+  maxFrameBodyReadBytes: number;
+  encodingBase64: 'base64';
+  options: ParseId3Options;
+  isMp4Like: () => boolean;
+  parseHeadBytes: (bytes: Uint8Array) => Id3Tags;
+  mergeMp4TailTags: (
+    currentTags: Id3Tags,
+    size: number,
+    readTail: (tailStart: number, tailReadLength: number) => Promise<Uint8Array>,
+  ) => Promise<Id3Tags>;
+}
+
+const createId3UriParseContext = (uri: string, options: ParseId3Options): Id3UriParseContext => {
+  const includeCover = shouldIncludeCover(options);
+  const maxHeadBytes = clampPositiveLimit(options.maxHeadBytes, HEAD_READ_LIMIT);
+  const maxTailBytes = clampNonNegativeLimit(options.maxTailBytes, TAIL_READ_LIMIT);
+  let detectedMp4Like = hasMp4LikeHints(uri, options);
+  const context: Id3UriParseContext = {
+    normalizedUri: uri.startsWith('content://') ? uri : stripUriQueryAndFragment(uri),
+    includeCover,
+    maxHeadBytes,
+    maxTailBytes,
+    maxFrameOffsetBytes: clampPositiveLimit(options.maxFrameOffsetBytes, ID3_FRAME_SCAN_LIMIT),
+    maxFrameBodyReadBytes: clampNonNegativeLimit(
+      options.maxFrameBodyReadBytes ?? options.maxFrameScanBytes,
+      ID3_FRAME_SCAN_LIMIT,
+    ),
+    encodingBase64: (EncodingType.Base64 ?? 'base64') as 'base64',
+    options,
+    isMp4Like: () => detectedMp4Like,
+    parseHeadBytes: bytes => {
+      const id3 = parseId3Buffer(bytes, { includeCover });
+      detectedMp4Like = detectedMp4Like || hasMp4HeadEvidence(bytes);
+      return detectedMp4Like
+        ? mergeMissingOrPlaceholderId3Tags(
+          id3,
+          parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }),
+        )
+        : id3;
+    },
+    mergeMp4TailTags: async (currentTags, size, readTail) => {
+      if (!detectedMp4Like || size <= maxHeadBytes || maxTailBytes <= 0) return currentTags;
+      const tailReadLength = Math.min(maxTailBytes, size);
+      const tailBytes = await readTail(Math.max(0, size - tailReadLength), tailReadLength);
+      throwIfParseAborted(options.signal);
+      return mergeMissingOrPlaceholderId3Tags(
+        currentTags,
+        parseMp4TagsFromBuffer(tailBytes, { includeCover, trustedTopLevel: false }),
+      );
+    },
+  };
+  return context;
+};
+
+const mergeBoundedId3TextFrames = async (
+  parsed: Id3Tags,
+  headBytes: Uint8Array,
+  readRange: ReadRange,
+  context: Id3UriParseContext,
+  warnOnFailure: boolean,
+): Promise<Id3Tags> => {
+  if (parsed.cover || !isSupportedId3Header(headBytes)) return parsed;
+  try {
+    const ranged = await parseId3TextFramesByRange(headBytes, readRange, {
+      signal: context.options.signal,
+      maxFrameOffsetBytes: context.maxFrameOffsetBytes,
+      maxFrameBodyReadBytes: context.maxFrameBodyReadBytes,
+    });
+    return mergeId3Tags(parsed, ranged);
+  } catch (error) {
+    throwIfParseAborted(context.options.signal);
+    if (warnOnFailure) {
+      console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
+      return parsed;
+    }
+    throw error;
+  }
+};
+
+const tryParseId3WithLegacyReader = async (
+  context: Id3UriParseContext,
+): Promise<Id3Tags | null> => {
+  try {
+    const headBase64 = await readAsStringAsync(context.normalizedUri, {
+      encoding: context.encodingBase64,
+      length: context.maxHeadBytes,
+    });
+    const headBytes = base64ToBytes(headBase64);
+    const readRange: ReadRange = async (position, length) => base64ToBytes(
+      await readAsStringAsync(context.normalizedUri, {
+        encoding: context.encodingBase64,
+        length,
+        position,
+      }),
+    );
+    throwIfParseAborted(context.options.signal);
+    let parsed = context.parseHeadBytes(headBytes);
+    parsed = await mergeBoundedId3TextFrames(parsed, headBytes, readRange, context, true);
+    if (!context.isMp4Like()) return parsed;
+    try {
+      const info = await getId3FileInfo(context.normalizedUri);
+      if (!info.exists) return parsed;
+      return await context.mergeMp4TailTags(parsed, info.size, async (tailStart, tailReadLength) => {
+        const tailBase64 = await readAsStringAsync(context.normalizedUri, {
+          encoding: context.encodingBase64,
+          length: tailReadLength,
+          position: tailStart,
+        });
+        return base64ToBytes(tailBase64);
+      });
+    } catch {
+      throwIfParseAborted(context.options.signal);
+      return parsed;
+    }
+  } catch {
+    throwIfParseAborted(context.options.signal);
+    return null;
+  }
+};
+
+const readId3WithOpenFileHandle = async (
+  file: Id3UriFile,
+  size: number,
+  context: Id3UriParseContext,
+): Promise<Id3Tags | null> => {
+  if (typeof file.open !== 'function') return null;
+  const handle = file.open();
+  if (!handle) return null;
+  try {
+    throwIfParseAborted(context.options.signal);
+    const headBytes = handle.readBytes(Math.min(context.maxHeadBytes, size));
+    const readRange: ReadRange = async (position, length) => {
+      handle.offset = position;
+      return handle.readBytes(length);
+    };
+    let parsed = context.parseHeadBytes(headBytes);
+    parsed = await mergeBoundedId3TextFrames(parsed, headBytes, readRange, context, false);
+    return context.isMp4Like()
+      ? context.mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
+        handle.offset = tailStart;
+        return handle.readBytes(tailReadLength);
+      })
+      : parsed;
+  } finally {
+    handle.close?.();
+  }
+};
+
+const parseId3WithFileApi = async (context: Id3UriParseContext): Promise<Id3Tags> => {
+  const FileCtor = (FileSystem as unknown as { File?: new (uri: string) => Id3UriFile }).File;
+  if (!FileCtor) return {};
+  try {
+    const info = await getId3FileInfo(context.normalizedUri);
+    if (!info.exists || info.size <= 0) return {};
+    const file = new FileCtor(context.normalizedUri);
+    const rangedResult = await readId3WithOpenFileHandle(file, info.size, context);
+    if (rangedResult !== null) return rangedResult;
+    if (info.size > context.maxHeadBytes) {
+      warnLargeBytesFallbackSkipped(context.normalizedUri, info.size);
+      return {};
+    }
+    const bytes = await file.bytes();
+    throwIfParseAborted(context.options.signal);
+    return context.parseHeadBytes(bytes.subarray(0, context.maxHeadBytes));
+  } catch {
+    throwIfParseAborted(context.options.signal);
+    return {};
+  }
 };
 
 /**
@@ -1002,159 +1219,9 @@ const parseId3TextFramesByRange = async (
 export const parseId3FromUri = async (uri: string, options: ParseId3Options = {}): Promise<Id3Tags> => {
   try {
     throwIfParseAborted(options.signal);
-    const includeCover = shouldIncludeCover(options);
-    const maxHeadBytes = clampPositiveLimit(options.maxHeadBytes, HEAD_READ_LIMIT);
-    const maxTailBytes = clampNonNegativeLimit(options.maxTailBytes, TAIL_READ_LIMIT);
-    const maxFrameOffsetBytes = clampPositiveLimit(options.maxFrameOffsetBytes, ID3_FRAME_SCAN_LIMIT);
-    const maxFrameBodyReadBytes = clampNonNegativeLimit(
-      options.maxFrameBodyReadBytes ?? options.maxFrameScanBytes,
-      ID3_FRAME_SCAN_LIMIT,
-    );
-    const encodingBase64 = (EncodingType.Base64 ?? 'base64') as 'base64';
-    const normalizedUri = uri.startsWith('content://') ? uri : stripUriQueryAndFragment(uri);
-    const mp4LikeHints = hasMp4LikeHints(uri, options);
-    let detectedMp4Like = mp4LikeHints;
-    const parseHeadBytes = (bytes: Uint8Array): Id3Tags => {
-      const id3 = parseId3Buffer(bytes, { includeCover });
-      const looksLikeMp4 = detectedMp4Like || hasMp4HeadEvidence(bytes);
-      detectedMp4Like = looksLikeMp4;
-      if (!detectedMp4Like) return id3;
-      return mergeMissingOrPlaceholderId3Tags(id3, parseMp4TagsFromBuffer(bytes, { includeCover, trustedTopLevel: true }));
-    };
-    const mergeMp4TailTags = async (currentTags: Id3Tags, size: number, readTail: (tailStart: number, tailReadLength: number) => Promise<Uint8Array>): Promise<Id3Tags> => {
-      if (!detectedMp4Like || size <= maxHeadBytes || maxTailBytes <= 0) return currentTags;
-      const tailReadLength = Math.min(maxTailBytes, size);
-      const tailStart = Math.max(0, size - tailReadLength);
-      const tailBytes = await readTail(tailStart, tailReadLength);
-      throwIfParseAborted(options.signal);
-      const tailTags = parseMp4TagsFromBuffer(tailBytes, {
-        includeCover,
-        trustedTopLevel: false,
-      });
-      return mergeMissingOrPlaceholderId3Tags(currentTags, tailTags);
-    };
-    try {
-      const b64 = await readAsStringAsync(normalizedUri, {
-        encoding: encodingBase64,
-        length: maxHeadBytes,
-      });
-      const bytes = base64ToBytes(b64);
-      const readRange = async (position: number, length: number): Promise<Uint8Array> =>
-        base64ToBytes(
-          await readAsStringAsync(normalizedUri, {
-            encoding: encodingBase64,
-            length,
-            position,
-          }),
-        );
-      throwIfParseAborted(options.signal);
-      let id3 = parseHeadBytes(bytes);
-      if (
-        !id3.cover &&
-        bytes.length >= 10 &&
-        bytes[0] === 0x49 &&
-        bytes[1] === 0x44 &&
-        bytes[2] === 0x33
-      ) {
-        try {
-          id3 = mergeId3Tags(id3, await parseId3TextFramesByRange(bytes, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
-        } catch (error) {
-          throwIfParseAborted(options.signal);
-          console.warn('[ID3Parser] Bounded ID3 frame scan failed.', error);
-        }
-      }
-      if (!detectedMp4Like) return id3;
-      try {
-        const info = await getId3FileInfo(normalizedUri);
-        if (!info.exists) return id3;
-        return await mergeMp4TailTags(id3, info.size, async (tailStart, tailReadLength) => {
-          const tailB64 = await readAsStringAsync(normalizedUri, {
-            encoding: encodingBase64,
-            length: tailReadLength,
-            position: tailStart,
-          });
-          return base64ToBytes(tailB64);
-        });
-      } catch {
-        throwIfParseAborted(options.signal);
-        return id3;
-      }
-    } catch {
-      throwIfParseAborted(options.signal);
-      // fallback to File API when legacy path is unavailable
-    }
-    const FileCtor = (
-      FileSystem as unknown as {
-        File?: new (u: string) => {
-          bytes: () => Promise<Uint8Array>;
-          open?: () => {
-            readBytes: (length: number) => Uint8Array;
-            offset: number | null;
-            close?: () => void;
-          };
-        };
-      }
-    ).File;
-    if (!FileCtor) return {};
-    try {
-      const info = await getId3FileInfo(normalizedUri);
-      if (!info.exists) return {};
-      const size = info.size;
-      if (size <= 0) return {};
-      const file = new FileCtor(normalizedUri);
-      const open = (
-        file as {
-          open?: () => {
-            readBytes: (length: number) => Uint8Array;
-            offset: number | null;
-            close?: () => void;
-          };
-        }
-      ).open;
-      if (typeof open === 'function') {
-        const handle = open.call(file);
-        if (handle) {
-          try {
-            throwIfParseAborted(options.signal);
-            const head = handle.readBytes(Math.min(maxHeadBytes, size));
-            const readRange = async (position: number, length: number): Promise<Uint8Array> => {
-              handle.offset = position;
-              return handle.readBytes(length);
-            };
-            let parsed = parseHeadBytes(head);
-            if (
-              head.length >= 10 &&
-              head[0] === 0x49 &&
-              head[1] === 0x44 &&
-              head[2] === 0x33
-            ) {
-              parsed = mergeId3Tags(parsed, await parseId3TextFramesByRange(head, readRange, { signal: options.signal, maxFrameOffsetBytes, maxFrameBodyReadBytes }));
-            }
-            if (detectedMp4Like) {
-              parsed = await mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
-                handle.offset = tailStart;
-                return handle.readBytes(tailReadLength);
-              });
-            }
-            return parsed;
-          } finally {
-            handle.close?.();
-          }
-        }
-      }
-      if (size > maxHeadBytes) {
-        // File.bytes() loads the entire file. Without File.open()/range reads, large
-        // media must return a controlled empty result rather than risk a memory spike.
-        warnLargeBytesFallbackSkipped(normalizedUri, size);
-        return {};
-      }
-      const bytes = await file.bytes();
-      throwIfParseAborted(options.signal);
-      return parseHeadBytes(bytes.subarray(0, maxHeadBytes));
-    } catch {
-      throwIfParseAborted(options.signal);
-      return {};
-    }
+    const context = createId3UriParseContext(uri, options);
+    const legacyResult = await tryParseId3WithLegacyReader(context);
+    return legacyResult ?? parseId3WithFileApi(context);
   } catch {
     throwIfParseAborted(options.signal);
     return {};

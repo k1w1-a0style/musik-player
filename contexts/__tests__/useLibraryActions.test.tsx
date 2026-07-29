@@ -170,7 +170,7 @@ describe('useLibraryActions', () => {
     await waitFor(async () => expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull());
   });
 
-  test('native sync does not set ref when add is superseded by a newer replacement intent', async () => {
+  test('native sync sets ref when add is superseded after starting', async () => {
     (TrackPlayer.add as jest.Mock).mockImplementationOnce(async () => {
       void runExclusiveNativeQueueReplacement(async () => undefined);
     });
@@ -193,7 +193,7 @@ describe('useLibraryActions', () => {
     await waitFor(() => expect(getByTestId('queue-ref').props.children).toBe('s2'));
     expect(getByTestId('base-queue-ref').props.children).toBe('s2');
     expect(getByTestId('playback-queue').props.children).toBe('s2');
-    expect(getByTestId('native-ref').props.children).toBe('');
+    expect(getByTestId('native-ref').props.children).toBe('s2');
   });
 
 
@@ -374,9 +374,10 @@ describe('useLibraryActions', () => {
     expect(TrackPlayer.add).not.toHaveBeenCalled();
   });
 
-  test('native reset failure prunes JS queue refs without marking native queue synced', async () => {
+  test('native reset failure preserves JS queue/current-song state to match the unchanged native queue', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
 
     const { getByTestId } = render(
       <LibraryProbe
@@ -393,14 +394,14 @@ describe('useLibraryActions', () => {
     act(() => fireEvent.press(getByTestId('set-songs')));
 
     await waitFor(() => expect(TrackPlayer.reset).toHaveBeenCalled());
-    await waitFor(() => expect(getByTestId('playback-queue').props.children).toBe('s2'));
-    expect(getByTestId('songs').props.children).toBe('s2,s3');
-    expect(getByTestId('queue-ref').props.children).toBe('s2');
-    expect(getByTestId('base-queue-ref').props.children).toBe('s2');
+    await waitFor(() => expect(getByTestId('songs').props.children).toBe('s2,s3'));
+    expect(getByTestId('playback-queue').props.children).toBe('s1,s2');
+    expect(getByTestId('queue-ref').props.children).toBe('s1,s2');
+    expect(getByTestId('base-queue-ref').props.children).toBe('s1,s2');
     expect(getByTestId('native-ref').props.children).toBe('s1,s2');
-    expect(getByTestId('queue-ref').props.children).not.toContain('s1');
-    expect(getByTestId('base-queue-ref').props.children).not.toContain('s1');
-    expect(getByTestId('playback-queue').props.children).not.toContain('s1');
+    expect(getByTestId('current-title').props.children).toBe('One');
+    expect(getByTestId('playback-queue-commits').props.children).toBe(0);
+    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s1');
     expect(warn).toHaveBeenCalledWith('[LibraryRemove] Failed to sync native queue after library update.', expect.any(Error));
   });
 
@@ -714,10 +715,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={[songs[1], songs[2]]}
       />,
     );
@@ -727,10 +728,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={songs}
       />,
     );
@@ -753,10 +754,10 @@ describe('useLibraryActions', () => {
       <LibraryProbe
         initialSongs={songs}
         initialCurrentSong={songs[0]}
-        initialPlaybackQueue={[songs[0], songs[1]]}
-        initialQueueRef={[songs[0], songs[1]]}
-        initialBaseQueueRef={[songs[0], songs[1]]}
-        initialNativeQueueRef={[songs[0], songs[1]]}
+        initialPlaybackQueue={[]}
+        initialQueueRef={[]}
+        initialBaseQueueRef={[]}
+        initialNativeQueueRef={[]}
         nextSongs={[songs[1], songs[2]]}
       />,
     );

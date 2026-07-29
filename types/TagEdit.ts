@@ -138,7 +138,7 @@ export interface WriteTagsResult {
 }
 
 export type WritableTagUriResolution =
-  | { ok: true; uri: string; source: 'fileInfo' | 'song'; uriType: Extract<TagEditUriType, 'file'> }
+  | { ok: true; uri: string; source: 'fileInfo' | 'song'; uriType: Extract<TagEditUriType, 'file' | 'content'> }
   | { ok: false; status: 'unsupportedUri' | 'permissionDenied'; reason: TagWriterErrorCode; message: string; source?: 'fileInfo' | 'song'; uriType: TagEditUriType };
 
 export interface TagWritePayload {

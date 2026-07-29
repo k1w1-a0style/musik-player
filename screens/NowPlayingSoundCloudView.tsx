@@ -17,6 +17,7 @@ import { useMusicContext } from '../contexts/MusicContext';
 import { useSongWaveform } from '../hooks/useSongWaveform';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import {
   getNowPlayingSoundCloudOverlayColors,
   getNowPlayingWaveformRestColor,
@@ -74,7 +75,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   const overlayColors = getNowPlayingSoundCloudOverlayColors(appearance);
 
   const togglePlayback = useCallback(() => {
-    if (currentSong) void togglePlayPause();
+    if (currentSong) void runPlaybackUiAction('soundcloud-toggle', togglePlayPause, { dropIfPending: true });
   }, [currentSong, togglePlayPause]);
 
   const handleNextPress = useCallback(() => {

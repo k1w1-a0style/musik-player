@@ -28,6 +28,22 @@ describe('waveformExtractionLifecycle', () => {
     jest.useRealTimers();
   });
 
+  test('lifecycle reset rejects active waiters even when native work ignores cancellation', async () => {
+    const native = deferred<NativeResult>();
+    const operation = jest.fn(() => native.promise);
+    const controller = new AbortController();
+
+    const waiter = scheduleNativeWaveformExtraction('song:stuck-source', operation, controller.signal);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(operation).toHaveBeenCalledTimes(1);
+
+    resetWaveformExtractionLifecycleForTests();
+
+    await expect(waiter).rejects.toThrow('Waveform lifecycle reset');
+    native.resolve({ points: [0.2, 0.8] });
+    await Promise.resolve();
+  });
+
   test('rejoins a detached same-source flight instead of starting a duplicate native call', async () => {
     const native = deferred<NativeResult>();
     const firstOperation = jest.fn(() => native.promise);

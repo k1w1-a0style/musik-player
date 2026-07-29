@@ -6,6 +6,7 @@ import { getTagEditCapability } from '../tagEditCapability';
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
 const draft = { songId: '1', tags: { title: 'New' } };
 const safMp3Song = (): Song => song({ uri: 'content://tree/song.mp3', fileInfo: { extension: 'mp3', source: 'saf' } });
+const durableSafRuntime = { safDurableWriterAvailable: true } as const;
 
 
 describe('tagWriteOrchestrator dry-run behavior', () => {
@@ -67,7 +68,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
   });
 
   test('content:// mp3 shows SAF warning and is plannable for native verification flow when source is SAF', () => {
-    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
+    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android', undefined, durableSafRuntime);
     expect(plan.warnings.join(' ')).toMatch(/SAF/i);
     expect(plan.blockingReasons).not.toContain('MissingWritePermission');
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
@@ -93,7 +94,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, cover: { mimeType: 'image/jpeg', data: new Uint8Array([0xff, 0xd8, 0xff]) } },
-      'android',
+      'android', undefined, durableSafRuntime,
     );
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
     expect(plan.warnings.join(' ')).toMatch(/post-write verification/i);
@@ -118,7 +119,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(
       safMp3Song(),
       { songId: '1', tags: { title: 'X' }, removeCover: true },
-      'android',
+      'android', undefined, durableSafRuntime,
     );
     expect(plan.blockingReasons).not.toContain('WriteNotImplemented');
   });
@@ -127,7 +128,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const plan = createTagWriteOperationPlan(
       song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }),
       draft,
-      'android',
+      'android', undefined, durableSafRuntime,
     );
     expect(plan.permission.canWrite).toBe(false);
     expect(plan.blockingReasons).toContain('WriteNotImplemented');
@@ -139,12 +140,12 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
     const m4aPlan = createTagWriteOperationPlan(
       song({ uri: 'content://tree/a.m4a', fileInfo: { extension: 'm4a', source: 'saf' } }),
       draft,
-      'android',
+      'android', undefined, durableSafRuntime,
     );
     const mp4Plan = createTagWriteOperationPlan(
       song({ uri: 'content://tree/a.mp4', fileInfo: { extension: 'mp4', source: 'saf' } }),
       draft,
-      'android',
+      'android', undefined, durableSafRuntime,
     );
     expect(m4aPlan.blockingReasons).not.toContain('UnsupportedFormat');
     expect(mp4Plan.blockingReasons).not.toContain('UnsupportedFormat');
@@ -219,7 +220,7 @@ describe('tagWriteOrchestrator dry-run behavior', () => {
 
 
   test('SAF capability plan claims durable transaction backup and crash recovery but not atomic replace', () => {
-    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android');
+    const plan = createTagWriteOperationPlan(safMp3Song(), draft, 'android', undefined, durableSafRuntime);
 
     expect(plan.backup.strategy).toBe('app-private-transaction-backup');
     expect(plan.backup.required).toBe(true);

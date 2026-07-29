@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
 import type { Song } from '../types/Song';
 import { shuffleItems } from '../utils/libraryShuffle';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 export type PlaySong = (song: Song, queue: Song[]) => unknown;
 export type HandleSongPress = (song: Song, queue: Song[]) => void;
@@ -29,7 +30,7 @@ export const useLibraryPlaybackActions = ({
   const handleShufflePress = useCallback(() => {
     if (songsForActiveList.length === 0) return;
     const shuffled = shuffleItems(songsForActiveList);
-    void playSong(shuffled[0], shuffled);
+    void runPlaybackUiAction('library-shuffle-play', () => playSong(shuffled[0], shuffled), { dropIfPending: true });
   }, [playSong, songsForActiveList]);
 
   const handlePlayActiveList = useCallback(() => {

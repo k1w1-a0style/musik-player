@@ -1,10 +1,15 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { State } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 
 type SleepTimerListener = (active: boolean) => void;
 type SleepTimerExpiryGuard = () => boolean;
 
+const SLEEP_TIMER_STORAGE_KEY = '@musikplayer:sleepTimerDeadlineMs';
+
 let sleepTimerDeadlineMs: number | null = null;
+let sleepTimerGeneration = 0;
+let sleepTimerPersistenceQueue: Promise<void> = Promise.resolve();
 let sleepTimerTimeout: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<SleepTimerListener>();
 
@@ -24,6 +29,24 @@ const logSleepTimerError = (error: unknown): void => {
   console.warn('[sleepTimerController] Sleep timer expiry failed', error);
 };
 
+const logSleepTimerPersistenceError = (operation: string, error: unknown): void => {
+  console.warn(`[sleepTimerController] Sleep timer ${operation} failed`, error);
+};
+
+const persistSleepTimerDeadline = (deadlineMs: number | null, generation: number): void => {
+  sleepTimerPersistenceQueue = sleepTimerPersistenceQueue
+    .catch(() => undefined)
+    .then(async () => {
+      if (sleepTimerGeneration !== generation) return;
+      if (deadlineMs === null) {
+        await AsyncStorage.removeItem(SLEEP_TIMER_STORAGE_KEY);
+      } else {
+        await AsyncStorage.setItem(SLEEP_TIMER_STORAGE_KEY, String(deadlineMs));
+      }
+    })
+    .catch(error => logSleepTimerPersistenceError(deadlineMs === null ? 'clear' : 'save', error));
+};
+
 const retrySleepTimerAfterError = (deadlineMs: number): void => {
   if (sleepTimerDeadlineMs !== deadlineMs) return;
 
@@ -38,16 +61,14 @@ const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, 
 export const pausePlaybackExplicitly = async (
   shouldPause: SleepTimerExpiryGuard = () => true,
 ): Promise<boolean> => {
-  const state = (await TrackPlayer.getPlaybackState()).state;
-  if (!shouldPause()) return false;
-  if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
-
-  await runExclusiveNativePlaybackControl(async () => {
-    if (!shouldPause()) return;
+  return runExclusiveNativePlaybackControl(async () => {
+    if (!shouldPause()) return false;
+    const state = (await TrackPlayer.getPlaybackState()).state;
+    if (!shouldPause()) return false;
+    if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
     await TrackPlayer.pause();
+    return shouldPause();
   });
-
-  return shouldPause();
 };
 
 export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Promise<boolean> => {
@@ -69,6 +90,8 @@ export const enforceExpiredSleepTimer = async (nowMs: number = Date.now()): Prom
   }
 
   sleepTimerDeadlineMs = null;
+  sleepTimerGeneration += 1;
+  persistSleepTimerDeadline(null, sleepTimerGeneration);
   notifySleepTimerListeners();
   return true;
 };
@@ -88,16 +111,47 @@ export const startSleepTimer = (minutes: number): void => {
   if (!Number.isFinite(durationMs) || durationMs <= 0) return;
 
   sleepTimerDeadlineMs = Date.now() + durationMs;
+  sleepTimerGeneration += 1;
+  persistSleepTimerDeadline(sleepTimerDeadlineMs, sleepTimerGeneration);
   scheduleSleepTimerTimeout();
   notifySleepTimerListeners();
 };
 
 export const cancelSleepTimer = (): void => {
   clearSleepTimerTimeout();
-  if (sleepTimerDeadlineMs === null) return;
-
+  const wasActive = sleepTimerDeadlineMs !== null;
   sleepTimerDeadlineMs = null;
+  sleepTimerGeneration += 1;
+  persistSleepTimerDeadline(null, sleepTimerGeneration);
+  if (wasActive) notifySleepTimerListeners();
+};
+
+export const restorePersistedSleepTimer = async (nowMs: number = Date.now()): Promise<boolean> => {
+  const generationAtStart = sleepTimerGeneration;
+  let raw: string | null;
+  try {
+    raw = await AsyncStorage.getItem(SLEEP_TIMER_STORAGE_KEY);
+  } catch (error) {
+    logSleepTimerPersistenceError('restore', error);
+    return false;
+  }
+
+  if (sleepTimerGeneration !== generationAtStart || raw === null) return false;
+  const deadlineMs = Number(raw);
+  if (!Number.isSafeInteger(deadlineMs) || deadlineMs <= 0) {
+    sleepTimerGeneration += 1;
+    persistSleepTimerDeadline(null, sleepTimerGeneration);
+    return false;
+  }
+
+  sleepTimerDeadlineMs = deadlineMs;
   notifySleepTimerListeners();
+  if (deadlineMs <= nowMs) {
+    await enforceExpiredSleepTimer(nowMs);
+    return false;
+  }
+  scheduleSleepTimerTimeout();
+  return true;
 };
 
 export const isSleepTimerActive = (): boolean => sleepTimerDeadlineMs !== null;
@@ -112,8 +166,11 @@ export const subscribeToSleepTimer = (listener: SleepTimerListener): (() => void
   };
 };
 
-export const resetSleepTimerForTests = (): void => {
+export const resetSleepTimerForTests = (options: { preservePersisted?: boolean } = {}): void => {
   clearSleepTimerTimeout();
   sleepTimerDeadlineMs = null;
+  sleepTimerGeneration += 1;
+  sleepTimerPersistenceQueue = Promise.resolve();
   listeners.clear();
+  if (!options.preservePersisted) void AsyncStorage.removeItem(SLEEP_TIMER_STORAGE_KEY);
 };

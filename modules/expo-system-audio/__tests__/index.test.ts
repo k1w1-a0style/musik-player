@@ -107,3 +107,31 @@ test('forwards native recovery APIs when present', async () => {
   await expect(SystemAudio.recoverPendingAudioTagTransactions('content://song.mp3')).resolves.toMatchObject({ errorCode: 'RecoveryPending', recoveryPending: true });
   expect(recoverPendingAudioTagTransactions).toHaveBeenCalledWith('content://song.mp3');
 });
+
+
+test('binds equalizer initialization to a positive audio session', async () => {
+  jest.resetModules();
+  const eqInit = jest.fn().mockResolvedValue({ available: true });
+  jest.doMock('expo', () => ({
+    NativeModule: class {},
+    requireNativeModule: jest.fn((name: string) => {
+      if (name === 'ExpoSystemAudio') return {
+        eqInit,
+        eqSetEnabled: jest.fn(),
+        eqSetBandLevel: jest.fn(),
+        eqRelease: jest.fn(),
+        extractPalette: jest.fn(),
+        extractEmbeddedArtwork: jest.fn(),
+        extractAudioInfo: jest.fn(),
+      };
+      throw new Error('missing optional module');
+    }),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SystemAudio } = require('../index');
+  await expect(SystemAudio.eqInit(41)).resolves.toEqual({ available: true });
+  await expect(SystemAudio.eqInit(0)).resolves.toBeNull();
+  expect(eqInit).toHaveBeenCalledTimes(1);
+  expect(eqInit).toHaveBeenCalledWith(41);
+});

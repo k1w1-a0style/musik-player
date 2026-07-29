@@ -45,12 +45,13 @@ data class DigestInfo(
 )
 
 data class TransactionJournal(
-  val schemaVersion: Int = 1,
+  val schemaVersion: Int = 2,
   val transactionId: String,
   val targetUri: String,
   val state: TransactionState,
   val createdAtEpochMs: Long,
   val updatedAtEpochMs: Long,
+  val maxBytes: Long = MAX_SAFE_TAG_WRITE_FILE_BYTES,
   val originalSizeBytes: Long? = null,
   val originalSha256Hex: String? = null,
   val rewrittenSizeBytes: Long? = null,
@@ -69,6 +70,7 @@ data class TransactionJournal(
     put("state", state.name)
     put("createdAtEpochMs", createdAtEpochMs)
     put("updatedAtEpochMs", updatedAtEpochMs)
+    put("maxBytes", maxBytes)
     put("originalSizeBytes", originalSizeBytes ?: JSONObject.NULL)
     put("originalSha256Hex", originalSha256Hex ?: JSONObject.NULL)
     put("rewrittenSizeBytes", rewrittenSizeBytes ?: JSONObject.NULL)
@@ -77,6 +79,8 @@ data class TransactionJournal(
   }.toString()
 
   fun validateForState(directory: File? = null) {
+    require(maxBytes in 1..MAX_SAFE_TAG_WRITE_FILE_BYTES) { "invalid max bytes" }
+
     fun requireOriginal(requireFile: Boolean) {
       require(originalSizeBytes != null && originalSha256Hex != null) { "original digest missing" }
       if (requireFile && directory != null) {
@@ -111,7 +115,8 @@ data class TransactionJournal(
   }
 
   companion object {
-    private const val EXPECTED_SCHEMA_VERSION = 1
+    private const val CURRENT_SCHEMA_VERSION = 2
+    private val supportedSchemaVersions = setOf(1, CURRENT_SCHEMA_VERSION)
     private val transactionIdRegex = Regex("^[A-Za-z0-9._-]{1,80}$")
     private val sha256Regex = Regex("^[0-9a-f]{64}$")
     private val allowedChangedFields = setOf(
@@ -143,7 +148,7 @@ data class TransactionJournal(
       }
       val json = JSONObject(text)
       val schemaVersion = json.getInt("schemaVersion")
-      require(schemaVersion == EXPECTED_SCHEMA_VERSION) { "unsupported journal schema" }
+      require(schemaVersion in supportedSchemaVersions) { "unsupported journal schema" }
 
       val transactionId = json.getString("transactionId")
       require(transactionIdRegex.matches(transactionId)) { "invalid transaction id" }
@@ -178,6 +183,17 @@ data class TransactionJournal(
       val changedFields = (0 until fieldsJson.length()).map { fieldsJson.getString(it) }
       require(changedFields.all { it in allowedChangedFields }) { "invalid changed field" }
 
+      val originalSizeBytes = optionalSize("originalSizeBytes")
+      val rewrittenSizeBytes = optionalSize("rewrittenSizeBytes")
+      val maxBytes = if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+        json.getLong("maxBytes")
+      } else {
+        // V1 journals predate the persisted budget. The writer was already
+        // hard-limited to 50 MiB, so recover under that same finite ceiling.
+        MAX_SAFE_TAG_WRITE_FILE_BYTES
+      }
+      require(maxBytes in 1..MAX_SAFE_TAG_WRITE_FILE_BYTES) { "invalid max bytes" }
+
       return TransactionJournal(
         schemaVersion = schemaVersion,
         transactionId = transactionId,
@@ -185,9 +201,10 @@ data class TransactionJournal(
         state = state,
         createdAtEpochMs = createdAtEpochMs,
         updatedAtEpochMs = updatedAtEpochMs,
-        originalSizeBytes = optionalSize("originalSizeBytes"),
+        maxBytes = maxBytes,
+        originalSizeBytes = originalSizeBytes,
         originalSha256Hex = optionalSha("originalSha256Hex"),
-        rewrittenSizeBytes = optionalSize("rewrittenSizeBytes"),
+        rewrittenSizeBytes = rewrittenSizeBytes,
         rewrittenSha256Hex = optionalSha("rewrittenSha256Hex"),
         changedFields = changedFields,
       ).also { it.validateForState(requireFilesIn) }
@@ -235,6 +252,9 @@ object AndroidDirectoryDurabilitySync : DirectoryDurabilitySync {
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
+  private val availableBytesProvider: (File) -> Long = { directory ->
+    StatFs(directory.absolutePath).availableBytes
+  },
 ) {
   companion object {
     const val MAX_JOURNAL_BYTES = 64 * 1024
@@ -344,10 +364,10 @@ class TransactionStorage(
     return next
   }
 
-  fun availableBytes(): Long = try {
-    StatFs(root.absolutePath).availableBytes
+  fun availableBytes(): Long? = try {
+    availableBytesProvider(root).takeIf { it >= 0L }
   } catch (_: Throwable) {
-    Long.MAX_VALUE
+    null
   }
 
   private fun ensureDirectory(directory: File) {
@@ -591,6 +611,13 @@ class AudioTagTransactionManager(
         message = "Maximum file size must be positive.",
       )
     }
+    if (request.maxBytes > MAX_SAFE_TAG_WRITE_FILE_BYTES) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "FileTooLarge",
+        message = "Maximum file size exceeds the native safety limit.",
+      )
+    }
     val knownOriginalSize = store.size(request.uri)?.takeIf { it >= 0L }
     if (knownOriginalSize != null && knownOriginalSize > request.maxBytes) {
       return@withLock TransactionResult(
@@ -612,7 +639,15 @@ class AudioTagTransactionManager(
       val value = rawValue.coerceAtLeast(0L)
       if (Long.MAX_VALUE - total < value) Long.MAX_VALUE else total + value
     }
-    if (storage.availableBytes() < expectedSpace) {
+    val availableBytes = storage.availableBytes()
+    if (availableBytes == null) {
+      return@withLock TransactionResult(
+        success = false,
+        errorCode = "InsufficientStorage",
+        message = "App-private storage capacity could not be verified.",
+      )
+    }
+    if (availableBytes < expectedSpace) {
       return@withLock TransactionResult(
         success = false,
         errorCode = "InsufficientStorage",
@@ -628,6 +663,7 @@ class AudioTagTransactionManager(
       state = TransactionState.PREPARING,
       createdAtEpochMs = System.currentTimeMillis(),
       updatedAtEpochMs = System.currentTimeMillis(),
+      maxBytes = request.maxBytes,
       changedFields = request.changedFields,
     )
 
@@ -1044,7 +1080,7 @@ class AudioTagTransactionManager(
     journal: TransactionJournal,
   ): TransactionResult {
     val uri = Uri.parse(journal.targetUri)
-    val originalDigest = verifyOriginalBackup(directory, journal, Long.MAX_VALUE) ?: run {
+    val originalDigest = verifyOriginalBackup(directory, journal, journal.maxBytes) ?: run {
       markRecoveryFailed(
         directory,
         journal,
@@ -1076,7 +1112,7 @@ class AudioTagTransactionManager(
     }
 
     val liveDigest = try {
-      StreamDigests.hashUri(store, uri, Long.MAX_VALUE)
+      StreamDigests.hashUri(store, uri, journal.maxBytes)
     } catch (_: Throwable) {
       null
     } ?: return TransactionResult(
@@ -1110,7 +1146,7 @@ class AudioTagTransactionManager(
         uri = uri,
         original = storage.original(directory),
         rewritten = storage.rewritten(directory),
-        maxBytes = Long.MAX_VALUE,
+        maxBytes = journal.maxBytes,
       ) -> {
       if (!store.hasWritePermission(uri) || !store.isWritable(uri)) {
         TransactionResult(
@@ -1136,7 +1172,7 @@ class AudioTagTransactionManager(
     val restore = restoreOriginal(
       directory = directory,
       journal = journal,
-      maxBytes = Long.MAX_VALUE,
+      maxBytes = journal.maxBytes,
       recoveryErrorCode = "RecoveryFailed",
     )
     return if (restore.restored && restore.verified) {

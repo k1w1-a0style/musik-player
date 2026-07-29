@@ -17,10 +17,10 @@ ${permissions.map(permission => `  <uses-permission android:name="${permission}"
 </manifest>
 `;
 
-const runGate = (permissions: string[]) => {
+const runGate = (permissions: string[] | string) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'android-manifest-gate-'));
   const file = path.join(dir, 'AndroidManifest.xml');
-  fs.writeFileSync(file, manifest(permissions), 'utf8');
+  fs.writeFileSync(file, typeof permissions === 'string' ? permissions : manifest(permissions), 'utf8');
   const result = spawnSync(process.execPath, [gateScript, file], { encoding: 'utf8' });
   fs.rmSync(dir, { recursive: true, force: true });
   return result;
@@ -34,6 +34,15 @@ const requiredPermissions = [
 ];
 
 describe('generated AndroidManifest permission gate', () => {
+  test('ignores permissions explicitly removed by the manifest merger', () => {
+    const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+</manifest>`);
+    expect(result.status).toBe(0);
+  });
   it('passes a release-safe generated manifest', () => {
     const result = runGate(requiredPermissions);
 
@@ -50,7 +59,7 @@ describe('generated AndroidManifest permission gate', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
-      'Generated AndroidManifest is missing required permission: android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+      'Generated AndroidManifest missing required permission: android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     );
   });
 
@@ -60,6 +69,15 @@ describe('generated AndroidManifest permission gate', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
       'Generated AndroidManifest contains forbidden permission: android.permission.RECORD_AUDIO',
+    );
+  });
+
+  it('fails when an undeclared permission is present', () => {
+    const result = runGate([...requiredPermissions, 'android.permission.BODY_SENSORS']);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Generated AndroidManifest contains unexpected permission outside the release allowlist: android.permission.BODY_SENSORS',
     );
   });
 

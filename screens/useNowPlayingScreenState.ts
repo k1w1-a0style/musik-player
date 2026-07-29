@@ -9,6 +9,7 @@ import { useNowPlayingPresentation } from './useNowPlayingPresentation';
 import { useNowPlayingQueue } from './useNowPlayingQueue';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import type { RepeatMode, Song } from '../types/Song';
 
 export const buildSavedQueuePlaylistName = (date = new Date()): string => {
@@ -20,7 +21,7 @@ export const buildSavedQueuePlaylistName = (date = new Date()): string => {
   return `Gespeicherte Warteschlange — ${ts}`;
 };
 
-const noopQueueShift = async (): Promise<boolean> => false;
+const noopQueueShift = async () => ({ status: 'noop' as const });
 
 export const getAdjacentNowPlayingSongs = (
   playbackQueue: Song[],
@@ -85,11 +86,11 @@ export const useNowPlayingScreenState = () => {
 
   const swipeToNext = () => {
     if (!canSwipeToNext) return;
-    void next();
+    void runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
   };
 
   const swipeToPrevious = () => {
-    void previous();
+    void runPlaybackUiAction('now-playing-previous', previous, { dropIfPending: true });
   };
 
   return {

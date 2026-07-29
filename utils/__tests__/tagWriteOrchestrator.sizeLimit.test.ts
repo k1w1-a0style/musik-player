@@ -56,4 +56,27 @@ describe('tag write orchestrator size limit', () => {
     expect(result.primaryBlockingReason).toBe('FileTooLarge');
     expect(result.blockingReasons).toContain('FileTooLarge');
   });
+
+  it('does not let a caller widen the hard safety ceiling', () => {
+    const plan = createTagWriteOperationPlan(
+      songWithSize(DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES),
+      draft,
+      'android',
+      DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES + 1,
+    );
+
+    expect(plan.blockingReasons).toContain('FileTooLarge');
+    expect(assertSafeWriteAllowed(plan)).toBe('FileTooLarge');
+  });
+
+  it('rejects invalid custom limits', () => {
+    const plan = createTagWriteOperationPlan(
+      songWithSize(1),
+      draft,
+      'android',
+      Number.NaN,
+    );
+
+    expect(plan.blockingReasons).toContain('InvalidTagData');
+  });
 });

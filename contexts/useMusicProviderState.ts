@@ -1,7 +1,11 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Playlist, Song } from '../types/Song';
 
 export interface MusicProviderState {
+  hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
+  setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
+  hydrationRetryToken?: number;
+  retryHydration?: () => void;
   isReady: boolean;
   setIsReady: Dispatch<SetStateAction<boolean>>;
   songs: Song[];
@@ -18,6 +22,21 @@ export interface MusicProviderState {
 
 export const useMusicProviderState = (): MusicProviderState => {
   const [isReady, setIsReady] = useState(false);
+  const [hydrationStatus, setHydrationStatusState] = useState<'loading' | 'ready' | 'degraded' | 'retry-required'>('loading');
+  const [hydrationRetryToken, setHydrationRetryToken] = useState(0);
+  const retryPendingRef = useRef(false);
+  const setHydrationStatus = useCallback<Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>>(next => {
+    setHydrationStatusState(previous => {
+      const value = typeof next === 'function' ? next(previous) : next;
+      if (value !== 'loading') retryPendingRef.current = false;
+      return value;
+    });
+  }, []);
+  const retryHydration = useCallback(() => {
+    if ((hydrationStatus !== 'degraded' && hydrationStatus !== 'retry-required') || retryPendingRef.current) return;
+    retryPendingRef.current = true;
+    setHydrationRetryToken(value => value + 1);
+  }, [hydrationStatus]);
   const [songs, setSongsState] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
@@ -25,6 +44,10 @@ export const useMusicProviderState = (): MusicProviderState => {
   const [shuffle, setShuffle] = useState(false);
 
   return {
+    hydrationStatus,
+    setHydrationStatus,
+    hydrationRetryToken,
+    retryHydration,
     isReady,
     setIsReady,
     songs,

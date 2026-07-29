@@ -28,6 +28,20 @@ module.exports = ({ config }) => {
     android.package = 'com.k1w1a0style.musikplayer.dev';
   }
 
+  const blockedPermissions = new Set(
+    Array.isArray(android.blockedPermissions) ? android.blockedPermissions : [],
+  );
+  if (!isDevelopmentBuild) {
+    [
+      'android.permission.CAMERA',
+      'android.permission.RECORD_AUDIO',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+    ].forEach(permission => blockedPermissions.add(permission));
+  }
+  android.blockedPermissions = [...blockedPermissions];
+
   return {
     ...base,
     android,

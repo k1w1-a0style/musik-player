@@ -24,6 +24,52 @@ describe('useLibrarySongViewMode', () => {
     await waitFor(() => expect(result.current.viewMode).toBe('gridSmall'));
   });
 
+  test('keeps a user choice made before hydration resolves', async () => {
+    let resolveStored!: (value: 'list' | 'gridSmall') => void;
+    mockedStorage.getLibrarySongViewMode.mockImplementationOnce(() => new Promise(resolve => {
+      resolveStored = resolve;
+    }));
+    const { result } = renderHook(() => useLibrarySongViewMode());
+
+    act(() => {
+      result.current.setViewMode('gridSmall');
+    });
+    expect(result.current.viewMode).toBe('gridSmall');
+
+    await act(async () => {
+      resolveStored('list');
+    });
+
+    expect(result.current.viewMode).toBe('gridSmall');
+    expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridSmall');
+  });
+
+  test('late hydration cannot replace the rollback target after a successful user write', async () => {
+    let resolveStored!: (value: 'list' | 'gridSmall') => void;
+    let rejectSecondWrite!: (error: Error) => void;
+    mockedStorage.getLibrarySongViewMode.mockImplementationOnce(() => new Promise(resolve => {
+      resolveStored = resolve;
+    }));
+    mockedStorage.setLibrarySongViewMode
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        rejectSecondWrite = reject;
+      }));
+    const { result } = renderHook(() => useLibrarySongViewMode());
+
+    act(() => result.current.setViewMode('gridSmall'));
+    await waitFor(() => expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridSmall'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => result.current.setViewMode('list'));
+
+    await act(async () => resolveStored('list'));
+    await act(async () => rejectSecondWrite(new Error('write failed')));
+
+    await waitFor(() => expect(result.current.viewMode).toBe('gridSmall'));
+  });
+
   test('cycles and persists the next view mode', async () => {
     const { result } = renderHook(() => useLibrarySongViewMode());
     await waitFor(() => expect(result.current.viewMode).toBe('list'));
@@ -33,6 +79,6 @@ describe('useLibrarySongViewMode', () => {
     });
 
     expect(result.current.viewMode).toBe('gridLarge');
-    expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridLarge');
+    await waitFor(() => expect(mockedStorage.setLibrarySongViewMode).toHaveBeenCalledWith('gridLarge'));
   });
 });

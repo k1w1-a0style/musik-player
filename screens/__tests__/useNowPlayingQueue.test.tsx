@@ -3,6 +3,7 @@ import { Pressable, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useNowPlayingQueue } from '../useNowPlayingQueue';
 import type { Song } from '../../types/Song';
+import type { NativeQueueActionResult } from '../../contexts/playbackQueueActionHelpers';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A' },
@@ -16,7 +17,7 @@ const QueueProbe = ({
 }: {
   playbackQueue: Song[];
   currentSong: Song | null;
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;
 }) => {
   const { queue, playQueueItemById } = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
 
@@ -32,7 +33,7 @@ const QueueProbe = ({
 
 describe('useNowPlayingQueue', () => {
   test('builds queue from playback queue', () => {
-    const playSong = jest.fn(async () => undefined);
+    const playSong = jest.fn(async () => ({ status: 'noop' as const }));
     const { getByTestId } = render(
       <QueueProbe playbackQueue={songs} currentSong={songs[0]} playSong={playSong} />,
     );
@@ -41,7 +42,7 @@ describe('useNowPlayingQueue', () => {
   });
 
   test('falls back to current song when playback queue is empty', () => {
-    const playSong = jest.fn(async () => undefined);
+    const playSong = jest.fn(async () => ({ status: 'noop' as const }));
     const { getByTestId } = render(
       <QueueProbe playbackQueue={[]} currentSong={songs[0]} playSong={playSong} />,
     );
@@ -50,7 +51,7 @@ describe('useNowPlayingQueue', () => {
   });
 
   test('plays queue item by id and skips current or missing ids', () => {
-    const playSong = jest.fn(async () => undefined);
+    const playSong = jest.fn(async () => ({ status: 'noop' as const }));
     const { getByTestId } = render(
       <QueueProbe playbackQueue={songs} currentSong={songs[0]} playSong={playSong} />,
     );

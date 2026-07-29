@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Text } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react-native';
 import TrackPlayer, { State } from 'react-native-track-player';
 import {
   clampVolume,
@@ -8,6 +8,17 @@ import {
   usePlaybackControls,
 } from '../usePlaybackControls';
 import { resetSeekControllerForTests } from '../../utils/seekController';
+
+
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
 
 const PlaybackControlsProbe = () => {
   const {
@@ -82,6 +93,69 @@ describe('usePlaybackControls', () => {
 
     expect(getByTestId('repeat').props.children).toBe('all');
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
+  });
+
+
+  test('serializes volume writes and commits only the latest queued slider value', async () => {
+    const firstWrite = deferred<void>();
+    const firstWriteStarted = deferred<void>();
+    (TrackPlayer.setVolume as jest.Mock)
+      .mockImplementationOnce(() => {
+        firstWriteStarted.resolve();
+        return firstWrite.promise;
+      })
+      .mockResolvedValue(undefined);
+    const hook = renderHook(() => usePlaybackControls());
+
+    let firstRequest!: Promise<void>;
+    let middleRequest!: Promise<void>;
+    let latestRequest!: Promise<void>;
+    await act(async () => {
+      firstRequest = hook.result.current.setVolume(0.2);
+      await firstWriteStarted.promise;
+      middleRequest = hook.result.current.setVolume(0.5);
+      latestRequest = hook.result.current.setVolume(0.8);
+    });
+
+    expect(hook.result.current.volume).toBe(0.8);
+    expect(TrackPlayer.setVolume).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.setVolume).toHaveBeenNthCalledWith(1, 0.2);
+
+    await act(async () => {
+      firstWrite.resolve();
+      await Promise.all([firstRequest, middleRequest, latestRequest]);
+    });
+
+    expect(TrackPlayer.setVolume).toHaveBeenCalledTimes(2);
+    expect(TrackPlayer.setVolume).toHaveBeenNthCalledWith(2, 0.8);
+    expect(hook.result.current.volume).toBe(0.8);
+    hook.unmount();
+  });
+
+  test('serializes rapid repeat taps without reusing a stale rendered mode', async () => {
+    const firstWrite = deferred<void>();
+    (TrackPlayer.setRepeatMode as jest.Mock)
+      .mockImplementationOnce(() => firstWrite.promise)
+      .mockResolvedValue(undefined);
+    const hook = renderHook(() => usePlaybackControls());
+
+    let firstRequest!: Promise<void>;
+    let secondRequest!: Promise<void>;
+    await act(async () => {
+      firstRequest = hook.result.current.cycleRepeatMode();
+      await Promise.resolve();
+      secondRequest = hook.result.current.cycleRepeatMode();
+    });
+
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      firstWrite.resolve();
+      await Promise.all([firstRequest, secondRequest]);
+    });
+
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.repeatMode).toBe('one');
+    hook.unmount();
   });
 
   test('toggles playback based on current TrackPlayer state', async () => {

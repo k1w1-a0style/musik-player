@@ -18,6 +18,15 @@ const draft = {
 };
 
 describe('SAF write-plan native availability', () => {
+  test('fails closed when runtime capability information is absent', () => {
+    const plan = createTagWriteOperationPlan(safSong, draft, 'android');
+
+    expect(plan.permission.canWrite).toBe(false);
+    expect(plan.blockingReasons).toContain('WriteNotImplemented');
+    expect(plan.safetyCapabilities.durableBackup).toBe(false);
+    expect(plan.safetyCapabilities.crashRecovery).toBe(false);
+  });
+
   test('fails closed and exposes no safety guarantees without the durable recovery writer', () => {
     const plan = createTagWriteOperationPlan(
       safSong,

@@ -87,7 +87,7 @@ concurrency:
 jobs:
   autofix:
     name: Auto-fix repo (optional writeback)
-    if: ${{ inputs.autofix == true }}
+    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' && inputs.autofix == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -366,7 +366,7 @@ jobs:
 
   build:
     needs: [autofix]
-    if: ${{ always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
+    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' && always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
     permissions:
       contents: read
 

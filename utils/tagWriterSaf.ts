@@ -1,12 +1,12 @@
 import SystemAudio, { type AudioTagWriteRequest, type AudioTagWriteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { TagEditDraft, WriteTagsResult } from '../types/TagEdit';
-import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 import { withUriWriteLock } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
 import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { buildNativeTagWriteRequest, changedFieldsForNativeTagDraft } from './tagWriterNativeRequest';
+import { resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
 
 const failureStatus = (code?: string): WriteTagsResult['status'] => {
   if (code === 'MissingWritePermission') return 'permissionDenied';
@@ -63,7 +63,7 @@ export const writeTagsToSafContentUri = async (
 
     try {
       validateTagWriteDraftOrThrow(draft);
-      const maxBytes = options?.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
+      const maxBytes = resolveSafeTagWriteMaxFileSizeBytes(options?.maxFileSizeBytes);
       const request: AudioTagWriteRequest = buildNativeTagWriteRequest(draft, container, maxBytes);
       return toResult(await SystemAudio.writeAudioTags(uri, request));
     } catch (error) {

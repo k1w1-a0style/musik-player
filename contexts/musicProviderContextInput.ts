@@ -2,7 +2,7 @@ import type { MusicContextValue } from './musicContextTypes';
 
 type StateInput = Pick<
   MusicContextValue,
-  'songs' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady'
+  'songs' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady' | 'hydrationStatus' | 'retryHydration'
 >;
 
 type LibraryInput = Pick<

@@ -13,8 +13,12 @@ import {
   getUriType,
 } from './tagEditCapability';
 import { validateCoverPayload, validateEditableTags } from './tagValidation';
+import {
+  classifyTagWriteMaxFileSizeBytes,
+  DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
+} from './tagWriterLimits';
 
-export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
+export { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriterLimits';
 
 export type TagWriteRuntimeAvailability = {
   /**
@@ -92,7 +96,42 @@ const hasConcreteWriter = (
 ): boolean => {
   if (!sourceCanWrite) return false;
   if (uriType !== 'content') return true;
-  return runtime.safDurableWriterAvailable ?? true;
+  return runtime.safDurableWriterAvailable === true;
+};
+
+const validateDraftAndTarget = (
+  uri: string | undefined,
+  uriType: string,
+  container: TagEditableContainer,
+  draft: TagEditDraft,
+): TagWriterErrorCode[] => {
+  const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
+  const tagValidation = validateEditableTags(normalized.tags);
+  const errors: TagWriterErrorCode[] = [];
+  if (!tagValidation.valid || !validateCoverPayload(normalized.cover))
+    errors.push('InvalidTagData');
+  if (!uri || ['empty', 'unknown', 'remote'].includes(uriType))
+    errors.push('UnsupportedUri');
+  if (container === 'unsupported') errors.push('UnsupportedFormat');
+  return errors;
+};
+
+const validateWriterAndSize = (
+  uriType: string,
+  container: TagEditableContainer,
+  concreteWriterAvailable: boolean,
+  knownFileSize: number | undefined,
+  maxFileSizeBytes: number,
+): TagWriterErrorCode[] => {
+  const errors: TagWriterErrorCode[] = [];
+  const sizeLimitError = classifyTagWriteMaxFileSizeBytes(maxFileSizeBytes);
+  if (sizeLimitError) errors.push(sizeLimitError);
+  if (!sizeLimitError && knownFileSize !== undefined && knownFileSize > maxFileSizeBytes)
+    errors.push('FileTooLarge');
+  const supportedFileTarget = uriType === 'file' && container !== 'unsupported';
+  if ((uriType === 'content' || supportedFileTarget) && !concreteWriterAvailable)
+    errors.push('WriteNotImplemented');
+  return errors;
 };
 
 export const validateWritePreconditions = (
@@ -102,29 +141,22 @@ export const validateWritePreconditions = (
   maxFileSizeBytes = DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
   runtime: TagWriteRuntimeAvailability = {},
 ): TagWriterErrorCode[] => {
-  const errors: TagWriterErrorCode[] = [];
   const uri = song.fileInfo?.uri ?? song.uri;
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   const uriType = getUriType(uri);
   const concreteWriterAvailable = hasConcreteWriter(uriType, capability.canWrite, runtime);
-  const normalized = { ...draft, cover: draft.removeCover ? undefined : draft.cover };
   const knownFileSize = getKnownFileSize(song);
-
-  const tagValidation = validateEditableTags(normalized.tags);
-  if (!tagValidation.valid || !validateCoverPayload(normalized.cover))
-    errors.push('InvalidTagData');
-  if (!uri || uriType === 'empty' || uriType === 'unknown' || uriType === 'remote')
-    errors.push('UnsupportedUri');
-  if (container === 'unsupported') errors.push('UnsupportedFormat');
-  if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes)
-    errors.push('FileTooLarge');
-  if (uriType === 'content' && !concreteWriterAvailable)
-    errors.push('WriteNotImplemented');
-  if (uriType === 'file' && container !== 'unsupported' && !concreteWriterAvailable)
-    errors.push('WriteNotImplemented');
-
-  return [...new Set(errors)];
+  return [...new Set([
+    ...validateDraftAndTarget(uri, uriType, container, draft),
+    ...validateWriterAndSize(
+      uriType,
+      container,
+      concreteWriterAvailable,
+      knownFileSize,
+      maxFileSizeBytes,
+    ),
+  ])];
 };
 
 export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => {
@@ -149,6 +181,108 @@ export const createRollbackPlan = (plan: WriteOperationPlan): RollbackPlan => {
   return { required: false, supportsRollback: false, steps: [] };
 };
 
+interface TagWritePlanContext {
+  safeUri: string;
+  uriType: WriteOperationPlan['uriType'];
+  container: WriteOperationPlan['container'];
+  concreteWriterAvailable: boolean;
+  permissionReason?: string;
+  knownFileSize?: number;
+  maxFileSizeBytes: number;
+}
+
+const buildTagWriteWarnings = (
+  draft: TagEditDraft,
+  context: TagWritePlanContext,
+): string[] => {
+  const warnings = context.permissionReason ? [context.permissionReason] : [];
+  const containerWarn = containerWarning(
+    context.container,
+    context.uriType,
+    context.concreteWriterAvailable,
+  );
+  if (containerWarn) warnings.push(containerWarn);
+  if (draft.removeCover && draft.cover) warnings.push('removeCover=true takes precedence over cover payload.');
+  if (typeof context.knownFileSize === 'number' && context.knownFileSize > context.maxFileSizeBytes) {
+    warnings.push(
+      `File is larger than ${Math.round(context.maxFileSizeBytes / (1024 * 1024))} MB, so in-app tag writing is blocked before reading bytes.`,
+    );
+  }
+  if (context.uriType === 'content') {
+    warnings.push(context.concreteWriterAvailable
+      ? 'SAF/content:// writes require native ContentResolver write permission, provider writable flags, app-private transaction backup, rollback, crash recovery, and post-write verification; they do not provide atomic replacement.'
+      : 'SAF/content:// writing is blocked because the loaded native build does not expose the complete durable transaction and recovery contract.');
+  }
+  if (context.uriType === 'file') {
+    warnings.push(
+      'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
+    );
+  }
+  return warnings;
+};
+
+const buildTagWritePlan = ({
+  safeUri,
+  uriType,
+  container,
+  concreteWriterAvailable,
+  permissionReason,
+  warnings,
+  blockingReasons,
+  canRead,
+}: TagWritePlanContext & {
+  warnings: string[];
+  blockingReasons: TagWriterErrorCode[];
+  canRead: boolean;
+}): WriteOperationPlan => {
+  const supportsConcreteWrite = (uriType === 'file' || uriType === 'content') && concreteWriterAvailable;
+  const supportsCrashRecovery = uriType === 'content' && concreteWriterAvailable && container !== 'unsupported';
+  const risk = getRiskLevel(uriType);
+  return {
+    sourceUri: safeUri,
+    targetUri: safeUri,
+    uriType,
+    container,
+    permission: {
+      canRead,
+      canWrite: concreteWriterAvailable,
+      requiresSafPermission: uriType === 'content',
+      reason: permissionReason,
+    },
+    backup: {
+      required: supportsConcreteWrite,
+      backupUri: uriType === 'file' && concreteWriterAvailable && safeUri ? `${safeUri}.bak` : undefined,
+      strategy: uriType === 'content' && concreteWriterAvailable
+        ? 'app-private-transaction-backup'
+        : uriType === 'file' && concreteWriterAvailable
+          ? 'sidecar-copy'
+          : 'none',
+    },
+    atomicWrite: {
+      required: supportsConcreteWrite,
+      tempUri: uriType === 'file' && concreteWriterAvailable && safeUri ? `${safeUri}.tmp` : undefined,
+      supportsAtomicReplace: false,
+    },
+    rollback: { required: false, supportsRollback: false, steps: [] },
+    requiresBackup: supportsConcreteWrite,
+    requiresTempFile: supportsConcreteWrite,
+    supportsAtomicReplace: false,
+    supportsRollback: supportsConcreteWrite,
+    safetyCapabilities: {
+      durableBackup: supportsConcreteWrite,
+      inMemoryRollback: false,
+      atomicReplace: false,
+      postWriteVerification: supportsConcreteWrite,
+      crashRecovery: supportsCrashRecovery,
+    },
+    requiresUserConfirmation: uriType === 'content' || risk === 'high',
+    requiresFullRewrite: container !== 'unsupported',
+    estimatedRisk: risk,
+    warnings,
+    blockingReasons,
+  };
+};
+
 export const createTagWriteOperationPlan = (
   song: Song,
   draft: TagEditDraft,
@@ -166,91 +300,21 @@ export const createTagWriteOperationPlan = (
     ? 'Der geladene Android-Native-Build enthält nicht den vollständigen dauerhaften SAF-Transaktions- und Recovery-Writer.'
     : undefined;
   const permissionReason = unavailableWriterReason ?? capability.reason;
-  const warnings = [...(permissionReason ? [permissionReason] : [])];
-  const containerWarn = containerWarning(container, uriType, concreteWriterAvailable);
-  if (containerWarn) warnings.push(containerWarn);
-  if (draft.removeCover && draft.cover)
-    warnings.push('removeCover=true takes precedence over cover payload.');
-  const knownFileSize = getKnownFileSize(song);
-  if (typeof knownFileSize === 'number' && knownFileSize > maxFileSizeBytes) {
-    warnings.push(
-      `File is larger than ${Math.round(maxFileSizeBytes / (1024 * 1024))} MB, so in-app tag writing is blocked before reading bytes.`,
-    );
-  }
-  if (uriType === 'content' && concreteWriterAvailable) {
-    warnings.push(
-      'SAF/content:// writes require native ContentResolver write permission, provider writable flags, app-private transaction backup, rollback, crash recovery, and post-write verification; they do not provide atomic replacement.',
-    );
-  } else if (uriType === 'content') {
-    warnings.push(
-      'SAF/content:// writing is blocked because the loaded native build does not expose the complete durable transaction and recovery contract.',
-    );
-  }
-  if (uriType === 'file') {
-    warnings.push(
-      'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
-    );
-  }
-
-  const blockingReasons = validateWritePreconditions(
-    song,
-    draft,
-    platform,
-    maxFileSizeBytes,
-    runtime,
-  );
-  const supportsConcreteWrite =
-    (uriType === 'file' || uriType === 'content') && concreteWriterAvailable;
-  const supportsCrashRecovery =
-    uriType === 'content' && concreteWriterAvailable && container !== 'unsupported';
-
-  const plan: WriteOperationPlan = {
-    sourceUri: safeUri,
-    targetUri: safeUri,
+  const context: TagWritePlanContext = {
+    safeUri,
     uriType,
     container,
-    permission: {
-      canRead: capability.canRead,
-      canWrite: concreteWriterAvailable,
-      requiresSafPermission: uriType === 'content',
-      reason: permissionReason,
-    },
-    backup: {
-      required: supportsConcreteWrite,
-      backupUri: uriType === 'file' && concreteWriterAvailable && safeUri
-        ? `${safeUri}.bak`
-        : undefined,
-      strategy: uriType === 'content' && concreteWriterAvailable
-        ? 'app-private-transaction-backup'
-        : uriType === 'file' && concreteWriterAvailable
-          ? 'sidecar-copy'
-          : 'none',
-    },
-    atomicWrite: {
-      required: supportsConcreteWrite,
-      tempUri: uriType === 'file' && concreteWriterAvailable && safeUri
-        ? `${safeUri}.tmp`
-        : undefined,
-      supportsAtomicReplace: false,
-    },
-    rollback: { required: false, supportsRollback: false, steps: [] },
-    requiresBackup: supportsConcreteWrite,
-    requiresTempFile: supportsConcreteWrite,
-    supportsAtomicReplace: false,
-    supportsRollback: supportsConcreteWrite,
-    safetyCapabilities: {
-      durableBackup: supportsConcreteWrite,
-      inMemoryRollback: false,
-      atomicReplace: false,
-      postWriteVerification: supportsConcreteWrite,
-      crashRecovery: supportsCrashRecovery,
-    },
-    requiresUserConfirmation: uriType === 'content' || getRiskLevel(uriType) === 'high',
-    requiresFullRewrite: container !== 'unsupported',
-    estimatedRisk: getRiskLevel(uriType),
-    warnings,
-    blockingReasons,
+    concreteWriterAvailable,
+    permissionReason,
+    knownFileSize: getKnownFileSize(song),
+    maxFileSizeBytes,
   };
+  const plan = buildTagWritePlan({
+    ...context,
+    warnings: buildTagWriteWarnings(draft, context),
+    blockingReasons: validateWritePreconditions(song, draft, platform, maxFileSizeBytes, runtime),
+    canRead: capability.canRead,
+  });
   plan.rollback = createRollbackPlan(plan);
   return plan;
 };

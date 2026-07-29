@@ -10,6 +10,7 @@ import { getSongArtworkUri } from '../utils/songArtwork';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
@@ -34,19 +35,19 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
-    void togglePlayPause();
+    void runPlaybackUiAction('mini-toggle', togglePlayPause, { dropIfPending: true });
   }, [togglePlayPause]);
 
   const handlePrevious = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
     if (!canSkipPrevious) return;
-    void previous();
+    void runPlaybackUiAction('mini-previous', previous, { dropIfPending: true });
   }, [canSkipPrevious, previous]);
 
   const handleNext = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
     if (!canSkipNext) return;
-    void next();
+    void runPlaybackUiAction('mini-next', next, { dropIfPending: true });
   }, [canSkipNext, next]);
 
   if (!currentSong) return null;

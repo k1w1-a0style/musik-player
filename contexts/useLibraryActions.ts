@@ -1,10 +1,13 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Playlist, Song } from '../types/Song';
+import {
+  assertCurrentSongPersistenceSucceeded,
+  persistCurrentSongIdSerialized,
+} from '../utils/currentSongPersistence';
 import { prunePlaylists } from '../utils/playlistState';
 import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toPlayableSongs } from '../utils/playableSong';
-import { StorageKeys, storage } from '../utils/storage';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import {
@@ -86,13 +89,13 @@ const cleanupCurrentSongIdAfterLibraryUpdate = async (
 
   try {
     if (isStaleCleanup()) return;
-    const currentSongId = await storage.get(StorageKeys.CURRENT_SONG_ID);
+    const result = await persistCurrentSongIdSerialized({
+      isCurrent: () => !isStaleCleanup(),
+      resolveDesiredId: persistedId =>
+        persistedId && !validSongIds.has(persistedId) ? null : undefined,
+    });
     if (isStaleCleanup()) return;
-    const normalizedCurrentSongId = currentSongId?.trim();
-    if (normalizedCurrentSongId && !validSongIds.has(normalizedCurrentSongId)) {
-      if (isStaleCleanup()) return;
-      await storage.remove(StorageKeys.CURRENT_SONG_ID);
-    }
+    assertCurrentSongPersistenceSucceeded(result);
   } catch (error) {
     if (isStaleCleanup()) return;
     console.warn('[LibraryRemove] Failed to clear current song id after removal.', error);
@@ -126,8 +129,10 @@ const syncNativeQueueToLibrary = async (
 
       if (playableQueue.length > 0) {
         await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
-        if (isStaleSync() || !isCurrent()) return false;
+        // The bridge call cannot be cancelled. Reflect the real native queue
+        // before handing the React commit to a newer library-sync version.
         nativeQueueRef.current = playableQueue.slice();
+        if (isStaleSync() || !isCurrent()) return false;
       }
 
       if (isStaleSync() || !isCurrent()) return false;
@@ -158,32 +163,35 @@ export const useLibraryActions = ({
     (songs: Song[]) => {
       const validSongIds = new Set(songs.map(song => song.id));
       setPlaylists(prev => prunePlaylists(prev, validSongIds));
-      setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
       const nextQueueRef = pruneSongsByValidIds(queueContextRef.current, validSongIds);
       const queueRefChanged = !hasSameOrderedSongIds(queueContextRef.current, nextQueueRef);
       const nativeQueueRefChanged = !hasSameOrderedSongIds(nativeQueueRef.current, nextQueueRef);
       latestNativeSyncVersionRef.current += 1;
       const syncVersion = latestNativeSyncVersionRef.current;
 
-      const commitPrunedLibraryQueueRefs = () => {
-        queueContextRef.current = pruneSongsByValidIds(queueContextRef.current, validSongIds);
-        baseQueueContextRef.current = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
-        setPlaybackQueue(prev => pruneSongsByValidIds(prev, validSongIds));
+      const commitCurrentSongAndPersistenceCleanup = () => {
+        setCurrentSong(prev => pruneNullableSongByValidIds(prev, validSongIds));
+        latestCleanupVersionRef.current += 1;
+        const cleanupVersion = latestCleanupVersionRef.current;
+        void cleanupCurrentSongIdAfterLibraryUpdate(
+          validSongIds,
+          cleanupVersion,
+          latestCleanupVersionRef,
+        );
       };
       const commitQueueRefs = () => {
         queueContextRef.current = pruneSongsByValidIds(queueContextRef.current, validSongIds);
         baseQueueContextRef.current = pruneSongsByValidIds(baseQueueContextRef.current, validSongIds);
         setPlaybackQueue(queueContextRef.current.slice());
+        commitCurrentSongAndPersistenceCleanup();
       };
       const commitClearedQueueRefs = () => {
         queueContextRef.current = [];
         baseQueueContextRef.current = [];
         setPlaybackQueue([]);
+        commitCurrentSongAndPersistenceCleanup();
       };
       setSongsState(songs);
-      latestCleanupVersionRef.current += 1;
-      const cleanupVersion = latestCleanupVersionRef.current;
-      void cleanupCurrentSongIdAfterLibraryUpdate(validSongIds, cleanupVersion, latestCleanupVersionRef);
       if (queueRefChanged || nativeQueueRefChanged) {
         void syncNativeQueueToLibrary(nativeQueueRef, nextQueueRef, syncVersion, latestNativeSyncVersionRef).then(syncResult => {
           if (latestNativeSyncVersionRef.current !== syncVersion) return;
@@ -195,9 +203,14 @@ export const useLibraryActions = ({
             commitClearedQueueRefs();
             return;
           }
-          if (syncResult === 'stale' || syncResult === 'failed') {
-            commitPrunedLibraryQueueRefs();
+          if (syncResult === 'failed') {
+            // reset() failed before the native queue changed. Keep the JS queue and
+            // current-song state aligned with the still-active native queue instead
+            // of pretending the removal was synchronized.
+            return;
           }
+          // A stale replacement is owned by a newer queue mutation. It must not
+          // commit any state from this older library update.
         });
       } else {
         commitQueueRefs();

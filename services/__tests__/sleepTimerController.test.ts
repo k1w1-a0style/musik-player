@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { State } from 'react-native-track-player';
 import { waitFor } from '@testing-library/react-native';
 import {
@@ -6,10 +7,15 @@ import {
   getSleepTimerDeadlineMs,
   isSleepTimerActive,
   resetSleepTimerForTests,
+  restorePersistedSleepTimer,
   startSleepTimer,
   subscribeToSleepTimer,
 } from '../sleepTimerController';
-import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import {
+  resetNativeQueueMutationLockForTests,
+  runExclusiveNativeQueueReplacement,
+} from '../../utils/nativeQueueMutationLock';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -33,6 +39,7 @@ describe('sleepTimerController', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
     trackPlayerTestApi.__reset();
     resetSleepTimerForTests();
     jest.clearAllMocks();
@@ -58,6 +65,16 @@ describe('sleepTimerController', () => {
     },
   );
 
+  test.each(['degraded', 'retry-required'] as const)('expiry remains a safety action while user gate is %s', async status => {
+    publishNativeHydrationGate(acquireNativeHydrationGate(), status);
+    trackPlayerTestApi.__setState(State.Playing);
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+  });
+
   test.each([State.Paused, State.Stopped, State.Ready, State.None, State.Ended])(
     'clears expired sleep timers without native playback changes when playback state is %s',
     async state => {
@@ -72,6 +89,31 @@ describe('sleepTimerController', () => {
       expect(isSleepTimerActive()).toBe(false);
     },
   );
+
+  test('reads final playback state only after an active queue rebuild completes', async () => {
+    const rebuildStarted = createDeferred<void>();
+    const releaseRebuild = createDeferred<void>();
+    const rebuild = runExclusiveNativeQueueReplacement(async () => {
+      trackPlayerTestApi.__setState(State.None);
+      rebuildStarted.resolve();
+      await releaseRebuild.promise;
+      trackPlayerTestApi.__setState(State.Playing);
+    });
+    await rebuildStarted.promise;
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+
+    const expiry = enforceExpiredSleepTimer();
+    expect(TrackPlayer.getPlaybackState).not.toHaveBeenCalled();
+    expect(isSleepTimerActive()).toBe(true);
+
+    releaseRebuild.resolve();
+    await rebuild;
+    await expect(expiry).resolves.toBe(true);
+    expect(TrackPlayer.getPlaybackState).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+  });
 
   test('keeps the expired deadline active and retries when pause fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -221,6 +263,57 @@ describe('sleepTimerController', () => {
     expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
     expect(warn).not.toHaveBeenCalled();
     expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('persists, restores, and schedules an active timer across a JS restart', async () => {
+    startSleepTimer(15);
+    const deadline = getSleepTimerDeadlineMs();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      '@musikplayer:sleepTimerDeadlineMs',
+      String(deadline),
+    );
+
+    resetSleepTimerForTests({ preservePersisted: true });
+    expect(isSleepTimerActive()).toBe(false);
+
+    await expect(restorePersistedSleepTimer()).resolves.toBe(true);
+    expect(getSleepTimerDeadlineMs()).toBe(deadline);
+
+    trackPlayerTestApi.__setState(State.Playing);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await jest.runOnlyPendingTimersAsync();
+
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('enforces an already expired persisted timer during restore', async () => {
+    trackPlayerTestApi.__setState(State.Playing);
+    await AsyncStorage.setItem('@musikplayer:sleepTimerDeadlineMs', String(Date.now() - 1));
+    resetSleepTimerForTests({ preservePersisted: true });
+
+    await expect(restorePersistedSleepTimer()).resolves.toBe(false);
+
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(isSleepTimerActive()).toBe(false);
+    await Promise.resolve();
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('@musikplayer:sleepTimerDeadlineMs');
+  });
+
+  test('a late persisted read cannot replace a newly started timer', async () => {
+    const persistedRead = createDeferred<string | null>();
+    (AsyncStorage.getItem as jest.Mock).mockReturnValueOnce(persistedRead.promise);
+    const restore = restorePersistedSleepTimer();
+
+    startSleepTimer(30);
+    const newDeadline = getSleepTimerDeadlineMs();
+    persistedRead.resolve(String(Date.now() + 5 * 60 * 1000));
+
+    await expect(restore).resolves.toBe(false);
+    expect(getSleepTimerDeadlineMs()).toBe(newDeadline);
   });
 
   test('exposes the deadline after start and replacement', () => {

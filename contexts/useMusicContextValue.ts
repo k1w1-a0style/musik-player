@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { MusicContextValue } from './musicContextTypes';
-
 export const useMusicContextValue = ({
   songs,
   setSongs,
@@ -43,7 +42,7 @@ export const useMusicContextValue = ({
   removeSongFromPlaylist,
   moveSongInPlaylist,
   playPlaylist,
-  isReady,
+  isReady, hydrationStatus, retryHydration,
 }: MusicContextValue): MusicContextValue =>
   useMemo<MusicContextValue>(
     () => ({
@@ -88,7 +87,7 @@ export const useMusicContextValue = ({
       removeSongFromPlaylist,
       moveSongInPlaylist,
       playPlaylist,
-      isReady,
+      isReady, hydrationStatus, retryHydration,
     }),
     [
       songs,
@@ -132,6 +131,6 @@ export const useMusicContextValue = ({
       removeSongFromPlaylist,
       moveSongInPlaylist,
       playPlaylist,
-      isReady,
+      isReady, hydrationStatus, retryHydration,
     ],
   );

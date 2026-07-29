@@ -40,10 +40,21 @@ export interface MediaLibraryScanOptions extends AudioImportFilterOptions {
   signal?: AbortSignal;
 }
 
+export type ImportErrorPhase = 'directory' | 'tags' | 'audioInfo' | 'cover' | 'songBuild';
+
+export interface ImportErrorDetail {
+  uri: string;
+  phase: ImportErrorPhase;
+  code: string;
+  message: string;
+  recoverable: boolean;
+}
+
 export interface ImportScanResult {
   songs: Song[];
   skipped: string[];
   errors: string[];
+  errorDetails?: ImportErrorDetail[];
   sourceSummary: Array<{ source: 'media-library' | 'saf'; imported: number; skipped: number; errors: number }>;
   folderUpdates?: ScanFolder[];
 }
@@ -302,13 +313,51 @@ const addNormalizedSafError = (uri: string, errors: string[], seenErrors: Set<st
   errors.push(normalizedUri);
 };
 
+const importErrorCode = (error: unknown): string => {
+  if (error instanceof SafDirectoryReadTimeoutError) return 'saf-timeout';
+  if (error instanceof SafDirectoryReadSessionSkipError) return 'saf-session-skip';
+  if (error instanceof SafDirectoryReadAbortedError || error instanceof OperationAbortError) return 'aborted';
+  const name = typeof (error as { name?: unknown })?.name === 'string'
+    ? String((error as { name?: unknown }).name)
+    : 'Error';
+  return name.replace(/Error$/, '').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() || 'unknown';
+};
+
+const importErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const addImportErrorDetail = (
+  uri: string,
+  phase: ImportErrorPhase,
+  error: unknown,
+  recoverable: boolean,
+  errorDetails: ImportErrorDetail[],
+  seenDetails: Set<string>,
+): void => {
+  const normalizedUri = normalizeImportUriForDedupe(uri) ?? uri;
+  const code = importErrorCode(error);
+  // A recoverable primary failure and a terminal fallback failure are distinct
+  // parts of the import contract, even when both happen to share an error
+  // class/code. Do not let the earlier diagnostic hide the terminal failure.
+  const key = `${normalizedUri}|${phase}|${code}|${recoverable ? 'recoverable' : 'terminal'}`;
+  if (seenDetails.has(key)) return;
+  seenDetails.add(key);
+  errorDetails.push({
+    uri: normalizedUri,
+    phase,
+    code,
+    message: importErrorMessage(error),
+    recoverable,
+  });
+};
+
 interface SafDirectoryReadOptions {
   signal?: AbortSignal;
   readTimeoutMs?: number;
   onProgress?: (progress: SafDirectoryScanProgress) => void;
+  /** Per top-level scan only. Never share this set across user-initiated scans. */
+  timedOutDirectoryUris?: Set<string>;
 }
-
-const safTimedOutDirectoryUris = new Set<string>();
 
 export class SafDirectoryReadTimeoutError extends Error {
   readonly uri: string;
@@ -366,19 +415,22 @@ const abortErrorFromSignal = (uri: string, signal: AbortSignal): SafDirectoryRea
 
 const safTimeoutKey = (uri: string): string => normalizeImportUriForDedupe(uri) ?? uri;
 
-export const resetSafTimedOutUrisForTests = (): void => {
-  safTimedOutDirectoryUris.clear();
-};
+// Kept for compatibility with older tests/callers. Timeout state is now scan-local.
+export const resetSafTimedOutUrisForTests = (): void => undefined;
 
 export const readSafDirectoryWithTimeout = async (
   uri: string,
   readDirectory: (uri: string) => Promise<string[]>,
-  { signal, readTimeoutMs = DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS }: SafDirectoryReadOptions = {},
+  {
+    signal,
+    readTimeoutMs = DEFAULT_SAF_READ_DIRECTORY_TIMEOUT_MS,
+    timedOutDirectoryUris,
+  }: SafDirectoryReadOptions = {},
 ): Promise<string[]> => {
   if (signal?.aborted) throw abortErrorFromSignal(uri, signal);
 
   const timeoutKey = safTimeoutKey(uri);
-  if (safTimedOutDirectoryUris.has(timeoutKey)) {
+  if (timedOutDirectoryUris?.has(timeoutKey)) {
     throw new SafDirectoryReadSessionSkipError(uri);
   }
 
@@ -404,7 +456,7 @@ export const readSafDirectoryWithTimeout = async (
     return await Promise.race([readPromise, timeoutPromise, abortPromise]);
   } catch (error) {
     if (error instanceof SafDirectoryReadTimeoutError) {
-      safTimedOutDirectoryUris.add(timeoutKey);
+      timedOutDirectoryUris?.add(timeoutKey);
     }
     throw error;
   } finally {
@@ -428,6 +480,10 @@ export const readAudioUrisFromSafDirectory = async (
   options: SafDirectoryReadOptions = {},
 ): Promise<{ files: string[]; errors: string[] }> => {
   const { signal, onProgress } = options;
+  const scanOptions: SafDirectoryReadOptions = {
+    ...options,
+    timedOutDirectoryUris: options.timedOutDirectoryUris ?? new Set<string>(),
+  };
   const files: string[] = [];
   const seenFiles = new Set<string>();
   const errors: string[] = [];
@@ -467,7 +523,7 @@ export const readAudioUrisFromSafDirectory = async (
     let entries: string[];
     try {
       throwIfAborted(signal);
-      const rawEntries = await readSafDirectoryWithTimeout(uri, readDirectory, options);
+      const rawEntries = await readSafDirectoryWithTimeout(uri, readDirectory, scanOptions);
       throwIfAborted(signal);
       if (!Array.isArray(rawEntries)) {
         recordSafError(uri);
@@ -571,6 +627,8 @@ export const enrichMediaLibraryAssets = async (
   const skipped: string[] = [];
   const songs: Song[] = [];
   const errors: string[] = [];
+  const errorDetails: ImportErrorDetail[] = [];
+  const seenErrorDetails = new Set<string>();
   const queue = [...assets];
 
   const workers = Array.from({ length: ID3_CONCURRENT_READERS }, async () => {
@@ -599,8 +657,9 @@ export const enrichMediaLibraryAssets = async (
           source: 'media-library',
         }, audioInfo), tags, { loadNativeCover }));
         throwIfAborted(signal);
-      } catch {
+      } catch (error) {
         errors.push(asset.uri);
+        addImportErrorDetail(asset.uri, 'songBuild', error, true, errorDetails, seenErrorDetails);
       }
     }
   });
@@ -609,7 +668,7 @@ export const enrichMediaLibraryAssets = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + (songs.length - dedupedSongs.length), errors: errors.length }] };
+  return { songs: dedupedSongs, skipped, errors, errorDetails, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
 export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
@@ -630,6 +689,9 @@ export const scanFromSafFolders = async (
   const songs: Song[] = [];
   const errors: string[] = [];
   const seenErrors = new Set<string>();
+  const errorDetails: ImportErrorDetail[] = [];
+  const seenErrorDetails = new Set<string>();
+  const timedOutDirectoryUris = new Set<string>();
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
 
@@ -645,9 +707,19 @@ export const scanFromSafFolders = async (
       continue;
     }
 
-    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, { signal, onProgress, readTimeoutMs });
+    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, {
+      signal,
+      onProgress,
+      readTimeoutMs,
+      timedOutDirectoryUris,
+    });
     throwIfAborted(signal);
-    if (folderErrors.length > 0) folderErrors.forEach(recordImportError);
+    if (folderErrors.length > 0) {
+      folderErrors.forEach(uri => {
+        recordImportError(uri);
+        addImportErrorDetail(uri, 'directory', new Error('SAF directory could not be read.'), true, errorDetails, seenErrorDetails);
+      });
+    }
 
     if (folderErrors.length > 0 && files.length === 0) folderUpdates.push({ ...folder, lastError: 'Nicht lesbar' });
     else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
@@ -666,13 +738,23 @@ export const scanFromSafFolders = async (
           throwIfAborted(signal);
           songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo), tags, { loadNativeCover }));
           throwIfAborted(signal);
-        } catch {
+        } catch (primaryError) {
           throwIfAborted(signal);
           recordImportError(uri);
-          const audioInfo = await getNativeAudioInfo(uri);
-          throwIfAborted(signal);
-          songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo), {}, { loadNativeCover }));
-          throwIfAborted(signal);
+          addImportErrorDetail(uri, 'songBuild', primaryError, true, errorDetails, seenErrorDetails);
+          try {
+            const audioInfo = await getNativeAudioInfo(uri);
+            throwIfAborted(signal);
+            songs.push(await buildSongFromImportSource(
+              mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo),
+              {},
+              { loadNativeCover },
+            ));
+            throwIfAborted(signal);
+          } catch (fallbackError) {
+            throwIfAborted(signal);
+            addImportErrorDetail(uri, 'songBuild', fallbackError, false, errorDetails, seenErrorDetails);
+          }
         }
       }
     });
@@ -682,7 +764,7 @@ export const scanFromSafFolders = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
+  return { songs: dedupedSongs, skipped, errors, errorDetails, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {

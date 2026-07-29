@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import TrackPlayer, { State, usePlaybackState } from 'react-native-track-player';
+import { State, usePlaybackState } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import {
   applyRepeatModeToTrackPlayer,
@@ -8,6 +8,7 @@ import {
   seekToMillis,
   skipToNextSafely,
   skipToPreviousOrRestart,
+  stopTrackPlayerPlayback,
   toggleTrackPlayerPlayback,
 } from './playbackControlHelpers';
 
@@ -32,14 +33,19 @@ export { clampVolume, getNextRepeatMode } from './playbackControlHelpers';
 const SEEK_STATE_SETTLE_MS = 150;
 
 export const usePlaybackControls = (): PlaybackControls => {
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
-  const [volume, setVolumeState] = useState(1);
+  const [repeatMode, setRepeatModeValue] = useState<RepeatMode>('off');
+  const [volume, setVolumeValue] = useState(1);
   const [isSeekPending, setIsSeekPending] = useState(false);
   const playback = usePlaybackState();
   const settleSeekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekPlayingIntentRef = useRef(false);
   const seekRequestIdRef = useRef(0);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false);
+  const repeatModeRef = useRef<RepeatMode>('off');
+  const repeatWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const confirmedVolumeRef = useRef(1);
+  const volumeRequestIdRef = useRef(0);
+  const volumeWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const rawIsPlaying = playback.state === State.Playing;
   const isBuffering = playback.state === State.Buffering || playback.state === State.Loading;
@@ -51,11 +57,33 @@ export const usePlaybackControls = (): PlaybackControls => {
   const shouldPinSeekIntent = isSeekPending && isBuffering;
   const isPlaying = shouldPinSeekIntent ? seekPlayingIntentRef.current : rawIsPlaying;
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
-    if (settleSeekTimeoutRef.current) {
-      clearTimeout(settleSeekTimeoutRef.current);
-    }
+  useEffect(() => {
+    // React may replay effects in development. Re-arm the lifecycle guard on
+    // every setup instead of relying on its initial value.
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (settleSeekTimeoutRef.current) {
+        clearTimeout(settleSeekTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const setRepeatMode = useCallback<Dispatch<SetStateAction<RepeatMode>>>((action) => {
+    setRepeatModeValue(previous => {
+      const next = typeof action === 'function' ? action(previous) : action;
+      repeatModeRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const setVolumeState = useCallback<Dispatch<SetStateAction<number>>>((action) => {
+    setVolumeValue(previous => {
+      const requested = typeof action === 'function' ? action(previous) : action;
+      const next = Math.max(0, Math.min(1, Number.isFinite(requested) ? requested : 1));
+      confirmedVolumeRef.current = next;
+      return next;
+    });
   }, []);
 
   const togglePlayPause = useCallback(async () => {
@@ -63,7 +91,7 @@ export const usePlaybackControls = (): PlaybackControls => {
   }, []);
 
   const stop = useCallback(async () => {
-    await TrackPlayer.stop();
+    await stopTrackPlayerPlayback();
   }, []);
 
   const seekTo = useCallback(async (millis: number) => {
@@ -97,15 +125,48 @@ export const usePlaybackControls = (): PlaybackControls => {
     await skipToPreviousOrRestart();
   }, []);
 
-  const cycleRepeatMode = useCallback(async () => {
-    const nextRepeatMode = getNextRepeatMode(repeatMode);
-    await applyRepeatModeToTrackPlayer(nextRepeatMode);
-    setRepeatMode(nextRepeatMode);
-  }, [repeatMode]);
+  const cycleRepeatMode = useCallback((): Promise<void> => {
+    // Every tap is intentional, so serialize rather than coalesce. The next
+    // mode is calculated when its turn begins, not from a stale render closure.
+    const operation = repeatWriteQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const nextRepeatMode = getNextRepeatMode(repeatModeRef.current);
+        await applyRepeatModeToTrackPlayer(nextRepeatMode);
+        repeatModeRef.current = nextRepeatMode;
+        if (isMountedRef.current) setRepeatModeValue(nextRepeatMode);
+      });
+    repeatWriteQueueRef.current = operation;
+    return operation;
+  }, []);
 
-  const setVolume = useCallback(async (nextVolume: number) => {
-    const clampedVolume = await applyVolumeToTrackPlayer(nextVolume);
-    setVolumeState(clampedVolume);
+  const setVolume = useCallback((nextVolume: number): Promise<void> => {
+    const clampedVolume = Math.max(0, Math.min(1, Number.isFinite(nextVolume) ? nextVolume : 1));
+    const requestId = volumeRequestIdRef.current + 1;
+    volumeRequestIdRef.current = requestId;
+
+    // Preview the latest finger position immediately. Native writes remain
+    // serialized below, so an older bridge call can never finish after a newer
+    // one and overwrite it.
+    if (isMountedRef.current) setVolumeValue(clampedVolume);
+
+    const operation = volumeWriteQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        // Collapse all queued intermediate slider positions to the latest one.
+        if (requestId !== volumeRequestIdRef.current) return;
+        const appliedVolume = await applyVolumeToTrackPlayer(clampedVolume);
+        confirmedVolumeRef.current = appliedVolume;
+      });
+
+    const guardedOperation = operation.catch(error => {
+      if (requestId === volumeRequestIdRef.current && isMountedRef.current) {
+        setVolumeValue(confirmedVolumeRef.current);
+      }
+      throw error;
+    });
+    volumeWriteQueueRef.current = guardedOperation;
+    return guardedOperation;
   }, []);
 
   return {

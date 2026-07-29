@@ -13,7 +13,7 @@ import { APP_THEME_TOKENS } from '../utils/appTheme';
 
 interface Props {
   volume: number;
-  onVolumeChange: (v: number) => void;
+  onVolumeChange: (v: number) => void | Promise<void>;
   accentColor?: string;
   inactiveColor?: string;
 }
@@ -36,7 +36,13 @@ const VolumeSlider: React.FC<Props> = ({
   const [trackWidth, setTrackWidth] = useState(1);
 
   const commitVolume = useCallback((value: number) => {
-    onVolumeChange(clampVolume(value));
+    try {
+      void Promise.resolve(onVolumeChange(clampVolume(value))).catch(error => {
+        console.warn('[VolumeSlider] Failed to apply volume.', error);
+      });
+    } catch (error) {
+      console.warn('[VolumeSlider] Failed to apply volume.', error);
+    }
   }, [onVolumeChange]);
 
   const updateTrackFrame = useCallback(() => {
