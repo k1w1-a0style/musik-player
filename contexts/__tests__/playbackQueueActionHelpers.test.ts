@@ -1,7 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { State } from 'react-native-track-player';
 import type { Song } from '../../types/Song';
-import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
+import {
+  captureRequiredNativeHydration,
+  resetNativeQueueMutationLockForTests,
+  runExclusiveNativeQueueReplacement,
+} from '../../utils/nativeQueueMutationLock';
+import {
+  acquireNativeHydrationGate,
+  publishNativeHydrationGate,
+  resetNativeHydrationGateForTests,
+} from '../../utils/nativeHydrationGate';
 import { runInsertSongQueueAction, runPlaySongQueueAction, runShuffleQueueAction } from '../playbackQueueActionHelpers';
 
 const songs: Song[] = [
@@ -19,6 +28,8 @@ const args = (queue: Song[] = songs) => ({
 const player = TrackPlayer as unknown as {
   __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number; __getState: () => State;
 };
+const nativeAdd = (TrackPlayer.add as jest.Mock).getMockImplementation();
+const nativeReset = (TrackPlayer.reset as jest.Mock).getMockImplementation();
 const restoreNativeMocks = () => {
   (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => player.__getQueue());
   (TrackPlayer.getActiveTrack as jest.Mock).mockImplementation(async () => player.__getQueue()[player.__getActiveTrackIndex()]);
@@ -40,9 +51,16 @@ const deferred = () => {
 
 beforeEach(async () => {
   resetNativeQueueMutationLockForTests();
+  resetNativeHydrationGateForTests();
   await AsyncStorage.clear();
   await seed([]);
 });
+
+const readyCapture = () => {
+  const owner = acquireNativeHydrationGate();
+  publishNativeHydrationGate(owner, 'ready');
+  return captureRequiredNativeHydration();
+};
 
 test('Play: add succeeds and skip fails, then reconciles native truth', async () => {
   const input = args([]);
@@ -118,21 +136,98 @@ test('a direct second insert starts from recovered native truth', async () => {
   expect(input.queueContextRef.current).toEqual([songs[0], songs[2]]);
 });
 
-test('shuffle recovery blocks a newer replacement through readback and persistence', async () => {
+test('a newer replacement intent aborts shuffle during snapshot preparation', async () => {
   await seed(songs);
   const input = args();
+  const hydrationCapture = readyCapture();
   const started = deferred(); const release = deferred();
   (TrackPlayer.getQueue as jest.Mock).mockImplementationOnce(async () => player.__getQueue())
     .mockImplementationOnce(async () => { started.resolve(); await release.promise; return player.__getQueue(); });
-  (TrackPlayer.play as jest.Mock).mockRejectedValueOnce(new Error('play failed'));
-  const shuffle = runShuffleQueueAction({ ...input, currentSongId: 's1' });
+  const shuffle = runShuffleQueueAction({ ...input, currentSongId: 's1', hydrationCapture });
   await started.promise;
   let newerStarted = false;
   const newer = runExclusiveNativeQueueReplacement(async () => { newerStarted = true; });
   expect(newerStarted).toBe(false);
   release.resolve();
-  await Promise.all([shuffle, newer]);
+  const [shuffleResult] = await Promise.all([shuffle, newer]);
+  expect(shuffleResult.status).toBe('stale');
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  expect(TrackPlayer.add).not.toHaveBeenCalled();
   expect(newerStarted).toBe(true);
+});
+
+test('insert aborts before add when hydration changes during active-track preparation', async () => {
+  await seed([songs[0]]);
+  const input = args([songs[0]]);
+  const hydrationCapture = readyCapture();
+  const started = deferred(); const release = deferred();
+  (TrackPlayer.getActiveTrack as jest.Mock).mockImplementationOnce(async () => {
+    started.resolve(); await release.promise; return songs[0];
+  });
+
+  const insert = runInsertSongQueueAction({ ...input, song: songs[1], position: 'end', hydrationCapture });
+  await started.promise;
+  readyCapture();
+  release.resolve();
+
+  await expect(insert).resolves.toMatchObject({ status: 'stale' });
+  expect(TrackPlayer.add).not.toHaveBeenCalled();
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+});
+
+test('insert aborts before add when hydration changes during snapshot preparation', async () => {
+  await seed([songs[0]]);
+  const input = args([songs[0]]);
+  const hydrationCapture = readyCapture();
+  const started = deferred(); const release = deferred();
+  (TrackPlayer.getQueue as jest.Mock).mockImplementationOnce(async () => {
+    started.resolve(); await release.promise; return player.__getQueue();
+  });
+
+  const insert = runInsertSongQueueAction({ ...input, song: songs[1], position: 'end', hydrationCapture });
+  await started.promise;
+  readyCapture();
+  release.resolve();
+
+  await expect(insert).resolves.toMatchObject({ status: 'stale' });
+  expect(TrackPlayer.add).not.toHaveBeenCalled();
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+});
+
+test('insert completes truth commit when hydration changes after add begins', async () => {
+  await seed([songs[0]]);
+  const input = args([songs[0]]);
+  const hydrationCapture = readyCapture();
+  const started = deferred(); const release = deferred();
+  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; return nativeAdd?.(...values);
+  });
+
+  const insert = runInsertSongQueueAction({ ...input, song: songs[1], position: 'end', hydrationCapture });
+  await started.promise;
+  readyCapture();
+  release.resolve();
+
+  await expect(insert).resolves.toMatchObject({ status: 'applied' });
+  expect(input.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
+});
+
+test('play rebuild completes truth commit when hydration changes after reset begins', async () => {
+  await seed([songs[0]]);
+  const input = args([songs[0]]);
+  const hydrationCapture = readyCapture();
+  const started = deferred(); const release = deferred();
+  (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; return nativeReset?.(...values);
+  });
+
+  const play = runPlaySongQueueAction({ ...input, song: songs[1], hydrationCapture });
+  await started.promise;
+  readyCapture();
+  release.resolve();
+
+  await expect(play).resolves.toMatchObject({ status: 'applied' });
+  expect(input.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2', 's3', 's4']);
 });
 
 test('Shuffle-On keeps explicit intent for a one-song queue', async () => {

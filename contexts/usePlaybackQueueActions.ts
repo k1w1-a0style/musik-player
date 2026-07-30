@@ -1,6 +1,11 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import {
+  captureRequiredNativeHydration,
+  NativeMutationHydrationStaleError,
+  type NativeHydrationCapture,
+} from '../utils/nativeQueueMutationLock';
+import {
   runInsertSongQueueAction,
   runPlaySongQueueAction,
   runReorderQueueAction,
@@ -44,13 +49,19 @@ export const usePlaybackQueueActions = ({
   const queueActionLockRef = useRef<Promise<void>>(Promise.resolve());
   const shuffleRef = useRef(shuffle);
   shuffleRef.current = shuffle;
-  const enqueueQueueAction = useCallback(<T,>(action: () => Promise<T>): Promise<T> => {
-    const run = queueActionLockRef.current.catch(() => undefined).then(action);
+  const enqueueQueueAction = useCallback((
+    action: (hydrationCapture: NativeHydrationCapture) => Promise<NativeQueueActionResult>,
+  ): Promise<NativeQueueActionResult> => {
+    const hydrationCapture = captureRequiredNativeHydration();
+    if (hydrationCapture === null) {
+      return Promise.resolve({ status: 'failed', error: new NativeMutationHydrationStaleError() });
+    }
+    const run = queueActionLockRef.current.catch(() => undefined).then(() => action(hydrationCapture));
     queueActionLockRef.current = run.then(() => undefined, () => undefined);
     return run;
   }, []);
   const playSong = useCallback(
-    async (song: Song, queue?: Song[]) => enqueueQueueAction(() => runPlaySongQueueAction({
+    async (song: Song, queue?: Song[]) => enqueueQueueAction(hydrationCapture => runPlaySongQueueAction({
       song,
       queue,
       songsRef,
@@ -62,12 +73,13 @@ export const usePlaybackQueueActions = ({
       shuffle,
       shuffleRef,
       setShuffle,
+      hydrationCapture,
     })),
     [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
 
   const insertSongIntoQueue = useCallback(
-    async (song: Song, position: 'next' | 'end') => enqueueQueueAction(() => runInsertSongQueueAction({
+    async (song: Song, position: 'next' | 'end') => enqueueQueueAction(hydrationCapture => runInsertSongQueueAction({
           song,
           position,
           songsRef,
@@ -80,6 +92,7 @@ export const usePlaybackQueueActions = ({
           shuffle,
           shuffleRef,
           setShuffle,
+          hydrationCapture,
         })),
     [baseQueueContextRef, currentSongId, enqueueQueueAction, nativeQueueRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
@@ -91,7 +104,7 @@ export const usePlaybackQueueActions = ({
     async (song: Song) => insertSongIntoQueue(song, 'end'),
     [insertSongIntoQueue],
   );
-  const toggleShuffle = useCallback(async () => enqueueQueueAction(() => runShuffleQueueAction({
+  const toggleShuffle = useCallback(async () => enqueueQueueAction(hydrationCapture => runShuffleQueueAction({
     songsRef,
     queueContextRef,
     baseQueueContextRef,
@@ -102,6 +115,7 @@ export const usePlaybackQueueActions = ({
     shuffle,
     shuffleRef,
     setShuffle,
+    hydrationCapture,
   })), [
     baseQueueContextRef,
     currentSongId,
@@ -115,7 +129,7 @@ export const usePlaybackQueueActions = ({
     songsRef,
   ]);
   const reorderQueue = useCallback(
-    async (fromIndex: number, toIndex: number) => enqueueQueueAction(() => runReorderQueueAction({
+    async (fromIndex: number, toIndex: number) => enqueueQueueAction(hydrationCapture => runReorderQueueAction({
           fromIndex,
           toIndex,
           songsRef,
@@ -128,6 +142,7 @@ export const usePlaybackQueueActions = ({
           shuffle,
           shuffleRef,
           setShuffle,
+          hydrationCapture,
         })),
     [
       baseQueueContextRef,

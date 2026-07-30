@@ -1,8 +1,13 @@
 import TrackPlayer, { State } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
-import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { NativeMutationHydrationStaleError, runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 import { requestLatestSeek } from '../utils/seekController';
+import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
+
+const stableReadyHydrationOptions = () => getNativeHydrationGate().owned
+  ? { requireStableReadyHydration: true as const }
+  : undefined;
 
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
@@ -26,29 +31,30 @@ export const normalizeSeekSeconds = (millis: number): number => {
 };
 
 export const toggleTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(async () => {
+  await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     const state = (await TrackPlayer.getPlaybackState()).state;
+    assertHydrationCurrent();
     if (state === State.Playing) {
       await TrackPlayer.pause();
       return;
     }
     await TrackPlayer.play();
-  });
+  }, stableReadyHydrationOptions());
 };
 
 export const stopTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop());
+  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), stableReadyHydrationOptions());
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
   // Seeking runs on a dedicated lane that coalesces rapid scrub updates and is
   // not serialized behind native queue rebuilds or metadata jobs.
-  await requestLatestSeek(millis);
+  await requestLatestSeek(millis, undefined, stableReadyHydrationOptions());
 };
 
 export const skipToNextSafely = async (): Promise<void> => {
   try {
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext());
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), stableReadyHydrationOptions());
   } catch (error) {
     console.warn('[Playback] skipToNext failed.', error);
   }
@@ -56,19 +62,32 @@ export const skipToNextSafely = async (): Promise<void> => {
 
 export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
-    const { position } = await TrackPlayer.getProgress();
-    if (position > 3) {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0));
+    await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
+      try {
+        const { position } = await TrackPlayer.getProgress();
+        assertHydrationCurrent();
+        if (position > 3) {
+          await TrackPlayer.seekTo(0);
+          return;
+        }
+        await TrackPlayer.skipToPrevious();
+      } catch (error) {
+        if (error instanceof NativeMutationHydrationStaleError) throw error;
+        console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
+        assertHydrationCurrent();
+        try {
+          await TrackPlayer.seekTo(0);
+        } catch (seekError) {
+          console.warn('[Playback] fallback restart failed.', seekError);
+        }
+      }
+    }, stableReadyHydrationOptions());
+  } catch (error) {
+    if (error instanceof NativeMutationHydrationStaleError) {
+      console.warn('[Playback] Previous action discarded after hydration changed.', error);
       return;
     }
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious());
-  } catch (error) {
-    console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
-    try {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0));
-    } catch (seekError) {
-      console.warn('[Playback] fallback restart failed.', seekError);
-    }
+    console.warn('[Playback] Previous action failed.', error);
   }
 };
 

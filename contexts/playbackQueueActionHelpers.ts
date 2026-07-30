@@ -10,6 +10,8 @@ import {
 import { buildQueueReorderPlan } from '../utils/queueReorder';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
+  type NativeHydrationCapture,
+  NativeMutationHydrationStaleError,
   type NativeQueueReplacementContext,
   runExclusiveNativeQueueReplacement,
 } from '../utils/nativeQueueMutationLock';
@@ -24,6 +26,8 @@ import {
   type NativeQueueRecoveryResult,
   type NativeQueueReplacementProgress,
 } from './nativeQueueRecovery';
+const hydrationMutationOptions = (hydrationCapture: NativeHydrationCapture) =>
+  hydrationCapture === undefined ? undefined : { hydrationCapture };
 
 export type { NativeQueueMutationSnapshot, NativeQueueRecoveryResult } from './nativeQueueRecovery';
 
@@ -50,6 +54,7 @@ export class NativeQueueReplacementStaleError extends Error {
 }
 
 interface PlaybackQueueActionRefs {
+  hydrationCapture?: NativeHydrationCapture;
   songsRef: MutableRefObject<Song[]>;
   queueContextRef: MutableRefObject<Song[]>;
   baseQueueContextRef: MutableRefObject<Song[]>;
@@ -189,9 +194,11 @@ export const applyPlaybackQueueState = ({
 const replaceNativeQueueTracks = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
-  isCurrent: () => boolean,
+  context: Pick<NativeQueueReplacementContext, 'isCurrent' | 'beginNativeMutation'>,
   onProgress?: (progress: NativeQueueReplacementProgress) => void,
 ): Promise<boolean> => {
+  const { isCurrent, beginNativeMutation } = context;
+  beginNativeMutation();
   await TrackPlayer.reset();
   onProgress?.('reset-confirmed');
   nativeQueueRef.current = [];
@@ -208,14 +215,15 @@ export const rebuildNativePlaybackQueueUnlocked = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
   resumePositionSeconds?: number,
-  replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent'>,
+  replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent' | 'beginNativeMutation'>,
   startIndex = 0,
   onProgress?: (progress: NativeQueueReplacementProgress) => void,
 ): Promise<boolean> => {
-  const isCurrent = replacementContext?.isCurrent ?? (() => true);
+  const context = replacementContext ?? { isCurrent: () => true, beginNativeMutation: () => undefined };
+  const { isCurrent } = context;
 
   if (!isCurrent()) return false;
-  if (!await replaceNativeQueueTracks(queue, nativeQueueRef, isCurrent, onProgress)) return false;
+  if (!await replaceNativeQueueTracks(queue, nativeQueueRef, context, onProgress)) return false;
 
   const safeStartIndex = Number.isInteger(startIndex) && startIndex > 0 && startIndex < queue.length ? startIndex : 0;
   if (safeStartIndex > 0) {
@@ -279,6 +287,7 @@ const executePlaySongPlan = async (
   try {
     const activeTrack = await TrackPlayer.getActiveTrack();
     if (!context.isCurrent()) return undefined;
+    context.beginNativeMutation();
     if (activeTrack?.id !== plan.requestedSong.id) await TrackPlayer.skip(plan.nativeIndex);
     await TrackPlayer.play();
     return context.isCurrent() ? plan.reusableOrderedQueue : undefined;
@@ -355,6 +364,7 @@ export const runPlaySongQueueAction = async ({
   shuffle = false,
   shuffleRef,
   setShuffle,
+  hydrationCapture,
 }: RunPlaySongQueueActionArgs): Promise<NativeQueueActionResult> =>
   runExclusiveNativeQueueReplacement<NativeQueueActionResult>(async context => {
     if (!context.isCurrent()) return { status: 'stale' };
@@ -382,6 +392,7 @@ export const runPlaySongQueueAction = async ({
       });
       return { status: 'applied' };
     } catch (error) {
+      if (error instanceof NativeMutationHydrationStaleError) return { status: 'stale' };
       const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot, knownSongs,
         librarySongs: songsRef.current, targets,
         reconciliationShuffleStrategy: { kind: 'restore-snapshot', enabled: snapshot.shuffleEnabled } });
@@ -389,7 +400,7 @@ export const runPlaySongQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
+  }, hydrationMutationOptions(hydrationCapture)).catch(error => ({ status: 'failed', error }) as NativeQueueActionResult);
 
 export const runInsertSongQueueAction = async ({
   song,
@@ -404,6 +415,7 @@ export const runInsertSongQueueAction = async ({
   shuffle,
   shuffleRef,
   setShuffle,
+  hydrationCapture,
 }: RunInsertSongQueueActionArgs): Promise<NativeQueueActionResult> => {
   const actionArgs = { song, currentSongId, position, songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef,
     setPlaybackQueue, setCurrentSong, shuffle, shuffleRef, setShuffle };
@@ -432,7 +444,9 @@ export const runInsertSongQueueAction = async ({
       targets: actionArgs,
     });
 
+    if (!isCurrent()) return { status: 'stale' };
     try {
+      context.beginNativeMutation();
       await TrackPlayer.add(toTrackPlayerTrack(song), plan.insertIndex);
       if (!isCurrent()) return { status: 'stale' };
       const readback = await readNativeQueueTruth([...songsRef.current, ...plan.queue]);
@@ -447,9 +461,10 @@ export const runInsertSongQueueAction = async ({
       });
       return { status: 'applied' };
     } catch (error) {
+      if (error instanceof NativeMutationHydrationStaleError) return { status: 'stale' };
       return recoverInsertQueueFailure(actionArgs, [...activeQueue, ...nativeQueue, song], previousBaseQueue, snapshot, error);
     }
-  }).catch(error => {
+  }, hydrationMutationOptions(hydrationCapture)).catch(error => {
     console.warn('[PlaybackQueue] Failed to insert song into queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -468,6 +483,7 @@ export const runReorderQueueAction = async ({
   nativeQueueRef,
   setPlaybackQueue,
   setCurrentSong,
+  hydrationCapture,
 }: RunReorderQueueActionArgs): Promise<NativeQueueActionResult> =>
   runExclusiveNativeQueueReplacement<NativeQueueActionResult>(async context => {
     const { isCurrent } = context;
@@ -512,6 +528,7 @@ export const runReorderQueueAction = async ({
       });
       return { status: 'applied' };
     } catch (error) {
+      if (error instanceof NativeMutationHydrationStaleError) return { status: 'stale' };
       const recovery = await recoverNativeQueueMutation({ originalError: error, snapshot,
         knownSongs: [...songsRef.current, ...plan.queue, ...snapshot.nativeQueue],
         librarySongs: songsRef.current, targets, preferredBaseQueue: snapshot.baseQueue,
@@ -522,7 +539,7 @@ export const runReorderQueueAction = async ({
         ? { status: 'failed', recovery }
         : { status: recovery.status, recovery };
     }
-  }).catch(error => {
+  }, hydrationMutationOptions(hydrationCapture)).catch(error => {
     console.warn('[PlaybackQueue] Failed to reorder queue.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
@@ -538,6 +555,7 @@ export const runShuffleQueueAction = async ({
   nativeQueueRef,
   setPlaybackQueue,
   setCurrentSong,
+  hydrationCapture,
 }: RunShuffleQueueActionArgs): Promise<NativeQueueActionResult> => {
   const actionArgs = { currentSongId, shuffle, shuffleRef, setShuffle, songsRef, queueContextRef,
     baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong };
@@ -595,11 +613,12 @@ export const runShuffleQueueAction = async ({
     if (!isCurrent()) return { status: 'stale' };
     return { status: 'applied' };
     } catch (error) {
+      if (error instanceof NativeMutationHydrationStaleError) return { status: 'stale' };
       if (!mutationSnapshot) throw error;
       return recoverShuffleQueueFailure(actionArgs, previousBaseQueue, mutationSnapshot, targetQueue,
         requestedShuffleEnabled, progress, error);
     }
-  }).catch(error => {
+  }, hydrationMutationOptions(hydrationCapture)).catch(error => {
     console.warn('[PlaybackQueue] Shuffle recovery failed.', error);
     return { status: 'failed', error } as NativeQueueActionResult;
   });
