@@ -1,5 +1,14 @@
 import TrackPlayer, { State } from 'react-native-track-player';
-import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import {
+  NativeMutationHydrationStaleError,
+  resetNativeQueueMutationLockForTests,
+  runExclusiveNativePlaybackControl,
+} from '../../utils/nativeQueueMutationLock';
+import {
+  acquireNativeHydrationGate,
+  publishNativeHydrationGate,
+  resetNativeHydrationGateForTests,
+} from '../../utils/nativeHydrationGate';
 import {
   applyRepeatModeToTrackPlayer,
   applyVolumeToTrackPlayer,
@@ -15,10 +24,21 @@ import {
 } from '../playbackControlHelpers';
 
 const trackPlayer = TrackPlayer as typeof TrackPlayer & { __reset: () => void };
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+};
+
+const publishReadyGate = () => {
+  const owner = acquireNativeHydrationGate();
+  publishNativeHydrationGate(owner, 'ready');
+};
 
 describe('playbackControlHelpers', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
     trackPlayer.__reset();
     jest.clearAllMocks();
   });
@@ -98,6 +118,42 @@ describe('playbackControlHelpers', () => {
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
 
+  test.each([State.Playing, State.Paused])(
+    'does not mutate playback when hydration changes during the %s state read',
+    async state => {
+      publishReadyGate();
+      const readStarted = deferred<void>();
+      const releaseRead = deferred<{ state: State }>();
+      (TrackPlayer.getPlaybackState as jest.Mock).mockImplementationOnce(async () => {
+        readStarted.resolve();
+        return releaseRead.promise;
+      });
+
+      const toggle = toggleTrackPlayerPlayback();
+      await readStarted.promise;
+      const nextOwner = acquireNativeHydrationGate();
+      publishNativeHydrationGate(nextOwner, 'loading');
+      releaseRead.resolve({ state });
+
+      await expect(toggle).rejects.toBeInstanceOf(NativeMutationHydrationStaleError);
+      expect(TrackPlayer.pause).not.toHaveBeenCalled();
+      expect(TrackPlayer.play).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    [State.Playing, 'pause'],
+    [State.Paused, 'play'],
+  ] as const)('performs exactly one %s toggle mutation while hydration stays ready', async (state, mutation) => {
+    publishReadyGate();
+    (TrackPlayer.getPlaybackState as jest.Mock).mockResolvedValueOnce({ state });
+
+    await toggleTrackPlayerPlayback();
+
+    expect(TrackPlayer[mutation]).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer[mutation === 'play' ? 'pause' : 'play']).not.toHaveBeenCalled();
+  });
+
   test('seeks using milliseconds input', async () => {
     await seekToMillis(5000);
 
@@ -140,6 +196,29 @@ describe('playbackControlHelpers', () => {
 
     expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(0);
+  });
+
+  test('does not restart when previous becomes hydration-stale before native execution', async () => {
+    publishReadyGate();
+    (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position: 1, duration: 10, buffered: 1 });
+    const blockerStarted = deferred<void>();
+    const releaseBlocker = deferred<void>();
+    const blocker = runExclusiveNativePlaybackControl(async () => {
+      blockerStarted.resolve();
+      await releaseBlocker.promise;
+    });
+    await blockerStarted.promise;
+
+    const previous = skipToPreviousOrRestart();
+    await Promise.resolve();
+    const nextOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(nextOwner, 'loading');
+    releaseBlocker.resolve();
+
+    await blocker;
+    await expect(previous).resolves.toBeUndefined();
+    expect(TrackPlayer.skipToPrevious).not.toHaveBeenCalled();
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 
   test.each([State.Paused, State.Stopped])('toggles TrackPlayer playback from %s to play', async state => {

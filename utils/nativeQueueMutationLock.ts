@@ -6,6 +6,7 @@ export interface NativeQueueReplacementContext {
 }
 
 interface NativeMutationOptions { requireStableReadyHydration?: boolean }
+export interface NativePlaybackControlContext { assertHydrationCurrent: () => void }
 type CapturedHydrationGate = NativeHydrationGateSnapshot | null | undefined;
 
 const captureHydrationGate = (options?: NativeMutationOptions): CapturedHydrationGate => {
@@ -67,14 +68,17 @@ export const runExclusiveNativeQueueReplacement = async <T>(
 };
 
 export const runExclusiveNativePlaybackControl = async <T>(
-  action: () => Promise<T>,
+  action: (context: NativePlaybackControlContext) => Promise<T>,
   options?: NativeMutationOptions,
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
   const run = nativeMutationChain.catch(() => undefined).then(() => {
-    if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
-    return action();
+    const assertHydrationCurrent = (): void => {
+      if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
+    };
+    assertHydrationCurrent();
+    return action({ assertHydrationCurrent });
   });
   nativeMutationChain = run.catch(() => undefined);
   return run;

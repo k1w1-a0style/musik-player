@@ -1,7 +1,7 @@
 import TrackPlayer, { State } from 'react-native-track-player';
 import type { RepeatMode } from '../types/Song';
 import { toTrackPlayerRepeatMode } from '../utils/audioPlaybackModes';
-import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { NativeMutationHydrationStaleError, runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
 import { requestLatestSeek } from '../utils/seekController';
 import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
 
@@ -31,8 +31,9 @@ export const normalizeSeekSeconds = (millis: number): number => {
 };
 
 export const toggleTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(async () => {
+  await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     const state = (await TrackPlayer.getPlaybackState()).state;
+    assertHydrationCurrent();
     if (state === State.Playing) {
       await TrackPlayer.pause();
       return;
@@ -68,6 +69,10 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
     }
     await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious(), stableReadyHydrationOptions());
   } catch (error) {
+    if (error instanceof NativeMutationHydrationStaleError) {
+      console.warn('[Playback] Previous action discarded after hydration changed.', error);
+      return;
+    }
     console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
     try {
       await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), stableReadyHydrationOptions());
