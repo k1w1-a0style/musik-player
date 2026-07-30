@@ -7,6 +7,11 @@ import { usePlaybackQueueActions, persistRequestedSongId } from '../usePlaybackQ
 import { StorageKeys, storage } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import {
+  acquireNativeHydrationGate,
+  publishNativeHydrationGate,
+  resetNativeHydrationGateForTests,
+} from '../../utils/nativeHydrationGate';
 
 const songs: Song[] = [
   { id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' },
@@ -20,6 +25,11 @@ type TrackPlayerMock = typeof TrackPlayer & {
 };
 
 const trackPlayerMock = TrackPlayer as TrackPlayerMock;
+const deferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+};
 
 const QueueActionsProbe = () => {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -58,6 +68,9 @@ const QueueActionsProbe = () => {
 describe('usePlaybackQueueActions', () => {
   beforeEach(async () => {
     resetNativeQueueMutationLockForTests();
+    resetNativeHydrationGateForTests();
+    const owner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(owner, 'ready');
     await AsyncStorage.clear();
     trackPlayerMock.__reset();
     jest.clearAllMocks();
@@ -121,5 +134,26 @@ describe('usePlaybackQueueActions', () => {
     expect(getByTestId('current').props.children).toBe('s2');
     expect(getByTestId('queue').props.children).toBe('s1,s2,s3');
     expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s1', 's2', 's3']);
+  });
+
+  test('keeps a queued public intent bound to its original hydration generation', async () => {
+    const resetStarted = deferred();
+    const releaseReset = deferred();
+    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
+      resetStarted.resolve();
+      await releaseReset.promise;
+      trackPlayerMock.__reset();
+    });
+    const { getByTestId } = render(<QueueActionsProbe />);
+
+    fireEvent.press(getByTestId('play-s2'));
+    await resetStarted.promise;
+    fireEvent.press(getByTestId('play-s2'));
+    const nextOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(nextOwner, 'ready');
+    releaseReset.resolve();
+
+    await waitFor(() => expect(getByTestId('action-status').props.children).toBe('failed'));
+    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
   });
 });

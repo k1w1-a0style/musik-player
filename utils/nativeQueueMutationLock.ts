@@ -3,19 +3,28 @@ import { getNativeHydrationGate, type NativeHydrationGateSnapshot } from './nati
 export interface NativeQueueReplacementContext {
   replacementVersion: number;
   isCurrent: () => boolean;
+  beginNativeMutation: () => void;
 }
 
-interface NativeMutationOptions { requireStableReadyHydration?: boolean }
+export type NativeHydrationCapture = NativeHydrationGateSnapshot | null | undefined;
+interface NativeMutationOptions {
+  requireStableReadyHydration?: boolean;
+  hydrationCapture?: NativeHydrationCapture;
+}
 export interface NativePlaybackControlContext { assertHydrationCurrent: () => void }
-type CapturedHydrationGate = NativeHydrationGateSnapshot | null | undefined;
 
-const captureHydrationGate = (options?: NativeMutationOptions): CapturedHydrationGate => {
-  if (!options?.requireStableReadyHydration) return undefined;
+export const captureRequiredNativeHydration = (): NativeHydrationCapture => {
   const gate = getNativeHydrationGate();
   return gate.owned && gate.status === 'ready' ? gate : null;
 };
 
-const isCapturedHydrationGateCurrent = (captured: CapturedHydrationGate): boolean => {
+const captureHydrationGate = (options?: NativeMutationOptions): NativeHydrationCapture => {
+  if (options && 'hydrationCapture' in options) return options.hydrationCapture;
+  if (!options?.requireStableReadyHydration) return undefined;
+  return captureRequiredNativeHydration();
+};
+
+const isCapturedHydrationGateCurrent = (captured: NativeHydrationCapture): boolean => {
   if (captured === undefined) return true;
   if (captured === null) return false;
   const current = getNativeHydrationGate();
@@ -52,14 +61,25 @@ export const runExclusiveNativeQueueReplacement = async <T>(
     .catch(() => undefined)
     .then(() => {
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
-      // Native queue mutations are not cancellable once reset/add/skip has begun.
-      // Decide staleness exactly once when this queued action starts: an older
-      // action that has not started yet may be skipped, while an active action
-      // remains valid until it has restored a truthful native/ref/UI state.
-      const currentAtStart = nativeQueueReplacementVersion === replacementVersion;
+      // Explicitly protected queue intents use two phases. Legacy/internal
+      // replacements preserve their historical callback-start semantics.
+      let mutationStarted = false;
+      const legacyCurrentAtStart = hydrationGate === undefined
+        ? nativeQueueReplacementVersion === replacementVersion
+        : undefined;
+      const isCurrent = (): boolean => legacyCurrentAtStart ?? (mutationStarted || (
+        nativeQueueReplacementVersion === replacementVersion
+        && isCapturedHydrationGateCurrent(hydrationGate)
+      ));
+      const beginNativeMutation = (): void => {
+        if (mutationStarted) return;
+        if (!isCurrent()) throw new NativeMutationHydrationStaleError();
+        mutationStarted = true;
+      };
       return action({
         replacementVersion,
-        isCurrent: () => currentAtStart,
+        isCurrent,
+        beginNativeMutation,
       });
     });
 

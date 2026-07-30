@@ -96,8 +96,9 @@ describe('nativeQueueMutationLock', () => {
     const owner = acquireNativeHydrationGate();
     publishNativeHydrationGate(owner, 'ready');
     let currentAfterNativeStep = false;
-    const replacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+    const replacement = runExclusiveNativeQueueReplacement(async ({ isCurrent, beginNativeMutation }) => {
       actionStarted.resolve();
+      beginNativeMutation();
       await releaseNativeStep.promise;
       currentAfterNativeStep = isCurrent();
     }, { requireStableReadyHydration: true });
@@ -175,8 +176,9 @@ describe('nativeQueueMutationLock', () => {
     let firstReplacementIsCurrent = false;
     let secondReplacementIsCurrent = false;
 
-    const firstReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
+    const firstReplacement = runExclusiveNativeQueueReplacement(async ({ isCurrent, beginNativeMutation }) => {
       firstStarted.resolve();
+      beginNativeMutation();
       await releaseFirst.promise;
       firstReplacementIsCurrent = isCurrent();
     });
