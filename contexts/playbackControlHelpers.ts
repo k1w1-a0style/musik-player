@@ -62,23 +62,32 @@ export const skipToNextSafely = async (): Promise<void> => {
 
 export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
-    const { position } = await TrackPlayer.getProgress();
-    if (position > 3) {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), stableReadyHydrationOptions());
-      return;
-    }
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToPrevious(), stableReadyHydrationOptions());
+    await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
+      try {
+        const { position } = await TrackPlayer.getProgress();
+        assertHydrationCurrent();
+        if (position > 3) {
+          await TrackPlayer.seekTo(0);
+          return;
+        }
+        await TrackPlayer.skipToPrevious();
+      } catch (error) {
+        if (error instanceof NativeMutationHydrationStaleError) throw error;
+        console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
+        assertHydrationCurrent();
+        try {
+          await TrackPlayer.seekTo(0);
+        } catch (seekError) {
+          console.warn('[Playback] fallback restart failed.', seekError);
+        }
+      }
+    }, stableReadyHydrationOptions());
   } catch (error) {
     if (error instanceof NativeMutationHydrationStaleError) {
       console.warn('[Playback] Previous action discarded after hydration changed.', error);
       return;
     }
-    console.warn('[Playback] skipToPrevious failed, falling back to restart.', error);
-    try {
-      await runExclusiveNativePlaybackControl(() => TrackPlayer.seekTo(0), stableReadyHydrationOptions());
-    } catch (seekError) {
-      console.warn('[Playback] fallback restart failed.', seekError);
-    }
+    console.warn('[Playback] Previous action failed.', error);
   }
 };
 

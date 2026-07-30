@@ -26,8 +26,9 @@ import {
 const trackPlayer = TrackPlayer as typeof TrackPlayer & { __reset: () => void };
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 };
 
 const publishReadyGate = () => {
@@ -200,7 +201,6 @@ describe('playbackControlHelpers', () => {
 
   test('does not restart when previous becomes hydration-stale before native execution', async () => {
     publishReadyGate();
-    (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position: 1, duration: 10, buffered: 1 });
     const blockerStarted = deferred<void>();
     const releaseBlocker = deferred<void>();
     const blocker = runExclusiveNativePlaybackControl(async () => {
@@ -219,6 +219,61 @@ describe('playbackControlHelpers', () => {
     await expect(previous).resolves.toBeUndefined();
     expect(TrackPlayer.skipToPrevious).not.toHaveBeenCalled();
     expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+  });
+
+  test.each([1, 4])(
+    'discards previous when hydration changes during the progress read at position %s',
+    async position => {
+      publishReadyGate();
+      const readStarted = deferred<void>();
+      const releaseProgress = deferred<{ position: number; duration: number; buffered: number }>();
+      (TrackPlayer.getProgress as jest.Mock).mockImplementationOnce(async () => {
+        readStarted.resolve();
+        return releaseProgress.promise;
+      });
+
+      const previous = skipToPreviousOrRestart();
+      await readStarted.promise;
+      publishReadyGate();
+      releaseProgress.resolve({ position, duration: 10, buffered: position });
+
+      await expect(previous).resolves.toBeUndefined();
+      expect(TrackPlayer.skipToPrevious).not.toHaveBeenCalled();
+      expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+    },
+  );
+
+  test('does not restart when hydration changes before a failed previous settles', async () => {
+    publishReadyGate();
+    (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position: 1, duration: 10, buffered: 1 });
+    const previousStarted = deferred<void>();
+    const releasePrevious = deferred<void>();
+    (TrackPlayer.skipToPrevious as jest.Mock).mockImplementationOnce(async () => {
+      previousStarted.resolve();
+      return releasePrevious.promise;
+    });
+
+    const previous = skipToPreviousOrRestart();
+    await previousStarted.promise;
+    publishReadyGate();
+    releasePrevious.reject(new Error('queue boundary'));
+
+    await expect(previous).resolves.toBeUndefined();
+    expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [4, 'seekTo'],
+    [1, 'skipToPrevious'],
+  ] as const)('uses only %s for stable previous position %s', async (position, expectedMutation) => {
+    publishReadyGate();
+    (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position, duration: 10, buffered: position });
+
+    await skipToPreviousOrRestart();
+
+    expect(TrackPlayer[expectedMutation]).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer[expectedMutation === 'seekTo' ? 'skipToPrevious' : 'seekTo']).not.toHaveBeenCalled();
   });
 
   test.each([State.Paused, State.Stopped])('toggles TrackPlayer playback from %s to play', async state => {
