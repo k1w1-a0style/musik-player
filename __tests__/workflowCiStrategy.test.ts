@@ -11,12 +11,59 @@ const workflowFiles = fs
 const readWorkflow = (file: string) =>
   fs.readFileSync(path.join(workflowDir, file), 'utf8');
 
+const easConfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'eas.json'), 'utf8'));
+
+const apkContractViolations = (
+  config: typeof easConfig,
+  workflow: string,
+) => {
+  const nonApkProfiles = Object.entries(config.build).flatMap(([profile, value]) =>
+    (value as { android?: { buildType?: string } }).android?.buildType === 'apk'
+      ? []
+      : [profile]
+  );
+
+  return [
+    ...(nonApkProfiles.length === 0 ? [] : [`Non-APK Android profiles: ${nonApkProfiles.join(', ')}`]),
+    ...(workflow.includes('ARTIFACT_EXT=apk') ? [] : ['Workflow artifact extension is not APK']),
+    ...(workflow.includes('k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}')
+      ? []
+      : ['Downloaded artifact name does not use the APK extension']),
+    ...(workflow.includes('- name: Upload Android APK Artifact')
+      ? []
+      : ['Uploaded artifact is not identified as an Android APK']),
+    ...(workflow.includes('node scripts/ci/inspectAndroidApk.cjs')
+      ? []
+      : ['Canonical APK inspector is not used']),
+    ...(/inspectAndroid(?:Aab|Bundle)|inspect.*\.aab/i.test(workflow)
+      ? ['An AAB inspector is configured']
+      : []),
+  ];
+};
+
 const stepBlocks = (workflow: string) =>
   workflow
     .split(/\n(?=\s{6,}- name: )/)
     .filter(block => /^\s{6,}- name: /m.test(block));
 
 describe('GitHub workflow CI strategy', () => {
+  it('keeps EAS profiles and the Android workflow on one APK-only artifact contract', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+
+    expect(apkContractViolations(easConfig, easWorkflow)).toEqual([]);
+    expect(easWorkflow).not.toMatch(/ARTIFACT_EXT=(?:aab|app-bundle)/);
+    expect(easWorkflow).not.toMatch(/\.aab\b/);
+  });
+
+  it('rejects a production App Bundle regression across EAS and workflow configuration', () => {
+    const regressedConfig = JSON.parse(JSON.stringify(easConfig));
+    regressedConfig.build.production.android.buildType = 'app-bundle';
+
+    expect(apkContractViolations(regressedConfig, readWorkflow('eas-build.yml'))).toContain(
+      'Non-APK Android profiles: production'
+    );
+  });
+
   it('does not use repository-local actions before checkout', () => {
     const violations = workflowFiles.flatMap(file => {
       const blocks = stepBlocks(readWorkflow(file));
