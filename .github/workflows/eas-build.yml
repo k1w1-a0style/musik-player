@@ -914,7 +914,7 @@ jobs:
           esac
 
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}-apk" >> "${GITHUB_OUTPUT}"
           ls -lah "${ARTIFACT_DIR}"
 
       - name: Resolve Android SDK build tools
