@@ -425,7 +425,7 @@ class AudioTagTransactionManagerTest {
     assertEquals(1, sync.calls)
   }
 
-  @Test fun twoWritesForSameUriNeverOpenTargetConcurrently() {
+  @Test fun secondWriteForSameUriIsRejectedWhileNativeMutationRuns() {
     val old = "old".toByteArray()
     val first = "first".toByteArray()
     val second = "second".toByteArray()
@@ -445,15 +445,15 @@ class AudioTagTransactionManagerTest {
     store.outputOpened = null
     store.holdWriteUntil = null
     val secondThread = thread { secondResult = manager.write(req(uri, first, second)) }
-    Thread.sleep(150)
+    secondThread.join(5_000)
     assertEquals(1, store.writes)
+    assertEquals("TransactionConflict", secondResult?.errorCode)
+    assertFalse(secondResult?.terminal ?: true)
     release.countDown()
     firstThread.join(10_000)
-    secondThread.join(10_000)
 
     assertTrue(firstResult?.success == true)
-    assertTrue(secondResult?.success == true)
-    assertArrayEquals(second, store.bytes)
+    assertArrayEquals(first, store.bytes)
   }
 
   private fun prepared(

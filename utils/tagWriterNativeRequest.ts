@@ -14,7 +14,9 @@ export const buildNativeTagWriteRequest = (
   draft: TagEditDraft,
   container: TagEditableContainer,
   maxFileSizeBytes: number,
+  operationId?: string,
 ): AudioTagWriteRequest => ({
+  operationId,
   tags: { ...draft.tags },
   container,
   removeCover: Boolean(draft.removeCover),

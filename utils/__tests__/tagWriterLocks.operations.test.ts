@@ -1,0 +1,60 @@
+import { getActiveSafWrite, runSafWriteOperation } from '../tagWriterLocks';
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+};
+
+describe('SAF tag write operation contract', () => {
+  afterEach(() => jest.useRealTimers());
+
+  test('same canonical target is busy while different targets run concurrently', async () => {
+    const first = deferred<string>();
+    const a = runSafWriteOperation('CONTENT://provider/song', () => first.promise);
+    await Promise.resolve();
+    const duplicate = await runSafWriteOperation('content://provider/song', async () => 'duplicate');
+    const other = await runSafWriteOperation('content://provider/other', async () => 'other');
+    expect(duplicate.kind).toBe('busy');
+    expect(other).toMatchObject({ kind: 'result', value: 'other' });
+    first.resolve('first');
+    await expect(a).resolves.toMatchObject({ kind: 'result', value: 'first' });
+  });
+
+  test('zero timeout cancels before native mutation and releases the target', async () => {
+    const native = jest.fn(async () => 'never');
+    const result = await runSafWriteOperation('content://provider/pre', native, { timeoutMs: 0 });
+    expect(result).toMatchObject({ kind: 'result', status: { phase: 'cancelledBeforeMutation', terminal: true } });
+    expect(native).not.toHaveBeenCalled();
+    expect(getActiveSafWrite('content://provider/pre')).toBeUndefined();
+  });
+
+  test.each(['success', 'failure'] as const)('late native %s owns lock until terminal settlement', async outcome => {
+    jest.useFakeTimers();
+    const native = deferred<string>();
+    const request = runSafWriteOperation('content://provider/late', () => native.promise, { timeoutMs: 10 });
+    await Promise.resolve();
+    jest.advanceTimersByTime(10);
+    const timedOut = await request;
+    expect(timedOut).toMatchObject({ kind: 'pending', status: { phase: 'pendingNativeResult', terminal: false } });
+    const retry = await runSafWriteOperation('content://provider/late', async () => 'duplicate');
+    expect(retry.kind).toBe('busy');
+    if (outcome === 'success') native.resolve('done');
+    else native.reject(new Error('native failed'));
+    await native.promise.catch(() => undefined);
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(getActiveSafWrite('content://provider/late')).toBeUndefined();
+  });
+
+  test('native rejection is observed and releases the target without an unhandled rejection', async () => {
+    const observed: unknown[] = [];
+    const listener = (reason: unknown) => observed.push(reason);
+    process.on('unhandledRejection', listener);
+    await expect(runSafWriteOperation('content://provider/error', async () => { throw new Error('failed'); })).rejects.toThrow('failed');
+    await Promise.resolve();
+    process.off('unhandledRejection', listener);
+    expect(observed).toEqual([]);
+    expect(getActiveSafWrite('content://provider/error')).toBeUndefined();
+  });
+});

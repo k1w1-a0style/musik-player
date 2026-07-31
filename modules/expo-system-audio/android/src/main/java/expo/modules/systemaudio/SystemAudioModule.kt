@@ -184,6 +184,10 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       "recoveryPending" to tx.recoveryPending,
       "recovered" to tx.recovered,
       "cleanupPending" to tx.cleanupPending,
+      "operationId" to (tx.transactionId ?: request["operationId"]),
+      "phase" to tx.phase,
+      "terminal" to tx.terminal,
+      "retryable" to tx.retryable,
     )
     val parsed = try { Uri.parse(uri) } catch (_: Throwable) {
       return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "URI could not be parsed."))
@@ -197,6 +201,9 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
       val manager = audioTagTransactionManager(ctx)
       result(manager.write(TransactionWriteRequest(
+        operationId = (request["operationId"] as? String)?.takeIf {
+          it.matches(Regex("^[A-Za-z0-9._-]{1,80}$"))
+        } ?: throw AudioTagRewriteException("InvalidTagData", "A valid operation identifier is required."),
         uri = parsed,
         rewriteSource = StreamingAudioTagRewriteSource(spec),
         changedFields = changedFields,

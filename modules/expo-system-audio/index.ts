@@ -32,6 +32,7 @@ export interface EmbeddedArtworkResult {
 }
 
 export interface AudioTagWriteRequest {
+  operationId?: string;
   tags?: Record<string, string | null | undefined>;
   container?: 'mp3' | 'm4a' | 'mp4' | string;
   removeCover?: boolean;
@@ -62,6 +63,10 @@ export interface AudioTagWriteResult {
   recoveryPending?: boolean;
   recovered?: boolean;
   cleanupPending?: boolean;
+  operationId?: string;
+  phase?: 'ACCEPTED' | 'LOCK_ACQUIRED' | 'NATIVE_MUTATION_STARTED' | 'PENDING_NATIVE_RESULT' | 'COMPLETED' | 'FAILED' | 'CANCELLED_BEFORE_MUTATION';
+  terminal?: boolean;
+  retryable?: boolean;
 }
 
 export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';

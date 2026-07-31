@@ -1,7 +1,7 @@
 import SystemAudio, { type AudioTagWriteRequest, type AudioTagWriteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { TagEditDraft, WriteTagsResult } from '../types/TagEdit';
-import { withUriWriteLock } from './tagWriterLocks';
+import { runSafWriteOperation } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
 import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
@@ -33,20 +33,24 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
     recoveryPending: nativeResult.recoveryPending,
     recovered: nativeResult.recovered,
     cleanupPending: nativeResult.cleanupPending,
+    operationId: nativeResult.operationId ?? nativeResult.transactionId,
+    operationPhase: nativeResult.phase === 'COMPLETED' ? 'completed' : nativeResult.phase === 'FAILED' ? 'failed' : undefined,
+    terminal: nativeResult.terminal,
+    retryable: nativeResult.retryable,
   };
 };
 
 export const writeTagsToSafContentUri = async (
   song: Song,
   draft: TagEditDraft,
-  options?: { maxFileSizeBytes?: number },
+  options?: { maxFileSizeBytes?: number; timeoutMs?: number; operationId?: string },
 ): Promise<WriteTagsResult> => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) {
     return { status: 'unsupportedUri', warnings: [], errorCode: 'UnsupportedUri', errorMessage: 'Song has no editable URI.' };
   }
 
-  return withUriWriteLock(uri, async () => {
+  const execution = await runSafWriteOperation(uri, async (operationId): Promise<WriteTagsResult> => {
     const container = getSupportedContainer(song);
     const changedFields = changedFieldsForNativeTagDraft(draft);
     if (!SystemAudio.hasNativeTagWriter) {
@@ -64,7 +68,7 @@ export const writeTagsToSafContentUri = async (
     try {
       validateTagWriteDraftOrThrow(draft);
       const maxBytes = resolveSafeTagWriteMaxFileSizeBytes(options?.maxFileSizeBytes);
-      const request: AudioTagWriteRequest = buildNativeTagWriteRequest(draft, container, maxBytes);
+      const request: AudioTagWriteRequest = buildNativeTagWriteRequest(draft, container, maxBytes, operationId);
       return toResult(await SystemAudio.writeAudioTags(uri, request));
     } catch (error) {
       if (error instanceof TagWriterError) {
@@ -84,5 +88,22 @@ export const writeTagsToSafContentUri = async (
         errorMessage: String(error),
       };
     }
-  });
+  }, options);
+
+  if (execution.kind === 'result' && execution.status.phase === 'cancelledBeforeMutation') {
+    return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true };
+  }
+  if (execution.kind === 'pending' || execution.kind === 'busy') {
+    return {
+      status: 'writeFailed', sourceUri: uri, warnings: [],
+      errorCode: execution.kind === 'busy' ? 'TransactionConflict' : 'RecoveryPending',
+      errorMessage: execution.kind === 'busy' ? 'A tag write is already active for this SAF document.' : 'The native mutation is still running; its outcome is not known yet.',
+      operationId: execution.status.operationId,
+      operationPhase: execution.status.phase,
+      terminal: false,
+      retryable: execution.kind === 'busy',
+      recoveryPending: true,
+    };
+  }
+  return { ...execution.value, operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true };
 };
