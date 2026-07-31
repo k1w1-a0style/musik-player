@@ -7,6 +7,7 @@ export type SafWriteOperationStatus = {
   phase: SafWritePhase;
   terminal: boolean;
   retryable: boolean;
+  blockedByOperationId?: string;
 };
 type SafWriteOperationOptions<T> = {
   timeoutMs?: number;
@@ -38,11 +39,20 @@ export const runSafWriteOperation = async <T>(
   options: SafWriteOperationOptions<T> = {},
 ): Promise<{ kind: 'result'; value: T; status: SafWriteOperationStatus } | { kind: 'pending'; status: SafWriteOperationStatus } | { kind: 'busy'; status: SafWriteOperationStatus }> => {
   const targetKey = canonicalSafTarget(uri);
+  const operationId = options.operationId ?? createTagWriteOperationId();
   const existing = activeSafWrites.get(targetKey);
-  if (existing) return { kind: 'busy', status: { ...existing } };
+  if (existing) {
+    return {
+      kind: 'busy',
+      status: {
+        operationId, targetKey, phase: 'failed', terminal: true, retryable: true,
+        blockedByOperationId: existing.operationId,
+      },
+    };
+  }
 
   const status: SafWriteOperationStatus = {
-    operationId: options.operationId ?? createTagWriteOperationId(), targetKey,
+    operationId, targetKey,
     phase: 'accepted', terminal: false, retryable: false,
   };
   activeSafWrites.set(targetKey, status);

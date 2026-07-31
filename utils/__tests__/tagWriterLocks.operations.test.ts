@@ -17,9 +17,29 @@ describe('SAF tag write operation contract', () => {
     const duplicate = await runSafWriteOperation('content://provider/song', async () => 'duplicate');
     const other = await runSafWriteOperation('content://provider/other', async () => 'other');
     expect(duplicate.kind).toBe('busy');
+    expect(duplicate.status).toMatchObject({ phase: 'failed', terminal: true, retryable: true });
+    const active = getActiveSafWrite('content://provider/song');
+    expect(duplicate.status.operationId).not.toBe(active?.operationId);
+    expect(duplicate.status.blockedByOperationId).toBe(active?.operationId);
     expect(other).toMatchObject({ kind: 'result', value: 'other' });
     first.resolve('first');
     await expect(a).resolves.toMatchObject({ kind: 'result', value: 'first' });
+    expect(duplicate.status).toMatchObject({ phase: 'failed', terminal: true, retryable: true });
+  });
+
+  test('busy uses the rejected caller operation ID without replacing the active operation', async () => {
+    const first = deferred<string>();
+    const running = runSafWriteOperation('content://provider/identity', () => first.promise, { operationId: 'first' });
+    await Promise.resolve();
+    const busy = await runSafWriteOperation('content://provider/identity', async () => 'never', { operationId: 'second' });
+    expect(busy).toMatchObject({
+      kind: 'busy',
+      status: { operationId: 'second', blockedByOperationId: 'first', phase: 'failed', terminal: true, retryable: true },
+    });
+    expect(getActiveSafWrite('content://provider/identity')?.operationId).toBe('first');
+    first.reject(new Error('first failed'));
+    await expect(running).rejects.toThrow('first failed');
+    expect(busy.status).toMatchObject({ operationId: 'second', phase: 'failed', terminal: true, retryable: true });
   });
 
   test('zero timeout cancels before native mutation and releases the target', async () => {

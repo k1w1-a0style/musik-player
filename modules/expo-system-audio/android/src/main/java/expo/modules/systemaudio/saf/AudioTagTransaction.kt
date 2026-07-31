@@ -251,6 +251,11 @@ object AndroidDirectoryDurabilitySync : DirectoryDurabilitySync {
   }
 }
 
+private val TAG_WRITE_OPERATION_ID_PATTERN = Regex("^[A-Za-z0-9._-]{1,80}$")
+
+fun isValidTagWriteOperationId(value: String): Boolean =
+  value != "." && value != ".." && TAG_WRITE_OPERATION_ID_PATTERN.matches(value)
+
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
@@ -277,8 +282,14 @@ class TransactionStorage(
   }
 
   fun createDir(operationId: String = UUID.randomUUID().toString()): File {
-    require(Regex("^[A-Za-z0-9._-]{1,80}$").matches(operationId)) { "invalid operation id" }
+    if (!isValidTagWriteOperationId(operationId)) {
+      throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+    }
     val directory = File(root, operationId)
+    val canonicalRoot = root.canonicalFile
+    if (directory.canonicalFile.parentFile != canonicalRoot) {
+      throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier escapes transaction storage.")
+    }
     if (!directory.mkdirs()) throw IOException("transaction directory mkdir failed")
     syncDirectory(root)
     return directory

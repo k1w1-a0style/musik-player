@@ -61,6 +61,43 @@ describe('native streaming SAF write contract', () => {
     expect(write).toHaveBeenCalledTimes(1);
   });
 
+  test('same-target busy result is an independent terminal retryable conflict', async () => {
+    let finish!: (value: Record<string, unknown>) => void;
+    const nativeResult = new Promise<Record<string, unknown>>(resolve => { finish = resolve; });
+    const write = jest.fn((_uri: string, _request: { operationId: string }) => nativeResult);
+    const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
+
+    const first = writeTagsToSafContentUri(song, draft, { operationId: 'first-operation' });
+    await Promise.resolve();
+    const busy = await writeTagsToSafContentUri(song, draft, { operationId: 'rejected-operation' });
+    expect(busy).toMatchObject({
+      errorCode: 'TransactionConflict', operationId: 'rejected-operation', operationPhase: 'failed',
+      terminal: true, retryable: true, recoveryPending: false,
+    });
+    expect(write).toHaveBeenCalledTimes(1);
+
+    finish({
+      success: true, uri: song.uri, changedFields: ['title'], failedFields: [], verified: true,
+      operationId: 'first-operation', phase: 'COMPLETED', terminal: true, retryable: false,
+    });
+    await expect(first).resolves.toMatchObject({ status: 'written', operationId: 'first-operation' });
+    expect(busy).toMatchObject({ operationId: 'rejected-operation', terminal: true, retryable: true });
+  });
+
+  test('native timeout remains pending and is not reported as busy', async () => {
+    jest.useFakeTimers();
+    const write = jest.fn(() => new Promise(() => undefined));
+    const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
+    const pendingPromise = writeTagsToSafContentUri(song, draft, { timeoutMs: 10, operationId: 'pending-operation' });
+    await Promise.resolve();
+    jest.advanceTimersByTime(10);
+    await expect(pendingPromise).resolves.toMatchObject({
+      errorCode: 'RecoveryPending', operationId: 'pending-operation', operationPhase: 'pendingNativeResult',
+      terminal: false, retryable: false, recoveryPending: true,
+    });
+    jest.useRealTimers();
+  });
+
   test.each([
     ['MissingWritePermission', 'permissionDenied'],
     ['UnsupportedUri', 'unsupportedUri'],

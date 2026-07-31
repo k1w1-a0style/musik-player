@@ -18,6 +18,7 @@ import expo.modules.systemaudio.saf.MAX_SAFE_TAG_WRITE_FILE_BYTES
 import expo.modules.systemaudio.saf.AudioTagTransactionManager
 import expo.modules.systemaudio.saf.TransactionStorage
 import expo.modules.systemaudio.saf.TransactionWriteRequest
+import expo.modules.systemaudio.saf.isValidTagWriteOperationId
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.util.Base64
@@ -202,7 +203,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
       val operationId = when (val supplied = request["operationId"]) {
         null -> UUID.randomUUID().toString()
-        is String -> supplied.takeIf { it.matches(Regex("^[A-Za-z0-9._-]{1,80}$")) }
+        is String -> supplied.takeIf(::isValidTagWriteOperationId)
           ?: throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
         else -> throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
       }

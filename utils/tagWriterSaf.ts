@@ -1,7 +1,7 @@
 import SystemAudio, { type AudioTagWriteRequest, type AudioTagWriteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { TagEditDraft, WriteTagsResult } from '../types/TagEdit';
-import { runSafWriteOperation } from './tagWriterLocks';
+import { runSafWriteOperation, type SafWriteOperationStatus } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
 import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
@@ -26,6 +26,21 @@ const nativePhaseMap: Readonly<Record<NonNullable<AudioTagWriteResult['phase']>,
 
 const phaseForWriteResult = (result: WriteTagsResult): 'completed' | 'failed' =>
   result.status === 'written' || result.status === 'noop' ? 'completed' : 'failed';
+
+const rejectedExecutionResult = (
+  uri: string,
+  execution: { kind: 'busy' | 'pending'; status: SafWriteOperationStatus },
+): WriteTagsResult => execution.kind === 'busy' ? {
+  status: 'writeFailed', sourceUri: uri, warnings: [],
+  errorCode: 'TransactionConflict', errorMessage: 'A tag write is already active for this SAF document.',
+  operationId: execution.status.operationId, operationPhase: execution.status.phase,
+  terminal: true, retryable: true, recoveryPending: false,
+} : {
+  status: 'writeFailed', sourceUri: uri, warnings: [],
+  errorCode: 'RecoveryPending', errorMessage: 'The native mutation is still running; its outcome is not known yet.',
+  operationId: execution.status.operationId, operationPhase: 'pendingNativeResult',
+  terminal: false, retryable: false, recoveryPending: true,
+};
 
 const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => {
   const errorCode = nativeResult.success ? undefined : normalizeTagWriterErrorCode(nativeResult.errorCode, nativeResult.message ?? '');
@@ -106,18 +121,8 @@ export const writeTagsToSafContentUri = async (
   if (execution.kind === 'result' && execution.status.phase === 'cancelledBeforeMutation') {
     return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true };
   }
-  if (execution.kind === 'pending' || execution.kind === 'busy') {
-    return {
-      status: 'writeFailed', sourceUri: uri, warnings: [],
-      errorCode: execution.kind === 'busy' ? 'TransactionConflict' : 'RecoveryPending',
-      errorMessage: execution.kind === 'busy' ? 'A tag write is already active for this SAF document.' : 'The native mutation is still running; its outcome is not known yet.',
-      operationId: execution.status.operationId,
-      operationPhase: execution.status.phase,
-      terminal: false,
-      retryable: execution.kind === 'busy',
-      recoveryPending: true,
-    };
-  }
+  if (execution.kind === 'busy') return rejectedExecutionResult(uri, execution);
+  if (execution.kind === 'pending') return rejectedExecutionResult(uri, execution);
   const value = execution.value;
   return {
     ...value,

@@ -425,6 +425,18 @@ class AudioTagTransactionManagerTest {
     assertEquals(1, sync.calls)
   }
 
+  @Test fun transactionDirectoryRejectsSpecialAndTraversalOperationIds() {
+    val root = tmp()
+    val storage = TransactionStorage(root, NoopDirectorySync)
+    listOf("", ".", "..", "bad/id", "bad\\id", "../tag.1").forEach { operationId ->
+      val error = assertThrows(AudioTagRewriteException::class.java) { storage.createDir(operationId) }
+      assertEquals("InvalidTagData", error.errorCode)
+    }
+    listOf("tag.1", "tag_1", "tag-1").forEach { operationId ->
+      assertEquals(root.canonicalFile, storage.createDir(operationId).canonicalFile.parentFile)
+    }
+  }
+
   @Test fun secondWriteForSameUriIsRejectedWhileNativeMutationRuns() {
     val old = "old".toByteArray()
     val first = "first".toByteArray()

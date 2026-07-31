@@ -200,6 +200,8 @@ const hasNativeWaveformCancellation =
   hasNativeWaveformExtraction && typeof waveformNative?.cancelWaveformExtraction === 'function';
 
 const tagWriteOperationIdPattern = /^[A-Za-z0-9._-]{1,80}$/;
+const isValidTagWriteOperationId = (value: string): boolean =>
+  value !== '.' && value !== '..' && tagWriteOperationIdPattern.test(value);
 let tagWriteOperationSequence = 0;
 const createNativeTagWriteOperationId = (): string =>
   `tag-${Date.now().toString(36)}-${(++tagWriteOperationSequence).toString(36)}`;
@@ -287,7 +289,7 @@ export const SystemAudio = {
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {
     const operationId = request.operationId ?? createNativeTagWriteOperationId();
-    if (!tagWriteOperationIdPattern.test(operationId)) {
+    if (!isValidTagWriteOperationId(operationId)) {
       return {
         success: false, uri, changedFields: [], failedFields: request.changedFields ?? [],
         errorCode: 'InvalidTagData', message: 'Tag write operation identifier is invalid.',

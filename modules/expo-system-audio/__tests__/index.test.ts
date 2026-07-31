@@ -141,11 +141,18 @@ describe('native tag-write operation identifiers', () => {
     expect(native.mock.calls[0][1].operationId).toBe('caller.valid-_1');
   });
 
-  test.each(['', 'bad/id', 'x'.repeat(81)])('rejects invalid explicit ID %j before native invocation', async operationId => {
+  test.each(['', '.', '..', 'bad/id', 'bad\\id', '../tag.1', 'x'.repeat(81)])('rejects invalid explicit ID %j before native invocation', async operationId => {
     const native = jest.fn();
     const systemAudio = load(native);
     await expect(systemAudio.writeAudioTags('content://song', { operationId })).resolves.toMatchObject({ errorCode: 'InvalidTagData', phase: 'FAILED', terminal: true });
     expect(native).not.toHaveBeenCalled();
+  });
+
+  test.each(['tag.1', 'tag_1', 'tag-1'])('accepts valid ID %j', async operationId => {
+    const native = jest.fn(async (uri, request) => ({ success: true, uri, changedFields: [], failedFields: [], verified: true, operationId: request.operationId }));
+    const systemAudio = load(native);
+    await expect(systemAudio.writeAudioTags('content://song', { operationId })).resolves.toMatchObject({ success: true, operationId });
+    expect(native).toHaveBeenCalledTimes(1);
   });
 });
 
