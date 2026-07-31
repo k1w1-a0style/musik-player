@@ -307,34 +307,22 @@ jobs:
           echo " Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
 
           BUILD_OUTPUT=""
-          if ! BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)"; then
+          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
             CODE=$?
-            echo "${BUILD_OUTPUT}"
+            printf '%s\n' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs redact-urls
             echo "::error::EAS build failed (exit ${CODE})"
             exit "${CODE}"
-          fi
+          }
 
-          echo "${BUILD_OUTPUT}"
+          printf '%s\n' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs redact-urls
 
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
+          BUILD_ID="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-id)"
           if [ -z "${BUILD_ID}" ]; then
             echo "::error::EAS build completed without a build ID; refusing to publish an unverified APK."
             exit 1
           fi
 
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
-          ARTIFACT_URL="$(echo "${BUILD_OUTPUT}" | grep -oE 'https://expo.dev/artifacts/eas/[^[:space:]]+\.apk' | head -n1 || true)"
-          if [ -z "${ARTIFACT_URL}" ]; then
-            echo "::error::EAS build ${BUILD_ID} completed without an APK artifact URL; refusing to download an unrelated build."
-            exit 1
-          fi
-
-          {
-            echo "build_id=${BUILD_ID}"
-            echo "build_url=${BUILD_URL}"
-            echo "artifact_url=${ARTIFACT_URL}"
-          } >> "${GITHUB_OUTPUT}"
+          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         id: download_artifact
@@ -344,13 +332,25 @@ jobs:
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"
-          if [ -z "${BUILD_ID}" ] || [ -z "${ARTIFACT_URL}" ]; then
-            echo "::error::Missing the current EAS build ID or its artifact URL; refusing to download."
+          PROFILE="${{ inputs.profile }}"
+          if [ -z "${BUILD_ID}" ]; then
+            echo "::error::Missing the current EAS build ID; refusing to download."
             exit 1
           fi
+          case "${PROFILE}" in
+            development|preview) EXPECTED_DISTRIBUTION="internal" ;;
+            production) EXPECTED_DISTRIBUTION="store" ;;
+            *) echo "::error::Unexpected build profile."; exit 1 ;;
+          esac
+          BUILD_JSON="$(mktemp)"
+          trap 'rm -f "${BUILD_JSON}"' EXIT
+          eas build:view "${BUILD_ID}" --json > "${BUILD_JSON}"
+          ARTIFACT_URL="$(node scripts/ci/resolveEasBuildArtifact.cjs artifact-url \
+            "${BUILD_ID}" "${PROFILE}" "${PROFILE}" "${EXPECTED_DISTRIBUTION}" < "${BUILD_JSON}")"
+          rm -f "${BUILD_JSON}"
+          echo "Validated structured EAS artifact metadata (URL present, value redacted)."
           rm -f "${OUT}"
-          curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"
+          curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"
           if ! test -s "${OUT}"; then
             echo "::error::Release build did not produce a non-empty APK at ${OUT}."
             exit 1
@@ -408,7 +408,6 @@ jobs:
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
             echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
             echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
-            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""
             echo "> Hinweis: Dieser Workflow ist ein manueller Direktpfad und umgeht die App-seitige Single Source of Truth."

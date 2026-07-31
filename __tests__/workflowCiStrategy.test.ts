@@ -51,6 +51,9 @@ const stepBlocks = (workflow: string) =>
     .split(/\n(?=\s{6,}- name: )/)
     .filter(block => /^\s{6,}- name: /m.test(block));
 
+const namedStep = (workflow: string, name: string) =>
+  stepBlocks(workflow).find(block => block.includes(`- name: ${name}`)) ?? '';
+
 describe('GitHub workflow CI strategy', () => {
   const workflowContracts = [
     {
@@ -127,29 +130,55 @@ describe('GitHub workflow CI strategy', () => {
       .toContain('Canonical APK inspector is not used');
   });
 
+  it.each(workflowContracts)('gates the APK upload in $file on its inspector step', contract => {
+    const workflow = readWorkflow(contract.file);
+    const inspectStep = namedStep(workflow, 'Inspect downloaded Android APK');
+    const uploadStep = namedStep(workflow, 'Upload Android APK Artifact');
+
+    expect(inspectStep).toContain('id: inspect_apk');
+    expect(inspectStep).toContain('node scripts/ci/inspectAndroidApk.cjs');
+    expect(uploadStep).toContain("if: steps.inspect_apk.outcome == 'success'");
+  });
+
   it('keeps the release APK path non-empty, inspected, and fail-closed before publication', () => {
     const releaseWorkflow = readWorkflow('release-build.yml');
+    const buildStep = namedStep(releaseWorkflow, 'Run EAS build (WAIT)');
+    const downloadStep = namedStep(releaseWorkflow, 'Download Android Artifact');
+    const inspectStep = namedStep(releaseWorkflow, 'Inspect downloaded Android APK');
+    const uploadStep = namedStep(releaseWorkflow, 'Upload Android APK Artifact');
 
     expect(releaseWorkflow).toContain('EAS_CLI_VERSION: "16.32.0"');
-    expect(releaseWorkflow).toContain('artifact_url=${ARTIFACT_URL}');
-    expect(releaseWorkflow).toContain('BUILD_ID="${{ steps.eas.outputs.build_id }}"');
-    expect(releaseWorkflow).toContain('ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"');
-    expect(releaseWorkflow).toContain('if [ -z "${BUILD_ID}" ] || [ -z "${ARTIFACT_URL}" ]; then');
-    expect(releaseWorkflow).toContain('curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"');
+    expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-id');
+    expect(buildStep).not.toMatch(/grep[^\n]*UUID|head -n1[^\n]*UUID/);
+    expect(buildStep).not.toContain('artifacts/eas');
+    expect(downloadStep).toContain('eas build:view "${BUILD_ID}" --json');
+    expect(downloadStep).toContain('resolveEasBuildArtifact.cjs artifact-url');
+    expect(downloadStep).toContain('"${BUILD_ID}" "${PROFILE}" "${PROFILE}" "${EXPECTED_DISTRIBUTION}"');
+    expect(downloadStep).toContain('development|preview) EXPECTED_DISTRIBUTION="internal"');
+    expect(downloadStep).toContain('production) EXPECTED_DISTRIBUTION="store"');
+    expect(downloadStep).toContain('OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"');
+    expect(downloadStep).toContain('curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"');
+    const downloadLogLines = downloadStep.split('\n').filter(line => /\becho\b/.test(line));
+    expect(downloadLogLines.every(line => !line.includes('${ARTIFACT_URL}'))).toBe(true);
+    expect(downloadStep).not.toContain('artifact_url=');
     expect(releaseWorkflow).not.toContain('--latest');
+    expect(releaseWorkflow).not.toContain('eas build:list');
     expect(releaseWorkflow).not.toMatch(/eas build:download[\s\\]*--id[\s\S]{0,200}--output/);
-    expect(releaseWorkflow).toContain('if ! test -s "${OUT}"; then');
-    expect(releaseWorkflow).toContain('steps.inspect_apk.outcome == \'success\'');
-    expect(releaseWorkflow).toContain('path: ${{ steps.download_artifact.outputs.artifact_path }}');
-    expect(releaseWorkflow).toContain('if-no-files-found: error');
-    expect(releaseWorkflow).not.toContain('continue-on-error: true');
+    expect(downloadStep).toContain('if ! test -s "${OUT}"; then');
+    expect(inspectStep).toContain('node scripts/ci/inspectAndroidApk.cjs');
+    expect(uploadStep).toContain('steps.inspect_apk.outcome == \'success\'');
+    expect(uploadStep).toContain('path: ${{ steps.download_artifact.outputs.artifact_path }}');
+    expect(uploadStep).toContain('if-no-files-found: error');
+    for (const criticalStep of [downloadStep, inspectStep, uploadStep]) {
+      expect(criticalStep).not.toContain('continue-on-error');
+    }
   });
 
   it('detects the unsupported release download command mutation', () => {
     const releaseWorkflow = readWorkflow('release-build.yml');
     const unsupportedDownload = /eas build:download[\s\\]*--id[\s\S]{0,200}--output/;
     const mutatedWorkflow = releaseWorkflow.replace(
-      'curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"',
+      'curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"',
       'eas build:download --id "${BUILD_ID}" --output "${OUT}"',
     );
 
@@ -206,43 +235,23 @@ describe('GitHub workflow CI strategy', () => {
   });
   it('fails closed when an EAS APK download does not produce an artifact', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
+    const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
+    const downloadStep = namedStep(easWorkflow, 'Download Android Artifact');
 
-    expect(easWorkflow).toContain('artifact_url=');
-    expect(easWorkflow).toContain('https://expo.dev/artifacts/eas/');
-    expect(easWorkflow).toContain('curl --fail');
+    expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-id');
+    expect(buildStep).not.toContain('artifacts/eas');
+    expect(downloadStep).toContain('eas build:view "${BUILD_ID}" --json');
+    expect(downloadStep).toContain('resolveEasBuildArtifact.cjs artifact-url');
+    expect(downloadStep).toContain('curl --fail --location --retry 3 --retry-delay 5');
     expect(easWorkflow).not.toContain('eas build:download --id');
     expect(easWorkflow).not.toContain('eas build:download "${BUILD_ID}"');
     expect(easWorkflow).not.toContain('eas build:download "${BUILD_ID}" --output');
     expect(easWorkflow).not.toContain('eas build:download --build-id "${BUILD_ID}" --output');
-    const workflowLines = easWorkflow.split('\n');
-    const easBuildDownloadInvocations = workflowLines.flatMap((line, index) =>
-      /^\s*(?:if )?eas build:download/.test(line) ? [workflowLines.slice(index, index + 4).join('\n')] : []
-    );
-    expect(easBuildDownloadInvocations.every(command => !command.includes('--output'))).toBe(true);
-    expect(easWorkflow).toContain('--build-id "${BUILD_ID}"');
-    expect(easWorkflow).toContain('--non-interactive');
-    expect(easWorkflow).toContain('--json');
-    expect(easWorkflow).toContain('JSON.parse');
-    expect(easWorkflow).toContain('j.path');
-    expect(easWorkflow).toContain('mv "${DOWNLOADED_APK}" "${OUT}" || cp "${DOWNLOADED_APK}" "${OUT}"');
     expect(easWorkflow).toContain('${RUNNER_TEMP:-/tmp}/k1w1-artifacts');
-    expect(easWorkflow).toContain('for attempt in 1 2 3 4 5; do');
-    expect(easWorkflow).toContain('Download attempt ${attempt}/5');
-    expect(easWorkflow).toContain('download_ok=false');
-    expect(easWorkflow).toContain('eas build:download --help');
-    expect(easWorkflow).toContain('ci-logs/eas-build-download-help.log');
-    expect(easWorkflow).toContain('ci-logs/eas-download.log');
-    expect(easWorkflow).toContain('ci-logs/eas-download-attempt-${attempt}.json');
-    expect(easWorkflow).toContain('ci-logs/eas-download-attempt-${attempt}.log');
-    expect(easWorkflow).toContain('ci-logs/eas-download-attempt-*.json');
-    expect(easWorkflow).toContain('ci-logs/eas-download-attempt-*.log');
     expect(easWorkflow).not.toContain('--latest');
-    expect(easWorkflow).toContain('eas build:download failed; attempting direct artifact URL fallback.');
-    expect(easWorkflow).toContain('Direct EAS artifact URL fallback failed.');
-    expect(easWorkflow).toContain('neither eas build:download nor the direct URL fallback produced a non-empty APK');
+    expect(easWorkflow).not.toContain('eas build:list');
+    expect(easWorkflow).toContain('validated artifact download did not produce a non-empty APK');
     expect(easWorkflow).toContain('Build ID=${{ steps.eas.outputs.build_id }}');
-    expect(easWorkflow).toContain('Build URL=${{ steps.eas.outputs.build_url }}');
-    expect(easWorkflow).toContain('Artifact URL=${{ steps.eas.outputs.artifact_url }}');
     expect(easWorkflow).toContain('Expected output=${OUT}');
     expect(easWorkflow).toContain('find "${ARTIFACT_DIR}" -maxdepth 2 -type f');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
@@ -268,8 +277,8 @@ describe('GitHub workflow CI strategy', () => {
     expect(autofixJobBlock).toContain('timeout-minutes: 30');
     expect(easWorkflow).toContain('default: "development"');
     expect(easWorkflow).not.toContain('default: "preview"');
-    expect(easWorkflow).toContain('eas build:download failed; attempting direct artifact URL fallback.');
-    expect(easWorkflow).toContain('Direct EAS artifact URL fallback failed.');
+    expect(easWorkflow).toContain('eas build:view "${BUILD_ID}" --json');
+    expect(easWorkflow).toContain('resolveEasBuildArtifact.cjs artifact-url');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
     expect(easWorkflow).toContain('--require-badging');
     expect(easWorkflow).toContain('--require-signature');
