@@ -20,8 +20,21 @@ describe('EAS build profile environments', () => {
     expect(easConfig.build.preview.android.withoutCredentials).toBe(true);
   });
 
-  it('pins production to the production environment and Android App Bundle output', () => {
+  it('pins production to the production environment and Android APK output', () => {
     expect(easConfig.build.production.environment).toBe('production');
-    expect(easConfig.build.production.android.buildType).toBe('app-bundle');
+    expect(easConfig.build.production.android.buildType).toBe('apk');
+  });
+
+  it('keeps every Android build profile on the APK artifact contract', () => {
+    const androidProfiles = Object.entries(easConfig.build).map(([profile, config]) => ({
+      profile,
+      buildType: (config as { android?: { buildType?: string } }).android?.buildType,
+    }));
+
+    expect(androidProfiles).toEqual([
+      { profile: 'development', buildType: 'apk' },
+      { profile: 'preview', buildType: 'apk' },
+      { profile: 'production', buildType: 'apk' },
+    ]);
   });
 });

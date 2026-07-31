@@ -788,7 +788,7 @@ jobs:
           echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."
           BUILD_OUTPUT="$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
             CODE=$?
-            echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
+            printf '%s\n' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs redact-urls | tee ci-logs/eas-build.log
             if echo "${BUILD_OUTPUT}" | grep -q "Generating a new Keystore is not supported in --non-interactive mode"; then
               echo "::error::Android signing keystore is missing on EAS. Fix: run 'eas credentials -p android' once locally (interactive) to generate/upload a keystore, or configure Android credentials in the Expo dashboard, then rerun the workflow."
             fi
@@ -798,27 +798,15 @@ jobs:
             echo "::error::EAS build failed (exit ${CODE})"
             exit "${CODE}"
           }
-          echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
-          ARTIFACT_URL="$(echo "${BUILD_OUTPUT}" | grep -oE 'https://expo.dev/artifacts/eas/[^[:space:]]+\.apk' | head -n1 || true)"
-          BUILD_ID=""
-          if [ -n "${BUILD_URL}" ]; then
-            BUILD_ID="$(echo "${BUILD_URL}" | grep -oE "${UUID_RE}$" || true)"
-          fi
-          if [ -z "${BUILD_ID}" ]; then
-            BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*${UUID_RE}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          fi
-          if [ -z "${BUILD_ID}" ]; then
-            BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          fi
+          printf '%s\n' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs redact-urls | tee ci-logs/eas-build.log
+          BUILD_ID="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-id)"
+          BUILD_URL="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-url)"
           if [ -z "${BUILD_ID}" ]; then
             echo "::error::Could not extract EAS build ID from successful EAS output. See diagnostics artifact."
             exit 1
           fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_url=${ARTIFACT_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         id: download_artifact
@@ -831,75 +819,25 @@ jobs:
           OUT="${ARTIFACT_DIR}/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
           echo "Expected Android artifact path: ${OUT}"
           echo "EAS build ID: ${{ steps.eas.outputs.build_id }}"
-          echo "EAS build URL: ${{ steps.eas.outputs.build_url }}"
-          echo "EAS artifact URL: ${{ steps.eas.outputs.artifact_url }}"
-
-          eas build:download --help | tee ci-logs/eas-build-download-help.log || true
-
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"
-          download_ok=false
-          : > ci-logs/eas-download.log
-          for attempt in 1 2 3 4 5; do
-            rm -f "${OUT}"
-
-            JSON_OUT="ci-logs/eas-download-attempt-${attempt}.json"
-            LOG_OUT="ci-logs/eas-download-attempt-${attempt}.log"
-            rm -f "${JSON_OUT}" "${LOG_OUT}"
-
-            echo "Download attempt ${attempt}/5" | tee -a ci-logs/eas-download.log
-
-            if eas build:download \
-              --build-id "${BUILD_ID}" \
-              --non-interactive \
-              --json > "${JSON_OUT}" 2> "${LOG_OUT}"; then
-
-              DOWNLOADED_APK=""
-              if DOWNLOADED_APK="$(node -e "const fs=require('fs'); const raw=fs.readFileSync(process.argv[1], 'utf8').trim(); const j=JSON.parse(raw); process.stdout.write(j.path || '')" "${JSON_OUT}" 2>> "${LOG_OUT}")"; then
-                echo "Downloaded APK path from EAS JSON: ${DOWNLOADED_APK}" | tee -a ci-logs/eas-download.log
-              else
-                echo "Failed to parse EAS download JSON for attempt ${attempt}; see ${JSON_OUT} and ${LOG_OUT}." | tee -a ci-logs/eas-download.log
-              fi
-
-              if [ -n "${DOWNLOADED_APK}" ] && [ -s "${DOWNLOADED_APK}" ]; then
-                mkdir -p "$(dirname "${OUT}")"
-                mv "${DOWNLOADED_APK}" "${OUT}" || cp "${DOWNLOADED_APK}" "${OUT}"
-
-                if [ -s "${OUT}" ]; then
-                  download_ok=true
-                  break
-                fi
-              elif [ -z "${DOWNLOADED_APK}" ]; then
-                echo "EAS download JSON did not contain a non-empty path for attempt ${attempt}." | tee -a ci-logs/eas-download.log
-              else
-                echo "EAS download JSON path does not point to a non-empty APK for attempt ${attempt}: ${DOWNLOADED_APK}" | tee -a ci-logs/eas-download.log
-              fi
-            fi
-
-            echo "No APK produced by eas build:download attempt ${attempt}." | tee -a ci-logs/eas-download.log
-            echo "---- attempt ${attempt} stderr ----" >> ci-logs/eas-download.log
-            cat "${LOG_OUT}" >> ci-logs/eas-download.log 2>/dev/null || true
-            echo "---- attempt ${attempt} json ----" >> ci-logs/eas-download.log
-            cat "${JSON_OUT}" >> ci-logs/eas-download.log 2>/dev/null || true
-            sleep 30
-          done
-
-          if [ "${download_ok}" = false ]; then
-            echo "eas build:download failed; attempting direct artifact URL fallback."
-            if [ -n "${ARTIFACT_URL}" ]; then
-              rm -f "${OUT}"
-              if curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"; then
-                echo "Direct EAS artifact URL fallback completed."
-              else
-                echo "Direct EAS artifact URL fallback failed."
-              fi
-            else
-              echo "No direct EAS artifact URL was found in the build output; cannot use URL fallback."
-            fi
-          fi
+          PROFILE="${{ inputs.profile }}"
+          case "${PROFILE}" in
+            development|preview) EXPECTED_DISTRIBUTION="internal" ;;
+            production) EXPECTED_DISTRIBUTION="store" ;;
+            *) echo "::error::Unexpected build profile."; exit 1 ;;
+          esac
+          BUILD_JSON="$(mktemp)"
+          trap 'rm -f "${BUILD_JSON}"' EXIT
+          eas build:view "${BUILD_ID}" --json > "${BUILD_JSON}"
+          ARTIFACT_URL="$(node scripts/ci/resolveEasBuildArtifact.cjs artifact-url \
+            "${BUILD_ID}" "${PROFILE}" "${PROFILE}" "${EXPECTED_DISTRIBUTION}" < "${BUILD_JSON}")"
+          rm -f "${BUILD_JSON}"
+          echo "Validated structured EAS artifact metadata (URL present, value redacted)."
+          rm -f "${OUT}"
+          curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"
 
           if ! test -s "${OUT}"; then
-            echo "::error::EAS build succeeded, but neither eas build:download nor the direct URL fallback produced a non-empty APK. Build ID=${{ steps.eas.outputs.build_id }} Build URL=${{ steps.eas.outputs.build_url }} Artifact URL=${{ steps.eas.outputs.artifact_url }} Expected output=${OUT}"
+            echo "::error::EAS build succeeded, but the validated artifact download did not produce a non-empty APK. Build ID=${{ steps.eas.outputs.build_id }} Expected output=${OUT}"
             echo "${ARTIFACT_DIR}/ contents:"
             find "${ARTIFACT_DIR}" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
             exit 1
@@ -914,7 +852,7 @@ jobs:
           esac
 
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}-apk" >> "${GITHUB_OUTPUT}"
           ls -lah "${ARTIFACT_DIR}"
 
       - name: Resolve Android SDK build tools
@@ -946,6 +884,7 @@ jobs:
           command -v apksigner
 
       - name: Inspect downloaded Android APK
+        id: inspect_apk
         if: steps.download_artifact.outputs.artifact_path != ''
         shell: bash
         run: |
@@ -980,10 +919,6 @@ jobs:
             ci-logs/eas-version.log
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
-            ci-logs/eas-build-download-help.log
-            ci-logs/eas-download.log
-            ci-logs/eas-download-attempt-*.json
-            ci-logs/eas-download-attempt-*.log
             ci-logs/android-apk-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
@@ -1003,7 +938,7 @@ jobs:
           true
 
       - name: Upload Android APK Artifact
-        if: steps.download_artifact.outputs.artifact_path != ''
+        if: steps.inspect_apk.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.download_artifact.outputs.artifact_name }}
@@ -1031,8 +966,6 @@ jobs:
           - Dependency install mode: ${{ steps.install_deps.outputs.mode }}
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
           - Build ID: ${{ steps.eas.outputs.build_id }}
-          - Build URL: ${{ steps.eas.outputs.build_url }}
-          - Artifact URL: ${{ steps.eas.outputs.artifact_url }}
           - Diagnostics artifact: eas-build-diagnostics-${{ github.run_number }}
           - APK artifact: ${{ steps.download_artifact.outputs.artifact_name }}
           - APK path: ${{ steps.download_artifact.outputs.artifact_path }}
