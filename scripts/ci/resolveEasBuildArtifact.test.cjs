@@ -2,11 +2,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractBuildId, redactUrls, validateBuildRecord } = require('./resolveEasBuildArtifact.cjs');
+const {
+  extractBuildDetails, extractBuildId, redactUrls, validateBuildRecord,
+} = require('./resolveEasBuildArtifact.cjs');
 
 const BUILD_ID = '11111111-2222-4333-8444-555555555555';
 const FOREIGN_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const SECRET_URL = 'https://artifacts.example.test/archive?token=TOKEN_CANARY';
+const BUILD_URL = `https://expo.dev/accounts/a/projects/p/builds/${BUILD_ID}`;
 
 const record = (overrides = {}) => ({
   id: BUILD_ID,
@@ -20,8 +23,29 @@ const record = (overrides = {}) => ({
 });
 
 test('extracts only the ID bound to the build-detail URL and ignores earlier UUIDs', () => {
-  const output = `request ${FOREIGN_ID}\nBuild details: https://expo.dev/accounts/a/projects/p/builds/${BUILD_ID}`;
+  const output = `request ${FOREIGN_ID}\nBuild details: ${BUILD_URL}`;
   assert.equal(extractBuildId(output), BUILD_ID);
+});
+
+test('returns the matching ID and canonical build-detail URL from one match', () => {
+  assert.deepEqual(extractBuildDetails(`Build details: ${BUILD_URL}`), {
+    id: BUILD_ID,
+    url: BUILD_URL,
+  });
+});
+
+test('deduplicates repeated occurrences of the same canonical build-detail URL', () => {
+  assert.deepEqual(extractBuildDetails(`${BUILD_URL}\n${BUILD_URL}`), {
+    id: BUILD_ID,
+    url: BUILD_URL,
+  });
+});
+
+test('fails closed when output contains two different build-detail IDs', () => {
+  assert.throws(
+    () => extractBuildDetails(`${BUILD_URL}\nhttps://expo.dev/accounts/a/projects/p/builds/${FOREIGN_ID}`),
+    /exactly one canonical EAS build-detail URL/,
+  );
 });
 
 for (const profile of ['development', 'preview']) {
@@ -42,8 +66,14 @@ test('resolves a production store artifact from structured JSON', () => {
 });
 
 test('ignores a fake artifact URL in human output', () => {
-  const output = `https://expo.dev/artifacts/eas/fake.apk\nhttps://expo.dev/a/builds/${BUILD_ID}`;
+  const output = `https://expo.dev/artifacts/eas/${FOREIGN_ID}/fake.apk\n${BUILD_URL}`;
   assert.equal(extractBuildId(output), BUILD_ID);
+});
+
+test('rejects build-detail URLs with a query, token, or trailing path', () => {
+  for (const suffix of ['?token=TOKEN_CANARY', '/artifact.apk', '#fragment']) {
+    assert.throws(() => extractBuildDetails(`${BUILD_URL}${suffix}`), /found 0/);
+  }
 });
 
 for (const [name, mutate, message] of [

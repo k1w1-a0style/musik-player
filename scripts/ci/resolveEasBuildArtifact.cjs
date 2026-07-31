@@ -4,15 +4,26 @@
 const fs = require('fs');
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
-const BUILD_URL = new RegExp(`https://expo\\.dev/[^\\s]*/builds/(${UUID})(?=$|[^0-9a-fA-F-])`, 'g');
+const BUILD_URL = new RegExp(
+  `https://expo\\.dev/accounts/[^/\\s?#]+/projects/[^/\\s?#]+/builds/(${UUID})(?=$|\\s)`,
+  'g',
+);
+
+function extractBuildDetails(output) {
+  const details = [...String(output).matchAll(BUILD_URL)].map(match => ({
+    id: match[1],
+    url: match[0],
+  }));
+  const uniqueDetails = [...new Map(details.map(detail => [detail.url, detail])).values()];
+  const uniqueIds = new Set(uniqueDetails.map(detail => detail.id));
+  if (uniqueDetails.length !== 1 || uniqueIds.size !== 1) {
+    throw new Error(`Expected exactly one canonical EAS build-detail URL, found ${uniqueDetails.length}.`);
+  }
+  return uniqueDetails[0];
+}
 
 function extractBuildId(output) {
-  const ids = [...String(output).matchAll(BUILD_URL)].map(match => match[1].toLowerCase());
-  const uniqueIds = [...new Set(ids)];
-  if (uniqueIds.length !== 1) {
-    throw new Error(`Expected exactly one EAS build-detail ID, found ${uniqueIds.length}.`);
-  }
-  return uniqueIds[0];
+  return extractBuildDetails(output).id;
 }
 
 function normalized(value) {
@@ -74,6 +85,10 @@ function main() {
     process.stdout.write(extractBuildId(input));
     return;
   }
+  if (mode === 'extract-build-url') {
+    process.stdout.write(extractBuildDetails(input).url);
+    return;
+  }
   if (mode === 'artifact-url') {
     const [id, profile, environment, distribution] = args;
     if (![id, profile, environment, distribution].every(Boolean)) {
@@ -86,7 +101,7 @@ function main() {
     process.stdout.write(redactUrls(input));
     return;
   }
-  throw new Error('Usage: resolveEasBuildArtifact.cjs <extract-build-id|artifact-url> [...expected values]');
+  throw new Error('Usage: resolveEasBuildArtifact.cjs <extract-build-id|extract-build-url|artifact-url> [...expected values]');
 }
 
 if (require.main === module) {
@@ -98,4 +113,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { extractBuildId, redactUrls, validateBuildRecord };
+module.exports = { extractBuildDetails, extractBuildId, redactUrls, validateBuildRecord };

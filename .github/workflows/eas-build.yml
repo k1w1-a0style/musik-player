@@ -800,11 +800,13 @@ jobs:
           }
           printf '%s\n' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs redact-urls | tee ci-logs/eas-build.log
           BUILD_ID="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-id)"
+          BUILD_URL="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-url)"
           if [ -z "${BUILD_ID}" ]; then
             echo "::error::Could not extract EAS build ID from successful EAS output. See diagnostics artifact."
             exit 1
           fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
+          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         id: download_artifact

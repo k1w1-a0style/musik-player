@@ -239,6 +239,9 @@ describe('GitHub workflow CI strategy', () => {
     const downloadStep = namedStep(easWorkflow, 'Download Android Artifact');
 
     expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-id');
+    expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-url');
+    expect(buildStep).toContain('echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"');
+    expect(buildStep).toContain('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"');
     expect(buildStep).not.toContain('artifacts/eas');
     expect(downloadStep).toContain('eas build:view "${BUILD_ID}" --json');
     expect(downloadStep).toContain('resolveEasBuildArtifact.cjs artifact-url');
@@ -265,6 +268,28 @@ describe('GitHub workflow CI strategy', () => {
     const uploadAndroidApkBlock = easWorkflow.match(/- name: Upload Android APK Artifact[\s\S]*?if-no-files-found: error/);
     expect(uploadAndroidApkBlock).not.toBeNull();
     expect(easWorkflow).not.toContain('- name: Upload Artifact\n        if: always()\n        continue-on-error: true');
+  });
+
+  it('patches success status with the validated EAS build-detail URL output', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+    const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
+    const successStep = namedStep(easWorkflow, 'Update Build Status - Success');
+    const hasBuildUrlProducerForSuccessPayload = (workflow: string) => {
+      const producer = namedStep(workflow, 'Run EAS Build (WAIT)');
+      const consumer = namedStep(workflow, 'Update Build Status - Success');
+      return producer.includes('resolveEasBuildArtifact.cjs extract-build-url')
+        && producer.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
+        && consumer.includes('BUILD_URL="${{ steps.eas.outputs.build_url }}"');
+    };
+
+    expect(buildStep).toContain('BUILD_URL="$(printf \'%s\' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-url)"');
+    expect(buildStep).toContain('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"');
+    expect(successStep).toContain('BUILD_URL="${{ steps.eas.outputs.build_url }}"');
+    expect(successStep).toContain('build_url:(process.argv[3]||null)');
+    expect(hasBuildUrlProducerForSuccessPayload(easWorkflow)).toBe(true);
+    expect(hasBuildUrlProducerForSuccessPayload(
+      easWorkflow.replace('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"', ''),
+    )).toBe(false);
   });
 
   it('keeps the EAS build job timeout long enough for queued Android dev-client builds', () => {
