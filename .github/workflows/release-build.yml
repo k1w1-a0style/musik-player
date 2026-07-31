@@ -324,10 +324,16 @@ jobs:
           fi
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
+          ARTIFACT_URL="$(echo "${BUILD_OUTPUT}" | grep -oE 'https://expo.dev/artifacts/eas/[^[:space:]]+\.apk' | head -n1 || true)"
+          if [ -z "${ARTIFACT_URL}" ]; then
+            echo "::error::EAS build ${BUILD_ID} completed without an APK artifact URL; refusing to download an unrelated build."
+            exit 1
+          fi
 
           {
             echo "build_id=${BUILD_ID}"
             echo "build_url=${BUILD_URL}"
+            echo "artifact_url=${ARTIFACT_URL}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
@@ -337,7 +343,14 @@ jobs:
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
-          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}"
+          BUILD_ID="${{ steps.eas.outputs.build_id }}"
+          ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"
+          if [ -z "${BUILD_ID}" ] || [ -z "${ARTIFACT_URL}" ]; then
+            echo "::error::Missing the current EAS build ID or its artifact URL; refusing to download."
+            exit 1
+          fi
+          rm -f "${OUT}"
+          curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"
           if ! test -s "${OUT}"; then
             echo "::error::Release build did not produce a non-empty APK at ${OUT}."
             exit 1

@@ -130,11 +130,31 @@ describe('GitHub workflow CI strategy', () => {
   it('keeps the release APK path non-empty, inspected, and fail-closed before publication', () => {
     const releaseWorkflow = readWorkflow('release-build.yml');
 
+    expect(releaseWorkflow).toContain('EAS_CLI_VERSION: "16.32.0"');
+    expect(releaseWorkflow).toContain('artifact_url=${ARTIFACT_URL}');
+    expect(releaseWorkflow).toContain('BUILD_ID="${{ steps.eas.outputs.build_id }}"');
+    expect(releaseWorkflow).toContain('ARTIFACT_URL="${{ steps.eas.outputs.artifact_url }}"');
+    expect(releaseWorkflow).toContain('if [ -z "${BUILD_ID}" ] || [ -z "${ARTIFACT_URL}" ]; then');
+    expect(releaseWorkflow).toContain('curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"');
+    expect(releaseWorkflow).not.toContain('--latest');
+    expect(releaseWorkflow).not.toMatch(/eas build:download[\s\\]*--id[\s\S]{0,200}--output/);
     expect(releaseWorkflow).toContain('if ! test -s "${OUT}"; then');
     expect(releaseWorkflow).toContain('steps.inspect_apk.outcome == \'success\'');
     expect(releaseWorkflow).toContain('path: ${{ steps.download_artifact.outputs.artifact_path }}');
     expect(releaseWorkflow).toContain('if-no-files-found: error');
     expect(releaseWorkflow).not.toContain('continue-on-error: true');
+  });
+
+  it('detects the unsupported release download command mutation', () => {
+    const releaseWorkflow = readWorkflow('release-build.yml');
+    const unsupportedDownload = /eas build:download[\s\\]*--id[\s\S]{0,200}--output/;
+    const mutatedWorkflow = releaseWorkflow.replace(
+      'curl --fail --location --output "${OUT}" "${ARTIFACT_URL}"',
+      'eas build:download --id "${BUILD_ID}" --output "${OUT}"',
+    );
+
+    expect(releaseWorkflow).not.toMatch(unsupportedDownload);
+    expect(mutatedWorkflow).toMatch(unsupportedDownload);
   });
 
   it('does not use repository-local actions before checkout', () => {
