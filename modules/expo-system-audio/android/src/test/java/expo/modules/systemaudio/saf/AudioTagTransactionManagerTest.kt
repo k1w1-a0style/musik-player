@@ -152,6 +152,47 @@ class AudioTagTransactionManagerTest {
     assertTrue(result.verified)
     assertArrayEquals(rewritten, store.bytes)
     assertTrue(root.listFiles().isNullOrEmpty())
+    assertFalse(result.retryable)
+  }
+
+  @Test fun nativeRetryPolicyClassifiesEveryKnownFailureCode() {
+    val retryable = listOf(
+      "TransactionConflict", "RecoveryPending", "RecoveryFailed", "MissingWritePermission",
+      "InsufficientStorage", "BackupFailed", "TempWriteFailed", "ReplaceFailed", "RollbackFailed",
+    )
+    val permanent = listOf(
+      "InvalidTagData", "UnsupportedUri", "UnsupportedFormat", "FileTooLarge",
+      "BackupCorrupted", "VerificationFailed",
+    )
+
+    retryable.forEach { code ->
+      assertTrue(code, isRetryableTagWriteFailure(false, code, recoveryPending = false))
+    }
+    permanent.forEach { code ->
+      assertFalse(code, isRetryableTagWriteFailure(false, code, recoveryPending = false))
+    }
+    assertFalse(isRetryableTagWriteFailure(false, "UnknownFailure", recoveryPending = false))
+    assertFalse(isRetryableTagWriteFailure(true, null, recoveryPending = false))
+  }
+
+  @Test fun recoveryPendingOverridesEveryFailedErrorClassification() {
+    listOf(null, "BackupCorrupted", "VerificationFailed", "UnknownFailure").forEach { code ->
+      val result = TransactionResult(false, code, "pending", recoveryPending = true)
+      assertTrue(code ?: "null error code", result.retryable)
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TransactionResult(false, "RecoveryPending", "invalid", recoveryPending = true, retryable = false)
+    }
+  }
+
+  @Test fun missingWritePermissionIsTerminalFailedAndRetryable() {
+    val result = manager(tmp(), FakeStore().apply { permission = false }).write(
+      req(uri, "old".toByteArray(), "new".toByteArray()),
+    )
+    assertEquals("MissingWritePermission", result.errorCode)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertTrue(result.retryable)
   }
 
   @Test fun targetIsNotOpenedBeforeOriginalVerification() {
@@ -198,6 +239,17 @@ class AudioTagTransactionManagerTest {
     val result = manager(root, store).write(req(uri, old, "new".toByteArray()))
     assertEquals("InsufficientStorage", result.errorCode)
     assertEquals(0, store.writes)
+    assertTrue(result.retryable)
+  }
+
+  @Test fun unverifiableStorageIsRetryable() {
+    val root = tmp()
+    val unavailableStorage = TransactionStorage(root, NoopDirectorySync) { throw IOException("unavailable") }
+    val result = AudioTagTransactionManager(unavailableStorage, FakeStore(), 0).write(
+      req(uri, "old".toByteArray(), "new".toByteArray()),
+    )
+    assertEquals("InsufficientStorage", result.errorCode)
+    assertTrue(result.retryable)
   }
 
   @Test fun externalChangeBeforeWriteIntentAbortsWithoutMutation() {
@@ -276,6 +328,7 @@ class AudioTagTransactionManagerTest {
     assertFalse(result.success)
     assertEquals("RollbackFailed", result.errorCode)
     assertTrue(result.recoveryPending)
+    assertTrue(result.retryable)
     assertFalse(root.listFiles().isNullOrEmpty())
   }
 

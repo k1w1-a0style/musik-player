@@ -99,19 +99,19 @@ describe('native streaming SAF write contract', () => {
   });
 
   test.each([
-    ['MissingWritePermission', 'permissionDenied'],
-    ['UnsupportedUri', 'unsupportedUri'],
-    ['ReplaceFailed', 'writeFailed'],
-  ] as const)('maps native %s to terminal failed without overwriting native retryability', async (errorCode, status) => {
+    ['MissingWritePermission', 'permissionDenied', true],
+    ['UnsupportedUri', 'unsupportedUri', false],
+    ['ReplaceFailed', 'writeFailed', true],
+  ] as const)('maps native %s without overwriting retryable=%s', async (errorCode, status, retryable) => {
     const { writeTagsToSafContentUri } = loadWithNative({
       hasNativeTagWriter: true,
       writeAudioTags: jest.fn(async (uri: string, request: { operationId: string }) => ({
         success: false, uri, changedFields: [], failedFields: ['title'], errorCode,
-        verified: false, operationId: request.operationId, phase: 'FAILED', terminal: true, retryable: true,
+        verified: false, operationId: request.operationId, phase: 'FAILED', terminal: true, retryable,
       })),
     });
     await expect(writeTagsToSafContentUri(song, draft)).resolves.toMatchObject({
-      status, operationPhase: 'failed', terminal: true, retryable: true,
+      status, operationPhase: 'failed', terminal: true, retryable,
     });
   });
 

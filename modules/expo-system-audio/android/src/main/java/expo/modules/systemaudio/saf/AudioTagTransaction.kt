@@ -501,6 +501,33 @@ data class TransactionWriteRequest(
   val expectedOriginalSha256: String? = null,
 )
 
+/**
+ * Retry policy for a completed native tag-write attempt. Retryable failures are
+ * safe to attempt again only after their external cause (permission, capacity,
+ * provider I/O, or pending recovery) has been addressed. Verification failures
+ * are deterministic content mismatches and remain permanent unless recovery is
+ * still pending. Unknown codes fail closed as non-retryable.
+ */
+internal fun isRetryableTagWriteFailure(
+  success: Boolean,
+  errorCode: String?,
+  recoveryPending: Boolean,
+): Boolean {
+  if (success) return false
+  if (recoveryPending) return true
+  return errorCode in setOf(
+    "TransactionConflict",
+    "RecoveryPending",
+    "RecoveryFailed",
+    "MissingWritePermission",
+    "InsufficientStorage",
+    "BackupFailed",
+    "TempWriteFailed",
+    "ReplaceFailed",
+    "RollbackFailed",
+  )
+}
+
 data class TransactionResult(
   val success: Boolean,
   val errorCode: String?,
@@ -515,8 +542,13 @@ data class TransactionResult(
   val cleanupPending: Boolean = false,
   val phase: String = if (success) "COMPLETED" else "FAILED",
   val terminal: Boolean = true,
-  val retryable: Boolean = false,
-)
+  val retryable: Boolean = isRetryableTagWriteFailure(success, errorCode, recoveryPending),
+) {
+  init {
+    require(!success || !retryable) { "successful transaction results cannot be retryable" }
+    require(!recoveryPending || retryable) { "recovery-pending transaction results must be retryable" }
+  }
+}
 
 data class RestoreResult(
   val restored: Boolean,
@@ -1089,7 +1121,7 @@ class AudioTagTransactionManager(
         message = restore.message,
         bytesBefore = journal.originalSizeBytes,
         bytesAfter = journal.rewrittenSizeBytes,
-        recoveryPending = true,
+        recoveryPending = restore.recoveryPending,
       )
     }
   }
@@ -1117,11 +1149,12 @@ class AudioTagTransactionManager(
         journal,
         "BackupCorrupted",
         "Original backup is corrupted; target was not modified by recovery.",
+        recoveryPending = false,
       )
       return RestoreResult(
         restored = false,
         verified = false,
-        recoveryPending = true,
+        recoveryPending = false,
         errorCode = "BackupCorrupted",
         message = "Original backup is corrupted; target was not modified by recovery.",
       )
@@ -1193,6 +1226,7 @@ class AudioTagTransactionManager(
         journal,
         "BackupCorrupted",
         "Original backup is corrupted; target was not modified by recovery.",
+        recoveryPending = false,
       )
       return TransactionResult(
         success = false,
@@ -1200,7 +1234,7 @@ class AudioTagTransactionManager(
         message = "Original backup is corrupted; target was not modified by recovery.",
         bytesBefore = journal.originalSizeBytes,
         bytesAfter = journal.rewrittenSizeBytes,
-        recoveryPending = true,
+        recoveryPending = false,
       )
     }
 
@@ -1379,6 +1413,7 @@ class AudioTagTransactionManager(
     journal: TransactionJournal,
     code: String,
     message: String,
+    recoveryPending: Boolean = true,
   ): TransactionResult {
     try {
       storage.markRecoveryState(directory, journal, TransactionState.RECOVERY_FAILED)
@@ -1391,7 +1426,7 @@ class AudioTagTransactionManager(
       message = message,
       bytesBefore = journal.originalSizeBytes,
       bytesAfter = journal.rewrittenSizeBytes,
-      recoveryPending = true,
+      recoveryPending = recoveryPending,
     )
   }
 
