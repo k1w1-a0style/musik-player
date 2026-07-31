@@ -20,10 +20,11 @@ on:
         description: "Platform"
         required: false
         type: choice
-        options: [android]
+        options: [ android ]
         default: android
       autofix:
-        description: "Allow workflow to write back fixes (lockfile/dev-client) to the branch"
+        description: "Allow workflow to write back fixes (lockfile/dev-client) to the
+          branch"
         required: false
         type: boolean
         default: false
@@ -31,7 +32,7 @@ on:
         description: "Lockfile policy override (auto|true|false)"
         required: false
         type: choice
-        options: [auto, "true", "false"]
+        options: [ auto, "true", "false" ]
         default: auto
 
   workflow_call:
@@ -56,7 +57,8 @@ on:
         type: string
         default: "android"
       autofix:
-        description: "Allow workflow to write back fixes (lockfile/dev-client) to the branch"
+        description: "Allow workflow to write back fixes (lockfile/dev-client) to the
+          branch"
         required: false
         type: boolean
         default: false
@@ -169,8 +171,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          OVERRIDE="${{ inputs.strict_lockfile }}"
+          PROFILE="${GH_PROFILE_8777ED}"
+          OVERRIDE="${GH_STRICT_LOCKFILE_02D8DA}"
           case "$OVERRIDE" in
             true)
               echo "strict=true" >> "$GITHUB_OUTPUT"
@@ -201,9 +203,13 @@ jobs:
               exit 1
               ;;
           esac
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_STRICT_LOCKFILE_02D8DA: ${{ inputs.strict_lockfile }}
 
       - name: Setup Node (npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -211,7 +217,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (yarn cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'yarn'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -219,7 +226,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (pnpm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'pnpm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -237,12 +245,16 @@ jobs:
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          GH_LOCKFILE_PATH_BB7E6E: ${{ steps.lock.outputs.lockfile_path }}
+          GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          PM="${{ steps.lock.outputs.package_manager }}"
-          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
-          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+          PROFILE="${GH_PROFILE_8777ED}"
+          PM="${GH_PACKAGE_MANAGER_9162DF}"
+          LOCKFILE="${GH_LOCKFILE_PATH_BB7E6E}"
+          if [ "${GH_HAS_LOCKFILE_7F5283}" = "true" ]; then
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
@@ -365,8 +377,10 @@ jobs:
           git push origin "HEAD:$BR" || echo "::warning::Could not push auto-fix commit (branch may be protected)."
 
   build:
-    needs: [autofix]
-    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' && always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
+    needs: [ autofix ]
+    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' && always() &&
+      (needs.autofix.result == 'success' || needs.autofix.result == 'skipped')
+      }}
     permissions:
       contents: read
 
@@ -380,7 +394,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-      JOB_ID: ${{ inputs.job_id }}
+      RAW_JOB_ID: ${{ inputs.job_id }}
 
     steps:
       - name: Validate inputs
@@ -388,10 +402,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ inputs.profile }}" in
+          UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          if [ -n "${RAW_JOB_ID:-}" ] && [[ ! "${RAW_JOB_ID}" =~ ${UUID_RE} ]]; then
+            echo "::error::job_id must be empty or a canonical UUID."
+            exit 1
+          fi
+          VALIDATED_JOB_ID="${RAW_JOB_ID:-}"
+          printf 'VALIDATED_JOB_ID=%s\n' "${VALIDATED_JOB_ID}" >> "$GITHUB_ENV"
+
+          case "${GH_PROFILE_8777ED}" in
             development|preview|production) ;;
             *)
-              echo "::error::Invalid profile: '${{ inputs.profile }}' (allowed: development|preview|production)"
+              echo "::error::Invalid profile: '${GH_PROFILE_8777ED}' (allowed: development|preview|production)"
               exit 1
               ;;
           esac
@@ -401,7 +423,7 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.profile }}" = "production" ]; then
+          if [ "${GH_PROFILE_8777ED}" = "production" ]; then
             if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
               echo "::error::Production build requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
               exit 1
@@ -410,7 +432,7 @@ jobs:
 
           echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
 
-          case "${{ inputs.profile }}" in
+          case "${GH_PROFILE_8777ED}" in
             development)
               EXPECTED_EAS_ENVIRONMENT="development"
               EXPECTED_ANDROID_PACKAGE="com.k1w1a0style.musikplayer.dev"
@@ -426,7 +448,7 @@ jobs:
           esac
           EXPECTED_LABEL="k1w1-Musik"
 
-          echo "Requested profile: ${{ inputs.profile }}"
+          echo "Requested profile: ${GH_PROFILE_8777ED}"
           echo "Expected EAS environment for profile: ${EXPECTED_EAS_ENVIRONMENT}"
           echo "Expected Android package: ${EXPECTED_ANDROID_PACKAGE}"
           echo "Expected label: ${EXPECTED_LABEL}"
@@ -437,16 +459,18 @@ jobs:
             echo "EXPECTED_LABEL=${EXPECTED_LABEL}"
           } >> "$GITHUB_ENV"
 
-          if [ -z "${JOB_ID:-}" ]; then
+          if [ -z "${VALIDATED_JOB_ID:-}" ]; then
             echo "has_job_id=false" >> "$GITHUB_ENV"
           else
             if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
+              echo "::warning::VALIDATED_JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
               echo "has_job_id=false" >> "$GITHUB_ENV"
             else
               echo "has_job_id=true" >> "$GITHUB_ENV"
             fi
           fi
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
 
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -527,8 +551,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          OVERRIDE="${{ inputs.strict_lockfile }}"
+          PROFILE="${GH_PROFILE_8777ED}"
+          OVERRIDE="${GH_STRICT_LOCKFILE_02D8DA}"
           case "$OVERRIDE" in
             true)
               echo "strict=true" >> "$GITHUB_OUTPUT"
@@ -559,9 +583,13 @@ jobs:
               exit 1
               ;;
           esac
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_STRICT_LOCKFILE_02D8DA: ${{ inputs.strict_lockfile }}
 
       - name: Setup Node (npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -569,7 +597,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (yarn cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'yarn'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -577,7 +606,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (pnpm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'pnpm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -595,12 +625,16 @@ jobs:
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          GH_LOCKFILE_PATH_BB7E6E: ${{ steps.lock.outputs.lockfile_path }}
+          GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          PM="${{ steps.lock.outputs.package_manager }}"
-          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
-          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+          PROFILE="${GH_PROFILE_8777ED}"
+          PM="${GH_PACKAGE_MANAGER_9162DF}"
+          LOCKFILE="${GH_LOCKFILE_PATH_BB7E6E}"
+          if [ "${GH_HAS_LOCKFILE_7F5283}" = "true" ]; then
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
@@ -710,52 +744,21 @@ jobs:
 
           echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
 
-          if [ "$HTTP_CODE" != "200" ]; then
-            node -e '
-              const fs = require("fs");
-              const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
-                ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
-                : "";
-              const sanitized = raw
-                .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
-                .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
-              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
-            '
-            echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
-            exit 1
-          fi
+          node scripts/ci/summarizeKeystoreResponse.cjs \
+            ci-logs/keystore-response.raw.json \
+            ci-logs/keystore-response.summary.json \
+            "${HTTP_CODE}"
+
       - name: Validate keystore export structure
         if: ${{ inputs.profile == 'production' }}
         shell: bash
         run: |
           set -euo pipefail
-          node -e '
-            const fs = require("fs");
-            const p = "ci-logs/keystore-response.raw.json";
-            const raw = fs.readFileSync(p, "utf8");
-            let data;
-            try {
-              data = JSON.parse(raw);
-            } catch (err) {
-              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
-              console.error("Keystore export is not valid JSON");
-              process.exit(1);
-            }
-            const summary = {
-              topLevelKeys: Object.keys(data || {}).slice(0, 20),
-              ok: data?.ok === true,
-              hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
-              hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
-              hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
-              hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
-            };
-            fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
-            if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
-              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
-              console.error("Keystore export payload missing required fields");
-              process.exit(1);
-            }
-          '
+          HTTP_CODE="$(cat ci-logs/keystore-response.http_code)"
+          node scripts/ci/summarizeKeystoreResponse.cjs \
+            ci-logs/keystore-response.raw.json \
+            ci-logs/keystore-response.summary.json \
+            "${HTTP_CODE}"
 
       - name: Write Android signing files
         if: ${{ inputs.profile == 'production' }}
@@ -772,19 +775,22 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
-          PROFILE="${{ inputs.profile }}"
+          RUN_ID="${GH_RUN_ID_DFF96A}"
+          PROFILE="${GH_PROFILE_8777ED}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
           JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${PROFILE}" "${RUN_ID}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
+        env:
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
 
       - name: Run EAS Build (WAIT)
         id: eas
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          PLATFORM="${{ inputs.platform }}"
+          PROFILE="${GH_PROFILE_8777ED}"
+          PLATFORM="${GH_PLATFORM_A5C067}"
           echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."
           BUILD_OUTPUT="$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
             CODE=$?
@@ -807,6 +813,9 @@ jobs:
           fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PLATFORM_A5C067: ${{ inputs.platform }}
 
       - name: Download Android Artifact
         id: download_artifact
@@ -816,11 +825,11 @@ jobs:
           set -euo pipefail
           ARTIFACT_DIR="${RUNNER_TEMP:-/tmp}/k1w1-artifacts"
           mkdir -p "${ARTIFACT_DIR}"
-          OUT="${ARTIFACT_DIR}/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
+          OUT="${ARTIFACT_DIR}/k1w1-${GH_PROFILE_8777ED}.${ARTIFACT_EXT}"
           echo "Expected Android artifact path: ${OUT}"
-          echo "EAS build ID: ${{ steps.eas.outputs.build_id }}"
-          BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          PROFILE="${{ inputs.profile }}"
+          echo "EAS build ID: ${GH_BUILD_ID_E68394}"
+          BUILD_ID="${GH_BUILD_ID_E68394}"
+          PROFILE="${GH_PROFILE_8777ED}"
           case "${PROFILE}" in
             development|preview) EXPECTED_DISTRIBUTION="internal" ;;
             production) EXPECTED_DISTRIBUTION="store" ;;
@@ -837,7 +846,7 @@ jobs:
           curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"
 
           if ! test -s "${OUT}"; then
-            echo "::error::EAS build succeeded, but the validated artifact download did not produce a non-empty APK. Build ID=${{ steps.eas.outputs.build_id }} Expected output=${OUT}"
+            echo "::error::EAS build succeeded, but the validated artifact download did not produce a non-empty APK. Build ID=${GH_BUILD_ID_E68394} Expected output=${OUT}"
             echo "${ARTIFACT_DIR}/ contents:"
             find "${ARTIFACT_DIR}" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
             exit 1
@@ -846,14 +855,19 @@ jobs:
           case "${OUT}" in
             *.apk) ;;
             *)
-              echo "::error::Expected an APK artifact for Android profile '${{ inputs.profile }}', got ${OUT}."
+              echo "::error::Expected an APK artifact for Android profile '${GH_PROFILE_8777ED}', got ${OUT}."
               exit 1
               ;;
           esac
 
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}-apk" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=eas-${GH_PLATFORM_A5C067}-${GH_PROFILE_8777ED}-${GH_RUN_NUMBER_DA38B2}-apk" >> "${GITHUB_OUTPUT}"
           ls -lah "${ARTIFACT_DIR}"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
+          GH_PLATFORM_A5C067: ${{ inputs.platform }}
+          GH_RUN_NUMBER_DA38B2: ${{ github.run_number }}
 
       - name: Resolve Android SDK build tools
         if: steps.download_artifact.outputs.artifact_path != ''
@@ -889,7 +903,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "${{ inputs.profile }}" in
+          case "${GH_PROFILE_8777ED}" in
             development)
               EXPECTED_PACKAGE="com.k1w1a0style.musikplayer.dev"
               ;;
@@ -897,18 +911,21 @@ jobs:
               EXPECTED_PACKAGE="com.k1w1a0style.musikplayer"
               ;;
             *)
-              echo "::error::Unexpected profile '${{ inputs.profile }}' while validating APK metadata."
+              echo "::error::Unexpected profile '${GH_PROFILE_8777ED}' while validating APK metadata."
               exit 1
               ;;
           esac
           node scripts/ci/inspectAndroidApk.cjs \
-            "${{ steps.download_artifact.outputs.artifact_path }}" \
+            "${GH_ARTIFACT_PATH_97F6CF}" \
             --expected-package "${EXPECTED_PACKAGE}" \
             --expected-label "k1w1-Musik" \
             --min-size-bytes 10000001 \
             --require-badging \
             --require-signature \
             | tee ci-logs/android-apk-inspection.log
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
       - name: Upload build diagnostics
         if: always()
@@ -922,7 +939,7 @@ jobs:
             ci-logs/android-apk-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
-            ci-logs/keystore-response.sanitized.txt
+            !ci-logs/keystore-response.raw.json
           retention-days: 3
           if-no-files-found: ignore
 
@@ -954,24 +971,39 @@ jobs:
           ## EAS Build Summary
 
           - Workflow version: ${WORKFLOW_VERSION}
-          - Repo: ${{ github.repository }}
-          - Input ref: ${{ inputs.ref }}
-          - Input profile: ${{ inputs.profile }}
-          - Platform: ${{ inputs.platform }}
+          - Repo: ${GH_REPOSITORY_39E62C}
+          - Input ref: ${GH_REF_04E218}
+          - Input profile: ${GH_PROFILE_8777ED}
+          - Platform: ${GH_PLATFORM_A5C067}
           - Checked out: $(git rev-parse HEAD)
-          - Package manager: ${{ steps.lock.outputs.package_manager }}
-          - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
-          - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
-          - Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}
-          - Dependency install mode: ${{ steps.install_deps.outputs.mode }}
+          - Package manager: ${GH_PACKAGE_MANAGER_9162DF}
+          - Lockfile present: ${GH_HAS_LOCKFILE_7F5283}
+          - Lockfile path: ${GH_LOCKFILE_PATH_BB7E6E}
+          - Strict lockfile policy: ${GH_STRICT_5F311E}
+          - Dependency install mode: ${GH_MODE_286F08}
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
-          - Build ID: ${{ steps.eas.outputs.build_id }}
-          - Diagnostics artifact: eas-build-diagnostics-${{ github.run_number }}
-          - APK artifact: ${{ steps.download_artifact.outputs.artifact_name }}
-          - APK path: ${{ steps.download_artifact.outputs.artifact_path }}
+          - Build ID: ${GH_BUILD_ID_E68394}
+          - Diagnostics artifact: eas-build-diagnostics-${GH_RUN_NUMBER_DA38B2}
+          - APK artifact: ${GH_ARTIFACT_NAME_639E28}
+          - APK path: ${GH_ARTIFACT_PATH_97F6CF}
 
-          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Artifacts: https://github.com/${GH_REPOSITORY_39E62C}/actions/runs/${GH_RUN_ID_DFF96A}
           EOF
+        env:
+          GH_REPOSITORY_39E62C: ${{ github.repository }}
+          GH_REF_04E218: ${{ inputs.ref }}
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PLATFORM_A5C067: ${{ inputs.platform }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
+          GH_LOCKFILE_PATH_BB7E6E: ${{ steps.lock.outputs.lockfile_path }}
+          GH_STRICT_5F311E: ${{ steps.strict_lock.outputs.strict }}
+          GH_MODE_286F08: ${{ steps.install_deps.outputs.mode }}
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
+          GH_RUN_NUMBER_DA38B2: ${{ github.run_number }}
+          GH_ARTIFACT_NAME_639E28: ${{ steps.download_artifact.outputs.artifact_name }}
+          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
 
       - name: Update Build Status - Success
         if: success() && env.has_job_id == 'true'
@@ -979,12 +1011,16 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
-          BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          BUILD_URL="${{ steps.eas.outputs.build_url }}"
+          RUN_ID="${GH_RUN_ID_DFF96A}"
+          BUILD_ID="${GH_BUILD_ID_E68394}"
+          BUILD_URL="${GH_BUILD_URL_8BCACD}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
           JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4],source_commit_sha:process.argv[5]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
+        env:
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
+          GH_BUILD_URL_8BCACD: ${{ steps.eas.outputs.build_url }}
 
       - name: Update Build Status - Failed
         if: failure() && env.has_job_id == 'true'
@@ -992,8 +1028,11 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
-          ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_ID="${GH_RUN_ID_DFF96A}"
+          ERR="Build failed. Check logs: https://github.com/${GH_REPOSITORY_39E62C}/actions/runs/${GH_RUN_ID_DFF96A}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
           JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${RUN_ID}" "${ERR}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"
+        env:
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
+          GH_REPOSITORY_39E62C: ${{ github.repository }}

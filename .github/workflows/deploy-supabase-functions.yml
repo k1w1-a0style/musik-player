@@ -27,7 +27,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      RAW_JOB_ID: ${{ github.event.inputs.job_id }}
 
     steps:
       - name: Checkout
@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-          if [[ ! "${JOB_ID:-}" =~ ${UUID_RE} ]]; then
+          if [ -z "${RAW_JOB_ID:-}" ] || [[ ! "${RAW_JOB_ID}" =~ ${UUID_RE} ]]; then
             echo "::error::job_id must be a canonical UUID."
             exit 1
           fi
@@ -48,8 +48,8 @@ jobs:
           fi
           # A canonical UUID contains only URL-safe characters; keep a separate env name so
           # every PostgREST call uses the validated value rather than raw input.
-          JOB_ID_ENCODED="$JOB_ID"
-          echo "JOB_ID_ENCODED=${JOB_ID_ENCODED}" >> "$GITHUB_ENV"
+          VALIDATED_JOB_ID="$RAW_JOB_ID"
+          echo "VALIDATED_JOB_ID=${VALIDATED_JOB_ID}" >> "$GITHUB_ENV"
           echo "✓ Validated Supabase build job UUID."
 
       - name: Setup Node
@@ -73,11 +73,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\"}"
+            -d "{\"status\":\"building\",\"github_run_id\":\"${GH_RUN_ID_DFF96A}\"}"
+        env:
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
 
       - name: Run EAS Build
         id: eas
@@ -103,19 +105,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}"
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${GH_BUILD_ID_E68394}\"}"
+        env:
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
 
       - name: Update Build Status - Failed
         if: failure()
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID_ENCODED}" \
+          curl --fail-with-body -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\"}"
+            -d "{\"status\":\"error\",\"github_run_id\":\"${GH_RUN_ID_DFF96A}\"}"
+        env:
+          GH_RUN_ID_DFF96A: ${{ github.run_id }}
