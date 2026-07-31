@@ -57,4 +57,17 @@ describe('SAF tag write operation contract', () => {
     expect(observed).toEqual([]);
     expect(getActiveSafWrite('content://provider/error')).toBeUndefined();
   });
+
+  test.each([
+    [{ status: 'written' }, 'completed'],
+    [{ status: 'noop' }, 'completed'],
+    [{ status: 'writeFailed' }, 'failed'],
+    [{ status: 'permissionDenied' }, 'failed'],
+    [{ status: 'unsupportedUri' }, 'failed'],
+  ] as const)('derives a consistent phase for resolved result %j', async (value, phase) => {
+    const result = await runSafWriteOperation('content://provider/phase', async () => value, {
+      phaseForResult: output => output.status === 'written' || output.status === 'noop' ? 'completed' : 'failed',
+    });
+    expect(result.status.phase).toBe(phase);
+  });
 });

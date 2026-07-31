@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import YAML from '../node_modules/yaml/dist/index';
 
 const repoRoot = path.join(__dirname, '..');
 const workflowDir = path.join(repoRoot, '.github', 'workflows');
@@ -10,14 +11,23 @@ const workflowFiles = fs
 
 const readWorkflow = (file: string) =>
   fs.readFileSync(path.join(workflowDir, file), 'utf8');
+const parseWorkflow = (file: string) => YAML.parse(readWorkflow(file));
+const parsedNamedStep = (file: string, name: string): any =>
+  Object.values(parseWorkflow(file).jobs).flatMap((job: any) => job.steps ?? []).find((step: any) => step.name === name);
+const parsedNamedStepFromSource = (source: string, name: string): any =>
+  Object.values(YAML.parse(source).jobs).flatMap((job: any) => job.steps ?? []).find((step: any) => step.name === name);
+const envVariableFor = (step: any, expression: string): string | undefined =>
+  Object.entries(step?.env ?? {}).find(([, value]) => value === expression)?.[0];
+const usesEnvExpression = (step: any, expression: string): boolean => {
+  const variable = envVariableFor(step, expression);
+  return Boolean(variable && step.run.includes(`\${${variable}}`) && !step.run.includes(expression));
+};
 
 const easConfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'eas.json'), 'utf8'));
 
 const apkContractViolations = (
   config: typeof easConfig,
   workflow: string,
-  expectedArtifactPath: string,
-  expectedArtifactName: string,
 ) => {
   const nonApkProfiles = Object.entries(config.build).flatMap(([profile, value]) =>
     !(value as { android?: { buildType?: string } }).android
@@ -28,10 +38,12 @@ const apkContractViolations = (
   return [
     ...(nonApkProfiles.length === 0 ? [] : [`Non-APK Android profiles: ${nonApkProfiles.join(', ')}`]),
     ...(workflow.includes('ARTIFACT_EXT=apk') ? [] : ['Workflow artifact extension is not APK']),
-    ...(workflow.includes(expectedArtifactPath)
+    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ inputs.profile }}')
+      && /k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}/.test(namedStep(workflow, 'Download Android Artifact'))
       ? []
       : ['Downloaded artifact name does not use the APK extension']),
-    ...(workflow.includes(expectedArtifactName)
+    ...(/artifact_name=.*-apk/.test(namedStep(workflow, 'Download Android Artifact'))
+      || /name:.*-apk/.test(namedStep(workflow, 'Upload Android APK Artifact'))
       ? []
       : ['Published artifact name is not APK-specific']),
     ...(workflow.includes('- name: Upload Android APK Artifact')
@@ -58,13 +70,9 @@ describe('GitHub workflow CI strategy', () => {
   const workflowContracts = [
     {
       file: 'eas-build.yml',
-      artifactPath: 'k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}',
-      artifactName: 'eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}-apk',
     },
     {
       file: 'release-build.yml',
-      artifactPath: 'k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}',
-      artifactName: 'k1w1-android-${{ inputs.profile }}-${{ github.run_number }}-apk',
     },
   ];
 
@@ -74,8 +82,6 @@ describe('GitHub workflow CI strategy', () => {
     expect(apkContractViolations(
       easConfig,
       workflow,
-      contract.artifactPath,
-      contract.artifactName,
     )).toEqual([]);
   });
 
@@ -87,8 +93,6 @@ describe('GitHub workflow CI strategy', () => {
     expect(apkContractViolations(
       configWithIosProfile,
       readWorkflow(contract.file),
-      contract.artifactPath,
-      contract.artifactName,
     )).toEqual([]);
   });
 
@@ -100,8 +104,6 @@ describe('GitHub workflow CI strategy', () => {
     expect(apkContractViolations(
       regressedConfig,
       readWorkflow(contract.file),
-      contract.artifactPath,
-      contract.artifactName,
     )).toContain(
       'Non-APK Android profiles: production'
     );
@@ -112,8 +114,6 @@ describe('GitHub workflow CI strategy', () => {
     const violations = (mutatedWorkflow: string) => apkContractViolations(
       easConfig,
       mutatedWorkflow,
-      contract.artifactPath,
-      contract.artifactName,
     );
 
     expect(violations(`${workflow}\n# artifact: release.aab`)).toContain(
@@ -122,9 +122,9 @@ describe('GitHub workflow CI strategy', () => {
     expect(violations(`${workflow}\n# buildType: app-bundle`)).toContain(
       'An AAB or App Bundle assumption is configured'
     );
-    expect(violations(workflow.replace(contract.artifactPath, 'k1w1-${{ inputs.profile }}.zip')))
+    expect(violations(workflow.replace('.${ARTIFACT_EXT}', '.zip')))
       .toContain('Downloaded artifact name does not use the APK extension');
-    expect(violations(workflow.replace(contract.artifactName, 'generic-artifact')))
+    expect(violations(workflow.replace(/artifact_name=([^\n]*-apk)/, 'artifact_name=generic-artifact').replace(/name: ([^\n]*-apk)/, 'name: generic-artifact')))
       .toContain('Published artifact name is not APK-specific');
     expect(violations(workflow.replace('node scripts/ci/inspectAndroidApk.cjs', 'echo skipped')))
       .toContain('Canonical APK inspector is not used');
@@ -156,7 +156,9 @@ describe('GitHub workflow CI strategy', () => {
     expect(downloadStep).toContain('"${BUILD_ID}" "${PROFILE}" "${PROFILE}" "${EXPECTED_DISTRIBUTION}"');
     expect(downloadStep).toContain('development|preview) EXPECTED_DISTRIBUTION="internal"');
     expect(downloadStep).toContain('production) EXPECTED_DISTRIBUTION="store"');
-    expect(downloadStep).toContain('OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"');
+    const download = parsedNamedStep('release-build.yml', 'Download Android Artifact');
+    expect(usesEnvExpression(download, '${{ inputs.profile }}')).toBe(true);
+    expect(download.run).toMatch(/OUT="build\/k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}"/);
     expect(downloadStep).toContain('curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"');
     const downloadLogLines = downloadStep.split('\n').filter(line => /\becho\b/.test(line));
     expect(downloadLogLines.every(line => !line.includes('${ARTIFACT_URL}'))).toBe(true);
@@ -254,7 +256,10 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).not.toContain('--latest');
     expect(easWorkflow).not.toContain('eas build:list');
     expect(easWorkflow).toContain('validated artifact download did not produce a non-empty APK');
-    expect(easWorkflow).toContain('Build ID=${{ steps.eas.outputs.build_id }}');
+    const download = parsedNamedStep('eas-build.yml', 'Download Android Artifact');
+    expect(usesEnvExpression(download, '${{ steps.eas.outputs.build_id }}')).toBe(true);
+    const buildIdVariable = envVariableFor(download, '${{ steps.eas.outputs.build_id }}');
+    expect(download.run).toContain(`Build ID=\${${buildIdVariable}}`);
     expect(easWorkflow).toContain('Expected output=${OUT}');
     expect(easWorkflow).toContain('find "${ARTIFACT_DIR}" -maxdepth 2 -type f');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
@@ -277,19 +282,39 @@ describe('GitHub workflow CI strategy', () => {
     const hasBuildUrlProducerForSuccessPayload = (workflow: string) => {
       const producer = namedStep(workflow, 'Run EAS Build (WAIT)');
       const consumer = namedStep(workflow, 'Update Build Status - Success');
+      const consumerStep = parsedNamedStepFromSource(workflow, 'Update Build Status - Success');
       return producer.includes('resolveEasBuildArtifact.cjs extract-build-url')
         && producer.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
-        && consumer.includes('BUILD_URL="${{ steps.eas.outputs.build_url }}"');
+        && usesEnvExpression(consumerStep, '${{ steps.eas.outputs.build_url }}')
+        && consumer.includes(`BUILD_URL="\${${envVariableFor(consumerStep, '${{ steps.eas.outputs.build_url }}')}}"`);
     };
 
     expect(buildStep).toContain('BUILD_URL="$(printf \'%s\' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-url)"');
     expect(buildStep).toContain('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"');
-    expect(successStep).toContain('BUILD_URL="${{ steps.eas.outputs.build_url }}"');
+    const success = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
+    expect(usesEnvExpression(success, '${{ steps.eas.outputs.build_url }}')).toBe(true);
     expect(successStep).toContain('build_url:(process.argv[3]||null)');
     expect(hasBuildUrlProducerForSuccessPayload(easWorkflow)).toBe(true);
     expect(hasBuildUrlProducerForSuccessPayload(
       easWorkflow.replace('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"', ''),
     )).toBe(false);
+    const buildUrlEnv = envVariableFor(success, '${{ steps.eas.outputs.build_url }}')!;
+    expect(hasBuildUrlProducerForSuccessPayload(easWorkflow.replace('${{ steps.eas.outputs.build_url }}', '${{ steps.eas.outputs.build_id }}'))).toBe(false);
+    expect(hasBuildUrlProducerForSuccessPayload(easWorkflow.replace(`BUILD_URL="\${${buildUrlEnv}}"`, 'BUILD_URL="${WRONG_VARIABLE}"'))).toBe(false);
+  });
+
+  it('rejects removed, miswired, and directly interpolated secure download env mappings', () => {
+    const source = readWorkflow('eas-build.yml');
+    const validStep = parsedNamedStepFromSource(source, 'Download Android Artifact');
+    const expression = '${{ steps.eas.outputs.build_id }}';
+    const variable = envVariableFor(validStep, expression)!;
+    expect(usesEnvExpression(validStep, expression)).toBe(true);
+    const withoutMapping = { ...validStep, env: { ...validStep.env } };
+    delete withoutMapping.env[variable];
+    expect(usesEnvExpression(withoutMapping, expression)).toBe(false);
+    expect(usesEnvExpression({ ...validStep, env: { ...validStep.env, [variable]: '${{ steps.eas.outputs.build_url }}' } }, expression)).toBe(false);
+    expect(usesEnvExpression({ ...validStep, run: validStep.run.replaceAll(`\${${variable}}`, '${WRONG_VARIABLE}') }, expression)).toBe(false);
+    expect(usesEnvExpression({ ...validStep, run: `${validStep.run}\necho "${expression}"` }, expression)).toBe(false);
   });
 
   it('keeps the EAS build job timeout long enough for queued Android dev-client builds', () => {

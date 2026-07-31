@@ -456,6 +456,51 @@ class AudioTagTransactionManagerTest {
     assertArrayEquals(first, store.bytes)
   }
 
+  @Test fun recoveryWaitsForActiveWriteAndDoesNotRemoveItsJournal() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val opened = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(root, store)
+    val writeThread = thread { manager.write(req(uri, old, "new".toByteArray())) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+    assertFalse(root.listFiles().isNullOrEmpty())
+    val recoveryFinished = CountDownLatch(1)
+    val recoveryThread = thread { manager.recoverPendingSummary(); recoveryFinished.countDown() }
+    assertFalse(recoveryFinished.await(200, TimeUnit.MILLISECONDS))
+    assertFalse(root.listFiles().isNullOrEmpty())
+    assertTrue((manager.status()["pendingCount"] as Int) > 0)
+    release.countDown()
+    writeThread.join(10_000)
+    recoveryThread.join(10_000)
+    assertEquals(0, manager.status()["pendingCount"])
+  }
+
+  @Test fun differentTargetsCanReachMutationTogetherWhileRecoveryBarrierIsShared() {
+    val old = "old".toByteArray()
+    val opened = CountDownLatch(2)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(tmp(), store)
+    val first = thread { manager.write(req(Uri.parse("content://provider/one"), old, "new".toByteArray())) }
+    val second = thread { manager.write(req(Uri.parse("content://provider/two"), old, "new".toByteArray())) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+    release.countDown()
+    first.join(10_000)
+    second.join(10_000)
+  }
+
+  @Test fun terminalFailureReleasesBarrierForRepeatedRecoveryAndWrite() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old).apply { failOpenOnWriteCall = 1 }
+    val manager = manager(tmp(), store)
+    assertFalse(manager.write(req(uri, old, "new".toByteArray())).success)
+    repeat(3) { assertTrue(manager.recoverPendingSummary().success) }
+    store.failOpenOnWriteCall = null
+    assertTrue(manager.write(req(uri, old, "new".toByteArray())).success)
+  }
+
   private fun prepared(
     state: TransactionState,
     original: ByteArray = "old".toByteArray(),

@@ -32,6 +32,7 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.UUID
 import kotlin.math.roundToInt
 
 /**
@@ -199,11 +200,15 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     return try {
       val maxBytes = parseTagWriteMaxBytes(request["maxFileSizeBytes"])
       val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
+      val operationId = when (val supplied = request["operationId"]) {
+        null -> UUID.randomUUID().toString()
+        is String -> supplied.takeIf { it.matches(Regex("^[A-Za-z0-9._-]{1,80}$")) }
+          ?: throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+        else -> throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+      }
       val manager = audioTagTransactionManager(ctx)
       result(manager.write(TransactionWriteRequest(
-        operationId = (request["operationId"] as? String)?.takeIf {
-          it.matches(Regex("^[A-Za-z0-9._-]{1,80}$"))
-        } ?: throw AudioTagRewriteException("InvalidTagData", "A valid operation identifier is required."),
+        operationId = operationId,
         uri = parsed,
         rewriteSource = StreamingAudioTagRewriteSource(spec),
         changedFields = changedFields,

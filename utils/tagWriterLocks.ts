@@ -8,6 +8,11 @@ export type SafWriteOperationStatus = {
   terminal: boolean;
   retryable: boolean;
 };
+type SafWriteOperationOptions<T> = {
+  timeoutMs?: number;
+  operationId?: string;
+  phaseForResult?: (value: T) => Extract<SafWritePhase, 'completed' | 'failed'>;
+};
 
 const activeSafWrites = new Map<string, SafWriteOperationStatus>();
 let operationSequence = 0;
@@ -30,7 +35,7 @@ export const getActiveSafWrite = (uri: string): SafWriteOperationStatus | undefi
 export const runSafWriteOperation = async <T>(
   uri: string,
   startNativeMutation: (operationId: string) => Promise<T>,
-  options: { timeoutMs?: number; operationId?: string } = {},
+  options: SafWriteOperationOptions<T> = {},
 ): Promise<{ kind: 'result'; value: T; status: SafWriteOperationStatus } | { kind: 'pending'; status: SafWriteOperationStatus } | { kind: 'busy'; status: SafWriteOperationStatus }> => {
   const targetKey = canonicalSafTarget(uri);
   const existing = activeSafWrites.get(targetKey);
@@ -58,7 +63,7 @@ export const runSafWriteOperation = async <T>(
   );
   if (options.timeoutMs === undefined) {
     const outcome = await settled;
-    status.phase = outcome.ok ? 'completed' : 'failed'; status.terminal = true; status.retryable = !outcome.ok;
+    status.phase = outcome.ok ? (options.phaseForResult?.(outcome.value) ?? 'completed') : 'failed'; status.terminal = true; status.retryable = !outcome.ok;
     activeSafWrites.delete(targetKey);
     if (!outcome.ok) throw outcome.error;
     return { kind: 'result', value: outcome.value, status: { ...status } };
@@ -69,13 +74,13 @@ export const runSafWriteOperation = async <T>(
   if ('timeout' in first) {
     status.phase = 'pendingNativeResult'; status.retryable = false;
     void settled.then(outcome => {
-      status.phase = outcome.ok ? 'completed' : 'failed'; status.terminal = true; status.retryable = !outcome.ok;
+      status.phase = outcome.ok ? (options.phaseForResult?.(outcome.value) ?? 'completed') : 'failed'; status.terminal = true; status.retryable = !outcome.ok;
       activeSafWrites.delete(targetKey);
     });
     return { kind: 'pending', status: { ...status } };
   }
   if (timer) clearTimeout(timer);
-  status.phase = first.ok ? 'completed' : 'failed'; status.terminal = true; status.retryable = !first.ok;
+  status.phase = first.ok ? (options.phaseForResult?.(first.value) ?? 'completed') : 'failed'; status.terminal = true; status.retryable = !first.ok;
   activeSafWrites.delete(targetKey);
   if (!first.ok) throw first.error;
   return { kind: 'result', value: first.value, status: { ...status } };

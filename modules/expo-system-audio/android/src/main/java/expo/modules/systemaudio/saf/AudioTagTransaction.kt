@@ -16,6 +16,7 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.withLock
 
 enum class TransactionState {
@@ -557,11 +558,18 @@ class AudioTagTransactionManager(
   private val safetyMarginBytes: Long = 1024 * 1024,
 ) {
   private val maintenanceLock = ReentrantLock()
+  private val lifecycleBarrier = ReentrantReadWriteLock(true)
   private data class TargetLock(val lock: ReentrantLock = ReentrantLock(), var users: Int = 0)
   private val targetLocks = ConcurrentHashMap<String, TargetLock>()
 
-  fun recoverPending(targetUri: Uri? = null): TransactionResult = maintenanceLock.withLock {
-    val summary = recoverPendingLocked(targetUri)
+  /**
+   * Lock order is always lifecycleBarrier -> maintenanceLock or
+   * lifecycleBarrier -> target lock. maintenanceLock and target locks are never
+   * nested. Writes hold the shared barrier for their complete native lifetime;
+   * mutating recovery holds the exclusive barrier.
+   */
+  fun recoverPending(targetUri: Uri? = null): TransactionResult = lifecycleBarrier.writeLock().withLock {
+    val summary = maintenanceLock.withLock { recoverPendingLocked(targetUri) }
     TransactionResult(
       success = summary.success,
       errorCode = when {
@@ -575,26 +583,32 @@ class AudioTagTransactionManager(
     )
   }
 
-  fun recoverPendingSummary(targetUri: Uri? = null): RecoverySummary = maintenanceLock.withLock {
-    recoverPendingLocked(targetUri)
+  fun recoverPendingSummary(targetUri: Uri? = null): RecoverySummary = lifecycleBarrier.writeLock().withLock {
+    maintenanceLock.withLock { recoverPendingLocked(targetUri) }
   }
 
-  fun status(): Map<String, Any?> = maintenanceLock.withLock {
-    val transactions = storage.dirs().map { directory ->
-      val journal = storage.readJournalSafely(directory)
+  fun status(): Map<String, Any?> = lifecycleBarrier.readLock().withLock {
+    maintenanceLock.withLock {
+      val transactions = storage.dirs().map { directory ->
+        val journal = storage.readJournalSafely(directory)
+        mapOf(
+          "transactionId" to directory.name,
+          "state" to (journal?.state?.name ?: "INVALID"),
+        )
+      }
       mapOf(
-        "transactionId" to directory.name,
-        "state" to (journal?.state?.name ?: "INVALID"),
+        "pendingCount" to transactions.size,
+        "quarantineCount" to storage.quarantinedDirs().size,
+        "transactions" to transactions,
       )
     }
-    mapOf(
-      "pendingCount" to transactions.size,
-      "quarantineCount" to storage.quarantinedDirs().size,
-      "transactions" to transactions,
-    )
   }
 
   fun write(request: TransactionWriteRequest): TransactionResult {
+    return lifecycleBarrier.readLock().withLock { writeWithTargetLock(request) }
+  }
+
+  private fun writeWithTargetLock(request: TransactionWriteRequest): TransactionResult {
     val canonicalTarget = request.uri.normalizeScheme().toString()
     val target = synchronized(targetLocks) {
       targetLocks.computeIfAbsent(canonicalTarget) { TargetLock() }.also { it.users += 1 }
@@ -626,13 +640,17 @@ class AudioTagTransactionManager(
   }
 
   private fun writeLocked(request: TransactionWriteRequest): TransactionResult {
-    val pendingRecovery = recoverPendingLocked(request.uri)
-    if (!pendingRecovery.success) {
+    val hasPendingRecovery = storage.dirs().any {
+      storage.readJournalSafely(it)?.targetUri == request.uri.toString()
+    }
+    if (hasPendingRecovery) {
       return TransactionResult(
         success = false,
         errorCode = "RecoveryPending",
         message = "Pending recovery must complete before writing this SAF document.",
         recoveryPending = true,
+        transactionId = request.operationId,
+        retryable = true,
       )
     }
     if (!store.hasWritePermission(request.uri) || !store.isWritable(request.uri)) {

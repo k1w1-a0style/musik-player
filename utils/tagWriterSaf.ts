@@ -14,6 +14,19 @@ const failureStatus = (code?: string): WriteTagsResult['status'] => {
   return 'writeFailed';
 };
 
+const nativePhaseMap: Readonly<Record<NonNullable<AudioTagWriteResult['phase']>, NonNullable<WriteTagsResult['operationPhase']>>> = {
+  ACCEPTED: 'accepted',
+  LOCK_ACQUIRED: 'lockAcquired',
+  NATIVE_MUTATION_STARTED: 'nativeMutationStarted',
+  PENDING_NATIVE_RESULT: 'pendingNativeResult',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELLED_BEFORE_MUTATION: 'cancelledBeforeMutation',
+};
+
+const phaseForWriteResult = (result: WriteTagsResult): 'completed' | 'failed' =>
+  result.status === 'written' || result.status === 'noop' ? 'completed' : 'failed';
+
 const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => {
   const errorCode = nativeResult.success ? undefined : normalizeTagWriterErrorCode(nativeResult.errorCode, nativeResult.message ?? '');
   const status: WriteTagsResult['status'] = nativeResult.success && nativeResult.verified
@@ -34,7 +47,7 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
     recovered: nativeResult.recovered,
     cleanupPending: nativeResult.cleanupPending,
     operationId: nativeResult.operationId ?? nativeResult.transactionId,
-    operationPhase: nativeResult.phase === 'COMPLETED' ? 'completed' : nativeResult.phase === 'FAILED' ? 'failed' : undefined,
+    operationPhase: nativeResult.phase ? nativePhaseMap[nativeResult.phase] : undefined,
     terminal: nativeResult.terminal,
     retryable: nativeResult.retryable,
   };
@@ -88,7 +101,7 @@ export const writeTagsToSafContentUri = async (
         errorMessage: String(error),
       };
     }
-  }, options);
+  }, { ...options, phaseForResult: phaseForWriteResult });
 
   if (execution.kind === 'result' && execution.status.phase === 'cancelledBeforeMutation') {
     return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true };
@@ -105,5 +118,12 @@ export const writeTagsToSafContentUri = async (
       recoveryPending: true,
     };
   }
-  return { ...execution.value, operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true };
+  const value = execution.value;
+  return {
+    ...value,
+    operationId: value.operationId ?? execution.status.operationId,
+    operationPhase: value.operationPhase ?? execution.status.phase,
+    terminal: value.terminal ?? execution.status.terminal,
+    retryable: value.retryable ?? execution.status.retryable,
+  };
 };

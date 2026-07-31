@@ -199,6 +199,11 @@ const hasNativeWaveformExtraction =
 const hasNativeWaveformCancellation =
   hasNativeWaveformExtraction && typeof waveformNative?.cancelWaveformExtraction === 'function';
 
+const tagWriteOperationIdPattern = /^[A-Za-z0-9._-]{1,80}$/;
+let tagWriteOperationSequence = 0;
+const createNativeTagWriteOperationId = (): string =>
+  `tag-${Date.now().toString(36)}-${(++tagWriteOperationSequence).toString(36)}`;
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
@@ -281,6 +286,14 @@ export const SystemAudio = {
   },
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {
+    const operationId = request.operationId ?? createNativeTagWriteOperationId();
+    if (!tagWriteOperationIdPattern.test(operationId)) {
+      return {
+        success: false, uri, changedFields: [], failedFields: request.changedFields ?? [],
+        errorCode: 'InvalidTagData', message: 'Tag write operation identifier is invalid.',
+        verified: false, operationId, phase: 'FAILED', terminal: true, retryable: false,
+      };
+    }
     if (!hasNativeTagWriter || !native?.writeAudioTags) {
       return {
         success: false,
@@ -290,9 +303,14 @@ export const SystemAudio = {
         errorCode: 'WriteNotImplemented',
         message: 'Durable native audio tag writing is unavailable. A new development build is required.',
         verified: false,
+        operationId,
+        phase: 'FAILED',
+        terminal: true,
+        retryable: false,
       };
     }
-    return native.writeAudioTags(uri, request);
+    const result = await native.writeAudioTags(uri, { ...request, operationId });
+    return { ...result, operationId: result.operationId ?? operationId };
   },
 };
 

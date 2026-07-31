@@ -61,6 +61,23 @@ describe('native streaming SAF write contract', () => {
     expect(write).toHaveBeenCalledTimes(1);
   });
 
+  test.each([
+    ['MissingWritePermission', 'permissionDenied'],
+    ['UnsupportedUri', 'unsupportedUri'],
+    ['ReplaceFailed', 'writeFailed'],
+  ] as const)('maps native %s to terminal failed without overwriting native retryability', async (errorCode, status) => {
+    const { writeTagsToSafContentUri } = loadWithNative({
+      hasNativeTagWriter: true,
+      writeAudioTags: jest.fn(async (uri: string, request: { operationId: string }) => ({
+        success: false, uri, changedFields: [], failedFields: ['title'], errorCode,
+        verified: false, operationId: request.operationId, phase: 'FAILED', terminal: true, retryable: true,
+      })),
+    });
+    await expect(writeTagsToSafContentUri(song, draft)).resolves.toMatchObject({
+      status, operationPhase: 'failed', terminal: true, retryable: true,
+    });
+  });
+
   test('sends only draft metadata and never a full rewritten audio payload', async () => {
     const write = jest.fn().mockImplementation(async (uri: string, request: Record<string, unknown>) => ({
       success: true,
