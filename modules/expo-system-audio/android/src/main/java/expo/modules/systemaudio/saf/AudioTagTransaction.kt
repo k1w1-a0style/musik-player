@@ -575,9 +575,12 @@ class AudioTagTransactionManager(
 
   /**
    * Lock order is always lifecycleBarrier -> maintenanceLock or
-   * lifecycleBarrier -> target lock. maintenanceLock and target locks are never
-   * nested. Writes hold the shared barrier for their complete native lifetime;
-   * mutating recovery holds the exclusive barrier.
+   * lifecycleBarrier -> target lock. A write first performs targeted recovery
+   * while holding the exclusive barrier and maintenanceLock, releases both, and
+   * then acquires the shared barrier and target lock for its mutation.
+   * maintenanceLock and target locks are never nested. Writes hold the shared
+   * barrier for their complete native mutation lifetime; recovery holds the
+   * exclusive barrier, so it cannot inspect a live transaction journal.
    */
   fun recoverPending(targetUri: Uri? = null): TransactionResult = lifecycleBarrier.writeLock().withLock {
     val summary = maintenanceLock.withLock { recoverPendingLocked(targetUri) }
@@ -616,8 +619,50 @@ class AudioTagTransactionManager(
   }
 
   fun write(request: TransactionWriteRequest): TransactionResult {
+    targetedRecoveryBeforeWrite(request)?.let { return it }
     return lifecycleBarrier.readLock().withLock { writeWithTargetLock(request) }
   }
+
+  private fun targetedRecoveryBeforeWrite(request: TransactionWriteRequest): TransactionResult? =
+    if (!needsTargetedRecovery(request)) {
+      null
+    } else lifecycleBarrier.writeLock().withLock {
+      maintenanceLock.withLock {
+        val summary = try {
+          recoverPendingLocked(request.uri)
+        } catch (_: Throwable) {
+          return@withLock recoveryPendingResult(request)
+        }
+        if (summary.success) null else recoveryPendingResult(request)
+      }
+    }
+
+  private fun needsTargetedRecovery(request: TransactionWriteRequest): Boolean {
+    val canonicalTarget = request.uri.normalizeScheme().toString()
+    if (synchronized(targetLocks) { targetLocks[canonicalTarget]?.users?.let { it > 0 } == true }) {
+      // Let the normal target-lock path reject a concurrent live mutation. Its
+      // journal is not a crashed transaction and must never be recovered.
+      return false
+    }
+    return try {
+      storage.dirs().any { storage.readJournalSafely(it)?.targetUri == request.uri.toString() }
+    } catch (_: Throwable) {
+      // Re-run the check under the recovery locks, where failures become a
+      // structured, retryable result rather than allowing a mutation.
+      true
+    }
+  }
+
+  private fun recoveryPendingResult(request: TransactionWriteRequest) = TransactionResult(
+    success = false,
+    errorCode = "RecoveryPending",
+    message = "Pending recovery must complete before writing this SAF document.",
+    recoveryPending = true,
+    transactionId = request.operationId,
+    phase = "FAILED",
+    terminal = true,
+    retryable = true,
+  )
 
   private fun writeWithTargetLock(request: TransactionWriteRequest): TransactionResult {
     val canonicalTarget = request.uri.normalizeScheme().toString()
@@ -634,9 +679,10 @@ class AudioTagTransactionManager(
         errorCode = "TransactionConflict",
         message = "Another tag write is active for this SAF document.",
         transactionId = request.operationId,
-        phase = "PENDING_NATIVE_RESULT",
-        terminal = false,
+        phase = "FAILED",
+        terminal = true,
         retryable = true,
+        recoveryPending = false,
       )
     }
     try {
@@ -655,14 +701,7 @@ class AudioTagTransactionManager(
       storage.readJournalSafely(it)?.targetUri == request.uri.toString()
     }
     if (hasPendingRecovery) {
-      return TransactionResult(
-        success = false,
-        errorCode = "RecoveryPending",
-        message = "Pending recovery must complete before writing this SAF document.",
-        recoveryPending = true,
-        transactionId = request.operationId,
-        retryable = true,
-      )
+      return recoveryPendingResult(request)
     }
     if (!store.hasWritePermission(request.uri) || !store.isWritable(request.uri)) {
       return TransactionResult(

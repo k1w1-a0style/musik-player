@@ -55,8 +55,14 @@ class AudioTagTransactionManagerTest {
   private fun sha(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
     .digest(bytes)
     .joinToString("") { "%02x".format(it) }
-  private fun req(uri: Uri, original: ByteArray, rewritten: ByteArray): TransactionWriteRequest =
+  private fun req(
+    uri: Uri,
+    original: ByteArray,
+    rewritten: ByteArray,
+    operationId: String = java.util.UUID.randomUUID().toString(),
+  ): TransactionWriteRequest =
     TransactionWriteRequest(
+      operationId = operationId,
       uri = uri,
       rewriteSource = staticRewriteSource(rewritten),
       changedFields = listOf("title"),
@@ -363,6 +369,43 @@ class AudioTagTransactionManagerTest {
     assertEquals(0, store.writes)
   }
 
+  @Test fun retryRecoversTargetAndWritesWithoutRecreatingManager() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val store = FakeStore(old).apply {
+      failPartialOnWriteCall = 1
+      failOpenOnWriteCall = 2
+    }
+    val manager = manager(root, store)
+    assertEquals("RollbackFailed", manager.write(req(uri, old, "broken".toByteArray())).errorCode)
+    assertFalse(root.listFiles().isNullOrEmpty())
+
+    store.failPartialOnWriteCall = null
+    store.failOpenOnWriteCall = null
+    val retry = manager.write(req(uri, old, "recovered-and-written".toByteArray(), "retry-operation"))
+
+    assertTrue(retry.success)
+    assertArrayEquals("recovered-and-written".toByteArray(), store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun failedTargetedRecoveryRejectsNewOperationWithoutMutation() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val store = FakeStore("partial".toByteArray()).apply { permission = false }
+    val result = manager(root, store).write(
+      req(uri, "old".toByteArray(), "new".toByteArray(), "new-retry-operation"),
+    )
+
+    assertFalse(result.success)
+    assertEquals("RecoveryPending", result.errorCode)
+    assertEquals("new-retry-operation", result.transactionId)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertTrue(result.retryable)
+    assertTrue(result.recoveryPending)
+    assertEquals(0, store.writes)
+  }
+
   @Test fun statusIsReadOnly() {
     val root = prepared(TransactionState.WRITE_STARTED)
     val dir = root.listFiles()!!.single()
@@ -452,19 +495,25 @@ class AudioTagTransactionManagerTest {
     var firstResult: TransactionResult? = null
     var secondResult: TransactionResult? = null
 
-    val firstThread = thread { firstResult = manager.write(req(uri, old, first)) }
+    val firstThread = thread { firstResult = manager.write(req(uri, old, first, "first-operation")) }
     assertTrue(opened.await(5, TimeUnit.SECONDS))
     store.outputOpened = null
     store.holdWriteUntil = null
-    val secondThread = thread { secondResult = manager.write(req(uri, first, second)) }
+    val secondThread = thread { secondResult = manager.write(req(uri, first, second, "rejected-operation")) }
     secondThread.join(5_000)
     assertEquals(1, store.writes)
     assertEquals("TransactionConflict", secondResult?.errorCode)
-    assertFalse(secondResult?.terminal ?: true)
+    assertEquals("rejected-operation", secondResult?.transactionId)
+    assertEquals("FAILED", secondResult?.phase)
+    assertTrue(secondResult?.terminal == true)
+    assertTrue(secondResult?.retryable == true)
+    assertFalse(secondResult?.recoveryPending ?: true)
+    val immutableConflict = secondResult
     release.countDown()
     firstThread.join(10_000)
 
     assertTrue(firstResult?.success == true)
+    assertEquals(immutableConflict, secondResult)
     assertArrayEquals(first, store.bytes)
   }
 
