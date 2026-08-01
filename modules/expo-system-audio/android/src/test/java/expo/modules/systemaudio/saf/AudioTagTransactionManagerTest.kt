@@ -84,6 +84,7 @@ class AudioTagTransactionManagerTest {
     var readOverride: ((Int, ByteArray) -> ByteArray)? = null
     var outputOpened: CountDownLatch? = null
     var holdWriteUntil: CountDownLatch? = null
+    val outputUris = mutableListOf<Uri>()
 
     override fun openInput(uri: Uri): ByteArrayInputStream {
       reads += 1
@@ -96,6 +97,7 @@ class AudioTagTransactionManagerTest {
     }
 
     override fun openTruncatingOutput(uri: Uri): OutputStream? {
+      synchronized(outputUris) { outputUris += uri }
       writes += 1
       val call = writes
       if (failOpenOnWriteCall == call) throw IOException("write open failed")
@@ -640,6 +642,30 @@ class AudioTagTransactionManagerTest {
     assertArrayEquals(first, store.bytes)
   }
 
+  @Test fun encodedDocumentAliasIsRejectedWhileLiteralAliasMutatesWithoutRewritingProviderUri() {
+    val old = "old".toByteArray()
+    val literal = Uri.parse("content://provider/document/primary:Music/song.mp3")
+    val encoded = Uri.parse("content://provider/document/primary%3AMusic%2Fsong.mp3")
+    val opened = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(tmp(), store)
+    var firstResult: TransactionResult? = null
+    val first = thread { firstResult = manager.write(req(literal, old, "first".toByteArray(), "literal")) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+
+    val conflict = manager.write(req(encoded, old, "second".toByteArray(), "encoded"))
+    assertEquals("TransactionConflict", conflict.errorCode)
+    assertTrue(conflict.terminal)
+    assertTrue(conflict.retryable)
+    assertEquals(1, store.writes)
+    assertEquals(literal, store.outputUris.single())
+
+    release.countDown()
+    first.join(10_000)
+    assertTrue(firstResult?.success == true)
+  }
+
   @Test fun recoveryWaitsForActiveWriteAndDoesNotRemoveItsJournal() {
     val old = "old".toByteArray()
     val root = tmp()
@@ -667,8 +693,8 @@ class AudioTagTransactionManagerTest {
     val release = CountDownLatch(1)
     val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
     val manager = manager(tmp(), store)
-    val first = thread { manager.write(req(Uri.parse("content://provider/one"), old, "new".toByteArray())) }
-    val second = thread { manager.write(req(Uri.parse("content://provider/two"), old, "new".toByteArray())) }
+    val first = thread { manager.write(req(Uri.parse("content://provider/document/one"), old, "new".toByteArray())) }
+    val second = thread { manager.write(req(Uri.parse("content://provider/document/two"), old, "new".toByteArray())) }
     assertTrue(opened.await(5, TimeUnit.SECONDS))
     release.countDown()
     first.join(10_000)

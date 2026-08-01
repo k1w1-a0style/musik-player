@@ -13,6 +13,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
@@ -256,12 +257,45 @@ private val TAG_WRITE_OPERATION_ID_PATTERN = Regex("^[A-Za-z0-9._-]{1,80}$")
 fun isValidTagWriteOperationId(value: String): Boolean =
   value != "." && value != ".." && TAG_WRITE_OPERATION_ID_PATTERN.matches(value)
 
+/**
+ * Returns a stable coordination identity without changing the URI sent to the
+ * provider. Android document URIs encode their opaque document ID after a
+ * `document` (or, for a bare tree URI, `tree`) path marker. Decoding that
+ * complete suffix once makes literal and percent-encoded spellings converge,
+ * including document IDs which themselves contain slashes.
+ *
+ * Unknown content-URI shapes deliberately fall back to one authority bucket.
+ * This may serialize unrelated unusual URIs, but cannot let aliases on the
+ * same provider mutate concurrently. Malformed/non-content URIs share a final
+ * fail-closed bucket.
+ */
+internal fun safTargetKey(uri: Uri): String = try {
+  if (!uri.scheme.equals("content", ignoreCase = true)) return "uri:fallback"
+  val authority = uri.authority?.takeIf { it.isNotBlank() }
+    ?.lowercase(Locale.ROOT)
+    ?: return "content:fallback"
+  val encodedPath = uri.encodedPath.orEmpty()
+  val marker = when {
+    encodedPath.contains("/document/") -> "/document/"
+    encodedPath.contains("/tree/") -> "/tree/"
+    else -> null
+  }
+  if (marker == null) return "content:$authority:fallback"
+  val encodedDocumentId = encodedPath.substringAfter(marker, missingDelimiterValue = "")
+  if (encodedDocumentId.isEmpty()) return "content:$authority:fallback"
+  "content:$authority:document:${Uri.decode(encodedDocumentId)}"
+} catch (_: Throwable) {
+  val authority = try { uri.authority?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
+  if (authority.isNullOrBlank()) "content:fallback" else "content:$authority:fallback"
+}
+
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
   private val availableBytesProvider: (File) -> Long = { directory ->
     StatFs(directory.absolutePath).availableBytes
   },
+  private val partialDirectoryDelete: (File) -> Boolean = { it.deleteRecursively() },
 ) {
   companion object {
     const val MAX_JOURNAL_BYTES = 64 * 1024
@@ -291,7 +325,22 @@ class TransactionStorage(
       throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier escapes transaction storage.")
     }
     if (!directory.mkdirs()) throw IOException("transaction directory mkdir failed")
-    syncDirectory(root)
+    try {
+      syncDirectory(root)
+    } catch (primary: Throwable) {
+      // Only this invocation's newly-created, already-contained child is
+      // eligible for rollback. Never clean a pre-existing or escaped path.
+      try {
+        if (directory.canonicalFile.parentFile == canonicalRoot &&
+          directory.exists() && !partialDirectoryDelete(directory)
+        ) {
+          throw IOException("partial transaction directory cleanup failed")
+        }
+      } catch (cleanup: Throwable) {
+        primary.addSuppressed(cleanup)
+      }
+      throw primary
+    }
     return directory
   }
 
@@ -709,14 +758,16 @@ class AudioTagTransactionManager(
     }
 
   private fun needsTargetedRecovery(request: TransactionWriteRequest): Boolean {
-    val canonicalTarget = request.uri.normalizeScheme().toString()
+    val canonicalTarget = safTargetKey(request.uri)
     if (synchronized(targetLocks) { targetLocks[canonicalTarget]?.users?.let { it > 0 } == true }) {
       // Let the normal target-lock path reject a concurrent live mutation. Its
       // journal is not a crashed transaction and must never be recovered.
       return false
     }
     return try {
-      storage.dirs().any { storage.readJournalSafely(it)?.targetUri == request.uri.toString() }
+      storage.dirs().any {
+        storage.readJournalSafely(it)?.targetUri?.let { target -> safTargetKey(Uri.parse(target)) } == canonicalTarget
+      }
     } catch (_: Throwable) {
       // Re-run the check under the recovery locks, where failures become a
       // structured, retryable result rather than allowing a mutation.
@@ -736,7 +787,7 @@ class AudioTagTransactionManager(
   )
 
   private fun writeWithTargetLock(request: TransactionWriteRequest): TransactionResult {
-    val canonicalTarget = request.uri.normalizeScheme().toString()
+    val canonicalTarget = safTargetKey(request.uri)
     val target = synchronized(targetLocks) {
       targetLocks.computeIfAbsent(canonicalTarget) { TargetLock() }.also { it.users += 1 }
     }
@@ -768,8 +819,9 @@ class AudioTagTransactionManager(
   }
 
   private fun writeLocked(request: TransactionWriteRequest): TransactionResult {
+    val canonicalTarget = safTargetKey(request.uri)
     val hasPendingRecovery = storage.dirs().any {
-      storage.readJournalSafely(it)?.targetUri == request.uri.toString()
+      storage.readJournalSafely(it)?.targetUri?.let { target -> safTargetKey(Uri.parse(target)) } == canonicalTarget
     }
     if (hasPendingRecovery) {
       return recoveryPendingResult(request)
@@ -1475,7 +1527,8 @@ class AudioTagTransactionManager(
     var pendingCount = 0
     var failedCount = 0
     val reports = mutableListOf<RecoveryTransactionReport>()
-    val blockedUris = mutableSetOf<String>()
+    val blockedTargets = mutableSetOf<String>()
+    val requestedTarget = targetUri?.let(::safTargetKey)
 
     for (directory in storage.dirs()) {
       val journal = storage.readJournalSafely(directory)
@@ -1505,8 +1558,9 @@ class AudioTagTransactionManager(
         continue
       }
 
-      if (targetUri != null && journal.targetUri != targetUri.toString()) continue
-      if (journal.targetUri in blockedUris) {
+      val journalTarget = safTargetKey(Uri.parse(journal.targetUri))
+      if (requestedTarget != null && journalTarget != requestedTarget) continue
+      if (journalTarget in blockedTargets) {
         pendingCount += 1
         reports += RecoveryTransactionReport(
           transactionId = journal.transactionId,
@@ -1525,7 +1579,7 @@ class AudioTagTransactionManager(
       if (result.success && !result.recovered) cleanedCount += 1
       if (result.recoveryPending) {
         pendingCount += 1
-        blockedUris += journal.targetUri
+        blockedTargets += journalTarget
       }
       if (!result.success && !result.recoveryPending) failedCount += 1
       reports += RecoveryTransactionReport(
