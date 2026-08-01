@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFonts } from '@expo-google-fonts/bricolage-grotesque';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -12,14 +12,19 @@ import { restoreAndReconcileTagWrites } from './utils/tagWriterRecovery';
 
 export const AppContent = (): React.ReactElement => {
   const [fontsLoaded] = useFonts(appFonts);
+  const [tagWritesReady, setTagWritesReady] = useState(false);
 
   useEffect(() => {
-    void restoreAndReconcileTagWrites().catch(error => {
+    let mounted = true;
+    void restoreAndReconcileTagWrites().then(() => {
+      if (mounted) setTagWritesReady(true);
+    }, error => {
       console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
     });
+    return () => { mounted = false; };
   }, []);
 
-  if (!fontsLoaded) return <AppLoading />;
+  if (!fontsLoaded || !tagWritesReady) return <AppLoading />;
 
   return (
     <AppProviders>

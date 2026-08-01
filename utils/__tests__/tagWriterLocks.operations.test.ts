@@ -1,4 +1,8 @@
-import { getActiveSafWrite, getSafWriteOperation, runSafWriteOperation } from '../tagWriterLocks';
+import {
+  beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
+  getActiveSafWrite, getSafWriteOperation, resetSafWriteStartupForTests,
+  runSafWriteOperation,
+} from '../tagWriterLocks';
 import { canonicalSafTarget } from '../tagWriterLocks';
 
 const deferred = <T>() => {
@@ -9,7 +13,33 @@ const deferred = <T>() => {
 };
 
 describe('SAF tag write operation contract', () => {
+  beforeEach(() => resetSafWriteStartupForTests());
   afterEach(() => jest.useRealTimers());
+
+  test('waits at the API barrier and opens exactly once after restoration', async () => {
+    beginSafWriteStartupRestoration();
+    const native = jest.fn(async () => 'written');
+    const write = runSafWriteOperation('content://provider/startup', native);
+    await Promise.resolve();
+    expect(native).not.toHaveBeenCalled();
+    finishSafWriteStartupRestoration();
+    finishSafWriteStartupRestoration();
+    await expect(write).resolves.toMatchObject({ kind: 'result', value: 'written' });
+    expect(native).toHaveBeenCalledTimes(1);
+  });
+
+  test('stays fail-closed after restoration failure and a retry can open it', async () => {
+    beginSafWriteStartupRestoration();
+    const blocked = runSafWriteOperation('content://provider/startup-failed', async () => 'never');
+    finishSafWriteStartupRestoration(new Error('storage unavailable'));
+    await expect(blocked).rejects.toThrow('storage unavailable');
+    await expect(runSafWriteOperation('content://provider/startup-failed', async () => 'never'))
+      .rejects.toThrow('storage unavailable');
+    beginSafWriteStartupRestoration();
+    finishSafWriteStartupRestoration();
+    await expect(runSafWriteOperation('content://provider/startup-failed', async () => 'written'))
+      .resolves.toMatchObject({ kind: 'result', value: 'written' });
+  });
 
   test('same canonical target is busy while different targets run concurrently', async () => {
     const first = deferred<string>();

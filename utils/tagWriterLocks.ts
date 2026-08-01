@@ -26,6 +26,36 @@ const activeSafWrites = new Map<string, SafWriteOperationStatus>();
 const safWriteOperationsById = new Map<string, SafWriteOperationStatus>();
 let persistenceQueue = Promise.resolve();
 let operationSequence = 0;
+let startupState: 'pending' | 'ready' | 'failed' = process.env.NODE_ENV === 'test' ? 'ready' : 'pending';
+let startupError: unknown;
+let resolveStartup: (() => void) | undefined;
+let startupBarrier = startupState === 'ready' ? Promise.resolve() : new Promise<void>(resolve => { resolveStartup = resolve; });
+
+/** Closes the API gate before persisted ownership is read. Safe to call again for a retry. */
+export const beginSafWriteStartupRestoration = (): void => {
+  if (startupState === 'pending') return;
+  startupState = 'pending';
+  startupError = undefined;
+  startupBarrier = new Promise<void>(resolve => { resolveStartup = resolve; });
+};
+
+export const finishSafWriteStartupRestoration = (error?: unknown): void => {
+  if (startupState !== 'pending') return;
+  startupState = error === undefined ? 'ready' : 'failed';
+  startupError = error;
+  resolveStartup?.();
+  resolveStartup = undefined;
+};
+
+export const isSafWriteStartupReady = (): boolean => startupState === 'ready';
+
+const awaitSafWriteStartup = async (): Promise<void> => {
+  if (startupState === 'ready') return;
+  await startupBarrier;
+  if (startupState === 'failed') {
+    throw new Error(`SAF tag writes are unavailable until startup restoration succeeds: ${String(startupError)}`);
+  }
+};
 
 export const canonicalSafTarget = (uri: string): string => {
   const trimmed = uri.trim();
@@ -103,7 +133,8 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
     const status = parsePersistedStatus(candidate);
     safWriteOperationsById.set(status.operationId, status);
     if (!status.terminal) {
-      activeSafWrites.set(status.targetKey, status);
+      // Never replace an owner registered after the restoration boundary.
+      if (!activeSafWrites.has(status.targetKey)) activeSafWrites.set(status.targetKey, status);
       restored.push({ ...status });
     }
   }
@@ -124,7 +155,17 @@ export const reconcileSafWriteOperation = async (
   return true;
 };
 
-export const clearSafWriteOperationsForTests = (): void => { activeSafWrites.clear(); safWriteOperationsById.clear(); };
+export const clearSafWriteOperationsForTests = (): void => {
+  activeSafWrites.clear();
+  safWriteOperationsById.clear();
+  resetSafWriteStartupForTests();
+};
+
+export const resetSafWriteStartupForTests = (ready = true): void => {
+  startupState = ready ? 'ready' : 'pending';
+  startupError = undefined;
+  startupBarrier = ready ? Promise.resolve() : new Promise<void>(resolve => { resolveStartup = resolve; });
+};
 
 type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
@@ -148,6 +189,7 @@ export const runSafWriteOperation = async <T>(
   startNativeMutation: (operationId: string) => Promise<T>,
   options: SafWriteOperationOptions<T> = {},
 ): Promise<{ kind: 'result'; value: T; status: SafWriteOperationStatus } | { kind: 'pending'; status: SafWriteOperationStatus } | { kind: 'busy'; status: SafWriteOperationStatus }> => {
+  await awaitSafWriteStartup();
   const targetKey = canonicalSafTarget(uri);
   const operationId = options.operationId ?? createTagWriteOperationId();
   const existing = activeSafWrites.get(targetKey);
