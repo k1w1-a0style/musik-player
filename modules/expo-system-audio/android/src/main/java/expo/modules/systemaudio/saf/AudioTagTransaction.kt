@@ -269,24 +269,26 @@ fun isValidTagWriteOperationId(value: String): Boolean =
  * same provider mutate concurrently. Malformed/non-content URIs share a final
  * fail-closed bucket.
  */
-internal fun safTargetKey(uri: Uri): String = try {
-  if (!uri.scheme.equals("content", ignoreCase = true)) return "uri:fallback"
-  val authority = uri.authority?.takeIf { it.isNotBlank() }
-    ?.lowercase(Locale.ROOT)
-    ?: return "content:fallback"
-  val encodedPath = uri.encodedPath.orEmpty()
-  val marker = when {
-    encodedPath.contains("/document/") -> "/document/"
-    encodedPath.contains("/tree/") -> "/tree/"
-    else -> null
+internal fun safTargetKey(uri: Uri): String {
+  return try {
+    if (!uri.scheme.equals("content", ignoreCase = true)) return "uri:fallback"
+    val authority = uri.authority?.takeIf { it.isNotBlank() }
+      ?.lowercase(Locale.ROOT)
+      ?: return "content:fallback"
+    val encodedPath = uri.encodedPath.orEmpty()
+    val marker = when {
+      encodedPath.contains("/document/") -> "/document/"
+      encodedPath.contains("/tree/") -> "/tree/"
+      else -> null
+    }
+    if (marker == null) return "content:$authority:fallback"
+    val encodedDocumentId = encodedPath.substringAfter(marker, missingDelimiterValue = "")
+    if (encodedDocumentId.isEmpty()) return "content:$authority:fallback"
+    "content:$authority:document:${Uri.decode(encodedDocumentId)}"
+  } catch (_: Throwable) {
+    val authority = try { uri.authority?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
+    if (authority.isNullOrBlank()) "content:fallback" else "content:$authority:fallback"
   }
-  if (marker == null) return "content:$authority:fallback"
-  val encodedDocumentId = encodedPath.substringAfter(marker, missingDelimiterValue = "")
-  if (encodedDocumentId.isEmpty()) return "content:$authority:fallback"
-  "content:$authority:document:${Uri.decode(encodedDocumentId)}"
-} catch (_: Throwable) {
-  val authority = try { uri.authority?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
-  if (authority.isNullOrBlank()) "content:fallback" else "content:$authority:fallback"
 }
 
 class TransactionStorage(
@@ -897,7 +899,7 @@ class AudioTagTransactionManager(
       changedFields = request.changedFields,
     )
 
-    try {
+    return try {
       storage.atomicWriteJournal(directory, journal)
       val originalTemporary = File(directory, "original.tmp")
       val originalDigest = StreamDigests.copyUriToFileWithDigest(
