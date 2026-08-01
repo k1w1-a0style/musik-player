@@ -17,6 +17,7 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 @RunWith(RobolectricTestRunner::class)
@@ -35,6 +36,19 @@ class AudioTagTransactionManagerTest {
     override fun sync(directory: File) {
       calls += 1
       if (calls == failOnCall) throw IOException("directory sync failure")
+    }
+  }
+
+  private class FirstDirectorySyncBarrier : DirectoryDurabilitySync {
+    val entered = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    private val calls = AtomicInteger()
+
+    override fun sync(directory: File) {
+      if (calls.incrementAndGet() == 1) {
+        entered.countDown()
+        release.await(10, TimeUnit.SECONDS)
+      }
     }
   }
 
@@ -699,6 +713,82 @@ class AudioTagTransactionManagerTest {
     release.countDown()
     first.join(10_000)
     second.join(10_000)
+  }
+
+  @Test fun activeJournalLessDirectoryDoesNotTriggerRecoveryForAnotherTarget() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val directoryBarrier = FirstDirectorySyncBarrier()
+    val mutationReached = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = mutationReached }
+    val manager = AudioTagTransactionManager(TransactionStorage(root, directorySync = directoryBarrier), store, 0)
+    val first = thread {
+      manager.write(req(Uri.parse("content://provider/document/one"), old, "first".toByteArray(), "active-one"))
+    }
+    assertTrue(directoryBarrier.entered.await(5, TimeUnit.SECONDS))
+    assertTrue(File(root, "active-one").isDirectory)
+    assertFalse(File(root, "active-one/journal.json").exists())
+
+    val second = thread {
+      manager.write(req(Uri.parse("content://provider/document/two"), old, "second".toByteArray(), "active-two"))
+    }
+    assertTrue(mutationReached.await(5, TimeUnit.SECONDS))
+
+    directoryBarrier.release.countDown()
+    first.join(10_000)
+    second.join(10_000)
+  }
+
+  @Test fun unownedJournalLessDirectoryRemainsFailClosedAndIsQuarantined() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val orphan = File(root, "unowned-operation")
+    assertTrue(orphan.mkdir())
+    val manager = manager(root, FakeStore(old))
+
+    val result = manager.write(req(Uri.parse("content://provider/document/two"), old, "new".toByteArray()))
+
+    assertTrue(result.success)
+    assertFalse(orphan.exists())
+    val quarantine = File(root.parentFile, "audio-tag-transactions-quarantine")
+    assertTrue(quarantine.listFiles()?.any { it.name.startsWith("unowned-operation") } == true)
+  }
+
+  @Test fun activeOperationRegistrationIsRefCountedAndReleasedOnEveryExit() {
+    fun activeCounts(manager: AudioTagTransactionManager): Map<*, *> {
+      val field = AudioTagTransactionManager::class.java.getDeclaredField("activeOperationIds")
+      field.isAccessible = true
+      return field.get(manager) as Map<*, *>
+    }
+
+    val old = "old".toByteArray()
+    val successManager = manager(tmp(), FakeStore(old))
+    assertTrue(successManager.write(req(uri, old, "new".toByteArray(), "success-operation")).success)
+    assertTrue(activeCounts(successManager).isEmpty())
+
+    val failureStore = FakeStore(old).apply { failOpenOnWriteCall = 1 }
+    val failureManager = manager(tmp(), failureStore)
+    assertFalse(failureManager.write(req(uri, old, "new".toByteArray(), "failed-operation")).success)
+    assertTrue(activeCounts(failureManager).isEmpty())
+
+    val exceptionRoot = tmp()
+    assertTrue(File(exceptionRoot, "exception-operation").mkdir())
+    val exceptionManager = manager(exceptionRoot, FakeStore(old))
+    assertThrows(IOException::class.java) {
+      exceptionManager.write(req(uri, old, "new".toByteArray(), "exception-operation"))
+    }
+    assertTrue(activeCounts(exceptionManager).isEmpty())
+
+    val register = AudioTagTransactionManager::class.java.getDeclaredMethod("registerActiveOperation", String::class.java)
+      .apply { isAccessible = true }
+    val unregister = AudioTagTransactionManager::class.java.getDeclaredMethod("unregisterActiveOperation", String::class.java)
+      .apply { isAccessible = true }
+    register.invoke(successManager, "shared-operation")
+    register.invoke(successManager, "shared-operation")
+    unregister.invoke(successManager, "shared-operation")
+    assertEquals(1, activeCounts(successManager)["shared-operation"])
+    unregister.invoke(successManager, "shared-operation")
+    assertFalse(activeCounts(successManager).containsKey("shared-operation"))
   }
 
   @Test fun terminalFailureReleasesBarrierForRepeatedRecoveryAndWrite() {

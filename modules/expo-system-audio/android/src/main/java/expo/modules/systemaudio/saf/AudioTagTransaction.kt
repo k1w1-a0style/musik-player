@@ -694,6 +694,23 @@ class AudioTagTransactionManager(
   private val lifecycleBarrier = ReentrantReadWriteLock(true)
   private data class TargetLock(val lock: ReentrantLock = ReentrantLock(), var users: Int = 0)
   private val targetLocks = ConcurrentHashMap<String, TargetLock>()
+  private val activeOperationIds = ConcurrentHashMap<String, Int>()
+
+  private fun registerActiveOperation(operationId: String) {
+    if (!isValidTagWriteOperationId(operationId)) return
+    activeOperationIds.compute(operationId) { _, users -> (users ?: 0) + 1 }
+  }
+
+  private fun unregisterActiveOperation(operationId: String) {
+    if (!isValidTagWriteOperationId(operationId)) return
+    activeOperationIds.computeIfPresent(operationId) { _, users ->
+      if (users <= 1) null else users - 1
+    }
+  }
+
+  private fun isActiveTransactionDirectory(directory: File): Boolean =
+    isValidTagWriteOperationId(directory.name) &&
+      (activeOperationIds[directory.name]?.let { it > 0 } == true)
 
   /**
    * Lock order is always lifecycleBarrier -> maintenanceLock or
@@ -768,7 +785,8 @@ class AudioTagTransactionManager(
     }
     return try {
       storage.dirs().any {
-        val journal = storage.readJournalSafely(it) ?: return@any true
+        val journal = storage.readJournalSafely(it)
+          ?: return@any !isActiveTransactionDirectory(it)
         safTargetKey(Uri.parse(journal.targetUri)) == canonicalTarget
       }
     } catch (_: Throwable) {
@@ -888,6 +906,15 @@ class AudioTagTransactionManager(
       )
     }
 
+    registerActiveOperation(request.operationId)
+    return try {
+      writeRegistered(request)
+    } finally {
+      unregisterActiveOperation(request.operationId)
+    }
+  }
+
+  private fun writeRegistered(request: TransactionWriteRequest): TransactionResult {
     val directory = storage.createDir(request.operationId)
     var phase = WriteExecutionPhase.PREPARING
     var journal = TransactionJournal(
