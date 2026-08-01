@@ -459,6 +459,76 @@ class AudioTagTransactionManagerTest {
     assertEquals(0, store.writes)
   }
 
+  @Test fun corruptedBackupRejectsEveryRetryWithItsTerminalRecoveryFailure() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
+    val store = FakeStore("partial".toByteArray())
+    val manager = manager(root, store)
+
+    listOf("first-retry", "second-retry").forEach { operationId ->
+      val result = manager.write(req(uri, "old".toByteArray(), "new".toByteArray(), operationId))
+
+      assertFalse(result.success)
+      assertEquals(operationId, result.transactionId)
+      assertEquals("BackupCorrupted", result.errorCode)
+      assertEquals("FAILED", result.phase)
+      assertTrue(result.terminal)
+      assertFalse(result.recoveryPending)
+      assertFalse(result.retryable)
+    }
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun targetedRecoveryPreservesRetryableTerminalFailureClassification() {
+    val request = req(uri, "old".toByteArray(), "new".toByteArray(), "retry-operation")
+    val result = targetedRecoveryResult(
+      request,
+      recoverySummary("ReplaceFailed"),
+    )!!
+
+    assertEquals("ReplaceFailed", result.errorCode)
+    assertEquals("retry-operation", result.transactionId)
+    assertFalse(result.recoveryPending)
+    assertTrue(result.retryable)
+  }
+
+  @Test fun ambiguousTerminalRecoveryReportsFailClosedWithoutBecomingPending() {
+    val request = req(uri, "old".toByteArray(), "new".toByteArray(), "retry-operation")
+    val summary = recoverySummary("BackupCorrupted").copy(
+      failedCount = 2,
+      transactions = listOf(
+        recoveryReport("BackupCorrupted"),
+        recoveryReport("VerificationFailed"),
+      ),
+    )
+    val result = targetedRecoveryResult(request, summary)!!
+
+    assertEquals("RecoveryFailed", result.errorCode)
+    assertEquals("retry-operation", result.transactionId)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertFalse(result.recoveryPending)
+    assertTrue(result.retryable)
+  }
+
+  private fun recoverySummary(errorCode: String) = RecoverySummary(
+    success = false,
+    recoveredCount = 0,
+    cleanedCount = 0,
+    pendingCount = 0,
+    failedCount = 1,
+    transactions = listOf(recoveryReport(errorCode)),
+  )
+
+  private fun recoveryReport(errorCode: String) = RecoveryTransactionReport(
+    transactionId = "old-recovery-operation",
+    previousState = "WRITE_STARTED",
+    resultState = "WRITE_STARTED",
+    recovered = false,
+    pending = false,
+    errorCode = errorCode,
+  )
+
   @Test fun statusIsReadOnly() {
     val root = prepared(TransactionState.WRITE_STARTED)
     val dir = root.listFiles()!!.single()

@@ -595,6 +595,45 @@ data class RecoverySummary(
   )
 }
 
+/**
+ * Maps the outcome of targeted recovery to the identity of the new write
+ * attempt. Pending recovery remains retryable, while an exclusively terminal
+ * failure preserves its error code. If terminal reports disagree (or omit a
+ * code), RecoveryFailed is the deterministic fail-closed aggregate.
+ */
+internal fun targetedRecoveryResult(
+  request: TransactionWriteRequest,
+  summary: RecoverySummary,
+): TransactionResult? {
+  if (summary.success) return null
+  if (summary.pendingCount > 0) {
+    return TransactionResult(
+      success = false,
+      errorCode = "RecoveryPending",
+      message = "Pending recovery must complete before writing this SAF document.",
+      recoveryPending = true,
+      transactionId = request.operationId,
+      phase = "FAILED",
+      terminal = true,
+    )
+  }
+
+  val terminalCodes = summary.transactions
+    .filterNot { it.pending }
+    .mapNotNull { it.errorCode }
+    .distinct()
+  val errorCode = terminalCodes.singleOrNull() ?: "RecoveryFailed"
+  return TransactionResult(
+    success = false,
+    errorCode = errorCode,
+    message = "Targeted recovery failed before writing this SAF document.",
+    recoveryPending = false,
+    transactionId = request.operationId,
+    phase = "FAILED",
+    terminal = true,
+  )
+}
+
 class AudioTagTransactionManager(
   private val storage: TransactionStorage,
   private val store: SafContentStore,
@@ -665,7 +704,7 @@ class AudioTagTransactionManager(
         } catch (_: Throwable) {
           return@withLock recoveryPendingResult(request)
         }
-        if (summary.success) null else recoveryPendingResult(request)
+        targetedRecoveryResult(request, summary)
       }
     }
 
