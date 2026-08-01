@@ -294,10 +294,10 @@ internal fun safTargetKey(uri: Uri): String {
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
+  private val partialDirectoryDelete: (File) -> Boolean = { it.deleteRecursively() },
   private val availableBytesProvider: (File) -> Long = { directory ->
     StatFs(directory.absolutePath).availableBytes
   },
-  private val partialDirectoryDelete: (File) -> Boolean = { it.deleteRecursively() },
 ) {
   companion object {
     const val MAX_JOURNAL_BYTES = 64 * 1024
@@ -768,7 +768,8 @@ class AudioTagTransactionManager(
     }
     return try {
       storage.dirs().any {
-        storage.readJournalSafely(it)?.targetUri?.let { target -> safTargetKey(Uri.parse(target)) } == canonicalTarget
+        val journal = storage.readJournalSafely(it) ?: return@any true
+        safTargetKey(Uri.parse(journal.targetUri)) == canonicalTarget
       }
     } catch (_: Throwable) {
       // Re-run the check under the recovery locks, where failures become a

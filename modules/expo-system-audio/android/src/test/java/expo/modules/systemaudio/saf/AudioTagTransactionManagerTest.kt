@@ -676,11 +676,11 @@ class AudioTagTransactionManagerTest {
     val writeThread = thread { manager.write(req(uri, old, "new".toByteArray())) }
     assertTrue(opened.await(5, TimeUnit.SECONDS))
     assertFalse(root.listFiles().isNullOrEmpty())
+    assertTrue((manager.status()["pendingCount"] as Int) > 0)
     val recoveryFinished = CountDownLatch(1)
     val recoveryThread = thread { manager.recoverPendingSummary(); recoveryFinished.countDown() }
     assertFalse(recoveryFinished.await(200, TimeUnit.MILLISECONDS))
     assertFalse(root.listFiles().isNullOrEmpty())
-    assertTrue((manager.status()["pendingCount"] as Int) > 0)
     release.countDown()
     writeThread.join(10_000)
     recoveryThread.join(10_000)
