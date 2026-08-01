@@ -1,4 +1,5 @@
-import { getActiveSafWrite, runSafWriteOperation } from '../tagWriterLocks';
+import { getActiveSafWrite, getSafWriteOperation, runSafWriteOperation } from '../tagWriterLocks';
+import { canonicalSafTarget } from '../tagWriterLocks';
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -25,6 +26,14 @@ describe('SAF tag write operation contract', () => {
     first.resolve('first');
     await expect(a).resolves.toMatchObject({ kind: 'result', value: 'first' });
     expect(duplicate.status).toMatchObject({ phase: 'failed', terminal: true, retryable: true });
+  });
+
+  test('tree and encoded document aliases share one target while distinct documents do not', () => {
+    const direct = 'content://provider/document/primary:Music/song.mp3';
+    const tree = 'content://PROVIDER/tree/primary%3AMusic/document/primary%3AMusic%2Fsong.mp3';
+    expect(canonicalSafTarget(tree)).toBe(canonicalSafTarget(direct));
+    expect(canonicalSafTarget('content://provider/document/primary:Music/other.mp3'))
+      .not.toBe(canonicalSafTarget(direct));
   });
 
   test('busy uses the rejected caller operation ID without replacing the active operation', async () => {
@@ -65,6 +74,9 @@ describe('SAF tag write operation contract', () => {
     await native.promise.catch(() => undefined);
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     expect(getActiveSafWrite('content://provider/late')).toBeUndefined();
+    expect(getSafWriteOperation(timedOut.status.operationId)).toMatchObject({
+      operationStatus: outcome === 'success' ? 'completed' : 'failed', terminal: true,
+    });
   });
 
   test('native rejection is observed and releases the target without an unhandled rejection', async () => {

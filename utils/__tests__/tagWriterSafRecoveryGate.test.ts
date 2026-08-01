@@ -93,7 +93,7 @@ describe('native streaming SAF write contract', () => {
     jest.advanceTimersByTime(10);
     await expect(pendingPromise).resolves.toMatchObject({
       errorCode: 'RecoveryPending', operationId: 'pending-operation', operationPhase: 'pendingNativeResult',
-      terminal: false, retryable: false, recoveryPending: true,
+      terminal: false, retryable: false, recoveryPending: false, operationStatus: 'pending',
     });
     jest.useRealTimers();
   });
@@ -122,6 +122,8 @@ describe('native streaming SAF write contract', () => {
       changedFields: request.changedFields,
       failedFields: [],
       verified: true,
+      operationId: request.operationId,
+      phase: 'COMPLETED', terminal: true, retryable: false,
     }));
     const { writeTagsToSafContentUri } = loadWithNative({
       hasNativeTagWriter: true,
@@ -143,14 +145,16 @@ describe('native streaming SAF write contract', () => {
   });
 
   test('encodes only the bounded cover payload and maps native no-op', async () => {
-    const write = jest.fn().mockResolvedValue({
+    const write = jest.fn().mockImplementation(async (_uri: string, request: { operationId: string }) => ({
       success: true,
       uri: song.uri,
       changedFields: ['cover'],
       failedFields: [],
       verified: true,
       noop: true,
-    });
+      operationId: request.operationId,
+      phase: 'COMPLETED', terminal: true, retryable: false,
+    }));
     const { writeTagsToSafContentUri } = loadWithNative({
       hasNativeTagWriter: true,
       writeAudioTags: write,

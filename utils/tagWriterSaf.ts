@@ -27,6 +27,9 @@ const nativePhaseMap: Readonly<Record<NonNullable<AudioTagWriteResult['phase']>,
 const phaseForWriteResult = (result: WriteTagsResult): 'completed' | 'failed' =>
   result.status === 'written' || result.status === 'noop' ? 'completed' : 'failed';
 
+const isRecoveryPendingResult = (result: WriteTagsResult): boolean =>
+  result.operationStatus === 'recovery-pending' || result.recoveryPending === true;
+
 const rejectedExecutionResult = (
   uri: string,
   execution: { kind: 'busy' | 'pending'; status: SafWriteOperationStatus },
@@ -35,14 +38,43 @@ const rejectedExecutionResult = (
   errorCode: 'TransactionConflict', errorMessage: 'A tag write is already active for this SAF document.',
   operationId: execution.status.operationId, operationPhase: execution.status.phase,
   terminal: true, retryable: true, recoveryPending: false,
+  operationStatus: 'failed', blockedByOperationId: execution.status.blockedByOperationId,
 } : {
   status: 'writeFailed', sourceUri: uri, warnings: [],
   errorCode: 'RecoveryPending', errorMessage: 'The native mutation is still running; its outcome is not known yet.',
   operationId: execution.status.operationId, operationPhase: 'pendingNativeResult',
-  terminal: false, retryable: false, recoveryPending: true,
+  terminal: false, retryable: false, recoveryPending: false, operationStatus: 'pending',
 };
 
+const hasValidNativeOperationContract = (
+  result: AudioTagWriteResult,
+  operationId: string | undefined,
+  phase: WriteTagsResult['operationPhase'],
+): boolean => {
+  if (!operationId || !phase || typeof result.terminal !== 'boolean' || typeof result.retryable !== 'boolean') return false;
+  if (result.success) return phase === 'completed' && result.terminal && !result.recoveryPending;
+  if (result.recoveryPending) return !result.terminal;
+  return phase === 'failed' && result.terminal;
+};
+
+const invalidNativeResult = (
+  nativeResult: AudioTagWriteResult,
+  warnings: string[],
+  operationId: string | undefined,
+  phase: WriteTagsResult['operationPhase'],
+): WriteTagsResult => ({
+  status: 'writeFailed', sourceUri: nativeResult.uri, warnings,
+  errorCode: 'RecoveryPending',
+  errorMessage: 'Native tag-write operation information was missing or contradictory.',
+  operationId, operationPhase: phase ?? 'failed', terminal: false, retryable: false,
+  recoveryPending: true, operationStatus: 'recovery-pending',
+});
+
 const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): WriteTagsResult => {
+  const operationId = nativeResult.operationId ?? nativeResult.transactionId;
+  const phase = nativeResult.phase ? nativePhaseMap[nativeResult.phase] : undefined;
+  if (!hasValidNativeOperationContract(nativeResult, operationId, phase))
+    return invalidNativeResult(nativeResult, warnings, operationId, phase);
   const errorCode = nativeResult.success ? undefined : normalizeTagWriterErrorCode(nativeResult.errorCode, nativeResult.message ?? '');
   const status: WriteTagsResult['status'] = nativeResult.success && nativeResult.verified
     ? (nativeResult.noop ? 'noop' : 'written')
@@ -61,10 +93,11 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
     recoveryPending: nativeResult.recoveryPending,
     recovered: nativeResult.recovered,
     cleanupPending: nativeResult.cleanupPending,
-    operationId: nativeResult.operationId ?? nativeResult.transactionId,
-    operationPhase: nativeResult.phase ? nativePhaseMap[nativeResult.phase] : undefined,
+    operationId,
+    operationPhase: phase,
     terminal: nativeResult.terminal,
     retryable: nativeResult.retryable,
+    operationStatus: nativeResult.success ? 'completed' : nativeResult.recoveryPending ? 'recovery-pending' : 'failed',
   };
 };
 
@@ -90,6 +123,7 @@ export const writeTagsToSafContentUri = async (
         errorCode: 'WriteNotImplemented',
         message: 'Native streaming SAF audio tag writer is unavailable. A new Development Build/APK is required.',
         verified: false,
+        operationId, phase: 'FAILED', terminal: true, retryable: false,
       });
     }
 
@@ -116,10 +150,10 @@ export const writeTagsToSafContentUri = async (
         errorMessage: String(error),
       };
     }
-  }, { ...options, phaseForResult: phaseForWriteResult });
+  }, { ...options, phaseForResult: phaseForWriteResult, recoveryPendingForResult: isRecoveryPendingResult });
 
   if (execution.kind === 'result' && execution.status.phase === 'cancelledBeforeMutation') {
-    return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true };
+    return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true, operationStatus: 'failed' };
   }
   if (execution.kind === 'busy') return rejectedExecutionResult(uri, execution);
   if (execution.kind === 'pending') return rejectedExecutionResult(uri, execution);
@@ -130,5 +164,6 @@ export const writeTagsToSafContentUri = async (
     operationPhase: value.operationPhase ?? execution.status.phase,
     terminal: value.terminal ?? execution.status.terminal,
     retryable: value.retryable ?? execution.status.retryable,
+    operationStatus: value.operationStatus ?? execution.status.operationStatus,
   };
 };

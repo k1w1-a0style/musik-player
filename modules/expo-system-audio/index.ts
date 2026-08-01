@@ -116,13 +116,13 @@ export interface FastMetadataResult {
   mimeType?: string;
 }
 
-type RecoveryStatusResult = {
+export type RecoveryStatusResult = {
   pendingCount: number;
   quarantineCount?: number;
   transactions: Array<{ transactionId: string; state: string }>;
 };
 
-type RecoveryRunResult = {
+export type RecoveryRunResult = {
   success: boolean;
   errorCode?: string;
   message?: string;
