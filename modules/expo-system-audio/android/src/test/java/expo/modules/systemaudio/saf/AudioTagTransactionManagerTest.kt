@@ -17,6 +17,7 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 @RunWith(RobolectricTestRunner::class)
@@ -38,6 +39,19 @@ class AudioTagTransactionManagerTest {
     }
   }
 
+  private class FirstDirectorySyncBarrier : DirectoryDurabilitySync {
+    val entered = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    private val calls = AtomicInteger()
+
+    override fun sync(directory: File) {
+      if (calls.incrementAndGet() == 1) {
+        entered.countDown()
+        release.await(10, TimeUnit.SECONDS)
+      }
+    }
+  }
+
   @Before fun registerRobolectricStorageCapacity() {
     ShadowStatFs.registerStats(
       File(System.getProperty("java.io.tmpdir")),
@@ -55,8 +69,14 @@ class AudioTagTransactionManagerTest {
   private fun sha(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
     .digest(bytes)
     .joinToString("") { "%02x".format(it) }
-  private fun req(uri: Uri, original: ByteArray, rewritten: ByteArray): TransactionWriteRequest =
+  private fun req(
+    uri: Uri,
+    original: ByteArray,
+    rewritten: ByteArray,
+    operationId: String = java.util.UUID.randomUUID().toString(),
+  ): TransactionWriteRequest =
     TransactionWriteRequest(
+      operationId = operationId,
       uri = uri,
       rewriteSource = staticRewriteSource(rewritten),
       changedFields = listOf("title"),
@@ -78,6 +98,7 @@ class AudioTagTransactionManagerTest {
     var readOverride: ((Int, ByteArray) -> ByteArray)? = null
     var outputOpened: CountDownLatch? = null
     var holdWriteUntil: CountDownLatch? = null
+    val outputUris = mutableListOf<Uri>()
 
     override fun openInput(uri: Uri): ByteArrayInputStream {
       reads += 1
@@ -90,6 +111,7 @@ class AudioTagTransactionManagerTest {
     }
 
     override fun openTruncatingOutput(uri: Uri): OutputStream? {
+      synchronized(outputUris) { outputUris += uri }
       writes += 1
       val call = writes
       if (failOpenOnWriteCall == call) throw IOException("write open failed")
@@ -146,6 +168,47 @@ class AudioTagTransactionManagerTest {
     assertTrue(result.verified)
     assertArrayEquals(rewritten, store.bytes)
     assertTrue(root.listFiles().isNullOrEmpty())
+    assertFalse(result.retryable)
+  }
+
+  @Test fun nativeRetryPolicyClassifiesEveryKnownFailureCode() {
+    val retryable = listOf(
+      "TransactionConflict", "RecoveryPending", "RecoveryFailed", "MissingWritePermission",
+      "InsufficientStorage", "BackupFailed", "TempWriteFailed", "ReplaceFailed", "RollbackFailed",
+    )
+    val permanent = listOf(
+      "InvalidTagData", "UnsupportedUri", "UnsupportedFormat", "FileTooLarge",
+      "BackupCorrupted", "VerificationFailed",
+    )
+
+    retryable.forEach { code ->
+      assertTrue(code, isRetryableTagWriteFailure(false, code, recoveryPending = false))
+    }
+    permanent.forEach { code ->
+      assertFalse(code, isRetryableTagWriteFailure(false, code, recoveryPending = false))
+    }
+    assertFalse(isRetryableTagWriteFailure(false, "UnknownFailure", recoveryPending = false))
+    assertFalse(isRetryableTagWriteFailure(true, null, recoveryPending = false))
+  }
+
+  @Test fun recoveryPendingOverridesEveryFailedErrorClassification() {
+    listOf(null, "BackupCorrupted", "VerificationFailed", "UnknownFailure").forEach { code ->
+      val result = TransactionResult(false, code, "pending", recoveryPending = true)
+      assertTrue(code ?: "null error code", result.retryable)
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TransactionResult(false, "RecoveryPending", "invalid", recoveryPending = true, retryable = false)
+    }
+  }
+
+  @Test fun missingWritePermissionIsTerminalFailedAndRetryable() {
+    val result = manager(tmp(), FakeStore().apply { permission = false }).write(
+      req(uri, "old".toByteArray(), "new".toByteArray()),
+    )
+    assertEquals("MissingWritePermission", result.errorCode)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertTrue(result.retryable)
   }
 
   @Test fun targetIsNotOpenedBeforeOriginalVerification() {
@@ -192,6 +255,17 @@ class AudioTagTransactionManagerTest {
     val result = manager(root, store).write(req(uri, old, "new".toByteArray()))
     assertEquals("InsufficientStorage", result.errorCode)
     assertEquals(0, store.writes)
+    assertTrue(result.retryable)
+  }
+
+  @Test fun unverifiableStorageIsRetryable() {
+    val root = tmp()
+    val unavailableStorage = TransactionStorage(root, NoopDirectorySync) { throw IOException("unavailable") }
+    val result = AudioTagTransactionManager(unavailableStorage, FakeStore(), 0).write(
+      req(uri, "old".toByteArray(), "new".toByteArray()),
+    )
+    assertEquals("InsufficientStorage", result.errorCode)
+    assertTrue(result.retryable)
   }
 
   @Test fun externalChangeBeforeWriteIntentAbortsWithoutMutation() {
@@ -270,6 +344,7 @@ class AudioTagTransactionManagerTest {
     assertFalse(result.success)
     assertEquals("RollbackFailed", result.errorCode)
     assertTrue(result.recoveryPending)
+    assertTrue(result.retryable)
     assertFalse(root.listFiles().isNullOrEmpty())
   }
 
@@ -363,6 +438,113 @@ class AudioTagTransactionManagerTest {
     assertEquals(0, store.writes)
   }
 
+  @Test fun retryRecoversTargetAndWritesWithoutRecreatingManager() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val store = FakeStore(old).apply {
+      failPartialOnWriteCall = 1
+      failOpenOnWriteCall = 2
+    }
+    val manager = manager(root, store)
+    assertEquals("RollbackFailed", manager.write(req(uri, old, "broken".toByteArray())).errorCode)
+    assertFalse(root.listFiles().isNullOrEmpty())
+
+    store.failPartialOnWriteCall = null
+    store.failOpenOnWriteCall = null
+    val retry = manager.write(req(uri, old, "recovered-and-written".toByteArray(), "retry-operation"))
+
+    assertTrue(retry.success)
+    assertArrayEquals("recovered-and-written".toByteArray(), store.bytes)
+    assertTrue(root.listFiles().isNullOrEmpty())
+  }
+
+  @Test fun failedTargetedRecoveryRejectsNewOperationWithoutMutation() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    val store = FakeStore("partial".toByteArray()).apply { permission = false }
+    val result = manager(root, store).write(
+      req(uri, "old".toByteArray(), "new".toByteArray(), "new-retry-operation"),
+    )
+
+    assertFalse(result.success)
+    assertEquals("RecoveryPending", result.errorCode)
+    assertEquals("new-retry-operation", result.transactionId)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertTrue(result.retryable)
+    assertTrue(result.recoveryPending)
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun corruptedBackupRejectsEveryRetryWithItsTerminalRecoveryFailure() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
+    val store = FakeStore("partial".toByteArray())
+    val manager = manager(root, store)
+
+    listOf("first-retry", "second-retry").forEach { operationId ->
+      val result = manager.write(req(uri, "old".toByteArray(), "new".toByteArray(), operationId))
+
+      assertFalse(result.success)
+      assertEquals(operationId, result.transactionId)
+      assertEquals("BackupCorrupted", result.errorCode)
+      assertEquals("FAILED", result.phase)
+      assertTrue(result.terminal)
+      assertFalse(result.recoveryPending)
+      assertFalse(result.retryable)
+    }
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun targetedRecoveryPreservesRetryableTerminalFailureClassification() {
+    val request = req(uri, "old".toByteArray(), "new".toByteArray(), "retry-operation")
+    val result = targetedRecoveryResult(
+      request,
+      recoverySummary("ReplaceFailed"),
+    )!!
+
+    assertEquals("ReplaceFailed", result.errorCode)
+    assertEquals("retry-operation", result.transactionId)
+    assertFalse(result.recoveryPending)
+    assertTrue(result.retryable)
+  }
+
+  @Test fun ambiguousTerminalRecoveryReportsFailClosedWithoutBecomingPending() {
+    val request = req(uri, "old".toByteArray(), "new".toByteArray(), "retry-operation")
+    val summary = recoverySummary("BackupCorrupted").copy(
+      failedCount = 2,
+      transactions = listOf(
+        recoveryReport("BackupCorrupted"),
+        recoveryReport("VerificationFailed"),
+      ),
+    )
+    val result = targetedRecoveryResult(request, summary)!!
+
+    assertEquals("RecoveryFailed", result.errorCode)
+    assertEquals("retry-operation", result.transactionId)
+    assertEquals("FAILED", result.phase)
+    assertTrue(result.terminal)
+    assertFalse(result.recoveryPending)
+    assertTrue(result.retryable)
+  }
+
+  private fun recoverySummary(errorCode: String) = RecoverySummary(
+    success = false,
+    recoveredCount = 0,
+    cleanedCount = 0,
+    pendingCount = 0,
+    failedCount = 1,
+    transactions = listOf(recoveryReport(errorCode)),
+  )
+
+  private fun recoveryReport(errorCode: String) = RecoveryTransactionReport(
+    transactionId = "old-recovery-operation",
+    previousState = "WRITE_STARTED",
+    resultState = "WRITE_STARTED",
+    recovered = false,
+    pending = false,
+    errorCode = errorCode,
+  )
+
   @Test fun statusIsReadOnly() {
     val root = prepared(TransactionState.WRITE_STARTED)
     val dir = root.listFiles()!!.single()
@@ -425,7 +607,19 @@ class AudioTagTransactionManagerTest {
     assertEquals(1, sync.calls)
   }
 
-  @Test fun twoWritesForSameUriNeverOpenTargetConcurrently() {
+  @Test fun transactionDirectoryRejectsSpecialAndTraversalOperationIds() {
+    val root = tmp()
+    val storage = TransactionStorage(root, NoopDirectorySync)
+    listOf("", ".", "..", "bad/id", "bad\\id", "../tag.1").forEach { operationId ->
+      val error = assertThrows(AudioTagRewriteException::class.java) { storage.createDir(operationId) }
+      assertEquals("InvalidTagData", error.errorCode)
+    }
+    listOf("tag.1", "tag_1", "tag-1").forEach { operationId ->
+      assertEquals(root.canonicalFile, storage.createDir(operationId).canonicalFile.parentFile)
+    }
+  }
+
+  @Test fun secondWriteForSameUriIsRejectedWhileNativeMutationRuns() {
     val old = "old".toByteArray()
     val first = "first".toByteArray()
     val second = "second".toByteArray()
@@ -440,20 +634,174 @@ class AudioTagTransactionManagerTest {
     var firstResult: TransactionResult? = null
     var secondResult: TransactionResult? = null
 
-    val firstThread = thread { firstResult = manager.write(req(uri, old, first)) }
+    val firstThread = thread { firstResult = manager.write(req(uri, old, first, "first-operation")) }
     assertTrue(opened.await(5, TimeUnit.SECONDS))
     store.outputOpened = null
     store.holdWriteUntil = null
-    val secondThread = thread { secondResult = manager.write(req(uri, first, second)) }
-    Thread.sleep(150)
+    val secondThread = thread { secondResult = manager.write(req(uri, first, second, "rejected-operation")) }
+    secondThread.join(5_000)
     assertEquals(1, store.writes)
+    assertEquals("TransactionConflict", secondResult?.errorCode)
+    assertEquals("rejected-operation", secondResult?.transactionId)
+    assertEquals("FAILED", secondResult?.phase)
+    assertTrue(secondResult?.terminal == true)
+    assertTrue(secondResult?.retryable == true)
+    assertFalse(secondResult?.recoveryPending ?: true)
+    val immutableConflict = secondResult
     release.countDown()
     firstThread.join(10_000)
-    secondThread.join(10_000)
 
     assertTrue(firstResult?.success == true)
-    assertTrue(secondResult?.success == true)
-    assertArrayEquals(second, store.bytes)
+    assertEquals(immutableConflict, secondResult)
+    assertArrayEquals(first, store.bytes)
+  }
+
+  @Test fun encodedDocumentAliasIsRejectedWhileLiteralAliasMutatesWithoutRewritingProviderUri() {
+    val old = "old".toByteArray()
+    val literal = Uri.parse("content://provider/document/primary:Music/song.mp3")
+    val encoded = Uri.parse("content://provider/document/primary%3AMusic%2Fsong.mp3")
+    val opened = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(tmp(), store)
+    var firstResult: TransactionResult? = null
+    val first = thread { firstResult = manager.write(req(literal, old, "first".toByteArray(), "literal")) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+
+    val conflict = manager.write(req(encoded, old, "second".toByteArray(), "encoded"))
+    assertEquals("TransactionConflict", conflict.errorCode)
+    assertTrue(conflict.terminal)
+    assertTrue(conflict.retryable)
+    assertEquals(1, store.writes)
+    assertEquals(literal, store.outputUris.single())
+
+    release.countDown()
+    first.join(10_000)
+    assertTrue(firstResult?.success == true)
+  }
+
+  @Test fun recoveryWaitsForActiveWriteAndDoesNotRemoveItsJournal() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val opened = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(root, store)
+    val writeThread = thread { manager.write(req(uri, old, "new".toByteArray())) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+    assertFalse(root.listFiles().isNullOrEmpty())
+    assertTrue((manager.status()["pendingCount"] as Int) > 0)
+    val recoveryFinished = CountDownLatch(1)
+    val recoveryThread = thread { manager.recoverPendingSummary(); recoveryFinished.countDown() }
+    assertFalse(recoveryFinished.await(200, TimeUnit.MILLISECONDS))
+    assertFalse(root.listFiles().isNullOrEmpty())
+    release.countDown()
+    writeThread.join(10_000)
+    recoveryThread.join(10_000)
+    assertEquals(0, manager.status()["pendingCount"])
+  }
+
+  @Test fun differentTargetsCanReachMutationTogetherWhileRecoveryBarrierIsShared() {
+    val old = "old".toByteArray()
+    val opened = CountDownLatch(2)
+    val release = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = opened; holdWriteUntil = release }
+    val manager = manager(tmp(), store)
+    val first = thread { manager.write(req(Uri.parse("content://provider/document/one"), old, "new".toByteArray())) }
+    val second = thread { manager.write(req(Uri.parse("content://provider/document/two"), old, "new".toByteArray())) }
+    assertTrue(opened.await(5, TimeUnit.SECONDS))
+    release.countDown()
+    first.join(10_000)
+    second.join(10_000)
+  }
+
+  @Test fun activeJournalLessDirectoryDoesNotTriggerRecoveryForAnotherTarget() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val directoryBarrier = FirstDirectorySyncBarrier()
+    val mutationReached = CountDownLatch(1)
+    val store = FakeStore(old).apply { outputOpened = mutationReached }
+    val manager = AudioTagTransactionManager(TransactionStorage(root, directorySync = directoryBarrier), store, 0)
+    val first = thread {
+      manager.write(req(Uri.parse("content://provider/document/one"), old, "first".toByteArray(), "active-one"))
+    }
+    assertTrue(directoryBarrier.entered.await(5, TimeUnit.SECONDS))
+    assertTrue(File(root, "active-one").isDirectory)
+    assertFalse(File(root, "active-one/journal.json").exists())
+
+    val second = thread {
+      manager.write(req(Uri.parse("content://provider/document/two"), old, "second".toByteArray(), "active-two"))
+    }
+    assertTrue(mutationReached.await(5, TimeUnit.SECONDS))
+
+    directoryBarrier.release.countDown()
+    first.join(10_000)
+    second.join(10_000)
+  }
+
+  @Test fun unownedJournalLessDirectoryRemainsFailClosedAndIsQuarantined() {
+    val old = "old".toByteArray()
+    val root = tmp()
+    val orphan = File(root, "unowned-operation")
+    assertTrue(orphan.mkdir())
+    val manager = manager(root, FakeStore(old))
+
+    val result = manager.write(req(Uri.parse("content://provider/document/two"), old, "new".toByteArray()))
+
+    assertTrue(result.success)
+    assertFalse(orphan.exists())
+    val quarantine = File(root.parentFile, "audio-tag-transactions-quarantine")
+    assertTrue(quarantine.listFiles()?.any { it.name.startsWith("unowned-operation") } == true)
+  }
+
+  @Test fun activeOperationRegistrationIsRefCountedAndReleasedOnEveryExit() {
+    fun activeCounts(manager: AudioTagTransactionManager): Map<*, *> {
+      val field = AudioTagTransactionManager::class.java.getDeclaredField("activeOperationIds")
+      field.isAccessible = true
+      return field.get(manager) as Map<*, *>
+    }
+
+    val old = "old".toByteArray()
+    val successManager = manager(tmp(), FakeStore(old))
+    assertTrue(successManager.write(req(uri, old, "new".toByteArray(), "success-operation")).success)
+    assertTrue(activeCounts(successManager).isEmpty())
+
+    val failureStore = FakeStore(old).apply { failOpenOnWriteCall = 1 }
+    val failureManager = manager(tmp(), failureStore)
+    assertFalse(failureManager.write(req(uri, old, "new".toByteArray(), "failed-operation")).success)
+    assertTrue(activeCounts(failureManager).isEmpty())
+
+    val exceptionRoot = tmp()
+    val exceptionManager = AudioTagTransactionManager(
+      TransactionStorage(exceptionRoot, CountingDirectorySync(failOnCall = 1)),
+      FakeStore(old),
+      0,
+    )
+    assertThrows(IOException::class.java) {
+      exceptionManager.write(req(uri, old, "new".toByteArray(), "exception-operation"))
+    }
+    assertTrue(activeCounts(exceptionManager).isEmpty())
+
+    val register = AudioTagTransactionManager::class.java.getDeclaredMethod("registerActiveOperation", String::class.java)
+      .apply { isAccessible = true }
+    val unregister = AudioTagTransactionManager::class.java.getDeclaredMethod("unregisterActiveOperation", String::class.java)
+      .apply { isAccessible = true }
+    register.invoke(successManager, "shared-operation")
+    register.invoke(successManager, "shared-operation")
+    unregister.invoke(successManager, "shared-operation")
+    assertEquals(1, activeCounts(successManager)["shared-operation"])
+    unregister.invoke(successManager, "shared-operation")
+    assertFalse(activeCounts(successManager).containsKey("shared-operation"))
+  }
+
+  @Test fun terminalFailureReleasesBarrierForRepeatedRecoveryAndWrite() {
+    val old = "old".toByteArray()
+    val store = FakeStore(old).apply { failOpenOnWriteCall = 1 }
+    val manager = manager(tmp(), store)
+    assertFalse(manager.write(req(uri, old, "new".toByteArray())).success)
+    repeat(3) { assertTrue(manager.recoverPendingSummary().success) }
+    store.failOpenOnWriteCall = null
+    assertTrue(manager.write(req(uri, old, "new".toByteArray())).success)
   }
 
   private fun prepared(

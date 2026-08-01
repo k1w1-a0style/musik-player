@@ -20,3 +20,5 @@ export {
 export { writeTagsToFileOrThrow } from './tagWriterFileReplace';
 export { prepareTagEditPlan, writeTagsToFile } from './tagWriterPublicApi';
 export { writeTagsToSafContentUri } from './tagWriterSaf';
+export { canonicalSafTarget, getActiveSafWrite } from './tagWriterLocks';
+export type { SafWriteOperationStatus, SafWritePhase } from './tagWriterLocks';

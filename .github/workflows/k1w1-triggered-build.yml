@@ -64,7 +64,7 @@ jobs:
 
           REF="$(printf '%s' "$RAW_REF" | tr -d '\r\n')"
           PROFILE_RAW="$(printf '%s' "$RAW_PROFILE" | tr -d '\r\n')"
-          JOB_ID_RAW="$(printf '%s' "$RAW_JOB_ID" | tr -d '\r\n')"
+          JOB_ID_RAW="$RAW_JOB_ID"
           AUTOFIX_RAW="$(printf '%s' "$RAW_AUTOFIX" | tr -d '\r\n')"
           STRICT_LOCKFILE_RAW="$(printf '%s' "$RAW_STRICT_LOCKFILE" | tr -d '\r\n')"
 

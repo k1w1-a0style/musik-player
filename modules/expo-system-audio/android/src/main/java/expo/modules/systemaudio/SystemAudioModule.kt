@@ -18,6 +18,7 @@ import expo.modules.systemaudio.saf.MAX_SAFE_TAG_WRITE_FILE_BYTES
 import expo.modules.systemaudio.saf.AudioTagTransactionManager
 import expo.modules.systemaudio.saf.TransactionStorage
 import expo.modules.systemaudio.saf.TransactionWriteRequest
+import expo.modules.systemaudio.saf.isValidTagWriteOperationId
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.util.Base64
@@ -32,6 +33,7 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.UUID
 import kotlin.math.roundToInt
 
 /**
@@ -184,6 +186,10 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       "recoveryPending" to tx.recoveryPending,
       "recovered" to tx.recovered,
       "cleanupPending" to tx.cleanupPending,
+      "operationId" to (tx.transactionId ?: request["operationId"]),
+      "phase" to tx.phase,
+      "terminal" to tx.terminal,
+      "retryable" to tx.retryable,
     )
     val parsed = try { Uri.parse(uri) } catch (_: Throwable) {
       return result(expo.modules.systemaudio.saf.TransactionResult(false, "UnsupportedUri", "URI could not be parsed."))
@@ -195,8 +201,15 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     return try {
       val maxBytes = parseTagWriteMaxBytes(request["maxFileSizeBytes"])
       val spec = NativeTagEditRequestParser.parse(request, changedFields, maxBytes)
+      val operationId = when (val supplied = request["operationId"]) {
+        null -> UUID.randomUUID().toString()
+        is String -> supplied.takeIf(::isValidTagWriteOperationId)
+          ?: throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+        else -> throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+      }
       val manager = audioTagTransactionManager(ctx)
       result(manager.write(TransactionWriteRequest(
+        operationId = operationId,
         uri = parsed,
         rewriteSource = StreamingAudioTagRewriteSource(spec),
         changedFields = changedFields,

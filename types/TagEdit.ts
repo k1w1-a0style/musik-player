@@ -135,6 +135,10 @@ export interface WriteTagsResult {
   recoveryPending?: boolean;
   recovered?: boolean;
   cleanupPending?: boolean;
+  operationId?: string;
+  operationPhase?: 'accepted' | 'lockAcquired' | 'nativeMutationStarted' | 'pendingNativeResult' | 'completed' | 'failed' | 'cancelledBeforeMutation';
+  terminal?: boolean;
+  retryable?: boolean;
 }
 
 export type WritableTagUriResolution =

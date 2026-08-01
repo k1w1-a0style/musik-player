@@ -10,7 +10,7 @@ on:
         description: "EAS build profile"
         required: true
         type: choice
-        options: [production, preview, development]
+        options: [ production, preview, development ]
         default: production
       ref:
         description: "Branch/Tag/SHA to build"
@@ -19,7 +19,7 @@ on:
         description: "Lockfile policy override (auto|true|false)"
         required: false
         type: choice
-        options: [auto, "true", "false"]
+        options: [ auto, "true", "false" ]
         default: auto
 
 permissions:
@@ -62,9 +62,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ inputs.profile }}" in
+          case "${GH_PROFILE_8777ED}" in
             development|preview|production) ;;
-            *) echo "::error::Invalid profile: '${{ inputs.profile }}'"; exit 1 ;;
+            *) echo "::error::Invalid profile: '${GH_PROFILE_8777ED}'"; exit 1 ;;
           esac
 
           if [ -z "${EXPO_TOKEN:-}" ]; then
@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.profile }}" = "production" ]; then
+          if [ "${GH_PROFILE_8777ED}" = "production" ]; then
             if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
               echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
               exit 1
@@ -80,6 +80,8 @@ jobs:
           fi
 
           echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
 
       - name: Detect package manager / lockfile
         id: lock
@@ -119,7 +121,8 @@ jobs:
           fi
 
       - name: Setup Node (npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -127,7 +130,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (yarn cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'yarn'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -135,7 +139,8 @@ jobs:
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (pnpm cache)
-        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        if: steps.lock.outputs.has_lockfile == 'true' &&
+          steps.lock.outputs.package_manager == 'pnpm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -153,8 +158,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
-          OVERRIDE="${{ inputs.strict_lockfile }}"
+          PROFILE="${GH_PROFILE_8777ED}"
+          OVERRIDE="${GH_STRICT_LOCKFILE_02D8DA}"
           case "$OVERRIDE" in
             true)
               echo "strict=true" >> "$GITHUB_OUTPUT"
@@ -185,18 +190,24 @@ jobs:
               exit 1
               ;;
           esac
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_STRICT_LOCKFILE_02D8DA: ${{ inputs.strict_lockfile }}
 
       - name: Install deps (package-manager-aware)
         id: install_deps
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
         run: |
           set -euo pipefail
 
-          PROFILE="${{ inputs.profile }}"
-          PM="${{ steps.lock.outputs.package_manager }}"
-          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+          PROFILE="${GH_PROFILE_8777ED}"
+          PM="${GH_PACKAGE_MANAGER_9162DF}"
+          if [ "${GH_HAS_LOCKFILE_7F5283}" = "true" ]; then
             case "$PM" in
               npm)
                 echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
@@ -239,63 +250,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          BODY="$(node - <<'NODE'
-          const payload = { repo: process.env.GITHUB_REPOSITORY, mode: "production" };
-          process.stdout.write(JSON.stringify(payload));
-          NODE
-          )"
-
-          RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
+          mkdir -p ci-logs
+          BODY="$(node -e 'process.stdout.write(JSON.stringify({repo:process.env.GITHUB_REPOSITORY,mode:"production"}))')"
+          HTTP_CODE="$(curl --silent --show-error --retry 3 --connect-timeout 10 --max-time 60 \
+            --output ci-logs/keystore-response.raw.json --write-out '%{http_code}' \
+            -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"} \
+            -H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}" \
             --data "${BODY}")"
-
-          RESP_JSON="$RESP" node - <<'NODE'
-          const fs = require("fs");
-
-          function mask(s) {
-            if (!s) return "";
-            if (typeof s !== "string") s = String(s);
-            if (s.length <= 6) return "***";
-            return s.slice(0, 2) + "***" + s.slice(-2);
-          }
-
-          const resp = JSON.parse(process.env.RESP_JSON || "{}");
-          if (!resp.ok) {
-            console.error("❌ export failed:", resp.error || "unknown error");
-            process.exit(1);
-          }
-
-          fs.writeFileSync(
-            "android-upload-keystore.p12",
-            Buffer.from(resp.keystoreBase64, "base64"),
-            { mode: 0o600 }
-          );
-
-          const creds = {
-            android: {
-              keystore: {
-                keystorePath: "android-upload-keystore.p12",
-                keystorePassword: resp.keystorePassword,
-                keyAlias: resp.alias,
-                keyPassword: resp.keyPassword,
-              },
-            },
-          };
-
-          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2), { mode: 0o600 });
-
-          console.log(
-            "✅ wrote signing files (alias=" +
-              (resp.alias || "unknown") +
-              ", pw=" +
-              mask(resp.keystorePassword) +
-              ")"
-          );
-          NODE
+          node scripts/ci/summarizeKeystoreResponse.cjs \
+            ci-logs/keystore-response.raw.json \
+            ci-logs/keystore-response.summary.json \
+            "${HTTP_CODE}"
+          node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
+          test -f credentials.json
+          test -f android-upload-keystore.p12
 
       - name: Run EAS build (WAIT)
         id: eas
@@ -303,7 +274,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          PROFILE="${{ inputs.profile }}"
+          PROFILE="${GH_PROFILE_8777ED}"
           echo " Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
 
           BUILD_OUTPUT=""
@@ -323,6 +294,8 @@ jobs:
           fi
 
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
 
       - name: Download Android Artifact
         id: download_artifact
@@ -330,9 +303,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
-          BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          PROFILE="${{ inputs.profile }}"
+          OUT="build/k1w1-${GH_PROFILE_8777ED}.${ARTIFACT_EXT}"
+          BUILD_ID="${GH_BUILD_ID_E68394}"
+          PROFILE="${GH_PROFILE_8777ED}"
           if [ -z "${BUILD_ID}" ]; then
             echo "::error::Missing the current EAS build ID; refusing to download."
             exit 1
@@ -360,30 +333,36 @@ jobs:
             *) echo "::error::Expected an APK artifact, got ${OUT}."; exit 1 ;;
           esac
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
 
       - name: Inspect downloaded Android APK
         id: inspect_apk
         shell: bash
         run: |
           set -euo pipefail
-          case "${{ inputs.profile }}" in
+          case "${GH_PROFILE_8777ED}" in
             development) EXPECTED_PACKAGE="com.k1w1a0style.musikplayer.dev" ;;
             preview|production) EXPECTED_PACKAGE="com.k1w1a0style.musikplayer" ;;
-            *) echo "::error::Unexpected profile '${{ inputs.profile }}' while validating APK metadata."; exit 1 ;;
+            *) echo "::error::Unexpected profile '${GH_PROFILE_8777ED}' while validating APK metadata."; exit 1 ;;
           esac
           node scripts/ci/inspectAndroidApk.cjs \
-            "${{ steps.download_artifact.outputs.artifact_path }}" \
+            "${GH_ARTIFACT_PATH_97F6CF}" \
             --expected-package "${EXPECTED_PACKAGE}" \
             --expected-label "k1w1-Musik" \
             --min-size-bytes 10000001 \
             --require-badging \
             --require-signature
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
       - name: Cleanup signing files
         if: always()
         shell: bash
         run: |
-          rm -f credentials.json android-upload-keystore.p12 || true
+          rm -f credentials.json android-upload-keystore.p12 ci-logs/keystore-response.raw.json || true
 
       - name: Upload Android APK Artifact
         if: steps.inspect_apk.outcome == 'success'
@@ -402,13 +381,21 @@ jobs:
             echo "## Release Build Summary"
             echo ""
             echo "- workflow version: \`${WORKFLOW_VERSION}\`"
-            echo "- Profile: ${{ inputs.profile }}"
-            echo "- Ref: ${{ inputs.ref }}"
-            echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
-            echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
-            echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
-            echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
-            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+            echo "- Profile: ${GH_PROFILE_8777ED}"
+            echo "- Ref: ${GH_REF_04E218}"
+            echo "- Package manager: ${GH_PACKAGE_MANAGER_9162DF}"
+            echo "- Lockfile: ${GH_LOCKFILE_PATH_0BD2D6}"
+            echo "- Strict lockfile policy: ${GH_STRICT_5F311E}"
+            echo "- Dependency install mode: ${GH_MODE_286F08}"
+            echo "- Build ID: ${GH_BUILD_ID_E68394}"
             echo ""
             echo "> Hinweis: Dieser Workflow ist ein manueller Direktpfad und umgeht die App-seitige Single Source of Truth."
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_REF_04E218: ${{ inputs.ref }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          GH_LOCKFILE_PATH_0BD2D6: ${{ steps.lock.outputs.lockfile_path || 'none' }}
+          GH_STRICT_5F311E: ${{ steps.strict_lock.outputs.strict }}
+          GH_MODE_286F08: ${{ steps.install_deps.outputs.mode }}
+          GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}

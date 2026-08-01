@@ -108,6 +108,54 @@ test('forwards native recovery APIs when present', async () => {
   expect(recoverPendingAudioTagTransactions).toHaveBeenCalledWith('content://song.mp3');
 });
 
+describe('native tag-write operation identifiers', () => {
+  const load = (writeAudioTags: jest.Mock) => {
+    jest.resetModules();
+    jest.doMock('expo', () => ({
+      NativeModule: class {},
+      requireNativeModule: jest.fn(() => ({
+        writeAudioTags,
+        verifyAudioTagDeletion: jest.fn(),
+        getAudioTagRecoveryStatus: jest.fn(),
+        recoverPendingAudioTagTransactions: jest.fn(),
+      })),
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../index').SystemAudio;
+  };
+
+  test('generates a valid ID for a legacy request without mutating it', async () => {
+    const native = jest.fn(async (uri, request) => ({ success: true, uri, changedFields: [], failedFields: [], verified: true, operationId: request.operationId }));
+    const systemAudio = load(native);
+    const request = { changedFields: ['title'] };
+    const result = await systemAudio.writeAudioTags('content://song', request);
+    expect(result.operationId).toMatch(/^[A-Za-z0-9._-]{1,80}$/);
+    expect(native.mock.calls[0][1].operationId).toBe(result.operationId);
+    expect(request).toEqual({ changedFields: ['title'] });
+  });
+
+  test('preserves a valid explicit ID', async () => {
+    const native = jest.fn(async (uri, request) => ({ success: true, uri, changedFields: [], failedFields: [], verified: true, operationId: request.operationId }));
+    const systemAudio = load(native);
+    await expect(systemAudio.writeAudioTags('content://song', { operationId: 'caller.valid-_1' })).resolves.toMatchObject({ operationId: 'caller.valid-_1' });
+    expect(native.mock.calls[0][1].operationId).toBe('caller.valid-_1');
+  });
+
+  test.each(['', '.', '..', 'bad/id', 'bad\\id', '../tag.1', 'x'.repeat(81)])('rejects invalid explicit ID %j before native invocation', async operationId => {
+    const native = jest.fn();
+    const systemAudio = load(native);
+    await expect(systemAudio.writeAudioTags('content://song', { operationId })).resolves.toMatchObject({ errorCode: 'InvalidTagData', phase: 'FAILED', terminal: true });
+    expect(native).not.toHaveBeenCalled();
+  });
+
+  test.each(['tag.1', 'tag_1', 'tag-1'])('accepts valid ID %j', async operationId => {
+    const native = jest.fn(async (uri, request) => ({ success: true, uri, changedFields: [], failedFields: [], verified: true, operationId: request.operationId }));
+    const systemAudio = load(native);
+    await expect(systemAudio.writeAudioTags('content://song', { operationId })).resolves.toMatchObject({ success: true, operationId });
+    expect(native).toHaveBeenCalledTimes(1);
+  });
+});
+
 
 test('binds equalizer initialization to a positive audio session', async () => {
   jest.resetModules();

@@ -13,8 +13,11 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.withLock
 
 enum class TransactionState {
@@ -249,9 +252,49 @@ object AndroidDirectoryDurabilitySync : DirectoryDurabilitySync {
   }
 }
 
+private val TAG_WRITE_OPERATION_ID_PATTERN = Regex("^[A-Za-z0-9._-]{1,80}$")
+
+fun isValidTagWriteOperationId(value: String): Boolean =
+  value != "." && value != ".." && TAG_WRITE_OPERATION_ID_PATTERN.matches(value)
+
+/**
+ * Returns a stable coordination identity without changing the URI sent to the
+ * provider. Android document URIs encode their opaque document ID after a
+ * `document` (or, for a bare tree URI, `tree`) path marker. Decoding that
+ * complete suffix once makes literal and percent-encoded spellings converge,
+ * including document IDs which themselves contain slashes.
+ *
+ * Unknown content-URI shapes deliberately fall back to one authority bucket.
+ * This may serialize unrelated unusual URIs, but cannot let aliases on the
+ * same provider mutate concurrently. Malformed/non-content URIs share a final
+ * fail-closed bucket.
+ */
+internal fun safTargetKey(uri: Uri): String {
+  return try {
+    if (!uri.scheme.equals("content", ignoreCase = true)) return "uri:fallback"
+    val authority = uri.authority?.takeIf { it.isNotBlank() }
+      ?.lowercase(Locale.ROOT)
+      ?: return "content:fallback"
+    val encodedPath = uri.encodedPath.orEmpty()
+    val marker = when {
+      encodedPath.contains("/document/") -> "/document/"
+      encodedPath.contains("/tree/") -> "/tree/"
+      else -> null
+    }
+    if (marker == null) return "content:$authority:fallback"
+    val encodedDocumentId = encodedPath.substringAfter(marker, missingDelimiterValue = "")
+    if (encodedDocumentId.isEmpty()) return "content:$authority:fallback"
+    "content:$authority:document:${Uri.decode(encodedDocumentId)}"
+  } catch (_: Throwable) {
+    val authority = try { uri.authority?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
+    if (authority.isNullOrBlank()) "content:fallback" else "content:$authority:fallback"
+  }
+}
+
 class TransactionStorage(
   private val root: File,
   private val directorySync: DirectoryDurabilitySync = AndroidDirectoryDurabilitySync,
+  private val partialDirectoryDelete: (File) -> Boolean = { it.deleteRecursively() },
   private val availableBytesProvider: (File) -> Long = { directory ->
     StatFs(directory.absolutePath).availableBytes
   },
@@ -274,10 +317,32 @@ class TransactionStorage(
     if (created) syncDirectory(root.parentFile ?: root)
   }
 
-  fun createDir(): File {
-    val directory = File(root, UUID.randomUUID().toString())
+  fun createDir(operationId: String = UUID.randomUUID().toString()): File {
+    if (!isValidTagWriteOperationId(operationId)) {
+      throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier is invalid.")
+    }
+    val directory = File(root, operationId)
+    val canonicalRoot = root.canonicalFile
+    if (directory.canonicalFile.parentFile != canonicalRoot) {
+      throw AudioTagRewriteException("InvalidTagData", "Tag write operation identifier escapes transaction storage.")
+    }
     if (!directory.mkdirs()) throw IOException("transaction directory mkdir failed")
-    syncDirectory(root)
+    try {
+      syncDirectory(root)
+    } catch (primary: Throwable) {
+      // Only this invocation's newly-created, already-contained child is
+      // eligible for rollback. Never clean a pre-existing or escaped path.
+      try {
+        if (directory.canonicalFile.parentFile == canonicalRoot &&
+          directory.exists() && !partialDirectoryDelete(directory)
+        ) {
+          throw IOException("partial transaction directory cleanup failed")
+        }
+      } catch (cleanup: Throwable) {
+        primary.addSuppressed(cleanup)
+      }
+      throw primary
+    }
     return directory
   }
 
@@ -478,6 +543,7 @@ object StreamDigests {
 class SizeLimitException : IOException("size limit exceeded")
 
 data class TransactionWriteRequest(
+  val operationId: String = UUID.randomUUID().toString(),
   val uri: Uri,
   val rewriteSource: AudioTagRewriteSource,
   val changedFields: List<String>,
@@ -485,6 +551,33 @@ data class TransactionWriteRequest(
   val expectedOriginalSize: Long? = null,
   val expectedOriginalSha256: String? = null,
 )
+
+/**
+ * Retry policy for a completed native tag-write attempt. Retryable failures are
+ * safe to attempt again only after their external cause (permission, capacity,
+ * provider I/O, or pending recovery) has been addressed. Verification failures
+ * are deterministic content mismatches and remain permanent unless recovery is
+ * still pending. Unknown codes fail closed as non-retryable.
+ */
+internal fun isRetryableTagWriteFailure(
+  success: Boolean,
+  errorCode: String?,
+  recoveryPending: Boolean,
+): Boolean {
+  if (success) return false
+  if (recoveryPending) return true
+  return errorCode in setOf(
+    "TransactionConflict",
+    "RecoveryPending",
+    "RecoveryFailed",
+    "MissingWritePermission",
+    "InsufficientStorage",
+    "BackupFailed",
+    "TempWriteFailed",
+    "ReplaceFailed",
+    "RollbackFailed",
+  )
+}
 
 data class TransactionResult(
   val success: Boolean,
@@ -498,7 +591,15 @@ data class TransactionResult(
   val recoveryPending: Boolean = false,
   val recovered: Boolean = false,
   val cleanupPending: Boolean = false,
-)
+  val phase: String = if (success) "COMPLETED" else "FAILED",
+  val terminal: Boolean = true,
+  val retryable: Boolean = isRetryableTagWriteFailure(success, errorCode, recoveryPending),
+) {
+  init {
+    require(!success || !retryable) { "successful transaction results cannot be retryable" }
+    require(!recoveryPending || retryable) { "recovery-pending transaction results must be retryable" }
+  }
+}
 
 data class RestoreResult(
   val restored: Boolean,
@@ -545,15 +646,83 @@ data class RecoverySummary(
   )
 }
 
+/**
+ * Maps the outcome of targeted recovery to the identity of the new write
+ * attempt. Pending recovery remains retryable, while an exclusively terminal
+ * failure preserves its error code. If terminal reports disagree (or omit a
+ * code), RecoveryFailed is the deterministic fail-closed aggregate.
+ */
+internal fun targetedRecoveryResult(
+  request: TransactionWriteRequest,
+  summary: RecoverySummary,
+): TransactionResult? {
+  if (summary.success) return null
+  if (summary.pendingCount > 0) {
+    return TransactionResult(
+      success = false,
+      errorCode = "RecoveryPending",
+      message = "Pending recovery must complete before writing this SAF document.",
+      recoveryPending = true,
+      transactionId = request.operationId,
+      phase = "FAILED",
+      terminal = true,
+    )
+  }
+
+  val terminalCodes = summary.transactions
+    .filterNot { it.pending }
+    .mapNotNull { it.errorCode }
+    .distinct()
+  val errorCode = terminalCodes.singleOrNull() ?: "RecoveryFailed"
+  return TransactionResult(
+    success = false,
+    errorCode = errorCode,
+    message = "Targeted recovery failed before writing this SAF document.",
+    recoveryPending = false,
+    transactionId = request.operationId,
+    phase = "FAILED",
+    terminal = true,
+  )
+}
+
 class AudioTagTransactionManager(
   private val storage: TransactionStorage,
   private val store: SafContentStore,
   private val safetyMarginBytes: Long = 1024 * 1024,
 ) {
-  private val lock = ReentrantLock()
+  private val maintenanceLock = ReentrantLock()
+  private val lifecycleBarrier = ReentrantReadWriteLock(true)
+  private data class TargetLock(val lock: ReentrantLock = ReentrantLock(), var users: Int = 0)
+  private val targetLocks = ConcurrentHashMap<String, TargetLock>()
+  private val activeOperationIds = ConcurrentHashMap<String, Int>()
 
-  fun recoverPending(targetUri: Uri? = null): TransactionResult = lock.withLock {
-    val summary = recoverPendingLocked(targetUri)
+  private fun registerActiveOperation(operationId: String) {
+    if (!isValidTagWriteOperationId(operationId)) return
+    activeOperationIds.compute(operationId) { _, users -> (users ?: 0) + 1 }
+  }
+
+  private fun unregisterActiveOperation(operationId: String) {
+    if (!isValidTagWriteOperationId(operationId)) return
+    activeOperationIds.computeIfPresent(operationId) { _, users ->
+      if (users <= 1) null else users - 1
+    }
+  }
+
+  private fun isActiveTransactionDirectory(directory: File): Boolean =
+    isValidTagWriteOperationId(directory.name) &&
+      (activeOperationIds[directory.name]?.let { it > 0 } == true)
+
+  /**
+   * Lock order is always lifecycleBarrier -> maintenanceLock or
+   * lifecycleBarrier -> target lock. A write first performs targeted recovery
+   * while holding the exclusive barrier and maintenanceLock, releases both, and
+   * then acquires the shared barrier and target lock for its mutation.
+   * maintenanceLock and target locks are never nested. Writes hold the shared
+   * barrier for their complete native mutation lifetime; recovery holds the
+   * exclusive barrier, so it cannot inspect a live transaction journal.
+   */
+  fun recoverPending(targetUri: Uri? = null): TransactionResult = lifecycleBarrier.writeLock().withLock {
+    val summary = maintenanceLock.withLock { recoverPendingLocked(targetUri) }
     TransactionResult(
       success = summary.success,
       errorCode = when {
@@ -567,37 +736,119 @@ class AudioTagTransactionManager(
     )
   }
 
-  fun recoverPendingSummary(targetUri: Uri? = null): RecoverySummary = lock.withLock {
-    recoverPendingLocked(targetUri)
+  fun recoverPendingSummary(targetUri: Uri? = null): RecoverySummary = lifecycleBarrier.writeLock().withLock {
+    maintenanceLock.withLock { recoverPendingLocked(targetUri) }
   }
 
-  fun status(): Map<String, Any?> = lock.withLock {
-    val transactions = storage.dirs().map { directory ->
-      val journal = storage.readJournalSafely(directory)
+  fun status(): Map<String, Any?> = lifecycleBarrier.readLock().withLock {
+    maintenanceLock.withLock {
+      val transactions = storage.dirs().map { directory ->
+        val journal = storage.readJournalSafely(directory)
+        mapOf(
+          "transactionId" to directory.name,
+          "state" to (journal?.state?.name ?: "INVALID"),
+        )
+      }
       mapOf(
-        "transactionId" to directory.name,
-        "state" to (journal?.state?.name ?: "INVALID"),
+        "pendingCount" to transactions.size,
+        "quarantineCount" to storage.quarantinedDirs().size,
+        "transactions" to transactions,
       )
     }
-    mapOf(
-      "pendingCount" to transactions.size,
-      "quarantineCount" to storage.quarantinedDirs().size,
-      "transactions" to transactions,
-    )
   }
 
-  fun write(request: TransactionWriteRequest): TransactionResult = lock.withLock {
-    val pendingRecovery = recoverPendingLocked(request.uri)
-    if (!pendingRecovery.success) {
-      return@withLock TransactionResult(
+  fun write(request: TransactionWriteRequest): TransactionResult {
+    targetedRecoveryBeforeWrite(request)?.let { return it }
+    return lifecycleBarrier.readLock().withLock { writeWithTargetLock(request) }
+  }
+
+  private fun targetedRecoveryBeforeWrite(request: TransactionWriteRequest): TransactionResult? =
+    if (!needsTargetedRecovery(request)) {
+      null
+    } else lifecycleBarrier.writeLock().withLock {
+      maintenanceLock.withLock {
+        val summary = try {
+          recoverPendingLocked(request.uri)
+        } catch (_: Throwable) {
+          return@withLock recoveryPendingResult(request)
+        }
+        targetedRecoveryResult(request, summary)
+      }
+    }
+
+  private fun needsTargetedRecovery(request: TransactionWriteRequest): Boolean {
+    val canonicalTarget = safTargetKey(request.uri)
+    if (synchronized(targetLocks) { targetLocks[canonicalTarget]?.users?.let { it > 0 } == true }) {
+      // Let the normal target-lock path reject a concurrent live mutation. Its
+      // journal is not a crashed transaction and must never be recovered.
+      return false
+    }
+    return try {
+      storage.dirs().any {
+        val journal = storage.readJournalSafely(it)
+          ?: return@any !isActiveTransactionDirectory(it)
+        safTargetKey(Uri.parse(journal.targetUri)) == canonicalTarget
+      }
+    } catch (_: Throwable) {
+      // Re-run the check under the recovery locks, where failures become a
+      // structured, retryable result rather than allowing a mutation.
+      true
+    }
+  }
+
+  private fun recoveryPendingResult(request: TransactionWriteRequest) = TransactionResult(
+    success = false,
+    errorCode = "RecoveryPending",
+    message = "Pending recovery must complete before writing this SAF document.",
+    recoveryPending = true,
+    transactionId = request.operationId,
+    phase = "FAILED",
+    terminal = true,
+    retryable = true,
+  )
+
+  private fun writeWithTargetLock(request: TransactionWriteRequest): TransactionResult {
+    val canonicalTarget = safTargetKey(request.uri)
+    val target = synchronized(targetLocks) {
+      targetLocks.computeIfAbsent(canonicalTarget) { TargetLock() }.also { it.users += 1 }
+    }
+    if (!target.lock.tryLock()) {
+      synchronized(targetLocks) {
+        target.users -= 1
+        if (target.users == 0) targetLocks.remove(canonicalTarget, target)
+      }
+      return TransactionResult(
         success = false,
-        errorCode = "RecoveryPending",
-        message = "Pending recovery must complete before writing this SAF document.",
-        recoveryPending = true,
+        errorCode = "TransactionConflict",
+        message = "Another tag write is active for this SAF document.",
+        transactionId = request.operationId,
+        phase = "FAILED",
+        terminal = true,
+        retryable = true,
+        recoveryPending = false,
       )
+    }
+    try {
+      return writeLocked(request)
+    } finally {
+      target.lock.unlock()
+      synchronized(targetLocks) {
+        target.users -= 1
+        if (target.users == 0) targetLocks.remove(canonicalTarget, target)
+      }
+    }
+  }
+
+  private fun writeLocked(request: TransactionWriteRequest): TransactionResult {
+    val canonicalTarget = safTargetKey(request.uri)
+    val hasPendingRecovery = storage.dirs().any {
+      storage.readJournalSafely(it)?.targetUri?.let { target -> safTargetKey(Uri.parse(target)) } == canonicalTarget
+    }
+    if (hasPendingRecovery) {
+      return recoveryPendingResult(request)
     }
     if (!store.hasWritePermission(request.uri) || !store.isWritable(request.uri)) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "MissingWritePermission",
         message = "No writable SAF permission is available.",
@@ -605,14 +856,14 @@ class AudioTagTransactionManager(
     }
 
     if (request.maxBytes <= 0L) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "InvalidTagData",
         message = "Maximum file size must be positive.",
       )
     }
     if (request.maxBytes > MAX_SAFE_TAG_WRITE_FILE_BYTES) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "FileTooLarge",
         message = "Maximum file size exceeds the native safety limit.",
@@ -620,7 +871,7 @@ class AudioTagTransactionManager(
     }
     val knownOriginalSize = store.size(request.uri)?.takeIf { it >= 0L }
     if (knownOriginalSize != null && knownOriginalSize > request.maxBytes) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "FileTooLarge",
         message = "File exceeds the safe tag write size limit.",
@@ -641,21 +892,30 @@ class AudioTagTransactionManager(
     }
     val availableBytes = storage.availableBytes()
     if (availableBytes == null) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "InsufficientStorage",
         message = "App-private storage capacity could not be verified.",
       )
     }
     if (availableBytes < expectedSpace) {
-      return@withLock TransactionResult(
+      return TransactionResult(
         success = false,
         errorCode = "InsufficientStorage",
         message = "Insufficient app-private storage for durable transaction.",
       )
     }
 
-    val directory = storage.createDir()
+    registerActiveOperation(request.operationId)
+    return try {
+      writeRegistered(request)
+    } finally {
+      unregisterActiveOperation(request.operationId)
+    }
+  }
+
+  private fun writeRegistered(request: TransactionWriteRequest): TransactionResult {
+    val directory = storage.createDir(request.operationId)
     var phase = WriteExecutionPhase.PREPARING
     var journal = TransactionJournal(
       transactionId = directory.name,
@@ -667,7 +927,7 @@ class AudioTagTransactionManager(
       changedFields = request.changedFields,
     )
 
-    try {
+    return try {
       storage.atomicWriteJournal(directory, journal)
       val originalTemporary = File(directory, "original.tmp")
       val originalDigest = StreamDigests.copyUriToFileWithDigest(
@@ -675,7 +935,7 @@ class AudioTagTransactionManager(
         uri = request.uri,
         temporary = originalTemporary,
         maxBytes = request.maxBytes,
-      ) ?: return@withLock cleanupBeforeMutation(
+      ) ?: return cleanupBeforeMutation(
         directory,
         journal,
         "BackupFailed",
@@ -683,7 +943,7 @@ class AudioTagTransactionManager(
       )
 
       if (request.expectedOriginalSize != null && request.expectedOriginalSize != originalDigest.sizeBytes) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "VerificationFailed",
@@ -695,7 +955,7 @@ class AudioTagTransactionManager(
         !request.expectedOriginalSha256.isNullOrBlank() &&
         request.expectedOriginalSha256.lowercase() != originalDigest.sha256Hex
       ) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "VerificationFailed",
@@ -704,7 +964,7 @@ class AudioTagTransactionManager(
         )
       }
       if (!StreamDigests.verifyFile(originalTemporary, originalDigest, request.maxBytes)) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "BackupFailed",
@@ -731,7 +991,7 @@ class AudioTagTransactionManager(
           maxBytes = request.maxBytes,
         )
       } catch (error: AudioTagRewriteException) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           error.errorCode,
@@ -742,7 +1002,7 @@ class AudioTagTransactionManager(
       val rewrittenDigest = rewriteResult.digest
 
       if (rewrittenDigest.sizeBytes <= 0L) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "InvalidTagData",
@@ -751,7 +1011,7 @@ class AudioTagTransactionManager(
         )
       }
       if (!StreamDigests.verifyFile(rewrittenTemporary, rewrittenDigest, request.maxBytes)) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "TempWriteFailed",
@@ -762,7 +1022,7 @@ class AudioTagTransactionManager(
       }
 
       if (!rewriteResult.changed || rewrittenDigest == originalDigest) {
-        return@withLock try {
+        return try {
           storage.cleanup(directory)
           TransactionResult(
             success = true,
@@ -799,7 +1059,7 @@ class AudioTagTransactionManager(
       phase = WriteExecutionPhase.REWRITE_DURABLE
 
       val backupDigest = verifyOriginalBackup(directory, journal, request.maxBytes)
-        ?: return@withLock cleanupBeforeMutation(
+        ?: return cleanupBeforeMutation(
           directory,
           journal,
           "BackupCorrupted",
@@ -808,7 +1068,7 @@ class AudioTagTransactionManager(
           after = rewrittenDigest.sizeBytes,
         )
       val liveDigest = StreamDigests.hashUri(store, request.uri, request.maxBytes)
-        ?: return@withLock cleanupBeforeMutation(
+        ?: return cleanupBeforeMutation(
           directory,
           journal,
           "UnsupportedUri",
@@ -817,7 +1077,7 @@ class AudioTagTransactionManager(
           after = rewrittenDigest.sizeBytes,
         )
       if (liveDigest != backupDigest) {
-        return@withLock cleanupBeforeMutation(
+        return cleanupBeforeMutation(
           directory,
           journal,
           "VerificationFailed",
@@ -847,7 +1107,7 @@ class AudioTagTransactionManager(
         journal = writtenUnverifiedJournal
         val after = StreamDigests.hashUri(store, request.uri, request.maxBytes)
         if (after != rewrittenDigest) {
-          return@withLock rollbackFailedWrite(
+          return rollbackFailedWrite(
             directory,
             journal,
             "VerificationFailed",
@@ -862,7 +1122,7 @@ class AudioTagTransactionManager(
         journal = committedJournal
         phase = WriteExecutionPhase.COMMITTED_DURABLE
       } catch (error: Throwable) {
-        return@withLock rollbackFailedWrite(
+        return rollbackFailedWrite(
           directory,
           journal,
           if (error is SizeLimitException) "VerificationFailed" else "ReplaceFailed",
@@ -874,7 +1134,7 @@ class AudioTagTransactionManager(
       try {
         storage.cleanup(directory)
       } catch (_: Throwable) {
-        return@withLock TransactionResult(
+        return TransactionResult(
           success = true,
           errorCode = null,
           message = "Tags written and verified; committed transaction cleanup will be retried.",
@@ -982,7 +1242,7 @@ class AudioTagTransactionManager(
         message = restore.message,
         bytesBefore = journal.originalSizeBytes,
         bytesAfter = journal.rewrittenSizeBytes,
-        recoveryPending = true,
+        recoveryPending = restore.recoveryPending,
       )
     }
   }
@@ -1010,11 +1270,12 @@ class AudioTagTransactionManager(
         journal,
         "BackupCorrupted",
         "Original backup is corrupted; target was not modified by recovery.",
+        recoveryPending = false,
       )
       return RestoreResult(
         restored = false,
         verified = false,
-        recoveryPending = true,
+        recoveryPending = false,
         errorCode = "BackupCorrupted",
         message = "Original backup is corrupted; target was not modified by recovery.",
       )
@@ -1086,6 +1347,7 @@ class AudioTagTransactionManager(
         journal,
         "BackupCorrupted",
         "Original backup is corrupted; target was not modified by recovery.",
+        recoveryPending = false,
       )
       return TransactionResult(
         success = false,
@@ -1093,7 +1355,7 @@ class AudioTagTransactionManager(
         message = "Original backup is corrupted; target was not modified by recovery.",
         bytesBefore = journal.originalSizeBytes,
         bytesAfter = journal.rewrittenSizeBytes,
-        recoveryPending = true,
+        recoveryPending = false,
       )
     }
 
@@ -1272,6 +1534,7 @@ class AudioTagTransactionManager(
     journal: TransactionJournal,
     code: String,
     message: String,
+    recoveryPending: Boolean = true,
   ): TransactionResult {
     try {
       storage.markRecoveryState(directory, journal, TransactionState.RECOVERY_FAILED)
@@ -1284,7 +1547,7 @@ class AudioTagTransactionManager(
       message = message,
       bytesBefore = journal.originalSizeBytes,
       bytesAfter = journal.rewrittenSizeBytes,
-      recoveryPending = true,
+      recoveryPending = recoveryPending,
     )
   }
 
@@ -1294,7 +1557,8 @@ class AudioTagTransactionManager(
     var pendingCount = 0
     var failedCount = 0
     val reports = mutableListOf<RecoveryTransactionReport>()
-    val blockedUris = mutableSetOf<String>()
+    val blockedTargets = mutableSetOf<String>()
+    val requestedTarget = targetUri?.let(::safTargetKey)
 
     for (directory in storage.dirs()) {
       val journal = storage.readJournalSafely(directory)
@@ -1324,8 +1588,9 @@ class AudioTagTransactionManager(
         continue
       }
 
-      if (targetUri != null && journal.targetUri != targetUri.toString()) continue
-      if (journal.targetUri in blockedUris) {
+      val journalTarget = safTargetKey(Uri.parse(journal.targetUri))
+      if (requestedTarget != null && journalTarget != requestedTarget) continue
+      if (journalTarget in blockedTargets) {
         pendingCount += 1
         reports += RecoveryTransactionReport(
           transactionId = journal.transactionId,
@@ -1344,7 +1609,7 @@ class AudioTagTransactionManager(
       if (result.success && !result.recovered) cleanedCount += 1
       if (result.recoveryPending) {
         pendingCount += 1
-        blockedUris += journal.targetUri
+        blockedTargets += journalTarget
       }
       if (!result.success && !result.recoveryPending) failedCount += 1
       reports += RecoveryTransactionReport(

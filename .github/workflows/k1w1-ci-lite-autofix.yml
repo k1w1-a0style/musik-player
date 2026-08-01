@@ -1,4 +1,3 @@
-
 # managed-by: k1w1
 # workflow-version: 399
 name: K1W1 CI Lite Autofix (ESLint --fix)
@@ -162,7 +161,8 @@ jobs:
           node-version: 20
 
       - name: Enable Corepack for Yarn / pnpm
-        if: steps.lock.outputs.package_manager == 'yarn' || steps.lock.outputs.package_manager == 'pnpm'
+        if: steps.lock.outputs.package_manager == 'yarn' ||
+          steps.lock.outputs.package_manager == 'pnpm'
         shell: bash
         run: |
           set -euo pipefail
@@ -184,22 +184,24 @@ jobs:
             echo "job_id=${JOB_ID:-}"
             echo "runner_os=${RUNNER_OS}"
             echo "runner_arch=${RUNNER_ARCH}"
-            echo "package_manager=${{ steps.lock.outputs.package_manager }}"
+            echo "package_manager=${GH_PACKAGE_MANAGER_9162DF}"
           } > ci-logs/metadata.env
           node --version | tee ci-logs/node-version.log
           npm --version | tee ci-logs/npm-version.log
+        env:
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
 
       - name: Install dependencies (policy-aware)
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
+          if [ "${GH_HAS_LOCKFILE_7F5283}" != "true" ]; then
             echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund
             exit 0
           fi
 
-          case "${{ steps.lock.outputs.package_manager }}" in
+          case "${GH_PACKAGE_MANAGER_9162DF}" in
             npm)
               npm ci --no-audit --no-fund
               ;;
@@ -210,10 +212,13 @@ jobs:
               pnpm install --frozen-lockfile
               ;;
             *)
-              echo "::error::Unsupported package manager '${{ steps.lock.outputs.package_manager }}'"
+              echo "::error::Unsupported package manager '${GH_PACKAGE_MANAGER_9162DF}'"
               exit 1
               ;;
           esac
+        env:
+          GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
 
       - name: ESLint --fix (best effort, capture)
         id: fix
@@ -337,13 +342,13 @@ jobs:
             "github_run_id": "${GITHUB_RUN_ID}",
             "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
             "github_sha": "${GITHUB_SHA}",
-            "eslint_fix_exit": ${{ steps.fix.outputs.eslint_fix_exit || '0' }},
+            "eslint_fix_exit": ${GH_ESLINT_FIX_EXIT_DEA00F},
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
             "expo_exit": $EXPO,
-            "writeback_changed": "${{ steps.writeback.outputs.changed || 'false' }}",
-            "writeback_pushed": "${{ steps.writeback.outputs.pushed || 'false' }}",
-                "package_manager": "${{ steps.lock.outputs.package_manager }}",
+            "writeback_changed": "${GH_CHANGED_CD4261}",
+            "writeback_pushed": "${GH_PUSHED_691437}",
+                "package_manager": "${GH_PACKAGE_MANAGER_9162DF}",
             "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
           }
           JSON
@@ -353,6 +358,11 @@ jobs:
             exit 1
           fi
           exit 0
+        env:
+          GH_ESLINT_FIX_EXIT_DEA00F: ${{ steps.fix.outputs.eslint_fix_exit || '0' }}
+          GH_CHANGED_CD4261: ${{ steps.writeback.outputs.changed || 'false' }}
+          GH_PUSHED_691437: ${{ steps.writeback.outputs.pushed || 'false' }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
 
       - name: Summary
         if: always()
@@ -366,12 +376,12 @@ jobs:
             echo "- workflow version: `${WORKFLOW_VERSION}`"
             echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
             echo "- sha: `${GITHUB_SHA}`"
-            echo "- eslint fix exit: `${{ steps.fix.outputs.eslint_fix_exit }}`"
-            echo "- changed: `${{ steps.writeback.outputs.changed }}`"
-            echo "- pushed: `${{ steps.writeback.outputs.pushed }}`"
-            echo "- eslint verify: `${{ steps.verify.outputs.eslint_exit }}`"
-            echo "- tsc verify: `${{ steps.verify.outputs.tsc_exit }}`"
-            echo "- expo preflight: `${{ steps.verify.outputs.expo_exit }}`"
+            echo "- eslint fix exit: `${GH_ESLINT_FIX_EXIT_96DE20}`"
+            echo "- changed: `${GH_CHANGED_7F481A}`"
+            echo "- pushed: `${GH_PUSHED_B3923E}`"
+            echo "- eslint verify: `${GH_ESLINT_EXIT_38C00D}`"
+            echo "- tsc verify: `${GH_TSC_EXIT_98CCC0}`"
+            echo "- expo preflight: `${GH_EXPO_EXIT_181F6D}`"
             echo ""
             echo "Artifacts:"
             echo "- `ci-logs/ci-lite-autofix-result.json`"
@@ -379,6 +389,13 @@ jobs:
             echo "- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`"
             echo "- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`"
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_ESLINT_FIX_EXIT_96DE20: ${{ steps.fix.outputs.eslint_fix_exit }}
+          GH_CHANGED_7F481A: ${{ steps.writeback.outputs.changed }}
+          GH_PUSHED_B3923E: ${{ steps.writeback.outputs.pushed }}
+          GH_ESLINT_EXIT_38C00D: ${{ steps.verify.outputs.eslint_exit }}
+          GH_TSC_EXIT_98CCC0: ${{ steps.verify.outputs.tsc_exit }}
+          GH_EXPO_EXIT_181F6D: ${{ steps.verify.outputs.expo_exit }}
 
       - name: Upload CI Lite Autofix logs
         if: always()

@@ -32,6 +32,7 @@ export interface EmbeddedArtworkResult {
 }
 
 export interface AudioTagWriteRequest {
+  operationId?: string;
   tags?: Record<string, string | null | undefined>;
   container?: 'mp3' | 'm4a' | 'mp4' | string;
   removeCover?: boolean;
@@ -62,6 +63,10 @@ export interface AudioTagWriteResult {
   recoveryPending?: boolean;
   recovered?: boolean;
   cleanupPending?: boolean;
+  operationId?: string;
+  phase?: 'ACCEPTED' | 'LOCK_ACQUIRED' | 'NATIVE_MUTATION_STARTED' | 'PENDING_NATIVE_RESULT' | 'COMPLETED' | 'FAILED' | 'CANCELLED_BEFORE_MUTATION';
+  terminal?: boolean;
+  retryable?: boolean;
 }
 
 export type NativeBitrateMode = 'cbr' | 'vbr' | 'unknown';
@@ -194,6 +199,13 @@ const hasNativeWaveformExtraction =
 const hasNativeWaveformCancellation =
   hasNativeWaveformExtraction && typeof waveformNative?.cancelWaveformExtraction === 'function';
 
+const tagWriteOperationIdPattern = /^[A-Za-z0-9._-]{1,80}$/;
+const isValidTagWriteOperationId = (value: string): boolean =>
+  value !== '.' && value !== '..' && tagWriteOperationIdPattern.test(value);
+let tagWriteOperationSequence = 0;
+const createNativeTagWriteOperationId = (): string =>
+  `tag-${Date.now().toString(36)}-${(++tagWriteOperationSequence).toString(36)}`;
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
@@ -276,6 +288,14 @@ export const SystemAudio = {
   },
 
   async writeAudioTags(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult> {
+    const operationId = request.operationId ?? createNativeTagWriteOperationId();
+    if (!isValidTagWriteOperationId(operationId)) {
+      return {
+        success: false, uri, changedFields: [], failedFields: request.changedFields ?? [],
+        errorCode: 'InvalidTagData', message: 'Tag write operation identifier is invalid.',
+        verified: false, operationId, phase: 'FAILED', terminal: true, retryable: false,
+      };
+    }
     if (!hasNativeTagWriter || !native?.writeAudioTags) {
       return {
         success: false,
@@ -285,9 +305,14 @@ export const SystemAudio = {
         errorCode: 'WriteNotImplemented',
         message: 'Durable native audio tag writing is unavailable. A new development build is required.',
         verified: false,
+        operationId,
+        phase: 'FAILED',
+        terminal: true,
+        retryable: false,
       };
     }
-    return native.writeAudioTags(uri, request);
+    const result = await native.writeAudioTags(uri, { ...request, operationId });
+    return { ...result, operationId: result.operationId ?? operationId };
   },
 };
 
