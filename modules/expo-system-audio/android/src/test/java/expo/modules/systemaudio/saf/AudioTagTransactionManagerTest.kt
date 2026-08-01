@@ -772,8 +772,11 @@ class AudioTagTransactionManagerTest {
     assertTrue(activeCounts(failureManager).isEmpty())
 
     val exceptionRoot = tmp()
-    assertTrue(File(exceptionRoot, "exception-operation").mkdir())
-    val exceptionManager = manager(exceptionRoot, FakeStore(old))
+    val exceptionManager = AudioTagTransactionManager(
+      TransactionStorage(exceptionRoot, CountingDirectorySync(failOnCall = 1)),
+      FakeStore(old),
+      0,
+    )
     assertThrows(IOException::class.java) {
       exceptionManager.write(req(uri, old, "new".toByteArray(), "exception-operation"))
     }
