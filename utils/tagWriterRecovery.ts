@@ -20,7 +20,13 @@ export const mapNativeRecoveryOutcome = (result: RecoveryTransaction, summaryErr
     operationStatus: 'failed' as const, phase: 'failed' as const,
     terminal: true, retryable: true, errorCode: result.errorCode,
   };
-  if (result.previousState === 'COMMITTED' && result.resultState == null) return {
+  const committed = result.resultState === 'COMMITTED' || (
+    result.resultState == null && (
+      result.previousState === 'COMMITTED' || result.previousState === 'WRITE_STARTED' ||
+      result.previousState === 'WRITTEN_UNVERIFIED'
+    )
+  );
+  if (committed) return {
     operationStatus: 'completed' as const, phase: 'completed' as const,
     terminal: true, retryable: false,
   };
@@ -46,7 +52,7 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
           errorCode: 'WriteNotImplemented',
         });
       }
-    } else if (restored.length > 0) {
+    } else if (SystemAudio.hasNativeTagWriter) {
       const recovery = await SystemAudio.recoverPendingAudioTagTransactions();
       const results = new Map((recovery.transactions ?? []).map(result => [result.transactionId, result]));
       for (const operation of restored) {

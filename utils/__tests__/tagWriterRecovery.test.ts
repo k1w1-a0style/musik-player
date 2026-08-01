@@ -8,6 +8,7 @@ const STORAGE_KEY = '@musik-player/tag-write-operations/v1';
 describe('persisted tag-write recovery', () => {
   beforeEach(() => {
     clearSafWriteOperationsForTests();
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockClear();
   });
 
   test('releases stale ownership as failed when authoritative native recovery has no matching result', async () => {
@@ -20,6 +21,40 @@ describe('persisted tag-write recovery', () => {
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({ success: true, transactions: [] });
     await restoreAndReconcileTagWrites();
     expect(getActiveSafWrite(targetKey)).toBeUndefined();
+  });
+
+  test('runs native startup recovery without a persisted JavaScript owner', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true,
+      transactions: [{
+        transactionId: 'native-only', previousState: 'WRITE_STARTED', resultState: 'COMMITTED',
+        recovered: false, pending: false,
+      }],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  test('opens startup normally when both JavaScript and native journals are empty', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true, transactions: [],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+  });
+
+  test('can retry after native-only startup recovery rejects', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
+      .mockRejectedValueOnce(new Error('native unavailable'))
+      .mockResolvedValueOnce({ success: true, transactions: [] });
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('native unavailable');
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(2);
   });
 
   test('rejects contradictory persisted terminal information', async () => {
@@ -38,6 +73,15 @@ describe('persisted tag-write recovery', () => {
       pending: false,
     })).toMatchObject({ operationStatus: 'completed', terminal: true, retryable: false });
   });
+
+  test.each(['WRITE_STARTED', 'WRITTEN_UNVERIFIED'] as const)(
+    'maps a %s rewrite with explicit committed evidence to completed', previousState => {
+      expect(mapNativeRecoveryOutcome({
+        transactionId: `commit-${previousState}`, previousState, resultState: 'COMMITTED',
+        recovered: false, pending: false,
+      })).toMatchObject({ operationStatus: 'completed', terminal: true, retryable: false });
+    },
+  );
 
   test('maps restored original content to a retryable rolled-back failure', () => {
     expect(mapNativeRecoveryOutcome({
