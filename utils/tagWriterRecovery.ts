@@ -6,6 +6,15 @@ import {
 } from './tagWriterLocks';
 
 type RecoveryTransaction = NonNullable<Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>['transactions']>[number];
+type RecoverySummary = Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>;
+
+const assertRecoverySummarySuccessful = (recovery: RecoverySummary): void => {
+  const incomplete = recovery.success !== true || Boolean(recovery.errorCode) ||
+    (recovery.pendingCount ?? 0) > 0 || (recovery.failedCount ?? 0) > 0;
+  if (!incomplete) return;
+  throw new Error(recovery.errorCode ??
+    `Native tag-write recovery incomplete (pending: ${recovery.pendingCount ?? 0}, failed: ${recovery.failedCount ?? 0}).`);
+};
 
 export const mapNativeRecoveryOutcome = (result: RecoveryTransaction, summaryError?: string) => {
   if (result.pending) return {
@@ -20,12 +29,10 @@ export const mapNativeRecoveryOutcome = (result: RecoveryTransaction, summaryErr
     operationStatus: 'failed' as const, phase: 'failed' as const,
     terminal: true, retryable: true, errorCode: result.errorCode,
   };
-  const committed = result.resultState === 'COMMITTED' || (
-    result.resultState == null && (
-      result.previousState === 'COMMITTED' || result.previousState === 'WRITE_STARTED' ||
-      result.previousState === 'WRITTEN_UNVERIFIED'
-    )
-  );
+  const validCommitPredecessor = result.previousState === 'COMMITTED' ||
+    result.previousState === 'WRITE_STARTED' || result.previousState === 'WRITTEN_UNVERIFIED';
+  const committed = validCommitPredecessor &&
+    (result.resultState === 'COMMITTED' || result.resultState == null);
   if (committed) return {
     operationStatus: 'completed' as const, phase: 'completed' as const,
     terminal: true, retryable: false,
@@ -65,6 +72,7 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
           errorCode: 'RecoveryOutcomeUnavailable',
         });
       }
+      assertRecoverySummarySuccessful(recovery);
     }
     finishSafWriteStartupRestoration();
     return restored;

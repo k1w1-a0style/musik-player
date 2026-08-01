@@ -130,11 +130,17 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
   if (!Array.isArray(values)) throw new Error('Invalid persisted tag-write operation journal.');
   const restored: SafWriteOperationStatus[] = [];
   for (const candidate of values) {
-    const status = parsePersistedStatus(candidate);
-    safWriteOperationsById.set(status.operationId, status);
-    if (!status.terminal) {
+    const parsed = parsePersistedStatus(candidate);
+    const active = activeSafWrites.get(parsed.targetKey);
+    const indexed = safWriteOperationsById.get(parsed.operationId);
+    // A retry must reuse the installed owner. Otherwise reconciliation mutates
+    // the lock while persistence serializes a separate, stale status object.
+    const status = active?.operationId === parsed.operationId ? active : indexed ?? parsed;
+    if (!active || active.operationId === parsed.operationId)
+      safWriteOperationsById.set(status.operationId, status);
+    if (!status.terminal && (!active || active.operationId === status.operationId)) {
       // Never replace an owner registered after the restoration boundary.
-      if (!activeSafWrites.has(status.targetKey)) activeSafWrites.set(status.targetKey, status);
+      if (!active) activeSafWrites.set(status.targetKey, status);
       restored.push({ ...status });
     }
   }
@@ -149,6 +155,7 @@ export const reconcileSafWriteOperation = async (
   const entry = [...activeSafWrites.entries()].find(([, value]) => value.operationId === operationId);
   if (!entry) return false;
   const [key, current] = entry;
+  safWriteOperationsById.set(operationId, current);
   Object.assign(current, update, { updatedAt: Date.now() });
   if (current.terminal) activeSafWrites.delete(key);
   await persistOperations();
@@ -182,6 +189,20 @@ const applySettledStatus = <T>(status: SafWriteOperationStatus, outcome: Settled
 const releaseTerminalOwner = (targetKey: string, operationId: string, status: SafWriteOperationStatus): void => {
   if (status.terminal && activeSafWrites.get(targetKey)?.operationId === operationId)
     activeSafWrites.delete(targetKey);
+};
+
+const persistConfirmedSuccess = async (status: SafWriteOperationStatus): Promise<void> => {
+  try {
+    await persistOperations();
+  } catch (error) {
+    status.phase = 'failed';
+    status.terminal = true;
+    status.retryable = false;
+    status.operationStatus = 'failed';
+    status.errorCode = 'TagWriteJournalPersistenceFailed';
+    status.updatedAt = Date.now();
+    throw new Error(`Native tag write committed, but its terminal journal could not be persisted: ${String(error)}`);
+  }
 };
 
 export const runSafWriteOperation = async <T>(
@@ -235,8 +256,9 @@ export const runSafWriteOperation = async <T>(
     const outcome = await settled;
     applySettledStatus(status, outcome, options);
     releaseTerminalOwner(targetKey, operationId, status);
-    persistObserved(persistOperations());
     if (!outcome.ok) throw outcome.error;
+    if (status.operationStatus === 'completed') await persistConfirmedSuccess(status);
+    else persistObserved(persistOperations());
     return { kind: 'result', value: outcome.value, status: { ...status } };
   }
 
@@ -255,8 +277,9 @@ export const runSafWriteOperation = async <T>(
   if (timer) clearTimeout(timer);
   applySettledStatus(status, first, options);
   releaseTerminalOwner(targetKey, operationId, status);
-  persistObserved(persistOperations());
   if (!first.ok) throw first.error;
+  if (status.operationStatus === 'completed') await persistConfirmedSuccess(status);
+  else persistObserved(persistOperations());
   return { kind: 'result', value: first.value, status: { ...status } };
 };
 

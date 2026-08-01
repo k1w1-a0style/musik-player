@@ -3,6 +3,7 @@ import {
   getActiveSafWrite, getSafWriteOperation, resetSafWriteStartupForTests,
   runSafWriteOperation,
 } from '../tagWriterLocks';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { canonicalSafTarget } from '../tagWriterLocks';
 
 const deferred = <T>() => {
@@ -13,8 +14,14 @@ const deferred = <T>() => {
 };
 
 describe('SAF tag write operation contract', () => {
-  beforeEach(() => resetSafWriteStartupForTests());
-  afterEach(() => jest.useRealTimers());
+  beforeEach(() => {
+    resetSafWriteStartupForTests();
+    jest.mocked(AsyncStorage.setItem).mockReset().mockResolvedValue();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.mocked(AsyncStorage.setItem).mockReset().mockResolvedValue();
+  });
 
   test('waits at the API barrier and opens exactly once after restoration', async () => {
     beginSafWriteStartupRestoration();
@@ -118,6 +125,35 @@ describe('SAF tag write operation contract', () => {
     process.off('unhandledRejection', listener);
     expect(observed).toEqual([]);
     expect(getActiveSafWrite('content://provider/error')).toBeUndefined();
+  });
+
+  test('does not expose confirmed success until terminal journal persistence completes', async () => {
+    const persisted = deferred<void>();
+    const setItem = jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockImplementationOnce(() => persisted.promise);
+    let visible = false;
+    const write = runSafWriteOperation('content://provider/durable-success', async () => 'written')
+      .then(result => { visible = true; return result; });
+    for (let turn = 0; turn < 20 && setItem.mock.calls.length < 2; turn += 1)
+      await Promise.resolve();
+    const callCountBeforePersistence = setItem.mock.calls.length;
+    const visibleBeforePersistence = visible;
+    persisted.resolve();
+    expect(callCountBeforePersistence).toBe(2);
+    expect(visibleBeforePersistence).toBe(false);
+    await expect(write).resolves.toMatchObject({ kind: 'result', value: 'written' });
+  });
+
+  test('propagates terminal journal failure instead of confirming native success', async () => {
+    const setItem = jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error('disk unavailable'));
+    await expect(runSafWriteOperation('content://provider/undurable-success', async () => 'written'))
+      .rejects.toThrow('terminal journal could not be persisted');
+    const calls = setItem.mock.calls.length;
+    expect(getActiveSafWrite('content://provider/undurable-success')).toBeUndefined();
+    expect(setItem).toHaveBeenCalledTimes(calls);
   });
 
   test.each([
