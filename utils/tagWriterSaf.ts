@@ -28,7 +28,7 @@ const phaseForWriteResult = (result: WriteTagsResult): 'completed' | 'failed' =>
   result.status === 'written' || result.status === 'noop' ? 'completed' : 'failed';
 
 const isRecoveryPendingResult = (result: WriteTagsResult): boolean =>
-  result.operationStatus === 'recovery-pending' || result.recoveryPending === true;
+  result.terminal !== true && (result.operationStatus === 'recovery-pending' || result.recoveryPending === true);
 
 const rejectedExecutionResult = (
   uri: string,
@@ -53,7 +53,7 @@ const hasValidNativeOperationContract = (
 ): boolean => {
   if (!operationId || !phase || typeof result.terminal !== 'boolean' || typeof result.retryable !== 'boolean') return false;
   if (result.success) return phase === 'completed' && result.terminal && !result.recoveryPending;
-  if (result.recoveryPending) return !result.terminal;
+  if (result.recoveryPending) return !result.terminal || phase === 'failed';
   return phase === 'failed' && result.terminal;
 };
 
@@ -97,7 +97,7 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
     operationPhase: phase,
     terminal: nativeResult.terminal,
     retryable: nativeResult.retryable,
-    operationStatus: nativeResult.success ? 'completed' : nativeResult.recoveryPending ? 'recovery-pending' : 'failed',
+    operationStatus: nativeResult.success ? 'completed' : nativeResult.recoveryPending && !nativeResult.terminal ? 'recovery-pending' : 'failed',
   };
 };
 
