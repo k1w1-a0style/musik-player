@@ -155,6 +155,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   verifyAudioTagDeletion?(uri: string, request: AudioTagWriteRequest): Promise<boolean>;
   getAudioTagRecoveryStatus?(): Promise<RecoveryStatusResult>;
   recoverPendingAudioTagTransactions?(uri?: string): Promise<RecoveryRunResult>;
+  acknowledgeAudioTagRecoveryOutcomes?(operationIds: string[]): Promise<boolean>;
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
@@ -279,6 +280,12 @@ export const SystemAudio = {
     return native?.recoverPendingAudioTagTransactions
       ? native.recoverPendingAudioTagTransactions(uri)
       : { success: true, recoveryPending: false, recovered: false };
+  },
+
+  async acknowledgeAudioTagRecoveryOutcomes(operationIds: string[]): Promise<boolean> {
+    return native?.acknowledgeAudioTagRecoveryOutcomes
+      ? native.acknowledgeAudioTagRecoveryOutcomes(operationIds)
+      : true;
   },
 
   async verifyAudioTagDeletion(uri: string, request: AudioTagWriteRequest): Promise<boolean> {

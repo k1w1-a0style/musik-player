@@ -804,6 +804,35 @@ class AudioTagTransactionManagerTest {
     assertTrue(manager.write(req(uri, old, "new".toByteArray())).success)
   }
 
+  @Test fun recoveryOutcomeTombstonesReplayUntilIdempotentAcknowledgement() {
+    val root = tmp()
+    val storage = storage(root)
+    val report = RecoveryTransactionReport(
+      transactionId = "durable-recovery-outcome", previousState = "WRITE_STARTED",
+      resultState = "COMMITTED", recovered = false, pending = false, errorCode = null,
+    )
+    storage.retainRecoveryOutcome(report)
+    assertEquals(listOf(report), storage.retainedRecoveryOutcomes())
+    assertEquals(listOf(report), storage.retainedRecoveryOutcomes())
+    storage.acknowledgeRecoveryOutcomes(listOf(report.transactionId))
+    storage.acknowledgeRecoveryOutcomes(listOf(report.transactionId))
+    assertTrue(storage.retainedRecoveryOutcomes().isEmpty())
+  }
+
+  @Test fun corruptRecoveryOutcomeTombstoneFailsClosed() {
+    val root = tmp()
+    val storage = storage(root)
+    val outcomes = File(root.parentFile, "${root.name}-audio-tag-recovery-outcomes")
+    outcomes.mkdirs()
+    File(outcomes, "corrupt.json").writeText("not-json")
+    try {
+      storage.retainedRecoveryOutcomes()
+      fail("corrupt tombstone must fail closed")
+    } catch (_: IOException) {
+      // Expected: corrupt evidence is never interpreted as a successful commit.
+    }
+  }
+
   private fun prepared(
     state: TransactionState,
     original: ByteArray = "old".toByteArray(),

@@ -306,9 +306,11 @@ class TransactionStorage(
     private const val JOURNAL_FILE = "journal.json"
     private const val JOURNAL_TMP_FILE = "journal.tmp"
     private const val QUARANTINE_DIRECTORY = "audio-tag-transactions-quarantine"
+    private const val OUTCOME_DIRECTORY = "audio-tag-recovery-outcomes"
   }
 
   private val quarantineRoot = File(root.parentFile ?: root, QUARANTINE_DIRECTORY)
+  private val outcomeRoot = File(root.parentFile ?: root, "${root.name}-$OUTCOME_DIRECTORY")
 
   init {
     val created = !root.exists()
@@ -355,6 +357,53 @@ class TransactionStorage(
     ?.filter { it.isDirectory }
     ?.sortedBy { it.name }
     ?: emptyList()
+
+  /** Durable one-shot recovery evidence retained until JavaScript acknowledges it. */
+  fun retainRecoveryOutcome(report: RecoveryTransactionReport) {
+    if (!isValidTagWriteOperationId(report.transactionId) || report.pending) return
+    if (!outcomeRoot.exists() && !outcomeRoot.mkdirs()) throw IOException("outcome root mkdir failed")
+    val target = File(outcomeRoot, "${report.transactionId}.json")
+    if (target.exists()) {
+      val retained = retainedRecoveryOutcomes().singleOrNull { it.transactionId == report.transactionId }
+      if (retained != report) throw IOException("conflicting recovery outcome tombstone")
+      return
+    }
+    val temporary = File(outcomeRoot, "${report.transactionId}.tmp")
+    val json = JSONObject().apply {
+      put("transactionId", report.transactionId)
+      put("previousState", report.previousState ?: JSONObject.NULL)
+      put("resultState", report.resultState ?: JSONObject.NULL)
+      put("recovered", report.recovered)
+      put("pending", false)
+      put("errorCode", report.errorCode ?: JSONObject.NULL)
+    }
+    writeBytesDurably(temporary, json.toString().toByteArray(Charsets.UTF_8))
+    promote(temporary, target)
+  }
+
+  fun retainedRecoveryOutcomes(): List<RecoveryTransactionReport> = outcomeRoot.listFiles()
+    ?.filter { it.isFile && it.extension == "json" }
+    ?.map { file ->
+      try {
+        if (file.length() > MAX_JOURNAL_BYTES) throw IOException("oversized recovery outcome")
+        val json = JSONObject(file.readText(Charsets.UTF_8))
+        val id = json.getString("transactionId")
+        if (file.nameWithoutExtension != id || !isValidTagWriteOperationId(id) || json.getBoolean("pending"))
+          throw IOException("contradictory recovery outcome")
+        RecoveryTransactionReport(id, json.optString("previousState").takeIf { !json.isNull("previousState") },
+          json.optString("resultState").takeIf { !json.isNull("resultState") }, json.getBoolean("recovered"), false,
+          json.optString("errorCode").takeIf { !json.isNull("errorCode") })
+      } catch (error: Throwable) { throw IOException("invalid recovery outcome tombstone", error) }
+    }?.sortedBy { it.transactionId } ?: emptyList()
+
+  fun acknowledgeRecoveryOutcomes(operationIds: List<String>) {
+    for (id in operationIds.distinct()) {
+      if (!isValidTagWriteOperationId(id)) continue
+      val file = File(outcomeRoot, "$id.json")
+      if (file.exists() && !file.delete()) throw IOException("outcome acknowledgement failed")
+    }
+    if (outcomeRoot.exists()) syncDirectory(outcomeRoot)
+  }
 
   fun original(directory: File): File = File(directory, ORIGINAL_FILE)
   fun rewritten(directory: File): File = File(directory, REWRITTEN_FILE)
@@ -738,6 +787,10 @@ class AudioTagTransactionManager(
 
   fun recoverPendingSummary(targetUri: Uri? = null): RecoverySummary = lifecycleBarrier.writeLock().withLock {
     maintenanceLock.withLock { recoverPendingLocked(targetUri) }
+  }
+
+  fun acknowledgeRecoveryOutcomes(operationIds: List<String>) = lifecycleBarrier.writeLock().withLock {
+    maintenanceLock.withLock { storage.acknowledgeRecoveryOutcomes(operationIds) }
   }
 
   fun status(): Map<String, Any?> = lifecycleBarrier.readLock().withLock {
@@ -1302,6 +1355,10 @@ class AudioTagTransactionManager(
 
       try {
         storage.markRecoveryState(directory, journal, TransactionState.RECOVERED)
+        storage.retainRecoveryOutcome(RecoveryTransactionReport(
+          journal.transactionId, journal.state.name, TransactionState.RECOVERED.name,
+          true, false, null,
+        ))
         storage.cleanup(directory)
         RestoreResult(
           restored = true,
@@ -1488,6 +1545,16 @@ class AudioTagTransactionManager(
   ): TransactionResult {
     return try {
       storage.markRecoveryState(directory, journal, state)
+      // The outcome tombstone is durable before transaction cleanup, closing
+      // the crash window in which JS has not yet persisted/acknowledged it.
+      storage.retainRecoveryOutcome(RecoveryTransactionReport(
+        transactionId = journal.transactionId,
+        previousState = journal.state.name,
+        resultState = state.name,
+        recovered = recovered,
+        pending = false,
+        errorCode = null,
+      ))
       storage.cleanup(directory)
       TransactionResult(
         success = true,
@@ -1622,13 +1689,19 @@ class AudioTagTransactionManager(
       )
     }
 
+    // Terminal reports are replayable and idempotent until JS confirms its
+    // durable journal write. Persist every report before returning the batch.
+    reports.filter { !it.pending }.forEach(storage::retainRecoveryOutcome)
+    val retained = storage.retainedRecoveryOutcomes()
+    val returnedReports = (retained + reports.filter { it.pending })
+      .associateBy { it.transactionId }.values.sortedBy { it.transactionId }
     return RecoverySummary(
       success = pendingCount == 0 && failedCount == 0,
       recoveredCount = recoveredCount,
       cleanedCount = cleanedCount,
       pendingCount = pendingCount,
       failedCount = failedCount,
-      transactions = reports,
+      transactions = returnedReports,
     )
   }
 
@@ -1666,6 +1739,10 @@ class AudioTagTransactionManager(
   }
 
   private fun cleanupPreparedTransaction(directory: File): TransactionResult = try {
+    val journal = storage.readJournalSafely(directory) ?: throw IOException("prepared journal missing")
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      journal.transactionId, journal.state.name, null, false, false, "RecoveryOutcomeInconsistent",
+    ))
     storage.cleanup(directory)
     TransactionResult(true, null, "Prepared transaction cleaned.")
   } catch (_: Throwable) {
@@ -1678,6 +1755,11 @@ class AudioTagTransactionManager(
   }
 
   private fun cleanupCommittedTransaction(directory: File): TransactionResult = try {
+    val journal = storage.readJournalSafely(directory) ?: throw IOException("committed journal missing")
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      journal.transactionId, journal.state.name, journal.state.name, journal.state == TransactionState.RECOVERED,
+      false, null,
+    ))
     storage.cleanup(directory)
     TransactionResult(true, null, "Committed transaction cleaned.")
   } catch (_: Throwable) {

@@ -3,11 +3,16 @@ import type { SafWriteOperationStatus } from './tagWriterLocks';
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
   reconcileSafWriteOperation, restoreSafWriteOperations, retryConfirmedSafWriteCommit,
-  retryConfirmedSafWriteOutcome,
+  retryConfirmedSafWriteOutcome, stageConfirmedSafWriteOutcomes,
 } from './tagWriterLocks';
 
 type RecoveryTransaction = NonNullable<Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>['transactions']>[number];
 type RecoverySummary = Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>;
+
+const acknowledgeNativeOutcomes = async (operationIds: string[]): Promise<void> => {
+  if (typeof SystemAudio.acknowledgeAudioTagRecoveryOutcomes === 'function')
+    await SystemAudio.acknowledgeAudioTagRecoveryOutcomes(operationIds);
+};
 
 const assertRecoverySummarySuccessful = (recovery: RecoverySummary): void => {
   const incomplete = recovery.success !== true || Boolean(recovery.errorCode) ||
@@ -62,16 +67,30 @@ const runNativeRecovery = async (unresolved: SafWriteOperationStatus[]): Promise
   const recovery = await SystemAudio.recoverPendingAudioTagTransactions();
   const recoveryComplete = isRecoverySummaryComplete(recovery);
   const results = new Map((recovery.transactions ?? []).map(result => [result.transactionId, result]));
+  const terminal = [];
   for (const operation of unresolved) {
     const result = results.get(operation.operationId);
-    await reconcileSafWriteOperation(operation.operationId, result ? {
+    const outcome = result ? {
       ...mapNativeRecoveryOutcome(result, recovery.errorCode),
       nativeRecoverySummaryComplete: recoveryComplete,
     } : {
       operationStatus: 'failed', phase: 'failed', terminal: true, retryable: true,
       errorCode: 'RecoveryOutcomeUnavailable', nativeRecoverySummaryComplete: recoveryComplete,
-    });
+    } as const;
+    if (outcome.terminal) terminal.push({ operationId: operation.operationId, outcome });
+    else await reconcileSafWriteOperation(operation.operationId, outcome);
   }
+  // Install and persist the complete batch of terminal evidence before any
+  // owner is terminally published or acknowledged to native.
+  const staged = await stageConfirmedSafWriteOutcomes(terminal);
+  for (const operationId of staged) {
+    await retryConfirmedSafWriteOutcome(operationId);
+  }
+  // Ack only after all matching terminal JS records are durable. Reports with
+  // no JS owner are native-only recovery or replay after the JS record was
+  // already persisted; acknowledging them is safe and idempotent.
+  const terminalReportIds = [...results.values()].filter(result => !result.pending).map(result => result.transactionId);
+  if (terminalReportIds.length > 0) await acknowledgeNativeOutcomes(terminalReportIds);
   assertRecoverySummarySuccessful(recovery);
 };
 
@@ -86,7 +105,10 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
     const restored = await restoreSafWriteOperations();
     for (const operation of restored) {
       if (operation.commitConfirmed) await retryConfirmedSafWriteCommit(operation.operationId);
-      else if (operation.confirmedTerminalOutcome) await retryConfirmedSafWriteOutcome(operation.operationId);
+      else if (operation.confirmedTerminalOutcome) {
+        await retryConfirmedSafWriteOutcome(operation.operationId);
+        await acknowledgeNativeOutcomes([operation.operationId]);
+      }
     }
     const unresolved = restored.filter(operation => !operation.commitConfirmed && !operation.confirmedTerminalOutcome);
     const priorRecoveryWasComplete = restored.length > 0 && restored.every(operation =>

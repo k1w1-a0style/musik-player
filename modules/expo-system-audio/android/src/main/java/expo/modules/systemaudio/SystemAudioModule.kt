@@ -136,6 +136,12 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       recoverPendingAudioTagTransactions(uri)
     }
 
+    AsyncFunction("acknowledgeAudioTagRecoveryOutcomes") { operationIds: List<String> ->
+      val ctx = appContext.reactContext ?: return@AsyncFunction false
+      audioTagTransactionManager(ctx).acknowledgeRecoveryOutcomes(operationIds)
+      true
+    }
+
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
       if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {

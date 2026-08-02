@@ -141,15 +141,47 @@ const persistObserved = (operation: Promise<void>): void => {
   });
 };
 
+const CONFIRMED_OUTCOME_KEYS = new Set([
+  'operationStatus', 'phase', 'terminal', 'retryable', 'errorCode', 'nativeRecoverySummaryComplete',
+]);
+
+const isCompletedEvidence = (value: Partial<SafWriteOperationStatus>): boolean =>
+  value.operationStatus === 'completed' && value.phase === 'completed' && value.terminal === true &&
+  value.retryable === false && value.errorCode === undefined;
+
+const isFailedEvidence = (value: Partial<SafWriteOperationStatus>): boolean =>
+  value.operationStatus === 'failed' && value.phase === 'failed' && value.terminal === true &&
+  typeof value.retryable === 'boolean' && typeof value.errorCode === 'string' && value.errorCode.length > 0;
+
+const validateConfirmedTerminalOutcome = (owner: Partial<SafWriteOperationStatus>): void => {
+  const confirmed = owner.confirmedTerminalOutcome;
+  if (confirmed === undefined) return;
+  const validObject = Boolean(confirmed) && typeof confirmed === 'object' && !Array.isArray(confirmed);
+  if (!validObject) throw new Error('Invalid confirmed terminal tag-write outcome.');
+  const knownFields = Object.keys(confirmed).every(key => CONFIRMED_OUTCOME_KEYS.has(key));
+  const validMarker = confirmed.nativeRecoverySummaryComplete === undefined ||
+    typeof confirmed.nativeRecoverySummaryComplete === 'boolean';
+  if (!knownFields || !validMarker) throw new Error('Invalid confirmed terminal tag-write outcome.');
+  const validOutcome = isCompletedEvidence(confirmed) || isFailedEvidence(confirmed);
+  const validOwner = owner.terminal === false && owner.operationStatus === 'recovery-pending' &&
+    owner.commitConfirmed !== true && owner.errorCode === 'TerminalJournalPersistenceFailed';
+  if (!validOutcome || !validOwner) throw new Error('Contradictory confirmed terminal tag-write outcome.');
+};
+
 const parsePersistedStatus = (candidate: unknown): SafWriteOperationStatus => {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    throw new Error('Invalid persisted tag-write operation journal record.');
   const value = candidate as Partial<SafWriteOperationStatus>;
-  const validState = value.operationStatus === 'pending' || value.operationStatus === 'recovery-pending' ||
-    value.operationStatus === 'completed' || value.operationStatus === 'failed';
-  const terminalMatchesState = value.terminal === (value.operationStatus === 'completed' || value.operationStatus === 'failed');
-  if (typeof value.operationId !== 'string' || typeof value.targetKey !== 'string' || !validState || !terminalMatchesState)
+  const validStates = ['pending', 'recovery-pending', 'completed', 'failed'];
+  const validState = validStates.includes(value.operationStatus ?? '');
+  const terminalState = value.operationStatus === 'completed' || value.operationStatus === 'failed';
+  const validIdentity = typeof value.operationId === 'string' && typeof value.targetKey === 'string';
+  const validCommitMarker = value.commitConfirmed === undefined || typeof value.commitConfirmed === 'boolean';
+  if (!validIdentity || !validState || value.terminal !== terminalState || !validCommitMarker)
     throw new Error('Contradictory persisted tag-write operation journal.');
+  validateConfirmedTerminalOutcome(value);
   return {
-    operationId: value.operationId, targetKey: value.targetKey,
+    operationId: value.operationId as string, targetKey: value.targetKey as string,
     phase: value.terminal ? (value.operationStatus === 'completed' ? 'completed' : 'failed') : 'pendingNativeResult',
     terminal: Boolean(value.terminal), retryable: Boolean(value.retryable),
     operationStatus: value.operationStatus as SafWriteOperationStatus['operationStatus'],
@@ -157,6 +189,32 @@ const parsePersistedStatus = (candidate: unknown): SafWriteOperationStatus => {
     commitConfirmed: value.commitConfirmed === true,
     confirmedTerminalOutcome: value.confirmedTerminalOutcome,
   };
+};
+
+export type ConfirmedRecoveryUpdate = {
+  operationId: string;
+  outcome: NonNullable<SafWriteOperationStatus['confirmedTerminalOutcome']>;
+};
+
+/** Stages every consumed native report before any individual terminal record is published. */
+export const stageConfirmedSafWriteOutcomes = async (updates: ConfirmedRecoveryUpdate[]): Promise<string[]> => {
+  const staged: SafWriteOperationStatus[] = [];
+  for (const { operationId, outcome } of updates) {
+    const current = safWriteOperationsById.get(operationId);
+    if (!current || current.terminal) continue;
+    current.phase = 'pendingNativeResult';
+    current.terminal = false;
+    current.retryable = true;
+    current.operationStatus = 'recovery-pending';
+    current.errorCode = 'TerminalJournalPersistenceFailed';
+    current.confirmedTerminalOutcome = { ...outcome };
+    current.updatedAt = Date.now();
+    staged.push(current);
+  }
+  // One snapshot contains all evidence from the native summary. If this fails,
+  // every staged in-memory owner remains intact and native tombstones remain unacked.
+  if (staged.length > 0) await persistOperations();
+  return staged.map(status => status.operationId);
 };
 
 /** Restores non-terminal ownership before writes are accepted after a restart. */

@@ -244,6 +244,71 @@ describe('persisted tag-write recovery', () => {
     expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(2);
   });
 
+  test('stages every terminal outcome from one summary before the first evidence write can fail', async () => {
+    const owners = [
+      { operationId: 'batch-commit', targetKey: 'content://provider/document/batch-commit.mp3' },
+      { operationId: 'batch-rollback', targetKey: 'content://provider/document/batch-rollback.mp3' },
+    ];
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(owners.map(owner => ({
+      ...owner, phase: 'pendingNativeResult', terminal: false, retryable: true,
+      operationStatus: 'recovery-pending', updatedAt: 1,
+    }))));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true, pendingCount: 0, failedCount: 0, transactions: [
+        { transactionId: 'batch-commit', previousState: 'WRITE_STARTED', resultState: 'COMMITTED', recovered: false, pending: false },
+        { transactionId: 'batch-rollback', previousState: 'RECOVERY_REQUIRED', resultState: 'RECOVERED', recovered: true, pending: false },
+      ],
+    });
+    jest.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('first evidence write failed'));
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('first evidence write failed');
+    expect(getActiveSafWrite(owners[0].targetKey)).toMatchObject({
+      confirmedTerminalOutcome: { operationStatus: 'completed', nativeRecoverySummaryComplete: true },
+    });
+    expect(getActiveSafWrite(owners[1].targetKey)).toMatchObject({
+      confirmedTerminalOutcome: { operationStatus: 'failed', errorCode: 'TagWriteRolledBack' },
+    });
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(2);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+    expect(getSafWriteOperation('batch-commit')).toMatchObject({ operationStatus: 'completed', terminal: true });
+    expect(getSafWriteOperation('batch-rollback')).toMatchObject({ operationStatus: 'failed', terminal: true });
+  });
+
+  test.each([
+    'text', [], {},
+    { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: true },
+    { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false, errorCode: 'bad' },
+    { operationStatus: 'failed', phase: 'completed', terminal: true, retryable: true, errorCode: 'Failure' },
+    { operationStatus: 'failed', phase: 'failed', terminal: true, retryable: true },
+    { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false, nativeRecoverySummaryComplete: 'yes' },
+  ])('rejects malformed confirmed terminal outcome %#', async confirmedTerminalOutcome => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'malformed-evidence', targetKey: 'content://provider/document/malformed.mp3',
+      phase: 'pendingNativeResult', terminal: false, retryable: true,
+      operationStatus: 'recovery-pending', errorCode: 'TerminalJournalPersistenceFailed', updatedAt: 1,
+      confirmedTerminalOutcome,
+    }]));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { restoreSafWriteOperations } = require('../tagWriterLocks') as typeof import('../tagWriterLocks');
+    await expect(restoreSafWriteOperations()).rejects.toThrow();
+  });
+
+  test('rejects confirmed evidence combined with commit evidence', async () => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'double-evidence', targetKey: 'content://provider/document/double.mp3',
+      phase: 'pendingNativeResult', terminal: false, retryable: true, operationStatus: 'recovery-pending',
+      errorCode: 'TerminalJournalPersistenceFailed', updatedAt: 1, commitConfirmed: true,
+      confirmedTerminalOutcome: {
+        operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false,
+        nativeRecoverySummaryComplete: true,
+      },
+    }]));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { restoreSafWriteOperations } = require('../tagWriterLocks') as typeof import('../tagWriterLocks');
+    await expect(restoreSafWriteOperations()).rejects.toThrow('Contradictory');
+  });
+
   test('rejects contradictory persisted terminal information', async () => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
       operationId: 'bad', targetKey: 'content://provider/document/id',
