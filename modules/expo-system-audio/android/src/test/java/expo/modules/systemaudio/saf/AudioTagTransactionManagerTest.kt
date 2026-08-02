@@ -870,6 +870,60 @@ class AudioTagTransactionManagerTest {
     assertEquals(0, store.writes)
   }
 
+  @Test fun preparingCleanupConvergesWithOneConsistentTerminalReceipt() {
+    assertPreparedCleanupOutcome(TransactionState.PREPARING)
+  }
+
+  @Test fun backupReadyCleanupConvergesWithOneConsistentTerminalReceipt() {
+    assertPreparedCleanupOutcome(TransactionState.BACKUP_READY)
+  }
+
+  @Test fun recoveredCleanupPreservesRecoveryOutcomeAcrossReceiptAndReplay() {
+    val root = prepared(TransactionState.RECOVERED)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val first = manager.recoverPendingSummary()
+    val receipt = storage.retainedRecoveryOutcomes().single()
+    val replay = manager.recoverPendingSummary()
+
+    assertTrue(first.success)
+    assertEquals(1, first.recoveredCount)
+    assertEquals(0, first.cleanedCount)
+    assertTrue(receipt.recovered)
+    assertEquals("RECOVERED", receipt.previousState)
+    assertEquals("RECOVERED", receipt.resultState)
+    assertFalse(receipt.pending)
+    assertNull(receipt.errorCode)
+    assertEquals(listOf(receipt), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.recoveredCount)
+    assertEquals(0, replay.cleanedCount)
+  }
+
+  private fun assertPreparedCleanupOutcome(state: TransactionState) {
+    val root = prepared(state)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val first = manager.recoverPendingSummary()
+    val receipt = storage.retainedRecoveryOutcomes().single()
+    val replay = manager.recoverPendingSummary()
+
+    assertFalse(first.success)
+    assertEquals(1, first.failedCount)
+    assertEquals(0, first.pendingCount)
+    assertEquals(state.name, receipt.previousState)
+    assertNull(receipt.resultState)
+    assertFalse(receipt.recovered)
+    assertFalse(receipt.pending)
+    assertEquals("RecoveryOutcomeInconsistent", receipt.errorCode)
+    assertEquals(listOf(receipt), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.failedCount)
+    assertEquals(0, replay.pendingCount)
+  }
+
   @Test fun corruptRecoveryOutcomeTombstoneFailsClosed() {
     val root = tmp()
     val storage = storage(root)

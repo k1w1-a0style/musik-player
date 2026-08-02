@@ -1722,7 +1722,10 @@ class AudioTagTransactionManager(
     // durable journal write. Persist every report before returning the batch.
     reports.filter { !it.pending }.forEach(storage::retainRecoveryOutcome)
     val retained = storage.retainedRecoveryOutcomes()
-    val returnedReports = (retained + reports.filter { it.pending })
+    // Retained terminal receipts are the authoritative projection. In
+    // particular, cleanup may remove the journal after retaining a stronger
+    // resultState, so never replace that receipt with the post-cleanup view.
+    val returnedReports = (reports.filter { it.pending } + retained)
       .associateBy { it.transactionId }.values.sortedBy { it.transactionId }
     return RecoverySummary(
       success = pendingCount == 0 && failedCount == 0,
@@ -1773,7 +1776,11 @@ class AudioTagTransactionManager(
       journal.transactionId, journal.state.name, null, false, false, "RecoveryOutcomeInconsistent",
     ))
     storage.cleanup(directory)
-    TransactionResult(true, null, "Prepared transaction cleaned.")
+    TransactionResult(
+      success = false,
+      errorCode = "RecoveryOutcomeInconsistent",
+      message = "Prepared transaction cleaned before target mutation.",
+    )
   } catch (_: Throwable) {
     TransactionResult(
       success = false,
@@ -1790,7 +1797,12 @@ class AudioTagTransactionManager(
       false, null,
     ))
     storage.cleanup(directory)
-    TransactionResult(true, null, "Committed transaction cleaned.")
+    TransactionResult(
+      success = true,
+      errorCode = null,
+      message = "Committed transaction cleaned.",
+      recovered = journal.state == TransactionState.RECOVERED,
+    )
   } catch (_: Throwable) {
     TransactionResult(
       success = false,
