@@ -361,7 +361,9 @@ class TransactionStorage(
   /** Durable one-shot recovery evidence retained until JavaScript acknowledges it. */
   fun retainRecoveryOutcome(report: RecoveryTransactionReport) {
     if (!isValidTagWriteOperationId(report.transactionId) || report.pending) return
-    if (!outcomeRoot.exists() && !outcomeRoot.mkdirs()) throw IOException("outcome root mkdir failed")
+    val outcomeRootCreated = !outcomeRoot.exists()
+    if (outcomeRootCreated && !outcomeRoot.mkdirs()) throw IOException("outcome root mkdir failed")
+    if (outcomeRootCreated) syncDirectory(outcomeRoot.parentFile ?: root)
     val target = File(outcomeRoot, "${report.transactionId}.json")
     if (target.exists()) {
       val retained = retainedRecoveryOutcomes().singleOrNull { it.transactionId == report.transactionId }

@@ -101,6 +101,32 @@ describe('persisted tag-write recovery', () => {
     expect(getActiveSafWrite(targetKey)).toBeUndefined();
   });
 
+  test('opens startup after a persisted terminal native recovery failure is acknowledged', async () => {
+    const targetKey = 'content://provider/document/corrupted-backup.mp3';
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'corrupted-backup', targetKey, phase: 'pendingNativeResult',
+      terminal: false, retryable: false, operationStatus: 'pending', updatedAt: 1,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    Object.defineProperty(SystemAudio, 'acknowledgeAudioTagRecoveryOutcomes', {
+      configurable: true, value: jest.fn().mockResolvedValue(undefined),
+    });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: false, pendingCount: 0, failedCount: 1, errorCode: 'BackupCorrupted',
+      transactions: [{
+        transactionId: 'corrupted-backup', previousState: 'RECOVERY_FAILED', resultState: 'RECOVERY_FAILED',
+        recovered: false, pending: false, errorCode: 'BackupCorrupted',
+      }],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
+    expect(getSafWriteOperation('corrupted-backup')).toMatchObject({
+      operationStatus: 'failed', terminal: true, errorCode: 'BackupCorrupted',
+    });
+    expect(getActiveSafWrite(targetKey)).toBeUndefined();
+    expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['corrupted-backup']);
+  });
+
   test('reuses the canonical restored owner on retry and persists its terminal outcome', async () => {
     const targetKey = 'content://provider/document/retry.mp3';
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{

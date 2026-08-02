@@ -14,9 +14,15 @@ const acknowledgeNativeOutcomes = async (operationIds: string[]): Promise<void> 
     await SystemAudio.acknowledgeAudioTagRecoveryOutcomes(operationIds);
 };
 
-const assertRecoverySummarySuccessful = (recovery: RecoverySummary): void => {
-  const incomplete = recovery.success !== true || Boolean(recovery.errorCode) ||
-    (recovery.pendingCount ?? 0) > 0 || (recovery.failedCount ?? 0) > 0;
+const assertRecoverySummarySettled = (recovery: RecoverySummary, retainedTerminalFailureCount: number): void => {
+  // A failed summary can still be settled: native terminal failures are the
+  // authoritative outcomes for their operations. Once every such receipt has
+  // been made durable in JS (where an owner exists) and acknowledged, it must
+  // not keep the global startup barrier closed forever.
+  const incomplete = (recovery.pendingCount ?? 0) > 0 ||
+    (recovery.transactions ?? []).some(result => result.pending) ||
+    (recovery.failedCount ?? 0) > retainedTerminalFailureCount ||
+    (recovery.success !== true && (recovery.failedCount ?? 0) === 0);
   if (!incomplete) return;
   throw new Error(recovery.errorCode ??
     `Native tag-write recovery incomplete (pending: ${recovery.pendingCount ?? 0}, failed: ${recovery.failedCount ?? 0}).`);
@@ -91,7 +97,8 @@ const runNativeRecovery = async (unresolved: SafWriteOperationStatus[]): Promise
   // already persisted; acknowledging them is safe and idempotent.
   const terminalReportIds = [...results.values()].filter(result => !result.pending).map(result => result.transactionId);
   if (terminalReportIds.length > 0) await acknowledgeNativeOutcomes(terminalReportIds);
-  assertRecoverySummarySuccessful(recovery);
+  const terminalFailureCount = [...results.values()].filter(result => !result.pending && Boolean(result.errorCode)).length;
+  assertRecoverySummarySettled(recovery, terminalFailureCount);
 };
 
 /**

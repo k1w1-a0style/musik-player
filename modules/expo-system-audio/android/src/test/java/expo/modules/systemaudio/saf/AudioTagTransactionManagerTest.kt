@@ -39,6 +39,14 @@ class AudioTagTransactionManagerTest {
     }
   }
 
+  private class RecordingDirectorySync : DirectoryDurabilitySync {
+    val directories = mutableListOf<File>()
+
+    override fun sync(directory: File) {
+      directories += directory.canonicalFile
+    }
+  }
+
   private class FirstDirectorySyncBarrier : DirectoryDurabilitySync {
     val entered = CountDownLatch(1)
     val release = CountDownLatch(1)
@@ -189,6 +197,19 @@ class AudioTagTransactionManagerTest {
     }
     assertFalse(isRetryableTagWriteFailure(false, "UnknownFailure", recoveryPending = false))
     assertFalse(isRetryableTagWriteFailure(true, null, recoveryPending = false))
+  }
+
+  @Test fun firstRecoveryOutcomeDurablyAnchorsItsRootInTheParentDirectory() {
+    val parent = tmp()
+    val root = File(parent, "transactions")
+    val sync = RecordingDirectorySync()
+    val storage = storage(root, sync)
+    sync.directories.clear() // Ignore transaction-root creation from initialization.
+
+    storage.retainRecoveryOutcome(recoveryReport("BackupCorrupted"))
+
+    assertEquals(parent.canonicalFile, sync.directories.first())
+    assertEquals(File(parent, "transactions-audio-tag-recovery-outcomes").canonicalFile, sync.directories.last())
   }
 
   @Test fun recoveryPendingOverridesEveryFailedErrorClassification() {
