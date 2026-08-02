@@ -30,7 +30,8 @@ export const mapNativeRecoveryOutcome = (result: RecoveryTransaction, summaryErr
     terminal: true, retryable: true, errorCode: result.errorCode,
   };
   const validCommitPredecessor = result.previousState === 'COMMITTED' ||
-    result.previousState === 'WRITE_STARTED' || result.previousState === 'WRITTEN_UNVERIFIED';
+    result.previousState === 'WRITE_STARTED' || result.previousState === 'WRITTEN_UNVERIFIED' ||
+    result.previousState === 'RECOVERY_REQUIRED' || result.previousState === 'RECOVERY_FAILED';
   const committed = validCommitPredecessor &&
     (result.resultState === 'COMMITTED' || result.resultState == null);
   if (committed) return {

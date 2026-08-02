@@ -92,9 +92,10 @@ export const getSafWriteOperation = (operationId: string): SafWriteOperationStat
   return value ? { ...value } : undefined;
 };
 
-const persistOperations = async (): Promise<void> => {
+const persistOperations = async (snapshot = [...safWriteOperationsById.values()].map(status => ({ ...status }))): Promise<void> => {
+  const serialized = JSON.stringify(snapshot.slice(-50));
   persistenceQueue = persistenceQueue.catch(() => undefined).then(() =>
-    AsyncStorage.setItem(OPERATION_STORAGE_KEY, JSON.stringify([...safWriteOperationsById.values()].slice(-50))),
+    AsyncStorage.setItem(OPERATION_STORAGE_KEY, serialized),
   );
   await persistenceQueue;
 };
@@ -191,18 +192,77 @@ const releaseTerminalOwner = (targetKey: string, operationId: string, status: Sa
     activeSafWrites.delete(targetKey);
 };
 
-const persistConfirmedSuccess = async (status: SafWriteOperationStatus): Promise<void> => {
+const persistConfirmedSuccess = async (
+  status: SafWriteOperationStatus,
+  completed: SafWriteOperationStatus,
+  targetKey: string,
+  operationId: string,
+): Promise<void> => {
+  const snapshot = [...safWriteOperationsById.values()].map(candidate =>
+    candidate.operationId === operationId ? { ...completed } : { ...candidate });
   try {
-    await persistOperations();
+    await persistOperations(snapshot);
   } catch (error) {
-    status.phase = 'failed';
-    status.terminal = true;
-    status.retryable = false;
-    status.operationStatus = 'failed';
-    status.errorCode = 'TagWriteJournalPersistenceFailed';
+    // Native has committed, but success is not durable yet. Keep the target
+    // owned and nonterminal so no caller can start a duplicate mutation.
+    status.phase = 'pendingNativeResult';
+    status.terminal = false;
+    status.retryable = true;
+    status.operationStatus = 'recovery-pending';
+    status.errorCode = 'TerminalJournalPersistenceFailed';
     status.updatedAt = Date.now();
+    persistObserved(persistOperations());
     throw new Error(`Native tag write committed, but its terminal journal could not be persisted: ${String(error)}`);
   }
+  Object.assign(status, completed);
+  releaseTerminalOwner(targetKey, operationId, status);
+};
+
+const completedStatus = <T>(
+  status: SafWriteOperationStatus,
+  outcome: Settled<T>,
+  options: SafWriteOperationOptions<T>,
+): SafWriteOperationStatus => {
+  const completed = { ...status };
+  applySettledStatus(completed, outcome, options);
+  return completed;
+};
+
+const publishSettledOutcome = async <T>(
+  status: SafWriteOperationStatus,
+  outcome: Settled<T>,
+  options: SafWriteOperationOptions<T>,
+  targetKey: string,
+  operationId: string,
+): Promise<void> => {
+  const completed = completedStatus(status, outcome, options);
+  if (!outcome.ok) {
+    Object.assign(status, completed);
+    releaseTerminalOwner(targetKey, operationId, status);
+    persistObserved(persistOperations());
+    throw outcome.error;
+  }
+  if (completed.operationStatus === 'completed') {
+    await persistConfirmedSuccess(status, completed, targetKey, operationId);
+    return;
+  }
+  Object.assign(status, completed);
+  releaseTerminalOwner(targetKey, operationId, status);
+  persistObserved(persistOperations());
+};
+
+const observeLateSettlement = <T>(
+  settled: Promise<Settled<T>>,
+  status: SafWriteOperationStatus,
+  options: SafWriteOperationOptions<T>,
+  targetKey: string,
+  operationId: string,
+): void => {
+  void settled.then(outcome => publishSettledOutcome(status, outcome, options, targetKey, operationId))
+    .catch(error => {
+      if (status.errorCode === 'TerminalJournalPersistenceFailed')
+        console.warn('[TagWriter] Late terminal journal persistence failed.', String(error));
+    });
 };
 
 export const runSafWriteOperation = async <T>(
@@ -254,11 +314,8 @@ export const runSafWriteOperation = async <T>(
   );
   if (options.timeoutMs === undefined) {
     const outcome = await settled;
-    applySettledStatus(status, outcome, options);
-    releaseTerminalOwner(targetKey, operationId, status);
+    await publishSettledOutcome(status, outcome, options, targetKey, operationId);
     if (!outcome.ok) throw outcome.error;
-    if (status.operationStatus === 'completed') await persistConfirmedSuccess(status);
-    else persistObserved(persistOperations());
     return { kind: 'result', value: outcome.value, status: { ...status } };
   }
 
@@ -267,19 +324,12 @@ export const runSafWriteOperation = async <T>(
   if ('timeout' in first) {
     status.phase = 'pendingNativeResult'; status.retryable = false; status.operationStatus = 'pending'; status.updatedAt = Date.now();
     persistObserved(persistOperations());
-    void settled.then(outcome => {
-      applySettledStatus(status, outcome, options);
-      releaseTerminalOwner(targetKey, operationId, status);
-      persistObserved(persistOperations());
-    });
+    observeLateSettlement(settled, status, options, targetKey, operationId);
     return { kind: 'pending', status: { ...status } };
   }
   if (timer) clearTimeout(timer);
-  applySettledStatus(status, first, options);
-  releaseTerminalOwner(targetKey, operationId, status);
+  await publishSettledOutcome(status, first, options, targetKey, operationId);
   if (!first.ok) throw first.error;
-  if (status.operationStatus === 'completed') await persistConfirmedSuccess(status);
-  else persistObserved(persistOperations());
   return { kind: 'result', value: first.value, status: { ...status } };
 };
 

@@ -145,6 +145,35 @@ describe('persisted tag-write recovery', () => {
     },
   );
 
+  test.each(['RECOVERY_REQUIRED', 'RECOVERY_FAILED'] as const)(
+    'maps a digest-verified %s rewrite to completed with or without terminal cleanup', previousState => {
+      for (const resultState of ['COMMITTED', null] as const) {
+        expect(mapNativeRecoveryOutcome({
+          transactionId: `recovered-commit-${previousState}-${resultState}`, previousState,
+          resultState: resultState as unknown as string,
+          recovered: false, pending: false,
+        })).toMatchObject({ operationStatus: 'completed', terminal: true, retryable: false });
+      }
+    },
+  );
+
+  test.each(['RECOVERY_REQUIRED', 'RECOVERY_FAILED'] as const)(
+    'rejects contradictory commit evidence from %s', previousState => {
+      expect(mapNativeRecoveryOutcome({
+        transactionId: `pending-${previousState}`, previousState, resultState: 'COMMITTED',
+        recovered: false, pending: true,
+      })).not.toMatchObject({ operationStatus: 'completed' });
+      expect(mapNativeRecoveryOutcome({
+        transactionId: `rollback-${previousState}`, previousState, resultState: 'COMMITTED',
+        recovered: true, pending: false,
+      })).not.toMatchObject({ operationStatus: 'completed' });
+      expect(mapNativeRecoveryOutcome({
+        transactionId: `error-${previousState}`, previousState, resultState: 'COMMITTED',
+        recovered: false, pending: false, errorCode: 'RecoveryFailed',
+      })).not.toMatchObject({ operationStatus: 'completed' });
+    },
+  );
+
   test('maps restored original content to a retryable rolled-back failure', () => {
     expect(mapNativeRecoveryOutcome({
       transactionId: 'rollback', previousState: 'WRITE_STARTED', resultState: 'RECOVERED',

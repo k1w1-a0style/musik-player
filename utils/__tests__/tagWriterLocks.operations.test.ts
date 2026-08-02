@@ -109,11 +109,85 @@ describe('SAF tag write operation contract', () => {
     if (outcome === 'success') native.resolve('done');
     else native.reject(new Error('native failed'));
     await native.promise.catch(() => undefined);
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    for (let turn = 0; turn < 30 && getActiveSafWrite('content://provider/late'); turn += 1)
+      await Promise.resolve();
     expect(getActiveSafWrite('content://provider/late')).toBeUndefined();
     expect(getSafWriteOperation(timedOut.status.operationId)).toMatchObject({
       operationStatus: outcome === 'success' ? 'completed' : 'failed', terminal: true,
     });
+  });
+
+  test('publishes a late success only after its terminal journal is durable', async () => {
+    jest.useFakeTimers();
+    const native = deferred<string>();
+    const terminalPersistence = deferred<void>();
+    const setItem = jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockResolvedValueOnce()
+      .mockImplementationOnce(() => terminalPersistence.promise);
+    const request = runSafWriteOperation('content://provider/late-durable', () => native.promise, {
+      timeoutMs: 10, operationId: 'late-durable',
+    });
+    await Promise.resolve();
+    jest.advanceTimersByTime(10);
+    await expect(request).resolves.toMatchObject({ kind: 'pending' });
+    native.resolve('written');
+    for (let turn = 0; turn < 20 && setItem.mock.calls.length < 3; turn += 1)
+      await Promise.resolve();
+
+    expect(getSafWriteOperation('late-durable')).toMatchObject({ operationStatus: 'pending', terminal: false });
+    expect(getActiveSafWrite('content://provider/late-durable')?.operationId).toBe('late-durable');
+    await expect(runSafWriteOperation('content://provider/late-durable', async () => 'duplicate'))
+      .resolves.toMatchObject({ kind: 'busy', status: { blockedByOperationId: 'late-durable' } });
+    const pendingSnapshots = setItem.mock.calls.slice(0, 2).map(([, value]) => String(value));
+    expect(pendingSnapshots.every(value => value.includes('"operationStatus":"pending"'))).toBe(true);
+
+    terminalPersistence.resolve();
+    for (let turn = 0; turn < 10 && getActiveSafWrite('content://provider/late-durable'); turn += 1)
+      await Promise.resolve();
+    expect(getSafWriteOperation('late-durable')).toMatchObject({ operationStatus: 'completed', terminal: true });
+    expect(getActiveSafWrite('content://provider/late-durable')).toBeUndefined();
+    const durableCompletions = setItem.mock.calls.filter(([, value]) =>
+      (JSON.parse(String(value)) as Array<{ operationId: string; operationStatus: string }>).some(
+        item => item.operationId === 'late-durable' && item.operationStatus === 'completed',
+      ));
+    expect(durableCompletions).toHaveLength(1);
+  });
+
+  test('keeps a late committed write fail-closed when terminal persistence fails', async () => {
+    jest.useFakeTimers();
+    const observed: unknown[] = [];
+    const listener = (reason: unknown) => observed.push(reason);
+    process.on('unhandledRejection', listener);
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const native = deferred<string>();
+    const setItem = jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockResolvedValue();
+    const request = runSafWriteOperation('content://provider/late-undurable', () => native.promise, {
+      timeoutMs: 10, operationId: 'late-undurable',
+    });
+    await Promise.resolve();
+    jest.advanceTimersByTime(10);
+    await request;
+    native.resolve('written');
+    for (let turn = 0; turn < 30 && getSafWriteOperation('late-undurable')?.errorCode === undefined; turn += 1)
+      await Promise.resolve();
+
+    expect(getSafWriteOperation('late-undurable')).toMatchObject({
+      operationStatus: 'recovery-pending', terminal: false, retryable: true,
+      errorCode: 'TerminalJournalPersistenceFailed',
+    });
+    expect(getActiveSafWrite('content://provider/late-undurable')?.operationId).toBe('late-undurable');
+    await expect(runSafWriteOperation('content://provider/late-undurable', async () => 'duplicate'))
+      .resolves.toMatchObject({ kind: 'busy' });
+    await Promise.resolve();
+    process.off('unhandledRejection', listener);
+    warning.mockRestore();
+    expect(observed).toEqual([]);
+    expect(setItem.mock.calls.some(([, value]) => String(value).includes('"operationStatus":"completed"'))).toBe(true);
   });
 
   test('native rejection is observed and releases the target without an unhandled rejection', async () => {
@@ -152,7 +226,9 @@ describe('SAF tag write operation contract', () => {
     await expect(runSafWriteOperation('content://provider/undurable-success', async () => 'written'))
       .rejects.toThrow('terminal journal could not be persisted');
     const calls = setItem.mock.calls.length;
-    expect(getActiveSafWrite('content://provider/undurable-success')).toBeUndefined();
+    expect(getActiveSafWrite('content://provider/undurable-success')).toMatchObject({
+      operationStatus: 'recovery-pending', terminal: false, errorCode: 'TerminalJournalPersistenceFailed',
+    });
     expect(setItem).toHaveBeenCalledTimes(calls);
   });
 
