@@ -819,6 +819,22 @@ class AudioTagTransactionManagerTest {
     assertTrue(storage.retainedRecoveryOutcomes().isEmpty())
   }
 
+  @Test fun recoveryOutcomeCleanupProjectionKeepsStrongerDurableEvidence() {
+    val storage = storage(tmp())
+    val retained = RecoveryTransactionReport(
+      transactionId = "durable-cleanup-outcome", previousState = "WRITE_STARTED",
+      resultState = "COMMITTED", recovered = false, pending = false, errorCode = null,
+    )
+    storage.retainRecoveryOutcome(retained)
+
+    storage.retainRecoveryOutcome(retained.copy(resultState = null))
+
+    assertEquals(listOf(retained), storage.retainedRecoveryOutcomes())
+    assertThrows(IOException::class.java) {
+      storage.retainRecoveryOutcome(retained.copy(recovered = true, resultState = null))
+    }
+  }
+
   @Test fun corruptRecoveryOutcomeTombstoneFailsClosed() {
     val root = tmp()
     val storage = storage(root)

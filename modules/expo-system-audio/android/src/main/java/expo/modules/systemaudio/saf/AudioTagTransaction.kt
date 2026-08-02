@@ -365,7 +365,20 @@ class TransactionStorage(
     val target = File(outcomeRoot, "${report.transactionId}.json")
     if (target.exists()) {
       val retained = retainedRecoveryOutcomes().singleOrNull { it.transactionId == report.transactionId }
-      if (retained != report) throw IOException("conflicting recovery outcome tombstone")
+      // Recovery finalizers retain the strongest state before deleting the
+      // transaction directory.  The batch collector subsequently observes a
+      // missing journal and can therefore only report resultState=null.  That
+      // is the same outcome with less evidence, not a conflicting outcome.
+      // Keep the already durable, stronger tombstone while still rejecting
+      // every semantic contradiction.
+      val compatibleCleanupProjection = retained != null &&
+        retained.transactionId == report.transactionId &&
+        retained.previousState == report.previousState &&
+        retained.recovered == report.recovered &&
+        retained.pending == report.pending &&
+        retained.errorCode == report.errorCode &&
+        (retained.resultState == report.resultState || report.resultState == null)
+      if (!compatibleCleanupProjection) throw IOException("conflicting recovery outcome tombstone")
       return
     }
     val temporary = File(outcomeRoot, "${report.transactionId}.tmp")
