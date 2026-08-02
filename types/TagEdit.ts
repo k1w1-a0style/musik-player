@@ -49,6 +49,8 @@ export type TagWriterErrorCode =
   | 'RollbackFailed'
   | 'VerificationFailed'
   | 'TransactionConflict'
+  | 'OperationIdAlreadyUsed'
+  | 'OperationJournalCapacityExceeded'
   | 'RecoveryPending'
   | 'RecoveryFailed'
   | 'BackupCorrupted'

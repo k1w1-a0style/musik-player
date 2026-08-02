@@ -163,7 +163,6 @@ describe('persisted tag-write recovery', () => {
     };
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
       .mockResolvedValueOnce(report)
-      .mockResolvedValueOnce({ success: true, transactions: [] })
       .mockResolvedValueOnce({ success: true, transactions: [] });
     const writeJournal = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
     jest.mocked(AsyncStorage.setItem)
@@ -185,7 +184,7 @@ describe('persisted tag-write recovery', () => {
     await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
     expect(getSafWriteOperation('recovery-persist-retry')).toMatchObject({ operationStatus: 'completed', terminal: true });
     expect(getActiveSafWrite(targetKey)).toBeUndefined();
-    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(2);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
   });
 
   test('retries a one-shot rollback outcome without reporting a write success', async () => {
@@ -214,6 +213,34 @@ describe('persisted tag-write recovery', () => {
     expect(getSafWriteOperation('rollback-persist-retry')).toMatchObject({
       operationStatus: 'failed', terminal: true, errorCode: 'TagWriteRolledBack',
     });
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  test('runs recovery again when the summary which confirmed an outcome was incomplete', async () => {
+    const targetKey = 'content://provider/document/incomplete-summary.mp3';
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'incomplete-summary', targetKey, phase: 'pendingNativeResult',
+      terminal: false, retryable: true, operationStatus: 'recovery-pending', updatedAt: 1,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
+      .mockResolvedValueOnce({
+        success: false, pendingCount: 1, transactions: [{
+          transactionId: 'incomplete-summary', previousState: 'WRITE_STARTED', resultState: 'COMMITTED',
+          recovered: false, pending: false,
+        }],
+      })
+      .mockResolvedValueOnce({ success: true, transactions: [] });
+    const writeJournal = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
+    jest.mocked(AsyncStorage.setItem)
+      .mockImplementationOnce(writeJournal)
+      .mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('storage unavailable');
+    expect(getActiveSafWrite(targetKey)).toMatchObject({
+      confirmedTerminalOutcome: { nativeRecoverySummaryComplete: false },
+    });
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
     expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(2);
   });
 

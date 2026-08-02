@@ -59,6 +59,8 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   ReplaceFailed: 'Datei konnte nicht ersetzt werden.',
   RollbackFailed: 'Rollback fehlgeschlagen.',
   TransactionConflict: 'Eine andere Schreibtransaktion läuft bereits.',
+  OperationIdAlreadyUsed: 'Diese Schreibvorgangs-ID wurde bereits verwendet.',
+  OperationJournalCapacityExceeded: 'Zu viele Schreibvorgänge sind aktiv. Bitte nach deren Abschluss erneut versuchen.',
   RecoveryPending: 'Eine frühere Schreibtransaktion muss zuerst wiederhergestellt werden.',
   RecoveryFailed: 'Wiederherstellung einer früheren Schreibtransaktion fehlgeschlagen.',
   BackupCorrupted: 'Das gespeicherte Wiederherstellungs-Backup ist beschädigt. Die Originaldatei wurde aus Sicherheitsgründen nicht verändert.',

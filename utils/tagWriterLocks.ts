@@ -19,7 +19,10 @@ export type SafWriteOperationStatus = {
   commitConfirmed?: boolean;
   /** Native recovery is terminal, but the terminal journal record is not durable yet. */
   confirmedTerminalOutcome?: Pick<SafWriteOperationStatus,
-    'operationStatus' | 'phase' | 'terminal' | 'retryable' | 'errorCode'>;
+    'operationStatus' | 'phase' | 'terminal' | 'retryable' | 'errorCode'> & {
+      /** The native recovery pass which produced this outcome had no other unresolved journals. */
+      nativeRecoverySummaryComplete?: boolean;
+    };
 };
 type SafWriteOperationOptions<T> = {
   timeoutMs?: number;
@@ -186,7 +189,8 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
 /** Applies native recovery results without allowing an old operation to replace a newer owner. */
 export const reconcileSafWriteOperation = async (
   operationId: string,
-  update: Pick<SafWriteOperationStatus, 'operationStatus' | 'terminal' | 'retryable'> & Partial<Pick<SafWriteOperationStatus, 'phase' | 'errorCode'>>,
+  update: Pick<SafWriteOperationStatus, 'operationStatus' | 'terminal' | 'retryable'> &
+    Partial<Pick<SafWriteOperationStatus, 'phase' | 'errorCode'>> & { nativeRecoverySummaryComplete?: boolean },
 ): Promise<boolean> => {
   const entry = [...activeSafWrites.entries()].find(([, value]) => value.operationId === operationId);
   if (!entry) return false;
@@ -202,6 +206,7 @@ export const reconcileSafWriteOperation = async (
     current.confirmedTerminalOutcome = {
       operationStatus: next.operationStatus, phase: next.phase,
       terminal: true, retryable: next.retryable, errorCode: next.errorCode,
+      nativeRecoverySummaryComplete: update.nativeRecoverySummaryComplete,
     };
     current.updatedAt = Date.now();
     // Preserve a consumed native outcome before attempting canonical terminal
@@ -362,6 +367,19 @@ const resolveOperationIdentity = (requestedId: string | undefined, targetKey: st
   } };
 };
 
+const hasMandatoryJournalCapacity = (operationId: string): boolean => {
+  const mandatoryIds = new Set([...activeSafWrites.values()].map(item => item.operationId));
+  for (const item of safWriteOperationsById.values()) {
+    if (item.commitConfirmed || item.confirmedTerminalOutcome) mandatoryIds.add(item.operationId);
+  }
+  return mandatoryIds.has(operationId) || mandatoryIds.size < JOURNAL_LIMIT;
+};
+
+const journalCapacityRejection = (operationId: string, targetKey: string): SafWriteOperationStatus => ({
+  operationId, targetKey, phase: 'failed', terminal: true, retryable: true,
+  operationStatus: 'failed', errorCode: 'OperationJournalCapacityExceeded', updatedAt: Date.now(),
+});
+
 export const runSafWriteOperation = async <T>(
   uri: string,
   startNativeMutation: (operationId: string) => Promise<T>,
@@ -391,6 +409,12 @@ export const runSafWriteOperation = async <T>(
       status: { ...rejected },
     };
   }
+
+  // Reserve mandatory journal capacity synchronously, before registering an
+  // owner or yielding to native code. JavaScript execution cannot interleave
+  // before the Map writes, so back-to-back callers cannot both claim the final slot.
+  if (!hasMandatoryJournalCapacity(operationId))
+    return { kind: 'busy', status: journalCapacityRejection(operationId, targetKey) };
 
   const status: SafWriteOperationStatus = {
     operationId, targetKey,

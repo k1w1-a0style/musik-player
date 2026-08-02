@@ -33,13 +33,20 @@ const isRecoveryPendingResult = (result: WriteTagsResult): boolean =>
 const rejectedExecutionResult = (
   uri: string,
   execution: { kind: 'busy' | 'pending'; status: SafWriteOperationStatus },
-): WriteTagsResult => execution.kind === 'busy' ? {
-  status: 'writeFailed', sourceUri: uri, warnings: [],
-  errorCode: 'TransactionConflict', errorMessage: 'A tag write is already active for this SAF document.',
-  operationId: execution.status.operationId, operationPhase: execution.status.phase,
-  terminal: true, retryable: true, recoveryPending: false,
-  operationStatus: 'failed', blockedByOperationId: execution.status.blockedByOperationId,
-} : {
+): WriteTagsResult => execution.kind === 'busy' ? (() => {
+  const errorCode = (execution.status.errorCode ?? 'TransactionConflict') as WriteTagsResult['errorCode'];
+  return {
+    status: 'writeFailed', sourceUri: uri, warnings: [], errorCode,
+    errorMessage: errorCode === 'OperationIdAlreadyUsed'
+      ? 'This tag-write operation ID has already been used.'
+      : errorCode === 'OperationJournalCapacityExceeded'
+        ? 'The tag-write operation journal is at capacity; retry after active writes finish.'
+        : 'A tag write is already active for this SAF document.',
+    operationId: execution.status.operationId, operationPhase: execution.status.phase,
+    terminal: execution.status.terminal, retryable: execution.status.retryable, recoveryPending: false,
+    operationStatus: execution.status.operationStatus, blockedByOperationId: execution.status.blockedByOperationId,
+  };
+})() : {
   status: 'writeFailed', sourceUri: uri, warnings: [],
   errorCode: 'RecoveryPending', errorMessage: 'The native mutation is still running; its outcome is not known yet.',
   operationId: execution.status.operationId, operationPhase: 'pendingNativeResult',

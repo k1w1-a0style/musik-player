@@ -131,6 +131,27 @@ describe('native streaming SAF write contract', () => {
     expect(busy).toMatchObject({ operationId: 'rejected-operation', terminal: true, retryable: true });
   });
 
+  test.each([
+    ['content://provider/tree/song.mp3', 'same target'],
+    ['content://provider/tree/another.mp3', 'different target'],
+  ])('preserves operation-id reuse through the public API on the %s (%s)', async (uri) => {
+    const write = jest.fn(async (nativeUri: string, request: { operationId: string }) => ({
+      success: true, uri: nativeUri, changedFields: ['title'], failedFields: [], verified: true,
+      operationId: request.operationId, phase: 'COMPLETED', terminal: true, retryable: false,
+    }));
+    const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
+    await expect(writeTagsToSafContentUri(song, draft, { operationId: 'reused-public-id' }))
+      .resolves.toMatchObject({ status: 'written' });
+    const targetSong = { ...song, uri, fileInfo: { ...song.fileInfo!, uri } };
+    await expect(writeTagsToSafContentUri(targetSong, draft, { operationId: 'reused-public-id' }))
+      .resolves.toMatchObject({
+        status: 'writeFailed', errorCode: 'OperationIdAlreadyUsed', operationId: 'reused-public-id',
+        operationPhase: 'failed', operationStatus: 'failed', terminal: true, retryable: false,
+        blockedByOperationId: 'reused-public-id',
+      });
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
   test('native timeout remains pending and is not reported as busy', async () => {
     jest.useFakeTimers();
     const write = jest.fn(() => new Promise(() => undefined));

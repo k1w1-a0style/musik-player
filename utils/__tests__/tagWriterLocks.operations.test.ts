@@ -304,19 +304,33 @@ describe('SAF tag write operation contract', () => {
     }));
   });
 
-  test('fails closed instead of truncating more than fifty mandatory owners', async () => {
-    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const natives = Array.from({ length: 51 }, () => deferred<string>());
+  test('reserves capacity before native mutation and converges after fifty owners settle', async () => {
+    const natives = Array.from({ length: 50 }, () => deferred<string>());
+    const nativeCalls = Array.from({ length: 51 }, () => jest.fn());
     const writes = natives.map((native, index) =>
       runSafWriteOperation(`content://provider/mandatory-${index}`, () => native.promise, {
         operationId: `mandatory-${index}`,
       }));
     await new Promise(resolve => setImmediate(resolve));
-    expect(warning.mock.calls.some(call => String(call[1]).includes('51 mandatory records'))).toBe(true);
-    clearSafWriteOperationsForTests();
+    nativeCalls.slice(0, 50).forEach((call, index) => call.mockImplementation(() => natives[index].promise));
+    const rejectedNative = nativeCalls[50];
+    const rejected = await runSafWriteOperation('content://provider/mandatory-50', rejectedNative, {
+      operationId: 'mandatory-50',
+    });
+    expect(rejected).toMatchObject({
+      kind: 'busy',
+      status: { errorCode: 'OperationJournalCapacityExceeded', terminal: true, retryable: true },
+    });
+    expect(rejectedNative).not.toHaveBeenCalled();
+    expect(getSafWriteOperation('mandatory-50')).toBeUndefined();
+
     natives.forEach(native => native.resolve('written'));
     await Promise.all(writes);
-    warning.mockRestore();
+    expect(Array.from({ length: 50 }, (_, index) =>
+      getActiveSafWrite(`content://provider/mandatory-${index}`))).toEqual(Array(50).fill(undefined));
+    await expect(runSafWriteOperation('content://provider/mandatory-later', async () => 'written', {
+      operationId: 'mandatory-later',
+    })).resolves.toMatchObject({ kind: 'result', value: 'written' });
   });
 
   test.each([
