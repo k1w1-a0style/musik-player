@@ -151,7 +151,13 @@ describe('SAF tag write operation contract', () => {
       (JSON.parse(String(value)) as Array<{ operationId: string; operationStatus: string }>).some(
         item => item.operationId === 'late-durable' && item.operationStatus === 'completed',
       ));
-    expect(durableCompletions).toHaveLength(1);
+    expect(durableCompletions.length).toBeGreaterThanOrEqual(1);
+    expect(setItem.mock.calls.slice(2).every(([, value]) => {
+      const item = (JSON.parse(String(value)) as Array<{ operationId: string; operationStatus: string }>).find(
+        candidate => candidate.operationId === 'late-durable',
+      );
+      return item?.operationStatus === 'completed';
+    })).toBe(true);
   });
 
   test('keeps a late committed write fail-closed when terminal persistence fails', async () => {
@@ -230,6 +236,34 @@ describe('SAF tag write operation contract', () => {
       operationStatus: 'recovery-pending', terminal: false, errorCode: 'TerminalJournalPersistenceFailed',
     });
     expect(setItem).toHaveBeenCalledTimes(calls);
+  });
+
+  test('retries known commit persistence without starting a second native mutation', async () => {
+    const native = jest.fn(async () => 'written');
+    jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockResolvedValue();
+
+    await expect(runSafWriteOperation('content://provider/retry-commit', native, { operationId: 'known-commit' }))
+      .rejects.toThrow('terminal journal could not be persisted');
+    expect(getSafWriteOperation('known-commit')).toMatchObject({
+      operationStatus: 'recovery-pending', commitConfirmed: true, terminal: false,
+    });
+
+    await expect(runSafWriteOperation('content://provider/retry-commit', native, { operationId: 'blocked-retry' }))
+      .resolves.toMatchObject({ kind: 'busy', status: { blockedByOperationId: 'known-commit' } });
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(getSafWriteOperation('known-commit')).toMatchObject({
+      operationStatus: 'completed', terminal: true, commitConfirmed: undefined,
+    });
+    expect(getActiveSafWrite('content://provider/retry-commit')).toBeUndefined();
+    const writes = jest.mocked(AsyncStorage.setItem).mock.calls.map(([, value]) =>
+      (JSON.parse(String(value)) as Array<{ operationId: string; operationStatus: string }>).find(
+        item => item.operationId === 'known-commit',
+      )?.operationStatus).filter(Boolean);
+    expect(writes.at(-1)).toBe('completed');
+    expect(writes.slice(writes.lastIndexOf('completed')).every(value => value === 'completed')).toBe(true);
   });
 
   test.each([

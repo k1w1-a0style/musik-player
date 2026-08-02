@@ -119,6 +119,51 @@ describe('persisted tag-write recovery', () => {
     await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
   });
 
+  test('finishes persisted confirmed commit evidence after restart without a native report', async () => {
+    const targetKey = 'content://provider/document/confirmed-after-restart.mp3';
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'confirmed-after-restart', targetKey, phase: 'pendingNativeResult',
+      terminal: false, retryable: true, operationStatus: 'recovery-pending', updatedAt: 1,
+      errorCode: 'TerminalJournalPersistenceFailed', commitConfirmed: true,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true, transactions: [],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
+    expect(getSafWriteOperation('confirmed-after-restart')).toMatchObject({
+      operationStatus: 'completed', terminal: true, commitConfirmed: undefined,
+    });
+    expect(getActiveSafWrite(targetKey)).toBeUndefined();
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps recovery terminality unpublished when journal persistence fails and retries it', async () => {
+    const targetKey = 'content://provider/document/recovery-persist-retry.mp3';
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'recovery-persist-retry', targetKey, phase: 'pendingNativeResult',
+      terminal: false, retryable: true, operationStatus: 'recovery-pending', updatedAt: 1,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    const report = {
+      success: true, transactions: [{
+        transactionId: 'recovery-persist-retry', previousState: 'WRITE_STARTED', resultState: 'COMMITTED',
+        recovered: false, pending: false,
+      }],
+    };
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValue(report);
+    jest.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('storage unavailable');
+    expect(getSafWriteOperation('recovery-persist-retry')).toMatchObject({ terminal: false });
+    expect(getActiveSafWrite(targetKey)?.operationId).toBe('recovery-persist-retry');
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
+    expect(getSafWriteOperation('recovery-persist-retry')).toMatchObject({ operationStatus: 'completed', terminal: true });
+    expect(getActiveSafWrite(targetKey)).toBeUndefined();
+  });
+
   test('rejects contradictory persisted terminal information', async () => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
       operationId: 'bad', targetKey: 'content://provider/document/id',

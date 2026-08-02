@@ -14,6 +14,8 @@ export type SafWriteOperationStatus = {
   operationStatus: 'completed' | 'pending' | 'recovery-pending' | 'failed';
   updatedAt: number;
   errorCode?: string;
+  /** Native commit is known, but its completed journal record is not durable yet. */
+  commitConfirmed?: boolean;
 };
 type SafWriteOperationOptions<T> = {
   timeoutMs?: number;
@@ -25,6 +27,7 @@ type SafWriteOperationOptions<T> = {
 const activeSafWrites = new Map<string, SafWriteOperationStatus>();
 const safWriteOperationsById = new Map<string, SafWriteOperationStatus>();
 let persistenceQueue = Promise.resolve();
+const durableTerminalOperations = new Map<string, SafWriteOperationStatus>();
 let operationSequence = 0;
 let startupState: 'pending' | 'ready' | 'failed' = process.env.NODE_ENV === 'test' ? 'ready' : 'pending';
 let startupError: unknown;
@@ -92,11 +95,20 @@ export const getSafWriteOperation = (operationId: string): SafWriteOperationStat
   return value ? { ...value } : undefined;
 };
 
-const persistOperations = async (snapshot = [...safWriteOperationsById.values()].map(status => ({ ...status }))): Promise<void> => {
-  const serialized = JSON.stringify(snapshot.slice(-50));
-  persistenceQueue = persistenceQueue.catch(() => undefined).then(() =>
-    AsyncStorage.setItem(OPERATION_STORAGE_KEY, serialized),
-  );
+const persistOperations = async (overrides: SafWriteOperationStatus[] = []): Promise<void> => {
+  persistenceQueue = persistenceQueue.catch(() => undefined).then(async () => {
+    // Capture at execution time, not enqueue time. Completed records that have
+    // already reached storage are monotonic and can never be overwritten by a
+    // stale pending snapshot queued while their write was in flight.
+    const records = new Map([...safWriteOperationsById.values()].map(status => [status.operationId, { ...status }]));
+    for (const status of overrides) records.set(status.operationId, { ...status });
+    for (const status of durableTerminalOperations.values()) records.set(status.operationId, { ...status });
+    const snapshot = [...records.values()].slice(-50);
+    await AsyncStorage.setItem(OPERATION_STORAGE_KEY, JSON.stringify(snapshot));
+    for (const status of overrides) {
+      if (status.terminal) durableTerminalOperations.set(status.operationId, { ...status });
+    }
+  });
   await persistenceQueue;
 };
 
@@ -119,6 +131,7 @@ const parsePersistedStatus = (candidate: unknown): SafWriteOperationStatus => {
     terminal: Boolean(value.terminal), retryable: Boolean(value.retryable),
     operationStatus: value.operationStatus as SafWriteOperationStatus['operationStatus'],
     updatedAt: value.updatedAt ?? Date.now(), errorCode: value.errorCode,
+    commitConfirmed: value.commitConfirmed === true,
   };
 };
 
@@ -132,6 +145,7 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
   const restored: SafWriteOperationStatus[] = [];
   for (const candidate of values) {
     const parsed = parsePersistedStatus(candidate);
+    if (parsed.terminal) durableTerminalOperations.set(parsed.operationId, { ...parsed });
     const active = activeSafWrites.get(parsed.targetKey);
     const indexed = safWriteOperationsById.get(parsed.operationId);
     // A retry must reuse the installed owner. Otherwise reconciliation mutates
@@ -157,15 +171,24 @@ export const reconcileSafWriteOperation = async (
   if (!entry) return false;
   const [key, current] = entry;
   safWriteOperationsById.set(operationId, current);
-  Object.assign(current, update, { updatedAt: Date.now() });
-  if (current.terminal) activeSafWrites.delete(key);
-  await persistOperations();
+  const next = { ...current, ...update, updatedAt: Date.now() };
+  // Terminal recovery is published only after the matching journal snapshot is
+  // durable. A failed write therefore leaves the canonical owner retryable.
+  if (next.terminal) {
+    await persistOperations([next]);
+    Object.assign(current, next);
+    if (activeSafWrites.get(key)?.operationId === operationId) activeSafWrites.delete(key);
+  } else {
+    Object.assign(current, next);
+    await persistOperations();
+  }
   return true;
 };
 
 export const clearSafWriteOperationsForTests = (): void => {
   activeSafWrites.clear();
   safWriteOperationsById.clear();
+  durableTerminalOperations.clear();
   resetSafWriteStartupForTests();
 };
 
@@ -198,10 +221,8 @@ const persistConfirmedSuccess = async (
   targetKey: string,
   operationId: string,
 ): Promise<void> => {
-  const snapshot = [...safWriteOperationsById.values()].map(candidate =>
-    candidate.operationId === operationId ? { ...completed } : { ...candidate });
   try {
-    await persistOperations(snapshot);
+    await persistOperations([{ ...completed, commitConfirmed: undefined }]);
   } catch (error) {
     // Native has committed, but success is not durable yet. Keep the target
     // owned and nonterminal so no caller can start a duplicate mutation.
@@ -210,12 +231,27 @@ const persistConfirmedSuccess = async (
     status.retryable = true;
     status.operationStatus = 'recovery-pending';
     status.errorCode = 'TerminalJournalPersistenceFailed';
+    status.commitConfirmed = true;
     status.updatedAt = Date.now();
     persistObserved(persistOperations());
     throw new Error(`Native tag write committed, but its terminal journal could not be persisted: ${String(error)}`);
   }
-  Object.assign(status, completed);
+  Object.assign(status, completed, { commitConfirmed: undefined, errorCode: completed.errorCode });
   releaseTerminalOwner(targetKey, operationId, status);
+};
+
+/** Retries journal durability for a native commit without invoking native again. */
+export const retryConfirmedSafWriteCommit = async (operationId: string): Promise<boolean> => {
+  const status = safWriteOperationsById.get(operationId);
+  if (!status?.commitConfirmed || status.terminal) return false;
+  const completed: SafWriteOperationStatus = {
+    ...status, phase: 'completed', terminal: true, retryable: false,
+    operationStatus: 'completed', errorCode: undefined, commitConfirmed: undefined, updatedAt: Date.now(),
+  };
+  await persistOperations([completed]);
+  Object.assign(status, completed);
+  releaseTerminalOwner(status.targetKey, operationId, status);
+  return true;
 };
 
 const completedStatus = <T>(
@@ -275,6 +311,11 @@ export const runSafWriteOperation = async <T>(
   const operationId = options.operationId ?? createTagWriteOperationId();
   const existing = activeSafWrites.get(targetKey);
   if (existing) {
+    if (existing.commitConfirmed) {
+      // This is a persistence retry, never a second native mutation. The caller
+      // remains a blocked attempt and therefore cannot emit a duplicate success.
+      await retryConfirmedSafWriteCommit(existing.operationId);
+    }
     const rejected: SafWriteOperationStatus = {
       operationId, targetKey, phase: 'failed', terminal: true, retryable: true,
       blockedByOperationId: existing.operationId,

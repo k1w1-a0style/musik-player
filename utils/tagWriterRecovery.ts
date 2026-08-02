@@ -2,7 +2,7 @@ import SystemAudio from 'expo-system-audio';
 import type { SafWriteOperationStatus } from './tagWriterLocks';
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
-  reconcileSafWriteOperation, restoreSafWriteOperations,
+  reconcileSafWriteOperation, restoreSafWriteOperations, retryConfirmedSafWriteCommit,
 } from './tagWriterLocks';
 
 type RecoveryTransaction = NonNullable<Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>['transactions']>[number];
@@ -53,8 +53,12 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
   beginSafWriteStartupRestoration();
   try {
     const restored = await restoreSafWriteOperations();
-    if (restored.length > 0 && !SystemAudio.hasNativeTagWriter) {
-      for (const operation of restored) {
+    for (const operation of restored) {
+      if (operation.commitConfirmed) await retryConfirmedSafWriteCommit(operation.operationId);
+    }
+    const unresolved = restored.filter(operation => !operation.commitConfirmed);
+    if (unresolved.length > 0 && !SystemAudio.hasNativeTagWriter) {
+      for (const operation of unresolved) {
         await reconcileSafWriteOperation(operation.operationId, {
           operationStatus: 'failed', phase: 'failed', terminal: true, retryable: true,
           errorCode: 'WriteNotImplemented',
@@ -63,7 +67,7 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
     } else if (SystemAudio.hasNativeTagWriter) {
       const recovery = await SystemAudio.recoverPendingAudioTagTransactions();
       const results = new Map((recovery.transactions ?? []).map(result => [result.transactionId, result]));
-      for (const operation of restored) {
+      for (const operation of unresolved) {
         const result = results.get(operation.operationId);
         // This call is the sole startup recovery authority. A missing report therefore
         // proves there is no live/recoverable native journal; fail the edit (never guess
