@@ -3,6 +3,7 @@ import type { SafWriteOperationStatus } from './tagWriterLocks';
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
   reconcileSafWriteOperation, restoreSafWriteOperations, retryConfirmedSafWriteCommit,
+  retryConfirmedSafWriteOutcome,
 } from './tagWriterLocks';
 
 type RecoveryTransaction = NonNullable<Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>['transactions']>[number];
@@ -55,8 +56,9 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
     const restored = await restoreSafWriteOperations();
     for (const operation of restored) {
       if (operation.commitConfirmed) await retryConfirmedSafWriteCommit(operation.operationId);
+      else if (operation.confirmedTerminalOutcome) await retryConfirmedSafWriteOutcome(operation.operationId);
     }
-    const unresolved = restored.filter(operation => !operation.commitConfirmed);
+    const unresolved = restored.filter(operation => !operation.commitConfirmed && !operation.confirmedTerminalOutcome);
     if (unresolved.length > 0 && !SystemAudio.hasNativeTagWriter) {
       for (const operation of unresolved) {
         await reconcileSafWriteOperation(operation.operationId, {

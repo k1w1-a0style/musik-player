@@ -1,6 +1,6 @@
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
-  getActiveSafWrite, getSafWriteOperation, resetSafWriteStartupForTests,
+  clearSafWriteOperationsForTests, getActiveSafWrite, getSafWriteOperation, resetSafWriteStartupForTests,
   runSafWriteOperation,
 } from '../tagWriterLocks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,6 +15,7 @@ const deferred = <T>() => {
 
 describe('SAF tag write operation contract', () => {
   beforeEach(() => {
+    clearSafWriteOperationsForTests();
     resetSafWriteStartupForTests();
     jest.mocked(AsyncStorage.setItem).mockReset().mockResolvedValue();
   });
@@ -264,6 +265,58 @@ describe('SAF tag write operation contract', () => {
       )?.operationStatus).filter(Boolean);
     expect(writes.at(-1)).toBe('completed');
     expect(writes.slice(writes.lastIndexOf('completed')).every(value => value === 'completed')).toBe(true);
+  });
+
+  test('rejects reuse of a known operation id before native mutation, including another target', async () => {
+    const native = jest.fn(async () => 'written');
+    await expect(runSafWriteOperation('content://provider/original', native, { operationId: 'public-id' }))
+      .resolves.toMatchObject({ kind: 'result' });
+
+    const reused = await runSafWriteOperation('content://provider/different', native, { operationId: 'public-id' });
+    expect(reused).toMatchObject({
+      kind: 'busy', status: { operationId: 'public-id', errorCode: 'OperationIdAlreadyUsed', retryable: false },
+    });
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(getSafWriteOperation('public-id')).toMatchObject({
+      targetKey: 'content://provider/original', operationStatus: 'completed',
+    });
+  });
+
+  test('keeps an old active owner ahead of more than fifty disposable history records', async () => {
+    const owner = deferred<string>();
+    const runningOwner = runSafWriteOperation('content://provider/long-running', () => owner.promise, { operationId: 'old-owner' });
+    await Promise.resolve();
+    for (let index = 0; index < 52; index += 1) {
+      await runSafWriteOperation(`content://provider/history-${index}`, async () => 'written', {
+        operationId: `history-${index}`,
+      });
+    }
+    const lastSnapshot = JSON.parse(String(jest.mocked(AsyncStorage.setItem).mock.calls.at(-1)?.[1])) as
+      Array<{ operationId: string }>;
+    expect(lastSnapshot).toHaveLength(50);
+    expect(lastSnapshot).toContainEqual(expect.objectContaining({ operationId: 'old-owner' }));
+    owner.resolve('written');
+    await runningOwner;
+    const terminalSnapshot = JSON.parse(String(jest.mocked(AsyncStorage.setItem).mock.calls.at(-1)?.[1])) as
+      Array<{ operationId: string; operationStatus: string }>;
+    expect(terminalSnapshot).toContainEqual(expect.objectContaining({
+      operationId: 'old-owner', operationStatus: 'completed',
+    }));
+  });
+
+  test('fails closed instead of truncating more than fifty mandatory owners', async () => {
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const natives = Array.from({ length: 51 }, () => deferred<string>());
+    const writes = natives.map((native, index) =>
+      runSafWriteOperation(`content://provider/mandatory-${index}`, () => native.promise, {
+        operationId: `mandatory-${index}`,
+      }));
+    await new Promise(resolve => setImmediate(resolve));
+    expect(warning.mock.calls.some(call => String(call[1]).includes('51 mandatory records'))).toBe(true);
+    clearSafWriteOperationsForTests();
+    natives.forEach(native => native.resolve('written'));
+    await Promise.all(writes);
+    warning.mockRestore();
   });
 
   test.each([
