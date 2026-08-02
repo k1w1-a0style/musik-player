@@ -1638,6 +1638,12 @@ class AudioTagTransactionManager(
     var failedCount = 0
     val reports = mutableListOf<RecoveryTransactionReport>()
     val blockedTargets = mutableSetOf<String>()
+    // A terminal receipt is authoritative for its still-present transaction
+    // directory. Re-running recovery after the receipt was durably retained
+    // can only recreate side effects or manufacture a contradictory report
+    // (for example WRITE_STARTED becoming RECOVERY_FAILED on the first pass).
+    // Replay the receipt until JS acknowledges it instead.
+    val retainedById = storage.retainedRecoveryOutcomes().associateBy { it.transactionId }
     val requestedTarget = targetUri?.let(::safTargetKey)
 
     for (directory in storage.dirs()) {
@@ -1670,6 +1676,14 @@ class AudioTagTransactionManager(
 
       val journalTarget = safTargetKey(Uri.parse(journal.targetUri))
       if (requestedTarget != null && journalTarget != requestedTarget) continue
+      val retained = retainedById[journal.transactionId]
+      if (retained != null) {
+        reports += retained
+        if (retained.recovered) recoveredCount += 1
+        else if (retained.errorCode != null) failedCount += 1
+        else cleanedCount += 1
+        continue
+      }
       if (journalTarget in blockedTargets) {
         pendingCount += 1
         reports += RecoveryTransactionReport(

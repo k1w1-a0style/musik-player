@@ -835,6 +835,20 @@ class AudioTagTransactionManagerTest {
     }
   }
 
+  @Test fun retainedTerminalFailureIsReplayedWithoutReprocessingItsDirectory() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
+    val store = FakeStore("partial".toByteArray())
+    val manager = manager(root, store)
+
+    val first = manager.recoverPendingSummary()
+    val second = manager.recoverPendingSummary()
+
+    assertEquals("BackupCorrupted", first.transactions.single().errorCode)
+    assertEquals(first.transactions, second.transactions)
+    assertEquals(0, store.writes)
+  }
+
   @Test fun corruptRecoveryOutcomeTombstoneFailsClosed() {
     val root = tmp()
     val storage = storage(root)
