@@ -6,6 +6,7 @@ import {
 import { mapNativeRecoveryOutcome, restoreAndReconcileTagWrites } from '../tagWriterRecovery';
 
 const STORAGE_KEY = '@musik-player/tag-write-operations/v1';
+const NATIVE_ONLY_STORAGE_KEY = '@musik-player/tag-write-native-only-outcomes/v1';
 
 describe('persisted tag-write recovery', () => {
   beforeEach(() => {
@@ -19,6 +20,9 @@ describe('persisted tag-write recovery', () => {
       storage.__getStore().set(key, value);
     });
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockReset();
+    Object.defineProperty(SystemAudio, 'acknowledgeAudioTagRecoveryOutcomes', {
+      configurable: true, value: jest.fn().mockResolvedValue(true),
+    });
   });
 
   test('releases stale ownership as failed when authoritative native recovery has no matching result', async () => {
@@ -45,6 +49,31 @@ describe('persisted tag-write recovery', () => {
 
     await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
     expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+    expect(JSON.parse((await AsyncStorage.getItem(NATIVE_ONLY_STORAGE_KEY)) ?? '[]')).toEqual([{
+      kind: 'native-only-recovery-outcome', operationId: 'native-only',
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    }]);
+    expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['native-only']);
+  });
+
+  test('acknowledges only the native-only prefix whose evidence was persisted', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true, transactions: [
+        { transactionId: 'native-first', previousState: 'WRITE_STARTED', resultState: 'COMMITTED', recovered: false, pending: false },
+        { transactionId: 'native-second', previousState: 'RECOVERY_REQUIRED', resultState: 'RECOVERED', recovered: true, pending: false },
+        { transactionId: 'native-third', previousState: 'RECOVERY_FAILED', resultState: 'RECOVERY_FAILED', recovered: false, pending: false, errorCode: 'BackupCorrupted' },
+      ],
+    });
+    const write = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
+    jest.mocked(AsyncStorage.setItem)
+      .mockImplementationOnce(write)
+      .mockRejectedValueOnce(new Error('second evidence failed'));
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('second evidence failed');
+    expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['native-first']);
+    expect(JSON.parse((await AsyncStorage.getItem(NATIVE_ONLY_STORAGE_KEY)) ?? '[]'))
+      .toEqual([expect.objectContaining({ operationId: 'native-first' })]);
   });
 
   test('opens startup normally when both JavaScript and native journals are empty', async () => {

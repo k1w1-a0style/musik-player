@@ -954,6 +954,69 @@ class AudioTagTransactionManagerTest {
     assertTrue(summary.transactions.isEmpty())
   }
 
+  @Test fun targetedRecoveryBackfillsLegacyReceiptScopeFromMatchingJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    val legacy = RecoveryTransactionReport(id, "COMMITTED", "COMMITTED", false, false, null)
+    storage.retainRecoveryOutcome(legacy)
+
+    val first = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+    val migrated = storage.retainedRecoveryOutcomes().single()
+    val replay = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+
+    assertEquals(safTargetKey(uri), migrated.targetKey)
+    assertEquals(listOf(migrated), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.cleanedCount)
+    storage.acknowledgeRecoveryOutcomes(listOf(id))
+    assertTrue(storage.retainedRecoveryOutcomes().isEmpty())
+  }
+
+  @Test fun targetedRecoveryDoesNotAdoptLegacyReceiptFromForeignJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(id, "COMMITTED", "COMMITTED", false, false, null))
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(
+      Uri.parse("content://provider/tree/another-song"),
+    )
+
+    assertTrue(summary.success)
+    assertTrue(summary.transactions.isEmpty())
+    assertEquals(safTargetKey(uri), storage.retainedRecoveryOutcomes().single().targetKey)
+  }
+
+  @Test fun targetedRecoveryFailsClosedForUnscopedReceiptWithoutJournal() {
+    val root = tmp()
+    val storage = storage(root)
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      "legacy-without-journal", "COMMITTED", "COMMITTED", false, false, null,
+    ))
+
+    assertThrows(IOException::class.java) {
+      AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+    }
+  }
+
+  @Test fun targetedRecoveryFailsClosedWhenReceiptScopeContradictsJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      id, "COMMITTED", "COMMITTED", false, false, null,
+      safTargetKey(Uri.parse("content://provider/tree/another-song")),
+    ))
+    val store = FakeStore()
+
+    assertThrows(IOException::class.java) {
+      AudioTagTransactionManager(storage, store).recoverPendingSummary(uri)
+    }
+    assertEquals(0, store.writes)
+    assertTrue(storage.dirs().isNotEmpty())
+  }
+
   @Test fun partialAndCompleteAcknowledgementUpdateAuthoritativeSummary() {
     val root = tmp()
     val storage = storage(root)

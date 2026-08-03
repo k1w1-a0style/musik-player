@@ -407,18 +407,51 @@ class TransactionStorage(
         val id = json.getString("transactionId")
         if (file.nameWithoutExtension != id || !isValidTagWriteOperationId(id) || json.getBoolean("pending"))
           throw IOException("contradictory recovery outcome")
+        val embeddedTarget = json.optString("targetKey").takeIf { json.has("targetKey") && !json.isNull("targetKey") }
+        val scopeFile = File(outcomeRoot, "$id.scope")
+        val scopedTarget = if (scopeFile.exists()) {
+          if (scopeFile.length() > MAX_JOURNAL_BYTES) throw IOException("oversized recovery outcome scope")
+          val scope = JSONObject(scopeFile.readText(Charsets.UTF_8))
+          if (scope.getString("transactionId") != id || scope.getString("targetKey").isBlank())
+            throw IOException("contradictory recovery outcome scope")
+          scope.getString("targetKey")
+        } else null
+        if (embeddedTarget != null && scopedTarget != null && embeddedTarget != scopedTarget)
+          throw IOException("conflicting recovery outcome scope")
         RecoveryTransactionReport(id, json.optString("previousState").takeIf { !json.isNull("previousState") },
           json.optString("resultState").takeIf { !json.isNull("resultState") }, json.getBoolean("recovered"), false,
           json.optString("errorCode").takeIf { !json.isNull("errorCode") },
-          json.optString("targetKey").takeIf { json.has("targetKey") && !json.isNull("targetKey") })
+          embeddedTarget ?: scopedTarget)
       } catch (error: Throwable) { throw IOException("invalid recovery outcome tombstone", error) }
     }?.sortedBy { it.transactionId } ?: emptyList()
+
+  /** Crash-durably backfills scope for a legacy receipt without rewriting its terminal payload. */
+  fun bindRecoveryOutcomeTarget(transactionId: String, targetKey: String) {
+    if (!isValidTagWriteOperationId(transactionId) || targetKey.isBlank())
+      throw IOException("invalid recovery outcome scope")
+    val receipt = retainedRecoveryOutcomes().singleOrNull { it.transactionId == transactionId }
+      ?: throw IOException("recovery outcome is missing")
+    if (receipt.targetKey != null) {
+      if (receipt.targetKey != targetKey) throw IOException("conflicting recovery outcome scope")
+      return
+    }
+    val target = File(outcomeRoot, "$transactionId.scope")
+    val temporary = File(outcomeRoot, "$transactionId.scope.tmp")
+    val json = JSONObject().apply {
+      put("transactionId", transactionId)
+      put("targetKey", targetKey)
+    }
+    writeBytesDurably(temporary, json.toString().toByteArray(Charsets.UTF_8))
+    promote(temporary, target)
+  }
 
   fun acknowledgeRecoveryOutcomes(operationIds: List<String>) {
     for (id in operationIds.distinct()) {
       if (!isValidTagWriteOperationId(id)) continue
       val file = File(outcomeRoot, "$id.json")
       if (file.exists() && !file.delete()) throw IOException("outcome acknowledgement failed")
+      val scope = File(outcomeRoot, "$id.scope")
+      if (scope.exists() && !scope.delete()) throw IOException("outcome scope acknowledgement failed")
     }
     if (outcomeRoot.exists()) syncDirectory(outcomeRoot)
   }
@@ -1647,8 +1680,25 @@ class AudioTagTransactionManager(
     // can only recreate side effects or manufacture a contradictory report
     // (for example WRITE_STARTED becoming RECOVERY_FAILED on the first pass).
     // Replay the receipt until JS acknowledges it instead.
-    val retainedById = storage.retainedRecoveryOutcomes().associateBy { it.transactionId }
     val requestedTarget = targetUri?.let(::safTargetKey)
+    // Resolve legacy receipt scope from the still-durable journal before
+    // targeted filtering. A contradictory binding is corruption; absent both
+    // journal and scope, a targeted query cannot prove non-membership and must
+    // fail closed rather than return an empty successful summary.
+    val journalsById = storage.dirs().mapNotNull { directory ->
+      storage.readJournalSafely(directory)?.let { it.transactionId to it }
+    }.toMap()
+    for (receipt in storage.retainedRecoveryOutcomes()) {
+      val journal = journalsById[receipt.transactionId]
+      if (journal != null) {
+        val journalTarget = safTargetKey(Uri.parse(journal.targetUri))
+        if (receipt.targetKey == null) storage.bindRecoveryOutcomeTarget(receipt.transactionId, journalTarget)
+        else if (receipt.targetKey != journalTarget) throw IOException("recovery outcome target mismatch")
+      } else if (requestedTarget != null && receipt.targetKey == null) {
+        throw IOException("unscoped recovery outcome requires global reconciliation")
+      }
+    }
+    val retainedById = storage.retainedRecoveryOutcomes().associateBy { it.transactionId }
 
     for (directory in storage.dirs()) {
       val journal = storage.readJournalSafely(directory)
