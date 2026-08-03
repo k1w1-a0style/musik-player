@@ -50,6 +50,7 @@ export type TagWriterErrorCode =
   | 'VerificationFailed'
   | 'TransactionConflict'
   | 'OperationIdAlreadyUsed'
+  | 'OperationIdReservationFailed'
   | 'OperationJournalCapacityExceeded'
   | 'RecoveryPending'
   | 'RecoveryFailed'

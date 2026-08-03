@@ -1,7 +1,7 @@
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
   clearSafWriteOperationsForTests, getActiveSafWrite, getSafWriteOperation, resetSafWriteStartupForTests,
-  runSafWriteOperation,
+  restoreSafWriteOperations, runSafWriteOperation,
 } from '../tagWriterLocks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { canonicalSafTarget } from '../tagWriterLocks';
@@ -13,11 +13,18 @@ const deferred = <T>() => {
   return { promise, resolve, reject };
 };
 
+const waitForNativeStart = async (uri: string): Promise<void> => {
+  for (let turn = 0; turn < 20 && getActiveSafWrite(uri)?.phase !== 'nativeMutationStarted'; turn += 1)
+    await Promise.resolve();
+};
+
 describe('SAF tag write operation contract', () => {
   beforeEach(() => {
+    (AsyncStorage as unknown as { __reset: () => void }).__reset();
     clearSafWriteOperationsForTests();
     resetSafWriteStartupForTests();
     jest.mocked(AsyncStorage.setItem).mockReset().mockResolvedValue();
+    jest.mocked(AsyncStorage.multiSet).mockClear();
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -101,7 +108,7 @@ describe('SAF tag write operation contract', () => {
     jest.useFakeTimers();
     const native = deferred<string>();
     const request = runSafWriteOperation('content://provider/late', () => native.promise, { timeoutMs: 10 });
-    await Promise.resolve();
+    await waitForNativeStart('content://provider/late');
     jest.advanceTimersByTime(10);
     const timedOut = await request;
     expect(timedOut).toMatchObject({ kind: 'pending', status: { phase: 'pendingNativeResult', terminal: false } });
@@ -129,7 +136,7 @@ describe('SAF tag write operation contract', () => {
     const request = runSafWriteOperation('content://provider/late-durable', () => native.promise, {
       timeoutMs: 10, operationId: 'late-durable',
     });
-    await Promise.resolve();
+    await waitForNativeStart('content://provider/late-durable');
     jest.advanceTimersByTime(10);
     await expect(request).resolves.toMatchObject({ kind: 'pending' });
     native.resolve('written');
@@ -176,7 +183,7 @@ describe('SAF tag write operation contract', () => {
     const request = runSafWriteOperation('content://provider/late-undurable', () => native.promise, {
       timeoutMs: 10, operationId: 'late-undurable',
     });
-    await Promise.resolve();
+    await waitForNativeStart('content://provider/late-undurable');
     jest.advanceTimersByTime(10);
     await request;
     native.resolve('written');
@@ -298,6 +305,62 @@ describe('SAF tag write operation contract', () => {
     expect(getSafWriteOperation('public-id')).toMatchObject({
       targetKey: 'content://provider/original', operationStatus: 'completed',
     });
+  });
+
+  test('durably rejects an evicted operation id after restart and more than one hundred later writes', async () => {
+    const native = jest.fn(async () => 'written');
+    await runSafWriteOperation('content://provider/old', native, { operationId: 'durable-old-id' });
+    for (let index = 0; index < 105; index += 1)
+      await runSafWriteOperation(`content://provider/rotation-${index}`, native, { operationId: `rotation-${index}` });
+
+    clearSafWriteOperationsForTests();
+    beginSafWriteStartupRestoration();
+    await restoreSafWriteOperations();
+    finishSafWriteStartupRestoration();
+    const callsBeforeReuse = native.mock.calls.length;
+    await expect(runSafWriteOperation('content://provider/reused', native, { operationId: 'durable-old-id' }))
+      .resolves.toMatchObject({
+        kind: 'busy', status: { errorCode: 'OperationIdAlreadyUsed', terminal: true, retryable: false },
+      });
+    expect(native).toHaveBeenCalledTimes(callsBeforeReuse);
+    expect(getSafWriteOperation('durable-old-id')).toBeUndefined();
+  });
+
+  test('allows only one concurrent caller to durably reserve an explicit operation id', async () => {
+    const reservation = deferred<void>();
+    jest.mocked(AsyncStorage.multiSet).mockImplementationOnce(() => reservation.promise);
+    const native = jest.fn(async () => 'written');
+    const first = runSafWriteOperation('content://provider/race-a', native, { operationId: 'race-id' });
+    await Promise.resolve();
+    await expect(runSafWriteOperation('content://provider/race-b', native, { operationId: 'race-id' }))
+      .resolves.toMatchObject({ kind: 'busy', status: { errorCode: 'OperationIdAlreadyUsed' } });
+    expect(native).not.toHaveBeenCalled();
+    reservation.resolve();
+    await expect(first).resolves.toMatchObject({ kind: 'result' });
+    expect(native).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails closed and permits reservation retry when marker persistence fails before native', async () => {
+    jest.mocked(AsyncStorage.multiSet).mockRejectedValueOnce(new Error('marker unavailable'));
+    const native = jest.fn(async () => 'written');
+    await expect(runSafWriteOperation('content://provider/marker', native, { operationId: 'marker-id' }))
+      .resolves.toMatchObject({
+        kind: 'busy', status: { errorCode: 'OperationIdReservationFailed', terminal: true, retryable: true },
+      });
+    expect(native).not.toHaveBeenCalled();
+    await expect(runSafWriteOperation('content://provider/marker', native, { operationId: 'marker-id' }))
+      .resolves.toMatchObject({ kind: 'result' });
+    expect(native).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails startup closed for a marker whose key and body IDs differ', async () => {
+    const storage = (AsyncStorage as unknown as { __getStore: () => Map<string, string> }).__getStore();
+    storage.set('@musik-player/tag-write-used-operation-ids/v1/record/key-id', JSON.stringify({
+      kind: 'used-tag-write-operation-id', operationId: 'body-id',
+    }));
+    clearSafWriteOperationsForTests();
+    beginSafWriteStartupRestoration();
+    await expect(restoreSafWriteOperations()).rejects.toThrow('Mismatched used operation-ID marker key');
   });
 
   test('keeps an old active owner ahead of more than fifty disposable history records', async () => {

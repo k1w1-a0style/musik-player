@@ -157,7 +157,7 @@ describe('native streaming SAF write contract', () => {
     const write = jest.fn(() => new Promise(() => undefined));
     const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
     const pendingPromise = writeTagsToSafContentUri(song, draft, { timeoutMs: 10, operationId: 'pending-operation' });
-    await Promise.resolve();
+    for (let turn = 0; turn < 20 && write.mock.calls.length === 0; turn += 1) await Promise.resolve();
     jest.advanceTimersByTime(10);
     await expect(pendingPromise).resolves.toMatchObject({
       errorCode: 'RecoveryPending', operationId: 'pending-operation', operationPhase: 'pendingNativeResult',

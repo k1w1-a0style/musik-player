@@ -4,6 +4,7 @@ const writeLocksByUri = new Map<string, Promise<void>>();
 const OPERATION_STORAGE_KEY = '@musik-player/tag-write-operations/v1';
 const NATIVE_ONLY_OUTCOME_STORAGE_KEY = '@musik-player/tag-write-native-only-outcomes/v1';
 const NATIVE_ONLY_OUTCOME_RECORD_PREFIX = `${NATIVE_ONLY_OUTCOME_STORAGE_KEY}/record/`;
+const USED_OPERATION_ID_RECORD_PREFIX = '@musik-player/tag-write-used-operation-ids/v1/record/';
 const JOURNAL_LIMIT = 50;
 
 export type SafWritePhase = 'accepted' | 'lockAcquired' | 'nativeMutationStarted' | 'pendingNativeResult' | 'completed' | 'failed' | 'cancelledBeforeMutation';
@@ -44,6 +45,7 @@ const nativeOnlyPublicStatuses = new Map<string, SafWriteOperationStatus>();
 let persistenceQueue = Promise.resolve();
 const durableTerminalOperations = new Map<string, SafWriteOperationStatus>();
 const nativeOnlyOperationIds = new Set<string>();
+const usedOperationIds = new Set<string>();
 let operationSequence = 0;
 let startupState: 'pending' | 'ready' | 'failed' = process.env.NODE_ENV === 'test' ? 'ready' : 'pending';
 let startupError: unknown;
@@ -100,6 +102,67 @@ export const canonicalSafTarget = (uri: string): string => {
 
 export const createTagWriteOperationId = (): string =>
   `tag-${Date.now().toString(36)}-${(++operationSequence).toString(36)}`;
+
+type UsedOperationIdMarker = { kind: 'used-tag-write-operation-id'; operationId: string };
+
+const validOperationId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.trim() === value &&
+  !/[\u0000-\u001f\u007f]/u.test(value);
+
+const usedOperationIdRecordKey = (operationId: string): string =>
+  `${USED_OPERATION_ID_RECORD_PREFIX}${encodeURIComponent(operationId)}`;
+
+const parseUsedOperationIdMarker = (candidate: unknown): UsedOperationIdMarker => {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    throw new Error('Invalid used operation-ID marker.');
+  const value = candidate as Partial<UsedOperationIdMarker>;
+  if (Object.keys(value).some(key => key !== 'kind' && key !== 'operationId') ||
+    value.kind !== 'used-tag-write-operation-id' || !validOperationId(value.operationId))
+    throw new Error('Invalid used operation-ID marker.');
+  return { kind: value.kind, operationId: value.operationId };
+};
+
+const persistUsedOperationId = async (operationId: string): Promise<void> => {
+  const marker: UsedOperationIdMarker = { kind: 'used-tag-write-operation-id', operationId };
+  await AsyncStorage.multiSet([[usedOperationIdRecordKey(operationId), JSON.stringify(marker)]]);
+};
+
+const restoreUsedOperationIds = async (): Promise<void> => {
+  const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(USED_OPERATION_ID_RECORD_PREFIX));
+  for (const key of keys) {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw === null) throw new Error('Missing used operation-ID marker.');
+    let candidate: unknown;
+    try { candidate = JSON.parse(raw); } catch { candidate = undefined; }
+    const marker = parseUsedOperationIdMarker(candidate);
+    if (key !== usedOperationIdRecordKey(marker.operationId))
+      throw new Error('Mismatched used operation-ID marker key.');
+    usedOperationIds.add(marker.operationId);
+  }
+};
+
+const reserveUsedOperationId = async (operationId: string): Promise<boolean> => {
+  if (usedOperationIds.has(operationId)) return false;
+  // Synchronous claim precedes the first yield in this reservation path.
+  usedOperationIds.add(operationId);
+  try {
+    await persistUsedOperationId(operationId);
+    return true;
+  } catch (error) {
+    // Native has not started, so only this provisional claim may be retried.
+    usedOperationIds.delete(operationId);
+    throw error;
+  }
+};
+
+const backfillUsedOperationId = async (operationId: string): Promise<void> => {
+  if (usedOperationIds.has(operationId)) return;
+  usedOperationIds.add(operationId);
+  try { await persistUsedOperationId(operationId); } catch (error) {
+    usedOperationIds.delete(operationId);
+    throw error;
+  }
+};
 
 export const getActiveSafWrite = (uri: string): SafWriteOperationStatus | undefined => {
   const value = activeSafWrites.get(canonicalSafTarget(uri));
@@ -301,6 +364,7 @@ export const persistNativeOnlyRecoveryEvidence = async (
   // index is no longer an authority and therefore cannot evict evidence that
   // is about to be acknowledged, even for batches larger than JOURNAL_LIMIT.
   if (!existing) await AsyncStorage.setItem(key, JSON.stringify(next));
+  await backfillUsedOperationId(operationId);
   installNativeOnlyEvidence(next);
 };
 
@@ -387,9 +451,13 @@ export const stageConfirmedSafWriteOutcomes = async (updates: ConfirmedRecoveryU
 
 /** Restores non-terminal ownership before writes are accepted after a restart. */
 export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStatus[]> => {
+  await restoreUsedOperationIds();
   await restoreNativeOnlyRecoveryEvidence();
   const raw = await AsyncStorage.getItem(OPERATION_STORAGE_KEY);
-  if (!raw) return [];
+  if (!raw) {
+    for (const operationId of nativeOnlyOperationIds) await backfillUsedOperationId(operationId);
+    return [];
+  }
   let values: unknown;
   try { values = JSON.parse(raw); } catch { values = undefined; }
   if (!Array.isArray(values)) throw new Error('Invalid persisted tag-write operation journal.');
@@ -408,6 +476,10 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
     }
     installRestoredOwner(parsed, restored);
   }
+  const historicalIds = new Set([
+    ...safWriteOperationsById.keys(), ...durableTerminalOperations.keys(), ...nativeOnlyOperationIds,
+  ]);
+  for (const operationId of historicalIds) await backfillUsedOperationId(operationId);
   if (migratedRedundantNativeOnlyRecord) await persistOperations();
   return restored;
 };
@@ -467,6 +539,7 @@ export const clearSafWriteOperationsForTests = (): void => {
   durableTerminalOperations.clear();
   nativeOnlyOperationIds.clear();
   nativeOnlyPublicStatuses.clear();
+  usedOperationIds.clear();
   persistenceQueue = Promise.resolve();
   resetSafWriteStartupForTests();
 };
@@ -593,10 +666,9 @@ const resolveOperationIdentity = (requestedId: string | undefined, targetKey: st
   reused?: SafWriteOperationStatus;
 } => {
   let operationId = requestedId ?? createTagWriteOperationId();
-  while (requestedId === undefined && (safWriteOperationsById.has(operationId) || nativeOnlyOperationIds.has(operationId)))
+  while (requestedId === undefined && usedOperationIds.has(operationId))
     operationId = createTagWriteOperationId();
-  if (requestedId === undefined ||
-    (!safWriteOperationsById.has(operationId) && !nativeOnlyOperationIds.has(operationId))) return { operationId };
+  if (!usedOperationIds.has(operationId)) return { operationId };
   return { operationId, reused: {
     operationId, targetKey, phase: 'failed', terminal: true, retryable: false,
     blockedByOperationId: operationId, operationStatus: 'failed',
@@ -617,6 +689,21 @@ const journalCapacityRejection = (operationId: string, targetKey: string): SafWr
   operationStatus: 'failed', errorCode: 'OperationJournalCapacityExceeded', updatedAt: Date.now(),
 });
 
+const reserveOperationIdentity = async (
+  operationId: string,
+  targetKey: string,
+): Promise<SafWriteOperationStatus | undefined> => {
+  try {
+    if (await reserveUsedOperationId(operationId)) return undefined;
+    return resolveOperationIdentity(operationId, targetKey).reused;
+  } catch {
+    return {
+      operationId, targetKey, phase: 'failed', terminal: true, retryable: true,
+      operationStatus: 'failed', errorCode: 'OperationIdReservationFailed', updatedAt: Date.now(),
+    };
+  }
+};
+
 export const runSafWriteOperation = async <T>(
   uri: string,
   startNativeMutation: (operationId: string) => Promise<T>,
@@ -627,6 +714,8 @@ export const runSafWriteOperation = async <T>(
   const identity = resolveOperationIdentity(options.operationId, targetKey);
   const operationId = identity.operationId;
   if (identity.reused) return { kind: 'busy', status: identity.reused };
+  const reservationFailure = await reserveOperationIdentity(operationId, targetKey);
+  if (reservationFailure) return { kind: 'busy', status: reservationFailure };
   const existing = activeSafWrites.get(targetKey);
   if (existing) {
     if (existing.commitConfirmed) {
@@ -641,10 +730,7 @@ export const runSafWriteOperation = async <T>(
     };
     safWriteOperationsById.set(operationId, rejected);
     persistObserved(persistOperations());
-    return {
-      kind: 'busy',
-      status: { ...rejected },
-    };
+    return { kind: 'busy', status: { ...rejected } };
   }
 
   // Reserve mandatory journal capacity synchronously, before registering an

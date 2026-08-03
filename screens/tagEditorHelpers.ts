@@ -60,6 +60,7 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
   RollbackFailed: 'Rollback fehlgeschlagen.',
   TransactionConflict: 'Eine andere Schreibtransaktion läuft bereits.',
   OperationIdAlreadyUsed: 'Diese Schreibvorgangs-ID wurde bereits verwendet.',
+  OperationIdReservationFailed: 'Die Schreibvorgangs-ID konnte nicht sicher reserviert werden.',
   OperationJournalCapacityExceeded: 'Zu viele Schreibvorgänge sind aktiv. Bitte nach deren Abschluss erneut versuchen.',
   RecoveryPending: 'Eine frühere Schreibtransaktion muss zuerst wiederhergestellt werden.',
   RecoveryFailed: 'Wiederherstellung einer früheren Schreibtransaktion fehlgeschlagen.',

@@ -39,6 +39,8 @@ const rejectedExecutionResult = (
     status: 'writeFailed', sourceUri: uri, warnings: [], errorCode,
     errorMessage: errorCode === 'OperationIdAlreadyUsed'
       ? 'This tag-write operation ID has already been used.'
+      : errorCode === 'OperationIdReservationFailed'
+        ? 'The tag-write operation ID could not be reserved durably.'
       : errorCode === 'OperationJournalCapacityExceeded'
         ? 'The tag-write operation journal is at capacity; retry after active writes finish.'
         : 'A tag write is already active for this SAF document.',
