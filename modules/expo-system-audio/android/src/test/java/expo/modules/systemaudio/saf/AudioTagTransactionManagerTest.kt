@@ -901,6 +901,90 @@ class AudioTagTransactionManagerTest {
     assertEquals(0, replay.cleanedCount)
   }
 
+  @Test fun recoverySummaryProjectsMixedRetainedReceiptsExactlyOnce() {
+    val root = tmp()
+    val storage = storage(root)
+    val targetKey = safTargetKey(uri)
+    val failed = RecoveryTransactionReport(
+      "failed-receipt", "PREPARING", null, false, false,
+      "RecoveryOutcomeInconsistent", targetKey,
+    )
+    val recovered = RecoveryTransactionReport(
+      "recovered-receipt", "RECOVERED", "RECOVERED", true, false, null, targetKey,
+    )
+    val cleaned = RecoveryTransactionReport(
+      "cleaned-receipt", "COMMITTED", "COMMITTED", false, false, null, targetKey,
+    )
+    listOf(failed, recovered, cleaned).forEach(storage::retainRecoveryOutcome)
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary()
+
+    assertFalse(summary.success)
+    assertEquals(1, summary.failedCount)
+    assertEquals(1, summary.recoveredCount)
+    assertEquals(1, summary.cleanedCount)
+    assertEquals(0, summary.pendingCount)
+    assertEquals(listOf(cleaned, failed, recovered).sortedBy { it.transactionId }, summary.transactions)
+  }
+
+  @Test fun freshReportAndRetainedReceiptAreCountedOnce() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val summary = manager.recoverPendingSummary()
+
+    assertTrue(summary.success)
+    assertEquals(1, summary.cleanedCount)
+    assertEquals(1, summary.transactions.size)
+  }
+
+  @Test fun targetedRecoveryExcludesForeignRetainedReceipts() {
+    val root = tmp()
+    val storage = storage(root)
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      "foreign-receipt", "PREPARING", null, false, false,
+      "RecoveryOutcomeInconsistent", safTargetKey(Uri.parse("content://other/document/foreign")),
+    ))
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+
+    assertTrue(summary.success)
+    assertEquals(0, summary.failedCount)
+    assertTrue(summary.transactions.isEmpty())
+  }
+
+  @Test fun partialAndCompleteAcknowledgementUpdateAuthoritativeSummary() {
+    val root = tmp()
+    val storage = storage(root)
+    val targetKey = safTargetKey(uri)
+    val failed = RecoveryTransactionReport(
+      "failed-ack", "PREPARING", null, false, false, "RecoveryFailed", targetKey,
+    )
+    val recovered = RecoveryTransactionReport(
+      "recovered-ack", "RECOVERED", "RECOVERED", true, false, null, targetKey,
+    )
+    storage.retainRecoveryOutcome(failed)
+    storage.retainRecoveryOutcome(recovered)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    storage.acknowledgeRecoveryOutcomes(listOf(failed.transactionId))
+    val partial = manager.recoverPendingSummary()
+    assertTrue(partial.success)
+    assertEquals(0, partial.failedCount)
+    assertEquals(1, partial.recoveredCount)
+    assertEquals(listOf(recovered), partial.transactions)
+
+    storage.acknowledgeRecoveryOutcomes(listOf(recovered.transactionId))
+    val complete = manager.recoverPendingSummary()
+    assertTrue(complete.success)
+    assertEquals(0, complete.failedCount)
+    assertEquals(0, complete.recoveredCount)
+    assertEquals(0, complete.cleanedCount)
+    assertEquals(0, complete.pendingCount)
+    assertTrue(complete.transactions.isEmpty())
+  }
+
   private fun assertPreparedCleanupOutcome(state: TransactionState) {
     val root = prepared(state)
     val storage = storage(root)

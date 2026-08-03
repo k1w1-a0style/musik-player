@@ -379,6 +379,7 @@ class TransactionStorage(
         retained.recovered == report.recovered &&
         retained.pending == report.pending &&
         retained.errorCode == report.errorCode &&
+        retained.targetKey == report.targetKey &&
         (retained.resultState == report.resultState || report.resultState == null)
       if (!compatibleCleanupProjection) throw IOException("conflicting recovery outcome tombstone")
       return
@@ -391,6 +392,7 @@ class TransactionStorage(
       put("recovered", report.recovered)
       put("pending", false)
       put("errorCode", report.errorCode ?: JSONObject.NULL)
+      put("targetKey", report.targetKey ?: JSONObject.NULL)
     }
     writeBytesDurably(temporary, json.toString().toByteArray(Charsets.UTF_8))
     promote(temporary, target)
@@ -407,7 +409,8 @@ class TransactionStorage(
           throw IOException("contradictory recovery outcome")
         RecoveryTransactionReport(id, json.optString("previousState").takeIf { !json.isNull("previousState") },
           json.optString("resultState").takeIf { !json.isNull("resultState") }, json.getBoolean("recovered"), false,
-          json.optString("errorCode").takeIf { !json.isNull("errorCode") })
+          json.optString("errorCode").takeIf { !json.isNull("errorCode") },
+          json.optString("targetKey").takeIf { json.has("targetKey") && !json.isNull("targetKey") })
       } catch (error: Throwable) { throw IOException("invalid recovery outcome tombstone", error) }
     }?.sortedBy { it.transactionId } ?: emptyList()
 
@@ -681,6 +684,8 @@ data class RecoveryTransactionReport(
   val recovered: Boolean,
   val pending: Boolean,
   val errorCode: String?,
+  /** Internal receipt scope; intentionally omitted from the public JS map. */
+  val targetKey: String? = null,
 )
 
 data class RecoverySummary(
@@ -1372,7 +1377,7 @@ class AudioTagTransactionManager(
         storage.markRecoveryState(directory, journal, TransactionState.RECOVERED)
         storage.retainRecoveryOutcome(RecoveryTransactionReport(
           journal.transactionId, journal.state.name, TransactionState.RECOVERED.name,
-          true, false, null,
+          true, false, null, safTargetKey(Uri.parse(journal.targetUri)),
         ))
         storage.cleanup(directory)
         RestoreResult(
@@ -1569,6 +1574,7 @@ class AudioTagTransactionManager(
         recovered = recovered,
         pending = false,
         errorCode = null,
+        targetKey = safTargetKey(Uri.parse(journal.targetUri)),
       ))
       storage.cleanup(directory)
       TransactionResult(
@@ -1634,10 +1640,6 @@ class AudioTagTransactionManager(
   }
 
   private fun recoverPendingLocked(targetUri: Uri? = null): RecoverySummary {
-    var recoveredCount = 0
-    var cleanedCount = 0
-    var pendingCount = 0
-    var failedCount = 0
     val reports = mutableListOf<RecoveryTransactionReport>()
     val blockedTargets = mutableSetOf<String>()
     // A terminal receipt is authoritative for its still-present transaction
@@ -1653,7 +1655,6 @@ class AudioTagTransactionManager(
       if (journal == null) {
         try {
           storage.quarantineDamaged(directory)
-          if (targetUri == null) failedCount += 1
           reports += RecoveryTransactionReport(
             transactionId = directory.name,
             previousState = null,
@@ -1663,7 +1664,6 @@ class AudioTagTransactionManager(
             errorCode = "RecoveryFailed",
           )
         } catch (_: Throwable) {
-          pendingCount += 1
           reports += RecoveryTransactionReport(
             transactionId = directory.name,
             previousState = null,
@@ -1681,13 +1681,9 @@ class AudioTagTransactionManager(
       val retained = retainedById[journal.transactionId]
       if (retained != null) {
         reports += retained
-        if (retained.recovered) recoveredCount += 1
-        else if (retained.errorCode != null) failedCount += 1
-        else cleanedCount += 1
         continue
       }
       if (journalTarget in blockedTargets) {
-        pendingCount += 1
         reports += RecoveryTransactionReport(
           transactionId = journal.transactionId,
           previousState = journal.state.name,
@@ -1695,19 +1691,16 @@ class AudioTagTransactionManager(
           recovered = false,
           pending = true,
           errorCode = "RecoveryPending",
+          targetKey = journalTarget,
         )
         continue
       }
 
       val result = recoverDirectory(directory, journal)
       val nextJournal = storage.readJournalSafely(directory)
-      if (result.recovered) recoveredCount += 1
-      if (result.success && !result.recovered) cleanedCount += 1
       if (result.recoveryPending) {
-        pendingCount += 1
         blockedTargets += journalTarget
       }
-      if (!result.success && !result.recoveryPending) failedCount += 1
       reports += RecoveryTransactionReport(
         transactionId = journal.transactionId,
         previousState = journal.state.name,
@@ -1715,18 +1708,30 @@ class AudioTagTransactionManager(
         recovered = result.recovered,
         pending = result.recoveryPending,
         errorCode = result.errorCode,
+        targetKey = journalTarget,
       )
     }
 
     // Terminal reports are replayable and idempotent until JS confirms its
     // durable journal write. Persist every report before returning the batch.
     reports.filter { !it.pending }.forEach(storage::retainRecoveryOutcome)
-    val retained = storage.retainedRecoveryOutcomes()
+    val retained = storage.retainedRecoveryOutcomes().filter { receipt ->
+      requestedTarget == null || receipt.targetKey == requestedTarget
+    }
     // Retained terminal receipts are the authoritative projection. In
     // particular, cleanup may remove the journal after retaining a stronger
     // resultState, so never replace that receipt with the post-cleanup view.
     val returnedReports = (reports.filter { it.pending } + retained)
       .associateBy { it.transactionId }.values.sortedBy { it.transactionId }
+    // The returned report set is authoritative, including on replay after the
+    // transaction directories have been removed. Project every summary field
+    // from that one de-duplicated set so counters can never contradict it.
+    val pendingCount = returnedReports.count { it.pending }
+    val recoveredCount = returnedReports.count { !it.pending && it.recovered }
+    val failedCount = returnedReports.count { !it.pending && !it.recovered && it.errorCode != null }
+    val cleanedCount = returnedReports.count {
+      !it.pending && !it.recovered && it.errorCode == null
+    }
     return RecoverySummary(
       success = pendingCount == 0 && failedCount == 0,
       recoveredCount = recoveredCount,
@@ -1774,6 +1779,7 @@ class AudioTagTransactionManager(
     val journal = storage.readJournalSafely(directory) ?: throw IOException("prepared journal missing")
     storage.retainRecoveryOutcome(RecoveryTransactionReport(
       journal.transactionId, journal.state.name, null, false, false, "RecoveryOutcomeInconsistent",
+      safTargetKey(Uri.parse(journal.targetUri)),
     ))
     storage.cleanup(directory)
     TransactionResult(
@@ -1794,7 +1800,7 @@ class AudioTagTransactionManager(
     val journal = storage.readJournalSafely(directory) ?: throw IOException("committed journal missing")
     storage.retainRecoveryOutcome(RecoveryTransactionReport(
       journal.transactionId, journal.state.name, journal.state.name, journal.state == TransactionState.RECOVERED,
-      false, null,
+      false, null, safTargetKey(Uri.parse(journal.targetUri)),
     ))
     storage.cleanup(directory)
     TransactionResult(
