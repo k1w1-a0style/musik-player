@@ -109,6 +109,10 @@ export const getSafWriteOperation = (operationId: string): SafWriteOperationStat
   return value ? { ...value } : undefined;
 };
 
+/** Distinguishes a persisted JavaScript owner from public native-only history. */
+export const hasSafWriteOperationOwner = (operationId: string): boolean =>
+  safWriteOperationsById.has(operationId) || durableTerminalOperations.has(operationId);
+
 const persistOperations = async (overrides: SafWriteOperationStatus[] = []): Promise<void> => {
   persistenceQueue = persistenceQueue.catch(() => undefined).then(async () => {
     // Capture at execution time, not enqueue time. Completed records that have

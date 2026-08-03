@@ -2,6 +2,7 @@ import SystemAudio from 'expo-system-audio';
 import type { SafWriteOperationStatus } from './tagWriterLocks';
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
+  hasSafWriteOperationOwner,
   reconcileSafWriteOperation, restoreSafWriteOperations, retryConfirmedSafWriteCommit,
   retryConfirmedSafWriteOutcome, stageConfirmedSafWriteOutcomes, persistNativeOnlyRecoveryEvidence,
 } from './tagWriterLocks';
@@ -96,22 +97,31 @@ const runNativeRecovery = async (unresolved: SafWriteOperationStatus[]): Promise
   // died before its JS owner was written. Classify each such receipt durably
   // before acknowledging it. Persisting one record at a time makes a partial
   // batch failure explicit: only the proven durable prefix is acknowledged.
-  const ownerIds = new Set(unresolved.map(operation => operation.operationId));
-  const acknowledged = [...staged];
+  const unresolvedOwnerIds = new Set(unresolved.map(operation => operation.operationId));
+  const acknowledged = new Set(staged);
   try {
     for (const result of results.values()) {
-      if (result.pending || ownerIds.has(result.transactionId)) continue;
+      if (result.pending || unresolvedOwnerIds.has(result.transactionId)) continue;
+      // Restored terminal owners are intentionally absent from `unresolved`.
+      // Their receipts can nevertheless be replayed after an acknowledgement
+      // failure or regenerated for a terminal native recovery directory. The
+      // durable owner remains the evidence domain; acknowledge the replay
+      // instead of trying to create colliding native-only evidence.
+      if (hasSafWriteOperationOwner(result.transactionId)) {
+        acknowledged.add(result.transactionId);
+        continue;
+      }
       await persistNativeOnlyRecoveryEvidence(
         result.transactionId,
         mapNativeRecoveryOutcome(result, recovery.errorCode),
       );
-      acknowledged.push(result.transactionId);
+      acknowledged.add(result.transactionId);
     }
   } catch (error) {
-    if (acknowledged.length > 0) await acknowledgeNativeOutcomes(acknowledged);
+    if (acknowledged.size > 0) await acknowledgeNativeOutcomes([...acknowledged]);
     throw error;
   }
-  if (acknowledged.length > 0) await acknowledgeNativeOutcomes(acknowledged);
+  if (acknowledged.size > 0) await acknowledgeNativeOutcomes([...acknowledged]);
   const terminalFailureCount = [...results.values()].filter(result => !result.pending && Boolean(result.errorCode)).length;
   assertRecoverySummarySettled(recovery, terminalFailureCount);
 };
