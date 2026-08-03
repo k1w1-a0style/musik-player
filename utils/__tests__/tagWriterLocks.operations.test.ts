@@ -226,6 +226,24 @@ describe('SAF tag write operation contract', () => {
     await expect(write).resolves.toMatchObject({ kind: 'result', value: 'written' });
   });
 
+  test('acknowledges native commit evidence only after terminal persistence', async () => {
+    const persisted = deferred<void>();
+    jest.mocked(AsyncStorage.setItem)
+      .mockResolvedValueOnce()
+      .mockImplementationOnce(() => persisted.promise);
+    const acknowledge = jest.fn().mockResolvedValue(undefined);
+    const write = runSafWriteOperation('content://provider/commit-receipt', async () => 'written', {
+      acknowledgeConfirmedCommit: acknowledge,
+    });
+
+    for (let turn = 0; turn < 20 && jest.mocked(AsyncStorage.setItem).mock.calls.length < 2; turn += 1)
+      await Promise.resolve();
+    expect(acknowledge).not.toHaveBeenCalled();
+    persisted.resolve();
+    await expect(write).resolves.toMatchObject({ kind: 'result', value: 'written' });
+    expect(acknowledge).toHaveBeenCalledWith(expect.any(String));
+  });
+
   test('propagates terminal journal failure instead of confirming native success', async () => {
     const setItem = jest.mocked(AsyncStorage.setItem)
       .mockResolvedValueOnce()

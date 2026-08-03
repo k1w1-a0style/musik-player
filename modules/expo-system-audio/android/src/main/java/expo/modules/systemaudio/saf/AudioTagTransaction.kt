@@ -1227,6 +1227,23 @@ class AudioTagTransactionManager(
         storage.atomicWriteJournal(directory, committedJournal)
         journal = committedJournal
         phase = WriteExecutionPhase.COMMITTED_DURABLE
+
+        // The native return and the durable JavaScript terminal journal are
+        // separate crash domains. Retain the ordinary commit just like a
+        // recovery finalizer before deleting its transaction directory, so a
+        // process death between those two durability boundaries can replay
+        // the authoritative commit instead of treating it as missing.
+        storage.retainRecoveryOutcome(
+          RecoveryTransactionReport(
+            transactionId = journal.transactionId,
+            previousState = TransactionState.COMMITTED.name,
+            resultState = TransactionState.COMMITTED.name,
+            recovered = false,
+            pending = false,
+            errorCode = null,
+            targetKey = safTargetKey(request.uri),
+          ),
+        )
       } catch (error: Throwable) {
         return rollbackFailedWrite(
           directory,

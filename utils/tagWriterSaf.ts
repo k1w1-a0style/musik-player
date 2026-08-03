@@ -157,7 +157,15 @@ export const writeTagsToSafContentUri = async (
         errorMessage: String(error),
       };
     }
-  }, { ...options, phaseForResult: phaseForWriteResult, recoveryPendingForResult: isRecoveryPendingResult });
+  }, {
+    ...options,
+    phaseForResult: phaseForWriteResult,
+    recoveryPendingForResult: isRecoveryPendingResult,
+    acknowledgeConfirmedCommit: async operationId => {
+      if (typeof SystemAudio.acknowledgeAudioTagRecoveryOutcomes === 'function')
+        await SystemAudio.acknowledgeAudioTagRecoveryOutcomes([operationId]);
+    },
+  });
 
   if (execution.kind === 'result' && execution.status.phase === 'cancelledBeforeMutation') {
     return { status: 'cancelled', sourceUri: uri, warnings: [], operationId: execution.status.operationId, operationPhase: execution.status.phase, terminal: true, retryable: true, operationStatus: 'failed' };

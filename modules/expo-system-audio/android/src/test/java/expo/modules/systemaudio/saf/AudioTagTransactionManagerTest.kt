@@ -176,6 +176,13 @@ class AudioTagTransactionManagerTest {
     assertTrue(result.verified)
     assertArrayEquals(rewritten, store.bytes)
     assertTrue(root.listFiles().isNullOrEmpty())
+    val receipt = storage(root).retainedRecoveryOutcomes().single()
+    assertEquals("COMMITTED", receipt.previousState)
+    assertEquals("COMMITTED", receipt.resultState)
+    assertEquals(safTargetKey(uri), receipt.targetKey)
+    assertFalse(receipt.recovered)
+    assertFalse(receipt.pending)
+    assertNull(receipt.errorCode)
     assertFalse(result.retryable)
   }
 

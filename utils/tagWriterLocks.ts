@@ -31,6 +31,8 @@ type SafWriteOperationOptions<T> = {
   operationId?: string;
   phaseForResult?: (value: T) => Extract<SafWritePhase, 'completed' | 'failed'>;
   recoveryPendingForResult?: (value: T) => boolean;
+  /** Releases native commit evidence only after the completed JS record is durable. */
+  acknowledgeConfirmedCommit?: (operationId: string) => Promise<unknown>;
 };
 
 const activeSafWrites = new Map<string, SafWriteOperationStatus>();
@@ -492,11 +494,12 @@ const releaseTerminalOwner = (targetKey: string, operationId: string, status: Sa
     activeSafWrites.delete(targetKey);
 };
 
-const persistConfirmedSuccess = async (
+const persistConfirmedSuccess = async <T>(
   status: SafWriteOperationStatus,
   completed: SafWriteOperationStatus,
   targetKey: string,
   operationId: string,
+  options: SafWriteOperationOptions<T>,
 ): Promise<void> => {
   try {
     await persistOperations([{ ...completed, commitConfirmed: undefined }]);
@@ -515,6 +518,13 @@ const persistConfirmedSuccess = async (
   }
   Object.assign(status, completed, { commitConfirmed: undefined, errorCode: completed.errorCode });
   releaseTerminalOwner(targetKey, operationId, status);
+  try {
+    await options.acknowledgeConfirmedCommit?.(operationId);
+  } catch (error) {
+    // The durable owner is now authoritative. Leave the native receipt for
+    // startup replay/acknowledgement rather than regressing a confirmed write.
+    console.warn('[TagWriter] Native commit acknowledgement failed.', String(error));
+  }
 };
 
 /** Retries journal durability for a native commit without invoking native again. */
@@ -556,7 +566,7 @@ const publishSettledOutcome = async <T>(
     throw outcome.error;
   }
   if (completed.operationStatus === 'completed') {
-    await persistConfirmedSuccess(status, completed, targetKey, operationId);
+    await persistConfirmedSuccess(status, completed, targetKey, operationId, options);
     return;
   }
   Object.assign(status, completed);
