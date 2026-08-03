@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SystemAudio from 'expo-system-audio';
 import {
-  clearSafWriteOperationsForTests, getActiveSafWrite, getSafWriteOperation,
+  clearSafWriteOperationsForTests, getActiveSafWrite, getSafWriteOperation, runSafWriteOperation,
 } from '../tagWriterLocks';
 import { mapNativeRecoveryOutcome, restoreAndReconcileTagWrites } from '../tagWriterRecovery';
 
@@ -103,6 +103,107 @@ describe('persisted tag-write recovery', () => {
     expect(getActiveSafWrite(`native-only:${operationId}`)).toBeUndefined();
   });
 
+  test.each([
+    ['native-domain-commit', { previousState: 'WRITE_STARTED', resultState: 'COMMITTED', recovered: false, pending: false },
+      { operationStatus: 'completed', errorCode: undefined }],
+    ['native-domain-rollback', { previousState: 'RECOVERY_REQUIRED', resultState: 'RECOVERED', recovered: true, pending: false },
+      { operationStatus: 'failed', errorCode: 'TagWriteRolledBack' }],
+    ['native-domain-failure', { previousState: 'RECOVERY_FAILED', resultState: 'RECOVERY_FAILED', recovered: false, pending: false, errorCode: 'BackupCorrupted' },
+      { operationStatus: 'failed', errorCode: 'BackupCorrupted' }],
+  ])('keeps %s outside the owner journal after a later normal write and restart', async (
+    operationId, report, expected,
+  ) => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
+      .mockResolvedValueOnce({ success: true, transactions: [{ transactionId: operationId, ...report }] })
+      .mockResolvedValueOnce({ success: true, transactions: [] });
+    await restoreAndReconcileTagWrites();
+    await runSafWriteOperation(
+      'content://provider/document/normal-after-native.mp3', async () => ({ ok: true }),
+      { operationId: `owner-after-${operationId}` },
+    );
+    const journal = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as Array<{ operationId: string }>;
+    expect(journal.some(item => item.operationId === operationId)).toBe(false);
+    expect(journal.some(item => item.operationId === `owner-after-${operationId}`)).toBe(true);
+
+    clearSafWriteOperationsForTests();
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(getSafWriteOperation(operationId)).toMatchObject({ ...expected, terminal: true });
+    expect(getSafWriteOperation(`owner-after-${operationId}`)).toMatchObject({
+      operationStatus: 'completed', terminal: true,
+    });
+    expect(getActiveSafWrite(`native-only:${operationId}`)).toBeUndefined();
+  });
+
+  test('migrates the exact synthetic a6164137 duplicate out of the owner journal', async () => {
+    const evidence = {
+      kind: 'native-only-recovery-outcome', operationId: 'legacy-synthetic-duplicate',
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    };
+    await AsyncStorage.setItem(nativeOnlyRecordKey(evidence.operationId), JSON.stringify(evidence));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: evidence.operationId, targetKey: `native-only:${encodeURIComponent(evidence.operationId)}`,
+      phase: 'completed', terminal: true, retryable: false, operationStatus: 'completed', updatedAt: 0,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({ success: true, transactions: [] });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(getSafWriteOperation(evidence.operationId)).toMatchObject({ operationStatus: 'completed', terminal: true });
+    expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? 'null')).toEqual([]);
+  });
+
+  test.each([
+    ['a real owner target', { targetKey: 'content://provider/document/real-owner.mp3' }],
+    ['a different outcome', { operationStatus: 'failed', phase: 'failed', retryable: true, errorCode: 'DifferentOutcome' }],
+  ])('fails closed when native-only evidence collides with %s', async (_label, override) => {
+    const operationId = 'native-owner-collision';
+    await AsyncStorage.setItem(nativeOnlyRecordKey(operationId), JSON.stringify({
+      kind: 'native-only-recovery-outcome', operationId,
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    }));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId, targetKey: `native-only:${operationId}`, phase: 'completed', terminal: true,
+      retryable: false, operationStatus: 'completed', updatedAt: 0, ...override,
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow(
+      'Operation ID exists in both owned and native-only recovery evidence',
+    );
+    expect(SystemAudio.recoverPendingAudioTagTransactions).not.toHaveBeenCalled();
+  });
+
+  test.each([49, 50, 51])(
+    'keeps native-only evidence separate while rotating %i owner-history records', async historyCount => {
+      const operationId = `native-with-${historyCount}-owners`;
+      await AsyncStorage.setItem(nativeOnlyRecordKey(operationId), JSON.stringify({
+        kind: 'native-only-recovery-outcome', operationId,
+        outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+      }));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from({ length: historyCount }, (_, index) => ({
+        operationId: `history-${historyCount}-${index}`, targetKey: `content://provider/document/history-${index}.mp3`,
+        phase: 'completed', terminal: true, retryable: false, operationStatus: 'completed', updatedAt: index + 1,
+      }))));
+      Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+      jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
+        .mockResolvedValueOnce({ success: true, transactions: [] })
+        .mockResolvedValueOnce({ success: true, transactions: [] });
+      await restoreAndReconcileTagWrites();
+      await runSafWriteOperation(
+        `content://provider/document/rotation-${historyCount}.mp3`, async () => ({ ok: true }),
+        { operationId: `rotation-${historyCount}` },
+      );
+      const journal = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as Array<{ operationId: string }>;
+      expect(journal).toHaveLength(50);
+      expect(journal.some(item => item.operationId === operationId)).toBe(false);
+      expect(await AsyncStorage.getItem(nativeOnlyRecordKey(operationId))).not.toBeNull();
+      clearSafWriteOperationsForTests();
+      await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+      expect(getSafWriteOperation(operationId)).toMatchObject({ operationStatus: 'completed', terminal: true });
+    },
+  );
+
   test('keeps all 51 acknowledged native-only outcomes in immutable public evidence', async () => {
     Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
     const transactions = Array.from({ length: 51 }, (_, index) => ({
@@ -119,6 +220,52 @@ describe('persisted tag-write recovery', () => {
       expect(await AsyncStorage.getItem(nativeOnlyRecordKey(transactionId))).not.toBeNull();
       expect(getSafWriteOperation(transactionId)).toMatchObject({ operationStatus: 'completed', terminal: true });
     }
+    await runSafWriteOperation(
+      'content://provider/document/after-large-native-batch.mp3', async () => ({ ok: true }),
+      { operationId: 'owner-after-large-native-batch' },
+    );
+    const journal = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as Array<{ operationId: string }>;
+    expect(journal.some(item => item.operationId.startsWith('native-capacity-'))).toBe(false);
+    for (let restart = 0; restart < 2; restart += 1) {
+      clearSafWriteOperationsForTests();
+      jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({ success: true, transactions: [] });
+      await restoreAndReconcileTagWrites();
+      for (const { transactionId } of transactions)
+        expect(getSafWriteOperation(transactionId)).toMatchObject({ operationStatus: 'completed', terminal: true });
+    }
+  });
+
+  test('keeps native-only history out of busy/conflict persistence', async () => {
+    const operationId = 'native-before-busy';
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true, transactions: [{
+        transactionId: operationId, previousState: 'WRITE_STARTED', resultState: 'COMMITTED',
+        recovered: false, pending: false,
+      }],
+    });
+    await restoreAndReconcileTagWrites();
+    let finishNative!: (value: { ok: true }) => void;
+    const native = new Promise<{ ok: true }>(resolve => { finishNative = resolve; });
+    const first = runSafWriteOperation(
+      'content://provider/document/busy-after-native.mp3', async () => native,
+      { operationId: 'busy-owner' },
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    const conflict = await runSafWriteOperation(
+      'content://provider/document/busy-after-native.mp3', async () => ({ ok: true }),
+      { operationId: 'busy-rejected' },
+    );
+    expect(conflict.kind).toBe('busy');
+    finishNative({ ok: true });
+    await first;
+    const journal = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as Array<{ operationId: string }>;
+    expect(journal.some(item => item.operationId === operationId)).toBe(false);
+    clearSafWriteOperationsForTests();
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({ success: true, transactions: [] });
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(getSafWriteOperation(operationId)).toMatchObject({ operationStatus: 'completed', terminal: true });
   });
 
   test.each([

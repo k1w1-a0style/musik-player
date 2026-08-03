@@ -35,6 +35,10 @@ type SafWriteOperationOptions<T> = {
 
 const activeSafWrites = new Map<string, SafWriteOperationStatus>();
 const safWriteOperationsById = new Map<string, SafWriteOperationStatus>();
+// Public native-only history is deliberately not part of either owner index.
+// It reserves operation IDs and remains queryable, but can never be serialized
+// into the owner journal or acquire a target lock.
+const nativeOnlyPublicStatuses = new Map<string, SafWriteOperationStatus>();
 let persistenceQueue = Promise.resolve();
 const durableTerminalOperations = new Map<string, SafWriteOperationStatus>();
 const nativeOnlyOperationIds = new Set<string>();
@@ -101,7 +105,7 @@ export const getActiveSafWrite = (uri: string): SafWriteOperationStatus | undefi
 };
 
 export const getSafWriteOperation = (operationId: string): SafWriteOperationStatus | undefined => {
-  const value = safWriteOperationsById.get(operationId);
+  const value = safWriteOperationsById.get(operationId) ?? nativeOnlyPublicStatuses.get(operationId);
   return value ? { ...value } : undefined;
 };
 
@@ -110,11 +114,16 @@ const persistOperations = async (overrides: SafWriteOperationStatus[] = []): Pro
     // Capture at execution time, not enqueue time. Completed records that have
     // already reached storage are monotonic and can never be overwritten by a
     // stale pending snapshot queued while their write was in flight.
-    const records = new Map([...safWriteOperationsById.values()].map(status => [status.operationId, { ...status }]));
-    for (const status of durableTerminalOperations.values()) records.set(status.operationId, { ...status });
+    const ownerOverrides = overrides.filter(status => !nativeOnlyOperationIds.has(status.operationId));
+    const records = new Map([...safWriteOperationsById.values()]
+      .filter(status => !nativeOnlyOperationIds.has(status.operationId))
+      .map(status => [status.operationId, { ...status }]));
+    for (const status of durableTerminalOperations.values()) {
+      if (!nativeOnlyOperationIds.has(status.operationId)) records.set(status.operationId, { ...status });
+    }
     // Overrides are the newest evidence and must win over cached history.
-    for (const status of overrides) records.set(status.operationId, { ...status });
-    const mandatoryIds = new Set(overrides.map(status => status.operationId));
+    for (const status of ownerOverrides) records.set(status.operationId, { ...status });
+    const mandatoryIds = new Set(ownerOverrides.map(status => status.operationId));
     for (const status of activeSafWrites.values()) mandatoryIds.add(status.operationId);
     for (const status of records.values()) {
       if (status.commitConfirmed || status.confirmedTerminalOutcome) mandatoryIds.add(status.operationId);
@@ -128,10 +137,10 @@ const persistOperations = async (overrides: SafWriteOperationStatus[] = []): Pro
       .filter(status => !mandatoryIds.has(status.operationId))
       .sort((left, right) => right.updatedAt - left.updatedAt || left.operationId.localeCompare(right.operationId));
     const snapshot = [...mandatory, ...optional.slice(0, JOURNAL_LIMIT - mandatory.length)];
-    if (overrides.some(status => !snapshot.some(item => item.operationId === status.operationId)))
+    if (ownerOverrides.some(status => !snapshot.some(item => item.operationId === status.operationId)))
       throw new Error('Tag-write journal snapshot omitted a required override.');
     await AsyncStorage.setItem(OPERATION_STORAGE_KEY, JSON.stringify(snapshot));
-    for (const status of overrides) {
+    for (const status of ownerOverrides) {
       if (status.terminal) durableTerminalOperations.set(status.operationId, { ...status });
     }
   });
@@ -239,7 +248,9 @@ const nativeOnlyStatus = (evidence: NativeOnlyRecoveryEvidence): SafWriteOperati
 });
 
 const installNativeOnlyEvidence = (evidence: NativeOnlyRecoveryEvidence): void => {
-  const existing = safWriteOperationsById.get(evidence.operationId);
+  const owned = safWriteOperationsById.get(evidence.operationId) ?? durableTerminalOperations.get(evidence.operationId);
+  if (owned) throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
+  const existing = nativeOnlyPublicStatuses.get(evidence.operationId);
   if (existing && JSON.stringify({
     operationStatus: existing.operationStatus, phase: existing.phase, terminal: existing.terminal,
     retryable: existing.retryable, errorCode: existing.errorCode,
@@ -247,15 +258,14 @@ const installNativeOnlyEvidence = (evidence: NativeOnlyRecoveryEvidence): void =
     throw new Error('Contradictory native-only recovery evidence.');
   const status = existing ?? nativeOnlyStatus(evidence);
   nativeOnlyOperationIds.add(evidence.operationId);
-  safWriteOperationsById.set(evidence.operationId, status);
-  durableTerminalOperations.set(evidence.operationId, { ...status });
+  nativeOnlyPublicStatuses.set(evidence.operationId, status);
 };
 
 const assertNativeOnlyEvidenceMatchesPublicStatus = (evidence: NativeOnlyRecoveryEvidence): void => {
-  const existing = safWriteOperationsById.get(evidence.operationId);
-  if (!existing) return;
-  if (!nativeOnlyOperationIds.has(evidence.operationId))
+  if (safWriteOperationsById.has(evidence.operationId) || durableTerminalOperations.has(evidence.operationId))
     throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
+  const existing = nativeOnlyPublicStatuses.get(evidence.operationId);
+  if (!existing) return;
   const publicOutcome = {
     operationStatus: existing.operationStatus, phase: existing.phase, terminal: existing.terminal,
     retryable: existing.retryable, errorCode: existing.errorCode,
@@ -320,6 +330,34 @@ const restoreNativeOnlyRecoveryEvidence = async (): Promise<void> => {
   evidenceById.forEach(installNativeOnlyEvidence);
 };
 
+const persistedStatusIdentity = (status: SafWriteOperationStatus) => ({
+  operationId: status.operationId, targetKey: status.targetKey, phase: status.phase,
+  terminal: status.terminal, retryable: status.retryable, operationStatus: status.operationStatus,
+  updatedAt: status.updatedAt, errorCode: status.errorCode,
+});
+
+const isRedundantSyntheticNativeOnlyCopy = (status: SafWriteOperationStatus): boolean => {
+  const nativeOnly = nativeOnlyPublicStatuses.get(status.operationId);
+  return nativeOnly !== undefined &&
+    JSON.stringify(persistedStatusIdentity(status)) === JSON.stringify(persistedStatusIdentity(nativeOnly));
+};
+
+const installRestoredOwner = (parsed: SafWriteOperationStatus, restored: SafWriteOperationStatus[]): void => {
+  if (parsed.terminal) durableTerminalOperations.set(parsed.operationId, { ...parsed });
+  const active = activeSafWrites.get(parsed.targetKey);
+  const indexed = safWriteOperationsById.get(parsed.operationId);
+  // A retry must reuse the installed owner. Otherwise reconciliation mutates
+  // the lock while persistence serializes a separate, stale status object.
+  const status = active?.operationId === parsed.operationId ? active : indexed ?? parsed;
+  if (!active || active.operationId === parsed.operationId)
+    safWriteOperationsById.set(status.operationId, status);
+  if (!status.terminal && (!active || active.operationId === status.operationId)) {
+    // Never replace an owner registered after the restoration boundary.
+    if (!active) activeSafWrites.set(status.targetKey, status);
+    restored.push({ ...status });
+  }
+};
+
 /** Stages every consumed native report before any individual terminal record is published. */
 export const stageConfirmedSafWriteOutcomes = async (updates: ConfirmedRecoveryUpdate[]): Promise<string[]> => {
   const staged: SafWriteOperationStatus[] = [];
@@ -350,24 +388,21 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
   try { values = JSON.parse(raw); } catch { values = undefined; }
   if (!Array.isArray(values)) throw new Error('Invalid persisted tag-write operation journal.');
   const restored: SafWriteOperationStatus[] = [];
+  let migratedRedundantNativeOnlyRecord = false;
   for (const candidate of values) {
     const parsed = parsePersistedStatus(candidate);
-    if (nativeOnlyOperationIds.has(parsed.operationId))
-      throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
-    if (parsed.terminal) durableTerminalOperations.set(parsed.operationId, { ...parsed });
-    const active = activeSafWrites.get(parsed.targetKey);
-    const indexed = safWriteOperationsById.get(parsed.operationId);
-    // A retry must reuse the installed owner. Otherwise reconciliation mutates
-    // the lock while persistence serializes a separate, stale status object.
-    const status = active?.operationId === parsed.operationId ? active : indexed ?? parsed;
-    if (!active || active.operationId === parsed.operationId)
-      safWriteOperationsById.set(status.operationId, status);
-    if (!status.terminal && (!active || active.operationId === status.operationId)) {
-      // Never replace an owner registered after the restoration boundary.
-      if (!active) activeSafWrites.set(status.targetKey, status);
-      restored.push({ ...status });
+    if (nativeOnlyOperationIds.has(parsed.operationId)) {
+      if (!isRedundantSyntheticNativeOnlyCopy(parsed))
+        throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
+      // a6164137 accidentally copied this synthetic public projection into the
+      // owner journal. The immutable per-operation record loaded above remains
+      // authoritative, so this exact redundant projection can be scrubbed.
+      migratedRedundantNativeOnlyRecord = true;
+      continue;
     }
+    installRestoredOwner(parsed, restored);
   }
+  if (migratedRedundantNativeOnlyRecord) await persistOperations();
   return restored;
 };
 
@@ -425,6 +460,7 @@ export const clearSafWriteOperationsForTests = (): void => {
   safWriteOperationsById.clear();
   durableTerminalOperations.clear();
   nativeOnlyOperationIds.clear();
+  nativeOnlyPublicStatuses.clear();
   persistenceQueue = Promise.resolve();
   resetSafWriteStartupForTests();
 };
