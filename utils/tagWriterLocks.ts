@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const writeLocksByUri = new Map<string, Promise<void>>();
 const OPERATION_STORAGE_KEY = '@musik-player/tag-write-operations/v1';
 const NATIVE_ONLY_OUTCOME_STORAGE_KEY = '@musik-player/tag-write-native-only-outcomes/v1';
+const NATIVE_ONLY_OUTCOME_RECORD_PREFIX = `${NATIVE_ONLY_OUTCOME_STORAGE_KEY}/record/`;
 const JOURNAL_LIMIT = 50;
 
 export type SafWritePhase = 'accepted' | 'lockAcquired' | 'nativeMutationStarted' | 'pendingNativeResult' | 'completed' | 'failed' | 'cancelledBeforeMutation';
@@ -210,7 +211,8 @@ const parseNativeOnlyEvidence = (candidate: unknown): NativeOnlyRecoveryEvidence
   const value = candidate as Partial<NativeOnlyRecoveryEvidence>;
   const knownFields = Object.keys(value).every(key => ['kind', 'operationId', 'outcome'].includes(key));
   if (!knownFields || value.kind !== 'native-only-recovery-outcome' ||
-    typeof value.operationId !== 'string' || value.operationId.length === 0)
+    typeof value.operationId !== 'string' || value.operationId.length === 0 ||
+    value.operationId.trim() !== value.operationId || /[\u0000-\u001f\u007f]/u.test(value.operationId))
     throw new Error('Invalid native-only recovery evidence.');
   const owner: Partial<SafWriteOperationStatus> = {
     terminal: false, operationStatus: 'recovery-pending', commitConfirmed: false,
@@ -220,41 +222,102 @@ const parseNativeOnlyEvidence = (candidate: unknown): NativeOnlyRecoveryEvidence
   return { kind: value.kind, operationId: value.operationId, outcome: { ...value.outcome! } };
 };
 
+const nativeOnlyRecordKey = (operationId: string): string =>
+  `${NATIVE_ONLY_OUTCOME_RECORD_PREFIX}${encodeURIComponent(operationId)}`;
+
+const nativeOnlyStatus = (evidence: NativeOnlyRecoveryEvidence): SafWriteOperationStatus => ({
+  operationId: evidence.operationId,
+  // Native-only history has no JS owner. This non-URI identity is public
+  // provenance only and is deliberately never entered in activeSafWrites.
+  targetKey: `native-only:${encodeURIComponent(evidence.operationId)}`,
+  phase: evidence.outcome.phase,
+  terminal: true,
+  retryable: evidence.outcome.retryable,
+  operationStatus: evidence.outcome.operationStatus,
+  updatedAt: 0,
+  errorCode: evidence.outcome.errorCode,
+});
+
+const installNativeOnlyEvidence = (evidence: NativeOnlyRecoveryEvidence): void => {
+  const existing = safWriteOperationsById.get(evidence.operationId);
+  if (existing && JSON.stringify({
+    operationStatus: existing.operationStatus, phase: existing.phase, terminal: existing.terminal,
+    retryable: existing.retryable, errorCode: existing.errorCode,
+  }) !== JSON.stringify(evidence.outcome))
+    throw new Error('Contradictory native-only recovery evidence.');
+  const status = existing ?? nativeOnlyStatus(evidence);
+  nativeOnlyOperationIds.add(evidence.operationId);
+  safWriteOperationsById.set(evidence.operationId, status);
+  durableTerminalOperations.set(evidence.operationId, { ...status });
+};
+
+const assertNativeOnlyEvidenceMatchesPublicStatus = (evidence: NativeOnlyRecoveryEvidence): void => {
+  const existing = safWriteOperationsById.get(evidence.operationId);
+  if (!existing) return;
+  if (!nativeOnlyOperationIds.has(evidence.operationId))
+    throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
+  const publicOutcome = {
+    operationStatus: existing.operationStatus, phase: existing.phase, terminal: existing.terminal,
+    retryable: existing.retryable, errorCode: existing.errorCode,
+  };
+  if (JSON.stringify(publicOutcome) !== JSON.stringify(evidence.outcome))
+    throw new Error('Contradictory native-only recovery evidence.');
+};
+
 /** Durably classifies a terminal receipt which has no persisted JavaScript owner. */
 export const persistNativeOnlyRecoveryEvidence = async (
   operationId: string,
   outcome: NativeOnlyRecoveryEvidence['outcome'],
 ): Promise<void> => {
-  const raw = await AsyncStorage.getItem(NATIVE_ONLY_OUTCOME_STORAGE_KEY);
-  let candidates: unknown = [];
-  if (raw) {
-    try { candidates = JSON.parse(raw); } catch { candidates = undefined; }
-  }
-  if (!Array.isArray(candidates)) throw new Error('Invalid native-only recovery evidence journal.');
-  const evidence = candidates.map(parseNativeOnlyEvidence);
-  evidence.forEach(item => nativeOnlyOperationIds.add(item.operationId));
   const next = parseNativeOnlyEvidence({ kind: 'native-only-recovery-outcome', operationId, outcome });
-  const existing = evidence.find(item => item.operationId === operationId);
+  assertNativeOnlyEvidenceMatchesPublicStatus(next);
+  const key = nativeOnlyRecordKey(operationId);
+  const existingRaw = await AsyncStorage.getItem(key);
+  let existing: NativeOnlyRecoveryEvidence | undefined;
+  if (existingRaw) {
+    let candidate: unknown;
+    try { candidate = JSON.parse(existingRaw); } catch { candidate = undefined; }
+    existing = parseNativeOnlyEvidence(candidate);
+  }
   if (existing && JSON.stringify(existing) !== JSON.stringify(next))
     throw new Error('Contradictory native-only recovery evidence.');
-  if (!existing) evidence.push(next);
-  // Native-only records have no live owner to reserve capacity for. Retain a
-  // deterministic bounded history and always include the receipt currently
-  // being taken over before it can be acknowledged.
-  await AsyncStorage.setItem(
-    NATIVE_ONLY_OUTCOME_STORAGE_KEY,
-    JSON.stringify(evidence.slice(-JOURNAL_LIMIT)),
-  );
-  nativeOnlyOperationIds.add(operationId);
+  // Each outcome is an immutable durable public record. The bounded legacy
+  // index is no longer an authority and therefore cannot evict evidence that
+  // is about to be acknowledged, even for batches larger than JOURNAL_LIMIT.
+  if (!existing) await AsyncStorage.setItem(key, JSON.stringify(next));
+  installNativeOnlyEvidence(next);
 };
 
 const restoreNativeOnlyRecoveryEvidence = async (): Promise<void> => {
+  const evidenceById = new Map<string, NativeOnlyRecoveryEvidence>();
   const raw = await AsyncStorage.getItem(NATIVE_ONLY_OUTCOME_STORAGE_KEY);
-  if (!raw) return;
-  let values: unknown;
-  try { values = JSON.parse(raw); } catch { values = undefined; }
-  if (!Array.isArray(values)) throw new Error('Invalid native-only recovery evidence journal.');
-  values.map(parseNativeOnlyEvidence).forEach(item => nativeOnlyOperationIds.add(item.operationId));
+  if (raw) {
+    let values: unknown;
+    try { values = JSON.parse(raw); } catch { values = undefined; }
+    if (!Array.isArray(values)) throw new Error('Invalid native-only recovery evidence journal.');
+    for (const value of values) {
+      const evidence = parseNativeOnlyEvidence(value);
+      const previous = evidenceById.get(evidence.operationId);
+      if (previous && JSON.stringify(previous) !== JSON.stringify(evidence))
+        throw new Error('Contradictory native-only recovery evidence.');
+      evidenceById.set(evidence.operationId, evidence);
+    }
+  }
+  const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(NATIVE_ONLY_OUTCOME_RECORD_PREFIX));
+  for (const key of keys) {
+    const rawRecord = await AsyncStorage.getItem(key);
+    if (rawRecord === null) throw new Error('Missing native-only recovery evidence record.');
+    let candidate: unknown;
+    try { candidate = JSON.parse(rawRecord); } catch { candidate = undefined; }
+    const evidence = parseNativeOnlyEvidence(candidate);
+    if (key !== nativeOnlyRecordKey(evidence.operationId))
+      throw new Error('Mismatched native-only recovery evidence key.');
+    const previous = evidenceById.get(evidence.operationId);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(evidence))
+      throw new Error('Contradictory native-only recovery evidence.');
+    evidenceById.set(evidence.operationId, evidence);
+  }
+  evidenceById.forEach(installNativeOnlyEvidence);
 };
 
 /** Stages every consumed native report before any individual terminal record is published. */
@@ -289,6 +352,8 @@ export const restoreSafWriteOperations = async (): Promise<SafWriteOperationStat
   const restored: SafWriteOperationStatus[] = [];
   for (const candidate of values) {
     const parsed = parsePersistedStatus(candidate);
+    if (nativeOnlyOperationIds.has(parsed.operationId))
+      throw new Error('Operation ID exists in both owned and native-only recovery evidence.');
     if (parsed.terminal) durableTerminalOperations.set(parsed.operationId, { ...parsed });
     const active = activeSafWrites.get(parsed.targetKey);
     const indexed = safWriteOperationsById.get(parsed.operationId);

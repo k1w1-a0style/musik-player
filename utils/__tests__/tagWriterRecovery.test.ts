@@ -7,6 +7,7 @@ import { mapNativeRecoveryOutcome, restoreAndReconcileTagWrites } from '../tagWr
 
 const STORAGE_KEY = '@musik-player/tag-write-operations/v1';
 const NATIVE_ONLY_STORAGE_KEY = '@musik-player/tag-write-native-only-outcomes/v1';
+const nativeOnlyRecordKey = (id: string) => `${NATIVE_ONLY_STORAGE_KEY}/record/${encodeURIComponent(id)}`;
 
 describe('persisted tag-write recovery', () => {
   beforeEach(() => {
@@ -49,10 +50,14 @@ describe('persisted tag-write recovery', () => {
 
     await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
     expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
-    expect(JSON.parse((await AsyncStorage.getItem(NATIVE_ONLY_STORAGE_KEY)) ?? '[]')).toEqual([{
+    expect(JSON.parse((await AsyncStorage.getItem(nativeOnlyRecordKey('native-only'))) ?? 'null')).toEqual({
       kind: 'native-only-recovery-outcome', operationId: 'native-only',
       outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
-    }]);
+    });
+    expect(getSafWriteOperation('native-only')).toMatchObject({
+      operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false,
+    });
+    expect(getActiveSafWrite('native-only:native-only')).toBeUndefined();
     expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['native-only']);
   });
 
@@ -72,8 +77,84 @@ describe('persisted tag-write recovery', () => {
 
     await expect(restoreAndReconcileTagWrites()).rejects.toThrow('second evidence failed');
     expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['native-first']);
-    expect(JSON.parse((await AsyncStorage.getItem(NATIVE_ONLY_STORAGE_KEY)) ?? '[]'))
-      .toEqual([expect.objectContaining({ operationId: 'native-first' })]);
+    expect(JSON.parse((await AsyncStorage.getItem(nativeOnlyRecordKey('native-first'))) ?? 'null'))
+      .toEqual(expect.objectContaining({ operationId: 'native-first' }));
+    expect(await AsyncStorage.getItem(nativeOnlyRecordKey('native-second'))).toBeNull();
+  });
+
+  test.each([
+    ['native-commit', { previousState: 'WRITE_STARTED', resultState: 'COMMITTED', recovered: false, pending: false },
+      { operationStatus: 'completed', retryable: false, errorCode: undefined }],
+    ['native-rollback', { previousState: 'RECOVERY_REQUIRED', resultState: 'RECOVERED', recovered: true, pending: false },
+      { operationStatus: 'failed', retryable: true, errorCode: 'TagWriteRolledBack' }],
+    ['native-failure', { previousState: 'RECOVERY_FAILED', resultState: 'RECOVERY_FAILED', recovered: false, pending: false, errorCode: 'BackupCorrupted' },
+      { operationStatus: 'failed', retryable: true, errorCode: 'BackupCorrupted' }],
+  ])('restores public native-only status after restart for %s', async (operationId, report, expected) => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
+      .mockResolvedValueOnce({ success: true, transactions: [{ transactionId: operationId, ...report }] })
+      .mockResolvedValueOnce({ success: true, transactions: [] });
+    await restoreAndReconcileTagWrites();
+    expect(getSafWriteOperation(operationId)).toMatchObject({ ...expected, terminal: true });
+
+    clearSafWriteOperationsForTests();
+    await restoreAndReconcileTagWrites();
+    expect(getSafWriteOperation(operationId)).toMatchObject({ ...expected, terminal: true });
+    expect(getActiveSafWrite(`native-only:${operationId}`)).toBeUndefined();
+  });
+
+  test('keeps all 51 acknowledged native-only outcomes in immutable public evidence', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    const transactions = Array.from({ length: 51 }, (_, index) => ({
+      transactionId: `native-capacity-${index}`, previousState: 'WRITE_STARTED', resultState: 'COMMITTED',
+      recovered: false, pending: false,
+    }));
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({ success: true, transactions });
+
+    await restoreAndReconcileTagWrites();
+    expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(
+      transactions.map(item => item.transactionId),
+    );
+    for (const { transactionId } of transactions) {
+      expect(await AsyncStorage.getItem(nativeOnlyRecordKey(transactionId))).not.toBeNull();
+      expect(getSafWriteOperation(transactionId)).toMatchObject({ operationStatus: 'completed', terminal: true });
+    }
+  });
+
+  test.each([
+    ['corrupt JSON', '{'],
+    ['unknown field', JSON.stringify({
+      kind: 'native-only-recovery-outcome', operationId: 'invalid-native-only', extra: true,
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    })],
+    ['invalid ID', JSON.stringify({
+      kind: 'native-only-recovery-outcome', operationId: ' invalid-native-only ',
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    })],
+    ['contradictory outcome', JSON.stringify({
+      kind: 'native-only-recovery-outcome', operationId: 'invalid-native-only',
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: true },
+    })],
+  ])('fails startup closed for %s immutable native-only evidence', async (_label, value) => {
+    await AsyncStorage.setItem(nativeOnlyRecordKey('invalid-native-only'), value);
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow(/native-only|terminal tag-write outcome/i);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).not.toHaveBeenCalled();
+  });
+
+  test('rejects contradictory duplicate native-only evidence for the same operation ID', async () => {
+    const completed = {
+      kind: 'native-only-recovery-outcome', operationId: 'duplicate-native-only',
+      outcome: { operationStatus: 'completed', phase: 'completed', terminal: true, retryable: false },
+    };
+    await AsyncStorage.setItem(NATIVE_ONLY_STORAGE_KEY, JSON.stringify([completed]));
+    await AsyncStorage.setItem(nativeOnlyRecordKey('duplicate-native-only'), JSON.stringify({
+      ...completed,
+      outcome: { operationStatus: 'failed', phase: 'failed', terminal: true, retryable: true, errorCode: 'BackupCorrupted' },
+    }));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    await expect(restoreAndReconcileTagWrites()).rejects.toThrow('Contradictory native-only recovery evidence');
+    expect(SystemAudio.recoverPendingAudioTagTransactions).not.toHaveBeenCalled();
   });
 
   test('opens startup normally when both JavaScript and native journals are empty', async () => {
