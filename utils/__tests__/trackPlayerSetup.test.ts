@@ -43,11 +43,11 @@ describe('trackPlayerSetup helpers', () => {
     expect(TrackPlayer.updateOptions).toHaveBeenCalledWith(TRACK_PLAYER_OPTIONS);
   });
 
-  test('logs and skips options on real setup failures', async () => {
+  test('logs and rejects on real setup failures before options are applied', async () => {
     const logger = jest.fn();
     (TrackPlayer.setupPlayer as jest.Mock).mockRejectedValueOnce(new Error('native service unavailable'));
 
-    await setupTrackPlayer(logger);
+    await expect(setupTrackPlayer(logger)).rejects.toThrow('native service unavailable');
 
     expect(logger).toHaveBeenCalledWith(
       'TrackPlayer setup failed: native service unavailable',
@@ -56,11 +56,11 @@ describe('trackPlayerSetup helpers', () => {
     expect(TrackPlayer.updateOptions).not.toHaveBeenCalled();
   });
 
-  test('logs option update failures', async () => {
+  test('logs and rejects option update failures', async () => {
     const logger = jest.fn();
     (TrackPlayer.updateOptions as jest.Mock).mockRejectedValueOnce(new Error('bad options'));
 
-    await setupTrackPlayer(logger);
+    await expect(setupTrackPlayer(logger)).rejects.toThrow('bad options');
 
     expect(logger).toHaveBeenCalledWith('TrackPlayer options update failed: bad options', expect.any(Error));
   });
