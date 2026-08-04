@@ -59,6 +59,8 @@ const createApeFooter = (): Uint8Array => {
 };
 
 describe('tag deletion byte verification', () => {
+  afterEach(() => { jest.useRealTimers(); });
+
   const audio = new Uint8Array([0xff, 0xfb, 0x90, 0x64, 1, 2, 3, 4]);
   const deleteTitleDraft = { songId: song.id, tags: { title: '' } };
 
@@ -142,6 +144,23 @@ describe('tag deletion byte verification', () => {
         changedFields: ['title'],
       }),
     );
+  });
+
+  test('bounds a hanging native content deletion verification', async () => {
+    jest.useFakeTimers();
+    const contentSong = {
+      ...song,
+      uri: 'content://documents/song-timeout',
+      fileInfo: { ...song.fileInfo, uri: 'content://documents/song-timeout' },
+    };
+    const request = verifyTagDeletionState(contentSong, deleteTitleDraft, 'mp3', {
+      verifyContentDeletion: jest.fn(() => new Promise<boolean>(() => undefined)),
+      timeoutMs: 10,
+    });
+
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(10);
+    await expect(request).resolves.toBe(false);
   });
 
   test('rejects a negative native content deletion verdict', async () => {
