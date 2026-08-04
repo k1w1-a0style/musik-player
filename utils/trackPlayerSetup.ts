@@ -58,7 +58,7 @@ export const setupTrackPlayer = async (
   } catch (error) {
     if (!isTrackPlayerAlreadySetUpError(error)) {
       logger(`TrackPlayer setup failed: ${formatTrackPlayerSetupError(error)}`, error);
-      return;
+      throw error;
     }
   }
 
@@ -66,5 +66,6 @@ export const setupTrackPlayer = async (
     await TrackPlayer.updateOptions(TRACK_PLAYER_OPTIONS);
   } catch (error) {
     logger(`TrackPlayer options update failed: ${formatTrackPlayerSetupError(error)}`, error);
+    throw error;
   }
 };
