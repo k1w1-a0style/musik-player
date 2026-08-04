@@ -208,6 +208,44 @@ let tagWriteOperationSequence = 0;
 const createNativeTagWriteOperationId = (): string =>
   `tag-${Date.now().toString(36)}-${(++tagWriteOperationSequence).toString(36)}`;
 
+// Read-only native calls are not cancellable on every Android/SAF provider.
+// Keep a final module-boundary safety net so an unguarded caller can never wait
+// forever, while the stricter per-feature timeouts (for example backfills) still
+// win first. Timed-out raw native calls continue occupying a slot until they
+// actually settle, so detached work can never grow with the library size.
+const NATIVE_READ_SAFETY_TIMEOUT_MS = 20_000;
+const MAX_NATIVE_READS_IN_FLIGHT = 2;
+let nativeReadsInFlight = 0;
+
+type NativeReadSettlement<T> =
+  | { kind: 'value'; value: T }
+  | { kind: 'error'; error: unknown };
+
+const runBoundedNativeRead = async <T>(operation: () => Promise<T>): Promise<T | null> => {
+  if (nativeReadsInFlight >= MAX_NATIVE_READS_IN_FLIGHT) return null;
+  nativeReadsInFlight += 1;
+  const raw = Promise.resolve().then(operation);
+  const settled: Promise<NativeReadSettlement<T>> = raw.then(
+    value => ({ kind: 'value', value }),
+    error => ({ kind: 'error', error }),
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ kind: 'timeout' }>(resolve => {
+    timer = setTimeout(() => resolve({ kind: 'timeout' }), NATIVE_READ_SAFETY_TIMEOUT_MS);
+  });
+  const first = await Promise.race([settled, timeout]);
+  if (first.kind === 'timeout') {
+    void settled.finally(() => {
+      nativeReadsInFlight = Math.max(0, nativeReadsInFlight - 1);
+    });
+    return null;
+  }
+  if (timer) clearTimeout(timer);
+  nativeReadsInFlight = Math.max(0, nativeReadsInFlight - 1);
+  if (first.kind === 'error') throw first.error;
+  return first.value;
+};
+
 export const SystemAudio = {
   isAvailable: native !== null,
   hasNativeTagWriter,
@@ -238,11 +276,11 @@ export const SystemAudio = {
   },
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
-    return native ? native.extractEmbeddedArtwork(uri) : null;
+    return native ? runBoundedNativeRead(() => native.extractEmbeddedArtwork(uri)) : null;
   },
 
   async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
-    return native ? native.extractAudioInfo(uri) : null;
+    return native ? runBoundedNativeRead(() => native.extractAudioInfo(uri)) : null;
   },
 
   /**
