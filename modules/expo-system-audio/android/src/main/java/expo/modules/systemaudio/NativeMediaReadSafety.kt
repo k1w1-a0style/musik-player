@@ -18,10 +18,22 @@ internal fun readPositiveLongMetadata(reader: () -> String?): Long? =
     null
   }
 
+/** Runs an operation and releases its resource on success and failure. */
+internal inline fun <T, R> withResourceReleased(
+  resource: T,
+  release: (T) -> Unit,
+  operation: (T) -> R,
+): R =
+  try {
+    operation(resource)
+  } finally {
+    release(resource)
+  }
+
 /** Always releases decoded palette bitmaps, including when Palette generation throws. */
 internal inline fun <T> withBitmapRecycled(bitmap: Bitmap, operation: (Bitmap) -> T): T =
-  try {
-    operation(bitmap)
-  } finally {
-    if (!bitmap.isRecycled) bitmap.recycle()
-  }
+  withResourceReleased(
+    resource = bitmap,
+    release = { source -> if (!source.isRecycled) source.recycle() },
+    operation = operation,
+  )
