@@ -7,9 +7,13 @@ import type {
 import type { Song } from '../types/Song';
 import { getUriType } from './tagEditCapability';
 import { expoTagFileWriteAdapter, type TagFileWriteAdapter } from './tagFileWriteAdapter';
-import { DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES } from './tagWriteOrchestrator';
 import { applyTagEditToBuffer } from './tagWriterValidation';
 import { buildNativeTagWriteRequest } from './tagWriterNativeRequest';
+import {
+  DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
+  DEFAULT_TAG_DELETION_VERIFICATION_TIMEOUT_MS,
+} from './tagWriterLimits';
+import { withTimeout } from './withTimeout';
 
 export const hasTagDeletionIntent = (draft: TagEditDraft): boolean =>
   Boolean(draft.removeCover)
@@ -68,6 +72,7 @@ type TagDeletionVerificationOptions = {
   adapter?: TagFileWriteAdapter;
   maxFileSizeBytes?: number;
   verifyContentDeletion?: (uri: string, request: AudioTagWriteRequest) => Promise<boolean>;
+  timeoutMs?: number;
 };
 
 const readWrittenBytes = async (
@@ -112,7 +117,11 @@ export const verifyTagDeletionState = async (
       const maxBytes = options.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
       const verifier = options.verifyContentDeletion
         ?? ((targetUri: string, request: AudioTagWriteRequest) => SystemAudio.verifyAudioTagDeletion(targetUri, request));
-      return await verifier(uri, buildNativeTagWriteRequest(draft, container, maxBytes));
+      return await withTimeout(
+        verifier(uri, buildNativeTagWriteRequest(draft, container, maxBytes)),
+        options.timeoutMs ?? DEFAULT_TAG_DELETION_VERIFICATION_TIMEOUT_MS,
+        'Tag deletion verification timed out.',
+      );
     }
     const writtenBytes = await readWrittenBytes(uri, options);
     if (!writtenBytes?.length) return false;
