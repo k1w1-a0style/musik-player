@@ -22,11 +22,16 @@ const acquirePaletteExtraction = (artworkUri: string): Promise<PaletteResult | n
       : null;
   }
 
-  // Normalize failures so the detached settlement observer never creates an
-  // unhandled rejection after a caller-side timeout or abort.
-  const result = Promise.resolve()
-    .then(() => SystemAudio.extractPalette(artworkUri))
-    .catch(() => null);
+  // Start immediately so existing hook timing stays unchanged. Normalize both
+  // synchronous and asynchronous native failures so a detached settlement after
+  // caller timeout/abort can never become an unhandled rejection.
+  let nativeResult: Promise<PaletteResult | null>;
+  try {
+    nativeResult = SystemAudio.extractPalette(artworkUri);
+  } catch {
+    nativeResult = Promise.resolve(null);
+  }
+  const result = Promise.resolve(nativeResult).catch(() => null);
   const extraction: ActivePaletteExtraction = { artworkUri, result };
   activePaletteExtraction = extraction;
   void result.then(() => {
