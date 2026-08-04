@@ -61,7 +61,11 @@ export const useTagEditorCapability = ({
     const coverCapabilityMessage = canWriteCover
       ? undefined
       : 'Das Cover kann ausgewählt, für diese Dateiquelle aber noch nicht gespeichert werden.';
-    const safetyMessage = song ? safetyNotice(song) : undefined;
+    const safetyMessage = !song
+      ? undefined
+      : plan.uriType === 'file' && !planCanWrite
+        ? capabilityReason(planPermissionReason)
+        : safetyNotice(song);
 
     return {
       capability,
