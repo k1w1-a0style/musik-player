@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { TagEditDraft, TagEditableContainer } from '../types/TagEdit';
+import type { TagEditDraft, TagEditableContainer, WriteTagsResult } from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { encodeBytesToBase64 } from '../utils/base64';
 import { normalizeId3Genre } from '../utils/id3Parser';
@@ -20,6 +20,14 @@ const WRITE_REREAD_FAILED_MESSAGE = 'Datei wurde geschrieben, die Metadaten konn
 const WRITE_VERIFICATION_FAILED_MESSAGE = 'Datei wurde geschrieben, aber die erneute Prüfung hat nicht alle Änderungen bestätigt.';
 const NOOP_DELETION_VERIFICATION_FAILED_MESSAGE = 'Die Löschung konnte in der Datei nicht bestätigt werden.';
 const TAG_VERIFICATION_SCAN_BYTES = 8 * 1024 * 1024;
+const WRITE_PENDING_MESSAGE = 'Speichern dauert länger als erwartet. Der geschützte Schreibvorgang läuft weiter; das Ergebnis wird beim nächsten App-Start abgeglichen.';
+
+const writeFailureMessage = (result: WriteTagsResult): string => {
+  if (result.operationPhase === 'pendingNativeResult' && result.terminal === false)
+    return WRITE_PENDING_MESSAGE;
+  if (result.errorCode) return tagWriterErrorMessage(result.errorCode, result.errorMessage);
+  return 'Speichern fehlgeschlagen.';
+};
 
 const normalizeValue = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
@@ -222,7 +230,7 @@ export const useTagEditorSaveFlow = ({
       } else if (result.status === 'noop') {
         resetAfterNoopSave(song, draft);
       } else if (result.errorCode) {
-        setStatus(tagWriterErrorMessage(result.errorCode, result.errorMessage));
+        setStatus(writeFailureMessage(result));
         return;
       }
       setStatus(statusMessage(result));
