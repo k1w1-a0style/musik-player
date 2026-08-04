@@ -6,7 +6,7 @@ import { getSupportedContainer } from './tagEditCapability';
 import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { buildNativeTagWriteRequest, changedFieldsForNativeTagDraft } from './tagWriterNativeRequest';
-import { resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
+import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS, resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
 
 const failureStatus = (code?: string): WriteTagsResult['status'] => {
   if (code === 'MissingWritePermission') return 'permissionDenied';
@@ -161,6 +161,7 @@ export const writeTagsToSafContentUri = async (
     }
   }, {
     ...options,
+    timeoutMs: options?.timeoutMs ?? DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS,
     phaseForResult: phaseForWriteResult,
     recoveryPendingForResult: isRecoveryPendingResult,
     acknowledgeConfirmedCommit: async operationId => {
