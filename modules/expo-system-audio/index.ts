@@ -208,6 +208,31 @@ let tagWriteOperationSequence = 0;
 const createNativeTagWriteOperationId = (): string =>
   `tag-${Date.now().toString(36)}-${(++tagWriteOperationSequence).toString(36)}`;
 
+// Native SAF tag writes may hold two full-size app-private copies plus provider
+// resources. Bound the public module boundary so callers cannot reserve an
+// unbounded number of native transactions across different document URIs.
+const MAX_NATIVE_TAG_WRITES_IN_FLIGHT = 2;
+let nativeTagWritesInFlight = 0;
+
+const tagWriteCapacityConflict = (
+  uri: string,
+  request: AudioTagWriteRequest,
+  operationId: string,
+): AudioTagWriteResult => ({
+  success: false,
+  uri,
+  changedFields: [],
+  failedFields: request.changedFields ?? [],
+  errorCode: 'TransactionConflict',
+  message: 'Native tag write capacity is busy. Retry after an active write completes.',
+  verified: false,
+  recoveryPending: false,
+  operationId,
+  phase: 'FAILED',
+  terminal: true,
+  retryable: true,
+});
+
 // Read-only native calls are not cancellable on every Android/SAF provider.
 // Keep a final module-boundary safety net so an unguarded caller can never wait
 // forever, while the stricter per-feature timeouts (for example backfills) still
@@ -357,8 +382,17 @@ export const SystemAudio = {
         retryable: false,
       };
     }
-    const result = await native.writeAudioTags(uri, { ...request, operationId });
-    return { ...result, operationId: result.operationId ?? operationId };
+    if (nativeTagWritesInFlight >= MAX_NATIVE_TAG_WRITES_IN_FLIGHT) {
+      return tagWriteCapacityConflict(uri, request, operationId);
+    }
+
+    nativeTagWritesInFlight += 1;
+    try {
+      const result = await native.writeAudioTags(uri, { ...request, operationId });
+      return { ...result, operationId: result.operationId ?? operationId };
+    } finally {
+      nativeTagWritesInFlight = Math.max(0, nativeTagWritesInFlight - 1);
+    }
   },
 };
 
