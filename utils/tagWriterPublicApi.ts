@@ -13,6 +13,10 @@ import { TagWriterError, tagWriterWarn } from './tagWriterError';
 const LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE =
   'Local file tag writing is blocked until a persistent crash-recovery journal is available.';
 
+const isLocalFileWriteSafetyClaim = (warning: string): boolean =>
+  warning.startsWith('MP3/M4A/MP4 file:// writes use ') ||
+  warning.startsWith('file:// writes use backup + temp + byte verification');
+
 const failClosedLocalFilePlan = (plan: TagEditPlan): TagEditPlan => {
   if (plan.uriType !== 'file') return plan;
   return {
@@ -36,7 +40,10 @@ const failClosedLocalFilePlan = (plan: TagEditPlan): TagEditPlan => {
       postWriteVerification: false,
       crashRecovery: false,
     },
-    warnings: [...plan.warnings, LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE],
+    warnings: [
+      ...plan.warnings.filter(warning => !isLocalFileWriteSafetyClaim(warning)),
+      LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE,
+    ],
     blockingReasons: [...new Set([...plan.blockingReasons, 'WriteNotImplemented' as const])],
   };
 };
