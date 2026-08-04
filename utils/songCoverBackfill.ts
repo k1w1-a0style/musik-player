@@ -3,6 +3,7 @@ import type { Song } from '../types/Song';
 import { cacheLocalCoverFile, isLikelyVolatileArtworkUri } from './coverCache';
 import type { CoverCacheProtection } from './coverCacheCleanup';
 import { getSongArtworkUri } from './songArtwork';
+import { runNativeReadWithTimeout } from './nativeReadTimeout';
 import { isAbortError, throwIfAborted } from './withTimeout';
 
 export interface SongCoverBackfillResult {
@@ -16,6 +17,7 @@ export interface SongCoverBackfillOptions {
   concurrency?: number;
   batchSize?: number;
   signal?: AbortSignal;
+  nativeReadTimeoutMs?: number;
   shouldProcessSong?: (song: Song) => boolean;
   yieldToUi?: () => Promise<void>;
   coverCacheProtection?: CoverCacheProtection;
@@ -70,6 +72,33 @@ const applyCoverResult = (song: Song, uri?: string): Song => {
   };
 };
 
+type EmbeddedCoverReadResult =
+  | { kind: 'success'; artworkUri?: string }
+  | { kind: 'failure' }
+  | { kind: 'timeout' };
+
+const readAndCacheEmbeddedCover = async (
+  song: Song,
+  uri: string,
+  options: SongCoverBackfillOptions,
+): Promise<EmbeddedCoverReadResult> => {
+  const nativeRead = await runNativeReadWithTimeout(
+    () => SystemAudio.extractEmbeddedArtwork(uri),
+    { timeoutMs: options.nativeReadTimeoutMs, signal: options.signal, label: 'Embedded artwork extraction' },
+  );
+  if (nativeRead.kind !== 'success') return nativeRead;
+  const extractedUri = nativeRead.value?.uri;
+  if (!extractedUri || isRemoteUri(extractedUri)) return { kind: 'success' };
+  try {
+    const artworkUri = await cacheLocalCoverFile(song.id, extractedUri, options.coverCacheProtection);
+    throwIfAborted(options.signal);
+    return artworkUri ? { kind: 'success', artworkUri } : { kind: 'failure' };
+  } catch {
+    throwIfAborted(options.signal);
+    return { kind: 'failure' };
+  }
+};
+
 export const backfillEmbeddedSongCovers = async (
   songs: Song[],
   options: SongCoverBackfillOptions = {},
@@ -107,28 +136,23 @@ export const backfillEmbeddedSongCovers = async (
         await maybeYield();
         continue;
       }
-      let artworkUri: string | undefined;
-      let hadLocalArtwork = false;
-      try {
-        const extractedUri = (await SystemAudio.extractEmbeddedArtwork(uri))?.uri;
-        hadLocalArtwork = Boolean(extractedUri && !isRemoteUri(extractedUri));
-        if (hadLocalArtwork) artworkUri = await cacheLocalCoverFile(candidate.song.id, extractedUri, coverCacheProtection);
-        throwIfAborted(signal);
-      } catch {
-        throwIfAborted(signal);
+      const coverRead = await readAndCacheEmbeddedCover(candidate.song, uri, {
+        ...options,
+        signal,
+        coverCacheProtection,
+      });
+      if (coverRead.kind !== 'success') {
         attempted += 1;
         await maybeYield();
+        // The timed-out native call may still be running. Retire this worker so
+        // detached calls can never exceed the configured concurrency.
+        if (coverRead.kind === 'timeout') return;
         continue;
       }
-      if (hadLocalArtwork && !artworkUri) {
-        attempted += 1;
-        await maybeYield();
-        continue;
-      }
-      const patched = applyCoverResult(candidate.song, artworkUri);
+      const patched = applyCoverResult(candidate.song, coverRead.artworkUri);
       nextSongs[candidate.index] = patched;
       options.onSongProcessed?.(patched, candidate.index);
-      if (patched !== candidate.song && artworkUri) updated += 1;
+      if (patched !== candidate.song && coverRead.artworkUri) updated += 1;
       attempted += 1;
       await maybeYield();
     }
