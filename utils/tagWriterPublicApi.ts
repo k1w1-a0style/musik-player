@@ -7,6 +7,7 @@ import { writeTagsToFileOrThrow } from './tagWriterFileReplace';
 import { resolveWritableFileTagUri } from './tagWriterPayload';
 import { getUriType } from './tagEditCapability';
 import { writeTagsToSafContentUri } from './tagWriterSaf';
+import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS } from './tagWriterLimits';
 import { TagWriterError, tagWriterWarn } from './tagWriterError';
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
@@ -49,10 +50,17 @@ const toWriteTagsFailureResult = (
   };
 };
 
+export type WriteTagsOptions = {
+  adapter?: TagFileWriteAdapter;
+  maxFileSizeBytes?: number;
+  timeoutMs?: number;
+  operationId?: string;
+};
+
 export const writeTagsToFile = async (
   song: Song,
   draft: TagEditDraft,
-  options?: { adapter?: TagFileWriteAdapter; maxFileSizeBytes?: number },
+  options: WriteTagsOptions = {},
 ): Promise<WriteTagsResult> => {
   const rawUri = song.fileInfo?.uri ?? song.uri;
   if (getUriType(rawUri) === 'content') {
@@ -65,7 +73,11 @@ export const writeTagsToFile = async (
         rawUri,
       );
     }
-    return writeTagsToSafContentUri(song, draft, options);
+    return writeTagsToSafContentUri(song, draft, {
+      maxFileSizeBytes: options.maxFileSizeBytes,
+      timeoutMs: options.timeoutMs ?? DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS,
+      operationId: options.operationId,
+    });
   }
 
   const writableUri = resolveWritableFileTagUri(song);
