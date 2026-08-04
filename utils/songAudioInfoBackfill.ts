@@ -1,10 +1,12 @@
 import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song, SongAudioInfo, SongFileInfo } from '../types/Song';
+import { runNativeReadWithTimeout } from './nativeReadTimeout';
 
 export interface AudioInfoBackfillOptions {
   concurrency?: number;
   batchSize?: number;
   signal?: AbortSignal;
+  nativeReadTimeoutMs?: number;
   shouldProcessSong?: (song: Song, index: number) => boolean;
   onSongProcessed?: (song: Song, index: number) => void;
 }
@@ -137,14 +139,19 @@ export const mergeNativeAudioInfoIntoSong = (
     : next;
 };
 
-const readNativeAudioInfo = async (song: Song): Promise<AudioInfoResult | null> => {
+const readNativeAudioInfo = async (
+  song: Song,
+  timeoutMs?: number,
+  signal?: AbortSignal,
+): Promise<{ audioInfo: AudioInfoResult | null; timedOut: boolean }> => {
   const uri = resolveAudioInfoUri(song);
-  if (!isNativeAudioInfoUri(uri)) return null;
-  try {
-    return await SystemAudio.extractAudioInfo(uri);
-  } catch {
-    return null;
-  }
+  if (!isNativeAudioInfoUri(uri)) return { audioInfo: null, timedOut: false };
+  const outcome = await runNativeReadWithTimeout(
+    () => SystemAudio.extractAudioInfo(uri),
+    { timeoutMs, signal, label: 'Native audio-info extraction' },
+  );
+  if (outcome.kind === 'success') return { audioInfo: outcome.value, timedOut: false };
+  return { audioInfo: null, timedOut: outcome.kind === 'timeout' };
 };
 
 const abortError = (): DOMException => {
@@ -185,10 +192,14 @@ export const backfillExistingSongAudioInfo = async (
       if (!current) continue;
 
       attempted += 1;
-      const audioInfo = await readNativeAudioInfo(current.song);
+      const nativeRead = await readNativeAudioInfo(
+        current.song,
+        options.nativeReadTimeoutMs,
+        options.signal,
+      );
       throwIfAborted(options.signal);
 
-      const patched = mergeNativeAudioInfoIntoSong(current.song, audioInfo);
+      const patched = mergeNativeAudioInfoIntoSong(current.song, nativeRead.audioInfo);
       if (patched !== current.song) {
         nextSongs[current.index] = patched;
         updated += 1;
@@ -196,6 +207,9 @@ export const backfillExistingSongAudioInfo = async (
       }
 
       if (attempted % batchSize === 0) await Promise.resolve();
+      // The timed-out native call may still be running. Retire this worker so
+      // detached calls can never exceed the configured concurrency.
+      if (nativeRead.timedOut) return;
     }
   };
 
