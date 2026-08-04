@@ -255,11 +255,6 @@
       "maxLines": 90,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/coverCache.ts::cacheBase64Cover#1": {
-      "maxComplexity": 22,
-      "maxLines": 70,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/id3Parser.ts::decodeAPIC#1": {
       "maxComplexity": 18,
       "maxLines": 29,
