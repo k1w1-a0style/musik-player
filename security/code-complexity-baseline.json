@@ -285,11 +285,6 @@
       "maxLines": 59,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/imageMime.ts::detectImageMimeFromBytes#1": {
-      "maxComplexity": 23,
-      "maxLines": 14,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/mediaLibraryImport.ts::buildSongFromImportSource#1": {
       "maxComplexity": 17,
       "maxLines": 52,
