@@ -61,6 +61,53 @@ describe('native streaming SAF write contract', () => {
     expect(write).toHaveBeenCalledTimes(1);
   });
 
+  test('terminal recovery-pending attempt releases its JS target lock', async () => {
+    const write = jest.fn()
+      .mockImplementationOnce(async (uri: string, request: { operationId: string }) => ({
+        success: false,
+        uri,
+        changedFields: [],
+        failedFields: ['title'],
+        errorCode: 'RecoveryPending',
+        message: 'An older transaction still requires recovery.',
+        recoveryPending: true,
+        verified: false,
+        operationId: request.operationId,
+        phase: 'FAILED',
+        terminal: true,
+        retryable: true,
+      }))
+      .mockImplementationOnce(async (uri: string, request: { operationId: string }) => ({
+        success: true,
+        uri,
+        changedFields: ['title'],
+        failedFields: [],
+        verified: true,
+        operationId: request.operationId,
+        phase: 'COMPLETED',
+        terminal: true,
+        retryable: false,
+      }));
+    const { writeTagsToSafContentUri } = loadWithNative({
+      hasNativeTagWriter: true,
+      writeAudioTags: write,
+    });
+
+    await expect(writeTagsToSafContentUri(song, draft, { operationId: 'blocked-attempt' })).resolves.toMatchObject({
+      errorCode: 'RecoveryPending',
+      operationId: 'blocked-attempt',
+      operationPhase: 'failed',
+      terminal: true,
+      recoveryPending: true,
+      operationStatus: 'failed',
+    });
+    await expect(writeTagsToSafContentUri(song, draft, { operationId: 'later-attempt' })).resolves.toMatchObject({
+      status: 'written',
+      operationId: 'later-attempt',
+    });
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
   test('same-target busy result is an independent terminal retryable conflict', async () => {
     let finish!: (value: Record<string, unknown>) => void;
     const nativeResult = new Promise<Record<string, unknown>>(resolve => { finish = resolve; });
@@ -84,16 +131,37 @@ describe('native streaming SAF write contract', () => {
     expect(busy).toMatchObject({ operationId: 'rejected-operation', terminal: true, retryable: true });
   });
 
+  test.each([
+    ['content://provider/tree/song.mp3', 'same target'],
+    ['content://provider/tree/another.mp3', 'different target'],
+  ])('preserves operation-id reuse through the public API on the %s (%s)', async (uri) => {
+    const write = jest.fn(async (nativeUri: string, request: { operationId: string }) => ({
+      success: true, uri: nativeUri, changedFields: ['title'], failedFields: [], verified: true,
+      operationId: request.operationId, phase: 'COMPLETED', terminal: true, retryable: false,
+    }));
+    const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
+    await expect(writeTagsToSafContentUri(song, draft, { operationId: 'reused-public-id' }))
+      .resolves.toMatchObject({ status: 'written' });
+    const targetSong = { ...song, uri, fileInfo: { ...song.fileInfo!, uri } };
+    await expect(writeTagsToSafContentUri(targetSong, draft, { operationId: 'reused-public-id' }))
+      .resolves.toMatchObject({
+        status: 'writeFailed', errorCode: 'OperationIdAlreadyUsed', operationId: 'reused-public-id',
+        operationPhase: 'failed', operationStatus: 'failed', terminal: true, retryable: false,
+        blockedByOperationId: 'reused-public-id',
+      });
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
   test('native timeout remains pending and is not reported as busy', async () => {
     jest.useFakeTimers();
     const write = jest.fn(() => new Promise(() => undefined));
     const { writeTagsToSafContentUri } = loadWithNative({ hasNativeTagWriter: true, writeAudioTags: write });
     const pendingPromise = writeTagsToSafContentUri(song, draft, { timeoutMs: 10, operationId: 'pending-operation' });
-    await Promise.resolve();
+    for (let turn = 0; turn < 20 && write.mock.calls.length === 0; turn += 1) await Promise.resolve();
     jest.advanceTimersByTime(10);
     await expect(pendingPromise).resolves.toMatchObject({
       errorCode: 'RecoveryPending', operationId: 'pending-operation', operationPhase: 'pendingNativeResult',
-      terminal: false, retryable: false, recoveryPending: true,
+      terminal: false, retryable: false, recoveryPending: false, operationStatus: 'pending',
     });
     jest.useRealTimers();
   });
@@ -122,6 +190,8 @@ describe('native streaming SAF write contract', () => {
       changedFields: request.changedFields,
       failedFields: [],
       verified: true,
+      operationId: request.operationId,
+      phase: 'COMPLETED', terminal: true, retryable: false,
     }));
     const { writeTagsToSafContentUri } = loadWithNative({
       hasNativeTagWriter: true,
@@ -143,14 +213,16 @@ describe('native streaming SAF write contract', () => {
   });
 
   test('encodes only the bounded cover payload and maps native no-op', async () => {
-    const write = jest.fn().mockResolvedValue({
+    const write = jest.fn().mockImplementation(async (_uri: string, request: { operationId: string }) => ({
       success: true,
       uri: song.uri,
       changedFields: ['cover'],
       failedFields: [],
       verified: true,
       noop: true,
-    });
+      operationId: request.operationId,
+      phase: 'COMPLETED', terminal: true, retryable: false,
+    }));
     const { writeTagsToSafContentUri } = loadWithNative({
       hasNativeTagWriter: true,
       writeAudioTags: write,

@@ -1194,7 +1194,7 @@ describe('writeTagsToFile SAF/content native route', () => {
     const native = {
       isAvailable: true,
       hasNativeTagWriter: true,
-      writeAudioTags: jest.fn(async (uri: string, request: { changedFields: string[] }) => ({
+      writeAudioTags: jest.fn(async (uri: string, request: { changedFields: string[]; operationId: string }) => ({
         success: true,
         uri,
         changedFields: request.changedFields,
@@ -1205,6 +1205,7 @@ describe('writeTagsToFile SAF/content native route', () => {
         transactionId: 'tx-1',
         recovered: false,
         recoveryPending: false,
+        operationId: request.operationId, phase: 'COMPLETED', terminal: true, retryable: false,
       })),
     };
     const { writeTagsToFile: write } = loadWithNative(native);
@@ -1281,7 +1282,7 @@ describe('writeTagsToFile SAF/content native route', () => {
       const native = {
         isAvailable: true,
         hasNativeTagWriter: true,
-        writeAudioTags: jest.fn(async (uri: string) => ({
+        writeAudioTags: jest.fn(async (uri: string, request: { operationId: string }) => ({
           success: false,
           uri,
           changedFields: [],
@@ -1289,6 +1290,7 @@ describe('writeTagsToFile SAF/content native route', () => {
           errorCode,
           message: errorCode,
           verified: false,
+          operationId: request.operationId, phase: 'FAILED', terminal: true, retryable: true,
         })),
       };
       const { writeTagsToFile: write } = loadWithNative(native);

@@ -39,6 +39,14 @@ class AudioTagTransactionManagerTest {
     }
   }
 
+  private class RecordingDirectorySync : DirectoryDurabilitySync {
+    val directories = mutableListOf<File>()
+
+    override fun sync(directory: File) {
+      directories += directory.canonicalFile
+    }
+  }
+
   private class FirstDirectorySyncBarrier : DirectoryDurabilitySync {
     val entered = CountDownLatch(1)
     val release = CountDownLatch(1)
@@ -168,6 +176,13 @@ class AudioTagTransactionManagerTest {
     assertTrue(result.verified)
     assertArrayEquals(rewritten, store.bytes)
     assertTrue(root.listFiles().isNullOrEmpty())
+    val receipt = storage(root).retainedRecoveryOutcomes().single()
+    assertEquals("COMMITTED", receipt.previousState)
+    assertEquals("COMMITTED", receipt.resultState)
+    assertEquals(safTargetKey(uri), receipt.targetKey)
+    assertFalse(receipt.recovered)
+    assertFalse(receipt.pending)
+    assertNull(receipt.errorCode)
     assertFalse(result.retryable)
   }
 
@@ -189,6 +204,19 @@ class AudioTagTransactionManagerTest {
     }
     assertFalse(isRetryableTagWriteFailure(false, "UnknownFailure", recoveryPending = false))
     assertFalse(isRetryableTagWriteFailure(true, null, recoveryPending = false))
+  }
+
+  @Test fun firstRecoveryOutcomeDurablyAnchorsItsRootInTheParentDirectory() {
+    val parent = tmp()
+    val root = File(parent, "transactions")
+    val sync = RecordingDirectorySync()
+    val storage = storage(root, sync)
+    sync.directories.clear() // Ignore transaction-root creation from initialization.
+
+    storage.retainRecoveryOutcome(recoveryReport("BackupCorrupted"))
+
+    assertEquals(parent.canonicalFile, sync.directories.first())
+    assertEquals(File(parent, "transactions-audio-tag-recovery-outcomes").canonicalFile, sync.directories.last())
   }
 
   @Test fun recoveryPendingOverridesEveryFailedErrorClassification() {
@@ -802,6 +830,266 @@ class AudioTagTransactionManagerTest {
     repeat(3) { assertTrue(manager.recoverPendingSummary().success) }
     store.failOpenOnWriteCall = null
     assertTrue(manager.write(req(uri, old, "new".toByteArray())).success)
+  }
+
+  @Test fun recoveryOutcomeTombstonesReplayUntilIdempotentAcknowledgement() {
+    val root = tmp()
+    val storage = storage(root)
+    val report = RecoveryTransactionReport(
+      transactionId = "durable-recovery-outcome", previousState = "WRITE_STARTED",
+      resultState = "COMMITTED", recovered = false, pending = false, errorCode = null,
+    )
+    storage.retainRecoveryOutcome(report)
+    assertEquals(listOf(report), storage.retainedRecoveryOutcomes())
+    assertEquals(listOf(report), storage.retainedRecoveryOutcomes())
+    storage.acknowledgeRecoveryOutcomes(listOf(report.transactionId))
+    storage.acknowledgeRecoveryOutcomes(listOf(report.transactionId))
+    assertTrue(storage.retainedRecoveryOutcomes().isEmpty())
+  }
+
+  @Test fun recoveryOutcomeCleanupProjectionKeepsStrongerDurableEvidence() {
+    val storage = storage(tmp())
+    val retained = RecoveryTransactionReport(
+      transactionId = "durable-cleanup-outcome", previousState = "WRITE_STARTED",
+      resultState = "COMMITTED", recovered = false, pending = false, errorCode = null,
+    )
+    storage.retainRecoveryOutcome(retained)
+
+    storage.retainRecoveryOutcome(retained.copy(resultState = null))
+
+    assertEquals(listOf(retained), storage.retainedRecoveryOutcomes())
+    assertThrows(IOException::class.java) {
+      storage.retainRecoveryOutcome(retained.copy(recovered = true, resultState = null))
+    }
+  }
+
+  @Test fun retainedTerminalFailureIsReplayedWithoutReprocessingItsDirectory() {
+    val root = prepared(TransactionState.WRITE_STARTED)
+    File(root.listFiles()!!.single(), "original.bin").writeText("tampered")
+    val store = FakeStore("partial".toByteArray())
+    val manager = manager(root, store)
+
+    val first = manager.recoverPendingSummary()
+    val second = manager.recoverPendingSummary()
+
+    assertEquals("BackupCorrupted", first.transactions.single().errorCode)
+    assertEquals(first.transactions, second.transactions)
+    assertEquals(0, store.writes)
+  }
+
+  @Test fun preparingCleanupConvergesWithOneConsistentTerminalReceipt() {
+    assertPreparedCleanupOutcome(TransactionState.PREPARING)
+  }
+
+  @Test fun backupReadyCleanupConvergesWithOneConsistentTerminalReceipt() {
+    assertPreparedCleanupOutcome(TransactionState.BACKUP_READY)
+  }
+
+  @Test fun recoveredCleanupPreservesRecoveryOutcomeAcrossReceiptAndReplay() {
+    val root = prepared(TransactionState.RECOVERED)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val first = manager.recoverPendingSummary()
+    val receipt = storage.retainedRecoveryOutcomes().single()
+    val replay = manager.recoverPendingSummary()
+
+    assertTrue(first.success)
+    assertEquals(1, first.recoveredCount)
+    assertEquals(0, first.cleanedCount)
+    assertTrue(receipt.recovered)
+    assertEquals("RECOVERED", receipt.previousState)
+    assertEquals("RECOVERED", receipt.resultState)
+    assertFalse(receipt.pending)
+    assertNull(receipt.errorCode)
+    assertEquals(listOf(receipt), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.recoveredCount)
+    assertEquals(0, replay.cleanedCount)
+  }
+
+  @Test fun recoverySummaryProjectsMixedRetainedReceiptsExactlyOnce() {
+    val root = tmp()
+    val storage = storage(root)
+    val targetKey = safTargetKey(uri)
+    val failed = RecoveryTransactionReport(
+      "failed-receipt", "PREPARING", null, false, false,
+      "RecoveryOutcomeInconsistent", targetKey,
+    )
+    val recovered = RecoveryTransactionReport(
+      "recovered-receipt", "RECOVERED", "RECOVERED", true, false, null, targetKey,
+    )
+    val cleaned = RecoveryTransactionReport(
+      "cleaned-receipt", "COMMITTED", "COMMITTED", false, false, null, targetKey,
+    )
+    listOf(failed, recovered, cleaned).forEach(storage::retainRecoveryOutcome)
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary()
+
+    assertFalse(summary.success)
+    assertEquals(1, summary.failedCount)
+    assertEquals(1, summary.recoveredCount)
+    assertEquals(1, summary.cleanedCount)
+    assertEquals(0, summary.pendingCount)
+    assertEquals(listOf(cleaned, failed, recovered).sortedBy { it.transactionId }, summary.transactions)
+  }
+
+  @Test fun freshReportAndRetainedReceiptAreCountedOnce() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val summary = manager.recoverPendingSummary()
+
+    assertTrue(summary.success)
+    assertEquals(1, summary.cleanedCount)
+    assertEquals(1, summary.transactions.size)
+  }
+
+  @Test fun targetedRecoveryExcludesForeignRetainedReceipts() {
+    val root = tmp()
+    val storage = storage(root)
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      "foreign-receipt", "PREPARING", null, false, false,
+      "RecoveryOutcomeInconsistent", safTargetKey(Uri.parse("content://other/document/foreign")),
+    ))
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+
+    assertTrue(summary.success)
+    assertEquals(0, summary.failedCount)
+    assertTrue(summary.transactions.isEmpty())
+  }
+
+  @Test fun targetedRecoveryBackfillsLegacyReceiptScopeFromMatchingJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    val legacy = RecoveryTransactionReport(id, "COMMITTED", "COMMITTED", false, false, null)
+    storage.retainRecoveryOutcome(legacy)
+
+    val first = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+    val migrated = storage.retainedRecoveryOutcomes().single()
+    val replay = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+
+    assertEquals(safTargetKey(uri), migrated.targetKey)
+    assertEquals(listOf(migrated), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.cleanedCount)
+    storage.acknowledgeRecoveryOutcomes(listOf(id))
+    assertTrue(storage.retainedRecoveryOutcomes().isEmpty())
+  }
+
+  @Test fun targetedRecoveryDoesNotAdoptLegacyReceiptFromForeignJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(id, "COMMITTED", "COMMITTED", false, false, null))
+
+    val summary = AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(
+      Uri.parse("content://provider/tree/another-song"),
+    )
+
+    assertTrue(summary.success)
+    assertTrue(summary.transactions.isEmpty())
+    assertEquals(safTargetKey(uri), storage.retainedRecoveryOutcomes().single().targetKey)
+  }
+
+  @Test fun targetedRecoveryFailsClosedForUnscopedReceiptWithoutJournal() {
+    val root = tmp()
+    val storage = storage(root)
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      "legacy-without-journal", "COMMITTED", "COMMITTED", false, false, null,
+    ))
+
+    assertThrows(IOException::class.java) {
+      AudioTagTransactionManager(storage, FakeStore()).recoverPendingSummary(uri)
+    }
+  }
+
+  @Test fun targetedRecoveryFailsClosedWhenReceiptScopeContradictsJournal() {
+    val root = prepared(TransactionState.COMMITTED)
+    val storage = storage(root)
+    val id = storage.dirs().single().name
+    storage.retainRecoveryOutcome(RecoveryTransactionReport(
+      id, "COMMITTED", "COMMITTED", false, false, null,
+      safTargetKey(Uri.parse("content://provider/tree/another-song")),
+    ))
+    val store = FakeStore()
+
+    assertThrows(IOException::class.java) {
+      AudioTagTransactionManager(storage, store).recoverPendingSummary(uri)
+    }
+    assertEquals(0, store.writes)
+    assertTrue(storage.dirs().isNotEmpty())
+  }
+
+  @Test fun partialAndCompleteAcknowledgementUpdateAuthoritativeSummary() {
+    val root = tmp()
+    val storage = storage(root)
+    val targetKey = safTargetKey(uri)
+    val failed = RecoveryTransactionReport(
+      "failed-ack", "PREPARING", null, false, false, "RecoveryFailed", targetKey,
+    )
+    val recovered = RecoveryTransactionReport(
+      "recovered-ack", "RECOVERED", "RECOVERED", true, false, null, targetKey,
+    )
+    storage.retainRecoveryOutcome(failed)
+    storage.retainRecoveryOutcome(recovered)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    storage.acknowledgeRecoveryOutcomes(listOf(failed.transactionId))
+    val partial = manager.recoverPendingSummary()
+    assertTrue(partial.success)
+    assertEquals(0, partial.failedCount)
+    assertEquals(1, partial.recoveredCount)
+    assertEquals(listOf(recovered), partial.transactions)
+
+    storage.acknowledgeRecoveryOutcomes(listOf(recovered.transactionId))
+    val complete = manager.recoverPendingSummary()
+    assertTrue(complete.success)
+    assertEquals(0, complete.failedCount)
+    assertEquals(0, complete.recoveredCount)
+    assertEquals(0, complete.cleanedCount)
+    assertEquals(0, complete.pendingCount)
+    assertTrue(complete.transactions.isEmpty())
+  }
+
+  private fun assertPreparedCleanupOutcome(state: TransactionState) {
+    val root = prepared(state)
+    val storage = storage(root)
+    val manager = AudioTagTransactionManager(storage, FakeStore())
+
+    val first = manager.recoverPendingSummary()
+    val receipt = storage.retainedRecoveryOutcomes().single()
+    val replay = manager.recoverPendingSummary()
+
+    assertFalse(first.success)
+    assertEquals(1, first.failedCount)
+    assertEquals(0, first.pendingCount)
+    assertEquals(state.name, receipt.previousState)
+    assertNull(receipt.resultState)
+    assertFalse(receipt.recovered)
+    assertFalse(receipt.pending)
+    assertEquals("RecoveryOutcomeInconsistent", receipt.errorCode)
+    assertEquals(listOf(receipt), first.transactions)
+    assertEquals(first.transactions, replay.transactions)
+    assertEquals(1, replay.failedCount)
+    assertEquals(0, replay.pendingCount)
+  }
+
+  @Test fun corruptRecoveryOutcomeTombstoneFailsClosed() {
+    val root = tmp()
+    val storage = storage(root)
+    val outcomes = File(root.parentFile, "${root.name}-audio-tag-recovery-outcomes")
+    outcomes.mkdirs()
+    File(outcomes, "corrupt.json").writeText("not-json")
+    try {
+      storage.retainedRecoveryOutcomes()
+      fail("corrupt tombstone must fail closed")
+    } catch (_: IOException) {
+      // Expected: corrupt evidence is never interpreted as a successful commit.
+    }
   }
 
   private fun prepared(

@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFonts } from '@expo-google-fonts/bricolage-grotesque';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -8,11 +8,38 @@ import AppProviders from './components/AppProviders';
 import { appFonts } from './appFonts';
 import RootNavigator from './navigation/RootNavigator';
 import ThemedStatusBar from './components/ThemedStatusBar';
+import { restoreAndReconcileTagWrites } from './utils/tagWriterRecovery';
 
 export const AppContent = (): React.ReactElement => {
   const [fontsLoaded] = useFonts(appFonts);
+  const [tagWritesReady, setTagWritesReady] = useState(false);
+  const [tagWritesFailed, setTagWritesFailed] = useState(false);
+  const mountedRef = useRef(true);
+  const recoveryRef = useRef<Promise<void> | null>(null);
 
-  if (!fontsLoaded) return <AppLoading />;
+  const restoreTagWrites = useCallback(() => {
+    if (recoveryRef.current) return recoveryRef.current;
+    if (mountedRef.current) setTagWritesFailed(false);
+    const recovery = restoreAndReconcileTagWrites().then(() => {
+      if (mountedRef.current) setTagWritesReady(true);
+    }, error => {
+      console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
+      if (mountedRef.current) setTagWritesFailed(true);
+    }).finally(() => {
+      if (recoveryRef.current === recovery) recoveryRef.current = null;
+    });
+    recoveryRef.current = recovery;
+    return recovery;
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void restoreTagWrites();
+    return () => { mountedRef.current = false; };
+  }, [restoreTagWrites]);
+
+  if (!fontsLoaded || !tagWritesReady)
+    return <AppLoading degraded={tagWritesFailed} onRetry={restoreTagWrites} />;
 
   return (
     <AppProviders>

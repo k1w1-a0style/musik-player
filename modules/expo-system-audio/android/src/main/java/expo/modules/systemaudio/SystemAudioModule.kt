@@ -31,8 +31,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -138,6 +136,12 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       recoverPendingAudioTagTransactions(uri)
     }
 
+    AsyncFunction("acknowledgeAudioTagRecoveryOutcomes") { operationIds: List<String> ->
+      val ctx = appContext.reactContext ?: return@AsyncFunction false
+      audioTagTransactionManager(ctx).acknowledgeRecoveryOutcomes(operationIds)
+      true
+    }
+
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
       if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
@@ -157,14 +161,8 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       )
     }
 
-    OnCreate {
-      startAudioTagRecoveryIfNeeded()
-    }
-
     OnDestroy {
       releaseEqualizer()
-      audioTagRecoveryFuture?.cancel(false)
-      audioTagRecoveryExecutor.shutdown()
     }
   }
 
@@ -300,10 +298,6 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
   return audioTagTransactionManager(ctx).recoverPendingSummary(targetUri).toMap()
 }
 
-private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runnable ->
-    Thread(runnable, "saf-audio-tag-recovery").apply { isDaemon = true }
-  }
-  @Volatile private var audioTagRecoveryFuture: Future<*>? = null
   @Volatile private var audioTagTransactions: AudioTagTransactionManager? = null
 
   private fun audioTagTransactionManager(ctx: android.content.Context): AudioTagTransactionManager {
@@ -312,16 +306,6 @@ private val audioTagRecoveryExecutor = Executors.newSingleThreadExecutor { runna
         TransactionStorage(File(ctx.noBackupFilesDir, "audio-tag-transactions")),
         AndroidSafContentStore(ctx),
       ).also { audioTagTransactions = it }
-    }
-  }
-
-  private fun startAudioTagRecoveryIfNeeded() {
-    val ctx = appContext.reactContext ?: return
-    if (audioTagRecoveryFuture != null) return
-    synchronized(this) {
-      if (audioTagRecoveryFuture != null) return
-      val manager = audioTagTransactionManager(ctx)
-      audioTagRecoveryFuture = audioTagRecoveryExecutor.submit { manager.recoverPendingSummary() }
     }
   }
 

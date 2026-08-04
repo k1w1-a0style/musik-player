@@ -116,13 +116,13 @@ export interface FastMetadataResult {
   mimeType?: string;
 }
 
-type RecoveryStatusResult = {
+export type RecoveryStatusResult = {
   pendingCount: number;
   quarantineCount?: number;
   transactions: Array<{ transactionId: string; state: string }>;
 };
 
-type RecoveryRunResult = {
+export type RecoveryRunResult = {
   success: boolean;
   errorCode?: string;
   message?: string;
@@ -155,6 +155,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   verifyAudioTagDeletion?(uri: string, request: AudioTagWriteRequest): Promise<boolean>;
   getAudioTagRecoveryStatus?(): Promise<RecoveryStatusResult>;
   recoverPendingAudioTagTransactions?(uri?: string): Promise<RecoveryRunResult>;
+  acknowledgeAudioTagRecoveryOutcomes?(operationIds: string[]): Promise<boolean>;
 }
 
 declare class ExpoSystemAudioWaveformModule extends NativeModule {
@@ -188,7 +189,8 @@ const hasNativeTagWriter =
   typeof native.writeAudioTags === 'function' &&
   typeof native.verifyAudioTagDeletion === 'function' &&
   typeof native.getAudioTagRecoveryStatus === 'function' &&
-  typeof native.recoverPendingAudioTagTransactions === 'function';
+  typeof native.recoverPendingAudioTagTransactions === 'function' &&
+  typeof native.acknowledgeAudioTagRecoveryOutcomes === 'function';
 
 const hasNativeMetadataFastPath =
   native !== null && typeof native.extractMetadataFast === 'function';
@@ -276,13 +278,19 @@ export const SystemAudio = {
   },
 
   async recoverPendingAudioTagTransactions(uri?: string): Promise<RecoveryRunResult> {
-    return native?.recoverPendingAudioTagTransactions
+    return hasNativeTagWriter && native?.recoverPendingAudioTagTransactions
       ? native.recoverPendingAudioTagTransactions(uri)
-      : { success: true, recoveryPending: false, recovered: false };
+      : { success: false, errorCode: 'WriteNotImplemented', recoveryPending: false, recovered: false };
+  },
+
+  async acknowledgeAudioTagRecoveryOutcomes(operationIds: string[]): Promise<boolean> {
+    return hasNativeTagWriter && native?.acknowledgeAudioTagRecoveryOutcomes
+      ? native.acknowledgeAudioTagRecoveryOutcomes(operationIds)
+      : false;
   },
 
   async verifyAudioTagDeletion(uri: string, request: AudioTagWriteRequest): Promise<boolean> {
-    return native?.verifyAudioTagDeletion
+    return hasNativeTagWriter && native?.verifyAudioTagDeletion
       ? native.verifyAudioTagDeletion(uri, request)
       : false;
   },

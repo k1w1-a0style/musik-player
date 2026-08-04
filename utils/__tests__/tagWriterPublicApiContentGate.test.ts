@@ -56,7 +56,7 @@ describe('tagWriter public content source gate', () => {
     const native = {
       isAvailable: true,
       hasNativeTagWriter: true,
-      writeAudioTags: jest.fn(async (uri: string) => ({
+      writeAudioTags: jest.fn(async (uri: string, request: { operationId: string }) => ({
         success: true,
         uri,
         changedFields: ['title'],
@@ -65,6 +65,7 @@ describe('tagWriter public content source gate', () => {
         transactionId: 'tx-saf',
         recovered: false,
         recoveryPending: false,
+        operationId: request.operationId, phase: 'COMPLETED', terminal: true, retryable: false,
       })),
     };
     const { writeTagsToFile } = loadWithNative(native);
@@ -86,7 +87,7 @@ describe('tagWriter public content source gate', () => {
     const native = {
       isAvailable: true,
       hasNativeTagWriter: true,
-      writeAudioTags: jest.fn(async (uri: string) => ({
+      writeAudioTags: jest.fn(async (uri: string, request: { operationId: string }) => ({
         success: false,
         uri,
         changedFields: [],
@@ -94,6 +95,7 @@ describe('tagWriter public content source gate', () => {
         errorCode: 'MissingWritePermission',
         message: 'No persisted or direct write permission.',
         verified: false,
+        operationId: request.operationId, phase: 'FAILED', terminal: true, retryable: true,
       })),
     };
     const { writeTagsToFile } = loadWithNative(native);

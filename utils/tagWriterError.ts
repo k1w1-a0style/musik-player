@@ -15,6 +15,8 @@ const knownTagWriterErrorCodes = new Set<TagWriterErrorCode>([
   'RollbackFailed',
   'VerificationFailed',
   'TransactionConflict',
+  'OperationIdAlreadyUsed',
+  'OperationJournalCapacityExceeded',
   'RecoveryPending',
   'RecoveryFailed',
   'BackupCorrupted',

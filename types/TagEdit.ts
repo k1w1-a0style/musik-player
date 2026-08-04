@@ -49,6 +49,9 @@ export type TagWriterErrorCode =
   | 'RollbackFailed'
   | 'VerificationFailed'
   | 'TransactionConflict'
+  | 'OperationIdAlreadyUsed'
+  | 'OperationIdReservationFailed'
+  | 'OperationJournalCapacityExceeded'
   | 'RecoveryPending'
   | 'RecoveryFailed'
   | 'BackupCorrupted'
@@ -139,6 +142,10 @@ export interface WriteTagsResult {
   operationPhase?: 'accepted' | 'lockAcquired' | 'nativeMutationStarted' | 'pendingNativeResult' | 'completed' | 'failed' | 'cancelledBeforeMutation';
   terminal?: boolean;
   retryable?: boolean;
+  /** Caller-facing lifecycle; unlike `status`, this also represents non-terminal native work. */
+  operationStatus?: 'completed' | 'pending' | 'recovery-pending' | 'failed';
+  /** ID of the operation which owns the target when this request was rejected. */
+  blockedByOperationId?: string;
 }
 
 export type WritableTagUriResolution =
