@@ -24,6 +24,7 @@ describe('tagWriter public content source gate', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.dontMock('expo-system-audio');
   });
 
@@ -81,6 +82,32 @@ describe('tagWriter public content source gate', () => {
 
     expect(result).toMatchObject({ status: 'written', transactionId: 'tx-saf' });
     expect(native.writeAudioTags).toHaveBeenCalledTimes(1);
+  });
+
+  test('applies a caller deadline when the native SAF writer never settles', async () => {
+    jest.useFakeTimers();
+    const native = {
+      isAvailable: true,
+      hasNativeTagWriter: true,
+      writeAudioTags: jest.fn(() => new Promise(() => undefined)),
+    };
+    const { writeTagsToFile } = loadWithNative(native);
+    const uri = 'content://com.android.externalstorage.documents/document/primary%3AMusic%2Fslow.mp3';
+    const request = writeTagsToFile(
+      song({ uri, fileInfo: { uri, extension: 'mp3', source: 'saf' } }),
+      { songId: '1', tags: { title: 'Slow' } },
+    );
+
+    for (let turn = 0; turn < 8; turn += 1) await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(30_000);
+
+    await expect(request).resolves.toMatchObject({
+      status: 'writeFailed',
+      errorCode: 'RecoveryPending',
+      operationPhase: 'pendingNativeResult',
+      terminal: false,
+      operationStatus: 'pending',
+    });
   });
 
   test('delegates ambiguous content provenance to native permission checks', async () => {
