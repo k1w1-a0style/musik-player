@@ -28,5 +28,7 @@ describe('useTagEditorCapability local file safety', () => {
     expect(result.current.canWriteCover).toBe(false);
     expect(result.current.capabilityMessage).toMatch(/persistent crash-recovery journal/i);
     expect(result.current.coverCapabilityMessage).toMatch(/noch nicht gespeichert/i);
+    expect(result.current.safetyMessage).toMatch(/persistent crash-recovery journal/i);
+    expect(result.current.safetyMessage).not.toMatch(/backup|temp|byteprüfung/i);
   });
 });
