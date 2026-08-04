@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { TagEditDraft } from '../types/TagEdit';
+import type { TagEditDraft, WriteOperationPlan } from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { getTagEditCapability } from '../utils/tagEditCapability';
 import { prepareTagEditPlan } from '../utils/tagWriterPublicApi';
@@ -11,6 +11,17 @@ import {
 } from './tagEditorHelpers';
 
 const EMPTY_SONG: Song = { id: '', title: '', artist: '' };
+
+const resolveTagEditorSafetyMessage = (
+  song: Song | undefined,
+  plan: Pick<WriteOperationPlan, 'uriType'>,
+  canWrite: boolean,
+  permissionReason?: string,
+): string | undefined => {
+  if (!song) return undefined;
+  if (plan.uriType === 'file' && !canWrite) return capabilityReason(permissionReason);
+  return safetyNotice(song);
+};
 
 type UseTagEditorCapabilityInput = {
   song?: Song;
@@ -61,7 +72,12 @@ export const useTagEditorCapability = ({
     const coverCapabilityMessage = canWriteCover
       ? undefined
       : 'Das Cover kann ausgewählt, für diese Dateiquelle aber noch nicht gespeichert werden.';
-    const safetyMessage = song ? safetyNotice(song) : undefined;
+    const safetyMessage = resolveTagEditorSafetyMessage(
+      song,
+      plan,
+      planCanWrite,
+      planPermissionReason,
+    );
 
     return {
       capability,
