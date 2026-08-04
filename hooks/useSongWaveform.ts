@@ -53,6 +53,10 @@ interface UseSongWaveformResult {
   loadingNative: boolean;
 }
 
+const cacheWaveformObserved = (waveform: SongWaveform): void => {
+  void setCachedWaveform(waveform).catch(() => undefined);
+};
+
 const getCachedWaveformUntilAbort = (
   sourceKey: string,
   signal: AbortSignal,
@@ -92,7 +96,7 @@ export const useSongWaveform = ({
 
     if (!canExtractNative) {
       setLoadingNative(false);
-      void setCachedWaveform(immediate);
+      cacheWaveformObserved(immediate);
       return () => {
         active = false;
         controller.abort();
@@ -122,9 +126,9 @@ export const useSongWaveform = ({
       if (!active) return;
       if (nativeWaveform) {
         setWaveform(nativeWaveform);
-        void setCachedWaveform(nativeWaveform);
+        cacheWaveformObserved(nativeWaveform);
       } else if (!cached) {
-        void setCachedWaveform(immediate);
+        cacheWaveformObserved(immediate);
       }
       setLoadingNative(false);
     })();
