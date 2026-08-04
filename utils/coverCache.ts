@@ -174,7 +174,7 @@ type ValidatedBase64Cover = {
 };
 
 const validateBase64Cover = (
-  declaredMimeValue: string,
+  declaredMimeValue: string | undefined,
   rawBase64: string,
 ): ValidatedBase64Cover | undefined => {
   if (getBase64DecodedByteLengthEstimate(rawBase64) > MAX_CACHED_COVER_BYTES) return undefined;
