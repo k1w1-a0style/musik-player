@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useAlbumPalette } from '../useAlbumPalette';
+import { resetAlbumPaletteSingleFlightForTests } from '../albumPaletteHelpers';
 import {
   buildJsFallbackPalette,
   mergeNativeAndFallbackPalette,
@@ -35,6 +36,11 @@ const readDominant = (children: string): string => readPalette(children)?.domina
 describe('useAlbumPalette', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetAlbumPaletteSingleFlightForTests();
+  });
+
+  afterEach(() => {
+    resetAlbumPaletteSingleFlightForTests();
   });
 
   test('starts without palette and applies native palette when initial extraction resolves', async () => {
@@ -127,30 +133,24 @@ describe('useAlbumPalette', () => {
     await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(secondEffectivePalette));
   });
 
-  test('ignores stale palette results after the artwork changes', async () => {
+  test('does not start a competing palette and ignores the stale result after artwork changes', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
-    let resolveSecond: (value: { dominant: string }) => void = () => undefined;
-    jest
-      .spyOn(SystemAudio, 'extractPalette')
-      .mockReturnValueOnce(new Promise(resolve => {
-        resolveFirst = resolve;
-      }))
-      .mockReturnValueOnce(new Promise(resolve => {
-        resolveSecond = resolve;
-      }));
+    jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(resolve => {
+      resolveFirst = resolve;
+    }));
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
     rerender(<PaletteProbe song={secondSongWithCover} />);
 
-    await act(async () => {
-      resolveSecond({ dominant: '#222222' });
-    });
-    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#222222'));
+    await waitFor(() => expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1));
+    expect(getByTestId('palette').props.children).toBe('');
 
     await act(async () => {
       resolveFirst({ dominant: '#111111' });
     });
-    expect(readDominant(getByTestId('palette').props.children)).toBe('#222222');
+
+    expect(getByTestId('palette').props.children).toBe('');
+    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
   });
 
   test('resets palette immediately when extraction is pending and stays clear after failure', async () => {
