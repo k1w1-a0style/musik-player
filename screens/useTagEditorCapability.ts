@@ -1,9 +1,8 @@
-import SystemAudio from 'expo-system-audio';
 import { useMemo } from 'react';
 import type { TagEditDraft } from '../types/TagEdit';
 import type { Song } from '../types/Song';
 import { getTagEditCapability } from '../utils/tagEditCapability';
-import { createTagWriteOperationPlan } from '../utils/tagWriteOrchestrator';
+import { prepareTagEditPlan } from '../utils/tagWriterPublicApi';
 import {
   blockingReasonMessage,
   capabilityReason,
@@ -29,16 +28,10 @@ export const useTagEditorCapability = ({
   useMemo(() => {
     const capabilitySong = song ?? EMPTY_SONG;
     const capability = getTagEditCapability(capabilitySong);
-    const plan = createTagWriteOperationPlan(
-      capabilitySong,
-      draft,
-      undefined,
-      undefined,
-      { safDurableWriterAvailable: SystemAudio.hasNativeTagWriter },
-    );
+    const plan = prepareTagEditPlan(capabilitySong, draft);
     // Production plans always contain permission. The fallback keeps legacy
     // partial test doubles and defensive callers from crashing while the real
-    // runtime plan still gates SAF writes on the durable native contract.
+    // runtime plan still gates writes on the durable implementation contract.
     const planPermission = plan.permission;
     const planCanWrite = planPermission?.canWrite ?? capability.canWrite;
     const planPermissionReason = planPermission?.reason ?? capability.reason;
