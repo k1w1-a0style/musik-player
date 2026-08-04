@@ -100,8 +100,9 @@ class SystemAudioModule : Module() {
 
     AsyncFunction("extractPalette") { uri: String ->
       val bitmap = loadBitmap(uri) ?: return@AsyncFunction null
-      val palette = Palette.from(bitmap).generate()
-      bitmap.recycle()
+      val palette = withBitmapRecycled(bitmap) { source ->
+        Palette.from(source).generate()
+      }
       val result = mutableMapOf<String, Any?>()
       result["dominant"] = palette.dominantSwatch?.rgb?.let(::hex)
       result["vibrant"] = palette.vibrantSwatch?.rgb?.let(::hex)
@@ -591,18 +592,18 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     return try {
       if (!configureDataSource(retriever, uri)) return null
       val result = mutableMapOf<String, Any?>()
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }?.let { result["title"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() }?.let { result["artist"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() }?.let { result["album"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)?.takeIf { it.isNotBlank() }?.let { result["albumArtist"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.takeIf { it.isNotBlank() }?.let { result["year"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.takeIf { it.isNotBlank() }?.let { result["trackNumber"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)?.takeIf { it.isNotBlank() }?.let { result["discNumber"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)?.takeIf { it.isNotBlank() }?.let { result["genre"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)?.takeIf { it.isNotBlank() }?.let { result["composer"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.takeIf { it > 0 }?.let { result["durationMs"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.takeIf { it > 0 }?.let { result["bitrateBps"] = it }
-      retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.takeIf { it.isNotBlank() }?.let { result["mimeType"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) }?.let { result["title"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) }?.let { result["artist"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) }?.let { result["album"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) }?.let { result["albumArtist"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR) }?.let { result["year"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) }?.let { result["trackNumber"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) }?.let { result["discNumber"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE) }?.let { result["genre"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER) }?.let { result["composer"] = it }
+      readPositiveLongMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) }?.let { result["durationMs"] = it }
+      readPositiveLongMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) }?.let { result["bitrateBps"] = it }
+      readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) }?.let { result["mimeType"] = it }
       result.ifEmpty { null }
     } catch (e: Throwable) {
       Log.d(TAG, "fast metadata unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
@@ -671,8 +672,12 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     val retriever = MediaMetadataRetriever()
     return try {
       if (!configureDataSource(retriever, uri)) return null
-      val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.takeIf { it > 0 }
-      val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.takeIf { it > 0 }
+      val duration = readPositiveLongMetadata {
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+      }
+      val bitrate = readPositiveLongMetadata {
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
+      }
       RetrieverInfo(duration, bitrate)
     } finally {
       try { retriever.release() } catch (_: Throwable) {}
