@@ -16,6 +16,7 @@ const knownTagWriterErrorCodes = new Set<TagWriterErrorCode>([
   'VerificationFailed',
   'TransactionConflict',
   'OperationIdAlreadyUsed',
+  'OperationIdReservationFailed',
   'OperationJournalCapacityExceeded',
   'RecoveryPending',
   'RecoveryFailed',

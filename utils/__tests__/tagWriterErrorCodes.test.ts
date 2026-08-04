@@ -112,6 +112,7 @@ describe('tag writer ID3 version error codes', () => {
   it('normalizes native SAF error codes at runtime', () => {
     expect(normalizeTagWriterErrorCode('BackupCorrupted')).toBe('BackupCorrupted');
     expect(normalizeTagWriterErrorCode('RecoveryPending')).toBe('RecoveryPending');
+    expect(normalizeTagWriterErrorCode('OperationIdReservationFailed')).toBe('OperationIdReservationFailed');
     expect(normalizeTagWriterErrorCode('UnknownNativeCode')).toBe('ReplaceFailed');
     expect(normalizeTagWriterErrorCode(null)).toBe('ReplaceFailed');
     expect(normalizeTagWriterErrorCode(undefined)).toBe('ReplaceFailed');

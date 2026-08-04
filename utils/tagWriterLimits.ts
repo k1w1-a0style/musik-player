@@ -6,6 +6,12 @@ import { TagWriterError } from './tagWriterError';
  */
 export const DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES = 50 * 1024 * 1024;
 
+/** Caller deadline: native SAF work keeps its durable owner and may settle later. */
+export const DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS = 30_000;
+
+/** Read-only post-write verification may be abandoned safely after this deadline. */
+export const DEFAULT_TAG_DELETION_VERIFICATION_TIMEOUT_MS = 15_000;
+
 export const resolveSafeTagWriteMaxFileSizeBytes = (requested?: number): number => {
   const value = requested ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
   if (!Number.isSafeInteger(value) || value <= 0) {
