@@ -20,6 +20,7 @@ describe('public local tag write crash-safety boundary', () => {
 
   test('production plan exposes no write or recovery guarantees for file targets', () => {
     const plan = prepareTagEditPlan(localSong, draft);
+    const warnings = plan.warnings.join(' ');
 
     expect(plan.permission.canRead).toBe(true);
     expect(plan.permission.canWrite).toBe(false);
@@ -38,6 +39,8 @@ describe('public local tag write crash-safety boundary', () => {
       postWriteVerification: false,
       crashRecovery: false,
     });
+    expect(warnings).toMatch(/persistent crash-recovery journal/i);
+    expect(warnings).not.toMatch(/file:\/\/ writes use .*backup|backup \+ temp \+ byte verification/i);
   });
 
   test('default file writer fails before touching the filesystem adapter', async () => {
