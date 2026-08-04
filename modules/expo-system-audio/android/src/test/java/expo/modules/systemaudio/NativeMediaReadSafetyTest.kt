@@ -1,16 +1,16 @@
 package expo.modules.systemaudio
 
-import android.graphics.Bitmap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
-@RunWith(RobolectricTestRunner::class)
 class NativeMediaReadSafetyTest {
+  private class FakeResource {
+    var released = false
+  }
+
   @Test fun metadataFieldsFailIndependently() {
     assertEquals("Title", readNonBlankMetadata { "Title" })
     assertNull(readNonBlankMetadata { "   " })
@@ -22,22 +22,33 @@ class NativeMediaReadSafetyTest {
     assertNull(readPositiveLongMetadata { throw IllegalArgumentException("broken numeric field") })
   }
 
-  @Test fun bitmapIsRecycledAfterSuccessfulOperation() {
-    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+  @Test fun resourceIsReleasedAfterSuccessfulOperation() {
+    val resource = FakeResource()
 
-    val result = withBitmapRecycled(bitmap) { "done" }
+    val result = withResourceReleased(
+      resource = resource,
+      release = { it.released = true },
+      operation = { "done" },
+    )
 
     assertEquals("done", result)
-    assertTrue(bitmap.isRecycled)
+    assertTrue(resource.released)
   }
 
-  @Test fun bitmapIsRecycledWhenOperationThrows() {
-    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+  @Test fun resourceIsReleasedWhenOperationThrows() {
+    val resource = FakeResource()
 
-    assertThrows(IllegalStateException::class.java) {
-      withBitmapRecycled(bitmap) { throw IllegalStateException("palette failed") }
+    try {
+      withResourceReleased(
+        resource = resource,
+        release = { it.released = true },
+        operation = { throw IllegalStateException("palette failed") },
+      )
+      fail("Expected the operation error to be propagated.")
+    } catch (error: IllegalStateException) {
+      assertEquals("palette failed", error.message)
     }
 
-    assertTrue(bitmap.isRecycled)
+    assertTrue(resource.released)
   }
 }
