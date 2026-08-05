@@ -3,7 +3,7 @@ import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
 import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
 import type { LibraryScreenVisibilityProps } from '../components/LibraryScreenContent';
 import type { LibraryTabContentProps } from '../components/LibraryTabContent';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import type { LibraryTabsProps } from '../components/LibraryTabs';
 import type { LibraryTopBarProps } from '../components/LibraryTopBar';
 import type { LibrarySortMode } from './librarySort';
