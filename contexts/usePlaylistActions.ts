@@ -36,24 +36,16 @@ export interface PlaylistActions {
 }
 
 export const usePlaylistActions = ({
-  playlists,
-  setPlaylists,
-  songsRef,
-  playSong,
+  playlists, setPlaylists, songsRef, playSong,
 }: PlaylistActionsArgs): PlaylistActions => {
   const pendingPlaylistsRef = useRef(playlists);
-  if (pendingPlaylistsRef.current !== playlists) {
-    pendingPlaylistsRef.current = playlists;
-  }
+  if (pendingPlaylistsRef.current !== playlists) pendingPlaylistsRef.current = playlists;
 
-  const createPlaylist = useCallback(
-    (name: string) => {
-      const playlist = createPlaylistRecord(name);
-      setPlaylists(prev => appendPlaylist(prev, playlist));
-      return playlist;
-    },
-    [setPlaylists],
-  );
+  const createPlaylist = useCallback((name: string) => {
+    const playlist = createPlaylistRecord(name);
+    setPlaylists(prev => appendPlaylist(prev, playlist));
+    return playlist;
+  }, [setPlaylists]);
 
   const saveQueueAsPlaylist = useCallback(
     (name: string, queue: Song[]) => {
@@ -82,60 +74,39 @@ export const usePlaylistActions = ({
   );
 
   const deletePlaylist = useCallback(
-    (id: string) => {
-      setPlaylists(prev => deletePlaylistById(prev, id));
-    },
+    (id: string) => setPlaylists(prev => deletePlaylistById(prev, id)),
     [setPlaylists],
   );
 
   const renamePlaylist = useCallback(
-    (id: string, name: string) => {
-      setPlaylists(prev => renamePlaylistById(prev, id, name));
-    },
+    (id: string, name: string) => setPlaylists(prev => renamePlaylistById(prev, id, name)),
     [setPlaylists],
   );
 
   const addSongToPlaylist = useCallback(
-    (playlistId: string, songId: string) => {
-      setPlaylists(prev => addSongToPlaylistById(prev, playlistId, songId));
-    },
+    (playlistId: string, songId: string) => setPlaylists(prev => addSongToPlaylistById(prev, playlistId, songId)),
     [setPlaylists],
   );
 
   const removeSongFromPlaylist = useCallback(
-    (playlistId: string, songId: string) => {
-      setPlaylists(prev => removeSongFromPlaylistById(prev, playlistId, songId));
-    },
+    (playlistId: string, songId: string) => setPlaylists(prev => removeSongFromPlaylistById(prev, playlistId, songId)),
     [setPlaylists],
   );
 
   const moveSongInPlaylist = useCallback(
-    (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) => {
-      setPlaylists(prev => moveSongInPlaylistById(prev, playlistId, songId, direction));
-    },
+    (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) =>
+      setPlaylists(prev => moveSongInPlaylistById(prev, playlistId, songId, direction)),
     [setPlaylists],
   );
 
-  const playPlaylist = useCallback(
-    async (playlistId: string) => {
-      await runPlayPlaylistAction({
-        playlistId,
-        playlists,
-        songs: songsRef.current,
-        playSong,
-      });
-    },
-    [playSong, playlists, songsRef],
-  );
+  const playPlaylist = useCallback(async (playlistId: string) => {
+    await runPlayPlaylistAction({
+      playlistId, playlists, songs: songsRef.current, playSong,
+    });
+  }, [playSong, playlists, songsRef]);
 
   return {
-    createPlaylist,
-    saveQueueAsPlaylist,
-    deletePlaylist,
-    renamePlaylist,
-    addSongToPlaylist,
-    removeSongFromPlaylist,
-    moveSongInPlaylist,
-    playPlaylist,
+    createPlaylist, saveQueueAsPlaylist, deletePlaylist, renamePlaylist,
+    addSongToPlaylist, removeSongFromPlaylist, moveSongInPlaylist, playPlaylist,
   };
 };
