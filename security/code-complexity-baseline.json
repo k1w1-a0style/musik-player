@@ -200,11 +200,6 @@
       "maxLines": 48,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "screens/useTagEditorSaveFlow.ts::useTagEditorSaveFlow#1": {
-      "maxComplexity": 1,
-      "maxLines": 96,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/id3Parser.ts::decodeAPIC#1": {
       "maxComplexity": 18,
       "maxLines": 29,
