@@ -180,6 +180,37 @@ describe('tagEditorHelpers', () => {
     expect(blockingReasonMessage(['WriteNotImplemented'])).toContain('Sicheres Ersetzen');
   });
 
+  test('preserves blocking reason priority and context-specific messages', () => {
+    expect(blockingReasonMessage(['UnsupportedUri', 'MissingWritePermission'])).toContain('Schreibzugriff eingeschränkt');
+    expect(blockingReasonMessage(['WriteNotImplemented'], {
+      uriType: 'content',
+      container: 'mp3',
+      warnings: ['Cover artwork writes are unavailable for this payload.'],
+    })).toContain('Cover-Schreiben');
+    expect(blockingReasonMessage(['WriteNotImplemented'], {
+      uriType: 'content',
+      container: 'mp3',
+      warnings: [],
+    })).toContain('Texttag-Schreiben');
+    expect(blockingReasonMessage(['WriteNotImplemented'], {
+      uriType: 'file',
+      container: 'm4a',
+      warnings: [],
+    })).toContain('Atomstruktur');
+    expect(blockingReasonMessage(['UnsupportedFormat'], {
+      uriType: 'file',
+      container: 'mp4',
+      warnings: [],
+    })).toContain('Atomstruktur');
+    expect(blockingReasonMessage(['UnsupportedFormat'], {
+      uriType: 'file',
+      container: 'mp3',
+      warnings: [],
+    })).toBe('Format nicht unterstützt.');
+    expect(blockingReasonMessage(['UnsupportedUri'])).toContain('remote/unknown');
+    expect(blockingReasonMessage([])).toBeUndefined();
+  });
+
   test('explains ID3v2.2 and ID3v2.4 write blocks with specific messages', () => {
     expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.2');
     expect(ERROR_MESSAGES.WriteNotImplementedV22).toContain('ID3v2.3');
