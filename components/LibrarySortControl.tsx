@@ -10,6 +10,41 @@ interface LibrarySortControlProps {
   onSelect: (mode: LibrarySortMode) => void;
 }
 
+interface LibrarySortOptionProps {
+  sortMode: LibrarySortMode;
+  selected: boolean;
+  onSelect: (mode: LibrarySortMode) => void;
+  palette: ReturnType<typeof useAppTheme>['theme']['palette'];
+}
+
+const LibrarySortOption = ({
+  sortMode,
+  selected,
+  onSelect,
+  palette,
+}: LibrarySortOptionProps): React.ReactElement => (
+  <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`Nach ${getLibrarySortModeLabel(sortMode)} sortieren`}
+    accessibilityState={{ selected }}
+    onPress={() => onSelect(sortMode)}
+    style={({ pressed }) => [
+      styles.menuItem,
+      {
+        backgroundColor: selected ? palette.primaryGlow : palette.surface,
+        borderColor: selected ? palette.primaryDark : palette.border,
+      },
+      pressed && styles.pressed,
+    ]}
+    testID={`library-sort-option-${sortMode}`}
+  >
+    <Text style={[styles.menuItemLabel, { color: palette.text.primary }]}>
+      {getLibrarySortModeLabel(sortMode)}
+    </Text>
+    {selected ? <Check color={palette.primary} size={16} /> : null}
+  </Pressable>
+);
+
 const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect }) => {
   const { theme } = useAppTheme();
   const [open, setOpen] = useState(false);
@@ -61,30 +96,15 @@ const LibrarySortControl: React.FC<LibrarySortControlProps> = ({ mode, onSelect 
             testID="library-sort-menu-card"
           >
             <Text style={[styles.menuTitle, { color: theme.palette.text.primary }]}>Sortierung</Text>
-            {LIBRARY_SORT_MODES.map(sortMode => {
-              const selected = sortMode === mode;
-              return (
-                <Pressable
-                  key={sortMode}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Nach ${getLibrarySortModeLabel(sortMode)} sortieren`}
-                  accessibilityState={{ selected }}
-                  onPress={() => selectMode(sortMode)}
-                  style={({ pressed }) => [
-                    styles.menuItem,
-                    {
-                      backgroundColor: selected ? theme.palette.primaryGlow : theme.palette.surface,
-                      borderColor: selected ? theme.palette.primaryDark : theme.palette.border,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                  testID={`library-sort-option-${sortMode}`}
-                >
-                  <Text style={[styles.menuItemLabel, { color: theme.palette.text.primary }]}>{getLibrarySortModeLabel(sortMode)}</Text>
-                  {selected ? <Check color={theme.palette.primary} size={16} /> : null}
-                </Pressable>
-              );
-            })}
+            {LIBRARY_SORT_MODES.map(sortMode => (
+              <LibrarySortOption
+                key={sortMode}
+                sortMode={sortMode}
+                selected={sortMode === mode}
+                onSelect={selectMode}
+                palette={theme.palette}
+              />
+            ))}
           </View>
         </Pressable>
       </Modal>
