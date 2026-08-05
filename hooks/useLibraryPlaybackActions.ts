@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import type { Song } from '../types/Song';
 import { shuffleItems } from '../utils/libraryShuffle';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
