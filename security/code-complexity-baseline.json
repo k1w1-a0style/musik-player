@@ -315,11 +315,6 @@
       "maxLines": 52,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/tagWriteOrchestrator.ts::buildTagWritePlan#1": {
-      "maxComplexity": 16,
-      "maxLines": 61,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/tagWriteOrchestrator.ts::validateWritePreconditions#1": {
       "maxComplexity": 17,
       "maxLines": 31,
