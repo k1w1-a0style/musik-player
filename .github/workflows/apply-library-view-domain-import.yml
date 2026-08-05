@@ -1,0 +1,47 @@
+name: Apply library view domain import
+
+on:
+  push:
+    branches:
+      - refactor/library-view-domain-import-2026-08-05
+    paths:
+      - .github/workflows/apply-library-view-domain-import.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/library-view-domain-import-2026-08-05
+          fetch-depth: 0
+
+      - name: Replace type-only UI import
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('utils/storage.ts')
+          text = path.read_text()
+          old = "import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';"
+          new = "import type { LibraryAlbumViewMode } from '../types/LibraryView';"
+          assert text.count(old) == 1, 'expected legacy type-only UI import exactly once'
+          assert new not in text, 'domain import already present'
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          git diff --exit-code -- . ':!utils/storage.ts' ':!.github/workflows/apply-library-view-domain-import.yml'
+
+      - name: Commit source-only cleanup and remove workflow
+        shell: bash
+        run: |
+          rm .github/workflows/apply-library-view-domain-import.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add utils/storage.ts .github/workflows/apply-library-view-domain-import.yml
+          git commit -m "refactor: import library view type from domain layer"
+          git push origin HEAD:refactor/library-view-domain-import-2026-08-05
