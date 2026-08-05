@@ -38,7 +38,7 @@ describe('shared bounded native read lane', () => {
     const audioInfo = SystemAudio.extractAudioInfo('content://song-1');
     const artwork = SystemAudio.extractEmbeddedArtwork('content://song-2');
     await Promise.resolve();
-    jest.advanceTimersByTime(20_000);
+    await jest.advanceTimersByTimeAsync(20_000);
     await expect(audioInfo).resolves.toBeNull();
     await expect(artwork).resolves.toBeNull();
 
@@ -46,11 +46,11 @@ describe('shared bounded native read lane', () => {
     expect(extractMetadataFast).not.toHaveBeenCalled();
 
     finishAudioInfo(null);
-    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
     await expect(SystemAudio.extractMetadataFast('content://song-4')).resolves.toEqual({ title: 'bounded' });
     expect(extractMetadataFast).toHaveBeenCalledTimes(1);
 
     finishArtwork(null);
-    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
   });
 });
