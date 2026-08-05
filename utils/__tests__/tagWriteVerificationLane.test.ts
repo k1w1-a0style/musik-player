@@ -43,7 +43,7 @@ describe('native tag deletion verification lane', () => {
     expect(secondVerifier).not.toHaveBeenCalled();
 
     finishFirst(false);
-    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
     await expect(verifyTagDeletionState(contentSong, deleteTitleDraft, 'mp3', {
       verifyContentDeletion: secondVerifier,
       timeoutMs: 10,
