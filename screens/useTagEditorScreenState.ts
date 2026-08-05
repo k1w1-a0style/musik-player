@@ -18,19 +18,8 @@ export const useTagEditorScreenState = () => {
   const { beginCoverFlow, beginSaveFlow, invalidateFlows, isCoverFlowStale, isSaveFlowStale } =
     useTagEditorFlowGuards(activeSongRef);
   const { status, setStatus, clearStatus } = useTagEditorStatus();
-  const {
-    form,
-    draft,
-    hasChanges,
-    removeCover,
-    replacementCover,
-    applyReplacementCover,
-    handleChangeField,
-    toggleRemoveCover,
-    resetForSong,
-    resetAfterWrittenSave,
-    resetAfterNoopSave,
-  } = useTagEditorForm(song);
+  const { form, draft, hasChanges, removeCover, replacementCover, applyReplacementCover, handleChangeField,
+    toggleRemoveCover, resetForSong, resetAfterWrittenSave, resetAfterNoopSave } = useTagEditorForm(song);
 
   useEffect(() => {
     const activeSong = activeSongRef.current;
@@ -41,17 +30,9 @@ export const useTagEditorScreenState = () => {
     clearStatus();
   }, [activeSongId, activeSongRef, clearStatus, invalidateFlows, resetForSong]);
 
-  const {
-    capability,
-    hasCover,
-    canSave,
-    canPickCover,
-    canWriteCover,
-    coverCapabilityMessage,
-    capabilityMessage,
-    blockedReasonMessage,
-    safetyMessage,
-  } = useTagEditorCapability({ song, draft, hasChanges, saving });
+  const { capability, hasCover, canSave, canPickCover, canWriteCover, coverCapabilityMessage,
+    capabilityMessage, blockedReasonMessage, safetyMessage } =
+    useTagEditorCapability({ song, draft, hasChanges, saving });
 
   const handlePickCover = useTagEditorCoverFlow({
     song,
