@@ -91,7 +91,7 @@ class SystemAudioWaveformModule : Module() {
     } catch (_: CancellationException) {
       null
     } catch (e: Throwable) {
-      Log.d(TAG, "waveform extraction failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "waveform extraction failed ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     } finally {
       try { extractor.release() } catch (_: Throwable) {}
@@ -110,7 +110,7 @@ class SystemAudioWaveformModule : Module() {
       }
       true
     } catch (e: Throwable) {
-      Log.d(TAG, "waveform data source unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "waveform data source unavailable ${e.safeLogType()} uri=${uri.safeLogReference()}")
       false
     }
   }
@@ -188,7 +188,6 @@ class SystemAudioWaveformModule : Module() {
     if (cancellation.get()) throw CancellationException("Waveform extraction cancelled")
   }
 
-  private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
 
   private companion object {
     private const val TAG = "SystemAudioWaveform"

@@ -8,7 +8,10 @@ import AppProviders from './components/AppProviders';
 import { appFonts } from './appFonts';
 import RootNavigator from './navigation/RootNavigator';
 import ThemedStatusBar from './components/ThemedStatusBar';
-import { restoreAndReconcileTagWrites } from './utils/tagWriterRecovery';
+import {
+  isTagWriteStartupTimeoutError,
+  restoreAndReconcileTagWrites,
+} from './utils/tagWriterRecovery';
 
 export const AppContent = (): React.ReactElement => {
   const [fontsLoaded] = useFonts(appFonts);
@@ -23,6 +26,11 @@ export const AppContent = (): React.ReactElement => {
     const recovery = restoreAndReconcileTagWrites().then(() => {
       if (mountedRef.current) setTagWritesReady(true);
     }, error => {
+      if (isTagWriteStartupTimeoutError(error)) {
+        console.warn('[TagWriter] Startup recovery timed out; continuing with tag writes disabled.', String(error));
+        if (mountedRef.current) setTagWritesReady(true);
+        return;
+      }
       console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
       if (mountedRef.current) setTagWritesFailed(true);
     }).finally(() => {

@@ -315,9 +315,10 @@ export const SystemAudio = {
    * pending Android device validation until exercised in a Development APK.
    */
   async extractMetadataFast(uri: string): Promise<FastMetadataResult | null> {
-    if (!native?.extractMetadataFast) return null;
+    const extract = native?.extractMetadataFast?.bind(native);
+    if (!extract) return null;
     try {
-      return await native.extractMetadataFast(uri);
+      return await runBoundedNativeRead(() => extract(uri));
     } catch {
       return null;
     }

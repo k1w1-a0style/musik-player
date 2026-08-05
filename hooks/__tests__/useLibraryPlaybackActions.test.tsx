@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryPlaybackActions } from '../useLibraryPlaybackActions';
-import type { LibraryAlbumViewMode } from '../../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../../types/LibraryView';
 import type { Song } from '../../types/Song';
 
 const mockShuffleItems = jest.fn((items: Song[]) => [...items].reverse());

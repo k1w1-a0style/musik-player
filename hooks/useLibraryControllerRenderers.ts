@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { LibrarySongViewMode } from '../utils/libraryViewMode';

@@ -2,8 +2,9 @@ import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { Grid2X2, List } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 
-export type LibraryAlbumViewMode = 'grid' | 'list';
+export type { LibraryAlbumViewMode } from '../types/LibraryView';
 
 interface LibraryAlbumViewToggleProps {
   mode: LibraryAlbumViewMode;

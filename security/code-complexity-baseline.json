@@ -40,21 +40,6 @@
       "maxLines": 103,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "contexts/AppThemeContext.tsx::AppThemeProvider#1": {
-      "maxComplexity": 1,
-      "maxLines": 115,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
-    "contexts/playbackQueueActionHelpers.ts::rebuildNativePlaybackQueueUnlocked#1": {
-      "maxComplexity": 16,
-      "maxLines": 38,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
-    "contexts/playbackQueueActionHelpers.ts::runReorderQueueAction#1": {
-      "maxComplexity": 2,
-      "maxLines": 85,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "contexts/songCoverProtectionLifecycle.ts::acquireSongCoverProtection#1": {
       "maxComplexity": 6,
       "maxLines": 108,
@@ -77,7 +62,7 @@
     },
     "contexts/usePlaybackQueueActions.ts::usePlaybackQueueActions#1": {
       "maxComplexity": 1,
-      "maxLines": 131,
+      "maxLines": 125,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
     "contexts/useProvidedMusicContextValues.ts::useProvidedMusicContextValues#1": {
@@ -147,7 +132,7 @@
     },
     "screens/NowPlayingQueuePreviewRow.tsx::<React.memo-callback>#1": {
       "maxComplexity": 14,
-      "maxLines": 136,
+      "maxLines": 135,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
     "screens/NowPlayingSnapPager.tsx::NowPlayingSnapPager#1": {
@@ -157,7 +142,7 @@
     },
     "screens/NowPlayingSoundCloudView.tsx::NowPlayingSoundCloudView#1": {
       "maxComplexity": 2,
-      "maxLines": 145,
+      "maxLines": 130,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
     "screens/PlaylistDetail.tsx::PlaylistDetail#1": {
@@ -178,11 +163,6 @@
     "screens/TagEditorCoverControls.tsx::TagEditorCoverControls#1": {
       "maxComplexity": 21,
       "maxLines": 118,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
-    "screens/useTagEditorCapability.ts::<useMemo-callback>#1": {
-      "maxComplexity": 23,
-      "maxLines": 57,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
     "screens/useTagEditorSaveFlow.ts::<useCallback-callback>#1": {
@@ -243,11 +223,6 @@
     "utils/mediaLibraryImport.ts::walk#1": {
       "maxComplexity": 19,
       "maxLines": 54,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
-    "utils/songAudioInfoBackfill.ts::mergeNativeAudioInfoIntoSong#1": {
-      "maxComplexity": 30,
-      "maxLines": 51,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
     "utils/songMetadataRefresh.ts::refreshSongsFromId3#1": {

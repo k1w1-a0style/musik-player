@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import type { LibraryTab } from '../utils/libraryTabs';
 import { storage } from '../utils/storage';
 import { DEFAULT_LIBRARY_ALBUM_VIEW_MODE } from '../utils/libraryViewMode';
