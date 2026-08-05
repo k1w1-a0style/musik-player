@@ -5,11 +5,6 @@
     "maxLines": 80
   },
   "exceptions": {
-    "components/Controls.tsx::Controls#1": {
-      "maxComplexity": 9,
-      "maxLines": 111,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "components/LibraryTabContent.tsx::LibraryTabContent#1": {
       "maxComplexity": 12,
       "maxLines": 173,

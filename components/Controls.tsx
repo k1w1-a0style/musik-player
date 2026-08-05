@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import {
   Pause,
@@ -12,7 +12,7 @@ import {
 import { useMusicContext } from '../contexts/MusicContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
-import type { RepeatMode } from '../types/Song';
+import type { RepeatMode, Song } from '../types/Song';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
@@ -26,7 +26,7 @@ interface PressScaleProps {
   children: React.ReactNode;
   testID: string;
   accessibilityLabel: string;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   disabled?: boolean;
   size?: number;
   primary?: boolean;
@@ -88,120 +88,190 @@ const PressScale: React.FC<PressScaleProps> = ({
   );
 };
 
+interface AccentProps {
+  accentColor: string;
+  accentDarkColor: string;
+}
+
+const ShuffleControl: React.FC<AccentProps & {
+  active: boolean;
+  onPress: () => unknown | Promise<unknown>;
+  inactiveColor: string;
+}> = ({ active, onPress, accentColor, accentDarkColor, inactiveColor }) => (
+  <PressScale
+    testID="controls-shuffle"
+    accessibilityLabel={active ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
+    onPress={onPress}
+    size={36}
+    active={active}
+    accentColor={accentColor}
+    accentDarkColor={accentDarkColor}
+  >
+    <Shuffle color={active ? accentColor : inactiveColor} size={17} />
+  </PressScale>
+);
+
+const PreviousControl: React.FC<{
+  disabled: boolean;
+  onPress: () => unknown | Promise<unknown>;
+  color: string;
+}> = ({ disabled, onPress, color }) => (
+  <PressScale
+    testID="controls-previous"
+    accessibilityLabel="Vorheriger Titel"
+    onPress={onPress}
+    disabled={disabled}
+  >
+    <SkipBack color={color} size={20} fill={color} />
+  </PressScale>
+);
+
+const PlayPauseControl: React.FC<AccentProps & {
+  isPlaying: boolean;
+  disabled: boolean;
+  onPress: () => unknown | Promise<unknown>;
+  onAccentColor: string;
+}> = ({ isPlaying, disabled, onPress, accentColor, accentDarkColor, onAccentColor }) => (
+  <PressScale
+    testID="controls-play-pause"
+    accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
+    onPress={onPress}
+    disabled={disabled}
+    size={56}
+    primary
+    accentColor={accentColor}
+    accentDarkColor={accentDarkColor}
+  >
+    {isPlaying
+      ? <Pause color={onAccentColor} size={24} fill={onAccentColor} />
+      : <Play color={onAccentColor} size={24} fill={onAccentColor} />}
+  </PressScale>
+);
+
+const NextControl: React.FC<{
+  disabled: boolean;
+  onPress: () => unknown | Promise<unknown>;
+  color: string;
+}> = ({ disabled, onPress, color }) => (
+  <PressScale
+    testID="controls-next"
+    accessibilityLabel="Nächster Titel"
+    onPress={onPress}
+    disabled={disabled}
+  >
+    <SkipForward color={color} size={20} fill={color} />
+  </PressScale>
+);
+
+const RepeatControl: React.FC<AccentProps & {
+  mode: RepeatMode;
+  onPress: () => unknown | Promise<unknown>;
+  inactiveColor: string;
+}> = ({ mode, onPress, accentColor, accentDarkColor, inactiveColor }) => {
+  const color = mode === 'off' ? inactiveColor : accentColor;
+  const icon = mode === 'one'
+    ? <Repeat1 color={color} size={17} />
+    : <Repeat color={color} size={17} />;
+  return (
+    <PressScale
+      testID="controls-repeat"
+      accessibilityLabel={REPEAT_MODE_LABELS[mode]}
+      onPress={onPress}
+      size={36}
+      active={mode !== 'off'}
+      accentColor={accentColor}
+      accentDarkColor={accentDarkColor}
+    >
+      {icon}
+    </PressScale>
+  );
+};
+
+interface ControlRailProps extends AccentProps {
+  currentSong: Song | null;
+  playbackQueue: Song[];
+  repeatMode: RepeatMode;
+  shuffle: boolean;
+  isPlaying: boolean;
+  isBuffering: boolean;
+  onAccentColor: string;
+  primaryTextColor: string;
+  mutedTextColor: string;
+  surfaceColor: string;
+  borderColor: string;
+  toggleShuffle: () => unknown | Promise<unknown>;
+  previous: () => unknown | Promise<unknown>;
+  togglePlayPause: () => unknown | Promise<unknown>;
+  next: () => unknown | Promise<unknown>;
+  cycleRepeatMode: () => unknown | Promise<unknown>;
+}
+
+const ControlRail: React.FC<ControlRailProps> = props => {
+  const canSkipNext = canSkipToNextInQueue(props);
+  return (
+    <View
+      style={[styles.controlRail, { backgroundColor: props.surfaceColor, borderColor: props.borderColor }]}
+      testID="controls-rail"
+    >
+      <ShuffleControl
+        active={props.shuffle}
+        onPress={props.toggleShuffle}
+        accentColor={props.accentColor}
+        accentDarkColor={props.accentDarkColor}
+        inactiveColor={props.mutedTextColor}
+      />
+      <PreviousControl disabled={!props.currentSong} onPress={props.previous} color={props.primaryTextColor} />
+      <PlayPauseControl
+        isPlaying={props.isPlaying}
+        disabled={!props.currentSong || props.isBuffering}
+        onPress={props.togglePlayPause}
+        accentColor={props.accentColor}
+        accentDarkColor={props.accentDarkColor}
+        onAccentColor={props.onAccentColor}
+      />
+      <NextControl disabled={!canSkipNext} onPress={props.next} color={props.primaryTextColor} />
+      <RepeatControl
+        mode={props.repeatMode}
+        onPress={props.cycleRepeatMode}
+        accentColor={props.accentColor}
+        accentDarkColor={props.accentDarkColor}
+        inactiveColor={props.mutedTextColor}
+      />
+    </View>
+  );
+};
+
 interface ControlsProps {
   accentColor?: string;
   accentDarkColor?: string;
   onAccentColor?: string;
 }
 
-const Controls: React.FC<ControlsProps> = ({
-  accentColor,
-  accentDarkColor,
-  onAccentColor,
-}) => {
+const Controls: React.FC<ControlsProps> = ({ accentColor, accentDarkColor, onAccentColor }) => {
   const { theme } = useAppTheme();
-  const resolvedAccentColor = accentColor ?? theme.palette.primary;
-  const resolvedAccentDarkColor = accentDarkColor ?? theme.palette.primaryDark;
-  const resolvedOnAccentColor = onAccentColor ?? theme.palette.text.onPrimary;
-
-  const {
-    isPlaying,
-    isBuffering,
-    togglePlayPause,
-    next,
-    previous,
-    currentSong,
-    playbackQueue,
-    shuffle,
-    toggleShuffle,
-    repeatMode,
-    cycleRepeatMode,
-  } = useMusicContext();
-
-  const repeatIcon = useMemo(() => {
-    const color = repeatMode === 'off' ? theme.palette.text.muted : resolvedAccentColor;
-    return repeatMode === 'one'
-      ? <Repeat1 color={color} size={17} />
-      : <Repeat color={color} size={17} />;
-  }, [repeatMode, resolvedAccentColor, theme.palette.text.muted]);
-
-  const shuffleColor = shuffle ? resolvedAccentColor : theme.palette.text.muted;
-  const canSkipNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
-  const canSkipPrevious = !!currentSong;
-
+  const music = useMusicContext();
   return (
     <View style={styles.container} testID="controls">
-      <View
-        style={[
-          styles.controlRail,
-          {
-            backgroundColor: theme.palette.surfaceGlass,
-            borderColor: theme.palette.border,
-          },
-        ]}
-        testID="controls-rail"
-      >
-        <PressScale
-          testID="controls-shuffle"
-          accessibilityLabel={shuffle ? 'Zufallswiedergabe aus' : 'Zufallswiedergabe an'}
-          onPress={async () => { await toggleShuffle(); }}
-          size={36}
-          active={shuffle}
-          accentColor={resolvedAccentColor}
-          accentDarkColor={resolvedAccentDarkColor}
-        >
-          <Shuffle color={shuffleColor} size={17} />
-        </PressScale>
-
-        <PressScale
-          testID="controls-previous"
-          accessibilityLabel="Vorheriger Titel"
-          onPress={previous}
-          disabled={!canSkipPrevious}
-          size={42}
-        >
-          <SkipBack color={theme.palette.text.primary} size={20} fill={theme.palette.text.primary} />
-        </PressScale>
-
-        <PressScale
-          testID="controls-play-pause"
-          accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'}
-          onPress={togglePlayPause}
-          disabled={!currentSong || isBuffering}
-          size={56}
-          primary
-          accentColor={resolvedAccentColor}
-          accentDarkColor={resolvedAccentDarkColor}
-        >
-          {isPlaying ? (
-            <Pause color={resolvedOnAccentColor} size={24} fill={resolvedOnAccentColor} />
-          ) : (
-            <Play color={resolvedOnAccentColor} size={24} fill={resolvedOnAccentColor} />
-          )}
-        </PressScale>
-
-        <PressScale
-          testID="controls-next"
-          accessibilityLabel="Nächster Titel"
-          onPress={next}
-          disabled={!canSkipNext}
-          size={42}
-        >
-          <SkipForward color={theme.palette.text.primary} size={20} fill={theme.palette.text.primary} />
-        </PressScale>
-
-        <PressScale
-          testID="controls-repeat"
-          accessibilityLabel={REPEAT_MODE_LABELS[repeatMode]}
-          onPress={cycleRepeatMode}
-          size={36}
-          active={repeatMode !== 'off'}
-          accentColor={resolvedAccentColor}
-          accentDarkColor={resolvedAccentDarkColor}
-        >
-          {repeatIcon}
-        </PressScale>
-      </View>
+      <ControlRail
+        currentSong={music.currentSong}
+        playbackQueue={music.playbackQueue}
+        repeatMode={music.repeatMode}
+        shuffle={music.shuffle}
+        isPlaying={music.isPlaying}
+        isBuffering={music.isBuffering}
+        accentColor={accentColor ?? theme.palette.primary}
+        accentDarkColor={accentDarkColor ?? theme.palette.primaryDark}
+        onAccentColor={onAccentColor ?? theme.palette.text.onPrimary}
+        primaryTextColor={theme.palette.text.primary}
+        mutedTextColor={theme.palette.text.muted}
+        surfaceColor={theme.palette.surfaceGlass}
+        borderColor={theme.palette.border}
+        toggleShuffle={music.toggleShuffle}
+        previous={music.previous}
+        togglePlayPause={music.togglePlayPause}
+        next={music.next}
+        cycleRepeatMode={music.cycleRepeatMode}
+      />
     </View>
   );
 };
