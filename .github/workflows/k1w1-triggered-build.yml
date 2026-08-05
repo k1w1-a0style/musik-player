@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Tag/SHA to build"
+        description: "Trusted branch (codex|main) or full 40-character commit SHA"
         required: true
       profile:
         description: "EAS build profile (development|preview|production)"
@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   resolve:
-    name: Resolve explicit ref
+    name: Resolve and authorize explicit ref
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.resolve.outputs.ref }}
@@ -50,7 +50,13 @@ jobs:
       autofix: ${{ steps.resolve.outputs.autofix }}
       strict_lockfile: ${{ steps.resolve.outputs.strict_lockfile }}
     steps:
-      - name: Resolve inputs
+      - name: Checkout trusted workflow source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve inputs and enforce trusted commit ancestry
         id: resolve
         shell: bash
         env:
@@ -69,35 +75,19 @@ jobs:
           STRICT_LOCKFILE_RAW="$(printf '%s' "$RAW_STRICT_LOCKFILE" | tr -d '\r\n')"
 
           if [ -z "$REF" ]; then
-            echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
+            echo "::error::Missing required ref."
             exit 1
           fi
-          if [ "${#REF}" -gt 200 ]; then
-            echo "::error::Invalid ref (too long)."
+          if [ "${#REF}" -gt 40 ]; then
+            echo "::error::Invalid ref: only codex, main, or a full 40-character SHA is allowed."
             exit 1
           fi
           if [[ "$REF" =~ [[:cntrl:]] ]] || [[ "$REF" =~ [[:space:]] ]]; then
-            echo "::error::Invalid ref (control/space characters are not allowed)."
+            echo "::error::Invalid ref: control or space characters are not allowed."
             exit 1
           fi
-          if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
-            echo "::error::Invalid ref (forbidden prefix)."
-            exit 1
-          fi
-          if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
-            echo "::error::Invalid ref (forbidden git sequence)."
-            exit 1
-          fi
-          if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
-            echo "::error::Invalid ref (forbidden slash placement)."
-            exit 1
-          fi
-          if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
-            echo "::error::Invalid ref (forbidden metacharacters)."
-            exit 1
-          fi
-          if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
-            echo "::error::Invalid ref (safe policy mismatch)."
+          if [[ "$REF" != "codex" && "$REF" != "main" && ! "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Invalid ref: only codex, main, or a full 40-character SHA is allowed."
             exit 1
           fi
 
@@ -136,13 +126,64 @@ jobs:
               ;;
           esac
 
+          git fetch --no-tags origin \
+            '+refs/heads/codex:refs/remotes/origin/codex' \
+            '+refs/heads/main:refs/remotes/origin/main'
+
+          CODEX_SHA="$(git rev-parse --verify refs/remotes/origin/codex^{commit})"
+          MAIN_SHA="$(git rev-parse --verify refs/remotes/origin/main^{commit})"
+          case "$REF" in
+            codex) RESOLVED_SHA="$CODEX_SHA" ;;
+            main) RESOLVED_SHA="$MAIN_SHA" ;;
+            *)
+              if ! git cat-file -e "${REF}^{commit}" 2>/dev/null; then
+                echo "::error::Requested SHA is not present in the trusted codex/main history."
+                exit 1
+              fi
+              RESOLVED_SHA="$(git rev-parse --verify "${REF}^{commit}")"
+              ;;
+          esac
+
+          case "$PROFILE" in
+            development)
+              if ! git merge-base --is-ancestor "$RESOLVED_SHA" "$CODEX_SHA"; then
+                echo "::error::Development builds must use a commit reachable from codex."
+                exit 1
+              fi
+              ;;
+            preview)
+              if ! git merge-base --is-ancestor "$RESOLVED_SHA" "$CODEX_SHA" \
+                && ! git merge-base --is-ancestor "$RESOLVED_SHA" "$MAIN_SHA"; then
+                echo "::error::Preview builds must use a commit reachable from codex or main."
+                exit 1
+              fi
+              ;;
+            production)
+              if [ "$RESOLVED_SHA" != "$MAIN_SHA" ]; then
+                echo "::error::Production builds must use the exact current main head."
+                exit 1
+              fi
+              ;;
+          esac
+
+          OUTPUT_REF="$RESOLVED_SHA"
+          if [ "$AUTOFIX" = "true" ]; then
+            if [ "$PROFILE" != "development" ] || [ "$REF" != "codex" ]; then
+              echo "::error::Autofix is allowed only for an explicit development build of codex."
+              exit 1
+            fi
+            OUTPUT_REF="codex"
+          fi
+
           {
-            printf 'ref=%s\n' "$REF"
+            printf 'ref=%s\n' "$OUTPUT_REF"
             printf 'profile=%s\n' "$PROFILE"
             printf 'job_id=%s\n' "$JOB_ID"
             printf 'autofix=%s\n' "$AUTOFIX"
             printf 'strict_lockfile=%s\n' "$STRICT_LOCKFILE"
           } >> "$GITHUB_OUTPUT"
+
+          echo "Authorized $PROFILE build ref $REF as commit $RESOLVED_SHA."
 
   build:
     name: Dispatch → EAS Build (reusable)

@@ -1,8 +1,16 @@
 import type { Song } from '../types/Song';
-import { DEFAULT_WAVEFORM_POINT_COUNT, WAVEFORM_VERSION, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
+import {
+  DEFAULT_WAVEFORM_POINT_COUNT,
+  WAVEFORM_FINGERPRINT_PREFIX,
+  WAVEFORM_VERSION,
+  type NativeWaveformResult,
+  type SongWaveform,
+  type WaveformSourceIdentity,
+} from './waveformTypes';
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
+const FINGERPRINT_SEEDS = [0x9747b28c, 0x85ebca6b, 0xc2b2ae35, 0x27d4eb2f] as const;
 
 export const hashWaveformIdentity = (value: string): number => {
   let hash = FNV_OFFSET;
@@ -12,6 +20,49 @@ export const hashWaveformIdentity = (value: string): number => {
   }
   return hash;
 };
+
+const hashWaveformFingerprintPart = (value: string, seed: number): number => {
+  let hash = seed >>> 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x5bd1e995) >>> 0;
+    hash ^= hash >>> 13;
+  }
+  hash = Math.imul(hash ^ (hash >>> 15), 0x85ebca6b) >>> 0;
+  return (hash ^ (hash >>> 16)) >>> 0;
+};
+
+const buildWaveformFingerprint = (value: string): string => `${WAVEFORM_FINGERPRINT_PREFIX}${FINGERPRINT_SEEDS
+  .map(seed => hashWaveformFingerprintPart(value, seed).toString(16).padStart(8, '0'))
+  .join('')}`;
+
+const encodeIdentityPart = (value: string | number): string => {
+  const encoded = String(value);
+  return `${encoded.length}:${encoded}`;
+};
+
+export const getWaveformCanonicalIdentity = (song: Song | null | undefined): string => {
+  if (!song) return [WAVEFORM_VERSION, 'no-song'].map(encodeIdentityPart).join('|');
+  const uri = song.fileInfo?.uri ?? song.uri ?? '';
+  const size = song.fileInfo?.size ?? 0;
+  const importedAt = song.fileInfo?.importedAt ?? 0;
+  const duration = song.duration ?? song.audioInfo?.durationMs ?? 0;
+  return [WAVEFORM_VERSION, song.id, uri, size, importedAt, duration].map(encodeIdentityPart).join('|');
+};
+
+export const createWaveformSourceIdentity = (
+  canonicalIdentity: string,
+  primaryHash: (value: string) => number = hashWaveformIdentity,
+): WaveformSourceIdentity => ({
+  sourceKey: (primaryHash(canonicalIdentity) >>> 0).toString(36),
+  sourceFingerprint: buildWaveformFingerprint(canonicalIdentity),
+});
+
+export const getWaveformSourceIdentity = (song: Song | null | undefined): WaveformSourceIdentity =>
+  createWaveformSourceIdentity(getWaveformCanonicalIdentity(song));
+
+export const getWaveformSourceKey = (song: Song | null | undefined): string =>
+  getWaveformSourceIdentity(song).sourceKey;
 
 export const clampWaveformPoint = (value: number): number => {
   if (!Number.isFinite(value)) return 0.08;
@@ -57,27 +108,17 @@ const buildSyntheticPoints = (identity: string, count: number): number[] => {
   });
 };
 
-export const getWaveformSourceKey = (song: Song | null | undefined): string => {
-  if (!song) return 'no-song';
-  const uri = song.fileInfo?.uri ?? song.uri ?? '';
-  const size = song.fileInfo?.size ?? 0;
-  const importedAt = song.fileInfo?.importedAt ?? 0;
-  const duration = song.duration ?? song.audioInfo?.durationMs ?? 0;
-  const identity = [song.id, uri, size, importedAt, duration, WAVEFORM_VERSION].join('|');
-  return hashWaveformIdentity(identity || 'no-song').toString(36);
-};
-
 export const buildFallbackWaveform = (
   song: Song | null | undefined,
   durationMs: number,
   pointCount = DEFAULT_WAVEFORM_POINT_COUNT,
 ): SongWaveform => {
-  const sourceKey = getWaveformSourceKey(song);
+  const sourceIdentity = getWaveformSourceIdentity(song);
   return {
     version: WAVEFORM_VERSION,
-    points: buildSyntheticPoints(sourceKey, pointCount),
+    points: buildSyntheticPoints(sourceIdentity.sourceFingerprint, pointCount),
     durationMs: Number.isFinite(durationMs) && durationMs > 0 ? durationMs : song?.duration ?? song?.audioInfo?.durationMs ?? 0,
-    sourceKey,
+    ...sourceIdentity,
     source: 'fallback',
     generatedAt: Date.now(),
   };
@@ -92,7 +133,7 @@ export const buildNativeWaveform = (
   version: WAVEFORM_VERSION,
   points: normalizeWaveformPoints(result.points, pointCount),
   durationMs: Number.isFinite(result.durationMs) && (result.durationMs ?? 0) > 0 ? result.durationMs as number : fallbackDurationMs,
-  sourceKey: getWaveformSourceKey(song),
+  ...getWaveformSourceIdentity(song),
   source: 'native',
   generatedAt: Date.now(),
 });

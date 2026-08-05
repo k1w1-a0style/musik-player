@@ -3,6 +3,7 @@ import { act, render } from '@testing-library/react-native';
 import WaveformScrubber from '../WaveformScrubber';
 import { Rect } from 'react-native-svg';
 import { getAppTheme } from '../../utils/appTheme';
+import { WAVEFORM_VERSION } from '../../utils/waveformTypes';
 let mockAppTheme = getAppTheme('dark', 'graphite');
 
 jest.mock('../../contexts/AppThemeContext', () => ({
@@ -17,9 +18,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 }));
 
 const waveform = {
-  version: 1,
+  version: WAVEFORM_VERSION,
   source: 'fallback' as const,
   sourceKey: 'test-waveform',
+  sourceFingerprint: 'wf3:00000000000000000000000000000001',
   generatedAt: 1_782_950_400_000,
   durationMs: 100_000,
   points: [0.2, 0.6, 0.4, 0.8],
@@ -144,5 +146,4 @@ describe('WaveformScrubber seek semantics', () => {
     expect(onSeek).toHaveBeenCalledWith(50_000);
     mockAppTheme = getAppTheme('dark', 'graphite');
   });
-
 });

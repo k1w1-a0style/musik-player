@@ -1,25 +1,101 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isSongWaveform, type SongWaveform } from './waveformTypes';
+import {
+  isSongWaveform,
+  isWaveformSourceIdentity,
+  type SongWaveform,
+  type WaveformSourceIdentity,
+} from './waveformTypes';
 
-const PREFIX = '@musikplayer:waveform:';
+const LEGACY_PREFIX = '@musikplayer:waveform:';
+const PREFIX = `${LEGACY_PREFIX}v3:`;
 const INDEX_KEY = `${PREFIX}index`;
 const MAX_CACHED_WAVEFORMS = 80;
 let cacheMutationQueue = Promise.resolve();
+let cacheInitialization: Promise<void> | null = null;
 
 const keyForSource = (sourceKey: string): string => `${PREFIX}${sourceKey}`;
+const isPayloadKey = (key: string): boolean => key.startsWith(PREFIX) && key !== INDEX_KEY;
+const isLegacyKey = (key: string): boolean => key.startsWith(LEGACY_PREFIX) && !key.startsWith(PREFIX);
 
-const readIndex = async (): Promise<string[]> => {
+const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
+  left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
+
+const initializeCache = async (): Promise<void> => {
+  if (!cacheInitialization) {
+    cacheInitialization = (async () => {
+      const keys = await AsyncStorage.getAllKeys();
+      const legacyKeys = keys.filter(isLegacyKey);
+      await Promise.all(legacyKeys.map(key => AsyncStorage.removeItem(key)));
+    })().catch(error => {
+      cacheInitialization = null;
+      throw error;
+    });
+  }
+  await cacheInitialization;
+};
+
+const writeIndex = async (entries: WaveformSourceIdentity[]): Promise<void> => {
+  await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(entries.slice(0, MAX_CACHED_WAVEFORMS)));
+};
+
+const readStoredWaveform = async (key: string): Promise<SongWaveform | null> => {
   try {
-    const raw = await AsyncStorage.getItem(INDEX_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : [];
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!isSongWaveform(parsed)) return null;
+    return key === keyForSource(parsed.sourceKey) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const listStoredWaveforms = async (): Promise<SongWaveform[]> => {
+  const keys = (await AsyncStorage.getAllKeys()).filter(isPayloadKey);
+  const loaded = await Promise.all(keys.map(async key => ({ key, waveform: await readStoredWaveform(key) })));
+  const invalidKeys = loaded.filter(item => !item.waveform).map(item => item.key);
+  await Promise.all(invalidKeys.map(key => AsyncStorage.removeItem(key).catch(() => undefined)));
+  return loaded.flatMap(item => item.waveform ? [item.waveform] : []);
+};
+
+const parseIndex = (raw: string | null): WaveformSourceIdentity[] => {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.every(isWaveformSourceIdentity)) return [];
+    return parsed;
   } catch {
     return [];
   }
 };
 
-const writeIndex = async (keys: string[]): Promise<void> => {
-  await AsyncStorage.setItem(INDEX_KEY, JSON.stringify([...new Set(keys)].slice(0, MAX_CACHED_WAVEFORMS)));
+const reconcileIndex = async (preferred: WaveformSourceIdentity[]): Promise<WaveformSourceIdentity[]> => {
+  const stored = await listStoredWaveforms();
+  const bySourceKey = new Map(stored.map(waveform => [waveform.sourceKey, waveform]));
+  const ordered: WaveformSourceIdentity[] = [];
+
+  for (const identity of preferred) {
+    const waveform = bySourceKey.get(identity.sourceKey);
+    if (!waveform || !sameIdentity(identity, waveform)) continue;
+    ordered.push(identity);
+    bySourceKey.delete(identity.sourceKey);
+  }
+
+  const recovered = [...bySourceKey.values()]
+    .sort((left, right) => right.generatedAt - left.generatedAt)
+    .map(({ sourceKey, sourceFingerprint }) => ({ sourceKey, sourceFingerprint }));
+  const complete = [...ordered, ...recovered];
+  const active = complete.slice(0, MAX_CACHED_WAVEFORMS);
+  const stale = complete.slice(MAX_CACHED_WAVEFORMS);
+
+  await writeIndex(active);
+  await Promise.all(stale.map(identity => AsyncStorage.removeItem(keyForSource(identity.sourceKey)).catch(() => undefined)));
+  return active;
+};
+
+const readIndex = async (): Promise<WaveformSourceIdentity[]> => {
+  const raw = await AsyncStorage.getItem(INDEX_KEY);
+  return reconcileIndex(parseIndex(raw));
 };
 
 const runCacheMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -28,32 +104,44 @@ const runCacheMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
   return current;
 };
 
-export const getCachedWaveform = async (sourceKey: string): Promise<SongWaveform | null> => {
-  if (!sourceKey) return null;
-  try {
-    const raw = await AsyncStorage.getItem(keyForSource(sourceKey));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return isSongWaveform(parsed) && parsed.sourceKey === sourceKey ? parsed : null;
-  } catch {
-    return null;
-  }
+export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promise<SongWaveform | null> => {
+  if (!isWaveformSourceIdentity(identity)) return null;
+  await initializeCache();
+  const waveform = await readStoredWaveform(keyForSource(identity.sourceKey));
+  return waveform && sameIdentity(waveform, identity) ? waveform : null;
 };
 
 export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> => {
   if (!isSongWaveform(waveform)) return;
   await runCacheMutation(async () => {
-    await AsyncStorage.setItem(keyForSource(waveform.sourceKey), JSON.stringify(waveform));
+    await initializeCache();
     const existing = await readIndex();
-    const next = [waveform.sourceKey, ...existing.filter(key => key !== waveform.sourceKey)];
+    const payloadKey = keyForSource(waveform.sourceKey);
+    const previousPayload = await AsyncStorage.getItem(payloadKey);
+    await AsyncStorage.setItem(payloadKey, JSON.stringify(waveform));
+
+    const identity = { sourceKey: waveform.sourceKey, sourceFingerprint: waveform.sourceFingerprint };
+    const next = [identity, ...existing.filter(entry => entry.sourceKey !== waveform.sourceKey)];
+    try {
+      await writeIndex(next);
+    } catch (error) {
+      if (previousPayload === null) await AsyncStorage.removeItem(payloadKey).catch(() => undefined);
+      else await AsyncStorage.setItem(payloadKey, previousPayload).catch(() => undefined);
+      throw error;
+    }
+
     const stale = next.slice(MAX_CACHED_WAVEFORMS);
-    await Promise.all(stale.map(key => AsyncStorage.removeItem(keyForSource(key)).catch(() => undefined)));
-    await writeIndex(next);
+    await Promise.all(stale.map(entry => AsyncStorage.removeItem(keyForSource(entry.sourceKey))));
   });
 };
 
 export const clearWaveformCache = async (): Promise<void> => runCacheMutation(async () => {
-  const existing = await readIndex();
-  await Promise.all(existing.map(key => AsyncStorage.removeItem(keyForSource(key)).catch(() => undefined)));
-  await AsyncStorage.removeItem(INDEX_KEY);
+  await initializeCache();
+  const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(LEGACY_PREFIX));
+  await Promise.all(keys.map(key => AsyncStorage.removeItem(key)));
 });
+
+export const resetWaveformCacheStateForTests = (): void => {
+  cacheMutationQueue = Promise.resolve();
+  cacheInitialization = null;
+};

@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Song } from '../types/Song';
 import { getCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
 import { buildImmediateWaveform, extractNativeWaveform, resolveWaveformUri } from '../utils/waveformExtraction';
-import { getWaveformSourceKey } from '../utils/waveformGenerator';
+import { getWaveformSourceIdentity } from '../utils/waveformGenerator';
 import {
   describeWaveformDecision,
   isNativeWaveformRejectionNoteworthy,
   type WaveformSourceDiagnostics,
 } from '../utils/waveformDecision';
-import { DEFAULT_WAVEFORM_POINT_COUNT, type SongWaveform } from '../utils/waveformTypes';
+import {
+  DEFAULT_WAVEFORM_POINT_COUNT,
+  type SongWaveform,
+  type WaveformSourceIdentity,
+} from '../utils/waveformTypes';
 
 declare const __DEV__: boolean;
 
@@ -58,7 +62,7 @@ const cacheWaveformObserved = (waveform: SongWaveform): void => {
 };
 
 const getCachedWaveformUntilAbort = (
-  sourceKey: string,
+  identity: WaveformSourceIdentity,
   signal: AbortSignal,
 ): Promise<SongWaveform | null> => new Promise(resolve => {
   let settled = false;
@@ -71,7 +75,7 @@ const getCachedWaveformUntilAbort = (
   const abort = () => finish(null);
   signal.addEventListener('abort', abort, { once: true });
   if (signal.aborted) abort();
-  void getCachedWaveform(sourceKey).then(finish, () => finish(null));
+  void getCachedWaveform(identity).then(finish, () => finish(null));
 });
 
 export const useSongWaveform = ({
@@ -80,7 +84,8 @@ export const useSongWaveform = ({
   pointCount = DEFAULT_WAVEFORM_POINT_COUNT,
   onWaveformDecision = logWaveformDecision,
 }: UseSongWaveformOptions): UseSongWaveformResult => {
-  const sourceKey = useMemo(() => getWaveformSourceKey(song), [song]);
+  const sourceIdentity = useMemo(() => getWaveformSourceIdentity(song), [song]);
+  const sourceKey = sourceIdentity.sourceKey;
   const immediate = useMemo(
     () => buildImmediateWaveform(song, durationMs, pointCount),
     [durationMs, pointCount, song],
@@ -106,12 +111,12 @@ export const useSongWaveform = ({
     setLoadingNative(true);
 
     void (async () => {
-      const cached = await getCachedWaveformUntilAbort(sourceKey, controller.signal);
+      const cached = await getCachedWaveformUntilAbort(sourceIdentity, controller.signal);
       if (!active) return;
       if (cached) {
         setWaveform(cached);
-        // Native waveforms are stable for the same sourceKey. Do not re-extract
-        // on every NowPlaying remount/track revisit; that was a hidden perf cost.
+        // Native waveforms are stable for the same source identity. Do not
+        // re-extract on every NowPlaying remount/track revisit.
         if (cached.source === 'native') {
           setLoadingNative(false);
           return;
@@ -137,7 +142,7 @@ export const useSongWaveform = ({
       active = false;
       controller.abort();
     };
-  }, [canExtractNative, durationMs, immediate, onWaveformDecision, pointCount, song, sourceKey]);
+  }, [canExtractNative, durationMs, immediate, onWaveformDecision, pointCount, song, sourceIdentity]);
 
   return { waveform, sourceKey, loadingNative };
 };
