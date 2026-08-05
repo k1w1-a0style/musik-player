@@ -75,7 +75,7 @@
       "maxLines": 130,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "contexts/useMusicContextValue.tsx::useMusicContextValue#1": {
+    "contexts/useMusicContextValue.ts::useMusicContextValue#1": {
       "maxComplexity": 1,
       "maxLines": 134,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
