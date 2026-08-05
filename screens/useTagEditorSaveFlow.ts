@@ -168,17 +168,8 @@ type UseTagEditorSaveFlowInput = {
 };
 
 export const useTagEditorSaveFlow = ({
-  song,
-  draft,
-  form,
-  container,
-  beginSaveFlow,
-  isSaveFlowStale,
-  updateSongMetadata,
-  setSaving,
-  setStatus,
-  resetAfterWrittenSave,
-  resetAfterNoopSave,
+  song, draft, form, container, beginSaveFlow, isSaveFlowStale,
+  updateSongMetadata, setSaving, setStatus, resetAfterWrittenSave, resetAfterNoopSave,
 }: UseTagEditorSaveFlowInput) =>
   useCallback(async (): Promise<void> => {
     if (!song) return;
@@ -251,15 +242,6 @@ export const useTagEditorSaveFlow = ({
       }
     }
   }, [
-    beginSaveFlow,
-    container,
-    draft,
-    form,
-    isSaveFlowStale,
-    resetAfterNoopSave,
-    resetAfterWrittenSave,
-    setSaving,
-    setStatus,
-    song,
-    updateSongMetadata,
+    beginSaveFlow, container, draft, form, isSaveFlowStale, resetAfterNoopSave,
+    resetAfterWrittenSave, setSaving, setStatus, song, updateSongMetadata,
   ]);
