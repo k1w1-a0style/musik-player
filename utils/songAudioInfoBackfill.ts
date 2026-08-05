@@ -87,6 +87,40 @@ const shallowEqualSongFileInfo = (left?: SongFileInfo, right?: SongFileInfo): bo
   && left?.source === right?.source
   && left?.importedAt === right?.importedAt;
 
+const mergeMissingFileInfo = (
+  current: SongFileInfo | undefined,
+  incoming: AudioInfoResult,
+): SongFileInfo => {
+  const next: SongFileInfo = { ...(current ?? {}) };
+  if (!next.filename && incoming.displayName) next.filename = incoming.displayName;
+  if (!next.mimeType && incoming.mimeType) next.mimeType = incoming.mimeType;
+  if (!isPositiveFiniteNumber(next.size) && isPositiveFiniteNumber(incoming.sizeBytes)) {
+    next.size = incoming.sizeBytes;
+  }
+  return next;
+};
+
+const mergeMissingSongAudioInfo = (
+  current: SongAudioInfo | undefined,
+  incoming: AudioInfoResult,
+): SongAudioInfo => {
+  const next: SongAudioInfo = { ...(current ?? {}) };
+  if (!next.codec && incoming.mimeType) next.codec = incoming.mimeType;
+  if (!isPositiveFiniteNumber(next.durationMs) && isPositiveFiniteNumber(incoming.durationMs)) {
+    next.durationMs = incoming.durationMs;
+  }
+  const incomingBitrate = bitrateKbpsFromNative(incoming.bitrateBps);
+  if (!isPositiveFiniteNumber(next.bitrate) && incomingBitrate) next.bitrate = incomingBitrate;
+  if (incomingBitrate && !next.bitrateMode) next.bitrateMode = incoming.bitrateMode ?? 'unknown';
+  if (!isPositiveFiniteNumber(next.sampleRate) && isPositiveFiniteNumber(incoming.sampleRateHz)) {
+    next.sampleRate = incoming.sampleRateHz;
+  }
+  if (!isPositiveFiniteNumber(next.channels) && isPositiveFiniteNumber(incoming.channels)) {
+    next.channels = incoming.channels;
+  }
+  return next;
+};
+
 export const mergeNativeAudioInfoIntoSong = (
   song: Song,
   audioInfo: AudioInfoResult | null,
@@ -94,49 +128,19 @@ export const mergeNativeAudioInfoIntoSong = (
   if (!audioInfo) return song;
 
   const nextDuration = preferPositiveNumber(song.duration, audioInfo.durationMs);
-  const nextFileInfo: SongFileInfo = {
-    ...(song.fileInfo ?? {}),
-    ...(song.fileInfo?.filename || !audioInfo.displayName ? {} : { filename: audioInfo.displayName }),
-    ...(song.fileInfo?.mimeType || !audioInfo.mimeType ? {} : { mimeType: audioInfo.mimeType }),
-    ...(isPositiveFiniteNumber(song.fileInfo?.size) || !isPositiveFiniteNumber(audioInfo.sizeBytes)
-      ? {}
-      : { size: audioInfo.sizeBytes }),
-  };
+  const nextFileInfo = mergeMissingFileInfo(song.fileInfo, audioInfo);
+  const nextAudioInfo = mergeMissingSongAudioInfo(song.audioInfo, audioInfo);
+  const durationChanged = nextDuration !== song.duration;
+  const fileInfoChanged = !shallowEqualSongFileInfo(song.fileInfo, nextFileInfo);
+  const audioInfoChanged = !shallowEqualSongAudioInfo(song.audioInfo, nextAudioInfo);
+  if (!durationChanged && !fileInfoChanged && !audioInfoChanged) return song;
 
-  const incomingBitrate = bitrateKbpsFromNative(audioInfo.bitrateBps);
-  const nextAudioInfo: SongAudioInfo = {
-    ...(song.audioInfo ?? {}),
-    ...(song.audioInfo?.codec || !audioInfo.mimeType ? {} : { codec: audioInfo.mimeType }),
-    ...(isPositiveFiniteNumber(song.audioInfo?.durationMs) || !isPositiveFiniteNumber(audioInfo.durationMs)
-      ? {}
-      : { durationMs: audioInfo.durationMs }),
-    ...(isPositiveFiniteNumber(song.audioInfo?.bitrate) || !isPositiveFiniteNumber(audioInfo.bitrateBps)
-      ? {}
-      : { bitrate: incomingBitrate }),
-    ...(incomingBitrate && !song.audioInfo?.bitrateMode ? { bitrateMode: audioInfo.bitrateMode ?? 'unknown' as const } : {}),
-    ...(isPositiveFiniteNumber(song.audioInfo?.sampleRate) || !isPositiveFiniteNumber(audioInfo.sampleRateHz)
-      ? {}
-      : { sampleRate: audioInfo.sampleRateHz }),
-    ...(isPositiveFiniteNumber(song.audioInfo?.channels) || !isPositiveFiniteNumber(audioInfo.channels)
-      ? {}
-      : { channels: audioInfo.channels }),
-  };
-
-  const next: Song = {
+  return {
     ...song,
-    ...(nextDuration === song.duration ? {} : { duration: nextDuration }),
-    ...(shallowEqualSongFileInfo(song.fileInfo, nextFileInfo) ? {} : { fileInfo: nextFileInfo }),
-    ...(shallowEqualSongAudioInfo(song.audioInfo, nextAudioInfo) ? {} : { audioInfo: nextAudioInfo }),
+    ...(durationChanged ? { duration: nextDuration } : {}),
+    ...(fileInfoChanged ? { fileInfo: nextFileInfo } : {}),
+    ...(audioInfoChanged ? { audioInfo: nextAudioInfo } : {}),
   };
-
-  return next === song
-    || (
-      next.duration === song.duration
-      && shallowEqualSongFileInfo(next.fileInfo, song.fileInfo)
-      && shallowEqualSongAudioInfo(next.audioInfo, song.audioInfo)
-    )
-    ? song
-    : next;
 };
 
 const readNativeAudioInfo = async (
