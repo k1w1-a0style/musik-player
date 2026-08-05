@@ -11,13 +11,37 @@ import {
   getLibraryImportFlowCopy,
   shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
-import type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
+import type {
+  ImportGeneration,
+  UseLibraryImportActionsOptions,
+  UseLibraryImportActionsResult,
+} from './libraryImportActionTypes';
 import { useLibraryImportLifecycle } from './useLibraryImportLifecycle';
 import { useLibraryImportStateUpdate } from './useLibraryImportStateUpdate';
 import { useLibraryScanFolderImportFlow } from './useLibraryScanFolderImportFlow';
 import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImportFlow';
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
+
+type ImportAlert = UseLibraryImportActionsOptions['showAlert'];
+type IsCurrentImport = (generation: ImportGeneration) => boolean;
+
+const reportLibraryImportFailure = (
+  error: unknown,
+  generation: ImportGeneration,
+  isCurrentImport: IsCurrentImport,
+  showAlert: ImportAlert,
+): void => {
+  if (isTimeoutError(error)) {
+    console.warn('[Import] Import timed out.', error);
+  } else if (!isCurrentImport(generation) || isAbortError(error)) {
+    console.warn('[Import] Import cancelled.', error);
+    return;
+  } else {
+    console.warn('[Import] Import failed.', error);
+  }
+  showAlert(getImportStoppedAlert(error));
+};
 
 export const useLibraryImportActions = ({
   scanFolders,
@@ -85,15 +109,7 @@ export const useLibraryImportActions = ({
         await importFromMediaLibrary(importCopy, generation);
       }
     } catch (error) {
-      if (isTimeoutError(error)) {
-        console.warn('[Import] Import timed out.', error);
-      } else if (!isCurrentImport(generation) || isAbortError(error)) {
-        console.warn('[Import] Import cancelled.', error);
-        return;
-      } else {
-        console.warn('[Import] Import failed.', error);
-      }
-      showAlert(getImportStoppedAlert(error));
+      reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
       finishImport(generation);
     }
