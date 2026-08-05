@@ -10,11 +10,6 @@
       "maxLines": 111,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "components/LibrarySortControl.tsx::LibrarySortControl#1": {
-      "maxComplexity": 1,
-      "maxLines": 81,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "components/LibraryTabContent.tsx::LibraryTabContent#1": {
       "maxComplexity": 12,
       "maxLines": 173,
