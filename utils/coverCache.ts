@@ -17,7 +17,12 @@ import {
   getBase64DecodedByteLengthEstimate,
   validateBase64Payload,
 } from './base64';
-import { detectImageMimeFromBytes, imageExtensionFromMime, normalizeImageMime } from './imageMime';
+import {
+  detectImageMimeFromBytes,
+  imageExtensionFromMime,
+  normalizeImageMime,
+  type SupportedImageMime,
+} from './imageMime';
 
 const DATA_URI_RE = /^data:image\/([a-zA-Z0-9.+-]+);base64,/i;
 export const MAX_CACHED_COVER_BYTES = 2 * 1024 * 1024;
@@ -163,17 +168,15 @@ export const cacheLocalCoverFile = async (
   }
 };
 
-export const cacheBase64Cover = async (
-  songId: string,
-  cover?: string,
-  protection?: CoverCacheProtection,
-): Promise<string | undefined> => {
-  if (!cover) return undefined;
-  const trimmed = cover.trim();
-  const match = trimmed.match(DATA_URI_RE);
-  if (!match) return cover;
+type ValidatedBase64Cover = {
+  base64: string;
+  mime: SupportedImageMime;
+};
 
-  const rawBase64 = trimmed.slice(match[0].length);
+const validateBase64Cover = (
+  declaredMimeValue: string | undefined,
+  rawBase64: string,
+): ValidatedBase64Cover | undefined => {
   if (getBase64DecodedByteLengthEstimate(rawBase64) > MAX_CACHED_COVER_BYTES) return undefined;
 
   let base64: string;
@@ -186,13 +189,53 @@ export const cacheBase64Cover = async (
     if (error instanceof Base64DecodeError) return undefined;
     throw error;
   }
-  const declaredMime = normalizeImageMime(match[1]);
+
+  const declaredMime = normalizeImageMime(declaredMimeValue);
   const detectedMime = detectImageMimeFromBytes(prefixBytes);
-  if (declaredMime) {
-    if (detectedMime !== declaredMime) return undefined;
-  } else if (!detectedMime) {
-    return undefined;
-  }
+  if (declaredMime && detectedMime !== declaredMime) return undefined;
+  if (!declaredMime && !detectedMime) return undefined;
+  const mime = detectedMime ?? declaredMime;
+  return mime ? { base64, mime } : undefined;
+};
+
+type CoverCacheWriteApi = {
+  mkdir: typeof makeDirectoryAsync;
+  write: typeof writeAsStringAsync;
+  getInfo: typeof getInfoAsync;
+};
+
+type RuntimeOptionalCoverCacheWriteApi = Partial<CoverCacheWriteApi>;
+
+const resolveCoverCacheWriteApi = (): CoverCacheWriteApi | undefined => {
+  const legacyApi: RuntimeOptionalCoverCacheWriteApi = {
+    mkdir: makeDirectoryAsync,
+    write: writeAsStringAsync,
+    getInfo: getInfoAsync,
+  };
+  const fallbackApi = FileSystem as unknown as {
+    makeDirectoryAsync?: typeof makeDirectoryAsync;
+    writeAsStringAsync?: typeof writeAsStringAsync;
+    getInfoAsync?: typeof getInfoAsync;
+  };
+  const mkdir = legacyApi.mkdir ?? fallbackApi.makeDirectoryAsync;
+  const write = legacyApi.write ?? fallbackApi.writeAsStringAsync;
+  const getInfo = legacyApi.getInfo ?? fallbackApi.getInfoAsync;
+  if (!mkdir || !write || !getInfo) return undefined;
+  return { mkdir, write, getInfo };
+};
+
+export const cacheBase64Cover = async (
+  songId: string,
+  cover?: string,
+  protection?: CoverCacheProtection,
+): Promise<string | undefined> => {
+  if (!cover) return undefined;
+  const trimmed = cover.trim();
+  const match = trimmed.match(DATA_URI_RE);
+  if (!match) return cover;
+
+  const validated = validateBase64Cover(match[1], trimmed.slice(match[0].length));
+  if (!validated) return undefined;
 
   const baseDir = getBaseDirectory();
   if (!baseDir) {
@@ -201,30 +244,25 @@ export const cacheBase64Cover = async (
   }
 
   try {
-    const directory = `${baseDir}covers`;
-    const mkdir = makeDirectoryAsync
-      ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
-    const write = writeAsStringAsync
-      ?? (FileSystem as unknown as { writeAsStringAsync?: typeof writeAsStringAsync }).writeAsStringAsync;
-    const getInfo = getInfoAsync
-      ?? (FileSystem as unknown as { getInfoAsync?: typeof getInfoAsync }).getInfoAsync;
-    if (!mkdir || !write || !getInfo) {
+    const fileSystem = resolveCoverCacheWriteApi();
+    if (!fileSystem) {
       logCoverCacheWarning('cache_filesystem_unavailable');
       return undefined;
     }
 
-    await withCoverCacheFailureReason(mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
+    const directory = `${baseDir}covers`;
+    await withCoverCacheFailureReason(fileSystem.mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
 
-    const ext = imageExtensionFromMime(detectedMime ?? declaredMime ?? 'image/jpeg');
-    const contentHash = hashString(base64);
+    const ext = imageExtensionFromMime(validated.mime);
+    const contentHash = hashString(validated.base64);
     const safeSongId = hashString(songId);
     const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
     protection?.protectUri(fileUri);
     await waitForCoverCacheCleanupIdle();
-    const existing = await withCoverCacheFailureReason(getInfo(fileUri), 'cache_info_failed');
+    const existing = await withCoverCacheFailureReason(fileSystem.getInfo(fileUri), 'cache_info_failed');
     if (existing.exists) return fileUri;
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
-    await withCoverCacheFailureReason(write(fileUri, base64, {
+    await withCoverCacheFailureReason(fileSystem.write(fileUri, validated.base64, {
       encoding: base64Encoding,
     }), 'cache_write_failed');
     return fileUri;
