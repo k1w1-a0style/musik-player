@@ -125,11 +125,6 @@
       "maxLines": 143,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "hooks/useLibraryMetadataRefreshActions.ts::useLibraryMetadataRefreshActions#1": {
-      "maxComplexity": 1,
-      "maxLines": 87,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "hooks/useLibraryMetadataRefreshRunner.ts::<useCallback-callback>#1": {
       "maxComplexity": 16,
       "maxLines": 86,
