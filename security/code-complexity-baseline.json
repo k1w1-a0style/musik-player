@@ -145,11 +145,6 @@
       "maxLines": 139,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "screens/NowPlayingMenuModal.tsx::NowPlayingMenuModal#1": {
-      "maxComplexity": 5,
-      "maxLines": 93,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "screens/NowPlayingQueueCard.tsx::NowPlayingQueueCard#1": {
       "maxComplexity": 1,
       "maxLines": 120,
