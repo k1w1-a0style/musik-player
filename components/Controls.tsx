@@ -26,7 +26,7 @@ interface PressScaleProps {
   children: React.ReactNode;
   testID: string;
   accessibilityLabel: string;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   disabled?: boolean;
   size?: number;
   primary?: boolean;
@@ -95,7 +95,7 @@ interface AccentProps {
 
 const ShuffleControl: React.FC<AccentProps & {
   active: boolean;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   inactiveColor: string;
 }> = ({ active, onPress, accentColor, accentDarkColor, inactiveColor }) => (
   <PressScale
@@ -113,7 +113,7 @@ const ShuffleControl: React.FC<AccentProps & {
 
 const PreviousControl: React.FC<{
   disabled: boolean;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   color: string;
 }> = ({ disabled, onPress, color }) => (
   <PressScale
@@ -129,7 +129,7 @@ const PreviousControl: React.FC<{
 const PlayPauseControl: React.FC<AccentProps & {
   isPlaying: boolean;
   disabled: boolean;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   onAccentColor: string;
 }> = ({ isPlaying, disabled, onPress, accentColor, accentDarkColor, onAccentColor }) => (
   <PressScale
@@ -150,7 +150,7 @@ const PlayPauseControl: React.FC<AccentProps & {
 
 const NextControl: React.FC<{
   disabled: boolean;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   color: string;
 }> = ({ disabled, onPress, color }) => (
   <PressScale
@@ -165,7 +165,7 @@ const NextControl: React.FC<{
 
 const RepeatControl: React.FC<AccentProps & {
   mode: RepeatMode;
-  onPress: () => void | Promise<void>;
+  onPress: () => unknown | Promise<unknown>;
   inactiveColor: string;
 }> = ({ mode, onPress, accentColor, accentDarkColor, inactiveColor }) => {
   const color = mode === 'off' ? inactiveColor : accentColor;
@@ -199,11 +199,11 @@ interface ControlRailProps extends AccentProps {
   mutedTextColor: string;
   surfaceColor: string;
   borderColor: string;
-  toggleShuffle: () => void | Promise<void>;
-  previous: () => void | Promise<void>;
-  togglePlayPause: () => void | Promise<void>;
-  next: () => void | Promise<void>;
-  cycleRepeatMode: () => void | Promise<void>;
+  toggleShuffle: () => unknown | Promise<unknown>;
+  previous: () => unknown | Promise<unknown>;
+  togglePlayPause: () => unknown | Promise<unknown>;
+  next: () => unknown | Promise<unknown>;
+  cycleRepeatMode: () => unknown | Promise<unknown>;
 }
 
 const ControlRail: React.FC<ControlRailProps> = props => {
