@@ -1,14 +1,11 @@
 package expo.modules.systemaudio
 
 import android.graphics.Bitmap
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
-import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import expo.modules.systemaudio.saf.SafPermissionPolicy
 import expo.modules.systemaudio.saf.AndroidSafContentStore
 import expo.modules.systemaudio.saf.AudioTagRewriteException
 import expo.modules.systemaudio.saf.NativeTagEditRequestParser
@@ -22,17 +19,12 @@ import expo.modules.systemaudio.saf.isValidTagWriteOperationId
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.util.Base64
-import android.os.Build
 import android.util.Log
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.util.UUID
-import kotlin.math.roundToInt
 
 /**
  * Bridges Android's Equalizer API and the androidx.palette color extraction
@@ -146,15 +138,15 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     AsyncFunction("extractEmbeddedArtwork") { uri: String ->
       val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
       if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
-        Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogUri()}")
+        Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogReference()}")
         return@AsyncFunction null
       }
       val mimeType = detectImageMime(bytes) ?: run {
-        Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogUri()}")
+        Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogReference()}")
         return@AsyncFunction null
       }
       val fileUri = cacheArtworkBytes(uri, bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
-      Log.d(TAG, "embedded artwork cached bytes=${bytes.size} mime=$mimeType file=${fileUri.safeLogUri()}")
+      Log.d(TAG, "embedded artwork cached bytes=${bytes.size} mime=$mimeType file=${fileUri.safeLogReference()}")
       mapOf(
         "uri" to fileUri,
         "mimeType" to mimeType,
@@ -219,10 +211,10 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     } catch (e: AudioTagRewriteException) {
       result(expo.modules.systemaudio.saf.TransactionResult(false, e.errorCode, e.message ?: "Native tag rewrite request is invalid."))
     } catch (e: SecurityException) {
-      result(expo.modules.systemaudio.saf.TransactionResult(false, "MissingWritePermission", "SAF provider denied write permission: ${e.message}"))
+      result(expo.modules.systemaudio.saf.TransactionResult(false, "MissingWritePermission", "SAF provider denied write permission."))
     } catch (e: Throwable) {
-      Log.d(TAG, "SAF tag transaction failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
-      result(expo.modules.systemaudio.saf.TransactionResult(false, "ReplaceFailed", "SAF transaction failed: ${e.message}"))
+      Log.d(TAG, "SAF tag transaction failed ${e.safeLogType()} uri=${uri.safeLogReference()}")
+      result(expo.modules.systemaudio.saf.TransactionResult(false, "ReplaceFailed", "SAF transaction failed."))
     }
   }
 
@@ -272,7 +264,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       val rewrite = StreamingAudioTagRewriteSource(spec).rewrite(original, rewritten, maxBytes)
       !rewrite.changed || rewrite.digest == originalDigest
     } catch (error: Throwable) {
-      Log.d(TAG, "SAF deletion verification failed ${error.javaClass.simpleName}: ${error.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "SAF deletion verification failed ${error.safeLogType()} uri=${uri.safeLogReference()}")
       false
     } finally {
       original.delete()
@@ -307,133 +299,6 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
         TransactionStorage(File(ctx.noBackupFilesDir, "audio-tag-transactions")),
         AndroidSafContentStore(ctx),
       ).also { audioTagTransactions = it }
-    }
-  }
-
-  private fun sha256Hex(bytes: ByteArray): String {
-    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-    return digest.joinToString("") { byte -> "%02x".format(byte) }
-  }
-
-  private fun isValidSha256Hex(value: String): Boolean =
-    value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }
-
-  private fun readAllBytesFromUri(uri: Uri, maxBytes: Long): ByteArray? {
-    val ctx = appContext.reactContext ?: return null
-    val out = ByteArrayOutputStream()
-    ctx.contentResolver.openInputStream(uri)?.use { input ->
-      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-      var total = 0L
-      while (true) {
-        val read = input.read(buffer)
-        if (read < 0) break
-        total += read.toLong()
-        if (total > maxBytes) return null
-        out.write(buffer, 0, read)
-      }
-    } ?: return null
-    return out.toByteArray()
-  }
-
-  private fun fileSizeForAnyUri(uri: Uri): Long? {
-    if (uri.scheme == "content") return readOpenableInfo(uri.toString())?.sizeBytes
-    return fileSizeForUri(uri.toString())
-  }
-
-  private fun hasSafWritePermission(uri: Uri): Boolean {
-    val ctx = appContext.reactContext ?: return false
-    val direct = try {
-      ctx.checkUriPermission(
-        uri,
-        android.os.Process.myPid(),
-        android.os.Process.myUid(),
-        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-      ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-    } catch (_: Throwable) { false }
-    if (direct) return true
-
-    return ctx.contentResolver.persistedUriPermissions.any { perm ->
-      if (!perm.isWritePermission) return@any false
-      if (perm.uri == uri) return@any true
-      isUriCoveredByPersistedTreePermission(perm.uri, uri)
-    }
-  }
-
-  private fun isUriCoveredByPersistedTreePermission(permissionUri: Uri, targetUri: Uri): Boolean {
-    val ctx = appContext.reactContext ?: return false
-    return try {
-      if (!DocumentsContract.isTreeUri(permissionUri)) return false
-      if (permissionUri.authority != targetUri.authority) return false
-      val treeDocumentId = DocumentsContract.getTreeDocumentId(permissionUri)
-      val targetDocumentId = when {
-        DocumentsContract.isDocumentUri(ctx, targetUri) -> DocumentsContract.getDocumentId(targetUri)
-        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.getTreeDocumentId(targetUri)
-        else -> return false
-      }
-      val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(permissionUri, treeDocumentId)
-      val targetDocumentUri = when {
-        DocumentsContract.isDocumentUri(ctx, targetUri) -> targetUri
-        DocumentsContract.isTreeUri(targetUri) -> DocumentsContract.buildDocumentUriUsingTree(targetUri, targetDocumentId)
-        else -> return false
-      }
-      SafPermissionPolicy.isPersistedGrantCovered(
-        SafPermissionPolicy.PersistedGrantKind.TREE,
-        true,
-        permissionUri.authority,
-        treeDocumentId,
-        targetUri.authority,
-        targetDocumentId,
-        providerChildDecision = tryProviderChildDocumentCheck(parentDocumentUri, targetDocumentUri),
-      )
-    } catch (_: Throwable) { false }
-  }
-
-  private fun tryProviderChildDocumentCheck(
-    parentDocumentUri: Uri,
-    targetDocumentUri: Uri,
-  ): SafPermissionPolicy.ProviderChildDecision {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-      return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
-    }
-    val ctx = appContext.reactContext ?: return SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE
-    return try {
-      if (DocumentsContract.isChildDocument(ctx.contentResolver, parentDocumentUri, targetDocumentUri)) {
-        SafPermissionPolicy.ProviderChildDecision.CHILD
-      } else {
-        SafPermissionPolicy.ProviderChildDecision.NOT_CHILD
-      }
-    } catch (_: Throwable) { SafPermissionPolicy.ProviderChildDecision.UNAVAILABLE }
-  }
-
-  private fun isDocumentWritable(uri: Uri): Boolean {
-    val ctx = appContext.reactContext ?: return false
-    return try {
-      val queryUri = when {
-        DocumentsContract.isDocumentUri(ctx, uri) -> uri
-        DocumentsContract.isTreeUri(uri) -> DocumentsContract.buildDocumentUriUsingTree(
-          uri,
-          DocumentsContract.getTreeDocumentId(uri),
-        )
-        else -> return false
-      }
-      ctx.contentResolver.query(queryUri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
-        if (!cursor.moveToFirst()) return@use false
-        val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
-        if (index < 0 || cursor.isNull(index)) return@use false
-        val flags = cursor.getInt(index)
-        SafPermissionPolicy.isDocumentWritableFromFlags(flags, DocumentsContract.Document.FLAG_SUPPORTS_WRITE)
-      } ?: false
-    } catch (_: Throwable) { false }
-  }
-
-  private fun restoreOriginalAfterFailedSafWrite(uri: Uri, original: ByteArray) {
-    val ctx = appContext.reactContext ?: return
-    ctx.contentResolver.openFileDescriptor(uri, "rwt")?.use { descriptor ->
-      FileOutputStream(descriptor.fileDescriptor).use { out ->
-        out.write(original)
-        out.flush()
-        descriptor.fileDescriptor.sync()
-      }
     }
   }
 
@@ -479,7 +344,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
           }
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
-          Log.d(TAG, "remote palette extraction blocked uri=${uri.safeLogUri()}")
+          Log.d(TAG, "remote palette extraction blocked uri=${uri.safeLogReference()}")
           null
         }
         else -> {
@@ -493,7 +358,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
         }
       }
     } catch (e: Throwable) {
-      Log.d(TAG, "palette bitmap decode failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "palette bitmap decode failed ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     }
   }
@@ -529,7 +394,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
 
     val fileLength = file.length()
     if (fileLength > MAX_PALETTE_IMAGE_BYTES) {
-      Log.d(TAG, "palette file too large bytes=$fileLength path=${path.safeLogUri()}")
+      Log.d(TAG, "palette file too large bytes=$fileLength path=${path.safeLogReference()}")
       return null
     }
 
@@ -606,7 +471,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       readNonBlankMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE) }?.let { result["mimeType"] = it }
       result.ifEmpty { null }
     } catch (e: Throwable) {
-      Log.d(TAG, "fast metadata unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "fast metadata unavailable ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     } finally {
       try { retriever.release() } catch (_: Throwable) {}
@@ -631,7 +496,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
         OpenableInfo(size, name)
       }
     } catch (e: Throwable) {
-      Log.d(TAG, "openable info unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "openable info unavailable ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     }
   }
@@ -663,7 +528,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       }
       true
     } catch (e: Throwable) {
-      Log.d(TAG, "metadata retriever unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "metadata retriever unavailable ${e.safeLogType()} uri=${uri.safeLogReference()}")
       false
     }
   }
@@ -706,7 +571,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       }
       null
     } catch (e: Throwable) {
-      Log.d(TAG, "media extractor unavailable ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "media extractor unavailable ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     } finally {
       try { extractor.release() } catch (_: Throwable) {}
@@ -723,23 +588,23 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
         parsed.scheme == "file" -> {
           val path = parsed.path
           if (path.isNullOrBlank()) {
-            Log.d(TAG, "file uri has no path: ${uri.safeLogUri()}")
+            Log.d(TAG, "file uri has no path: ${uri.safeLogReference()}")
             return null
           }
           retriever.setDataSource(path)
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
-          Log.d(TAG, "remote embedded artwork extraction blocked uri=${uri.safeLogUri()}")
+          Log.d(TAG, "remote embedded artwork extraction blocked uri=${uri.safeLogReference()}")
           return null
         }
         else -> retriever.setDataSource(uri)
       }
       val artwork = retriever.embeddedPicture
-      if (artwork == null) Log.d(TAG, "no embedded artwork found uri=${uri.safeLogUri()}")
-      else Log.d(TAG, "embedded artwork found bytes=${artwork.size} uri=${uri.safeLogUri()}")
+      if (artwork == null) Log.d(TAG, "no embedded artwork found uri=${uri.safeLogReference()}")
+      else Log.d(TAG, "embedded artwork found bytes=${artwork.size} uri=${uri.safeLogReference()}")
       artwork
     } catch (e: Throwable) {
-      Log.d(TAG, "embedded artwork failed ${e.javaClass.simpleName}: ${e.message} uri=${uri.safeLogUri()}")
+      Log.d(TAG, "embedded artwork failed ${e.safeLogType()} uri=${uri.safeLogReference()}")
       null
     } finally {
       try {
@@ -761,7 +626,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       trimEmbeddedArtworkCache(dir)
       "file://${out.absolutePath}"
     } catch (e: Throwable) {
-      Log.d(TAG, "embedded artwork cache failed ${e.javaClass.simpleName}: ${e.message}")
+      Log.d(TAG, "embedded artwork cache failed ${e.safeLogType()}")
       null
     }
   }
@@ -782,11 +647,11 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
           totalBytes += fileSize
           keptFiles += 1
         } else if (!file.delete()) {
-          Log.d(TAG, "embedded artwork cache trim skipped file=${file.absolutePath.safeLogUri()}")
+          Log.d(TAG, "embedded artwork cache trim skipped file=${file.absolutePath.safeLogReference()}")
         }
       }
     } catch (e: Throwable) {
-      Log.d(TAG, "embedded artwork cache trim failed ${e.javaClass.simpleName}: ${e.message}")
+      Log.d(TAG, "embedded artwork cache trim failed ${e.safeLogType()}")
     }
   }
 
@@ -832,13 +697,6 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       return ((cleanLength * 3L / 4L) - padding).coerceAtLeast(0L)
   }
 
-  private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"
-
-  @Suppress("unused")
-  private fun normalize01(v: Double): Double = v.coerceIn(0.0, 1.0)
-
-  @Suppress("unused")
-  private fun toIntPercent(v: Double): Int = (v * 100).roundToInt()
 
   private companion object {
     private const val TAG = "SystemAudio"
