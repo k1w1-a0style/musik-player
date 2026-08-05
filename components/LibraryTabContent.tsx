@@ -1,6 +1,7 @@
 import React from 'react';
 import { FlatList, Platform, StyleSheet, Text, type ListRenderItem } from 'react-native';
-import LibraryAlbumViewToggle, { type LibraryAlbumViewMode } from './LibraryAlbumViewToggle';
+import LibraryAlbumViewToggle from './LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import LibraryEmptyState from './LibraryEmptyState';
 import LibraryListShell from './LibraryListShell';
 import LibraryPlaybackActions from './LibraryPlaybackActions';
