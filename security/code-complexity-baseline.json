@@ -200,11 +200,6 @@
       "maxLines": 52,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/mediaLibraryImport.ts::classifySafNativeReadErrorMessage#1": {
-      "maxComplexity": 28,
-      "maxLines": 6,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/mediaLibraryImport.ts::readAudioUrisFromSafDirectory#1": {
       "maxComplexity": 2,
       "maxLines": 99,

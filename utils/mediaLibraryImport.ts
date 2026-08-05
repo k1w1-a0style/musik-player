@@ -165,10 +165,45 @@ export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
 
 export type SafReadDirectoryErrorKind = 'timeout' | 'aborted' | 'session-skip' | 'native' | 'not-directory' | 'permission' | 'unknown';
 
+const SAF_NOT_DIRECTORY_ERROR_MARKERS = [
+  'enotdir',
+  'not a directory',
+  'is not a directory',
+  'not directory',
+  'not a folder',
+] as const;
+
+const SAF_PERMISSION_ERROR_MARKERS = [
+  'timed out',
+  'timeout',
+  'securityexception',
+  'permission',
+  'denied',
+  'access',
+  "isn't readable",
+  'is not readable',
+  'not readable',
+  'cannot read',
+  "can't read",
+  'could not read',
+  'failed to read',
+  'read failed',
+  'unreadable',
+  'unauthorized',
+  'eacces',
+  'eperm',
+  'revoked',
+  'provider error',
+  'provider failed',
+] as const;
+
+const includesAnyMarker = (message: string, markers: readonly string[]): boolean =>
+  markers.some(marker => message.includes(marker));
+
 const classifySafNativeReadErrorMessage = (error: unknown): 'not-directory' | 'permission' | 'unknown' => {
   const message = String((error as { message?: unknown })?.message ?? error).toLowerCase();
-  if (message.includes('enotdir') || message.includes('not a directory') || message.includes('is not a directory') || message.includes('not directory') || message.includes('not a folder')) return 'not-directory';
-  if (message.includes('timed out') || message.includes('timeout') || message.includes('securityexception') || message.includes('permission') || message.includes('denied') || message.includes('access') || message.includes("isn't readable") || message.includes('is not readable') || message.includes('not readable') || message.includes('cannot read') || message.includes("can't read") || message.includes('could not read') || message.includes('failed to read') || message.includes('read failed') || message.includes('unreadable') || message.includes('unauthorized') || message.includes('eacces') || message.includes('eperm') || message.includes('revoked') || message.includes('provider error') || message.includes('provider failed')) return 'permission';
+  if (includesAnyMarker(message, SAF_NOT_DIRECTORY_ERROR_MARKERS)) return 'not-directory';
+  if (includesAnyMarker(message, SAF_PERMISSION_ERROR_MARKERS)) return 'permission';
   return 'unknown';
 };
 
