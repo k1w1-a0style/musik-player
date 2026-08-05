@@ -10,6 +10,37 @@ import {
 type RecoveryTransaction = NonNullable<Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>['transactions']>[number];
 type RecoverySummary = Awaited<ReturnType<typeof SystemAudio.recoverPendingAudioTagTransactions>>;
 
+export const TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS = 30_000;
+
+export class TagWriteStartupTimeoutError extends Error {
+  readonly code = 'TagWriteStartupTimeout';
+
+  constructor() {
+    super(`Tag-write startup recovery exceeded ${TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS} ms.`);
+    this.name = 'TagWriteStartupTimeoutError';
+  }
+}
+
+export const isTagWriteStartupTimeoutError = (error: unknown): error is TagWriteStartupTimeoutError =>
+  error instanceof TagWriteStartupTimeoutError ||
+  (Boolean(error) && typeof error === 'object' && (error as { code?: unknown }).code === 'TagWriteStartupTimeout');
+
+let startupRecoveryInFlight: Promise<SafWriteOperationStatus[]> | null = null;
+
+const waitForStartupRecovery = async (
+  recovery: Promise<SafWriteOperationStatus[]>,
+): Promise<SafWriteOperationStatus[]> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new TagWriteStartupTimeoutError()), TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([recovery, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 const acknowledgeNativeOutcomes = async (operationIds: string[]): Promise<void> => {
   if (typeof SystemAudio.acknowledgeAudioTagRecoveryOutcomes === 'function')
     await SystemAudio.acknowledgeAudioTagRecoveryOutcomes(operationIds);
@@ -126,35 +157,72 @@ const runNativeRecovery = async (unresolved: SafWriteOperationStatus[]): Promise
   assertRecoverySummarySettled(recovery, terminalFailureCount);
 };
 
+const performStartupRecovery = async (): Promise<SafWriteOperationStatus[]> => {
+  const restored = await restoreSafWriteOperations();
+  for (const operation of restored) {
+    if (operation.commitConfirmed) await retryConfirmedSafWriteCommit(operation.operationId);
+    else if (operation.confirmedTerminalOutcome) {
+      await retryConfirmedSafWriteOutcome(operation.operationId);
+      await acknowledgeNativeOutcomes([operation.operationId]);
+    }
+  }
+  const unresolved = restored.filter(operation => !operation.commitConfirmed && !operation.confirmedTerminalOutcome);
+  const priorRecoveryWasComplete = restored.length > 0 && restored.every(operation =>
+    operation.confirmedTerminalOutcome?.nativeRecoverySummaryComplete === true,
+  );
+  if (unresolved.length > 0 && !SystemAudio.hasNativeTagWriter) {
+    await reconcileWithoutNativeWriter(unresolved);
+  } else if (SystemAudio.hasNativeTagWriter && !priorRecoveryWasComplete) {
+    await runNativeRecovery(unresolved);
+  }
+  return restored;
+};
+
+const getOrCreateStartupRecovery = (): Promise<SafWriteOperationStatus[]> => {
+  if (startupRecoveryInFlight) {
+    // A retry after a watchdog timeout reopens the write gate while sharing the
+    // same still-running recovery. No second native or persistence pass starts.
+    beginSafWriteStartupRestoration();
+    return startupRecoveryInFlight;
+  }
+
+  beginSafWriteStartupRestoration();
+  const recovery = performStartupRecovery().then(
+    restored => {
+      // A late success after the UI watchdog fired may safely reopen the same
+      // gate because no newer recovery can start while this promise is retained.
+      beginSafWriteStartupRestoration();
+      finishSafWriteStartupRestoration();
+      return restored;
+    },
+    error => {
+      finishSafWriteStartupRestoration(error);
+      throw error;
+    },
+  );
+  startupRecoveryInFlight = recovery;
+  void recovery.then(
+    () => { if (startupRecoveryInFlight === recovery) startupRecoveryInFlight = null; },
+    () => { if (startupRecoveryInFlight === recovery) startupRecoveryInFlight = null; },
+  );
+  return recovery;
+};
+
 /**
  * Reclaims persisted JS ownership before invoking the sole native startup
  * recovery authority. Missing outcomes fail the edit rather than guessing
  * success, and release ownership because no recoverable native journal exists.
+ *
+ * A watchdog releases the application startup wait without starting a second
+ * recovery pass. The write API remains failed closed until the retained pass
+ * settles successfully or a later retry/startup completes.
  */
 export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationStatus[]> => {
-  beginSafWriteStartupRestoration();
+  const recovery = getOrCreateStartupRecovery();
   try {
-    const restored = await restoreSafWriteOperations();
-    for (const operation of restored) {
-      if (operation.commitConfirmed) await retryConfirmedSafWriteCommit(operation.operationId);
-      else if (operation.confirmedTerminalOutcome) {
-        await retryConfirmedSafWriteOutcome(operation.operationId);
-        await acknowledgeNativeOutcomes([operation.operationId]);
-      }
-    }
-    const unresolved = restored.filter(operation => !operation.commitConfirmed && !operation.confirmedTerminalOutcome);
-    const priorRecoveryWasComplete = restored.length > 0 && restored.every(operation =>
-      operation.confirmedTerminalOutcome?.nativeRecoverySummaryComplete === true,
-    );
-    if (unresolved.length > 0 && !SystemAudio.hasNativeTagWriter) {
-      await reconcileWithoutNativeWriter(unresolved);
-    } else if (SystemAudio.hasNativeTagWriter && !priorRecoveryWasComplete) {
-      await runNativeRecovery(unresolved);
-    }
-    finishSafWriteStartupRestoration();
-    return restored;
+    return await waitForStartupRecovery(recovery);
   } catch (error) {
-    finishSafWriteStartupRestoration(error);
+    if (isTagWriteStartupTimeoutError(error)) finishSafWriteStartupRestoration(error);
     throw error;
   }
 };
