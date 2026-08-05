@@ -1,13 +1,18 @@
-export const WAVEFORM_VERSION = 2;
+export const WAVEFORM_VERSION = 3;
 export const DEFAULT_WAVEFORM_POINT_COUNT = 72;
+export const WAVEFORM_FINGERPRINT_PREFIX = `wf${WAVEFORM_VERSION}:`;
 
 export type WaveformSource = 'fallback' | 'native';
 
-export interface SongWaveform {
+export interface WaveformSourceIdentity {
+  sourceKey: string;
+  sourceFingerprint: string;
+}
+
+export interface SongWaveform extends WaveformSourceIdentity {
   version: number;
   points: number[];
   durationMs: number;
-  sourceKey: string;
   source: WaveformSource;
   generatedAt: number;
 }
@@ -17,12 +22,21 @@ export interface NativeWaveformResult {
   durationMs?: number;
 }
 
+export const isWaveformSourceIdentity = (value: unknown): value is WaveformSourceIdentity => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<WaveformSourceIdentity>;
+  return typeof candidate.sourceKey === 'string'
+    && candidate.sourceKey.length > 0
+    && typeof candidate.sourceFingerprint === 'string'
+    && candidate.sourceFingerprint.startsWith(WAVEFORM_FINGERPRINT_PREFIX)
+    && /^[0-9a-f]{32}$/.test(candidate.sourceFingerprint.slice(WAVEFORM_FINGERPRINT_PREFIX.length));
+};
+
 export const isSongWaveform = (value: unknown): value is SongWaveform => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<SongWaveform>;
   return candidate.version === WAVEFORM_VERSION
-    && typeof candidate.sourceKey === 'string'
-    && candidate.sourceKey.length > 0
+    && isWaveformSourceIdentity(candidate)
     && typeof candidate.durationMs === 'number'
     && Number.isFinite(candidate.durationMs)
     && candidate.durationMs >= 0
