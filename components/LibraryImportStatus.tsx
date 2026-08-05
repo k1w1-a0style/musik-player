@@ -15,6 +15,11 @@ export interface LibraryImportStatusProps {
   onResumeRefresh?: () => void;
 }
 
+type MetadataRefreshErrorDetail = {
+  uri: string;
+  reason: string;
+};
+
 const STATUS_LABEL_BY_STATE: Record<MetadataRefreshStatus, string> = {
   idle: '',
   running: '',
@@ -26,15 +31,145 @@ const STATUS_LABEL_BY_STATE: Record<MetadataRefreshStatus, string> = {
   failed: 'Aktualisierung fehlgeschlagen',
 };
 
+const decodeUriSegment = (uri: string): string => {
+  const segment = uri.split('/').filter(Boolean).pop() ?? uri;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
+
+interface RefreshActionProps {
+  isRunning: boolean;
+  isCancelling: boolean;
+  showResume: boolean;
+  onCancelRefresh?: () => void;
+  onResumeRefresh?: () => void;
+  cancelColor: string;
+  resumeColor: string;
+  labelColor: string;
+}
+
+const RefreshAction = ({
+  isRunning,
+  isCancelling,
+  showResume,
+  onCancelRefresh,
+  onResumeRefresh,
+  cancelColor,
+  resumeColor,
+  labelColor,
+}: RefreshActionProps): React.ReactElement | null => {
+  let action: {
+    accessibilityLabel: string;
+    backgroundColor: string;
+    label: string;
+    onPress: () => void;
+    testID: string;
+    disabled?: boolean;
+  } | undefined;
+
+  if (isRunning && onCancelRefresh) {
+    action = {
+      accessibilityLabel: 'Aktualisierung abbrechen',
+      backgroundColor: cancelColor,
+      label: 'Abbrechen',
+      onPress: onCancelRefresh,
+      testID: 'library-import-status-cancel',
+      disabled: isCancelling,
+    };
+  } else if (!isRunning && showResume && onResumeRefresh) {
+    action = {
+      accessibilityLabel: 'Aktualisierung fortsetzen',
+      backgroundColor: resumeColor,
+      label: 'Fortsetzen',
+      onPress: onResumeRefresh,
+      testID: 'library-import-status-resume',
+    };
+  }
+
+  if (!action) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel}
+      onPress={action.onPress}
+      style={({ pressed }) => [
+        styles.actionButton,
+        { backgroundColor: action.backgroundColor },
+        pressed && styles.actionPressed,
+      ]}
+      disabled={action.disabled}
+      testID={action.testID}
+    >
+      <Text style={[styles.actionLabel, { color: labelColor }]}>{action.label}</Text>
+    </Pressable>
+  );
+};
+
+interface RefreshCountersProps {
+  visible: boolean;
+  processed: number;
+  total: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  color: string;
+}
+
+const RefreshCounters = ({
+  visible,
+  processed,
+  total,
+  updated,
+  skipped,
+  failed,
+  color,
+}: RefreshCountersProps): React.ReactElement | null => {
+  if (!visible || total <= 0) return null;
+  return (
+    <Text style={[styles.detailsText, { color }]} testID="library-import-status-counters">
+      {`${processed}/${total} · ${updated} aktualisiert · ${skipped} übersprungen · ${failed} fehlgeschlagen`}
+    </Text>
+  );
+};
+
+const RefreshErrors = ({
+  errorDetails,
+  color,
+}: {
+  errorDetails: readonly MetadataRefreshErrorDetail[];
+  color: string;
+}): React.ReactElement | null => {
+  if (errorDetails.length === 0) return null;
+  return (
+    <View style={styles.errorBlock} testID="library-import-status-errors">
+      <Text style={[styles.errorTitle, { color }]}>{`${errorDetails.length} Datei(en) nicht lesbar`}</Text>
+      {errorDetails.slice(0, 3).map(error => (
+        <Text
+          key={`${error.uri}|${error.reason}`}
+          style={[styles.errorRow, { color }]}
+          numberOfLines={1}
+        >
+          {`${decodeUriSegment(error.uri)} – ${error.reason}`}
+        </Text>
+      ))}
+      {errorDetails.length > 3 ? (
+        <Text style={[styles.errorRow, { color }]}>{`… und ${errorDetails.length - 3} weitere`}</Text>
+      ) : null}
+    </View>
+  );
+};
+
 const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCancelRefresh, onResumeRefresh }) => {
   const { theme } = useAppTheme();
   const operation = useMetadataRefreshOperation();
   const isRunning = operation.status === 'running';
   const isCancelling = operation.status === 'cancelling';
   const showResume = canResumeMetadataRefresh(operation);
-  const stateLabel = STATUS_LABEL_BY_STATE[operation.status];
   const showSpinner = isRunning || isCancelling;
-  const baseStatus = status ?? (stateLabel || libraryImportMessages.importRunning);
+  const baseStatus = status ?? (STATUS_LABEL_BY_STATE[operation.status] || libraryImportMessages.importRunning);
 
   return (
     <View
@@ -52,70 +187,29 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCan
         <Text style={[styles.statusText, { color: theme.palette.text.secondary }]} testID="library-import-status-text">
           {baseStatus}
         </Text>
-        {isRunning && onCancelRefresh ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Aktualisierung abbrechen"
-            onPress={onCancelRefresh}
-            style={({ pressed }) => [
-              styles.actionButton,
-              { backgroundColor: theme.palette.error },
-              pressed && styles.actionPressed,
-            ]}
-            disabled={isCancelling}
-            testID="library-import-status-cancel"
-          >
-            <Text style={[styles.actionLabel, { color: theme.palette.text.onPrimary }]}>Abbrechen</Text>
-          </Pressable>
-        ) : null}
-        {!isRunning && showResume && onResumeRefresh ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Aktualisierung fortsetzen"
-            onPress={onResumeRefresh}
-            style={({ pressed }) => [
-              styles.actionButton,
-              { backgroundColor: theme.palette.warning },
-              pressed && styles.actionPressed,
-            ]}
-            testID="library-import-status-resume"
-          >
-            <Text style={[styles.actionLabel, { color: theme.palette.text.onPrimary }]}>Fortsetzen</Text>
-          </Pressable>
-        ) : null}
+        <RefreshAction
+          isRunning={isRunning}
+          isCancelling={isCancelling}
+          showResume={showResume}
+          onCancelRefresh={onCancelRefresh}
+          onResumeRefresh={onResumeRefresh}
+          cancelColor={theme.palette.error}
+          resumeColor={theme.palette.warning}
+          labelColor={theme.palette.text.onPrimary}
+        />
       </View>
-      {operation.total > 0 && (isRunning || isCancelling || showResume) ? (
-        <Text style={[styles.detailsText, { color: theme.palette.text.secondary }]} testID="library-import-status-counters">
-          {`${operation.processed}/${operation.total} · ${operation.updated} aktualisiert · ${operation.skipped} übersprungen · ${operation.failed} fehlgeschlagen`}
-        </Text>
-      ) : null}
-      {operation.errorDetails.length > 0 ? (
-        <View style={styles.errorBlock} testID="library-import-status-errors">
-          <Text style={[styles.errorTitle, { color: theme.palette.text.secondary }]}>{`${operation.errorDetails.length} Datei(en) nicht lesbar`}</Text>
-          {operation.errorDetails.slice(0, 3).map(error => {
-            const filename = decodeUriSegment(error.uri);
-            return (
-              <Text key={`${error.uri}|${error.reason}`} style={[styles.errorRow, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-                {`${filename} – ${error.reason}`}
-              </Text>
-            );
-          })}
-          {operation.errorDetails.length > 3 ? (
-            <Text style={[styles.errorRow, { color: theme.palette.text.secondary }]}>{`… und ${operation.errorDetails.length - 3} weitere`}</Text>
-          ) : null}
-        </View>
-      ) : null}
+      <RefreshCounters
+        visible={isRunning || isCancelling || showResume}
+        processed={operation.processed}
+        total={operation.total}
+        updated={operation.updated}
+        skipped={operation.skipped}
+        failed={operation.failed}
+        color={theme.palette.text.secondary}
+      />
+      <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />
     </View>
   );
-};
-
-const decodeUriSegment = (uri: string): string => {
-  const segment = uri.split('/').filter(Boolean).pop() ?? uri;
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
 };
 
 const styles = StyleSheet.create({

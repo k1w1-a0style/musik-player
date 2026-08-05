@@ -93,3 +93,25 @@ test('renders error list when failed files are reported', () => {
   expect(getByTestId('library-import-status-errors')).toBeTruthy();
   expect(getByText(/broken\.mp3 – timeout/)).toBeTruthy();
 });
+
+test('limits rendered error rows and reports the remaining count', () => {
+  beginMetadataRefreshOperation(10, 0);
+  updateMetadataRefreshProgress({
+    processed: 10,
+    failed: 5,
+    errorDetails: [
+      { uri: 'file:///music/one.mp3', reason: 'timeout' },
+      { uri: 'file:///music/two.mp3', reason: 'timeout' },
+      { uri: 'file:///music/three.mp3', reason: 'timeout' },
+      { uri: 'file:///music/four.mp3', reason: 'timeout' },
+      { uri: 'file:///music/five.mp3', reason: 'timeout' },
+    ],
+  });
+  completeMetadataRefreshOperation('resumable');
+
+  const { getByText, queryByText } = render(<LibraryImportStatus status={null} />);
+
+  expect(getByText('… und 2 weitere')).toBeTruthy();
+  expect(queryByText(/four\.mp3/)).toBeNull();
+  expect(queryByText(/five\.mp3/)).toBeNull();
+});
