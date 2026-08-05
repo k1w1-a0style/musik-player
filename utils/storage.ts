@@ -6,7 +6,7 @@ import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
 import { DEFAULT_LIBRARY_SORT_MODE, isLibrarySortMode, type LibrarySortMode } from './librarySort';
 import { DEFAULT_LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode, type LibrarySongViewMode } from './libraryViewMode';
 import { DEFAULT_LIBRARY_ALBUM_VIEW_MODE, isLibraryAlbumViewMode } from './libraryViewMode';
-import type { LibraryAlbumViewMode } from '../components/LibraryAlbumViewToggle';
+import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import { DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN, isAppAppearance, isAppThemeSkin, type AppAppearance, type AppThemeSkin } from './appTheme';
 
 const PREFIX = '@musikplayer:';
