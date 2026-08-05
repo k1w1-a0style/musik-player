@@ -80,11 +80,6 @@
       "maxLines": 131,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "contexts/usePlaylistActions.ts::usePlaylistActions#1": {
-      "maxComplexity": 2,
-      "maxLines": 104,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "contexts/useProvidedMusicContextValues.ts::useProvidedMusicContextValues#1": {
       "maxComplexity": 1,
       "maxLines": 154,
