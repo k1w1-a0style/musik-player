@@ -75,6 +75,26 @@ type TagDeletionVerificationOptions = {
   timeoutMs?: number;
 };
 
+let contentDeletionVerificationInFlight: Promise<boolean> | null = null;
+
+const runContentDeletionVerification = async (
+  operation: () => Promise<boolean>,
+  timeoutMs: number,
+): Promise<boolean> => {
+  // Native deletion verification may copy, hash and rewrite provider-backed
+  // data and cannot be cancelled reliably. Keep exactly one raw native pass in
+  // flight, including after the caller timeout, so retries cannot accumulate
+  // detached work.
+  if (contentDeletionVerificationInFlight) return false;
+  const raw = Promise.resolve().then(operation);
+  contentDeletionVerificationInFlight = raw;
+  void raw.then(
+    () => { if (contentDeletionVerificationInFlight === raw) contentDeletionVerificationInFlight = null; },
+    () => { if (contentDeletionVerificationInFlight === raw) contentDeletionVerificationInFlight = null; },
+  );
+  return withTimeout(raw, timeoutMs, 'Tag deletion verification timed out.');
+};
+
 const readWrittenBytes = async (
   uri: string,
   options: TagDeletionVerificationOptions,
@@ -117,10 +137,10 @@ export const verifyTagDeletionState = async (
       const maxBytes = options.maxFileSizeBytes ?? DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES;
       const verifier = options.verifyContentDeletion
         ?? ((targetUri: string, request: AudioTagWriteRequest) => SystemAudio.verifyAudioTagDeletion(targetUri, request));
-      return await withTimeout(
-        verifier(uri, buildNativeTagWriteRequest(draft, container, maxBytes)),
+      const request = buildNativeTagWriteRequest(draft, container, maxBytes);
+      return await runContentDeletionVerification(
+        () => verifier(uri, request),
         options.timeoutMs ?? DEFAULT_TAG_DELETION_VERIFICATION_TIMEOUT_MS,
-        'Tag deletion verification timed out.',
       );
     }
     const writtenBytes = await readWrittenBytes(uri, options);
