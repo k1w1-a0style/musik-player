@@ -245,11 +245,6 @@
       "maxLines": 54,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/songAudioInfoBackfill.ts::mergeNativeAudioInfoIntoSong#1": {
-      "maxComplexity": 30,
-      "maxLines": 51,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/songMetadataRefresh.ts::refreshSongsFromId3#1": {
       "maxComplexity": 5,
       "maxLines": 169,
