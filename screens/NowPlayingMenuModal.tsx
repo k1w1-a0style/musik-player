@@ -22,42 +22,26 @@ interface NowPlayingMenuModalProps {
 const SLEEP_TIMER_OPTIONS_MINUTES = [1, 15, 30, 45, 60];
 
 const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
-  visible,
-  favorite,
-  onClose,
-  onOpenTrackInfo,
-  onOpenEqualizer,
-  onToggleFavorite,
-  onSaveQueueAsPlaylist,
-  sleepTimerActive,
-  sleepTimerRemainingSeconds = null,
-  onStartSleepTimer,
-  onCancelSleepTimer,
+  visible, favorite, onClose, onOpenTrackInfo, onOpenEqualizer, onToggleFavorite,
+  onSaveQueueAsPlaylist, sleepTimerActive, sleepTimerRemainingSeconds = null,
+  onStartSleepTimer, onCancelSleepTimer,
 }) => {
   const { appearance, theme } = useAppTheme();
-  const formattedSleepTimer = sleepTimerActive
-    ? formatSleepTimerRemaining(sleepTimerRemainingSeconds)
-    : null;
+  const formattedSleepTimer = sleepTimerActive ? formatSleepTimerRemaining(sleepTimerRemainingSeconds) : null;
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable
-        style={[
-          styles.menuBackdrop,
-          { backgroundColor: getNowPlayingMenuBackdropColor(appearance) },
-        ]}
+        style={[styles.menuBackdrop, { backgroundColor: getNowPlayingMenuBackdropColor(appearance) }]}
         onPress={onClose}
         accessible={false}
         testID="now-playing-menu-backdrop"
       >
         <ScrollView
-          style={[
-            styles.menuCard,
-            {
-              backgroundColor: theme.palette.surfaceElevated,
-              borderColor: theme.palette.border,
-            },
-          ]}
+          style={[styles.menuCard, {
+            backgroundColor: theme.palette.surfaceElevated,
+            borderColor: theme.palette.border,
+          }]}
           contentContainerStyle={styles.menuContent}
           showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
