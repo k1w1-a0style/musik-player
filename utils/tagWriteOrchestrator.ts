@@ -221,6 +221,47 @@ const buildTagWriteWarnings = (
   return warnings;
 };
 
+type TagWriteArtifacts = {
+  supportsConcreteWrite: boolean;
+  supportsCrashRecovery: boolean;
+  backup: WriteOperationPlan['backup'];
+  tempUri?: string;
+};
+
+const buildTagWriteArtifacts = (context: TagWritePlanContext): TagWriteArtifacts => {
+  if (!context.concreteWriterAvailable) {
+    return {
+      supportsConcreteWrite: false,
+      supportsCrashRecovery: false,
+      backup: { required: false, strategy: 'none' },
+    };
+  }
+  if (context.uriType === 'content') {
+    return {
+      supportsConcreteWrite: true,
+      supportsCrashRecovery: context.container !== 'unsupported',
+      backup: { required: true, strategy: 'app-private-transaction-backup' },
+    };
+  }
+  if (context.uriType === 'file') {
+    return {
+      supportsConcreteWrite: true,
+      supportsCrashRecovery: false,
+      backup: {
+        required: true,
+        backupUri: context.safeUri ? `${context.safeUri}.bak` : undefined,
+        strategy: 'sidecar-copy',
+      },
+      tempUri: context.safeUri ? `${context.safeUri}.tmp` : undefined,
+    };
+  }
+  return {
+    supportsConcreteWrite: false,
+    supportsCrashRecovery: false,
+    backup: { required: false, strategy: 'none' },
+  };
+};
+
 const buildTagWritePlan = ({
   safeUri,
   uriType,
@@ -230,13 +271,20 @@ const buildTagWritePlan = ({
   warnings,
   blockingReasons,
   canRead,
+  ...context
 }: TagWritePlanContext & {
   warnings: string[];
   blockingReasons: TagWriterErrorCode[];
   canRead: boolean;
 }): WriteOperationPlan => {
-  const supportsConcreteWrite = (uriType === 'file' || uriType === 'content') && concreteWriterAvailable;
-  const supportsCrashRecovery = uriType === 'content' && concreteWriterAvailable && container !== 'unsupported';
+  const artifacts = buildTagWriteArtifacts({
+    safeUri,
+    uriType,
+    container,
+    concreteWriterAvailable,
+    permissionReason,
+    ...context,
+  });
   const risk = getRiskLevel(uriType);
   return {
     sourceUri: safeUri,
@@ -249,31 +297,23 @@ const buildTagWritePlan = ({
       requiresSafPermission: uriType === 'content',
       reason: permissionReason,
     },
-    backup: {
-      required: supportsConcreteWrite,
-      backupUri: uriType === 'file' && concreteWriterAvailable && safeUri ? `${safeUri}.bak` : undefined,
-      strategy: uriType === 'content' && concreteWriterAvailable
-        ? 'app-private-transaction-backup'
-        : uriType === 'file' && concreteWriterAvailable
-          ? 'sidecar-copy'
-          : 'none',
-    },
+    backup: artifacts.backup,
     atomicWrite: {
-      required: supportsConcreteWrite,
-      tempUri: uriType === 'file' && concreteWriterAvailable && safeUri ? `${safeUri}.tmp` : undefined,
+      required: artifacts.supportsConcreteWrite,
+      tempUri: artifacts.tempUri,
       supportsAtomicReplace: false,
     },
     rollback: { required: false, supportsRollback: false, steps: [] },
-    requiresBackup: supportsConcreteWrite,
-    requiresTempFile: supportsConcreteWrite,
+    requiresBackup: artifacts.supportsConcreteWrite,
+    requiresTempFile: artifacts.supportsConcreteWrite,
     supportsAtomicReplace: false,
-    supportsRollback: supportsConcreteWrite,
+    supportsRollback: artifacts.supportsConcreteWrite,
     safetyCapabilities: {
-      durableBackup: supportsConcreteWrite,
+      durableBackup: artifacts.supportsConcreteWrite,
       inMemoryRollback: false,
       atomicReplace: false,
-      postWriteVerification: supportsConcreteWrite,
-      crashRecovery: supportsCrashRecovery,
+      postWriteVerification: artifacts.supportsConcreteWrite,
+      crashRecovery: artifacts.supportsCrashRecovery,
     },
     requiresUserConfirmation: uriType === 'content' || risk === 'high',
     requiresFullRewrite: container !== 'unsupported',
