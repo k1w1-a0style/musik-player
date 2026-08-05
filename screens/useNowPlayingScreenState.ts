@@ -23,6 +23,20 @@ export const buildSavedQueuePlaylistName = (date = new Date()): string => {
 
 const noopQueueShift = async () => ({ status: 'noop' as const });
 
+type SaveQueueAsPlaylist = ReturnType<typeof useNowPlayingMusicContext>['saveQueueAsPlaylist'];
+
+const savePlaybackQueueAsPlaylist = (
+  saveQueueAsPlaylist: SaveQueueAsPlaylist,
+  playbackQueue: Song[],
+): void => {
+  const playlist = saveQueueAsPlaylist(buildSavedQueuePlaylistName(), playbackQueue);
+  if (!playlist) {
+    Alert.alert('Warteschlange speichern', 'Die aktuelle Warteschlange enthält keine Titel.');
+    return;
+  }
+  Alert.alert('Playlist gespeichert', `„${playlist.name}“ wurde erstellt.`);
+};
+
 export const getAdjacentNowPlayingSongs = (
   playbackQueue: Song[],
   currentSong: Song | null,
@@ -71,16 +85,7 @@ export const useNowPlayingScreenState = () => {
   const presentation = useNowPlayingPresentation({ currentSong, palette, paletteLoading });
   const { mode: controlsMode } = useNowPlayingControlsMode();
   const queueShift = reorderQueue ?? noopQueueShift;
-
-  const saveCurrentQueueAsPlaylist = () => {
-    const playlist = saveQueueAsPlaylist(buildSavedQueuePlaylistName(), playbackQueue);
-    if (!playlist) {
-      Alert.alert('Warteschlange speichern', 'Die aktuelle Warteschlange enthält keine Titel.');
-      return;
-    }
-    Alert.alert('Playlist gespeichert', `„${playlist.name}“ wurde erstellt.`);
-  };
-
+  const saveCurrentQueueAsPlaylist = () => savePlaybackQueueAsPlaylist(saveQueueAsPlaylist, playbackQueue);
   const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
   const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
 
