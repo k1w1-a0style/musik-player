@@ -1,0 +1,178 @@
+name: Apply review native hardening
+
+on:
+  push:
+    branches:
+      - fix/review-open-items-2026-08-05
+    paths:
+      - .github/workflows/apply-review-native-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/review-open-items-2026-08-05
+          fetch-depth: 0
+
+      - name: Apply verified Kotlin changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio')
+          main = root / 'SystemAudioModule.kt'
+          wave = root / 'SystemAudioWaveformModule.kt'
+
+          text = main.read_text()
+          for line in [
+              'import android.content.Intent\n',
+              'import android.provider.DocumentsContract\n',
+              'import expo.modules.systemaudio.saf.SafPermissionPolicy\n',
+              'import android.os.Build\n',
+              'import java.io.ByteArrayOutputStream\n',
+              'import java.io.FileOutputStream\n',
+              'import java.security.MessageDigest\n',
+              'import kotlin.math.roundToInt\n',
+          ]:
+              text = text.replace(line, '')
+
+          text, count = re.subn(
+              r'\n  private fun sha256Hex\(bytes: ByteArray\): String \{.*?\n  private fun ensureEqualizer',
+              '\n  private fun ensureEqualizer',
+              text,
+              flags=re.S,
+          )
+          assert count == 1, f'legacy helper block matches: {count}'
+
+          text, count = re.subn(
+              r'\n  private fun String\.safeLogUri\(\): String = if \(length <= 140\) this else take\(140\) \+ "…"\n\n  @Suppress\("unused"\)\n  private fun normalize01\(v: Double\): Double = v\.coerceIn\(0\.0, 1\.0\)\n\n  @Suppress\("unused"\)\n  private fun toIntPercent\(v: Double\): Int = \(v \* 100\)\.roundToInt\(\)\n',
+              '\n',
+              text,
+          )
+          assert count == 1, f'old log/percent helper matches: {count}'
+
+          text = text.replace('.safeLogUri()', '.safeLogReference()')
+          text = re.sub(
+              r'\$\{(e|error)\.javaClass\.simpleName\}: \$\{\1\.message\}',
+              r'${\1.safeLogType()}',
+              text,
+          )
+          text = text.replace(
+              'result(expo.modules.systemaudio.saf.TransactionResult(false, "MissingWritePermission", "SAF provider denied write permission: ${e.message}"))',
+              'result(expo.modules.systemaudio.saf.TransactionResult(false, "MissingWritePermission", "SAF provider denied write permission."))',
+          )
+          text = text.replace(
+              'result(expo.modules.systemaudio.saf.TransactionResult(false, "ReplaceFailed", "SAF transaction failed: ${e.message}"))',
+              'result(expo.modules.systemaudio.saf.TransactionResult(false, "ReplaceFailed", "SAF transaction failed."))',
+          )
+          main.write_text(text)
+
+          wtext = wave.read_text()
+          wtext = wtext.replace('.safeLogUri()', '.safeLogReference()')
+          wtext = re.sub(
+              r'\$\{(e|error)\.javaClass\.simpleName\}: \$\{\1\.message\}',
+              r'${\1.safeLogType()}',
+              wtext,
+          )
+          old_wave_helper = '\n  private fun String.safeLogUri(): String = if (length <= 140) this else take(140) + "…"\n'
+          assert old_wave_helper in wtext
+          wave.write_text(wtext.replace(old_wave_helper, '\n'))
+
+          (root / 'SafeLog.kt').write_text('''package expo.modules.systemaudio
+
+          import java.security.MessageDigest
+
+          private val SAFE_LOG_SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]*):")
+          private const val SAFE_LOG_HASH_BYTES = 6
+
+          /**
+           * Produces a stable diagnostic reference without exposing authorities, paths,
+           * document IDs, filenames, query strings or fragments.
+           */
+          internal fun String.safeLogReference(): String {
+            val value = trim()
+            val scheme = SAFE_LOG_SCHEME.find(value)?.groupValues?.get(1)?.lowercase() ?: "none"
+            val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+            val reference = digest.take(SAFE_LOG_HASH_BYTES)
+              .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+            return "scheme=$scheme ref=$reference"
+          }
+
+          /** Exception messages are intentionally omitted because providers may embed paths. */
+          internal fun Throwable.safeLogType(): String =
+            javaClass.simpleName.takeIf { it.isNotBlank() } ?: "Throwable"
+          '''.replace('\n          ', '\n').lstrip())
+
+          test = Path('modules/expo-system-audio/android/src/test/java/expo/modules/systemaudio/SafeLogTest.kt')
+          test.parent.mkdir(parents=True, exist_ok=True)
+          test.write_text('''package expo.modules.systemaudio
+
+          import org.junit.Assert.assertEquals
+          import org.junit.Assert.assertFalse
+          import org.junit.Assert.assertNotEquals
+          import org.junit.Assert.assertTrue
+          import org.junit.Test
+
+          class SafeLogTest {
+            @Test
+            fun `content reference exposes only scheme and short hash`() {
+              val raw = "content://com.example.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fsecret-song.mp3?token=private"
+              val logged = raw.safeLogReference()
+
+              assertTrue(logged.matches(Regex("scheme=content ref=[0-9a-f]{12}")))
+              assertFalse(logged.contains("com.example"))
+              assertFalse(logged.contains("primary"))
+              assertFalse(logged.contains("secret-song"))
+              assertFalse(logged.contains("private"))
+            }
+
+            @Test
+            fun `reference is stable but distinguishes different targets`() {
+              val first = "file:///storage/emulated/0/Music/one.mp3".safeLogReference()
+              val repeated = "file:///storage/emulated/0/Music/one.mp3".safeLogReference()
+              val second = "file:///storage/emulated/0/Music/two.mp3".safeLogReference()
+
+              assertEquals(first, repeated)
+              assertNotEquals(first, second)
+              assertTrue(first.startsWith("scheme=file ref="))
+              assertFalse(first.contains("storage"))
+              assertFalse(first.contains("one.mp3"))
+            }
+
+            @Test
+            fun `exception logging never includes the message`() {
+              val error = IllegalStateException("provider failed at /storage/private/song.mp3")
+
+              assertEquals("IllegalStateException", error.safeLogType())
+              assertFalse(error.safeLogType().contains("storage"))
+            }
+          }
+          '''.replace('\n          ', '\n').lstrip())
+          PY
+
+      - name: Verify privacy and dead-code constraints
+        shell: bash
+        run: |
+          if rg -n 'safeLogUri|Log\.d\(TAG.*\.message|normalize01|toIntPercent|private fun (sha256Hex|isValidSha256Hex|readAllBytesFromUri|fileSizeForAnyUri|hasSafWritePermission|isDocumentWritable|restoreOriginalAfterFailedSafWrite)' \
+            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt \
+            modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioWaveformModule.kt; then
+            exit 1
+          fi
+          git diff --check
+
+      - name: Commit source changes and remove one-time workflow
+        shell: bash
+        run: |
+          rm .github/workflows/apply-review-native-hardening.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: anonymize native diagnostics and remove dead helpers"
+          git push origin HEAD:fix/review-open-items-2026-08-05
