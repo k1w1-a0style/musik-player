@@ -47,18 +47,17 @@ describe('tag-write startup recovery watchdog', () => {
 
     const first = restoreAndReconcileTagWrites();
     await Promise.resolve();
-    jest.advanceTimersByTime(TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS);
     await expect(first).rejects.toBeInstanceOf(TagWriteStartupTimeoutError);
     expect(isSafWriteStartupReady()).toBe(false);
 
     const retry = restoreAndReconcileTagWrites();
-    jest.advanceTimersByTime(TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS);
+    await jest.advanceTimersByTimeAsync(TAG_WRITE_STARTUP_RECOVERY_TIMEOUT_MS);
     await expect(retry).rejects.toBeInstanceOf(TagWriteStartupTimeoutError);
     expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
 
     finishNative({ success: true, pendingCount: 0, failedCount: 0, transactions: [] });
-    await Promise.resolve();
-    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
     expect(isSafWriteStartupReady()).toBe(true);
 
     await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
