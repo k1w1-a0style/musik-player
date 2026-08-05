@@ -210,11 +210,6 @@
       "maxLines": 118,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "screens/useNowPlayingScreenState.ts::useNowPlayingScreenState#1": {
-      "maxComplexity": 3,
-      "maxLines": 81,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "screens/useTagEditorCapability.ts::<useMemo-callback>#1": {
       "maxComplexity": 23,
       "maxLines": 57,
