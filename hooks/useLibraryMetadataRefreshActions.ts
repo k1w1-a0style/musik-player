@@ -67,14 +67,8 @@ export const useLibraryMetadataRefreshActions = ({
   refreshSongsFromId3Impl = refreshSongsFromId3,
   withTimeoutImpl = withTimeout,
 }: UseLibraryMetadataRefreshActionsOptions): UseLibraryMetadataRefreshActionsResult => {
-  const {
-    startRefresh,
-    isCurrentRefresh,
-    ensureCurrentRefresh,
-    finishRefresh,
-    cancelRefresh,
-    isRefreshActive,
-  } = useLibraryMetadataRefreshLifecycle({ setLoading, setImportStatus });
+  const { startRefresh, isCurrentRefresh, ensureCurrentRefresh, finishRefresh, cancelRefresh, isRefreshActive } =
+    useLibraryMetadataRefreshLifecycle({ setLoading, setImportStatus });
   const { runMetadataRefresh, commitMetadataRefreshProgress } = useLibraryMetadataRefreshRunner({
     songs,
     setImportStatus,
