@@ -20,6 +20,7 @@ const ID3V24_UNSUPPORTED_MESSAGE =
   'Diese MP3 nutzt eine ID3v2.4-Sonderstruktur (z. B. Unsynchronisation, Footer oder Frame-Flags), die der Editor nicht sicher umschreiben kann. Gewöhnliche ID3v2.4-Tags werden konservativ geschrieben.';
 const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
+const MP4_ATOM_STRUCTURE_UNSUPPORTED_MESSAGE = 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
 
 let embeddedArtworkRevision = 0;
 
@@ -119,28 +120,54 @@ export const buildDraftFromDirtyFields = (
 
 export const capabilityReason = (reason?: string): string => reason ?? 'Schreiben ist für diesen Titel nicht verfügbar.';
 
-export const blockingReasonMessage = (reasons: TagWriterErrorCode[], plan?: Pick<WriteOperationPlan, 'uriType' | 'container' | 'warnings'>): string | undefined => {
-  if (reasons.includes('MissingWritePermission')) return SAF_READ_ONLY_MESSAGE;
-  if (reasons.includes('FileTooLarge')) return 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.';
-  if (reasons.includes('WriteNotImplementedV22')) return ID3V22_UNSUPPORTED_MESSAGE;
-  if (reasons.includes('WriteNotImplementedV24')) return ID3V24_UNSUPPORTED_MESSAGE;
-  if (reasons.includes('WriteNotImplemented')) {
-    if (plan?.uriType === 'content' && plan.warnings?.some(warning => warning.toLowerCase().includes('cover artwork writes'))) {
-      return 'Cover-Schreiben für SAF/content:// ist in dieser Version noch nicht unterstützt. Entferne die Cover-Änderung, um MP3-Texttags zu speichern.';
-    }
-    if (plan?.uriType === 'content' && plan.container === 'mp3') {
-      return 'MP3 SAF/content:// Texttag-Schreiben ist nur mit Android-SAF-Schreibfreigabe unterstützt; diese Quelle ist schreibgeschützt.';
-    }
-    if (plan?.container === 'm4a' || plan?.container === 'mp4') {
-      return 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
-    }
-    return FILE_REPLACE_UNSUPPORTED_MESSAGE;
+type BlockingReasonPlan = Pick<WriteOperationPlan, 'uriType' | 'container' | 'warnings'>;
+
+const BLOCKING_REASON_PRIORITY: readonly TagWriterErrorCode[] = [
+  'MissingWritePermission',
+  'FileTooLarge',
+  'WriteNotImplementedV22',
+  'WriteNotImplementedV24',
+  'WriteNotImplemented',
+  'UnsupportedFormat',
+  'UnsupportedUri',
+];
+
+const SIMPLE_BLOCKING_REASON_MESSAGES: Partial<Record<TagWriterErrorCode, string>> = {
+  MissingWritePermission: SAF_READ_ONLY_MESSAGE,
+  FileTooLarge: 'Datei ist zu groß für sicheres In-App-Tag-Schreiben.',
+  WriteNotImplementedV22: ID3V22_UNSUPPORTED_MESSAGE,
+  WriteNotImplementedV24: ID3V24_UNSUPPORTED_MESSAGE,
+  UnsupportedUri: 'URI ist nicht schreibbar (remote/unknown).',
+};
+
+const isMp4Container = (plan?: BlockingReasonPlan): boolean =>
+  plan?.container === 'm4a' || plan?.container === 'mp4';
+
+const writeNotImplementedMessage = (plan?: BlockingReasonPlan): string => {
+  const hasUnsupportedCoverWrite = plan?.uriType === 'content'
+    && plan.warnings?.some(warning => warning.toLowerCase().includes('cover artwork writes'));
+  if (hasUnsupportedCoverWrite) {
+    return 'Cover-Schreiben für SAF/content:// ist in dieser Version noch nicht unterstützt. Entferne die Cover-Änderung, um MP3-Texttags zu speichern.';
   }
-  if (reasons.includes('UnsupportedFormat')) {
-    if (plan?.container === 'm4a' || plan?.container === 'mp4') return 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
-    return 'Format nicht unterstützt.';
+  if (plan?.uriType === 'content' && plan.container === 'mp3') {
+    return 'MP3 SAF/content:// Texttag-Schreiben ist nur mit Android-SAF-Schreibfreigabe unterstützt; diese Quelle ist schreibgeschützt.';
   }
-  if (reasons.includes('UnsupportedUri')) return 'URI ist nicht schreibbar (remote/unknown).';
+  return isMp4Container(plan) ? MP4_ATOM_STRUCTURE_UNSUPPORTED_MESSAGE : FILE_REPLACE_UNSUPPORTED_MESSAGE;
+};
+
+const unsupportedFormatMessage = (plan?: BlockingReasonPlan): string =>
+  isMp4Container(plan) ? MP4_ATOM_STRUCTURE_UNSUPPORTED_MESSAGE : 'Format nicht unterstützt.';
+
+export const blockingReasonMessage = (
+  reasons: TagWriterErrorCode[],
+  plan?: BlockingReasonPlan,
+): string | undefined => {
+  for (const reason of BLOCKING_REASON_PRIORITY) {
+    if (!reasons.includes(reason)) continue;
+    if (reason === 'WriteNotImplemented') return writeNotImplementedMessage(plan);
+    if (reason === 'UnsupportedFormat') return unsupportedFormatMessage(plan);
+    return SIMPLE_BLOCKING_REASON_MESSAGES[reason];
+  }
   return undefined;
 };
 
