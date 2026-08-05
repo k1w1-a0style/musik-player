@@ -51,6 +51,14 @@ describe('SAF native read error classification contract', () => {
     },
   );
 
+  test('prioritizes not-directory markers over permission markers', () => {
+    expect(
+      classifySafReadDirectoryError(
+        new Error('Permission denied because the target is not a directory'),
+      ),
+    ).toBe('not-directory');
+  });
+
   test('keeps unknown native messages unknown', () => {
     expect(classifySafReadDirectoryError(new Error('random provider failure'))).toBe(
       'unknown',
