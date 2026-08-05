@@ -110,11 +110,6 @@
       "maxLines": 237,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "hooks/useLibraryControllerActions.ts::useLibraryControllerActions#1": {
-      "maxComplexity": 1,
-      "maxLines": 88,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "hooks/useLibraryCoverBackfill.ts::<useEffect-callback>#3": {
       "maxComplexity": 3,
       "maxLines": 121,

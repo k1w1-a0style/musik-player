@@ -53,12 +53,8 @@ export const useLibraryControllerActions = ({
   applySongMetadataPatches,
   songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
-  const {
-    openPlaylistDetail,
-    openTrackInfo,
-    openEqualizer: navigateToEqualizer,
-    openSettings: navigateToSettings,
-  } = useLibraryNavigationActions();
+  const { openPlaylistDetail, openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } =
+    useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
 
   const openEqualizer = useCallback(() => {
@@ -66,29 +62,20 @@ export const useLibraryControllerActions = ({
     navigateToEqualizer();
   }, [navigateToEqualizer, setMenuOpen]);
 
-  const {
-    closeMenu,
-    openMenu,
-    openSettings,
-    toggleSearch,
-  } = useLibraryMenuActions({
+  const { closeMenu, openMenu, openSettings, toggleSearch } = useLibraryMenuActions({
     setMenuOpen,
     setSearchOpen,
     onOpenSettings: navigateToSettings,
   });
 
-  const {
-    onAddScanFolder,
-    persistChangedFolderUpdates,
-    removeFolder,
-    showScanFolders,
-  } = useLibraryScanFolderActions({
-    scanFolders,
-    setActiveTab,
-    setMenuOpen,
-    setScanFolders,
-    showAlert,
-  });
+  const { onAddScanFolder, persistChangedFolderUpdates, removeFolder, showScanFolders } =
+    useLibraryScanFolderActions({
+      scanFolders,
+      setActiveTab,
+      setMenuOpen,
+      setScanFolders,
+      showAlert,
+    });
 
   const { importFromDevice } = useLibraryImportActions({
     persistChangedFolderUpdates,
