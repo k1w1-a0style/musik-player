@@ -62,6 +62,23 @@ const readTargetBytes = async (
   }
 };
 
+const readValidatedTargetBytes = async (
+  adapter: TagFileWriteAdapter,
+  uri: string,
+  maxFileSizeBytes: number,
+): Promise<Uint8Array> => {
+  const info = await readTargetInfo(adapter, uri);
+  if (!info.exists)
+    throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
+  if (info.isDirectory)
+    throw new TagWriterError('UnsupportedUri', 'Target URI points to a directory.');
+  if (typeof info.size === 'number') assertSafeFileSize(info.size, maxFileSizeBytes);
+
+  const original = await readTargetBytes(adapter, uri);
+  assertSafeFileSize(original.length, maxFileSizeBytes);
+  return original;
+};
+
 const cleanupAttemptFiles = async (
   adapter: TagFileWriteAdapter,
   { backupUri, tempUri }: AttemptUris,
@@ -167,15 +184,7 @@ export const writeTagsToFileOrThrow = async (
     }
     validateTagWriteDraftOrThrow(draft);
     const maxFileSizeBytes = resolveSafeTagWriteMaxFileSizeBytes(options?.maxFileSizeBytes);
-    const info = await readTargetInfo(adapter, uri);
-    if (!info.exists)
-      throw new TagWriterError('UnsupportedUri', 'Target file is not readable.');
-    if (info.isDirectory)
-      throw new TagWriterError('UnsupportedUri', 'Target URI points to a directory.');
-    if (typeof info.size === 'number') assertSafeFileSize(info.size, maxFileSizeBytes);
-
-    const original = await readTargetBytes(adapter, uri);
-    assertSafeFileSize(original.length, maxFileSizeBytes);
+    const original = await readValidatedTargetBytes(adapter, uri, maxFileSizeBytes);
     const next = applyTagEditToBuffer(original, container, draft);
     if (areBytesEqual(original, next))
       return {

@@ -285,11 +285,6 @@
       "maxLines": 52,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/tagWriterFileReplace.ts::writeTagsToFileOrThrow#1": {
-      "maxComplexity": 1,
-      "maxLines": 85,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/tagWriterId3.ts::parseFrames#1": {
       "maxComplexity": 18,
       "maxLines": 54,
