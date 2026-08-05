@@ -165,11 +165,6 @@
       "maxLines": 145,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "screens/NowPlayingSoundCloudView.tsx::renderOverlay#1": {
-      "maxComplexity": 4,
-      "maxLines": 89,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "screens/PlaylistDetail.tsx::PlaylistDetail#1": {
       "maxComplexity": 9,
       "maxLines": 406,

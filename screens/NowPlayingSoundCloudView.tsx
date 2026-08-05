@@ -83,20 +83,15 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
   }, [canSwipeToNext, onSwipeToNext]);
 
   const renderOverlay = (panHandlers: GestureResponderHandlers) => (
-    <LinearGradient
-      colors={overlayColors.gradient}
-      style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}
-    >
+    <LinearGradient colors={overlayColors.gradient} style={[styles.overlay, { paddingBottom: Math.max(bottomInset, APP_THEME_TOKENS.spacing.md) }]}>
       <View style={styles.page} testID="now-playing-soundcloud-view">
         <View style={styles.swipeHitbox} testID="soundcloud-swipe-hitbox" {...panHandlers}>
           <View style={styles.metadata} pointerEvents="box-none">
             <Text style={[styles.title, { color: theme.palette.text.primary, backgroundColor: overlayColors.titleBackgroundColor }]} numberOfLines={2}>{title}</Text>
             <Text style={[styles.artist, { color: theme.palette.text.secondary, backgroundColor: overlayColors.artistBackgroundColor }]} numberOfLines={1}>{artist}</Text>
             <Pressable
-              style={[styles.infoButton, { backgroundColor: overlayColors.infoBackgroundColor }]}
-              onPress={onOpenTrackInfo}
-              accessibilityRole="button"
-              accessibilityLabel="Infos zu diesem Track"
+              style={[styles.infoButton, { backgroundColor: overlayColors.infoBackgroundColor }]} onPress={onOpenTrackInfo}
+              accessibilityRole="button" accessibilityLabel="Infos zu diesem Track"
               testID="soundcloud-track-info"
             >
               <Info color={theme.palette.text.secondary} size={16} />
@@ -107,11 +102,8 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
           <View style={styles.centerPlay}>
             {isPlaying ? (
               <Pressable
-                style={styles.playHitbox}
-                onPress={togglePlayback}
-                accessibilityRole="button"
-                accessibilityLabel="Pausieren"
-                testID="soundcloud-pause-button"
+                style={styles.playHitbox} onPress={togglePlayback} accessibilityRole="button"
+                accessibilityLabel="Pausieren" testID="soundcloud-pause-button"
               >
                 <View style={[styles.playBubble, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}> 
                   <Pause color={theme.palette.text.primary} fill={theme.palette.text.primary} size={30} />
@@ -121,29 +113,22 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = ({
               <View style={styles.pausedControls}>
                 <Pressable
                   style={[styles.transportButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}
-                  onPress={onSwipeToPrevious}
-                  accessibilityRole="button"
-                  accessibilityLabel="Vorheriger Track"
-                  testID="soundcloud-previous-button"
+                  onPress={onSwipeToPrevious} accessibilityRole="button"
+                  accessibilityLabel="Vorheriger Track" testID="soundcloud-previous-button"
                 >
                   <SkipBack color={theme.palette.text.primary} fill={theme.palette.text.primary} size={28} />
                 </Pressable>
                 <Pressable
                   style={[styles.playBubble, styles.pausedPlayButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }]}
-                  onPress={togglePlayback}
-                  accessibilityRole="button"
-                  accessibilityLabel="Abspielen"
-                  testID="soundcloud-play-button"
+                  onPress={togglePlayback} accessibilityRole="button"
+                  accessibilityLabel="Abspielen" testID="soundcloud-play-button"
                 >
                   <Play color={theme.palette.text.primary} fill={theme.palette.text.primary} size={32} />
                 </Pressable>
                 <Pressable
                   style={[styles.transportButton, { borderColor: theme.palette.borderStrong, backgroundColor: overlayColors.playButtonBackgroundColor }, !canSwipeToNext && styles.disabledControl]}
-                  onPress={handleNextPress}
-                  disabled={!canSwipeToNext}
-                  accessibilityRole="button"
-                  accessibilityLabel="Nächster Track"
-                  accessibilityState={{ disabled: !canSwipeToNext }}
+                  onPress={handleNextPress} disabled={!canSwipeToNext} accessibilityRole="button"
+                  accessibilityLabel="Nächster Track" accessibilityState={{ disabled: !canSwipeToNext }}
                   testID="soundcloud-next-button"
                 >
                   <SkipForward color={theme.palette.text.primary} fill={theme.palette.text.primary} size={28} />
