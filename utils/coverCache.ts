@@ -204,14 +204,24 @@ type CoverCacheWriteApi = {
   getInfo: typeof getInfoAsync;
 };
 
+type RuntimeOptionalCoverCacheWriteApi = Partial<CoverCacheWriteApi>;
+
 const resolveCoverCacheWriteApi = (): CoverCacheWriteApi | undefined => {
-  const mkdir = makeDirectoryAsync
-    ?? (FileSystem as unknown as { makeDirectoryAsync?: typeof makeDirectoryAsync }).makeDirectoryAsync;
-  const write = writeAsStringAsync
-    ?? (FileSystem as unknown as { writeAsStringAsync?: typeof writeAsStringAsync }).writeAsStringAsync;
-  const getInfo = getInfoAsync
-    ?? (FileSystem as unknown as { getInfoAsync?: typeof getInfoAsync }).getInfoAsync;
-  return mkdir && write && getInfo ? { mkdir, write, getInfo } : undefined;
+  const legacyApi: RuntimeOptionalCoverCacheWriteApi = {
+    mkdir: makeDirectoryAsync,
+    write: writeAsStringAsync,
+    getInfo: getInfoAsync,
+  };
+  const fallbackApi = FileSystem as unknown as {
+    makeDirectoryAsync?: typeof makeDirectoryAsync;
+    writeAsStringAsync?: typeof writeAsStringAsync;
+    getInfoAsync?: typeof getInfoAsync;
+  };
+  const mkdir = legacyApi.mkdir ?? fallbackApi.makeDirectoryAsync;
+  const write = legacyApi.write ?? fallbackApi.writeAsStringAsync;
+  const getInfo = legacyApi.getInfo ?? fallbackApi.getInfoAsync;
+  if (!mkdir || !write || !getInfo) return undefined;
+  return { mkdir, write, getInfo };
 };
 
 export const cacheBase64Cover = async (
