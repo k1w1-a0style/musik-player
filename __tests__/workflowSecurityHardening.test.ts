@@ -6,6 +6,7 @@ import YAML from '../node_modules/yaml/dist/index';
 const workflowsDir = path.join(process.cwd(), '.github', 'workflows');
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'));
 const load = (name: string) => YAML.parse(fs.readFileSync(path.join(workflowsDir, name), 'utf8'));
+const source = (name: string) => fs.readFileSync(path.join(workflowsDir, name), 'utf8');
 
 function runBlocks(document: any): any[] {
   return Object.values(document.jobs || {}).flatMap((job: any) => job.steps || []).filter((step: any) => typeof step.run === 'string');
@@ -34,6 +35,52 @@ describe('workflow shell expression boundary', () => {
   });
 });
 
+describe('trusted build ref authorization', () => {
+  const triggered = source('k1w1-triggered-build.yml');
+  const workflow = load('k1w1-triggered-build.yml');
+  const resolveStep = runBlocks(workflow).find((step) => step.name === 'Resolve inputs and enforce trusted commit ancestry');
+
+  test('checks out only trusted workflow source before resolving external input', () => {
+    const steps = workflow.jobs.resolve.steps;
+    expect(steps[0]).toMatchObject({name: 'Checkout trusted workflow source'});
+    expect(steps[0].with).toMatchObject({'fetch-depth': 0, 'persist-credentials': false});
+  });
+
+  test('accepts only codex, main, or a full commit SHA', () => {
+    expect(resolveStep.run).toContain('"$REF" != "codex"');
+    expect(resolveStep.run).toContain('"$REF" != "main"');
+    expect(resolveStep.run).toContain('^[0-9a-fA-F]{40}$');
+    expect(resolveStep.run).not.toContain('{7,40}');
+  });
+
+  test('resolves against fetched trusted branch history and passes a verified SHA', () => {
+    expect(resolveStep.run).toContain('refs/remotes/origin/codex');
+    expect(resolveStep.run).toContain('refs/remotes/origin/main');
+    expect(resolveStep.run).toContain('git cat-file -e "${REF}^{commit}"');
+    expect(resolveStep.run).toContain("printf 'ref=%s\\n' \"$OUTPUT_REF\"");
+    expect(workflow.jobs.build.with.ref).toBe('${{ needs.resolve.outputs.ref }}');
+  });
+
+  test('enforces profile-specific ancestry and exact main for production', () => {
+    expect(resolveStep.run).toContain('Development builds must use a commit reachable from codex.');
+    expect(resolveStep.run).toContain('Preview builds must use a commit reachable from codex or main.');
+    expect(resolveStep.run).toContain('Production builds must use the exact current main head.');
+    expect(resolveStep.run).toContain('[ "$RESOLVED_SHA" != "$MAIN_SHA" ]');
+  });
+
+  test('allows writeback only for an explicit development build of codex', () => {
+    expect(resolveStep.run).toContain('[ "$PROFILE" != "development" ] || [ "$REF" != "codex" ]');
+    expect(resolveStep.run).toContain('Autofix is allowed only for an explicit development build of codex.');
+  });
+
+  test('does not pass the raw dispatch ref directly into the reusable secret workflow', () => {
+    const buildBlock = triggered.slice(triggered.indexOf('\n  build:'));
+    expect(buildBlock).not.toContain('github.event.client_payload.ref');
+    expect(buildBlock).not.toContain('github.event.inputs.ref');
+    expect(buildBlock).toContain('ref: ${{ needs.resolve.outputs.ref }}');
+  });
+});
+
 describe('canonical job id data flow', () => {
   const valid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   test('allows an empty optional job ID before status updates are disabled', () => expect('' === '').toBe(true));
@@ -41,8 +88,8 @@ describe('canonical job id data flow', () => {
   test.each([' x550e8400-e29b-41d4-a716-446655440000','550e8400-e29b-41d4-a716-446655440000 ','550e8400%2De29b-41d4-a716-446655440000','550e8400-e29b-41d4-a716-446655440000,or','550e8400-e29b-41d4-a716-446655440000\n','$(id)',''])('rejects noncanonical network ID %j', value => expect(valid.test(value)).toBe(false));
   test('all Supabase filters use only VALIDATED_JOB_ID', () => {
     for (const file of ['eas-build.yml', 'deploy-supabase-functions.yml']) {
-      const source = fs.readFileSync(path.join(workflowsDir, file), 'utf8');
-      for (const filter of source.matchAll(/build_jobs\?id=eq\.\$\{([^}]+)\}/g)) expect(filter[1]).toBe('VALIDATED_JOB_ID');
+      const workflowSource = source(file);
+      for (const filter of workflowSource.matchAll(/build_jobs\?id=eq\.\$\{([^}]+)\}/g)) expect(filter[1]).toBe('VALIDATED_JOB_ID');
     }
   });
 });
