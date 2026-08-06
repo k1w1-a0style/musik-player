@@ -55,6 +55,7 @@ describe('VolumeSlider error handling', () => {
     }).not.toThrow();
 
     expect(onVolumeChange).toHaveBeenCalledWith(0.6);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
       '[VolumeSlider] Failed to apply volume.',
       failure,
@@ -76,6 +77,7 @@ describe('VolumeSlider error handling', () => {
     });
 
     expect(onVolumeChange).toHaveBeenCalledWith(0.4);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
       '[VolumeSlider] Failed to apply volume.',
       failure,
