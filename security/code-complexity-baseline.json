@@ -25,11 +25,6 @@
       "maxLines": 163,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "components/VolumeSlider.tsx::VolumeSlider#1": {
-      "maxComplexity": 4,
-      "maxLines": 104,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "components/WaveformScrubber.tsx::WaveformScrubber#1": {
       "maxComplexity": 7,
       "maxLines": 103,
