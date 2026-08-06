@@ -326,7 +326,9 @@ const STORAGE_VALUE_VALIDATORS: Readonly<Partial<Record<StorageKey, StoredValueV
 };
 
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
-  const validator = STORAGE_VALUE_VALIDATORS[key as StorageKey];
+  const validator = Object.prototype.hasOwnProperty.call(STORAGE_VALUE_VALIDATORS, key)
+    ? STORAGE_VALUE_VALIDATORS[key as StorageKey]
+    : undefined;
   return validator === undefined ? value : validator(value);
 };
 
