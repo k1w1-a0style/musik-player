@@ -56,6 +56,8 @@ const VALIDATION_CASES = [
   { key: StorageKeys.APP_THEME_SKIN, input: 'minimal', expected: 'minimal' },
 ] as const;
 
+const PROTOTYPE_LIKE_CUSTOM_KEYS = ['toString', 'constructor', '__proto__'] as const;
+
 describe('storage validation dispatch contract', () => {
   beforeEach(() => {
     (AsyncStorage as unknown as { __reset: () => void }).__reset();
@@ -79,4 +81,14 @@ describe('storage validation dispatch contract', () => {
     await expect(storage.set('customKey', value)).resolves.toBe(true);
     await expect(storage.get('customKey')).resolves.toEqual(value);
   });
+
+  test.each(PROTOTYPE_LIKE_CUSTOM_KEYS)(
+    'does not treat prototype-like custom key %s as a validator',
+    async key => {
+      const value = { key, nested: { keep: true } };
+
+      await expect(storage.set(key, value)).resolves.toBe(true);
+      await expect(storage.get(key)).resolves.toEqual(value);
+    },
+  );
 });
