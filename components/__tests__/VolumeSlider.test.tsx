@@ -75,6 +75,18 @@ describe('VolumeSlider', () => {
     expect(onVolumeChange).toHaveBeenLastCalledWith(0);
   });
 
+  test('normalizes nonfinite volume before accessibility stepping', () => {
+    const onVolumeChange = jest.fn();
+    const { getByTestId } = render(<VolumeSlider volume={Number.NaN} onVolumeChange={onVolumeChange} />);
+    const slider = getByTestId('volume-slider');
+
+    fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
+
+    expect(onVolumeChange).toHaveBeenNthCalledWith(1, 1);
+    expect(onVolumeChange).toHaveBeenNthCalledWith(2, 0.9);
+  });
+
   test('uses stable touch based volume changes from absolute page coordinates', () => {
     const onVolumeChange = jest.fn();
     const { getByTestId } = render(<VolumeSlider volume={0.25} onVolumeChange={onVolumeChange} />);
