@@ -220,11 +220,6 @@
       "maxLines": 169,
       "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
     },
-    "utils/storage.ts::validateStoredValue#1": {
-      "maxComplexity": 29,
-      "maxLines": 52,
-      "reason": "Existing reviewed hotspot; must not grow and should be reduced when touched."
-    },
     "utils/tagWriterId3.ts::parseFrames#1": {
       "maxComplexity": 18,
       "maxLines": 54,

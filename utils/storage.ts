@@ -292,57 +292,44 @@ const isEqPresetName = (value: unknown): value is EqPresetName =>
 const isStoredEqPresetName = (value: unknown): value is StoredEqPresetName =>
   value === 'custom' || isEqPresetName(value);
 
+type StoredValueValidator = (value: unknown) => unknown | null;
+
+const normalizeStoredArray = <T>(
+  value: unknown,
+  normalizeItem: (item: unknown) => T | null,
+): T[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const normalized = normalizeItem(item);
+    return normalized === null ? [] : [normalized];
+  });
+};
+
+const STORAGE_VALUE_VALIDATORS: Readonly<Partial<Record<StorageKey, StoredValueValidator>>> = {
+  [StorageKeys.SONGS]: value => normalizeStoredArray(value, normalizeStoredSong),
+  [StorageKeys.PLAYLISTS]: value => normalizeStoredArray(value, normalizeStoredPlaylist),
+  [StorageKeys.SCAN_FOLDERS]: value => normalizeStoredArray(value, normalizeStoredScanFolder),
+  [StorageKeys.FAVORITE_SONG_IDS]: normalizeFavoriteSongIds,
+  [StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED]: normalizeLegacyBooleanForStorage,
+  [StorageKeys.CURRENT_SONG_ID]: value => normalizeStorageSongId(value) ?? null,
+  [StorageKeys.EQ_PRESET]: value => isStoredEqPresetName(value) ? value : null,
+  [StorageKeys.EQ_BANDS]: normalizeEqBandsForStorage,
+  [StorageKeys.EQ_ENABLED]: normalizeLegacyBooleanForStorage,
+  [StorageKeys.SHUFFLE]: normalizeLegacyBooleanForStorage,
+  [StorageKeys.VOLUME]: normalizeLegacyVolumeForStorage,
+  [StorageKeys.REPEAT_MODE]: value => isRepeatMode(value) ? value : null,
+  [StorageKeys.LIBRARY_SORT_MODE]: value => isLibrarySortMode(value) ? value : null,
+  [StorageKeys.LIBRARY_SONG_VIEW_MODE]: value => isLibrarySongViewMode(value) ? value : null,
+  [StorageKeys.ALBUM_VIEW_MODE]: value => isLibraryAlbumViewMode(value) ? value : null,
+  [StorageKeys.APP_APPEARANCE]: value => isAppAppearance(value) ? value : null,
+  [StorageKeys.APP_THEME_SKIN]: value => isAppThemeSkin(value) ? value : null,
+};
+
 const validateStoredValue = (key: string, value: unknown): unknown | null => {
-  switch (key) {
-    case StorageKeys.SONGS:
-      return Array.isArray(value) ? value.flatMap(item => {
-        const song = normalizeStoredSong(item);
-        return song ? [song] : [];
-      }) : [];
-    case StorageKeys.PLAYLISTS:
-      return Array.isArray(value)
-        ? value.flatMap(item => {
-          const playlist = normalizeStoredPlaylist(item);
-          return playlist ? [playlist] : [];
-        })
-        : [];
-    case StorageKeys.SCAN_FOLDERS:
-      return Array.isArray(value)
-        ? value.flatMap(item => {
-          const folder = normalizeStoredScanFolder(item);
-          return folder ? [folder] : [];
-        })
-        : [];
-    case StorageKeys.FAVORITE_SONG_IDS:
-      return normalizeFavoriteSongIds(value);
-    case StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED:
-      return normalizeLegacyBooleanForStorage(value);
-    case StorageKeys.CURRENT_SONG_ID:
-      return normalizeStorageSongId(value) ?? null;
-    case StorageKeys.EQ_PRESET:
-      return isStoredEqPresetName(value) ? value : null;
-    case StorageKeys.EQ_BANDS:
-      return normalizeEqBandsForStorage(value);
-    case StorageKeys.EQ_ENABLED:
-    case StorageKeys.SHUFFLE:
-      return normalizeLegacyBooleanForStorage(value);
-    case StorageKeys.VOLUME:
-      return normalizeLegacyVolumeForStorage(value);
-    case StorageKeys.REPEAT_MODE:
-      return isRepeatMode(value) ? value : null;
-    case StorageKeys.LIBRARY_SORT_MODE:
-      return isLibrarySortMode(value) ? value : null;
-    case StorageKeys.LIBRARY_SONG_VIEW_MODE:
-      return isLibrarySongViewMode(value) ? value : null;
-    case StorageKeys.ALBUM_VIEW_MODE:
-      return isLibraryAlbumViewMode(value) ? value : null;
-    case StorageKeys.APP_APPEARANCE:
-      return isAppAppearance(value) ? value : null;
-    case StorageKeys.APP_THEME_SKIN:
-      return isAppThemeSkin(value) ? value : null;
-    default:
-      return value;
-  }
+  const validator = Object.prototype.hasOwnProperty.call(STORAGE_VALUE_VALIDATORS, key)
+    ? STORAGE_VALUE_VALIDATORS[key as StorageKey]
+    : undefined;
+  return validator === undefined ? value : validator(value);
 };
 
 const RAW_STRING_STORAGE_KEYS: ReadonlySet<string> = new Set([
