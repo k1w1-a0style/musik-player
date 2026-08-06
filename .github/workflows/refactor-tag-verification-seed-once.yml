@@ -1,0 +1,166 @@
+name: One-time tag verification seed refactor
+
+on:
+  push:
+    branches:
+      - refactor/complexity-tag-verification-seed-2026-08-06
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-tag-verification-seed-refactor
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: refactor/complexity-tag-verification-seed-2026-08-06
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Extract exact field reset helper and remove baseline exception
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const sourcePath = 'screens/useTagEditorSaveFlow.ts';
+          let source = fs.readFileSync(sourcePath, 'utf8');
+          const functionAnchor = 'export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {';
+          const helper = `type TagVerificationSeedField = (typeof FIELDS)[number]['key'];
+
+          const clearTagVerificationSeedField = (
+            seed: Song,
+            key: TagVerificationSeedField,
+          ): void => {
+            switch (key) {
+              case 'title':
+                seed.title = '';
+                break;
+              case 'artist':
+                seed.artist = '';
+                break;
+              case 'albumArtist':
+                seed.albumArtist = undefined;
+                break;
+              case 'album':
+                seed.album = undefined;
+                break;
+              case 'year':
+                seed.year = undefined;
+                break;
+              case 'genre':
+                seed.genre = undefined;
+                break;
+              case 'trackNumber':
+                seed.trackNumber = undefined;
+                break;
+              case 'discNumber':
+                seed.discNumber = undefined;
+                break;
+              case 'comment':
+                seed.comment = undefined;
+                break;
+            }
+          };
+
+          `;
+          if (!source.includes(functionAnchor)) {
+            throw new Error('Tag verification seed function anchor was not found.');
+          }
+          if (source.includes('const clearTagVerificationSeedField =')) {
+            throw new Error('Field reset helper already exists; refusing a duplicate rewrite.');
+          }
+          source = source.replace(functionAnchor, `${helper}${functionAnchor}`);
+
+          const oldSwitch = `    switch (field.key) {
+              case 'title':
+                seed.title = '';
+                break;
+              case 'artist':
+                seed.artist = '';
+                break;
+              case 'albumArtist':
+                seed.albumArtist = undefined;
+                break;
+              case 'album':
+                seed.album = undefined;
+                break;
+              case 'year':
+                seed.year = undefined;
+                break;
+              case 'genre':
+                seed.genre = undefined;
+                break;
+              case 'trackNumber':
+                seed.trackNumber = undefined;
+                break;
+              case 'discNumber':
+                seed.discNumber = undefined;
+                break;
+              case 'comment':
+                seed.comment = undefined;
+                break;
+            }`;
+          if (!source.includes(oldSwitch)) {
+            throw new Error('Expected field reset switch was not found exactly.');
+          }
+          source = source.replace(oldSwitch, '    clearTagVerificationSeedField(seed, field.key);');
+          if (source.includes(oldSwitch)) {
+            throw new Error('Field reset switch replacement did not converge.');
+          }
+          fs.writeFileSync(sourcePath, source);
+
+          const baselinePath = 'security/code-complexity-baseline.json';
+          const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+          const exceptionKey = 'screens/useTagEditorSaveFlow.ts::buildTagVerificationSeedSong#1';
+          if (!Object.prototype.hasOwnProperty.call(baseline.exceptions, exceptionKey)) {
+            throw new Error(`Expected complexity exception is missing: ${exceptionKey}`);
+          }
+          delete baseline.exceptions[exceptionKey];
+          fs.writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+          NODE
+
+      - name: Focused tag verification tests
+        run: >-
+          npx jest --runInBand
+          screens/__tests__/useTagEditorSaveFlow.seedSong.test.ts
+          screens/__tests__/useTagEditorSaveFlow.verification.test.ts
+
+      - name: Typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Complexity gate
+        run: npm run check:complexity
+
+      - name: Commit verified refactor and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/refactor-tag-verification-seed-once.yml
+          git add screens/useTagEditorSaveFlow.ts security/code-complexity-baseline.json
+          printf '%s\n' 'Staged files:'
+          git diff --cached --name-status
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = '3'
+          git commit -m 'refactor: isolate tag verification seed field resets'
+          git push origin HEAD:refactor/complexity-tag-verification-seed-2026-08-06
