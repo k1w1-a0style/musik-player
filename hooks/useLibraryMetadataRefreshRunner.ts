@@ -12,6 +12,7 @@ import {
   updateMetadataRefreshProgress,
 } from '../utils/metadataRefreshOperation';
 import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunner } from './libraryMetadataRefreshActionTypes';
+import { mergeMetadataRefreshResult } from './libraryMetadataRefreshResultMerge';
 
 
 const METADATA_REFRESH_CHUNK_SIZE = 25;
@@ -37,36 +38,6 @@ const emptyMetadataRefreshResult = (songs: Song[], total = songs.length): SongMe
   completed: false,
   processedIndexes: [],
 });
-
-const mergeMetadataRefreshResult = (
-  current: SongMetadataRefreshResult,
-  chunkResult: SongMetadataRefreshResult,
-  chunkItems: MetadataRefreshProcessingItem[],
-): SongMetadataRefreshResult => {
-  const mergedSongs = [...current.songs];
-  for (let index = 0; index < chunkResult.songs.length && index < chunkItems.length; index += 1) {
-    mergedSongs[chunkItems[index].originalIndex] = chunkResult.songs[index];
-  }
-  return {
-    songs: mergedSongs,
-    updated: current.updated + chunkResult.updated,
-    skipped: current.skipped + chunkResult.skipped,
-    failed: current.failed + chunkResult.failed,
-    errors: [...(current.errors ?? []), ...(chunkResult.errors ?? [])],
-    errorDetails: [...(current.errorDetails ?? []), ...(chunkResult.errorDetails ?? [])],
-    patchesBySongId: { ...(current.patchesBySongId ?? {}), ...(chunkResult.patchesBySongId ?? {}) },
-    processed: current.processed + (chunkResult.processed ?? chunkResult.songs.length),
-    total: current.total,
-    completed: false,
-    timedOut: chunkResult.timedOut || current.timedOut || undefined,
-    aborted: chunkResult.aborted || current.aborted || undefined,
-    lastProcessedSongId: chunkResult.lastProcessedSongId ?? current.lastProcessedSongId,
-    processedIndexes: Array.from(new Set([
-      ...(current.processedIndexes ?? []),
-      ...((chunkResult.processedIndexes ?? []).map(index => chunkItems[index]?.processingPosition).filter((index): index is number => typeof index === 'number')),
-    ])).sort((a, b) => a - b),
-  };
-};
 
 const mergeProcessedSongIntoRefreshResult = (
   current: SongMetadataRefreshResult,
