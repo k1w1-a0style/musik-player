@@ -1,0 +1,123 @@
+name: Temporary PR374 Exact Head Validation
+
+on:
+  push:
+    branches:
+      - refactor/complexity-volume-slider-controller-2026-08-06
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmp-pr374-exact-head-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Full non-packaging validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Enforce production dependency audit policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          set +e
+          npm audit --omit=dev --json > ci-logs/npm-audit-production.json
+          audit_status=$?
+          set -e
+          printf '%s\n' "$audit_status" > ci-logs/npm-audit-production.exit-code
+          node -e "JSON.parse(require('fs').readFileSync('ci-logs/npm-audit-production.json', 'utf8'))"
+          node scripts/ci/checkNpmAudit.cjs \
+            ci-logs/npm-audit-production.json \
+            security/npm-audit-exceptions.json \
+            package-lock.json
+
+      - name: Source NUL-byte gate
+        run: npm run check:source-nul
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Full Jest coverage suite
+        run: npm run test:coverage -- --runInBand
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Code complexity regression gate
+        run: npm run check:complexity
+
+      - name: Expo config release gate
+        env:
+          EAS_BUILD_PROFILE: production
+        run: |
+          set -euo pipefail
+          npx --no-install expo config --json > expo-config.json
+          node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json
+
+      - name: Generated Android manifest permission gate
+        env:
+          EAS_BUILD_PROFILE: production
+        run: npm run check:android-permissions
+
+      - name: Select JDK 17
+        run: |
+          set -euo pipefail
+          test -n "${JAVA_HOME_17_X64:-}"
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Android project for native checks only
+        env:
+          EAS_BUILD_PROFILE: production
+        run: |
+          set -euo pipefail
+          echo "No APK, AAB, EAS, assemble or bundle task is executed."
+          npx --no-install expo prebuild --platform android --no-install --clean
+
+      - name: Kotlin compile and native JVM tests
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain
+
+      - name: Verify native JUnit execution
+        run: |
+          set -euo pipefail
+          cd android
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const resultsDir = path.resolve('..', 'modules', 'expo-system-audio', 'android', 'build', 'test-results', 'testDebugUnitTest');
+          const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
+          let tests = 0;
+          let failures = 0;
+          let errors = 0;
+          for (const file of files) {
+            const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
+            const match = xml.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*errors="(\d+)"/);
+            if (match) {
+              tests += Number(match[1]);
+              failures += Number(match[2]);
+              errors += Number(match[3]);
+            }
+          }
+          console.log(`Native JVM tests: ${tests} tests, ${failures} failures, ${errors} errors.`);
+          if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
+          NODE
