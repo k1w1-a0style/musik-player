@@ -1,0 +1,101 @@
+name: One-time metadata refresh result merge refactor
+
+on:
+  push:
+    branches:
+      - refactor/complexity-metadata-refresh-result-merge-2026-08-06
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-metadata-refresh-result-merge-refactor
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: refactor/complexity-metadata-refresh-result-merge-2026-08-06
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Wire merge utility and remove exact baseline exception
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const hookPath = 'hooks/useLibraryMetadataRefreshRunner.ts';
+          let source = fs.readFileSync(hookPath, 'utf8');
+          const importAnchor = "import type { MetadataRefreshGeneration, MetadataRefreshSongsResult, TimeoutRunner } from './libraryMetadataRefreshActionTypes';\n";
+          const utilityImport = "import { mergeMetadataRefreshResult } from './libraryMetadataRefreshResultMerge';\n";
+          if (!source.includes(importAnchor)) {
+            throw new Error('Metadata refresh action type import anchor was not found.');
+          }
+          if (source.includes(utilityImport)) {
+            throw new Error('Merge utility import already exists; refusing a duplicate rewrite.');
+          }
+          source = source.replace(importAnchor, `${importAnchor}${utilityImport}`);
+
+          const startMarker = 'const mergeMetadataRefreshResult = (';
+          const nextMarker = '\n\nconst mergeProcessedSongIntoRefreshResult = (';
+          const start = source.indexOf(startMarker);
+          const end = source.indexOf(nextMarker, start);
+          if (start < 0 || end < 0) {
+            throw new Error('Expected private mergeMetadataRefreshResult block was not found.');
+          }
+          if (source.indexOf(startMarker, start + startMarker.length) >= 0) {
+            throw new Error('Multiple mergeMetadataRefreshResult blocks found; refusing broad rewrite.');
+          }
+          source = `${source.slice(0, start)}${source.slice(end + 2)}`;
+          fs.writeFileSync(hookPath, source);
+
+          const baselinePath = 'security/code-complexity-baseline.json';
+          const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+          const exceptionKey = 'hooks/useLibraryMetadataRefreshRunner.ts::mergeMetadataRefreshResult#1';
+          if (!Object.prototype.hasOwnProperty.call(baseline.exceptions, exceptionKey)) {
+            throw new Error(`Expected complexity exception is missing: ${exceptionKey}`);
+          }
+          delete baseline.exceptions[exceptionKey];
+          fs.writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+          NODE
+
+      - name: Focused merge utility tests
+        run: npx jest --runInBand hooks/__tests__/libraryMetadataRefreshResultMerge.test.ts
+
+      - name: Typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Complexity gate
+        run: npm run check:complexity
+
+      - name: Commit verified refactor and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/refactor-metadata-refresh-result-merge-once.yml
+          git add hooks/useLibraryMetadataRefreshRunner.ts security/code-complexity-baseline.json
+          printf '%s\n' 'Staged files:'
+          git diff --cached --name-status
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = '3'
+          git commit -m 'refactor: isolate metadata refresh result merging'
+          git push origin HEAD:refactor/complexity-metadata-refresh-result-merge-2026-08-06
