@@ -154,6 +154,16 @@ describe('ID3 COMM frame decoding contract', () => {
     });
   });
 
+  test('trims encoded description and comment text', async () => {
+    mockReadAsStringAsync.mockResolvedValueOnce(
+      buildId3([commentFrame(0x03, '  notes  ', '  Trimmed comment  ')]),
+    );
+
+    await expect(parseId3FromUri('file:///music/comment-trim.mp3')).resolves.toMatchObject({
+      comment: 'Trimmed comment',
+    });
+  });
+
   test('ignores a truncated COMM body without throwing', async () => {
     mockReadAsStringAsync.mockResolvedValueOnce(
       buildId3([rawFrame('COMM', [0x03, 0x65, 0x6e])]),
