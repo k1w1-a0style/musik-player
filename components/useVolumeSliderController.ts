@@ -8,8 +8,14 @@ import type {
 
 const ACCESSIBILITY_VOLUME_STEP = 0.1;
 
-export const clampVolume = (value: number): number =>
+const clampVolume = (value: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
+
+const resolveAccessibilityDirection = (actionName: string): -1 | 0 | 1 => {
+  if (actionName === 'increment') return 1;
+  if (actionName === 'decrement') return -1;
+  return 0;
+};
 
 interface VolumeSliderControllerOptions {
   volume: number;
@@ -66,11 +72,7 @@ export const useVolumeSliderController = ({
   }, [commitVolume, volumeFromTouch]);
 
   const handleAccessibilityAction = useCallback((event: AccessibilityActionEvent) => {
-    const direction = event.nativeEvent.actionName === 'increment'
-      ? 1
-      : event.nativeEvent.actionName === 'decrement'
-        ? -1
-        : 0;
+    const direction = resolveAccessibilityDirection(event.nativeEvent.actionName);
     if (direction !== 0) {
       const currentVolume = clampVolume(volume);
       commitVolume(clampVolume(currentVolume + direction * ACCESSIBILITY_VOLUME_STEP));
