@@ -41,6 +41,43 @@ const normalizeExpectedValue = (
   return normalizeId3Genre(normalized) ?? '';
 };
 
+type TagVerificationSeedField = (typeof FIELDS)[number]['key'];
+
+const clearTagVerificationSeedField = (
+  seed: Song,
+  key: TagVerificationSeedField,
+): void => {
+  switch (key) {
+    case 'title':
+      seed.title = '';
+      break;
+    case 'artist':
+      seed.artist = '';
+      break;
+    case 'albumArtist':
+      seed.albumArtist = undefined;
+      break;
+    case 'album':
+      seed.album = undefined;
+      break;
+    case 'year':
+      seed.year = undefined;
+      break;
+    case 'genre':
+      seed.genre = undefined;
+      break;
+    case 'trackNumber':
+      seed.trackNumber = undefined;
+      break;
+    case 'discNumber':
+      seed.discNumber = undefined;
+      break;
+    case 'comment':
+      seed.comment = undefined;
+      break;
+  }
+};
+
 export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {
   const seed: Song = { ...song };
   const writtenUri = song.fileInfo?.uri?.trim() || song.uri?.trim();
@@ -51,35 +88,7 @@ export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): S
 
   for (const field of FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    switch (field.key) {
-      case 'title':
-        seed.title = '';
-        break;
-      case 'artist':
-        seed.artist = '';
-        break;
-      case 'albumArtist':
-        seed.albumArtist = undefined;
-        break;
-      case 'album':
-        seed.album = undefined;
-        break;
-      case 'year':
-        seed.year = undefined;
-        break;
-      case 'genre':
-        seed.genre = undefined;
-        break;
-      case 'trackNumber':
-        seed.trackNumber = undefined;
-        break;
-      case 'discNumber':
-        seed.discNumber = undefined;
-        break;
-      case 'comment':
-        seed.comment = undefined;
-        break;
-    }
+    clearTagVerificationSeedField(seed, field.key);
   }
 
   if (draft.cover || draft.removeCover) {
