@@ -1,15 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  type AccessibilityActionEvent,
-  type GestureResponderEvent,
-  type LayoutChangeEvent,
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Volume2, VolumeX } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { useVolumeSliderController } from './useVolumeSliderController';
 
 interface Props {
   volume: number;
@@ -17,10 +11,6 @@ interface Props {
   accentColor?: string;
   inactiveColor?: string;
 }
-
-const clampVolume = (value: number): number =>
-  Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
-const ACCESSIBILITY_VOLUME_STEP = 0.1;
 
 const VolumeSlider: React.FC<Props> = ({
   volume,
@@ -31,64 +21,13 @@ const VolumeSlider: React.FC<Props> = ({
   const { theme } = useAppTheme();
   const resolvedAccentColor = accentColor ?? theme.palette.primary;
   const resolvedInactiveColor = inactiveColor ?? theme.palette.borderStrong;
-  const trackRef = useRef<View>(null);
-  const trackFrameRef = useRef({ x: 0, width: 1 });
-  const [trackWidth, setTrackWidth] = useState(1);
-
-  const commitVolume = useCallback((value: number) => {
-    try {
-      void Promise.resolve(onVolumeChange(clampVolume(value))).catch(error => {
-        console.warn('[VolumeSlider] Failed to apply volume.', error);
-      });
-    } catch (error) {
-      console.warn('[VolumeSlider] Failed to apply volume.', error);
-    }
-  }, [onVolumeChange]);
-
-  const updateTrackFrame = useCallback(() => {
-    trackRef.current?.measureInWindow((x, _y, width) => {
-      const safeWidth = Math.max(1, width);
-      trackFrameRef.current = { x, width: safeWidth };
-      setTrackWidth(safeWidth);
-    });
-  }, []);
-
-  const onTrackLayout = useCallback((event: LayoutChangeEvent) => {
-    const safeWidth = Math.max(1, event.nativeEvent.layout.width);
-    trackFrameRef.current = { ...trackFrameRef.current, width: safeWidth };
-    setTrackWidth(safeWidth);
-    requestAnimationFrame(updateTrackFrame);
-  }, [updateTrackFrame]);
-
-  const volumeFromTouch = useCallback((event: GestureResponderEvent): number => {
-    const { pageX, locationX } = event.nativeEvent;
-    const frame = trackFrameRef.current;
-    if (typeof pageX === 'number' && Number.isFinite(pageX)) {
-      return clampVolume((pageX - frame.x) / Math.max(1, frame.width));
-    }
-    if (typeof locationX === 'number' && Number.isFinite(locationX)) {
-      return clampVolume(locationX / Math.max(1, trackWidth));
-    }
-    return clampVolume(volume);
-  }, [trackWidth, volume]);
-
-  const applyFromTouch = useCallback((event: GestureResponderEvent) => {
-    commitVolume(volumeFromTouch(event));
-  }, [commitVolume, volumeFromTouch]);
-
-  const handleAccessibilityAction = useCallback(
-    (event: AccessibilityActionEvent) => {
-      const currentVolume = clampVolume(volume);
-      if (event.nativeEvent.actionName === 'increment') {
-        commitVolume(clampVolume(currentVolume + ACCESSIBILITY_VOLUME_STEP));
-      } else if (event.nativeEvent.actionName === 'decrement') {
-        commitVolume(clampVolume(currentVolume - ACCESSIBILITY_VOLUME_STEP));
-      }
-    },
-    [commitVolume, volume],
-  );
-
-  const percent = Math.round(clampVolume(volume) * 100);
+  const {
+    applyFromTouch,
+    handleAccessibilityAction,
+    onTrackLayout,
+    percent,
+    trackRef,
+  } = useVolumeSliderController({ volume, onVolumeChange });
 
   return (
     <View style={styles.container} testID="modern-controls">
