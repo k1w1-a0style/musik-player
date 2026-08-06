@@ -72,7 +72,8 @@ export const useVolumeSliderController = ({
         ? -1
         : 0;
     if (direction !== 0) {
-      commitVolume(clampVolume(volume + direction * ACCESSIBILITY_VOLUME_STEP));
+      const currentVolume = clampVolume(volume);
+      commitVolume(clampVolume(currentVolume + direction * ACCESSIBILITY_VOLUME_STEP));
     }
   }, [commitVolume, volume]);
 
