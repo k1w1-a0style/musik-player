@@ -43,86 +43,60 @@ jobs:
           const sourcePath = 'screens/useTagEditorSaveFlow.ts';
           let source = fs.readFileSync(sourcePath, 'utf8');
           const functionAnchor = 'export const buildTagVerificationSeedSong = (song: Song, draft: TagEditDraft): Song => {';
-          const helper = `type TagVerificationSeedField = (typeof FIELDS)[number]['key'];
-
-          const clearTagVerificationSeedField = (
-            seed: Song,
-            key: TagVerificationSeedField,
-          ): void => {
-            switch (key) {
-              case 'title':
-                seed.title = '';
-                break;
-              case 'artist':
-                seed.artist = '';
-                break;
-              case 'albumArtist':
-                seed.albumArtist = undefined;
-                break;
-              case 'album':
-                seed.album = undefined;
-                break;
-              case 'year':
-                seed.year = undefined;
-                break;
-              case 'genre':
-                seed.genre = undefined;
-                break;
-              case 'trackNumber':
-                seed.trackNumber = undefined;
-                break;
-              case 'discNumber':
-                seed.discNumber = undefined;
-                break;
-              case 'comment':
-                seed.comment = undefined;
-                break;
-            }
-          };
-
-          `;
+          const helper = [
+            "type TagVerificationSeedField = (typeof FIELDS)[number]['key'];",
+            '',
+            'const clearTagVerificationSeedField = (',
+            '  seed: Song,',
+            '  key: TagVerificationSeedField,',
+            '): void => {',
+            '  switch (key) {',
+            "    case 'title':",
+            "      seed.title = '';",
+            '      break;',
+            "    case 'artist':",
+            "      seed.artist = '';",
+            '      break;',
+            "    case 'albumArtist':",
+            '      seed.albumArtist = undefined;',
+            '      break;',
+            "    case 'album':",
+            '      seed.album = undefined;',
+            '      break;',
+            "    case 'year':",
+            '      seed.year = undefined;',
+            '      break;',
+            "    case 'genre':",
+            '      seed.genre = undefined;',
+            '      break;',
+            "    case 'trackNumber':",
+            '      seed.trackNumber = undefined;',
+            '      break;',
+            "    case 'discNumber':",
+            '      seed.discNumber = undefined;',
+            '      break;',
+            "    case 'comment':",
+            '      seed.comment = undefined;',
+            '      break;',
+            '  }',
+            '};',
+            '',
+          ].join('\n');
           if (!source.includes(functionAnchor)) {
             throw new Error('Tag verification seed function anchor was not found.');
           }
           if (source.includes('const clearTagVerificationSeedField =')) {
             throw new Error('Field reset helper already exists; refusing a duplicate rewrite.');
           }
-          source = source.replace(functionAnchor, `${helper}${functionAnchor}`);
+          source = source.replace(functionAnchor, `${helper}\n${functionAnchor}`);
 
-          const oldSwitch = `    switch (field.key) {
-              case 'title':
-                seed.title = '';
-                break;
-              case 'artist':
-                seed.artist = '';
-                break;
-              case 'albumArtist':
-                seed.albumArtist = undefined;
-                break;
-              case 'album':
-                seed.album = undefined;
-                break;
-              case 'year':
-                seed.year = undefined;
-                break;
-              case 'genre':
-                seed.genre = undefined;
-                break;
-              case 'trackNumber':
-                seed.trackNumber = undefined;
-                break;
-              case 'discNumber':
-                seed.discNumber = undefined;
-                break;
-              case 'comment':
-                seed.comment = undefined;
-                break;
-            }`;
-          if (!source.includes(oldSwitch)) {
-            throw new Error('Expected field reset switch was not found exactly.');
+          const switchPattern = /    switch \(field\.key\) \{\n[\s\S]*?\n    \}/g;
+          const matches = source.match(switchPattern) ?? [];
+          if (matches.length !== 1) {
+            throw new Error(`Expected exactly one field reset switch, found ${matches.length}.`);
           }
-          source = source.replace(oldSwitch, '    clearTagVerificationSeedField(seed, field.key);');
-          if (source.includes(oldSwitch)) {
+          source = source.replace(switchPattern, '    clearTagVerificationSeedField(seed, field.key);');
+          if (source.includes('switch (field.key)')) {
             throw new Error('Field reset switch replacement did not converge.');
           }
           fs.writeFileSync(sourcePath, source);
