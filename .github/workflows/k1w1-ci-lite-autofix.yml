@@ -72,6 +72,10 @@ jobs:
             echo "::error::Invalid checkout branch format."
             exit 1
           fi
+          if ! [[ "$checkout_ref" =~ ^(work|codex|dev|develop)$ ]]; then
+            echo "::error::Autofix is restricted to work, codex, dev, or develop."
+            exit 1
+          fi
 
           printf 'checkout_ref=%s\n' "$checkout_ref" >> "$GITHUB_OUTPUT"
 
@@ -113,6 +117,7 @@ jobs:
         with:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect package manager + lockfile
         id: lock
