@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Apply verified patch and remove helpers
+      - name: Apply verified non-workflow portion
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -48,17 +48,23 @@ jobs:
           echo 'e4029a9fd280f3951f3db3837427f4befe0ff2badb6beeba06c008a70ff37caa  /tmp/hardening.patch' | sha256sum -c -
           git apply --check /tmp/hardening.patch
           git apply /tmp/hardening.patch
-          rm -f .github/workflows/apply-final-hardening-2026-08-08.yml \
-            .github/workflows/apply-final-hardening-on-ready-2026-08-08.yml
+
+          # The Actions token cannot update workflow files. Restore them unchanged;
+          # the explicitly authorized GitHub connector writes that reviewed portion.
+          git restore --source=HEAD -- .github/workflows
 
           node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); JSON.parse(require('fs').readFileSync('package-lock.json','utf8'));"
           grep -Fq '"tar@^7.0.0": "7.5.22"' package.json
           grep -Fq '"version": "7.5.22"' package-lock.json
           git diff --check
+          if git diff --name-only | grep -q '^\.github/workflows/'; then
+            echo "::error::Workflow file leaked into Actions-token commit."
+            exit 1
+          fi
 
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'fix: close final pre-build hardening gaps'
+          git commit -m 'fix: harden dependencies and diagnostic logging'
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${TARGET_BRANCH}"
