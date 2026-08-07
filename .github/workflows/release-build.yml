@@ -30,7 +30,83 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve and authorize release ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      profile: ${{ steps.resolve.outputs.profile }}
+    steps:
+      - name: Checkout trusted workflow source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: codex
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release ref against trusted history
+        id: resolve
+        shell: bash
+        env:
+          RAW_REF: ${{ inputs.ref }}
+          RAW_PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          REF="$(printf '%s' "$RAW_REF" | tr -d '\r\n')"
+          PROFILE="$(printf '%s' "$RAW_PROFILE" | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
+
+          if [[ "$REF" != "codex" && "$REF" != "main" && ! "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Invalid ref: only codex, main, or a full 40-character SHA is allowed."
+            exit 1
+          fi
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *) echo "::error::Invalid profile '$PROFILE'."; exit 1 ;;
+          esac
+
+          git fetch --no-tags origin \
+            '+refs/heads/codex:refs/remotes/origin/codex' \
+            '+refs/heads/main:refs/remotes/origin/main'
+          CODEX_SHA="$(git rev-parse --verify refs/remotes/origin/codex^{commit})"
+          MAIN_SHA="$(git rev-parse --verify refs/remotes/origin/main^{commit})"
+          case "$REF" in
+            codex) RESOLVED_SHA="$CODEX_SHA" ;;
+            main) RESOLVED_SHA="$MAIN_SHA" ;;
+            *)
+              if ! git cat-file -e "${REF}^{commit}" 2>/dev/null; then
+                echo "::error::Requested SHA is not present in trusted codex/main history."
+                exit 1
+              fi
+              RESOLVED_SHA="$(git rev-parse --verify "${REF}^{commit}")"
+              ;;
+          esac
+
+          case "$PROFILE" in
+            development)
+              git merge-base --is-ancestor "$RESOLVED_SHA" "$CODEX_SHA" || {
+                echo "::error::Development builds must use a commit reachable from codex."; exit 1;
+              }
+              ;;
+            preview)
+              if ! git merge-base --is-ancestor "$RESOLVED_SHA" "$CODEX_SHA" \
+                && ! git merge-base --is-ancestor "$RESOLVED_SHA" "$MAIN_SHA"; then
+                echo "::error::Preview builds must use a commit reachable from codex or main."
+                exit 1
+              fi
+              ;;
+            production)
+              if [ "$RESOLVED_SHA" != "$MAIN_SHA" ]; then
+                echo "::error::Production builds must use the exact current main head."
+                exit 1
+              fi
+              ;;
+          esac
+
+          printf 'ref=%s\nprofile=%s\n' "$RESOLVED_SHA" "$PROFILE" >> "$GITHUB_OUTPUT"
+          echo "Authorized $PROFILE release ref $REF as $RESOLVED_SHA."
+
   build:
+    needs: resolve
     if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' }}
     name: Android Release Build
     runs-on: ubuntu-latest
@@ -48,7 +124,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.resolve.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -81,7 +157,7 @@ jobs:
 
           echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
 
       - name: Detect package manager / lockfile
         id: lock
@@ -191,7 +267,7 @@ jobs:
               ;;
           esac
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_STRICT_LOCKFILE_02D8DA: ${{ inputs.strict_lockfile }}
 
       - name: Install deps (package-manager-aware)
@@ -199,7 +275,7 @@ jobs:
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
           GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
         run: |
@@ -295,7 +371,7 @@ jobs:
 
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
 
       - name: Download Android Artifact
         id: download_artifact
@@ -332,9 +408,9 @@ jobs:
             *.apk) ;;
             *) echo "::error::Expected an APK artifact, got ${OUT}."; exit 1 ;;
           esac
-          echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_path=${OUT}" >> "$GITHUB_OUTPUT"
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
 
       - name: Inspect downloaded Android APK
@@ -355,7 +431,7 @@ jobs:
             --require-badging \
             --require-signature
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
       - name: Cleanup signing files
@@ -368,7 +444,7 @@ jobs:
         if: steps.inspect_apk.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}-apk
+          name: k1w1-android-${{ needs.resolve.outputs.profile }}-${{ github.run_number }}-apk
           path: ${{ steps.download_artifact.outputs.artifact_path }}
           retention-days: 30
           if-no-files-found: error
@@ -392,8 +468,8 @@ jobs:
             echo "> Hinweis: Dieser Workflow ist ein manueller Direktpfad und umgeht die App-seitige Single Source of Truth."
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          GH_PROFILE_8777ED: ${{ inputs.profile }}
-          GH_REF_04E218: ${{ inputs.ref }}
+          GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
+          GH_REF_04E218: ${{ needs.resolve.outputs.ref }}
           GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
           GH_LOCKFILE_PATH_0BD2D6: ${{ steps.lock.outputs.lockfile_path || 'none' }}
           GH_STRICT_5F311E: ${{ steps.strict_lock.outputs.strict }}
