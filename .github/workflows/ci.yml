@@ -4,12 +4,7 @@ on:
   pull_request:
     branches: [main, codex]
   push:
-    branches:
-      - main
-      - codex
-      - 'fix/**'
-      - 'refactor/**'
-      - 'review/**'
+    branches: [main, codex, "fix/**", "refactor/**", "review/**"]
   workflow_dispatch:
 
 permissions:
@@ -20,86 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sync-workflow-strategy-test:
-    if: github.ref == 'refs/heads/fix/final-prebuild-hardening-2026-08-08'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout hardening branch
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          ref: fix/final-prebuild-hardening-2026-08-08
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Sync base workflow contracts with hardening deltas
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          TARGET_BRANCH: fix/final-prebuild-hardening-2026-08-08
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin '+refs/heads/codex:refs/remotes/origin/codex'
-          git show refs/remotes/origin/codex:__tests__/workflowCiStrategy.test.ts > __tests__/workflowCiStrategy.test.ts
-          python3 <<'PY'
-          from pathlib import Path
-          p = Path('__tests__/workflowCiStrategy.test.ts')
-          s = p.read_text()
-          input_profile = '$' + '{{ inputs.profile }}'
-          resolved_profile = '$' + '{{ needs.resolve.outputs.profile }}'
-
-          old = "    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '" + input_profile + "')\n      && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'))"
-          new = "    ...((usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '" + input_profile + "')\n      || usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '" + resolved_profile + "'))\n      && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'))"
-          if s.count(old) != 1:
-            raise SystemExit(f'APK profile contract occurrence mismatch: {s.count(old)}')
-          s = s.replace(old, new)
-
-          old = "expect(usesEnvExpression(download, '" + input_profile + "')).toBe(true);"
-          new = "expect(usesEnvExpression(download, '" + resolved_profile + "')).toBe(true);"
-          if s.count(old) != 1:
-            raise SystemExit(f'Release profile assertion occurrence mismatch: {s.count(old)}')
-          s = s.replace(old, new)
-
-          old = """  it('keeps main CI triggers limited to active protected branches', () => {
-    const ciWorkflow = readWorkflow('ci.yml');
-
-    expect(ciWorkflow).toContain('pull_request:\\n    branches: [main, codex]');
-    expect(ciWorkflow).toContain('push:\\n    branches: [main, codex]');
-    expect(ciWorkflow).not.toContain('Emergent');
-  });"""
-          new = """  it('keeps protected PR triggers and restores exact-head checks for hardening branches', () => {
-    const ciWorkflow = readWorkflow('ci.yml');
-
-    expect(ciWorkflow).toContain('pull_request:\\n    branches: [main, codex]');
-    expect(ciWorkflow).toContain("push:\\n    branches:\\n      - main\\n      - codex\\n      - 'fix/**'\\n      - 'refactor/**'\\n      - 'review/**'");
-    expect(ciWorkflow).not.toContain('Emergent');
-  });"""
-          if s.count(old) != 1:
-            raise SystemExit(f'CI trigger contract occurrence mismatch: {s.count(old)}')
-          s = s.replace(old, new)
-
-          old = "expect(smoke).toContain(\"if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'\");"
-          new = "expect(smoke).toContain(\"if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK' && github.ref == 'refs/heads/codex'\");"
-          if s.count(old) != 1:
-            raise SystemExit(f'Smoke guard assertion occurrence mismatch: {s.count(old)}')
-          s = s.replace(old, new)
-          p.write_text(s)
-          PY
-
-          git diff --check
-          if git diff --quiet -- __tests__/workflowCiStrategy.test.ts; then
-            echo 'Workflow strategy contracts already synchronized.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add __tests__/workflowCiStrategy.test.ts
-          git commit -m 'test: sync workflow strategy contracts with final hardening'
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${TARGET_BRANCH}"
-
   quality-gates:
     name: Typecheck, tests, coverage, lint, config gates
     runs-on: ubuntu-latest
