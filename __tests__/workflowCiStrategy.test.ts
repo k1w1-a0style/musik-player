@@ -38,7 +38,8 @@ const apkContractViolations = (
   return [
     ...(nonApkProfiles.length === 0 ? [] : [`Non-APK Android profiles: ${nonApkProfiles.join(', ')}`]),
     ...(workflow.includes('ARTIFACT_EXT=apk') ? [] : ['Workflow artifact extension is not APK']),
-    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ inputs.profile }}')
+    ...((usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ inputs.profile }}')
+      || usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ needs.resolve.outputs.profile }}'))
       && /k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}/.test(namedStep(workflow, 'Download Android Artifact'))
       ? []
       : ['Downloaded artifact name does not use the APK extension']),
@@ -157,7 +158,7 @@ describe('GitHub workflow CI strategy', () => {
     expect(downloadStep).toContain('development|preview) EXPECTED_DISTRIBUTION="internal"');
     expect(downloadStep).toContain('production) EXPECTED_DISTRIBUTION="store"');
     const download = parsedNamedStep('release-build.yml', 'Download Android Artifact');
-    expect(usesEnvExpression(download, '${{ inputs.profile }}')).toBe(true);
+    expect(usesEnvExpression(download, '${{ needs.resolve.outputs.profile }}')).toBe(true);
     expect(download.run).toMatch(/OUT="build\/k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}"/);
     expect(downloadStep).toContain('curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"');
     const downloadLogLines = downloadStep.split('\n').filter(line => /\becho\b/.test(line));
@@ -232,7 +233,7 @@ describe('GitHub workflow CI strategy', () => {
     const ciWorkflow = readWorkflow('ci.yml');
 
     expect(ciWorkflow).toContain('pull_request:\n    branches: [main, codex]');
-    expect(ciWorkflow).toContain('push:\n    branches: [main, codex]');
+    expect(ciWorkflow).toContain('push:\n    branches: [main, codex, "fix/**", "refactor/**", "review/**"]');
     expect(ciWorkflow).not.toContain('Emergent');
   });
   it('fails closed when an EAS APK download does not produce an artifact', () => {
@@ -279,27 +280,75 @@ describe('GitHub workflow CI strategy', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
     const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
     const successStep = namedStep(easWorkflow, 'Update Build Status - Success');
-    const hasBuildUrlProducerForSuccessPayload = (workflow: string) => {
-      const producer = namedStep(workflow, 'Run EAS Build (WAIT)');
-      const consumer = namedStep(workflow, 'Update Build Status - Success');
-      const consumerStep = parsedNamedStepFromSource(workflow, 'Update Build Status - Success');
-      return producer.includes('resolveEasBuildArtifact.cjs extract-build-url')
-        && producer.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
-        && usesEnvExpression(consumerStep, '${{ steps.eas.outputs.build_url }}')
-        && consumer.includes(`BUILD_URL="\${${envVariableFor(consumerStep, '${{ steps.eas.outputs.build_url }}')}}"`);
+    const hasBuildUrlProducerForSuccess = (source: string) => {
+      const sourceBuildStep = parsedNamedStepFromSource(source, 'Run EAS Build (WAIT)');
+      const sourceSuccessStep = parsedNamedStepFromSource(source, 'Update Build Status - Success');
+      const sourceBuildUrlVariable = envVariableFor(sourceSuccessStep, '${{ steps.eas.outputs.build_url }}');
+      return Boolean(
+        sourceBuildUrlVariable
+        && sourceSuccessStep.run.includes(`\${${sourceBuildUrlVariable}}`)
+        && !sourceSuccessStep.run.includes('${{ steps.eas.outputs.build_url }}')
+        && sourceBuildStep.run.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
+      );
     };
 
-    expect(buildStep).toContain('BUILD_URL="$(printf \'%s\' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-url)"');
+    expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-url');
     expect(buildStep).toContain('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"');
+    expect(hasBuildUrlProducerForSuccess(easWorkflow)).toBe(true);
+    expect(successStep).not.toContain('steps.eas.outputs.build_url');
+    expect(successStep).not.toContain('steps.eas.outputs.build_id');
+    expect(successStep).not.toContain('github.event.inputs.job_id');
+    expect(successStep).toContain('eas_build_url');
+    expect(successStep).not.toContain('eas_build_id');
+    expect(successStep).toContain('curl --fail-with-body');
+  });
+
+  it('does not use build URLs or job IDs directly inside privileged shell scripts', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
+    const buildStatusStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Building');
+    const successStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
+    const failureStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Failed');
+    const protectedSteps = [buildStatusStep, successStep, failureStep];
+
+    for (const step of protectedSteps) {
+      expect(step.run).not.toContain('${{ inputs.job_id }}');
+      expect(step.run).not.toContain('${{ steps.eas.outputs.build_url }}');
+      expect(step.run).not.toContain('${{ steps.eas.outputs.build_id }}');
+    }
+  });
+
+  it('keeps the status payload branch-independent and structured', () => {
+    const easWorkflow = readWorkflow('eas-build.yml');
     const success = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
-    expect(usesEnvExpression(success, '${{ steps.eas.outputs.build_url }}')).toBe(true);
-    expect(successStep).toContain('build_url:(process.argv[3]||null)');
+    const hasBuildUrlProducerForSuccessPayload = (source: string) => {
+      const build = parsedNamedStepFromSource(source, 'Run EAS Build (WAIT)');
+      const successStep = parsedNamedStepFromSource(source, 'Update Build Status - Success');
+      const buildUrlVariable = envVariableFor(successStep, '${{ steps.eas.outputs.build_url }}');
+      return Boolean(
+        buildUrlVariable
+        && successStep.run.includes(`BUILD_URL="\${${buildUrlVariable}}"`)
+        && !successStep.run.includes('${{ steps.eas.outputs.build_url }}')
+        && build.run.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
+        && successStep.run.includes('eas_build_url')
+      );
+    };
+
     expect(hasBuildUrlProducerForSuccessPayload(easWorkflow)).toBe(true);
-    expect(hasBuildUrlProducerForSuccessPayload(
-      easWorkflow.replace('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"', ''),
-    )).toBe(false);
-    const buildUrlEnv = envVariableFor(success, '${{ steps.eas.outputs.build_url }}')!;
+    expect(success.run).not.toContain('github.ref');
+    expect(success.run).not.toContain('github.head_ref');
+    expect(success.run).not.toContain('github.base_ref');
+    expect(success.run).not.toContain('github.event.pull_request');
+    expect(success.run).not.toContain('github.event.inputs.job_id');
+    expect(success.run).not.toContain('steps.eas.outputs.build_url');
+    expect(success.run).not.toContain('steps.eas.outputs.build_id');
+    expect(success.run).toContain('eas_build_url');
+    expect(success.run).not.toContain('eas_build_id');
+    expect(success.run).toContain('JSON.stringify');
+    expect(success.run).toContain('curl --fail-with-body');
+    expect(success.run).not.toMatch(/-[dD]\s+['"]?\{/);
+
     expect(hasBuildUrlProducerForSuccessPayload(easWorkflow.replace('${{ steps.eas.outputs.build_url }}', '${{ steps.eas.outputs.build_id }}'))).toBe(false);
+    const buildUrlEnv = envVariableFor(success, '${{ steps.eas.outputs.build_url }}')!;
     expect(hasBuildUrlProducerForSuccessPayload(easWorkflow.replace(`BUILD_URL="\${${buildUrlEnv}}"`, 'BUILD_URL="${WRONG_VARIABLE}"'))).toBe(false);
   });
 
@@ -359,7 +408,7 @@ describe('GitHub workflow CI strategy', () => {
 
     const smoke = readWorkflow('android-emulator-smoke.yml');
     expect(smoke).toContain('workflow_dispatch:');
-    expect(smoke).toContain("if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).toContain("if: github.ref == 'refs/heads/codex' && github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
     expect(smoke).not.toContain('pull_request:');
     expect(smoke).not.toContain('push:');
     expect(smoke).not.toContain('repository_dispatch:');
