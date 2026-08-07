@@ -1,0 +1,113 @@
+name: Update Hardened Workflow Contract Tests V2
+
+on:
+  pull_request:
+    branches: [codex]
+    types: [ready_for_review]
+
+permissions:
+  contents: write
+
+jobs:
+  update-tests:
+    if: github.head_ref == 'fix/final-prebuild-hardening-2026-08-08'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: fix/final-prebuild-hardening-2026-08-08
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Update stale workflow contract expectations
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: fix/final-prebuild-hardening-2026-08-08
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('__tests__/workflowCiStrategy.test.ts')
+          s = p.read_text()
+          input_profile = '$' + '{{ inputs.profile }}'
+          resolved_profile = '$' + '{{ needs.resolve.outputs.profile }}'
+
+          old = (
+            "    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '" + input_profile + "')\n"
+            "      && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'))\n"
+            "      ? []\n"
+            "      : ['Downloaded artifact name does not use the APK extension']),"
+          )
+          new = (
+            "    ...((() => {\n"
+            "      const download = parsedNamedStepFromSource(workflow, 'Download Android Artifact');\n"
+            "      const usesAuthorizedProfile =\n"
+            "        usesEnvExpression(download, '" + input_profile + "')\n"
+            "        || usesEnvExpression(download, '" + resolved_profile + "');\n"
+            "      return usesAuthorizedProfile\n"
+            "        && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'));\n"
+            "    })()\n"
+            "      ? []\n"
+            "      : ['Downloaded artifact name does not use the APK extension']),"
+          )
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one APK profile contract, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          old = "expect(usesEnvExpression(download, '" + input_profile + "')).toBe(true);"
+          new = "expect(usesEnvExpression(download, '" + resolved_profile + "')).toBe(true);"
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one release profile assertion, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          old = """  it('keeps main CI triggers limited to active protected branches', () => {
+    const ciWorkflow = readWorkflow('ci.yml');
+
+    expect(ciWorkflow).toContain('pull_request:\\n    branches: [main, codex]');
+    expect(ciWorkflow).toContain('push:\\n    branches: [main, codex]');
+    expect(ciWorkflow).not.toContain('Emergent');
+  });"""
+          new = """  it('keeps protected PR triggers and restores push checks for hardening branches', () => {
+    const ciWorkflow = parseWorkflow('ci.yml');
+
+    expect(ciWorkflow.on.pull_request.branches).toEqual(['main', 'codex']);
+    expect(ciWorkflow.on.push.branches).toEqual([
+      'main',
+      'codex',
+      'fix/**',
+      'refactor/**',
+      'review/**',
+    ]);
+    expect(readWorkflow('ci.yml')).not.toContain('Emergent');
+  });"""
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one CI trigger contract, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          old = """    const smoke = readWorkflow('android-emulator-smoke.yml');
+    expect(smoke).toContain('workflow_dispatch:');
+    expect(smoke).toContain("if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).not.toContain('pull_request:');"""
+          new = """    const smoke = readWorkflow('android-emulator-smoke.yml');
+    const smokeJob = parseWorkflow('android-emulator-smoke.yml').jobs['development-apk-smoke'];
+    expect(smoke).toContain('workflow_dispatch:');
+    expect(smokeJob.if).toContain("github.ref == 'refs/heads/codex'");
+    expect(smokeJob.if).toContain("github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).not.toContain('pull_request:');"""
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one smoke contract, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          p.write_text(s)
+          PY
+
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add __tests__/workflowCiStrategy.test.ts
+          git commit -m 'test: align workflow contracts with trusted ref hardening'
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${TARGET_BRANCH}"
