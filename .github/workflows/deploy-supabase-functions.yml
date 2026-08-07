@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   run-eas-build:
-    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' && github.ref == 'refs/heads/codex' }}
+    if: ${{ github.ref == 'refs/heads/codex' && vars.ENABLE_CLOUD_EAS_BUILDS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
