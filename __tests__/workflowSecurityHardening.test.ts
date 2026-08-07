@@ -81,6 +81,84 @@ describe('trusted build ref authorization', () => {
   });
 });
 
+describe('manual secret workflow trust boundaries', () => {
+  test('EAS Build is reusable-only and cannot be manually dispatched around the trusted resolver', () => {
+    const workflowSource = source('eas-build.yml');
+    expect(workflowSource).toContain('  workflow_call:');
+    expect(workflowSource).not.toContain('  workflow_dispatch:');
+  });
+
+  test('reusable EAS Build re-verifies its ref before any secret-bearing job', () => {
+    const workflow = load('eas-build.yml');
+    expect(workflow.jobs.autofix.needs).toBe('authorize');
+    expect(workflow.jobs.build.needs).toEqual(['authorize', 'autofix']);
+    const trustedCheckout = workflow.jobs.authorize.steps[0];
+    expect(trustedCheckout.with).toMatchObject({ref: 'codex', 'fetch-depth': 0, 'persist-credentials': false});
+    const resolveStep = runBlocks(workflow).find((step) => step.name === 'Verify trusted reusable ref');
+    expect(resolveStep.run).toContain('Reusable non-autofix builds require a verified full 40-character SHA.');
+    expect(resolveStep.run).toContain('Reusable autofix requires the explicit codex development ref.');
+    const autofixCheckout = workflow.jobs.autofix.steps.find((step: any) => step.name === 'Checkout');
+    const buildCheckout = workflow.jobs.build.steps.find((step: any) => step.name === 'Checkout');
+    expect(autofixCheckout.with.ref).toBe('${{ needs.authorize.outputs.ref }}');
+    expect(buildCheckout.with.ref).toBe('${{ needs.authorize.outputs.ref }}');
+  });
+
+  test('release build resolves the raw ref before the secret-bearing build job', () => {
+    const workflow = load('release-build.yml');
+    const resolveSteps = workflow.jobs.resolve.steps;
+    expect(resolveSteps[0]).toMatchObject({
+      name: 'Checkout trusted workflow source',
+      with: expect.objectContaining({ref: 'codex', 'fetch-depth': 0, 'persist-credentials': false}),
+    });
+    const resolveStep = runBlocks(workflow).find((step) => step.name === 'Resolve release ref against trusted history');
+    expect(resolveStep.run).toContain('^[0-9a-fA-F]{40}$');
+    expect(resolveStep.run).toContain('Production builds must use the exact current main head.');
+    expect(workflow.jobs.build.needs).toBe('resolve');
+    const checkout = workflow.jobs.build.steps.find((step: any) => step.name === 'Checkout repository');
+    expect(checkout.with.ref).toBe('${{ needs.resolve.outputs.ref }}');
+    expect(checkout.with['persist-credentials']).toBe(false);
+  });
+
+  test('EAS Link resolves against codex/main before checkout and npm lifecycle execution', () => {
+    const workflow = load('eas-link.yml');
+    expect(workflow.jobs.link.needs).toBe('resolve');
+    const trustedCheckout = workflow.jobs.resolve.steps[0];
+    expect(trustedCheckout.with).toMatchObject({ref: 'codex', 'persist-credentials': false});
+    const targetCheckout = workflow.jobs.link.steps.find((step: any) => step.name === 'Checkout');
+    expect(targetCheckout.with.ref).toBe('${{ needs.resolve.outputs.ref }}');
+    expect(targetCheckout.with['persist-credentials']).toBe(false);
+    const resolveStep = runBlocks(workflow).find((step) => step.name === 'Resolve link ref against trusted history');
+    expect(resolveStep.run).toContain('EAS link must target a commit reachable from codex or main.');
+  });
+
+  test.each([
+    ['android-emulator-smoke.yml', 'development-apk-smoke', 'Checkout trusted codex head'],
+    ['deploy-supabase-functions.yml', 'run-eas-build', 'Checkout trusted codex head'],
+  ])('%s exposes manual secrets only on codex and never persists checkout credentials', (file, jobName, checkoutName) => {
+    const workflow = load(file);
+    const job = workflow.jobs[jobName];
+    expect(String(job.if)).toContain("github.ref == 'refs/heads/codex'");
+    const checkout = job.steps.find((step: any) => step.name === checkoutName);
+    expect(checkout.with).toMatchObject({ref: 'codex', 'persist-credentials': false});
+  });
+
+  test('writable CI-lite autofix restricts target branches before checkout and drops checkout credentials', () => {
+    const workflow = load('k1w1-ci-lite-autofix.yml');
+    const determine = runBlocks(workflow).find((step) => step.name === 'Determine target branch');
+    expect(determine.run).toContain('^(work|codex|dev|develop)$');
+    const checkout = workflow.jobs.autofix.steps.find((step: any) => step.name === 'Checkout');
+    expect(checkout.with['persist-credentials']).toBe(false);
+  });
+});
+
+describe('CI check-status fallback', () => {
+  test('push checks cover connector-created hardening and review branch families', () => {
+    const workflow = load('ci.yml');
+    const branches = workflow.on.push.branches;
+    expect(branches).toEqual(expect.arrayContaining(['main', 'codex', 'fix/**', 'refactor/**', 'review/**']));
+  });
+});
+
 describe('canonical job id data flow', () => {
   const valid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   test('allows an empty optional job ID before status updates are disabled', () => expect('' === '').toBe(true));
