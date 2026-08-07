@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   development-apk-smoke:
-    if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK' && github.ref == 'refs/heads/codex'
+    if: github.ref == 'refs/heads/codex' && github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'
     name: Build, inspect, install and launch development APK
     runs-on: ubuntu-latest
     timeout-minutes: 75
