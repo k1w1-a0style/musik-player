@@ -42,8 +42,8 @@ jobs:
             exit 1
           fi
 
-          awk '/^PATCH_B64$/{capture=!capture;next} capture{print}' \
-            .github/workflows/apply-final-hardening-2026-08-08.yml > /tmp/hardening.patch.gz.b64
+          sed -n "/<<'PATCH_B64'/,/^PATCH_B64$/p" \
+            .github/workflows/apply-final-hardening-2026-08-08.yml | sed '1d;$d' > /tmp/hardening.patch.gz.b64
           base64 -d /tmp/hardening.patch.gz.b64 | gzip -d > /tmp/hardening.patch
           echo 'e4029a9fd280f3951f3db3837427f4befe0ff2badb6beeba06c008a70ff37caa  /tmp/hardening.patch' | sha256sum -c -
           git apply --check /tmp/hardening.patch
