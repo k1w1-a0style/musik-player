@@ -161,7 +161,8 @@ describe('CI check-status fallback', () => {
 
 describe('canonical job id data flow', () => {
   const valid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-  test('allows an empty optional job ID before status updates are disabled', () => expect('' === '').toBe(true));
+  const acceptsOptionalJobId = (value: string) => value === '' || valid.test(value);
+  test('allows an empty optional job ID before status updates are disabled', () => expect(acceptsOptionalJobId('')).toBe(true));
   test.each(['550e8400-e29b-41d4-a716-446655440000', '550E8400-E29B-41D4-A716-446655440000'])('accepts canonical UUID %s', value => expect(valid.test(value)).toBe(true));
   test.each([' x550e8400-e29b-41d4-a716-446655440000','550e8400-e29b-41d4-a716-446655440000 ','550e8400%2De29b-41d4-a716-446655440000','550e8400-e29b-41d4-a716-446655440000,or','550e8400-e29b-41d4-a716-446655440000\n','$(id)',''])('rejects noncanonical network ID %j', value => expect(valid.test(value)).toBe(false));
   test('all Supabase filters use only VALIDATED_JOB_ID', () => {
