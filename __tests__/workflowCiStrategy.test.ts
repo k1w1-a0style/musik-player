@@ -280,6 +280,7 @@ describe('GitHub workflow CI strategy', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
     const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
     const successStep = namedStep(easWorkflow, 'Update Build Status - Success');
+    const success = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
     const hasBuildUrlProducerForSuccess = (source: string) => {
       const sourceBuildStep = parsedNamedStepFromSource(source, 'Run EAS Build (WAIT)');
       const sourceSuccessStep = parsedNamedStepFromSource(source, 'Update Build Status - Success');
@@ -295,12 +296,12 @@ describe('GitHub workflow CI strategy', () => {
     expect(buildStep).toContain('resolveEasBuildArtifact.cjs extract-build-url');
     expect(buildStep).toContain('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"');
     expect(hasBuildUrlProducerForSuccess(easWorkflow)).toBe(true);
-    expect(successStep).not.toContain('steps.eas.outputs.build_url');
-    expect(successStep).not.toContain('steps.eas.outputs.build_id');
-    expect(successStep).not.toContain('github.event.inputs.job_id');
-    expect(successStep).toContain('eas_build_url');
-    expect(successStep).not.toContain('eas_build_id');
-    expect(successStep).toContain('curl --fail-with-body');
+    expect(success.run).not.toContain('steps.eas.outputs.build_url');
+    expect(success.run).not.toContain('steps.eas.outputs.build_id');
+    expect(success.run).not.toContain('github.event.inputs.job_id');
+    expect(success.run).toContain('build_url');
+    expect(success.run).toContain('eas_build_id');
+    expect(success.run).toContain('curl --fail-with-body');
   });
 
   it('does not use build URLs or job IDs directly inside privileged shell scripts', () => {
@@ -329,7 +330,7 @@ describe('GitHub workflow CI strategy', () => {
         && successStep.run.includes(`BUILD_URL="\${${buildUrlVariable}}"`)
         && !successStep.run.includes('${{ steps.eas.outputs.build_url }}')
         && build.run.includes('echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"')
-        && successStep.run.includes('eas_build_url')
+        && successStep.run.includes('build_url')
       );
     };
 
@@ -341,8 +342,8 @@ describe('GitHub workflow CI strategy', () => {
     expect(success.run).not.toContain('github.event.inputs.job_id');
     expect(success.run).not.toContain('steps.eas.outputs.build_url');
     expect(success.run).not.toContain('steps.eas.outputs.build_id');
-    expect(success.run).toContain('eas_build_url');
-    expect(success.run).not.toContain('eas_build_id');
+    expect(success.run).toContain('build_url');
+    expect(success.run).toContain('eas_build_id');
     expect(success.run).toContain('JSON.stringify');
     expect(success.run).toContain('curl --fail-with-body');
     expect(success.run).not.toMatch(/-[dD]\s+['"]?\{/);
