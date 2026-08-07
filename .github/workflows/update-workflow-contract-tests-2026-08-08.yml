@@ -32,30 +32,74 @@ jobs:
           from pathlib import Path
           p = Path('__tests__/workflowCiStrategy.test.ts')
           s = p.read_text()
+          input_profile = '$' + '{{ inputs.profile }}'
+          resolved_profile = '$' + '{{ needs.resolve.outputs.profile }}'
 
-          replacements = [
-            (
-              "    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ inputs.profile }}')\n      && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'))\n      ? []\n      : ['Downloaded artifact name does not use the APK extension']),",
-              "    ...((() => {\n      const download = parsedNamedStepFromSource(workflow, 'Download Android Artifact');\n      const usesAuthorizedProfile =\n        usesEnvExpression(download, '${{ inputs.profile }}')\n        || usesEnvExpression(download, '${{ needs.resolve.outputs.profile }}');\n      return usesAuthorizedProfile\n        && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'));\n    })()\n      ? []\n      : ['Downloaded artifact name does not use the APK extension']),"
-            ),
-            (
-              "expect(usesEnvExpression(download, '${{ inputs.profile }}')).toBe(true);",
-              "expect(usesEnvExpression(download, '${{ needs.resolve.outputs.profile }}')).toBe(true);"
-            ),
-            (
-              "  it('keeps main CI triggers limited to active protected branches', () => {\n    const ciWorkflow = readWorkflow('ci.yml');\n\n    expect(ciWorkflow).toContain('pull_request:\\n    branches: [main, codex]');\n    expect(ciWorkflow).toContain('push:\\n    branches: [main, codex]');\n    expect(ciWorkflow).not.toContain('Emergent');\n  });",
-              "  it('keeps protected PR triggers and restores push checks for hardening branches', () => {\n    const ciWorkflow = parseWorkflow('ci.yml');\n\n    expect(ciWorkflow.on.pull_request.branches).toEqual(['main', 'codex']);\n    expect(ciWorkflow.on.push.branches).toEqual([\n      'main',\n      'codex',\n      'fix/**',\n      'refactor/**',\n      'review/**',\n    ]);\n    expect(readWorkflow('ci.yml')).not.toContain('Emergent');\n  });"
-            ),
-            (
-              "    const smoke = readWorkflow('android-emulator-smoke.yml');\n    expect(smoke).toContain('workflow_dispatch:');\n    expect(smoke).toContain(\"if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'\");\n    expect(smoke).not.toContain('pull_request:');",
-              "    const smoke = readWorkflow('android-emulator-smoke.yml');\n    const smokeJob = parseWorkflow('android-emulator-smoke.yml').jobs['development-apk-smoke'];\n    expect(smoke).toContain('workflow_dispatch:');\n    expect(smokeJob.if).toContain(\"github.ref == 'refs/heads/codex'\");\n    expect(smokeJob.if).toContain(\"github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'\");\n    expect(smoke).not.toContain('pull_request:');"
-            ),
-          ]
+          old = (
+            "    ...(usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '" + input_profile + "')\n"
+            "      && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'))\n"
+            "      ? []\n"
+            "      : ['Downloaded artifact name does not use the APK extension']),"
+          )
+          new = (
+            "    ...((() => {\n"
+            "      const download = parsedNamedStepFromSource(workflow, 'Download Android Artifact');\n"
+            "      const usesAuthorizedProfile =\n"
+            "        usesEnvExpression(download, '" + input_profile + "')\n"
+            "        || usesEnvExpression(download, '" + resolved_profile + "');\n"
+            "      return usesAuthorizedProfile\n"
+            "        && /k1w1-\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}\\.\\$\\{ARTIFACT_EXT\\}/.test(namedStep(workflow, 'Download Android Artifact'));\n"
+            "    })()\n"
+            "      ? []\n"
+            "      : ['Downloaded artifact name does not use the APK extension']),"
+          )
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one APK profile contract, got {s.count(old)}')
+          s = s.replace(old, new)
 
-          for old, new in replacements:
-            if s.count(old) != 1:
-              raise SystemExit(f'Expected exactly one stale contract occurrence, got {s.count(old)}')
-            s = s.replace(old, new)
+          old = "expect(usesEnvExpression(download, '" + input_profile + "')).toBe(true);"
+          new = "expect(usesEnvExpression(download, '" + resolved_profile + "')).toBe(true);"
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one release profile assertion, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          old = """  it('keeps main CI triggers limited to active protected branches', () => {
+    const ciWorkflow = readWorkflow('ci.yml');
+
+    expect(ciWorkflow).toContain('pull_request:\\n    branches: [main, codex]');
+    expect(ciWorkflow).toContain('push:\\n    branches: [main, codex]');
+    expect(ciWorkflow).not.toContain('Emergent');
+  });"""
+          new = """  it('keeps protected PR triggers and restores push checks for hardening branches', () => {
+    const ciWorkflow = parseWorkflow('ci.yml');
+
+    expect(ciWorkflow.on.pull_request.branches).toEqual(['main', 'codex']);
+    expect(ciWorkflow.on.push.branches).toEqual([
+      'main',
+      'codex',
+      'fix/**',
+      'refactor/**',
+      'review/**',
+    ]);
+    expect(readWorkflow('ci.yml')).not.toContain('Emergent');
+  });"""
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one CI trigger contract, got {s.count(old)}')
+          s = s.replace(old, new)
+
+          old = """    const smoke = readWorkflow('android-emulator-smoke.yml');
+    expect(smoke).toContain('workflow_dispatch:');
+    expect(smoke).toContain("if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).not.toContain('pull_request:');"""
+          new = """    const smoke = readWorkflow('android-emulator-smoke.yml');
+    const smokeJob = parseWorkflow('android-emulator-smoke.yml').jobs['development-apk-smoke'];
+    expect(smoke).toContain('workflow_dispatch:');
+    expect(smokeJob.if).toContain("github.ref == 'refs/heads/codex'");
+    expect(smokeJob.if).toContain("github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'");
+    expect(smoke).not.toContain('pull_request:');"""
+          if s.count(old) != 1:
+            raise SystemExit(f'Expected one smoke contract, got {s.count(old)}')
+          s = s.replace(old, new)
 
           p.write_text(s)
           PY
