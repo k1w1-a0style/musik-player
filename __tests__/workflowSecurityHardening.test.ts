@@ -1,5 +1,6 @@
 import { spawnSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import YAML from '../node_modules/yaml/dist/index';
 
@@ -19,6 +20,65 @@ const EXACT_FORK_TRUST_BOUNDARY = 'github.event.pull_request.head.repo.fork==fal
 
 const isPinnedExternalUse = (value: unknown): boolean => typeof value === 'string'
   && (value.startsWith('./') || EXTERNAL_USE_WITH_SHA.test(value));
+
+const isInsideRepository = (repoRoot: string, target: string): boolean => {
+  const relative = path.relative(repoRoot, target);
+  return relative !== '' && !relative.startsWith(`..${path.sep}`) && relative !== '..'
+    && !path.isAbsolute(relative) && !relative.split(path.sep).includes('node_modules');
+};
+
+const localActionManifest = (repoRoot: string, actionDirectory: string): string | null => {
+  for (const name of ['action.yml', 'action.yaml']) {
+    const candidate = path.join(actionDirectory, name);
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      const canonical = fs.realpathSync(candidate);
+      return isInsideRepository(repoRoot, canonical) ? canonical : null;
+    }
+  }
+  return null;
+};
+
+const stepUsePinningFailures = (
+  value: unknown,
+  repoRoot: string,
+  checkedManifests = new Set<string>(),
+): string[] => {
+  if (typeof value !== 'string') return ['uses must be a string'];
+  if (!value.startsWith('./')) return EXTERNAL_USE_WITH_SHA.test(value) ? [] : [`unpinned external action: ${value}`];
+
+  const actionDirectory = path.resolve(repoRoot, value);
+  if (!isInsideRepository(repoRoot, actionDirectory)) return [`unsafe local action path: ${value}`];
+  const manifest = localActionManifest(repoRoot, actionDirectory);
+  if (!manifest) return [`local action manifest missing or unsafe: ${value}`];
+  if (checkedManifests.has(manifest)) return [];
+  checkedManifests.add(manifest);
+
+  let document: any;
+  try {
+    document = YAML.parse(fs.readFileSync(manifest, 'utf8'));
+  } catch {
+    return [`local action manifest is invalid: ${path.relative(repoRoot, manifest)}`];
+  }
+  if (document?.runs?.using !== 'composite') return [];
+  const steps = Array.isArray(document.runs.steps) ? document.runs.steps : [];
+  return steps.flatMap((step: any) => step.uses == null
+    ? []
+    : stepUsePinningFailures(step.uses, repoRoot, checkedManifests));
+};
+
+const checkActionFixture = (files: Record<string, string>, entry = './action-a'): string[] => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-action-pinning-'));
+  try {
+    for (const [name, contents] of Object.entries(files)) {
+      const target = path.join(repoRoot, name);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, contents);
+    }
+    return stepUsePinningFailures(entry, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+};
 
 const hasSecretExpression = (value: unknown): boolean => {
   if (typeof value === 'string') return SECRET_EXPRESSION.test(value);
@@ -64,9 +124,56 @@ describe('repository-wide workflow security inventory', () => {
     for (const job of jobs(load(file))) {
       if (job.uses != null) expect(isPinnedExternalUse(job.uses)).toBe(true);
       for (const step of job.steps || []) {
-        if (step.uses != null) expect(isPinnedExternalUse(step.uses)).toBe(true);
+        if (step.uses != null) expect(stepUsePinningFailures(step.uses, process.cwd())).toEqual([]);
       }
     }
+  });
+
+  test.each(['main', 'master', 'v1', 'abcdef1'])('rejects movable action @%s hidden in a local composite', ref => {
+    expect(checkActionFixture({
+      'action-a/action.yml': `runs:\n  using: composite\n  steps:\n    - uses: owner/action@${ref}\n`,
+    })).toEqual([`unpinned external action: owner/action@${ref}`]);
+  });
+
+  test.each(['action.yml', 'action.yaml'])('accepts pinned dependency through local %s manifest', manifestName => {
+    expect(checkActionFixture({
+      [`action-a/${manifestName}`]: `runs:\n  using: composite\n  steps:\n    - uses: owner/action@${'a'.repeat(40)}\n`,
+    })).toEqual([]);
+  });
+
+  test('recursively rejects a movable dependency in a nested local action', () => {
+    expect(checkActionFixture({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yaml': 'runs:\n  using: composite\n  steps:\n    - uses: owner/action@main\n',
+    })).toEqual(['unpinned external action: owner/action@main']);
+  });
+
+  test('accepts a pinned dependency in a nested local action', () => {
+    expect(checkActionFixture({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yaml': `runs:\n  using: composite\n  steps:\n    - uses: owner/action@${'a'.repeat(40)}\n`,
+    })).toEqual([]);
+  });
+
+  test('terminates safely when local composite actions form a cycle', () => {
+    expect(checkActionFixture({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-a\n',
+    })).toEqual([]);
+  });
+
+  test('fails closed when a referenced local action has no manifest', () => {
+    expect(checkActionFixture({ 'action-a/README.md': 'missing manifest' }))
+      .toEqual(['local action manifest missing or unsafe: ./action-a']);
+  });
+
+  test('rejects local action path traversal outside the repository', () => {
+    expect(checkActionFixture({}, './../../outside'))
+      .toEqual(['unsafe local action path: ./../../outside']);
+  });
+
+  test('validates the real determine-ref composite action trust chain', () => {
+    expect(stepUsePinningFailures('./.github/actions/determine-ref', process.cwd())).toEqual([]);
   });
 
   test.each([
