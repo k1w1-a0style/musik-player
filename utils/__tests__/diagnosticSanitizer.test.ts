@@ -50,19 +50,26 @@ describe('diagnostic sanitizer', () => {
     expect(sanitizeDiagnosticValue(value)).toEqual({ count: 1, self: '<circular>' });
   });
 
-  test('redacts camelCase credentials, keystore data and private metadata at every nested level', () => {
-    const safe = sanitizeDiagnosticValue({
-      apiKey: 'API-CANARY',
-      accessKey: 'ACCESS-CANARY',
-      authorization: 'AUTH-CANARY',
-      keyPassword: 'PASSWORD-CANARY',
-      keystoreBase64: 'KEYSTORE-CANARY',
-      nested: [{ artist: 'ARTIST-CANARY', album: 'ALBUM-CANARY', comment: 'COMMENT-CANARY', lyrics: 'LYRICS-CANARY' }],
-    });
+  test('redacts credential and signing fields across camelCase, snake_case and kebab-case', () => {
+    const sensitiveFields = [
+      'secretKey', 'serviceRoleKey', 'supabaseServiceRoleKey', 'adminKey',
+      'private_key', 'private-key', 'api_key', 'api-key', 'access_key', 'access-key',
+      'keyPassword', 'keystorePassword', 'keystoreBase64', 'authorization', 'credential',
+    ];
+    const canaries = Object.fromEntries(sensitiveFields.map(field => [field, `CANARY-${field}`]));
+    const safe = sanitizeDiagnosticValue({ nested: [canaries] });
     const serialized = JSON.stringify(safe);
-    for (const canary of ['API-CANARY', 'ACCESS-CANARY', 'AUTH-CANARY', 'PASSWORD-CANARY', 'KEYSTORE-CANARY', 'ARTIST-CANARY', 'ALBUM-CANARY', 'COMMENT-CANARY', 'LYRICS-CANARY']) {
-      expect(serialized).not.toContain(canary);
+    for (const value of Object.values(canaries)) {
+      expect(serialized).not.toContain(value);
     }
+  });
+
+  test('preserves harmless technical key fields', () => {
+    expect(sanitizeDiagnosticValue({
+      keyExtractor: 'song-id-selector',
+      keyboardType: 'numeric',
+      keyCode: 13,
+    })).toEqual({ keyExtractor: 'song-id-selector', keyboardType: 'numeric', keyCode: 13 });
   });
 
   test('bounds long strings, arrays and nested structures', () => {

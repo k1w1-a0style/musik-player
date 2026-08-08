@@ -10,6 +10,8 @@
 - PR #379: gemergt; geprüfter PR-Head `ee94eb865fcd233ef04cab8d11bc66b01c8ebb26`
 - CI #1409: erfolgreich auf genau `ee94eb865fcd233ef04cab8d11bc66b01c8ebb26`
 - zusätzlicher Push-Lauf CI #1410: erfolgreich auf dem Merge-SHA `6d028ff4e2bbdf466ead0101eb68ff25f9462ac2`
+- erster Remote-Stand dieses Hardening-PRs: `1ea1e12bbf21857f3644e0ada42168fdbd164eff`
+- CI #1411: vollständig erfolgreich auf exakt `1ea1e12bbf21857f3644e0ada42168fdbd164eff`
 - beim Start: sauberer Working Tree, keine offenen Pull Requests, `HEAD == origin/codex`
 - Arbeitsbranch: `review/post-379-final-reconciliation-2026-08-08`
 
@@ -99,8 +101,9 @@ Frische reproduzierbare Installation und frisches `npm audit --omit=dev --json`:
 - `tar` ist exakt 7.5.22 über `expo -> @expo/cli -> tar`; der frühere Bereich `<=7.5.20`
   ist behoben, und der frische Audit enthält keinen `tar`-Fund.
 
-Damit sind die Aussagen „kein kompatibler Fix“ für `js-yaml`/`nanoid` in Issue #378 stale;
-Issue #376 ist sachlich erledigt. Die Tracker müssen auf diesen Zustand aktualisiert werden.
+Damit sind die Aussagen „kein kompatibler Fix“ für `js-yaml`/`nanoid` im damaligen
+Trackerstand technisch überholt; die Pflege von Issue #234/#376/#378 erfolgt außerhalb
+dieser repositoryseitigen Korrektur.
 
 ## Runtime-/Integrations-Gegencheck
 
@@ -132,14 +135,16 @@ Lokal erfolgreich: frisches `npm ci`, Audit-Policy, Source-NUL, Typecheck, 296 J
 2716 Tests mit Coverage-Enforcement (92.45% Statements, 83.95% Branches), ESLint ohne
 Warnings, Complexity, Expo-Release-Config und generiertes Manifest-/Permission-Gate.
 Android-Prebuild wurde ausschließlich für native statische Checks ausgeführt. JDK 17 wurde
-verifiziert. Der lokale Kotlin/JUnit-Lauf konnte mangels installiertem Android SDK nicht
-abschließen; der anfängliche Lauf unter der Container-Vorgabe JDK 25 scheiterte erwartbar,
-der korrekte JDK-17-Lauf erreichte anschließend die SDK-Prüfung. Das ist eine transparente
-Umgebungsgrenze, kein grün maskierter Test.
+verifiziert. Der damalige lokale Kotlin/JUnit-Lauf konnte mangels installiertem Android SDK
+nicht abschließen; diese lokale Containergrenze wurde anschließend durch GitHub Actions
+aufgelöst: CI #1411 war auf exakt `1ea1e12bbf21857f3644e0ada42168fdbd164eff`
+vollständig erfolgreich, einschließlich Kotlin Compile, nativer JVM/JUnit-Tests, Native
+Gradle Enforcement und JUnit Execution Verification.
 
-Daher gilt: **nicht mergen**, bevor die vollständige GitHub-CI auf dem unveränderten finalen
-PR-Head einschließlich Kotlin-Compile, nativen JVM/JUnit-Tests und JUnit-Enforcement grün
-ist. Der Deep-Scan bleibt mangels Plugin ebenfalls als nicht ausgeführter Nachweis sichtbar.
+CI #1411 bestätigt ausschließlich diesen vorherigen SHA. Der vorliegende gezielte
+Korrektur-Pass erzeugt einen neuen SHA; für ihn ist erneut Exact-Head-CI erforderlich und
+dieser Bericht behauptet keinen vorweggenommenen grünen Lauf. Der Deep-Scan bleibt mangels
+Plugin ebenfalls als nicht ausgeführter Nachweis sichtbar.
 
 ## Release-/Gerätegrenze
 

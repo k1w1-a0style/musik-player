@@ -13,7 +13,20 @@ function runBlocks(document: any): any[] {
 }
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
-const hasSecretExpression = (value: unknown): boolean => JSON.stringify(value).includes('secrets.');
+const EXTERNAL_USE_WITH_SHA = /^[^\s@]+@[0-9a-f]{40}$/;
+const SECRET_EXPRESSION = /\bsecrets\s*(?:\.|\[\s*['"])/;
+
+const isPinnedExternalUse = (value: unknown): boolean => typeof value === 'string'
+  && (value.startsWith('./') || EXTERNAL_USE_WITH_SHA.test(value));
+
+const hasSecretExpression = (value: unknown): boolean => {
+  if (typeof value === 'string') return SECRET_EXPRESSION.test(value);
+  if (Array.isArray(value)) return value.some(hasSecretExpression);
+  if (value == null || typeof value !== 'object') return false;
+  return Object.entries(value).some(([key, entry]) => (
+    key === 'secrets' && entry === 'inherit'
+  ) || hasSecretExpression(entry));
+};
 const hasWritePermission = (permissions: unknown): boolean => permissions === 'write-all'
   || (permissions != null && typeof permissions === 'object'
     && Object.values(permissions).some(value => value === 'write'));
@@ -21,12 +34,40 @@ const hasWritePermission = (permissions: unknown): boolean => permissions === 'w
 describe('repository-wide workflow security inventory', () => {
   test.each(workflowFiles)('%s pins every external action to an immutable commit', file => {
     for (const job of jobs(load(file))) {
+      if (job.uses != null) expect(isPinnedExternalUse(job.uses)).toBe(true);
       for (const step of job.steps || []) {
-        if (typeof step.uses === 'string' && !step.uses.startsWith('./')) {
-          expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/);
-        }
+        if (step.uses != null) expect(isPinnedExternalUse(step.uses)).toBe(true);
       }
     }
+  });
+
+  test.each([
+    'owner/repo/.github/workflows/build.yml@main',
+    'owner/repo/.github/workflows/build.yml@master',
+    'owner/repo/.github/workflows/build.yml@v1',
+    'owner/repo/.github/workflows/build.yml@abcdef1',
+  ])('rejects movable external job-level reusable workflow ref %s', value => {
+    expect(isPinnedExternalUse(value)).toBe(false);
+  });
+
+  test.each([
+    './.github/workflows/eas-build.yml',
+    `owner/repo/.github/workflows/build.yml@${'a'.repeat(40)}`,
+  ])('accepts trusted reusable workflow reference %s', value => {
+    expect(isPinnedExternalUse(value)).toBe(true);
+  });
+
+  test.each([
+    '${{ secrets.FOO }}',
+    "${{ secrets['FOO'] }}",
+    '${{ secrets["FOO"] }}',
+  ])('detects secret expression syntax %s', value => {
+    expect(hasSecretExpression({ env: { TOKEN: value } })).toBe(true);
+  });
+
+  test('detects job-level secrets inheritance without banning it globally', () => {
+    expect(hasSecretExpression({ uses: './.github/workflows/eas-build.yml', secrets: 'inherit' })).toBe(true);
+    expect(isPinnedExternalUse('./.github/workflows/eas-build.yml')).toBe(true);
   });
 
   test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
