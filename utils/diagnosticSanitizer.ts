@@ -16,7 +16,7 @@ export const sanitizeDiagnosticText = (value: string): string => {
     .replace(URI_PATTERN, '<redacted-uri>')
     .replace(WEB_URL_PATTERN, '<redacted-url>')
     .replace(WINDOWS_PATH_PATTERN, '<redacted-path>')
-    .replace(ANDROID_PATH_PATTERN, (match, offset: number) => {
+    .replace(ANDROID_PATH_PATTERN, (match) => {
       const prefix = match.startsWith(' ') || match.startsWith('(') ? match[0] : '';
       return `${prefix}<redacted-path>`;
     })
