@@ -14,7 +14,8 @@ function runBlocks(document: any): any[] {
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
 const EXTERNAL_USE_WITH_SHA = /^[^\s@]+@[0-9a-f]{40}$/;
-const SECRET_EXPRESSION = /\bsecrets\s*(?:\.|\[\s*['"])/;
+const SECRET_EXPRESSION = /\bsecrets\s*(?:\.|\[)/;
+const EXACT_FORK_TRUST_BOUNDARY = 'github.event.pull_request.head.repo.fork==false';
 
 const isPinnedExternalUse = (value: unknown): boolean => typeof value === 'string'
   && (value.startsWith('./') || EXTERNAL_USE_WITH_SHA.test(value));
@@ -38,6 +39,14 @@ const hasWorkflowTrigger = (on: unknown, triggerName: string): boolean => {
     && Object.prototype.hasOwnProperty.call(on, triggerName);
 };
 
+const hasExactForkTrustBoundary = (condition: unknown): boolean => {
+  if (typeof condition !== 'string') return false;
+  const trimmed = condition.trim();
+  const wrapped = trimmed.match(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/);
+  const expression = wrapped ? wrapped[1] : trimmed;
+  return expression.replace(/\s+/g, '') === EXACT_FORK_TRUST_BOUNDARY;
+};
+
 const prTrustBoundaryFailures = (workflow: any): any[] => {
   const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request')
     || hasWorkflowTrigger(workflow.on, 'pull_request_target');
@@ -46,7 +55,7 @@ const prTrustBoundaryFailures = (workflow: any): any[] => {
   return jobs(workflow).filter(job => {
     const sensitive = workflowHasSecretEnv || hasSecretExpression(job)
       || hasWritePermission(job.permissions) || hasWritePermission(workflow.permissions);
-    return sensitive && !String(job.if || '').includes('github.event.pull_request.head.repo.fork == false');
+    return sensitive && !hasExactForkTrustBoundary(job.if);
   });
 };
 
@@ -80,6 +89,9 @@ describe('repository-wide workflow security inventory', () => {
     '${{ secrets.FOO }}',
     "${{ secrets['FOO'] }}",
     '${{ secrets["FOO"] }}',
+    '${{ secrets[matrix.secret_name] }}',
+    '${{ secrets[ matrix.secret_name ] }}',
+    "${{ secrets[format('{0}_TOKEN', matrix.target)] }}",
   ])('detects secret expression syntax %s', value => {
     expect(hasSecretExpression({ env: { TOKEN: value } })).toBe(true);
   });
@@ -87,6 +99,30 @@ describe('repository-wide workflow security inventory', () => {
   test('detects job-level secrets inheritance without banning it globally', () => {
     expect(hasSecretExpression({ uses: './.github/workflows/eas-build.yml', secrets: 'inherit' })).toBe(true);
     expect(isPinnedExternalUse('./.github/workflows/eas-build.yml')).toBe(true);
+  });
+
+  test.each([
+    'github.event.pull_request.head.repo.fork == false',
+    '${{ github.event.pull_request.head.repo.fork == false }}',
+    ' github.event.pull_request.head.repo.fork==false ',
+    '${{\n github.event.pull_request.head.repo.fork  ==  false\n}}',
+  ])('accepts exact fork trust boundary %j', condition => {
+    expect(hasExactForkTrustBoundary(condition)).toBe(true);
+  });
+
+  test.each([
+    undefined,
+    '',
+    'always()',
+    'github.event.pull_request.head.repo.fork == false || always()',
+    'always() || github.event.pull_request.head.repo.fork == false',
+    'github.event.pull_request.head.repo.fork == false && always()',
+    '!github.event.pull_request.head.repo.fork == false',
+    'prefix github.event.pull_request.head.repo.fork == false suffix',
+    'github.event.pull_request.head.repo.fork != true',
+    'someFunction(github.event.pull_request.head.repo.fork == false)',
+  ])('rejects non-exact fork trust boundary %j', condition => {
+    expect(hasExactForkTrustBoundary(condition)).toBe(false);
   });
 
   test.each([
@@ -161,6 +197,21 @@ describe('repository-wide workflow security inventory', () => {
         },
       },
     })).toEqual([]);
+  });
+
+  test.each(['pull_request', 'pull_request_target'])('%s computed-secret job requires the exact fork guard', trigger => {
+    const job: { runsOn: string; env: { TOKEN: string }; if?: string } = {
+      runsOn: 'ubuntu-latest',
+      env: { TOKEN: '${{ secrets[matrix.secret_name] }}' },
+    };
+    const workflow = { on: { [trigger]: null }, jobs: { test: job } };
+    expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+
+    job.if = 'github.event.pull_request.head.repo.fork == false || always()';
+    expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+
+    job.if = '${{ github.event.pull_request.head.repo.fork == false }}';
+    expect(prTrustBoundaryFailures(workflow)).toEqual([]);
   });
 
   test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
