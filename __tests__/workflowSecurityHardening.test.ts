@@ -239,7 +239,10 @@ describe('repository-wide workflow security inventory', () => {
     [{ pull_request: {} }, 'pull_request'],
     [{ pull_request: { branches: ['main'] } }, 'pull_request'],
     ['pull_request_target', 'pull_request_target'],
+    [['push', 'pull_request_target'], 'pull_request_target'],
     [{ pull_request_target: null }, 'pull_request_target'],
+    [{ pull_request_target: {} }, 'pull_request_target'],
+    [{ pull_request_target: { branches: ['main'] } }, 'pull_request_target'],
   ])('detects workflow trigger %j', (on, triggerName) => {
     expect(hasWorkflowTrigger(on, triggerName as string)).toBe(true);
   });
