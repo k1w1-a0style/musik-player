@@ -49,4 +49,26 @@ describe('diagnostic sanitizer', () => {
     value.self = value;
     expect(sanitizeDiagnosticValue(value)).toEqual({ count: 1, self: '<circular>' });
   });
+
+  test('redacts camelCase credentials, keystore data and private metadata at every nested level', () => {
+    const safe = sanitizeDiagnosticValue({
+      apiKey: 'API-CANARY',
+      accessKey: 'ACCESS-CANARY',
+      authorization: 'AUTH-CANARY',
+      keyPassword: 'PASSWORD-CANARY',
+      keystoreBase64: 'KEYSTORE-CANARY',
+      nested: [{ artist: 'ARTIST-CANARY', album: 'ALBUM-CANARY', comment: 'COMMENT-CANARY', lyrics: 'LYRICS-CANARY' }],
+    });
+    const serialized = JSON.stringify(safe);
+    for (const canary of ['API-CANARY', 'ACCESS-CANARY', 'AUTH-CANARY', 'PASSWORD-CANARY', 'KEYSTORE-CANARY', 'ARTIST-CANARY', 'ALBUM-CANARY', 'COMMENT-CANARY', 'LYRICS-CANARY']) {
+      expect(serialized).not.toContain(canary);
+    }
+  });
+
+  test('bounds long strings, arrays and nested structures', () => {
+    const safe = sanitizeDiagnosticValue({ text: 'x'.repeat(1_000), values: Array.from({ length: 30 }, (_, index) => index), deep: { a: { b: { c: { value: 'hidden' } } } } }) as any;
+    expect(safe.text.length).toBeLessThan(1_000);
+    expect(safe.values).toHaveLength(20);
+    expect(safe.deep.a.b.c).toBe('<max-depth>');
+  });
 });

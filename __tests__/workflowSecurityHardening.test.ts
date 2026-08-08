@@ -4,13 +4,51 @@ import path from 'path';
 import YAML from '../node_modules/yaml/dist/index';
 
 const workflowsDir = path.join(process.cwd(), '.github', 'workflows');
-const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith('.yml'));
+const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name));
 const load = (name: string) => YAML.parse(fs.readFileSync(path.join(workflowsDir, name), 'utf8'));
 const source = (name: string) => fs.readFileSync(path.join(workflowsDir, name), 'utf8');
 
 function runBlocks(document: any): any[] {
   return Object.values(document.jobs || {}).flatMap((job: any) => job.steps || []).filter((step: any) => typeof step.run === 'string');
 }
+
+const jobs = (document: any): any[] => Object.values(document.jobs || {});
+const hasSecretExpression = (value: unknown): boolean => JSON.stringify(value).includes('secrets.');
+const hasWritePermission = (permissions: unknown): boolean => permissions === 'write-all'
+  || (permissions != null && typeof permissions === 'object'
+    && Object.values(permissions).some(value => value === 'write'));
+
+describe('repository-wide workflow security inventory', () => {
+  test.each(workflowFiles)('%s pins every external action to an immutable commit', file => {
+    for (const job of jobs(load(file))) {
+      for (const step of job.steps || []) {
+        if (typeof step.uses === 'string' && !step.uses.startsWith('./')) {
+          expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/);
+        }
+      }
+    }
+  });
+
+  test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
+    for (const job of jobs(load(file))) {
+      for (const step of job.steps || []) {
+        if (typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@')) {
+          expect(step.with?.['persist-credentials']).toBe(false);
+        }
+      }
+    }
+  });
+
+  test.each(workflowFiles)('%s keeps secret-bearing and writable jobs off pull requests', file => {
+    const workflow = load(file);
+    const pullsCode = Boolean(workflow.on?.pull_request || workflow.on?.pull_request_target);
+    for (const job of jobs(workflow)) {
+      const sensitive = hasSecretExpression(job) || hasWritePermission(job.permissions)
+        || hasWritePermission(workflow.permissions);
+      if (pullsCode && sensitive) expect(String(job.if || '')).toContain('github.event.pull_request.head.repo.fork == false');
+    }
+  });
+});
 
 describe('workflow shell expression boundary', () => {
   test.each(workflowFiles)('%s has no GitHub expression in a run script', (file) => {

@@ -3,7 +3,7 @@ const MAX_DIAGNOSTIC_ARRAY_ITEMS = 20;
 const MAX_DIAGNOSTIC_OBJECT_KEYS = 40;
 const MAX_DIAGNOSTIC_TEXT_LENGTH = 500;
 
-const SENSITIVE_FIELD_PATTERN = /(?:uri|url|path|file(?:name)?|document(?:id)?|authority|token|secret|password|passphrase|keystore|privatekey|title|artist|album|genre|comment|lyrics)$/i;
+const SENSITIVE_FIELD_PATTERN = /(?:uri|url|path|file(?:name)?|document(?:id)?|authority|authorization|auth|credential|token|secret|password|passphrase|keystore(?:base64)?|privatekey|api[_-]?key|access[_-]?key|title|artist|album|genre|comment|lyrics)$/i;
 const URI_PATTERN = /\b(?:content|file):\/\/[^\s'"<>]+/gi;
 const WEB_URL_PATTERN = /\bhttps?:\/\/[^\s'"<>]+/gi;
 const WINDOWS_PATH_PATTERN = /\b[A-Za-z]:\\[^\r\n\t"'<>]+/g;
