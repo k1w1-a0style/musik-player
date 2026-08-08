@@ -1,4 +1,32 @@
 {
   "schemaVersion": 1,
-  "exceptions": []
+  "exceptions": [
+    {
+      "package": "image-size",
+      "severity": "high",
+      "expectedVersions": ["1.2.1"],
+      "advisorySources": [1138808, 1138809],
+      "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
+      "reason": "Build-tool-only Expo/Metro image parsing DoS advisories; no compatible patched image-size release is published yet, and the suggested React Native downgrade is incompatible with this SDK line.",
+      "expiresOn": "2026-08-15"
+    },
+    {
+      "package": "js-yaml",
+      "severity": "high",
+      "expectedVersions": ["3.15.0", "4.3.0"],
+      "advisorySources": [1138114, 1138115],
+      "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
+      "reason": "The new quadratic-CPU advisory affects the currently published js-yaml 3.x and 4.x legacy lines used by build tooling; no compatible patched legacy release is available yet.",
+      "expiresOn": "2026-08-15"
+    },
+    {
+      "package": "nanoid",
+      "severity": "high",
+      "expectedVersions": ["3.3.16"],
+      "advisorySources": [1138813],
+      "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
+      "reason": "The advisory affects Nano ID 3.x custom generators at size zero; the repository receives this transitively through build tooling and no compatible 3.3.17+ release is published yet.",
+      "expiresOn": "2026-08-15"
+    }
+  ]
 }

@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   development-apk-smoke:
-    if: github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'
+    if: github.ref == 'refs/heads/codex' && github.event.inputs.confirmation == 'BUILD_DEVELOPMENT_APK'
     name: Build, inspect, install and launch development APK
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -29,8 +29,11 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout
+      - name: Checkout trusted codex head
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: codex
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4

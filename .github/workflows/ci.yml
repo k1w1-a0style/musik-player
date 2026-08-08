@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, codex]
   push:
-    branches: [main, codex]
+    branches: [main, codex, "fix/**", "refactor/**", "review/**"]
   workflow_dispatch:
 
 permissions:

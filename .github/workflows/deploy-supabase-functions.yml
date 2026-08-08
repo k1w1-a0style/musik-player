@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   run-eas-build:
-    if: ${{ vars.ENABLE_CLOUD_EAS_BUILDS == 'true' }}
+    if: ${{ github.ref == 'refs/heads/codex' && vars.ENABLE_CLOUD_EAS_BUILDS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -30,8 +30,11 @@ jobs:
       RAW_JOB_ID: ${{ github.event.inputs.job_id }}
 
     steps:
-      - name: Checkout
+      - name: Checkout trusted codex head
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: codex
+          persist-credentials: false
 
       - name: Validate Job ID
         shell: bash
