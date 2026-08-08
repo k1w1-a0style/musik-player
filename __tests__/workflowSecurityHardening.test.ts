@@ -15,7 +15,8 @@ function runBlocks(document: any): any[] {
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
 const EXTERNAL_USE_WITH_SHA = /^[^\s@]+@[0-9a-f]{40}$/;
-const SECRET_EXPRESSION = /\bsecrets\s*(?:\.|\[)/;
+const GITHUB_EXPRESSION = /\$\{\{([\s\S]*?)\}\}/g;
+const SECRETS_CONTEXT_IDENTIFIER = /(^|[^A-Za-z0-9_.])secrets(?![A-Za-z0-9_])/;
 const EXACT_FORK_TRUST_BOUNDARY = 'github.event.pull_request.head.repo.fork==false';
 
 const isPinnedExternalUse = (value: unknown): boolean => typeof value === 'string'
@@ -80,8 +81,14 @@ const checkActionFixture = (files: Record<string, string>, entry = './action-a')
   }
 };
 
+const hasSecretsContextReference = (value: string): boolean => [...value.matchAll(GITHUB_EXPRESSION)]
+  .some(([, expression]) => {
+    const withoutStrings = expression.replace(/'(?:''|[^'])*'|"(?:\\"|[^"])*"/g, '');
+    return SECRETS_CONTEXT_IDENTIFIER.test(withoutStrings);
+  });
+
 const hasSecretExpression = (value: unknown): boolean => {
-  if (typeof value === 'string') return SECRET_EXPRESSION.test(value);
+  if (typeof value === 'string') return hasSecretsContextReference(value);
   if (Array.isArray(value)) return value.some(hasSecretExpression);
   if (value == null || typeof value !== 'object') return false;
   return Object.entries(value).some(([key, entry]) => (
@@ -199,8 +206,25 @@ describe('repository-wide workflow security inventory', () => {
     '${{ secrets[matrix.secret_name] }}',
     '${{ secrets[ matrix.secret_name ] }}',
     "${{ secrets[format('{0}_TOKEN', matrix.target)] }}",
+    '${{ toJSON(secrets) }}',
+    '${{ secrets }}',
+    "${{ contains(toJSON(secrets), 'TOKEN') }}",
+    'first=${{ vars.SAFE }} second=${{ toJSON(secrets) }}',
   ])('detects secret expression syntax %s', value => {
     expect(hasSecretExpression({ env: { TOKEN: value } })).toBe(true);
+  });
+
+  test.each([
+    'do not print secrets',
+    'secrets documentation',
+    '${{ env.secrets }}',
+    '${{ vars.secrets }}',
+    '${{ mysecrets.VALUE }}',
+    '${{ secrets_manager.VALUE }}',
+    'normal string without a GitHub expression',
+    "${{ contains('secrets', 'secret') }}",
+  ])('does not mistake non-context text for a secret reference: %s', value => {
+    expect(hasSecretExpression({ name: value })).toBe(false);
   });
 
   test('detects job-level secrets inheritance without banning it globally', () => {
@@ -322,6 +346,26 @@ describe('repository-wide workflow security inventory', () => {
 
     job.if = '${{ github.event.pull_request.head.repo.fork == false }}';
     expect(prTrustBoundaryFailures(workflow)).toEqual([]);
+  });
+
+  test.each(['pull_request', 'pull_request_target'])('%s whole secrets context requires the exact fork guard', trigger => {
+    const job: { runsOn: string; env: { ALL_SECRETS: string }; if?: string } = {
+      runsOn: 'ubuntu-latest',
+      env: { ALL_SECRETS: '${{ toJSON(secrets) }}' },
+    };
+    const workflow = { on: { [trigger]: null }, jobs: { test: job } };
+    expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+
+    job.if = 'github.event.pull_request.head.repo.fork == false';
+    expect(prTrustBoundaryFailures(workflow)).toEqual([]);
+  });
+
+  test('does not classify ordinary workflow text mentioning secrets as sensitive', () => {
+    expect(prTrustBoundaryFailures({
+      on: { pull_request: null },
+      env: { MESSAGE: 'do not print secrets' },
+      jobs: { test: { runsOn: 'ubuntu-latest', name: 'Validate secrets documentation' } },
+    })).toEqual([]);
   });
 
   test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
