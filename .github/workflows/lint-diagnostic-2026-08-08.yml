@@ -1,0 +1,49 @@
+name: Lint Diagnostic
+
+on:
+  push:
+    branches: ["fix/final-prebuild-hardening-2026-08-08"]
+  pull_request:
+    branches: [codex]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Capture lint diagnostic
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npx eslint . --format json > lint-diagnostic.json
+          status=$?
+          set -e
+          printf '%s\n' "$status" > lint-diagnostic.exit-code
+          exit 0
+
+      - name: Upload lint diagnostic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lint-diagnostic
+          path: |
+            lint-diagnostic.json
+            lint-diagnostic.exit-code
+          if-no-files-found: error
+          retention-days: 1
