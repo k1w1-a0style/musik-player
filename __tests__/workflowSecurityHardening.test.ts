@@ -15,8 +15,7 @@ function runBlocks(document: any): any[] {
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
 const EXTERNAL_USE_WITH_SHA = /^[^\s@]+@[0-9a-f]{40}$/;
-const GITHUB_EXPRESSION = /\$\{\{([\s\S]*?)\}\}/g;
-const SECRETS_CONTEXT_IDENTIFIER = /(^|[^A-Za-z0-9_.])secrets(?![A-Za-z0-9_])/;
+const EXPRESSION_IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/g;
 const EXACT_FORK_TRUST_BOUNDARY = 'github.event.pull_request.head.repo.fork==false';
 
 const isPinnedExternalUse = (value: unknown): boolean => typeof value === 'string'
@@ -81,11 +80,79 @@ const checkActionFixture = (files: Record<string, string>, entry = './action-a')
   }
 };
 
-const hasSecretsContextReference = (value: string): boolean => [...value.matchAll(GITHUB_EXPRESSION)]
-  .some(([, expression]) => {
-    const withoutStrings = expression.replace(/'(?:''|[^'])*'|"(?:\\"|[^"])*"/g, '');
-    return SECRETS_CONTEXT_IDENTIFIER.test(withoutStrings);
-  });
+const scanExpressionEnd = (value: string, start: number): number => {
+  let quote: "'" | '"' | null = null;
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote === "'") {
+      if (character === "'" && value[index + 1] === "'") index += 1;
+      else if (character === "'") quote = null;
+      continue;
+    }
+    if (quote === '"') {
+      if (character === '\\') index += 1;
+      else if (character === '"') quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"') quote = character;
+    else if (character === '}' && value[index + 1] === '}') return index;
+  }
+  return -1;
+};
+
+const githubExpressionBodies = (value: string): string[] => {
+  const bodies: string[] = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    const start = value.indexOf('${{', cursor);
+    if (start < 0) break;
+    const bodyStart = start + 3;
+    const end = scanExpressionEnd(value, bodyStart);
+    if (end < 0) {
+      // Invalid expressions cannot run, but retain their body so this security gate fails
+      // closed if a malformed future workflow still mentions the secrets context.
+      bodies.push(value.slice(bodyStart));
+      break;
+    }
+    bodies.push(value.slice(bodyStart, end));
+    cursor = end + 2;
+  }
+  return bodies;
+};
+
+const maskQuotedExpressionText = (expression: string): string => {
+  const output = [...expression];
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < expression.length; index += 1) {
+    const character = expression[index];
+    if (quote === "'") {
+      output[index] = ' ';
+      if (character === "'" && expression[index + 1] === "'") output[++index] = ' ';
+      else if (character === "'") quote = null;
+    } else if (quote === '"') {
+      output[index] = ' ';
+      if (character === '\\' && index + 1 < expression.length) output[++index] = ' ';
+      else if (character === '"') quote = null;
+    } else if (character === "'" || character === '"') {
+      quote = character;
+      output[index] = ' ';
+    }
+  }
+  return output.join('');
+};
+
+const expressionReferencesSecrets = (expression: string): boolean => {
+  const unquoted = maskQuotedExpressionText(expression);
+  for (const match of unquoted.matchAll(EXPRESSION_IDENTIFIER)) {
+    if (match[0] !== 'secrets') continue;
+    const prefix = unquoted.slice(0, match.index).trimEnd();
+    if (!prefix.endsWith('.')) return true;
+  }
+  return false;
+};
+
+const hasSecretsContextReference = (value: string): boolean => githubExpressionBodies(value)
+  .some(expressionReferencesSecrets);
 
 const hasSecretExpression = (value: unknown): boolean => {
   if (typeof value === 'string') return hasSecretsContextReference(value);
@@ -205,11 +272,20 @@ describe('repository-wide workflow security inventory', () => {
     '${{ secrets["FOO"] }}',
     '${{ secrets[matrix.secret_name] }}',
     '${{ secrets[ matrix.secret_name ] }}',
+    '${{ env[secrets] }}',
     "${{ secrets[format('{0}_TOKEN', matrix.target)] }}",
     '${{ toJSON(secrets) }}',
     '${{ secrets }}',
     "${{ contains(toJSON(secrets), 'TOKEN') }}",
     'first=${{ vars.SAFE }} second=${{ toJSON(secrets) }}',
+    "${{ format('{{{0}}}', secrets.FOO) }}",
+    "${{ format('}}', secrets.FOO) }}",
+    "${{ format('{{', secrets.FOO) }}",
+    "${{ '}}' }}-${{ secrets.FOO }}",
+    'prefix-${{ vars.SAFE }}-${{ toJSON(secrets) }}-suffix',
+    "${{ contains('}}', secrets[matrix.secret_name]) }}",
+    "${{ format('it''s }} safe', secrets.FOO) }}",
+    '${{\n  format(\'quoted }}\',\n    secrets.FOO)\n}}',
   ])('detects secret expression syntax %s', value => {
     expect(hasSecretExpression({ env: { TOKEN: value } })).toBe(true);
   });
@@ -218,11 +294,15 @@ describe('repository-wide workflow security inventory', () => {
     'do not print secrets',
     'secrets documentation',
     '${{ env.secrets }}',
+    '${{ env . secrets }}',
     '${{ vars.secrets }}',
     '${{ mysecrets.VALUE }}',
     '${{ secrets_manager.VALUE }}',
     'normal string without a GitHub expression',
     "${{ contains('secrets', 'secret') }}",
+    "${{ format('{{{0}}}', vars.FOO) }}",
+    "${{ 'secrets.FOO' }}",
+    "${{ 'secrets' }}",
   ])('does not mistake non-context text for a secret reference: %s', value => {
     expect(hasSecretExpression({ name: value })).toBe(false);
   });
@@ -230,6 +310,15 @@ describe('repository-wide workflow security inventory', () => {
   test('detects job-level secrets inheritance without banning it globally', () => {
     expect(hasSecretExpression({ uses: './.github/workflows/eas-build.yml', secrets: 'inherit' })).toBe(true);
     expect(isPinnedExternalUse('./.github/workflows/eas-build.yml')).toBe(true);
+  });
+
+  test('scans multiple expression bodies without treating quoted braces as delimiters', () => {
+    expect(githubExpressionBodies("before ${{ '}}' }} middle ${{ format('{{', vars.FOO) }} after"))
+      .toEqual([" '}}' ", " format('{{', vars.FOO) "]);
+  });
+
+  test('fails closed on an unterminated expression that references secrets', () => {
+    expect(hasSecretsContextReference('${{ format(\'unterminated\', secrets.FOO)')).toBe(true);
   });
 
   test.each([
@@ -358,6 +447,29 @@ describe('repository-wide workflow security inventory', () => {
 
     job.if = 'github.event.pull_request.head.repo.fork == false';
     expect(prTrustBoundaryFailures(workflow)).toEqual([]);
+  });
+
+  test.each(['pull_request', 'pull_request_target'])('%s quote-aware expression requires the exact fork guard', trigger => {
+    const job: { runsOn: string; env: { TOKEN: string }; if?: string } = {
+      runsOn: 'ubuntu-latest',
+      env: { TOKEN: "${{ format('{{{0}}}', secrets.FOO) }}" },
+    };
+    const workflow = { on: { [trigger]: null }, jobs: { test: job } };
+    expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+
+    job.if = 'github.event.pull_request.head.repo.fork == false';
+    expect(prTrustBoundaryFailures(workflow)).toEqual([]);
+  });
+
+  test('detects a secret after a harmless expression and quoted closing braces', () => {
+    const job = {
+      runsOn: 'ubuntu-latest',
+      env: { TOKEN: "prefix ${{ vars.SAFE }} middle ${{ format('}}', secrets.FOO) }}" },
+    };
+    expect(prTrustBoundaryFailures({
+      on: { pull_request: null },
+      jobs: { test: job },
+    })).toEqual([job]);
   });
 
   test('does not classify ordinary workflow text mentioning secrets as sensitive', () => {
