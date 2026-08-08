@@ -42,9 +42,10 @@ const prTrustBoundaryFailures = (workflow: any): any[] => {
   const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request')
     || hasWorkflowTrigger(workflow.on, 'pull_request_target');
   if (!pullsCode) return [];
+  const workflowHasSecretEnv = hasSecretExpression(workflow.env);
   return jobs(workflow).filter(job => {
-    const sensitive = hasSecretExpression(job) || hasWritePermission(job.permissions)
-      || hasWritePermission(workflow.permissions);
+    const sensitive = workflowHasSecretEnv || hasSecretExpression(job)
+      || hasWritePermission(job.permissions) || hasWritePermission(workflow.permissions);
     return sensitive && !String(job.if || '').includes('github.event.pull_request.head.repo.fork == false');
   });
 };
@@ -122,6 +123,44 @@ describe('repository-wide workflow security inventory', () => {
       workflow.jobs.secretJob,
       workflow.jobs.writeJob,
     ]);
+  });
+
+  test.each(['pull_request', 'pull_request_target'])('%s inherits secret-bearing workflow env into jobs', trigger => {
+    const job = { runsOn: 'ubuntu-latest' };
+    expect(prTrustBoundaryFailures({
+      on: { [trigger]: null },
+      env: { TOKEN: '${{ secrets.FOO }}' },
+      jobs: { test: job },
+    })).toEqual([job]);
+  });
+
+  test('does not treat non-secret workflow env as sensitive', () => {
+    expect(prTrustBoundaryFailures({
+      on: { pull_request: null },
+      env: { NODE_ENV: 'test' },
+      jobs: { test: { runsOn: 'ubuntu-latest' } },
+    })).toEqual([]);
+  });
+
+  test('does not apply the PR gate to non-PR workflows with secret workflow env', () => {
+    expect(prTrustBoundaryFailures({
+      on: { push: null },
+      env: { TOKEN: '${{ secrets.FOO }}' },
+      jobs: { test: { runsOn: 'ubuntu-latest' } },
+    })).toEqual([]);
+  });
+
+  test('accepts the expected trust boundary with inherited workflow secret env', () => {
+    expect(prTrustBoundaryFailures({
+      on: { pull_request: null },
+      env: { TOKEN: '${{ secrets.FOO }}' },
+      jobs: {
+        test: {
+          runsOn: 'ubuntu-latest',
+          if: 'github.event.pull_request.head.repo.fork == false',
+        },
+      },
+    })).toEqual([]);
   });
 
   test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
