@@ -31,6 +31,24 @@ const hasWritePermission = (permissions: unknown): boolean => permissions === 'w
   || (permissions != null && typeof permissions === 'object'
     && Object.values(permissions).some(value => value === 'write'));
 
+const hasWorkflowTrigger = (on: unknown, triggerName: string): boolean => {
+  if (typeof on === 'string') return on === triggerName;
+  if (Array.isArray(on)) return on.includes(triggerName);
+  return on != null && typeof on === 'object'
+    && Object.prototype.hasOwnProperty.call(on, triggerName);
+};
+
+const prTrustBoundaryFailures = (workflow: any): any[] => {
+  const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request')
+    || hasWorkflowTrigger(workflow.on, 'pull_request_target');
+  if (!pullsCode) return [];
+  return jobs(workflow).filter(job => {
+    const sensitive = hasSecretExpression(job) || hasWritePermission(job.permissions)
+      || hasWritePermission(workflow.permissions);
+    return sensitive && !String(job.if || '').includes('github.event.pull_request.head.repo.fork == false');
+  });
+};
+
 describe('repository-wide workflow security inventory', () => {
   test.each(workflowFiles)('%s pins every external action to an immutable commit', file => {
     for (const job of jobs(load(file))) {
@@ -70,6 +88,42 @@ describe('repository-wide workflow security inventory', () => {
     expect(isPinnedExternalUse('./.github/workflows/eas-build.yml')).toBe(true);
   });
 
+  test.each([
+    ['pull_request', 'pull_request'],
+    [['push', 'pull_request'], 'pull_request'],
+    [{ pull_request: null }, 'pull_request'],
+    [{ pull_request: {} }, 'pull_request'],
+    [{ pull_request: { branches: ['main'] } }, 'pull_request'],
+    ['pull_request_target', 'pull_request_target'],
+    [{ pull_request_target: null }, 'pull_request_target'],
+  ])('detects workflow trigger %j', (on, triggerName) => {
+    expect(hasWorkflowTrigger(on, triggerName as string)).toBe(true);
+  });
+
+  test.each([
+    ['push', 'pull_request'],
+    [['push', 'workflow_dispatch'], 'pull_request'],
+    [{ push: null }, 'pull_request'],
+    [null, 'pull_request'],
+    [undefined, 'pull_request'],
+  ])('does not invent workflow trigger for %j', (on, triggerName) => {
+    expect(hasWorkflowTrigger(on, triggerName as string)).toBe(false);
+  });
+
+  test('does not skip a null-valued PR trigger on a secret or writable job', () => {
+    const workflow = {
+      on: { pull_request: null },
+      jobs: {
+        secretJob: { runsOn: 'ubuntu-latest', env: { TOKEN: '${{ secrets.FOO }}' } },
+        writeJob: { runsOn: 'ubuntu-latest', permissions: { contents: 'write' } },
+      },
+    };
+    expect(prTrustBoundaryFailures(workflow)).toEqual([
+      workflow.jobs.secretJob,
+      workflow.jobs.writeJob,
+    ]);
+  });
+
   test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
     for (const job of jobs(load(file))) {
       for (const step of job.steps || []) {
@@ -82,12 +136,7 @@ describe('repository-wide workflow security inventory', () => {
 
   test.each(workflowFiles)('%s keeps secret-bearing and writable jobs off pull requests', file => {
     const workflow = load(file);
-    const pullsCode = Boolean(workflow.on?.pull_request || workflow.on?.pull_request_target);
-    for (const job of jobs(workflow)) {
-      const sensitive = hasSecretExpression(job) || hasWritePermission(job.permissions)
-        || hasWritePermission(workflow.permissions);
-      if (pullsCode && sensitive) expect(String(job.if || '')).toContain('github.event.pull_request.head.repo.fork == false');
-    }
+    expect(prTrustBoundaryFailures(workflow)).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@
 - erster Remote-Stand dieses Hardening-PRs: `1ea1e12bbf21857f3644e0ada42168fdbd164eff`
 - CI #1411: vollständig erfolgreich auf exakt `1ea1e12bbf21857f3644e0ada42168fdbd164eff`
 - beim Start: sauberer Working Tree, keine offenen Pull Requests, `HEAD == origin/codex`
-- Arbeitsbranch: `review/post-379-final-reconciliation-2026-08-08`
+- Arbeitsbranch: `c8sxdc-codex/durchfuhren-des-letzten-pre-build-gegenchecks`
 
 Der Codex-Security-Pluginserver stellte in dieser Sitzung weder Ressourcen noch Templates
 bereit. Ein echter `$codex-security:deep-security-scan` konnte deshalb nicht ausgeführt
