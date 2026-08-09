@@ -252,7 +252,7 @@ const maskQuotedExpressionText = (expression: string): string => {
 const expressionReferencesSecrets = (expression: string): boolean => {
   const unquoted = maskQuotedExpressionText(expression);
   for (const match of unquoted.matchAll(EXPRESSION_IDENTIFIER)) {
-    if (match[0] !== 'secrets') continue;
+    if (match[0].toLowerCase() !== 'secrets') continue;
     const prefix = unquoted.slice(0, match.index).trimEnd();
     if (!prefix.endsWith('.')) return true;
   }
@@ -270,9 +270,24 @@ const hasSecretExpression = (value: unknown): boolean => {
     key === 'secrets' && entry === 'inherit'
   ) || hasSecretExpression(entry));
 };
-const hasWritePermission = (permissions: unknown): boolean => permissions === 'write-all'
-  || (permissions != null && typeof permissions === 'object'
-    && Object.values(permissions).some(value => value === 'write'));
+const hasOwn = (value: unknown, key: string): boolean => value != null
+  && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key);
+
+const hasSensitiveEffectivePermissions = (
+  workflow: any,
+  job: any,
+  implicitPermissionsAreSensitive: boolean,
+): boolean => {
+  const hasJobPermissions = hasOwn(job, 'permissions');
+  const hasWorkflowPermissions = hasOwn(workflow, 'permissions');
+  if (!hasJobPermissions && !hasWorkflowPermissions) return implicitPermissionsAreSensitive;
+
+  const permissions = hasJobPermissions ? job.permissions : workflow.permissions;
+  if (permissions === 'read-all') return false;
+  if (permissions === 'write-all') return true;
+  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) return true;
+  return Object.values(permissions).some(value => value !== 'read' && value !== 'none');
+};
 
 const hasWorkflowTrigger = (on: unknown, triggerName: string): boolean => {
   if (typeof on === 'string') return on === triggerName;
@@ -290,15 +305,15 @@ const hasExactForkTrustBoundary = (condition: unknown): boolean => {
 };
 
 const prTrustBoundaryFailures = (workflow: any, repoRoot = process.cwd()): any[] => {
-  const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request')
-    || hasWorkflowTrigger(workflow.on, 'pull_request_target');
+  const targetsPullRequest = hasWorkflowTrigger(workflow.on, 'pull_request_target');
+  const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request') || targetsPullRequest;
   if (!pullsCode) return [];
   const workflowHasSecretEnv = hasSecretExpression(workflow.env);
   return jobs(workflow).filter(job => {
     const stepInventory = inventoryExecutableSteps(job.steps || [], repoRoot);
     const sensitive = workflowHasSecretEnv || hasSecretExpression(job)
       || hasSecretExpression(stepInventory.steps)
-      || hasWritePermission(job.permissions) || hasWritePermission(workflow.permissions);
+      || hasSensitiveEffectivePermissions(workflow, job, targetsPullRequest);
     return (stepInventory.failures.length > 0 || sensitive) && !hasExactForkTrustBoundary(job.if);
   });
 };
@@ -386,21 +401,30 @@ describe('repository-wide workflow security inventory', () => {
 
   test.each([
     '${{ secrets.FOO }}',
+    '${{ Secrets.FOO }}',
+    '${{ SECRETS.FOO }}',
+    '${{ SeCrEtS.FOO }}',
     "${{ secrets['FOO'] }}",
+    "${{ Secrets['FOO'] }}",
     '${{ secrets["FOO"] }}',
     '${{ secrets[matrix.secret_name] }}',
+    '${{ SECRETS[matrix.secret_name] }}',
     '${{ secrets[ matrix.secret_name ] }}',
     '${{ env[secrets] }}',
     "${{ secrets[format('{0}_TOKEN', matrix.target)] }}",
     '${{ toJSON(secrets) }}',
+    '${{ toJSON(Secrets) }}',
     '${{ secrets }}',
+    '${{ SECRETS }}',
     "${{ contains(toJSON(secrets), 'TOKEN') }}",
     'first=${{ vars.SAFE }} second=${{ toJSON(secrets) }}',
     "${{ format('{{{0}}}', secrets.FOO) }}",
+    "${{ format('{{{0}}}', Secrets.FOO) }}",
     "${{ format('}}', secrets.FOO) }}",
     "${{ format('{{', secrets.FOO) }}",
     "${{ '}}' }}-${{ secrets.FOO }}",
     'prefix-${{ vars.SAFE }}-${{ toJSON(secrets) }}-suffix',
+    "prefix ${{ vars.SAFE }} middle ${{ format('}}', SECRETS.FOO) }}",
     "${{ contains('}}', secrets[matrix.secret_name]) }}",
     "${{ format('it''s }} safe', secrets.FOO) }}",
     '${{\n  format(\'quoted }}\',\n    secrets.FOO)\n}}',
@@ -412,15 +436,22 @@ describe('repository-wide workflow security inventory', () => {
     'do not print secrets',
     'secrets documentation',
     '${{ env.secrets }}',
+    '${{ env.Secrets }}',
     '${{ env . secrets }}',
     '${{ vars.secrets }}',
+    '${{ vars.Secrets }}',
     '${{ mysecrets.VALUE }}',
+    '${{ MySecrets.VALUE }}',
     '${{ secrets_manager.VALUE }}',
+    '${{ SECRETS_MANAGER.VALUE }}',
     'normal string without a GitHub expression',
     "${{ contains('secrets', 'secret') }}",
     "${{ format('{{{0}}}', vars.FOO) }}",
     "${{ 'secrets.FOO' }}",
+    "${{ 'Secrets.FOO' }}",
     "${{ 'secrets' }}",
+    "${{ 'SECRETS' }}",
+    'ordinary Secrets documentation',
   ])('does not mistake non-context text for a secret reference: %s', value => {
     expect(hasSecretExpression({ name: value })).toBe(false);
   });
@@ -486,6 +517,66 @@ describe('repository-wide workflow security inventory', () => {
     [undefined, 'pull_request'],
   ])('does not invent workflow trigger for %j', (on, triggerName) => {
     expect(hasWorkflowTrigger(on, triggerName as string)).toBe(false);
+  });
+
+  test.each([
+    [{ permissions: { contents: 'read' } }, {}, false],
+    [{}, { permissions: { contents: 'read' } }, false],
+    [{ permissions: 'write-all' }, { permissions: { contents: 'read' } }, false],
+    [{ permissions: { contents: 'write' } }, { permissions: {} }, false],
+    [{ permissions: 'read-all' }, {}, false],
+    [{ permissions: {} }, {}, false],
+    [{}, {}, true],
+    [{ permissions: 'write-all' }, {}, true],
+    [{ permissions: { issues: 'none', contents: 'read' } }, {}, false],
+    [{ permissions: { contents: 'admin' } }, {}, true],
+    [{ permissions: null }, {}, true],
+    [{ permissions: ['read-all'] }, {}, true],
+    [{ permissions: 'read' }, {}, true],
+  ])('models effective permissions with job-level override: workflow=%j job=%j',
+    (workflow, job, expected) => {
+      expect(hasSensitiveEffectivePermissions(workflow, job, true)).toBe(expected);
+    });
+
+  test.each([
+    [undefined, undefined],
+    ['write-all', undefined],
+    [{ contents: 'write' }, undefined],
+  ])('pull_request_target requires a guard for implicit or writable permissions %j',
+    (workflowPermissions, jobPermissions) => {
+      const job: any = { runsOn: 'ubuntu-latest' };
+      const workflow: any = { on: { pull_request_target: null }, jobs: { test: job } };
+      if (workflowPermissions !== undefined) workflow.permissions = workflowPermissions;
+      if (jobPermissions !== undefined) job.permissions = jobPermissions;
+      expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+
+      job.if = 'github.event.pull_request.head.repo.fork == false || always()';
+      expect(prTrustBoundaryFailures(workflow)).toEqual([job]);
+      job.if = 'github.event.pull_request.head.repo.fork == false';
+      expect(prTrustBoundaryFailures(workflow)).toEqual([]);
+    });
+
+  test.each([
+    [{ permissions: 'read-all' }, {}],
+    [{ permissions: { contents: 'read' } }, {}],
+    [{ permissions: {} }, {}],
+    [{ permissions: 'write-all' }, { permissions: { contents: 'read' } }],
+    [{}, { permissions: {} }],
+  ])('pull_request_target accepts an explicit effective read-only baseline: workflow=%j job=%j',
+    (workflowFields, jobFields) => {
+      const job = { runsOn: 'ubuntu-latest', ...jobFields };
+      expect(prTrustBoundaryFailures({
+        on: { pull_request_target: null },
+        ...workflowFields,
+        jobs: { test: job },
+      })).toEqual([]);
+    });
+
+  test('ordinary pull_request does not treat implicit token permissions alone as sensitive', () => {
+    expect(prTrustBoundaryFailures({
+      on: { pull_request: null },
+      jobs: { test: { runsOn: 'ubuntu-latest' } },
+    })).toEqual([]);
   });
 
   test('does not skip a null-valued PR trigger on a secret or writable job', () => {
@@ -609,6 +700,20 @@ describe('repository-wide workflow security inventory', () => {
     };
     expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([job]);
 
+    job.if = 'github.event.pull_request.head.repo.fork == false';
+    expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([]);
+  });
+
+  test('combines pull_request_target defaults with mixed-case secrets in a local action', () => {
+    const job: { runsOn: string; steps: { uses: string }[]; if?: string } = {
+      runsOn: 'ubuntu-latest',
+      steps: [{ uses: './action-a' }],
+    };
+    const workflow = { on: { pull_request_target: null }, jobs: { test: job } };
+    const files = {
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - shell: bash\n      env:\n        TOKEN: ${{ Secrets.FOO }}\n      run: printf \'%s\\n\' "$TOKEN"\n',
+    };
+    expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([job]);
     job.if = 'github.event.pull_request.head.repo.fork == false';
     expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([]);
   });
