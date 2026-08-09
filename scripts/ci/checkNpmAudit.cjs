@@ -28,6 +28,14 @@ const advisorySourcesFor = vulnerability => {
     .sort((left, right) => left - right);
 };
 
+const advisoriesFor = vulnerability => {
+  const via = Array.isArray(vulnerability?.via) ? vulnerability.via : [];
+  return via
+    .filter(item => item && typeof item === 'object' && Number.isInteger(item.source))
+    .map(item => ({ source: item.source, url: item.url }))
+    .sort((left, right) => left.source - right.source);
+};
+
 const dependencyRootsFor = vulnerability => {
   const via = Array.isArray(vulnerability?.via) ? vulnerability.via : [];
   return [...new Set(via.filter(item => typeof item === 'string' && item))].sort();
@@ -52,9 +60,10 @@ const validateException = (entry, today) => {
       || entry.expectedVersions.some(version => typeof version !== 'string' || !version)) {
     return `${entry.package}: expectedVersions must contain at least one exact version`;
   }
-  if (!Array.isArray(entry.advisorySources) || entry.advisorySources.length === 0
-      || entry.advisorySources.some(source => !Number.isInteger(source) || source <= 0)) {
-    return `${entry.package}: advisorySources must contain at least one positive integer source id`;
+  if (!Array.isArray(entry.advisories) || entry.advisories.length === 0
+      || entry.advisories.some(advisory => !Number.isInteger(advisory?.source) || advisory.source <= 0
+        || !/^https:\/\/github\.com\/advisories\/GHSA-[a-z0-9-]+$/.test(advisory?.url))) {
+    return `${entry.package}: advisories must bind each positive source id to a GitHub advisory URL`;
   }
   if (typeof entry.issue !== 'string' || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(entry.issue)) {
     return `${entry.package}: issue must be a concrete GitHub issue URL`;
@@ -64,6 +73,10 @@ const validateException = (entry, today) => {
   }
   if (typeof entry.expiresOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.expiresOn)) {
     return `${entry.package}: expiresOn must use YYYY-MM-DD`;
+  }
+  const parsedExpiry = new Date(`${entry.expiresOn}T00:00:00Z`);
+  if (Number.isNaN(parsedExpiry.valueOf()) || parsedExpiry.toISOString().slice(0, 10) !== entry.expiresOn) {
+    return `${entry.package}: expiresOn is not a valid calendar date`;
   }
   if (entry.expiresOn < today) return `${entry.package}: exception expired on ${entry.expiresOn}`;
   return null;
@@ -102,8 +115,11 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
   if (audit.auditReportVersion !== 2 || !audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') {
     return { failures: ['unsupported or incomplete npm audit JSON'], warnings: [] };
   }
-  if (policy.schemaVersion !== 1 || !Array.isArray(policy.exceptions)) {
+  if (policy.schemaVersion !== 2 || !Array.isArray(policy.exceptions)) {
     return { failures: ['unsupported npm audit exception policy'], warnings: [] };
+  }
+  if (!lock || typeof lock !== 'object' || !lock.packages || typeof lock.packages !== 'object') {
+    return { failures: ['unsupported or incomplete package-lock JSON'], warnings: [] };
   }
 
   const failures = [];
@@ -155,13 +171,26 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
       failures.push(`${packageName}: vulnerability severity changed from excepted ${exception.severity} to ${severity}`);
     }
 
-    const expectedSources = [...new Set(exception.advisorySources)].sort((left, right) => left - right);
+    const expectedSources = [...new Set(exception.advisories.map(advisory => advisory.source))]
+      .sort((left, right) => left - right);
     const unexpectedSources = difference(advisorySources, expectedSources);
     const staleSources = difference(expectedSources, advisorySources);
     if (unexpectedSources.length > 0 || staleSources.length > 0) {
       failures.push(
         `${packageName}: advisory sources changed; current [${advisorySources.join(', ')}], excepted [${expectedSources.join(', ')}]`,
       );
+    }
+    const currentAdvisories = advisoriesFor(vulnerability);
+    const expectedAdvisories = exception.advisories
+      .map(advisory => `${advisory.source}:${advisory.url}`)
+      .sort();
+    const currentAdvisoryIdentities = currentAdvisories
+      .map(advisory => `${advisory.source}:${advisory.url}`)
+      .sort();
+    if (currentAdvisoryIdentities.length !== expectedAdvisories.length
+        || difference(currentAdvisoryIdentities, expectedAdvisories).length > 0
+        || difference(expectedAdvisories, currentAdvisoryIdentities).length > 0) {
+      failures.push(`${packageName}: advisory identities changed`);
     }
 
     const installedVersions = packageVersionsFromLock(lock, packageName, vulnerability);
@@ -181,7 +210,7 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
 
   for (const entry of policy.exceptions) {
     if (!usedExceptions.has(entry.package)) {
-      warnings.push(`${entry.package}: exception is currently unused and may be removable`);
+      failures.push(`${entry.package}: exception is currently unused and must be removed`);
     }
   }
 
@@ -212,6 +241,7 @@ const main = () => {
 if (require.main === module) main();
 
 module.exports = {
+  advisoriesFor,
   advisorySourcesFor,
   createBlockingAdvisoryPathResolver,
   dependencyRootsFor,

@@ -6,10 +6,13 @@ const sanitizerSource = fs.readFileSync(path.join(process.cwd(), 'utils', 'diagn
 
 describe('diagnostic logging privacy policy', () => {
   test('installs the diagnostic console sanitizer before playback service and app registration', () => {
+    const firstRuntimeLoad = indexSource.indexOf("require('expo')");
     const installAt = indexSource.indexOf('installDiagnosticConsoleSanitizer();');
     const playbackAt = indexSource.indexOf('TrackPlayer.registerPlaybackService');
     const appAt = indexSource.indexOf('registerRootComponent(App)');
     expect(installAt).toBeGreaterThanOrEqual(0);
+    expect(firstRuntimeLoad).toBeGreaterThan(installAt);
+    expect(indexSource).not.toMatch(/^import\s/m);
     expect(playbackAt).toBeGreaterThan(installAt);
     expect(appAt).toBeGreaterThan(installAt);
   });

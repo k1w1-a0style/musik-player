@@ -12,11 +12,11 @@ const lock = (versions: Record<string, string> = { 'node_modules/brace-expansion
   ),
 });
 const policy = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   exceptions: [{
     package: 'brace-expansion',
     severity: 'high',
-    advisorySources: [1124334],
+    advisories: [{ source: 1124334, url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc' }],
     expectedVersions: ['1.1.16', '2.1.2'],
     issue: 'https://github.com/k1w1-a0style/musik-player/issues/319',
     expiresOn: '2026-08-31',
@@ -31,7 +31,7 @@ const audit = (vulnerabilities: Record<string, unknown>) => ({
 
 const braceExpansion = {
   severity: 'high',
-  via: [{ source: 1124334, name: 'brace-expansion', severity: 'high' }],
+  via: [{ source: 1124334, name: 'brace-expansion', severity: 'high', url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc' }],
   nodes: [
     'node_modules/brace-expansion',
     'node_modules/test-exclude/node_modules/brace-expansion',
@@ -47,7 +47,7 @@ describe('npm audit policy gate', () => {
   it('passes with an empty exception list when no high or critical findings remain', () => {
     const result = evaluateAudit({
       audit: audit({}),
-      policy: { schemaVersion: 1, exceptions: [] },
+      policy: { schemaVersion: 2, exceptions: [] },
       lock: lock(),
       today: '2026-07-26',
     });
@@ -90,7 +90,7 @@ describe('npm audit policy gate', () => {
       audit: audit({
         minimatch: { severity: 'high', via: ['missing-root'], nodes: ['node_modules/minimatch'] },
       }),
-      policy: { schemaVersion: 1, exceptions: [] },
+      policy: { schemaVersion: 2, exceptions: [] },
       lock: lock(),
       today: '2026-07-26',
     });
@@ -105,7 +105,7 @@ describe('npm audit policy gate', () => {
         alpha: { severity: 'high', via: ['beta'], nodes: ['node_modules/alpha'] },
         beta: { severity: 'high', via: ['alpha'], nodes: ['node_modules/beta'] },
       }),
-      policy: { schemaVersion: 1, exceptions: [] },
+      policy: { schemaVersion: 2, exceptions: [] },
       lock: lock(),
       today: '2026-07-26',
     });
@@ -118,7 +118,7 @@ describe('npm audit policy gate', () => {
   it('fails a blocking entry without an advisory source or dependency root', () => {
     const result = evaluateAudit({
       audit: audit({ dangerous: { severity: 'high', via: [], nodes: ['node_modules/dangerous'] } }),
-      policy: { schemaVersion: 1, exceptions: [] },
+      policy: { schemaVersion: 2, exceptions: [] },
       lock: lock(),
       today: '2026-07-26',
     });
@@ -133,7 +133,7 @@ describe('npm audit policy gate', () => {
         'brace-expansion': braceExpansion,
         dangerous: {
           severity: 'high',
-          via: [{ source: 9999999, name: 'dangerous', severity: 'high' }],
+          via: [{ source: 9999999, name: 'dangerous', severity: 'high', url: 'https://github.com/advisories/GHSA-dddd-eeee-ffff' }],
           nodes: ['node_modules/dangerous'],
         },
       }),
@@ -164,7 +164,7 @@ describe('npm audit policy gate', () => {
       audit: audit({
         'brace-expansion': {
           ...braceExpansion,
-          via: [{ source: 1124999, name: 'brace-expansion', severity: 'high' }],
+          via: [{ source: 1124999, name: 'brace-expansion', severity: 'high', url: 'https://github.com/advisories/GHSA-xxxx-yyyy-zzzz' }],
         },
       }),
       policy,
@@ -184,5 +184,32 @@ describe('npm audit policy gate', () => {
       today: '2026-09-01',
     });
     expect(result.failures).toContain('brace-expansion: exception expired on 2026-08-31');
+  });
+
+  it('fails when an advisory source is rebound to a different GHSA URL', () => {
+    const changed = { ...braceExpansion, via: [{ ...braceExpansion.via[0], url: 'https://github.com/advisories/GHSA-dddd-eeee-ffff' }] };
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': changed }), policy, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures).toContain('brace-expansion: advisory identities changed');
+  });
+
+  it('fails stale exceptions instead of merely warning', () => {
+    const result = evaluateAudit({ audit: audit({}), policy, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures).toContain('brace-expansion: exception is currently unused and must be removed');
+  });
+
+  it('rejects invalid calendar dates', () => {
+    const invalid = { ...policy, exceptions: [{ ...policy.exceptions[0], expiresOn: '2026-02-30' }] };
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }), policy: invalid, lock: vulnerableLock(), today: '2026-01-01' });
+    expect(result.failures).toContain('brace-expansion: expiresOn is not a valid calendar date');
+  });
+
+  it('fails an incomplete lockfile structure', () => {
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }), policy, lock: {}, today: '2026-07-26' });
+    expect(result.failures).toEqual(['unsupported or incomplete package-lock JSON']);
+  });
+
+  it('fails a severity change', () => {
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': { ...braceExpansion, severity: 'critical' } }), policy, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures).toContain('brace-expansion: vulnerability severity changed from excepted high to critical');
   });
 });

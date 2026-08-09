@@ -49,4 +49,33 @@ describe('diagnostic sanitizer', () => {
     value.self = value;
     expect(sanitizeDiagnosticValue(value)).toEqual({ count: 1, self: '<circular>' });
   });
+
+  test('redacts credential and signing fields across camelCase, snake_case and kebab-case', () => {
+    const sensitiveFields = [
+      'secretKey', 'serviceRoleKey', 'supabaseServiceRoleKey', 'adminKey',
+      'private_key', 'private-key', 'api_key', 'api-key', 'access_key', 'access-key',
+      'keyPassword', 'keystorePassword', 'keystoreBase64', 'authorization', 'credential',
+    ];
+    const canaries = Object.fromEntries(sensitiveFields.map(field => [field, `CANARY-${field}`]));
+    const safe = sanitizeDiagnosticValue({ nested: [canaries] });
+    const serialized = JSON.stringify(safe);
+    for (const value of Object.values(canaries)) {
+      expect(serialized).not.toContain(value);
+    }
+  });
+
+  test('preserves harmless technical key fields', () => {
+    expect(sanitizeDiagnosticValue({
+      keyExtractor: 'song-id-selector',
+      keyboardType: 'numeric',
+      keyCode: 13,
+    })).toEqual({ keyExtractor: 'song-id-selector', keyboardType: 'numeric', keyCode: 13 });
+  });
+
+  test('bounds long strings, arrays and nested structures', () => {
+    const safe = sanitizeDiagnosticValue({ text: 'x'.repeat(1_000), values: Array.from({ length: 30 }, (_, index) => index), deep: { a: { b: { c: { value: 'hidden' } } } } }) as any;
+    expect(safe.text.length).toBeLessThan(1_000);
+    expect(safe.values).toHaveLength(20);
+    expect(safe.deep.a.b.c).toBe('<max-depth>');
+  });
 });
