@@ -5,7 +5,13 @@ import path from 'path';
 import YAML from '../node_modules/yaml/dist/index';
 
 const workflowsDir = path.join(process.cwd(), '.github', 'workflows');
+const actionsDir = path.join(process.cwd(), '.github', 'actions');
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name));
+const actionManifestFiles = fs.existsSync(actionsDir)
+  ? fs.readdirSync(actionsDir, { recursive: true })
+    .filter((name): name is string => typeof name === 'string' && /(^|\/)action\.ya?ml$/.test(name))
+    .map(name => path.join(actionsDir, name))
+  : [];
 const load = (name: string) => YAML.parse(fs.readFileSync(path.join(workflowsDir, name), 'utf8'));
 const source = (name: string) => fs.readFileSync(path.join(workflowsDir, name), 'utf8');
 
@@ -38,33 +44,101 @@ const localActionManifest = (repoRoot: string, actionDirectory: string): string 
   return null;
 };
 
-const stepUsePinningFailures = (
-  value: unknown,
-  repoRoot: string,
-  checkedManifests = new Set<string>(),
-): string[] => {
-  if (typeof value !== 'string') return ['uses must be a string'];
-  if (!value.startsWith('./')) return EXTERNAL_USE_WITH_SHA.test(value) ? [] : [`unpinned external action: ${value}`];
+type StepInventory = { steps: any[]; failures: string[] };
 
-  const actionDirectory = path.resolve(repoRoot, value);
-  if (!isInsideRepository(repoRoot, actionDirectory)) return [`unsafe local action path: ${value}`];
-  const manifest = localActionManifest(repoRoot, actionDirectory);
-  if (!manifest) return [`local action manifest missing or unsafe: ${value}`];
-  if (checkedManifests.has(manifest)) return [];
+const inventoryManifestSteps = (
+  manifest: string,
+  repoRoot: string,
+  checkedManifests: Set<string>,
+): StepInventory => {
+  if (checkedManifests.has(manifest)) return { steps: [], failures: [] };
   checkedManifests.add(manifest);
 
   let document: any;
   try {
     document = YAML.parse(fs.readFileSync(manifest, 'utf8'));
   } catch {
-    return [`local action manifest is invalid: ${path.relative(repoRoot, manifest)}`];
+    return { steps: [], failures: [`local action manifest is invalid: ${path.relative(repoRoot, manifest)}`] };
   }
-  if (document?.runs?.using !== 'composite') return [];
+  if (document?.runs?.using !== 'composite') return { steps: [], failures: [] };
   const steps = Array.isArray(document.runs.steps) ? document.runs.steps : [];
-  return steps.flatMap((step: any) => step.uses == null
-    ? []
-    : stepUsePinningFailures(step.uses, repoRoot, checkedManifests));
+  return inventoryExecutableSteps(steps, repoRoot, checkedManifests);
 };
+
+const inventoryExecutableSteps = (
+  steps: any[],
+  repoRoot: string,
+  checkedManifests = new Set<string>(),
+): StepInventory => {
+  const inventory: StepInventory = { steps: [], failures: [] };
+  for (const step of steps) {
+    inventory.steps.push(step);
+    if (step?.uses == null) continue;
+    if (typeof step.uses !== 'string') {
+      inventory.failures.push('uses must be a string');
+      continue;
+    }
+    if (!step.uses.startsWith('./')) continue;
+    const actionDirectory = path.resolve(repoRoot, step.uses);
+    if (!isInsideRepository(repoRoot, actionDirectory)) {
+      inventory.failures.push(`unsafe local action path: ${step.uses}`);
+      continue;
+    }
+    const manifest = localActionManifest(repoRoot, actionDirectory);
+    if (!manifest) {
+      inventory.failures.push(`local action manifest missing or unsafe: ${step.uses}`);
+      continue;
+    }
+    const nested = inventoryManifestSteps(manifest, repoRoot, checkedManifests);
+    inventory.steps.push(...nested.steps);
+    inventory.failures.push(...nested.failures);
+  }
+  return inventory;
+};
+
+const pinningFailuresForInventory = (inventory: StepInventory): string[] => [
+  ...inventory.failures,
+  ...inventory.steps.flatMap(step => {
+    if (step?.uses == null || (typeof step.uses === 'string' && step.uses.startsWith('./'))) return [];
+    if (typeof step.uses !== 'string') return ['uses must be a string'];
+    return EXTERNAL_USE_WITH_SHA.test(step.uses) ? [] : [`unpinned external action: ${step.uses}`];
+  }),
+];
+
+const stepUsePinningFailures = (steps: any[], repoRoot: string): string[] =>
+  pinningFailuresForInventory(inventoryExecutableSteps(steps, repoRoot));
+
+const standaloneManifestInventory = (manifest: string, repoRoot: string): StepInventory => {
+  const canonical = fs.realpathSync(manifest);
+  return isInsideRepository(repoRoot, canonical)
+    ? inventoryManifestSteps(canonical, repoRoot, new Set<string>())
+    : { steps: [], failures: [`local action manifest is unsafe: ${path.relative(repoRoot, manifest)}`] };
+};
+
+const manifestPinningFailures = (manifest: string, repoRoot: string): string[] =>
+  pinningFailuresForInventory(standaloneManifestInventory(manifest, repoRoot));
+
+const checkoutFailuresForInventory = (inventory: StepInventory): any[] => inventory.failures.length > 0
+  ? [...inventory.failures]
+  : inventory.steps.filter(step => typeof step?.uses === 'string'
+    && step.uses.toLowerCase().startsWith('actions/checkout@')
+    && step.with?.['persist-credentials'] !== false);
+
+const checkoutCredentialFailures = (steps: any[], repoRoot: string): any[] =>
+  checkoutFailuresForInventory(inventoryExecutableSteps(steps, repoRoot));
+
+const runFailuresForInventory = (inventory: StepInventory): any[] => inventory.failures.length > 0
+  ? [...inventory.failures]
+  : inventory.steps.filter(step => typeof step?.run === 'string' && step.run.includes('${{'));
+
+const runExpressionFailures = (steps: any[], repoRoot: string): any[] =>
+  runFailuresForInventory(inventoryExecutableSteps(steps, repoRoot));
+
+const manifestCheckoutCredentialFailures = (manifest: string, repoRoot: string): any[] =>
+  checkoutFailuresForInventory(standaloneManifestInventory(manifest, repoRoot));
+
+const manifestRunExpressionFailures = (manifest: string, repoRoot: string): any[] =>
+  runFailuresForInventory(standaloneManifestInventory(manifest, repoRoot));
 
 const checkActionFixture = (files: Record<string, string>, entry = './action-a'): string[] => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-action-pinning-'));
@@ -74,11 +148,45 @@ const checkActionFixture = (files: Record<string, string>, entry = './action-a')
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, contents);
     }
-    return stepUsePinningFailures(entry, repoRoot);
+    return stepUsePinningFailures([{ uses: entry }], repoRoot);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 };
+
+const checkActionFixturePolicy = (
+  files: Record<string, string>,
+  policy: (steps: any[], repoRoot: string) => any[],
+  entry = './action-a',
+): any[] => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-action-policy-'));
+  try {
+    for (const [name, contents] of Object.entries(files)) {
+      const target = path.join(repoRoot, name);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, contents);
+    }
+    return policy([{ uses: entry }], repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+};
+
+const checkWorkflowFixtureTrustBoundary = (files: Record<string, string>, workflow: any): any[] => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-trust-boundary-'));
+  try {
+    for (const [name, contents] of Object.entries(files)) {
+      const target = path.join(repoRoot, name);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, contents);
+    }
+    return prTrustBoundaryFailures(workflow, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+};
+
+const workflowSteps = (workflow: any): any[] => jobs(workflow).flatMap(job => job.steps || []);
 
 const scanExpressionEnd = (value: string, start: number): number => {
   let quote: "'" | '"' | null = null;
@@ -181,32 +289,42 @@ const hasExactForkTrustBoundary = (condition: unknown): boolean => {
   return expression.replace(/\s+/g, '') === EXACT_FORK_TRUST_BOUNDARY;
 };
 
-const prTrustBoundaryFailures = (workflow: any): any[] => {
+const prTrustBoundaryFailures = (workflow: any, repoRoot = process.cwd()): any[] => {
   const pullsCode = hasWorkflowTrigger(workflow.on, 'pull_request')
     || hasWorkflowTrigger(workflow.on, 'pull_request_target');
   if (!pullsCode) return [];
   const workflowHasSecretEnv = hasSecretExpression(workflow.env);
   return jobs(workflow).filter(job => {
+    const stepInventory = inventoryExecutableSteps(job.steps || [], repoRoot);
     const sensitive = workflowHasSecretEnv || hasSecretExpression(job)
+      || hasSecretExpression(stepInventory.steps)
       || hasWritePermission(job.permissions) || hasWritePermission(workflow.permissions);
-    return sensitive && !hasExactForkTrustBoundary(job.if);
+    return (stepInventory.failures.length > 0 || sensitive) && !hasExactForkTrustBoundary(job.if);
   });
 };
 
 describe('repository-wide workflow security inventory', () => {
   test.each(workflowFiles)('%s pins every external action to an immutable commit', file => {
-    for (const job of jobs(load(file))) {
+    const workflow = load(file);
+    for (const job of jobs(workflow)) {
       if (job.uses != null) expect(isPinnedExternalUse(job.uses)).toBe(true);
-      for (const step of job.steps || []) {
-        if (step.uses != null) expect(stepUsePinningFailures(step.uses, process.cwd())).toEqual([]);
-      }
     }
+    expect(stepUsePinningFailures(workflowSteps(workflow), process.cwd())).toEqual([]);
+  });
+
+  test.each(actionManifestFiles)('%s standalone local action pins every external dependency', manifest => {
+    expect(manifestPinningFailures(manifest, process.cwd())).toEqual([]);
   });
 
   test.each(['main', 'master', 'v1', 'abcdef1'])('rejects movable action @%s hidden in a local composite', ref => {
     expect(checkActionFixture({
       'action-a/action.yml': `runs:\n  using: composite\n  steps:\n    - uses: owner/action@${ref}\n`,
     })).toEqual([`unpinned external action: owner/action@${ref}`]);
+  });
+
+  test('rejects a directly referenced movable external action', () => {
+    expect(stepUsePinningFailures([{ uses: 'owner/action@main' }], process.cwd()))
+      .toEqual(['unpinned external action: owner/action@main']);
   });
 
   test.each(['action.yml', 'action.yaml'])('accepts pinned dependency through local %s manifest', manifestName => {
@@ -247,7 +365,7 @@ describe('repository-wide workflow security inventory', () => {
   });
 
   test('validates the real determine-ref composite action trust chain', () => {
-    expect(stepUsePinningFailures('./.github/actions/determine-ref', process.cwd())).toEqual([]);
+    expect(stepUsePinningFailures([{ uses: './.github/actions/determine-ref' }], process.cwd())).toEqual([]);
   });
 
   test.each([
@@ -480,14 +598,55 @@ describe('repository-wide workflow security inventory', () => {
     })).toEqual([]);
   });
 
-  test.each(workflowFiles)('%s disables persisted checkout credentials', file => {
-    for (const job of jobs(load(file))) {
-      for (const step of job.steps || []) {
-        if (typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@')) {
-          expect(step.with?.['persist-credentials']).toBe(false);
-        }
-      }
-    }
+  test('treats secrets used inside a local composite action as PR-sensitive', () => {
+    const job: { runsOn: string; steps: { uses: string }[]; if?: string } = {
+      runsOn: 'ubuntu-latest',
+      steps: [{ uses: './action-a' }],
+    };
+    const workflow = { on: { pull_request: null }, jobs: { test: job } };
+    const files = {
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - shell: bash\n      env:\n        TOKEN: ${{ secrets.FOO }}\n      run: printf \'%s\\n\' "$TOKEN"\n',
+    };
+    expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([job]);
+
+    job.if = 'github.event.pull_request.head.repo.fork == false';
+    expect(checkWorkflowFixtureTrustBoundary(files, workflow)).toEqual([]);
+  });
+
+  test.each(workflowFiles)('%s disables persisted checkout credentials across its local action chain', file => {
+    expect(checkoutCredentialFailures(workflowSteps(load(file)), process.cwd())).toEqual([]);
+  });
+
+  test.each(actionManifestFiles)('%s standalone local action disables persisted checkout credentials', manifest => {
+    expect(manifestCheckoutCredentialFailures(manifest, process.cwd())).toEqual([]);
+  });
+
+  test.each([
+    { step: { uses: `actions/checkout@${'a'.repeat(40)}` } },
+    { step: { uses: `actions/checkout@${'a'.repeat(40)}`, with: { 'persist-credentials': true } } },
+    { step: { uses: `Actions/Checkout@${'a'.repeat(40)}` } },
+  ])('rejects direct checkout without an explicit false persist-credentials value', ({ step }) => {
+    expect(checkoutCredentialFailures([step], process.cwd())).toHaveLength(1);
+  });
+
+  test('rejects checkout without persist-credentials in a local composite action', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': `runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@${'a'.repeat(40)}\n`,
+    }, checkoutCredentialFailures)).toHaveLength(1);
+  });
+
+  test('rejects checkout without persist-credentials in a nested local composite action', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yaml': `runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@${'a'.repeat(40)}\n`,
+    }, checkoutCredentialFailures)).toHaveLength(1);
+  });
+
+  test('accepts checkout with persist-credentials disabled in a nested local composite action', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yaml': `runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@${'a'.repeat(40)}\n      with:\n        persist-credentials: false\n`,
+    }, checkoutCredentialFailures)).toEqual([]);
   });
 
   test.each(workflowFiles)('%s keeps secret-bearing and writable jobs off pull requests', file => {
@@ -497,8 +656,35 @@ describe('repository-wide workflow security inventory', () => {
 });
 
 describe('workflow shell expression boundary', () => {
-  test.each(workflowFiles)('%s has no GitHub expression in a run script', (file) => {
-    for (const step of runBlocks(load(file))) expect(step.run).not.toContain('${{');
+  test.each(workflowFiles)('%s has no GitHub expression in any reachable run script', file => {
+    expect(runExpressionFailures(workflowSteps(load(file)), process.cwd())).toEqual([]);
+  });
+
+  test.each(actionManifestFiles)('%s standalone local action has no expression in a run script', manifest => {
+    expect(manifestRunExpressionFailures(manifest, process.cwd())).toEqual([]);
+  });
+
+  test('rejects a direct workflow run expression', () => {
+    expect(runExpressionFailures([{ run: 'echo "${{ inputs.ref }}"' }], process.cwd())).toHaveLength(1);
+  });
+
+  test('rejects a run expression in a local composite action', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - shell: bash\n      run: echo "${{ inputs.ref }}"\n',
+    }, runExpressionFailures)).toHaveLength(1);
+  });
+
+  test('rejects a run expression in a nested local composite action', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: ./action-b\n',
+      'action-b/action.yaml': 'runs:\n  using: composite\n  steps:\n    - shell: bash\n      run: echo "${{ inputs.ref }}"\n',
+    }, runExpressionFailures)).toHaveLength(1);
+  });
+
+  test('accepts expression transfer through env when run uses only the shell variable', () => {
+    expect(checkActionFixturePolicy({
+      'action-a/action.yml': 'runs:\n  using: composite\n  steps:\n    - shell: bash\n      env:\n        REF: ${{ inputs.ref }}\n      run: printf \'%s\\n\' "$REF"\n',
+    }, runExpressionFailures)).toEqual([]);
   });
 
   test.each([
