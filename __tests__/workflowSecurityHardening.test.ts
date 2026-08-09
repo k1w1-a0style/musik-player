@@ -21,27 +21,36 @@ function runBlocks(document: any): any[] {
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
 type PermissionLevel = 0 | 1 | 2;
-type PermissionMap = Record<string, PermissionLevel>;
-
-const permissionMap = (permissions: unknown, scopes: Set<string>): PermissionMap => {
-  if (permissions === 'read-all' || permissions === 'write-all') {
-    const level: PermissionLevel = permissions === 'write-all' ? 2 : 1;
-    return Object.fromEntries([...scopes].map(scope => [scope, level]));
-  }
-  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) return {};
-  return Object.fromEntries([...scopes].map(scope => {
-    const value = (permissions as Record<string, unknown>)[scope];
-    return [scope, value === 'write' ? 2 : value === 'read' ? 1 : 0];
-  }));
+type PermissionState = {
+  defaultLevel: PermissionLevel;
+  overrides: Record<string, PermissionLevel>;
+  valid: boolean;
 };
 
-const explicitPermissionScopes = (...permissions: unknown[]): Set<string> => new Set(
-  permissions.flatMap(value => value != null && typeof value === 'object' && !Array.isArray(value)
-    ? Object.keys(value as Record<string, unknown>) : []),
-);
+const permissionState = (permissions: unknown): PermissionState => {
+  if (permissions === 'read-all' || permissions === 'write-all') {
+    return {
+      defaultLevel: permissions === 'write-all' ? 2 : 1,
+      overrides: {},
+      valid: true,
+    };
+  }
+  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    return { defaultLevel: 0, overrides: {}, valid: false };
+  }
+  const overrides: Record<string, PermissionLevel> = {};
+  let valid = true;
+  for (const [scope, value] of Object.entries(permissions)) {
+    if (value === 'write') overrides[scope] = 2;
+    else if (value === 'read') overrides[scope] = 1;
+    else if (value === 'none') overrides[scope] = 0;
+    else valid = false;
+  }
+  return { defaultLevel: 0, overrides, valid };
+};
 
-const effectivePermissions = (workflow: any, job: any, scopes: Set<string>): PermissionMap =>
-  permissionMap(hasOwn(job, 'permissions') ? job.permissions : workflow.permissions, scopes);
+const effectivePermissions = (workflow: any, job: any): PermissionState =>
+  permissionState(hasOwn(job, 'permissions') ? job.permissions : workflow.permissions);
 
 const reusableWorkflowPermissionFailures = (files: Record<string, any>): string[] => {
   const failures: string[] = [];
@@ -55,13 +64,23 @@ const reusableWorkflowPermissionFailures = (files: Record<string, any>): string[
         continue;
       }
       for (const [calledJobName, calledJob] of Object.entries<any>(called.jobs || {})) {
-        const scopes = explicitPermissionScopes(
-          caller.permissions, callerJob.permissions, called.permissions, calledJob.permissions,
-        );
-        const ceiling = effectivePermissions(caller, callerJob, scopes);
-        const requested = effectivePermissions(called, calledJob, scopes);
+        const ceiling = effectivePermissions(caller, callerJob);
+        const requested = effectivePermissions(called, calledJob);
+        if (!ceiling.valid || !requested.valid) {
+          failures.push(`${callerName}:${callerJobName} or ${calledName}:${calledJobName} has invalid permissions`);
+          continue;
+        }
+        if (requested.defaultLevel > ceiling.defaultLevel) {
+          failures.push(`${callerName}:${callerJobName} grants default permissions below ${calledName}:${calledJobName}`);
+        }
+        const scopes = new Set([
+          ...Object.keys(ceiling.overrides),
+          ...Object.keys(requested.overrides),
+        ]);
         for (const scope of scopes) {
-          if ((requested[scope] || 0) > (ceiling[scope] || 0)) {
+          const callerLevel = ceiling.overrides[scope] ?? ceiling.defaultLevel;
+          const calledLevel = requested.overrides[scope] ?? requested.defaultLevel;
+          if (calledLevel > callerLevel) {
             failures.push(`${callerName}:${callerJobName} grants ${scope} below ${calledName}:${calledJobName}`);
           }
         }
@@ -394,43 +413,62 @@ describe('repository-wide workflow security inventory', () => {
   });
 
   test.each([
-    ['read-all', { contents: 'write' }],
-    [{}, { contents: 'read' }],
-    [{ contents: 'read' }, { contents: 'write' }],
-  ])('rejects reusable permission elevation from %j to %j', (callerPermissions, calledPermissions) => {
+    ['read-all', 'write-all', false],
+    ['write-all', 'read-all', true],
+    ['write-all', 'write-all', true],
+    [{ contents: 'read' }, 'write-all', false],
+    [{ contents: 'write' }, 'read-all', false],
+    ['read-all', { contents: 'write' }, false],
+    ['write-all', { contents: 'write' }, true],
+    ['write-all', { contents: 'read' }, true],
+    [{ contents: 'read' }, { contents: 'write' }, false],
+    [{ contents: 'write' }, { contents: 'read' }, true],
+    [{}, { contents: 'read' }, false],
+    [{ contents: 'read' }, {}, true],
+  ])('compares reusable permission state %j -> %j (safe=%s)',
+    (callerPermissions, calledPermissions, safe) => {
+      const failures = reusableWorkflowPermissionFailures({
+        'caller.yml': {
+          permissions: callerPermissions,
+          jobs: { call: { uses: './.github/workflows/called.yml' } },
+        },
+        'called.yml': { jobs: { privileged: { permissions: calledPermissions } } },
+      });
+      expect(failures.length === 0).toBe(safe);
+    });
+
+  test('job-level permissions replace workflow-level permissions on both sides', () => {
     expect(reusableWorkflowPermissionFailures({
       'caller.yml': {
-        permissions: callerPermissions,
-        jobs: { call: { uses: './.github/workflows/called.yml' } },
+        permissions: { contents: 'read' },
+        jobs: {
+          call: {
+            permissions: { contents: 'write' },
+            uses: './.github/workflows/called.yml',
+          },
+        },
       },
-      'called.yml': { jobs: { privileged: { permissions: calledPermissions } } },
-    })).toEqual(['caller.yml:call grants contents below called.yml:privileged']);
+      'called.yml': {
+        permissions: 'write-all',
+        jobs: { privileged: { permissions: { contents: 'write' } } },
+      },
+    })).toEqual([]);
   });
 
   test.each([
-    ['write-all', 'write-all'],
-    [{ contents: 'read' }, { contents: 'read' }],
-    [{ contents: 'write' }, { contents: 'write' }],
-  ])('accepts reusable permissions within the caller ceiling %j / %j',
+    [null, { contents: 'read' }],
+    ['read', { contents: 'read' }],
+    [{ contents: 'admin' }, { contents: 'read' }],
+    [{ contents: 'read' }, ['read-all']],
+  ])('fails closed for invalid reusable permissions %j / %j',
     (callerPermissions, calledPermissions) => {
       expect(reusableWorkflowPermissionFailures({
         'caller.yml': {
-          permissions: { contents: 'read' },
-          jobs: {
-            call: {
-              permissions: callerPermissions,
-              uses: './.github/workflows/called.yml',
-            },
-          },
+          permissions: callerPermissions,
+          jobs: { call: { uses: './.github/workflows/called.yml' } },
         },
-        'called.yml': {
-          permissions: { contents: 'read' },
-          jobs: {
-            writer: { permissions: calledPermissions },
-            reader: { permissions: { contents: 'read' } },
-          },
-        },
-      })).toEqual([]);
+        'called.yml': { jobs: { privileged: { permissions: calledPermissions } } },
+      })).toEqual(['caller.yml:call or called.yml:privileged has invalid permissions']);
     });
 
   test('triggered EAS dispatch keeps write at the reusable-call ceiling only', () => {
