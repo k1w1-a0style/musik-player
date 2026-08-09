@@ -6,7 +6,7 @@ module.exports = {
   preset: 'jest-expo',
   testPathIgnorePatterns: ['/node_modules/', '/android/', '/ios/'],
   transformIgnorePatterns: [
-    'node_modules/(?!(jest-)?react-native|@react-native|@react-navigation|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-clone-referenced-element|@unimodules/.*|sentry-expo|native-base|react-native-svg|lucide-react-native|expo-modules-core|expo-blur|expo-linear-gradient|react-native-track-player)',
+    'node_modules/(?!(jest-)?react-native|@react-native|@react-navigation|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-clone-referenced-element|@unimodules/.*|sentry-expo|native-base|react-native-svg|lucide-react-native|expo-modules-core|expo-blur|expo-linear-gradient|react-native-track-player|uuid)',
   ],
   setupFiles: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
