@@ -67,6 +67,7 @@ const mockIsFavoriteSongId = jest.fn<Promise<boolean>, [string]>(pendingFavorite
 const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() => Promise.resolve([]));
 const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Warteschlange', songIds: ['s1'], createdAt: 1 }));
 let mockNowPlayingStateCrash = false;
+let mockPlayerLayout: 'classic' | 'soundcloud' = 'classic';
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -83,7 +84,7 @@ jest.mock('../../utils/storage', () => ({
 
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   useNowPlayingControlsMode: () => ({
-    mode: 'classic',
+    mode: mockPlayerLayout,
     isHydrated: true,
     setMode: jest.fn(),
   }),
@@ -106,7 +107,10 @@ const mockNowPlayingContext = {
   next: jest.fn(async () => undefined),
   previous: jest.fn(async () => undefined),
   saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
+  shuffle: false,
+  toggleShuffle: jest.fn(async () => ({ status: 'committed' as const })),
   repeatMode: 'off',
+  cycleRepeatMode: jest.fn(async () => undefined),
 };
 
 const setCurrentSongId = (id: string) => {
@@ -159,6 +163,7 @@ jest.mock('../../components/Screen', () => ({ children }: { children?: React.Rea
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingStateCrash = false;
+    mockPlayerLayout = 'classic';
     setCurrentSongId('s1');
     mockGoBack.mockClear();
     mockNavigate.mockClear();
@@ -192,6 +197,23 @@ describe('NowPlaying cover fallback', () => {
     fireEvent(getByTestId('now-playing-cover-image'), 'error');
 
     expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
+  });
+
+  test('renders the edge-to-edge SoundCloud player without the classic backdrop and snap pager', () => {
+    jest.useFakeTimers();
+    mockPlayerLayout = 'soundcloud';
+
+    const { getByTestId, queryByTestId, unmount } = render(<NowPlaying />);
+
+    expect(getByTestId('now-playing-soundcloud-view')).toBeTruthy();
+    expect(getByTestId('soundcloud-action-bar')).toBeTruthy();
+    expect(queryByTestId('now-playing-cover-backdrop')).toBeNull();
+    expect(queryByTestId('now-playing-pager-slot')).toBeNull();
+    act(() => {
+      jest.runOnlyPendingTimers();
+      unmount();
+    });
+    jest.useRealTimers();
   });
 
   test('navigates to track info from the title row info button', () => {

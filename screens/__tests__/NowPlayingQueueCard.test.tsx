@@ -27,7 +27,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 
 const queue: Song[] = [
   { id: 's1', title: 'One', artist: 'A' },
-  { id: 's2', title: 'Two', artist: 'B' },
+  { id: 's2', title: 'Two', artist: 'B', cover: 'file:///two.jpg' },
   { id: 's3', title: 'Three', artist: 'C' },
 ];
 
@@ -57,23 +57,23 @@ test('queue edge zones use current movement direction rather than cumulative tra
   expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -120, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
   expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 120, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
   expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 0, movementDirection: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
-  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: 20, movementDirection: 1, scrollOffset: 0, viewportHeight: 400 })).toBe(0);
+  expect(resolveQueueAutoScrollDirection({ index: 3, dragY: 20, movementDirection: 1, scrollOffset: 0, viewportHeight: 400 })).toBe(0);
 });
 
 test('queue auto-scroll follows direction reversals while cumulative drag keeps its sign', () => {
   expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 100, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(1);
   expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 80, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
   expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -100, movementDirection: -1, scrollOffset: 176, viewportHeight: 220 })).toBe(-1);
-  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -80, movementDirection: 1, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
+  expect(resolveQueueAutoScrollDirection({ index: 5, dragY: -80, movementDirection: 1, scrollOffset: 176, viewportHeight: 400 })).toBe(0);
   expect(resolveQueueAutoScrollDirection({ index: 7, dragY: 100, movementDirection: 0, scrollOffset: 176, viewportHeight: 220 })).toBe(0);
 });
 
 test.each([
-  ['lower', 1, 0, 120, 220],
+  ['lower', 1, 0, 120, 450],
   ['upper', -1, 220, -120, 0],
 ] as const)('%s edge auto-scroll stops on the next tick after scrolling moves the row out of its edge zone', (_edge, direction, initialOffset, dragY, outsideOffset) => {
   jest.useFakeTimers();
-  let scrollOffset = initialOffset;
+  let scrollOffset: number = initialOffset;
   const tick = jest.fn();
   const timer = setInterval(() => {
     if (resolveQueueAutoScrollDirection({ index: 5, dragY, movementDirection: direction,
@@ -91,7 +91,7 @@ test.each([
 test('renders drag handles for upcoming tracks only', () => {
   const onPlayQueueItem = jest.fn();
   const onQueueShift = jest.fn();
-  const { getByTestId, queryByTestId } = render(
+  const { getByTestId, getByText, queryByTestId } = render(
     <NowPlayingQueueCard
       queue={queue}
       currentSongId="s1"
@@ -106,6 +106,9 @@ test('renders drag handles for upcoming tracks only', () => {
   expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
   expect(getByTestId('queue-drag-handle-s2')).toBeTruthy();
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
+  expect(getByTestId('queue-artwork-s2').props.source.uri).toBe('file:///two.jpg');
+  expect(getByTestId('now-playing-queue-header')).toBeTruthy();
+  expect(getByText('Next up')).toBeTruthy();
 
   fireEvent.press(getByTestId('queue-row-s2'));
   expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
@@ -130,9 +133,9 @@ test('uses row text contrast instead of foregroundOnAccent for active text while
   );
 
   expect(JSON.stringify(getByText(longQueue[0].title).props.style)).toContain(mockAppTheme.theme.palette.text.primary);
-  expect(JSON.stringify(getByText('Aktiv').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
+  expect(JSON.stringify(getByText('Now Playing').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
   expect(JSON.stringify(getByText(longQueue[0].title).props.style)).not.toContain('#101820');
-  expect(JSON.stringify(getByText('Aktiv').props.style)).not.toContain('#101820');
+  expect(JSON.stringify(getByText('Now Playing').props.style)).not.toContain('#101820');
 
   expect(JSON.stringify(getByTestId('queue-row-s1').props.style)).toContain('#F9E27D');
   expect(JSON.stringify(getByTestId('queue-active-indicator-s1').props.style)).toContain('#F9E27D');

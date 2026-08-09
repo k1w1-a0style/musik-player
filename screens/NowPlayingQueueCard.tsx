@@ -1,40 +1,24 @@
 import React from 'react';
 import { FlatList, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { NativeViewGestureHandler } from 'react-native-gesture-handler';
+import { ListMusic } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { useNowPlayingQueueDrag } from '../hooks/useNowPlayingQueueDrag';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { buildSongKey, displayArtist, displayTitle } from '../utils/libraryPresentation';
-import NowPlayingQueuePreviewRow from './NowPlayingQueuePreviewRow';
-const QUEUE_ROW_HEIGHT = 44;
-const QUEUE_EDGE_SCROLL_ZONE = QUEUE_ROW_HEIGHT * 1.25;
-const QUEUE_AUTO_SCROLL_STEP = 12;
-const QUEUE_AUTO_SCROLL_INTERVAL_MS = 32;
-export const resolveQueueAutoScrollDirection = ({
-  index,
-  dragY,
-  movementDirection,
-  scrollOffset,
-  viewportHeight,
-}: {
-  index: number;
-  dragY: number;
-  movementDirection: -1 | 0 | 1;
-  scrollOffset: number;
-  viewportHeight: number;
-}): -1 | 0 | 1 => {
-  if (viewportHeight <= 0) return 0;
-  const visibleTop = index * QUEUE_ROW_HEIGHT - scrollOffset + dragY;
-  const visibleBottom = visibleTop + QUEUE_ROW_HEIGHT;
-  if (movementDirection < 0 && visibleTop < QUEUE_EDGE_SCROLL_ZONE) return -1;
-  if (movementDirection > 0 && visibleBottom > viewportHeight - QUEUE_EDGE_SCROLL_ZONE) return 1;
-  return 0;
-};
+import { getSongArtworkUri } from '../utils/songArtwork';
+import { getQueuePreviewOffset, SOUNDCLOUD_QUEUE_ROW_HEIGHT } from '../utils/soundCloudPlayer';
+import NowPlayingQueuePreviewRow, { type NowPlayingQueueColors } from './NowPlayingQueuePreviewRow';
+
+export { resolveQueueAutoScrollDirection } from '../utils/soundCloudPlayer';
+
 const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number) => ({
-  length: QUEUE_ROW_HEIGHT,
-  offset: QUEUE_ROW_HEIGHT * index,
+  length: SOUNDCLOUD_QUEUE_ROW_HEIGHT,
+  offset: SOUNDCLOUD_QUEUE_ROW_HEIGHT * index,
   index,
 });
+
 interface NowPlayingQueueCardProps {
   queue: Song[];
   currentSongId?: string;
@@ -43,151 +27,97 @@ interface NowPlayingQueueCardProps {
   onQueueShift: (fromIndex: number, toIndex: number) => void;
   canShiftQueue: boolean;
   accentColor: string;
+  showHeader?: boolean;
+  colors?: NowPlayingQueueColors;
 }
-interface QueueDragPosition {
-  index: number;
-  dragY: number;
-  movementDirection: -1 | 0 | 1;
-  startScrollOffset: number;
-}
-const createQueueDragPosition = (
-  previousDrag: QueueDragPosition | null,
-  index: number,
-  dragY: number,
-  movementDirection: -1 | 0 | 1,
-  scrollOffset: number,
-): QueueDragPosition => ({
-  index,
-  dragY,
-  movementDirection,
-  startScrollOffset: previousDrag?.index === index ? previousDrag.startScrollOffset : scrollOffset,
-});
+
+const NowPlayingQueueHeader = ({ visible, upcomingCount, accentColor, colors }: { visible: boolean;
+  upcomingCount: number; accentColor: string; colors: NowPlayingQueueColors }) => {
+  if (!visible) return null;
+  return (
+    <View style={styles.cardHeader} testID="now-playing-queue-header">
+      <View style={[styles.headerIcon, { backgroundColor: `${accentColor}18` }]}>
+        <ListMusic color={accentColor} size={20} />
+      </View>
+      <View style={styles.headerText}>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Next up</Text>
+        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{upcomingCount} Titel als Nächstes</Text>
+      </View>
+    </View>
+  );
+};
+
+const QueueEmptyState = ({ colors }: { colors: NowPlayingQueueColors }) => (
+    <View style={styles.emptyState} testID="queue-empty-state">
+      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Keine Titel in der Warteschlange</Text>
+      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
+    </View>
+);
+
 const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, currentSongId, maxHeight,
-  onPlayQueueItem, onQueueShift, canShiftQueue, accentColor,
+  onPlayQueueItem, onQueueShift, canShiftQueue, accentColor, showHeader = true, colors,
 }) => {
   const { theme } = useAppTheme();
+  const rowColors = React.useMemo<NowPlayingQueueColors>(() => colors ?? ({
+    textPrimary: theme.palette.text.primary, textSecondary: theme.palette.text.secondary,
+    textMuted: theme.palette.text.muted, surfaceElevated: theme.palette.surfaceElevated,
+    border: theme.palette.border,
+  }), [colors, theme.palette]);
   const listRef = React.useRef<FlatList<Song>>(null);
   const scrollOffsetRef = React.useRef(0);
   const viewportHeightRef = React.useRef(0);
-  const autoScrollDirectionRef = React.useRef<-1 | 0 | 1>(0);
-  const autoScrollTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const dragPositionRef = React.useRef<QueueDragPosition | null>(null);
   const currentIndex = React.useMemo(
     () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
     [currentSongId, queue],
   );
-  const stopAutoScroll = React.useCallback(() => {
-    autoScrollDirectionRef.current = 0;
-    if (autoScrollTimerRef.current) {
-      clearInterval(autoScrollTimerRef.current);
-      autoScrollTimerRef.current = null;
-    }
-  }, []);
+  const { dragPreview, minShiftIndex, handleDragPosition, handleDragEnd } = useNowPlayingQueueDrag({
+    queueLength: queue.length, currentIndex, listRef, scrollOffsetRef, viewportHeightRef,
+  });
   const getScrollOffset = React.useCallback(() => scrollOffsetRef.current, []);
-  const startAutoScroll = React.useCallback((direction: -1 | 1) => {
-    if (autoScrollDirectionRef.current === direction && autoScrollTimerRef.current) return;
-    stopAutoScroll();
-    autoScrollDirectionRef.current = direction;
-    autoScrollTimerRef.current = setInterval(() => {
-      const drag = dragPositionRef.current;
-      if (!drag || resolveQueueAutoScrollDirection({
-        index: drag.index,
-        dragY: drag.dragY,
-        movementDirection: drag.movementDirection,
-        scrollOffset: drag.startScrollOffset,
-        viewportHeight: viewportHeightRef.current,
-      }) !== direction) {
-        stopAutoScroll();
-        return;
-      }
-      const contentHeight = queue.length * QUEUE_ROW_HEIGHT + 16;
-      const maxOffset = Math.max(0, contentHeight - viewportHeightRef.current);
-      const nextOffset = Math.max(0, Math.min(maxOffset, scrollOffsetRef.current + direction * QUEUE_AUTO_SCROLL_STEP));
-      if (nextOffset === scrollOffsetRef.current) {
-        stopAutoScroll();
-        return;
-      }
-      scrollOffsetRef.current = nextOffset;
-      listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
-    }, QUEUE_AUTO_SCROLL_INTERVAL_MS);
-  }, [queue.length, stopAutoScroll]);
-  const handleDragPosition = React.useCallback((index: number, dragY: number, movementDirection: -1 | 0 | 1) => {
-    const drag = createQueueDragPosition(dragPositionRef.current, index, dragY, movementDirection, scrollOffsetRef.current);
-    dragPositionRef.current = drag;
-    const direction = resolveQueueAutoScrollDirection({
-      index,
-      dragY,
-      movementDirection,
-      scrollOffset: drag.startScrollOffset,
-      viewportHeight: viewportHeightRef.current,
-    });
-    if (direction === 0) stopAutoScroll();
-    else startAutoScroll(direction);
-  }, [startAutoScroll, stopAutoScroll]);
-  React.useEffect(() => stopAutoScroll, [stopAutoScroll]);
   const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollOffsetRef.current = Math.max(0, event.nativeEvent.contentOffset.y);
   }, []);
-  const renderQueueItem = React.useCallback(
-    ({ item, index }: { item: Song; index: number }) => (
-      <NowPlayingQueuePreviewRow
-        id={item.id}
-        index={index}
-        queueLength={queue.length}
-        rowHeight={QUEUE_ROW_HEIGHT}
-        minShiftIndex={Math.max(1, currentIndex + 1)}
-        getScrollOffset={getScrollOffset}
-        onDragPosition={handleDragPosition}
-        onDragEnd={() => { dragPositionRef.current = null; stopAutoScroll(); }}
-        title={displayTitle(item)}
-        artist={displayArtist(item)}
-        isCurrent={!!item.id && item.id === currentSongId}
-        canShift={canShiftQueue && (currentIndex < 0 || index > currentIndex)}
-        onPress={onPlayQueueItem}
-        onShift={onQueueShift}
-        accentColor={accentColor}
-      />
-    ),
-    [accentColor, canShiftQueue, currentIndex, currentSongId, getScrollOffset, handleDragPosition, onPlayQueueItem, onQueueShift, queue.length, stopAutoScroll],
-  );
+  const renderQueueItem = React.useCallback(({ item, index }: { item: Song; index: number }) => (
+    <NowPlayingQueuePreviewRow
+      id={item.id} index={index} queueLength={queue.length} rowHeight={SOUNDCLOUD_QUEUE_ROW_HEIGHT}
+      minShiftIndex={minShiftIndex} getScrollOffset={getScrollOffset}
+      onDragPosition={handleDragPosition} onDragEnd={handleDragEnd}
+      artworkUri={getSongArtworkUri(item)} previewOffsetY={dragPreview ? getQueuePreviewOffset({
+        index, dragIndex: dragPreview.index, targetIndex: dragPreview.targetIndex,
+        rowHeight: SOUNDCLOUD_QUEUE_ROW_HEIGHT }) : 0}
+      title={displayTitle(item)} artist={displayArtist(item)} isCurrent={item.id === currentSongId}
+      canShift={canShiftQueue && (currentIndex < 0 || index > currentIndex)}
+      onPress={onPlayQueueItem} onShift={onQueueShift} accentColor={accentColor} colors={rowColors}
+    />
+  ), [accentColor, canShiftQueue, currentIndex, currentSongId, dragPreview, getScrollOffset, handleDragEnd, handleDragPosition, minShiftIndex, onPlayQueueItem, onQueueShift, queue.length, rowColors]);
+  const upcomingCount = Math.max(0, queue.length - Math.max(0, currentIndex + 1));
+
   return (
     <View style={[styles.queueListFrame, { maxHeight }]} testID="now-playing-queue-list-frame">
-      {/* NativeViewGestureHandler registers the inner ScrollView with RNGH so the
-          outer vertical SnapPager FlatList cannot steal scroll touches once the
-          user begins scrolling inside the queue (fixes F04 / N1). */}
+      <NowPlayingQueueHeader visible={showHeader} upcomingCount={upcomingCount} accentColor={accentColor} colors={rowColors} />
       <NativeViewGestureHandler disallowInterruption>
-        <FlatList
-          ref={listRef}
-          testID="now-playing-queue-list"
-          data={queue}
-          keyExtractor={buildSongKey}
-          renderItem={renderQueueItem}
-          onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          nestedScrollEnabled
-          scrollEnabled
-          showsVerticalScrollIndicator
-          getItemLayout={getQueueItemLayout}
-          style={styles.queueList}
-          contentContainerStyle={styles.queueListContent}
-          ListEmptyComponent={(
-            <View style={styles.emptyState} testID="queue-empty-state">
-              <Text style={[styles.emptyTitle, { color: theme.palette.text.primary }]}>Keine Titel in der Warteschlange</Text>
-              <Text style={[styles.emptyText, { color: theme.palette.text.secondary }]}>Starte einen Song, um hier die Trackliste zu sehen.</Text>
-            </View>
-          )}
-        />
+        <FlatList ref={listRef} testID="now-playing-queue-list" data={queue} keyExtractor={buildSongKey}
+          renderItem={renderQueueItem} onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
+          onScroll={handleScroll} scrollEventThrottle={16} nestedScrollEnabled scrollEnabled
+          showsVerticalScrollIndicator getItemLayout={getQueueItemLayout} style={styles.queueList}
+          contentContainerStyle={styles.queueListContent} ListEmptyComponent={<QueueEmptyState colors={rowColors} />} />
       </NativeViewGestureHandler>
     </View>
   );
 };
+
 const styles = StyleSheet.create({
   queueListFrame: { flex: 1, minHeight: 0, marginHorizontal: 8 },
+  cardHeader: { height: 64, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10 },
+  headerIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  headerText: { flex: 1 },
+  headerTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 18 },
+  headerSubtitle: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 1 },
   queueList: { flex: 1 },
   queueListContent: { flexGrow: 1, paddingBottom: 16 },
   emptyState: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   emptyTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
   emptyText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, marginTop: 6, textAlign: 'center' },
 });
+
 export default NowPlayingQueueCard;

@@ -45,10 +45,10 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
     seekTo,
     volume,
     setVolume,
-    palette,
-    paletteLoading,
+    palette, paletteLoading,
     saveQueueAsPlaylist,
-    repeatMode,
+    shuffle, toggleShuffle,
+    repeatMode, cycleRepeatMode,
     hydrationStatus, retryHydration,
   } = value;
   const libraryValue = useMemo(
@@ -117,12 +117,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       hydrationStatus, retryHydration,
     ],
   );
-  const {
-    sleepTimerActive,
-    sleepTimerRemainingSeconds,
-    startSleepTimer,
-    cancelSleepTimer,
-  } = useSleepTimer();
+  const { sleepTimerActive, sleepTimerRemainingSeconds,
+    startSleepTimer, cancelSleepTimer } = useSleepTimer();
   const nowPlayingValue = useMemo(
     () =>
       buildNowPlayingMusicContextValue({
@@ -144,7 +140,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         previous,
         reorderQueue,
         saveQueueAsPlaylist,
-        repeatMode,
+        shuffle, toggleShuffle,
+        repeatMode, cycleRepeatMode,
         hydrationStatus, retryHydration,
       }),
     [
@@ -166,7 +163,8 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       previous,
       reorderQueue,
       saveQueueAsPlaylist,
-      repeatMode,
+      shuffle, toggleShuffle,
+      repeatMode, cycleRepeatMode,
       hydrationStatus, retryHydration,
     ],
   );

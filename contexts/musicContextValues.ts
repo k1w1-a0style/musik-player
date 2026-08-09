@@ -50,7 +50,10 @@ type NowPlayingMusicContextInput = Pick<
   | 'previous'
   | 'reorderQueue'
   | 'saveQueueAsPlaylist'
+  | 'shuffle'
+  | 'toggleShuffle'
   | 'repeatMode'
+  | 'cycleRepeatMode'
   | 'hydrationStatus'
   | 'retryHydration'
 > & Pick<
@@ -142,7 +145,10 @@ export const buildNowPlayingMusicContextValue = ({
   previous,
   reorderQueue,
   saveQueueAsPlaylist,
+  shuffle,
+  toggleShuffle,
   repeatMode,
+  cycleRepeatMode,
   hydrationStatus,
   retryHydration,
 }: NowPlayingMusicContextInput): NowPlayingMusicContextValue => ({
@@ -164,7 +170,10 @@ export const buildNowPlayingMusicContextValue = ({
   previous,
   reorderQueue,
   saveQueueAsPlaylist,
+  shuffle,
+  toggleShuffle,
   repeatMode,
+  cycleRepeatMode,
   canSkip: playbackQueue.length > 1,
   ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
   ...(retryHydration === undefined ? {} : { retryHydration }),

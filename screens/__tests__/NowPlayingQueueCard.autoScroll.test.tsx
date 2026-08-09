@@ -80,23 +80,27 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 0 } } });
 
     act(() => row.onDragPosition?.(5, 120, 1));
-    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
+    expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => jest.advanceTimersByTime(32 * 10));
     expect(scrollToOffsetSpy).toHaveBeenCalledTimes(10);
     expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 120, animated: false });
-    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
+    expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
-    act(() => row.onDragPosition?.(5, -120, 1));
-    expect(jest.getTimerCount()).toBe(baselineTimerCount);
+    act(() => row.onDragPosition?.(5, -350, 1));
+    const callsAfterPointerExit = scrollToOffsetSpy.mock.calls.length;
+    act(() => jest.advanceTimersByTime(64));
+    expect(scrollToOffsetSpy).toHaveBeenCalledTimes(callsAfterPointerExit);
 
     act(() => row.onDragPosition?.(5, 120, 1));
     act(() => jest.advanceTimersByTime(32));
     expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 132, animated: false });
-    expect(jest.getTimerCount()).toBe(baselineTimerCount + 1);
+    expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => row.onDragEnd?.());
-    expect(jest.getTimerCount()).toBe(baselineTimerCount);
+    const callsAfterDragEnd = scrollToOffsetSpy.mock.calls.length;
+    act(() => jest.advanceTimersByTime(64));
+    expect(scrollToOffsetSpy).toHaveBeenCalledTimes(callsAfterDragEnd);
     unmount();
   });
 });

@@ -9,6 +9,9 @@ const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
 const mockNext = jest.fn(async () => undefined);
 const mockPrevious = jest.fn(async () => undefined);
+const mockTogglePlayPause = jest.fn(async () => undefined);
+const mockToggleShuffle = jest.fn(async () => ({ status: 'committed' as const }));
+const mockCycleRepeatMode = jest.fn(async () => undefined);
 const mockSong2 = { id: 's2', title: 'Two', artist: 'A' };
 let mockCurrentSong = mockSong;
 let mockPlaybackQueue = [mockSong];
@@ -19,7 +22,7 @@ const mockSaveQueueAsPlaylist = jest.fn((name: string, queue: typeof mockPlaybac
 );
 
 jest.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ bottom: 12 }),
+  useSafeAreaInsets: () => ({ top: 5, bottom: 12 }),
 }));
 
 jest.mock('../../contexts/MusicContext', () => ({
@@ -28,6 +31,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     currentSong: mockCurrentSong,
     seekTo: mockSeekTo,
     isPlaying: true,
+    togglePlayPause: mockTogglePlayPause,
     volume: 0.8,
     setVolume: mockSetVolume,
     palette: { vibrant: '#123456' },
@@ -35,7 +39,10 @@ jest.mock('../../contexts/MusicContext', () => ({
     next: mockNext,
     previous: mockPrevious,
     saveQueueAsPlaylist: mockSaveQueueAsPlaylist,
+    shuffle: false,
+    toggleShuffle: mockToggleShuffle,
     repeatMode: mockRepeatMode,
+    cycleRepeatMode: mockCycleRepeatMode,
   }),
 }));
 
@@ -95,6 +102,7 @@ const ScreenStateProbe = () => {
     <>
       <Text testID="song-id">{state.currentSong?.id}</Text>
       <Text testID="bottom-inset">{state.bottomInset}</Text>
+      <Text testID="top-inset">{state.topInset}</Text>
       <Text testID="favorite">{String(state.favorite)}</Text>
       <Text testID="queue-count">{state.queue.length}</Text>
       <Text testID="album-title">{state.albumTitle}</Text>
@@ -139,6 +147,7 @@ describe('useNowPlayingScreenState', () => {
 
     expect(getByTestId('song-id').props.children).toBe('s1');
     expect(getByTestId('bottom-inset').props.children).toBe(12);
+    expect(getByTestId('top-inset').props.children).toBe(5);
     expect(getByTestId('favorite').props.children).toBe('true');
     expect(getByTestId('queue-count').props.children).toBe(1);
     expect(getByTestId('album-title').props.children).toBe('Album');

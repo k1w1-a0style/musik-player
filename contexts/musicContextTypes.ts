@@ -109,6 +109,9 @@ export interface NowPlayingMusicContextValue {
   previous: () => Promise<void>;
   reorderQueue?: (fromIndex: number, toIndex: number) => Promise<NativeQueueActionResult>;
   saveQueueAsPlaylist: (name: string, queue: Song[]) => Playlist | null;
+  shuffle: boolean;
+  toggleShuffle: () => Promise<NativeQueueActionResult>;
   repeatMode: RepeatMode;
+  cycleRepeatMode: () => Promise<void>;
   canSkip: boolean;
 }

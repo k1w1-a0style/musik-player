@@ -1,21 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import {
-  Animated,
-  ImageBackground,
-  PanResponder,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-  type GestureResponderHandlers,
-  type PanResponderGestureState,
-} from 'react-native';
+import React from 'react';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
-import { useAppTheme } from '../contexts/AppThemeContext';
-import { APP_THEME_TOKENS } from '../utils/appTheme';
-import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { getSongArtworkUri } from '../utils/songArtwork';
-import { getNowPlayingSoundCloudOverlayColors } from '../utils/appThemeOverlays';
+import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
+import SoundCloudCarouselPanel from './SoundCloudCarouselPanel';
+import type { SoundCloudCarouselRenderPage } from './soundCloudCarouselTypes';
+
+export type { SoundCloudCarouselPageRole } from './soundCloudCarouselTypes';
 
 export interface SoundCloudTrackCarouselProps {
   currentSong: Song | null;
@@ -25,189 +17,72 @@ export interface SoundCloudTrackCarouselProps {
   previousArtworkUri?: string;
   nextArtworkUri?: string;
   canSwipeToNext?: boolean;
+  isPlaying: boolean;
   onSwipeToNext: () => void;
   onSwipeToPrevious: () => void;
-  blurRadius?: number;
-  children: (panHandlers: GestureResponderHandlers) => React.ReactNode;
+  onCollapse: () => void;
+  renderPage: SoundCloudCarouselRenderPage;
+  chrome?: React.ReactNode;
 }
 
-const MIN_HORIZONTAL_ACTIVATION = 18;
-const HORIZONTAL_DOMINANCE = 1.15;
-const DISTANCE_COMMIT_RATIO = 0.3;
-const VELOCITY_COMMIT = 0.8;
-const SPRING_CONFIG = { tension: 150, friction: 22, useNativeDriver: true };
-const TIMING_CONFIG = { duration: 150, useNativeDriver: true };
-const SWITCH_FALLBACK_RESET_DELAY_MS = 250;
+const hasNextTrack = (song: Song | null | undefined, allowed: boolean): boolean => Boolean(song) && allowed;
+const nullableSong = (song: Song | null | undefined): Song | null => song || null;
 
-const isHorizontalGesture = (gesture: PanResponderGestureState): boolean => {
-  const absDx = Math.abs(gesture.dx);
-  const absDy = Math.abs(gesture.dy);
-  return absDx >= MIN_HORIZONTAL_ACTIVATION && absDx > absDy * HORIZONTAL_DOMINANCE;
+const CarouselChrome = ({ children }: { children?: React.ReactNode }) => {
+  if (!children) return null;
+  return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{children}</View>;
 };
 
-interface PanelProps {
-  song: Song | null | undefined;
-  artworkUri?: string;
-  fallbackArtworkUri?: string;
-  blurRadius?: number;
-  testID: string;
-}
-
-const CarouselPanel: React.FC<PanelProps> = ({ song, artworkUri, fallbackArtworkUri, blurRadius = 0, testID }) => {
-  const { appearance } = useAppTheme();
-  const overlayColors = getNowPlayingSoundCloudOverlayColors(appearance);
-  const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song) ?? fallbackArtworkUri;
-  const content = (
-    <View style={[styles.panelScrim, { backgroundColor: overlayColors.carouselScrimColor }]}> 
-      {song ? (
-        <View style={styles.panelMetadata}>
-          <Text style={[styles.panelTitle, { color: overlayColors.carouselTitleColor, textShadowColor: overlayColors.carouselTextShadowColor }]} numberOfLines={2}>{displayTitle(song)}</Text>
-          <Text style={[styles.panelArtist, { color: overlayColors.carouselArtistColor, textShadowColor: overlayColors.carouselTextShadowColor }]} numberOfLines={1}>{displayArtist(song)}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-
-  if (!resolvedArtworkUri) return <View testID={testID} style={[styles.panel, styles.emptyPanel]}>{content}</View>;
-
-  return (
-    <ImageBackground testID={testID} source={{ uri: resolvedArtworkUri }} resizeMode="cover" style={styles.panel} imageStyle={styles.panelImage} blurRadius={blurRadius}>
-      {content}
-    </ImageBackground>
-  );
-};
-
-const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({
-  currentSong,
-  previousSong,
-  nextSong,
-  currentArtworkUri,
-  previousArtworkUri,
-  nextArtworkUri,
-  canSwipeToNext = true,
-  onSwipeToNext,
-  onSwipeToPrevious,
-  blurRadius = 0,
-  children,
+const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ currentSong, previousSong,
+  nextSong, currentArtworkUri, previousArtworkUri, nextArtworkUri, canSwipeToNext = true,
+  isPlaying, onSwipeToNext, onSwipeToPrevious, onCollapse, renderPage, chrome,
 }) => {
-  const { width } = useWindowDimensions();
-  const translateX = useRef(new Animated.Value(0)).current;
-  const isSwitchingRef = useRef(false);
-  const currentSongIdRef = useRef(currentSong?.id);
-  const fallbackResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelWidth = Math.max(width, 1);
-  const hasPrevious = !!previousSong;
-  const hasNext = !!nextSong && canSwipeToNext;
-
-  currentSongIdRef.current = currentSong?.id;
-
-  const clearFallbackReset = useCallback(() => {
-    if (fallbackResetTimeoutRef.current) {
-      clearTimeout(fallbackResetTimeoutRef.current);
-      fallbackResetTimeoutRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    clearFallbackReset();
-    translateX.stopAnimation();
-    translateX.setValue(0);
-    isSwitchingRef.current = false;
-  }, [clearFallbackReset, currentSong?.id, nextSong?.id, previousSong?.id, translateX]);
-
-  useEffect(() => () => {
-    clearFallbackReset();
-  }, [clearFallbackReset]);
-
-  const animateBack = useCallback(() => {
-    clearFallbackReset();
-    Animated.spring(translateX, { ...SPRING_CONFIG, toValue: 0 }).start(() => {
-      isSwitchingRef.current = false;
-    });
-  }, [clearFallbackReset, translateX]);
-
-  const scheduleFallbackReset = useCallback((swipedFromSongId?: string) => {
-    clearFallbackReset();
-    fallbackResetTimeoutRef.current = setTimeout(() => {
-      fallbackResetTimeoutRef.current = null;
-      if (isSwitchingRef.current && currentSongIdRef.current === swipedFromSongId) {
-        animateBack();
-      }
-    }, SWITCH_FALLBACK_RESET_DELAY_MS);
-  }, [animateBack, clearFallbackReset]);
-
-  const completeSwipe = useCallback((direction: 'next' | 'previous') => {
-    isSwitchingRef.current = true;
-    const toValue = direction === 'next' ? -panelWidth : panelWidth;
-    Animated.timing(translateX, { ...TIMING_CONFIG, toValue }).start(({ finished }) => {
-      if (!finished) {
-        animateBack();
-        return;
-      }
-      const swipedFromSongId = currentSongIdRef.current;
-      if (direction === 'next') onSwipeToNext();
-      else onSwipeToPrevious();
-      scheduleFallbackReset(swipedFromSongId);
-    });
-  }, [animateBack, onSwipeToNext, onSwipeToPrevious, panelWidth, scheduleFallbackReset, translateX]);
-
-  const finishGesture = useCallback((gesture: PanResponderGestureState) => {
-    if (isSwitchingRef.current) return;
-    const wantsNext = gesture.dx < 0;
-    const allowed = wantsNext ? hasNext : hasPrevious;
-    const passesDistance = Math.abs(gesture.dx) >= panelWidth * DISTANCE_COMMIT_RATIO;
-    const passesVelocity = Math.abs(gesture.vx) >= VELOCITY_COMMIT;
-
-    if (allowed && (passesDistance || passesVelocity) && isHorizontalGesture(gesture)) {
-      completeSwipe(wantsNext ? 'next' : 'previous');
-      return;
-    }
-
-    animateBack();
-  }, [animateBack, completeSwipe, hasNext, hasPrevious, panelWidth]);
-
-  const responder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_event, gesture) => !isSwitchingRef.current && isHorizontalGesture(gesture),
-    onMoveShouldSetPanResponderCapture: () => false,
-    onPanResponderMove: (_event, gesture) => {
-      if (isSwitchingRef.current) return;
-      const blockedNext = gesture.dx < 0 && !hasNext;
-      const blockedPrevious = gesture.dx > 0 && !hasPrevious;
-      translateX.setValue(blockedNext || blockedPrevious ? gesture.dx * 0.22 : gesture.dx);
-    },
-    onPanResponderRelease: (_event, gesture) => finishGesture(gesture),
-    onPanResponderTerminate: (_event, gesture) => finishGesture(gesture),
-    onPanResponderTerminationRequest: () => false,
-  }), [finishGesture, hasNext, hasPrevious, translateX]);
-
+  const { width, height } = useWindowDimensions();
+  const panelWidth = Math.max(1, width);
+  const horizontal = useHorizontalTrackMotion({ currentSongId: currentSong?.id, panelWidth,
+    onNext: onSwipeToNext, onPrevious: onSwipeToPrevious, hasPrevious: Boolean(previousSong),
+    hasNext: hasNextTrack(nextSong, canSwipeToNext) });
+  const vertical = useVerticalPlayerMotion({ height: Math.max(1, height), onCollapse });
+  const trackTranslateX = Animated.add(horizontal.constrainedDrag, -panelWidth);
   return (
     <View testID="soundcloud-track-carousel-root" style={styles.root}>
-      <Animated.View testID="soundcloud-track-carousel" style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: Animated.add(translateX, -panelWidth) }] }]}>
-        <View style={{ width: panelWidth }}>
-          <CarouselPanel testID="soundcloud-carousel-previous-panel" song={previousSong} artworkUri={previousArtworkUri} blurRadius={blurRadius} />
-        </View>
-        <View style={{ width: panelWidth }}>
-          <CarouselPanel testID="soundcloud-carousel-current-panel" song={currentSong} artworkUri={currentArtworkUri} blurRadius={blurRadius} />
-        </View>
-        <View style={{ width: panelWidth }}>
-          <CarouselPanel testID="soundcloud-carousel-next-panel" song={nextSong} artworkUri={nextArtworkUri} fallbackArtworkUri={currentArtworkUri} blurRadius={blurRadius} />
-        </View>
-      </Animated.View>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">{children(responder.panHandlers)}</View>
+      <PanGestureHandler testID="soundcloud-collapse-gesture" activeOffsetY={[-100000, 24]}
+        failOffsetX={[-18, 18]} onGestureEvent={vertical.onGestureEvent}
+        onHandlerStateChange={vertical.onStateChange}>
+        <Animated.View style={[styles.player, { opacity: vertical.opacity,
+          transform: [{ translateY: vertical.translateY }, { scale: vertical.scale }] }]}
+          testID="soundcloud-collapsible-player">
+          <PanGestureHandler testID="soundcloud-track-swipe-gesture" activeOffsetX={[-18, 18]}
+            failOffsetY={[-18, 18]} onGestureEvent={horizontal.onGestureEvent}
+            onHandlerStateChange={horizontal.onStateChange}>
+            <Animated.View testID="soundcloud-track-carousel"
+              style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
+              <View style={{ width: panelWidth }}>
+                <SoundCloudCarouselPanel song={nullableSong(previousSong)} role="previous" artworkUri={previousArtworkUri}
+                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={isPlaying} renderPage={renderPage} />
+              </View>
+              <View style={{ width: panelWidth }}>
+                <SoundCloudCarouselPanel song={currentSong} role="current" artworkUri={currentArtworkUri}
+                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={isPlaying} renderPage={renderPage} />
+              </View>
+              <View style={{ width: panelWidth }}>
+                <SoundCloudCarouselPanel song={nullableSong(nextSong)} role="next" artworkUri={nextArtworkUri}
+                  fallbackArtworkUri={currentArtworkUri} panelWidth={panelWidth} horizontalDrag={horizontal.drag}
+                  isPlaying={isPlaying} renderPage={renderPage} />
+              </View>
+            </Animated.View>
+          </PanGestureHandler>
+          <CarouselChrome>{chrome}</CarouselChrome>
+        </Animated.View>
+      </PanGestureHandler>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, overflow: 'hidden' },
+  root: { flex: 1, overflow: 'hidden', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.playerBackground },
+  player: { flex: 1, overflow: 'hidden', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.playerBackground },
   track: { flex: 1, flexDirection: 'row' },
-  panel: { flex: 1 },
-  panelImage: { opacity: 0.98 },
-  emptyPanel: {},
-  panelScrim: { flex: 1, justifyContent: 'flex-end', padding: APP_THEME_TOKENS.spacing.lg },
-  panelMetadata: { alignItems: 'flex-start', marginBottom: APP_THEME_TOKENS.spacing.xl },
-  panelTitle: { fontSize: 24, lineHeight: 30, fontFamily: APP_THEME_TOKENS.fonts.heading, textShadowRadius: 8 },
-  panelArtist: { fontSize: 18, fontFamily: APP_THEME_TOKENS.fonts.body, textShadowRadius: 8 },
 });
 
-export default SoundCloudTrackCarousel;
+export default React.memo(SoundCloudTrackCarousel);

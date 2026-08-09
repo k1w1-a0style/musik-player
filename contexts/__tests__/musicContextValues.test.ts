@@ -137,7 +137,10 @@ describe('music context value builders', () => {
       next: baseValue.next,
       previous: baseValue.previous,
       saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
+      shuffle: baseValue.shuffle,
+      toggleShuffle: baseValue.toggleShuffle,
       repeatMode: baseValue.repeatMode,
+      cycleRepeatMode: baseValue.cycleRepeatMode,
       sleepTimerRemainingSeconds: null,
       canSkip: true,
     });

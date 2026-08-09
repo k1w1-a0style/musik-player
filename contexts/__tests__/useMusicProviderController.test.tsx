@@ -197,7 +197,10 @@ describe('useMusicProviderController', () => {
         next: value.next,
         previous: value.previous,
         saveQueueAsPlaylist: value.saveQueueAsPlaylist,
+        shuffle: value.shuffle,
+        toggleShuffle: value.toggleShuffle,
         repeatMode: value.repeatMode,
+        cycleRepeatMode: value.cycleRepeatMode,
         canSkip: false,
       },
     };

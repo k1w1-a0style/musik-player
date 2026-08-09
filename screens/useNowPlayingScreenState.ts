@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNowPlayingMusicContext } from '../contexts/MusicContext';
@@ -63,6 +64,7 @@ export const useNowPlayingScreenState = () => {
     currentSong,
     seekTo,
     isPlaying,
+    togglePlayPause,
     sleepTimerActive,
     sleepTimerRemainingSeconds,
     startSleepTimer,
@@ -76,7 +78,8 @@ export const useNowPlayingScreenState = () => {
     previous,
     reorderQueue,
     saveQueueAsPlaylist,
-    repeatMode,
+    shuffle, toggleShuffle,
+    repeatMode, cycleRepeatMode,
   } = useNowPlayingMusicContext();
   const { position, duration } = usePlaybackProgress();
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
@@ -85,18 +88,20 @@ export const useNowPlayingScreenState = () => {
   const presentation = useNowPlayingPresentation({ currentSong, palette, paletteLoading });
   const { mode: controlsMode } = useNowPlayingControlsMode();
   const queueShift = reorderQueue ?? noopQueueShift;
-  const saveCurrentQueueAsPlaylist = () => savePlaybackQueueAsPlaylist(saveQueueAsPlaylist, playbackQueue);
+  const saveCurrentQueueAsPlaylist = useCallback(
+    () => savePlaybackQueueAsPlaylist(saveQueueAsPlaylist, playbackQueue),
+    [playbackQueue, saveQueueAsPlaylist],
+  );
   const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
   const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
 
-  const swipeToNext = () => {
+  const swipeToNext = useCallback(() => {
     if (!canSwipeToNext) return;
     void runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
-  };
+  }, [canSwipeToNext, next]);
 
-  const swipeToPrevious = () => {
-    void runPlaybackUiAction('now-playing-previous', previous, { dropIfPending: true });
-  };
+  const swipeToPrevious = useCallback(() => { void runPlaybackUiAction(
+    'now-playing-previous', previous, { dropIfPending: true }); }, [previous]);
 
   return {
     currentSong,
@@ -106,6 +111,7 @@ export const useNowPlayingScreenState = () => {
     nextArtworkUri: getSongArtworkUri(adjacentSongs.nextSong),
     seekTo,
     isPlaying,
+    togglePlayPause,
     sleepTimerActive,
     sleepTimerRemainingSeconds,
     startSleepTimer,
@@ -115,10 +121,13 @@ export const useNowPlayingScreenState = () => {
     position,
     duration,
     bottomInset: insets.bottom,
+    topInset: insets.top,
     controlsMode,
     swipeToNext,
     swipeToPrevious,
     canSwipeToNext,
+    shuffle, toggleShuffle,
+    repeatMode, cycleRepeatMode,
     saveCurrentQueueAsPlaylist,
     moveQueueItem: queueShift,
     canReorderQueue: queueState.queue.length > 1 && !!reorderQueue,
