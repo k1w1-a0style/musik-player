@@ -20,6 +20,75 @@ function runBlocks(document: any): any[] {
 }
 
 const jobs = (document: any): any[] => Object.values(document.jobs || {});
+type PermissionLevel = 0 | 1 | 2;
+type PermissionMap = Record<string, PermissionLevel>;
+
+const permissionMap = (permissions: unknown, scopes: Set<string>): PermissionMap => {
+  if (permissions === 'read-all' || permissions === 'write-all') {
+    const level: PermissionLevel = permissions === 'write-all' ? 2 : 1;
+    return Object.fromEntries([...scopes].map(scope => [scope, level]));
+  }
+  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) return {};
+  return Object.fromEntries([...scopes].map(scope => {
+    const value = (permissions as Record<string, unknown>)[scope];
+    return [scope, value === 'write' ? 2 : value === 'read' ? 1 : 0];
+  }));
+};
+
+const explicitPermissionScopes = (...permissions: unknown[]): Set<string> => new Set(
+  permissions.flatMap(value => value != null && typeof value === 'object' && !Array.isArray(value)
+    ? Object.keys(value as Record<string, unknown>) : []),
+);
+
+const effectivePermissions = (workflow: any, job: any, scopes: Set<string>): PermissionMap =>
+  permissionMap(hasOwn(job, 'permissions') ? job.permissions : workflow.permissions, scopes);
+
+const reusableWorkflowPermissionFailures = (files: Record<string, any>): string[] => {
+  const failures: string[] = [];
+  for (const [callerName, caller] of Object.entries(files)) {
+    for (const [callerJobName, callerJob] of Object.entries<any>(caller.jobs || {})) {
+      if (typeof callerJob?.uses !== 'string' || !callerJob.uses.startsWith('./.github/workflows/')) continue;
+      const calledName = callerJob.uses.slice('./.github/workflows/'.length);
+      const called = files[calledName];
+      if (!called) {
+        failures.push(`${callerName}:${callerJobName} references missing ${calledName}`);
+        continue;
+      }
+      for (const [calledJobName, calledJob] of Object.entries<any>(called.jobs || {})) {
+        const scopes = explicitPermissionScopes(
+          caller.permissions, callerJob.permissions, called.permissions, calledJob.permissions,
+        );
+        const ceiling = effectivePermissions(caller, callerJob, scopes);
+        const requested = effectivePermissions(called, calledJob, scopes);
+        for (const scope of scopes) {
+          if ((requested[scope] || 0) > (ceiling[scope] || 0)) {
+            failures.push(`${callerName}:${callerJobName} grants ${scope} below ${calledName}:${calledJobName}`);
+          }
+        }
+      }
+    }
+  }
+  return failures;
+};
+
+const easPermissionContractFailures = (caller: any, called: any): string[] => [
+  ...reusableWorkflowPermissionFailures({
+    'k1w1-triggered-build.yml': caller,
+    'eas-build.yml': called,
+  }),
+  ...(JSON.stringify(caller.permissions) === JSON.stringify({ contents: 'read' })
+    ? [] : ['triggered workflow default must be contents: read']),
+  ...(JSON.stringify(caller.jobs?.build?.permissions) === JSON.stringify({ contents: 'write' })
+    ? [] : ['reusable call ceiling must be contents: write']),
+  ...(JSON.stringify(called.permissions) === JSON.stringify({ contents: 'read' })
+    ? [] : ['EAS workflow default must be contents: read']),
+  ...(called.jobs?.authorize?.permissions === undefined
+    ? [] : ['authorize must inherit the read-only default']),
+  ...(JSON.stringify(called.jobs?.autofix?.permissions) === JSON.stringify({ contents: 'write' })
+    ? [] : ['autofix must retain contents: write']),
+  ...(JSON.stringify(called.jobs?.build?.permissions) === JSON.stringify({ contents: 'read' })
+    ? [] : ['build must remain contents: read']),
+];
 const EXTERNAL_USE_WITH_SHA = /^[^\s@]+@[0-9a-f]{40}$/;
 const EXPRESSION_IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/g;
 const EXACT_FORK_TRUST_BOUNDARY = 'github.event.pull_request.head.repo.fork==false';
@@ -319,6 +388,85 @@ const prTrustBoundaryFailures = (workflow: any, repoRoot = process.cwd()): any[]
 };
 
 describe('repository-wide workflow security inventory', () => {
+  test('same-repository reusable workflows cannot elevate the caller permission ceiling', () => {
+    const workflows = Object.fromEntries(workflowFiles.map(file => [file, load(file)]));
+    expect(reusableWorkflowPermissionFailures(workflows)).toEqual([]);
+  });
+
+  test.each([
+    ['read-all', { contents: 'write' }],
+    [{}, { contents: 'read' }],
+    [{ contents: 'read' }, { contents: 'write' }],
+  ])('rejects reusable permission elevation from %j to %j', (callerPermissions, calledPermissions) => {
+    expect(reusableWorkflowPermissionFailures({
+      'caller.yml': {
+        permissions: callerPermissions,
+        jobs: { call: { uses: './.github/workflows/called.yml' } },
+      },
+      'called.yml': { jobs: { privileged: { permissions: calledPermissions } } },
+    })).toEqual(['caller.yml:call grants contents below called.yml:privileged']);
+  });
+
+  test.each([
+    ['write-all', 'write-all'],
+    [{ contents: 'read' }, { contents: 'read' }],
+    [{ contents: 'write' }, { contents: 'write' }],
+  ])('accepts reusable permissions within the caller ceiling %j / %j',
+    (callerPermissions, calledPermissions) => {
+      expect(reusableWorkflowPermissionFailures({
+        'caller.yml': {
+          permissions: { contents: 'read' },
+          jobs: {
+            call: {
+              permissions: callerPermissions,
+              uses: './.github/workflows/called.yml',
+            },
+          },
+        },
+        'called.yml': {
+          permissions: { contents: 'read' },
+          jobs: {
+            writer: { permissions: calledPermissions },
+            reader: { permissions: { contents: 'read' } },
+          },
+        },
+      })).toEqual([]);
+    });
+
+  test('triggered EAS dispatch keeps write at the reusable-call ceiling only', () => {
+    const caller = load('k1w1-triggered-build.yml');
+    const called = load('eas-build.yml');
+    expect(easPermissionContractFailures(caller, called)).toEqual([]);
+  });
+
+  test('EAS permission contract rejects least-privilege mutations', () => {
+    const caller = load('k1w1-triggered-build.yml');
+    const called = load('eas-build.yml');
+    const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+    const oldCallerCeiling = clone(caller);
+    oldCallerCeiling.jobs.build.permissions = { contents: 'read' };
+    expect(easPermissionContractFailures(oldCallerCeiling, called)).toEqual(expect.arrayContaining([
+      'k1w1-triggered-build.yml:build grants contents below eas-build.yml:autofix',
+      'reusable call ceiling must be contents: write',
+    ]));
+
+    const globalWrite = clone(caller);
+    globalWrite.permissions = { contents: 'write' };
+    expect(easPermissionContractFailures(globalWrite, called))
+      .toContain('triggered workflow default must be contents: read');
+
+    const writableBuild = clone(called);
+    writableBuild.jobs.build.permissions = { contents: 'write' };
+    expect(easPermissionContractFailures(caller, writableBuild))
+      .toContain('build must remain contents: read');
+
+    const readonlyAutofix = clone(called);
+    readonlyAutofix.jobs.autofix.permissions = { contents: 'read' };
+    expect(easPermissionContractFailures(caller, readonlyAutofix))
+      .toContain('autofix must retain contents: write');
+  });
+
   test.each(workflowFiles)('%s pins every external action to an immutable commit', file => {
     const workflow = load(file);
     for (const job of jobs(workflow)) {

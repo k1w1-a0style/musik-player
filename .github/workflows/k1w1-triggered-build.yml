@@ -188,6 +188,8 @@ jobs:
   build:
     name: Dispatch → EAS Build (reusable)
     needs: resolve
+    permissions:
+      contents: write
     uses: ./.github/workflows/eas-build.yml
     with:
       ref: ${{ needs.resolve.outputs.ref }}
