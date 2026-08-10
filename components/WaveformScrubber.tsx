@@ -39,6 +39,9 @@ const ratioFromEvent = (event: GestureResponderEvent, width: number): number => 
   return clampWaveformRatio(event.nativeEvent.locationX / width);
 };
 
+const ratioFromPosition = (position: number, duration: number): number =>
+  duration > 0 ? clampWaveformRatio(position / duration) : 0;
+
 interface WaveformBarsProps {
   points: readonly number[];
   sourceKey: string;
@@ -76,7 +79,7 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
   const [previewPosition, setPreviewPosition] = useState<number | null>(null);
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : waveform.durationMs;
   const safePosition = safeDuration > 0 ? Math.min(Math.max(0, currentPosition), safeDuration) : 0;
-  const baseRatio = safeDuration > 0 ? safePosition / safeDuration : 0;
+  const baseRatio = ratioFromPosition(safePosition, safeDuration);
   const baseRatioRef = useRef(baseRatio);
   baseRatioRef.current = baseRatio;
   const animatedRatio = useRef(new Animated.Value(baseRatio)).current;
@@ -141,7 +144,7 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
   }, []);
 
   const displayPosition = previewPosition ?? safePosition;
-  const displayRatio = safeDuration > 0 ? clampWaveformRatio(displayPosition / safeDuration) : 0;
+  const displayRatio = ratioFromPosition(displayPosition, safeDuration);
 
   return (
     <View style={styles.root} testID="waveform-scrubber">

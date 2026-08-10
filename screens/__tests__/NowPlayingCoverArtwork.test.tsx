@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { Animated } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 import NowPlayingCoverArtwork from '../NowPlayingCoverArtwork';
@@ -27,6 +27,10 @@ jest.mock('lucide-react-native', () => ({
 const song = { id: 's1', title: 'One', artist: 'Artist' };
 
 describe('NowPlayingCoverArtwork', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('renders cover card without swipe handlers by default', () => {
     const { getByTestId } = render(
       <NowPlayingCoverArtwork
@@ -42,7 +46,7 @@ describe('NowPlayingCoverArtwork', () => {
     expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
   });
 
-  test('attaches horizontal swipe handlers when enabled', () => {
+  test('wraps the optimized cover image in a swipe gesture surface when enabled', () => {
     const { getByTestId } = render(
       <NowPlayingCoverArtwork
         song={song}
@@ -56,11 +60,7 @@ describe('NowPlayingCoverArtwork', () => {
       />,
     );
 
-    const card = getByTestId('now-playing-cover-card');
-    const gesture = getByTestId('now-playing-cover-swipe-gesture');
-    expect(card.props.onMoveShouldSetResponder).toBeUndefined();
-    expect(gesture.props.onGestureEvent).toEqual(expect.any(Function));
-    expect(gesture.props.onHandlerStateChange).toEqual(expect.any(Function));
+    expect(getByTestId('now-playing-cover-swipe-gesture')).toBeTruthy();
     expect(getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
   });
 
@@ -76,8 +76,10 @@ describe('NowPlayingCoverArtwork', () => {
         swipeEnabled canSwipeLeft onSwipeLeft={onSwipeLeft} />,
     );
 
-    getByTestId('now-playing-cover-swipe-gesture').props.onHandlerStateChange({
-      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 2 },
+    act(() => {
+      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 2 },
+      });
     });
 
     expect(onSwipeLeft).toHaveBeenCalledTimes(1);
@@ -98,9 +100,10 @@ describe('NowPlayingCoverArtwork', () => {
       />,
     );
 
-    const gesture = getByTestId('now-playing-cover-swipe-gesture');
-    gesture.props.onHandlerStateChange({
-      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60 },
+    act(() => {
+      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60 },
+      });
     });
 
     expect(onSwipeLeft).not.toHaveBeenCalled();

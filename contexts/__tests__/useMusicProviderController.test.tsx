@@ -179,6 +179,7 @@ describe('useMusicProviderController', () => {
         previous: value.previous,
         canSkipNext: false,
         canSkipPrevious: false,
+        palette: value.palette,
       },
       nowPlayingValue: {
         playbackQueue: value.playbackQueue,
