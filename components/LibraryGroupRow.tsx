@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Play } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -13,6 +13,7 @@ interface LibraryGroupRowProps {
 const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
+  const coverSource = useMemo(() => group.cover ? { uri: group.cover } : null, [group.cover]);
 
   useEffect(() => {
     setCoverFailed(false);
@@ -26,7 +27,7 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
     setCoverFailed(true);
   }, []);
 
-  const showCover = !!group.cover && !coverFailed;
+  const showCover = coverSource !== null && !coverFailed;
 
   return (
     <Pressable
@@ -42,7 +43,9 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
     >
       <View style={[styles.groupIcon, { backgroundColor: theme.palette.surfaceGlass }]}>
         {showCover ? (
-          <Image source={{ uri: group.cover }} style={styles.groupCover} testID={`library-group-cover-${group.id}`} onError={handleCoverError} />
+          <Image source={coverSource!} style={styles.groupCover} accessible={false}
+            resizeMethod="resize" fadeDuration={0} testID={`library-group-cover-${group.id}`}
+            onError={handleCoverError} />
         ) : (
           <Text style={[styles.groupIconText, { color: theme.palette.primary }]}>
             {group.title.slice(0, 1).toUpperCase() || '?'}

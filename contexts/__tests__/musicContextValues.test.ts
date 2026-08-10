@@ -85,6 +85,7 @@ describe('music context value builders', () => {
       isPlaying: true,
       canSkipNext: true,
       canSkipPrevious: true,
+      palette: baseValue.palette,
     });
   });
 

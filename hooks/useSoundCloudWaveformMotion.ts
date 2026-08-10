@@ -4,6 +4,8 @@ import { State, type PanGestureHandlerGestureEvent, type PanGestureHandlerStateC
 import { PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS } from '../contexts/PlaybackProgressContext';
 import { resolveSoundCloudSeekRatio } from '../utils/soundCloudPlayer';
 
+const LIVE_PREVIEW_THROTTLE_MS = 90;
+
 interface PlaybackProgressMotionOptions {
   progressRatio: number;
   safeDuration: number;
@@ -56,7 +58,7 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
   const preview = useCallback((translationX: number) => {
     if (!onPreviewPosition || safeDuration <= 0) return;
     const now = Date.now();
-    if (now - lastPreviewAtRef.current < 50) return;
+    if (now - lastPreviewAtRef.current < LIVE_PREVIEW_THROTTLE_MS) return;
     lastPreviewAtRef.current = now;
     const ratio = resolveSoundCloudSeekRatio({ startRatio: startRatioRef.current, translationX, travelWidth });
     onPreviewPosition(ratio * safeDuration);

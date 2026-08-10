@@ -11,6 +11,7 @@ type MiniCtx = {
   previous: jest.Mock<Promise<void>, []>;
   canSkipNext: boolean;
   canSkipPrevious: boolean;
+  palette: PaletteCtx['palette'];
 };
 
 type PaletteCtx = {
@@ -80,6 +81,7 @@ const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
   previous: jest.fn(async () => undefined),
   canSkipNext: true,
   canSkipPrevious: true,
+  palette: null,
   ...overrides,
 });
 
@@ -187,10 +189,17 @@ describe('MiniPlayer', () => {
     expect(fillStyle).not.toContain('undefined');
   });
 
+  test('avoids the broad music context subscription', () => {
+    render(<MiniPlayer onOpen={jest.fn()} />);
+
+    expect(mockUseMiniPlayerMusicContext).toHaveBeenCalled();
+    expect(mockUseMusicContext).not.toHaveBeenCalled();
+  });
+
   test('uses cover palette accent for progress and chrome when available', () => {
-    mockUseMusicContext.mockReturnValue({
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({
       palette: { vibrant: '#AA5500', muted: '#553311' },
-    });
+    }));
 
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
     const containerStyle = JSON.stringify(getByTestId('mini-player-open').props.style);

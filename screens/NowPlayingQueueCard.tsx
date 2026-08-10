@@ -102,6 +102,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
           renderItem={renderQueueItem} onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
           onScroll={handleScroll} scrollEventThrottle={16} nestedScrollEnabled scrollEnabled
           showsVerticalScrollIndicator getItemLayout={getQueueItemLayout} style={styles.queueList}
+          initialNumToRender={10} maxToRenderPerBatch={8} updateCellsBatchingPeriod={70} windowSize={7}
           contentContainerStyle={styles.queueListContent} ListEmptyComponent={<QueueEmptyState colors={rowColors} />} />
       </NativeViewGestureHandler>
     </View>

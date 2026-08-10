@@ -150,6 +150,7 @@ describe('NowPlayingSoundCloudView', () => {
 
     expect(queryByTestId('soundcloud-pause-button')).toBeNull();
     expect(queryByTestId('soundcloud-paused-controls')).toBeNull();
+    expect(queryByTestId('soundcloud-carousel-current-paused-artwork')).toBeNull();
     fireEvent.press(getByTestId('soundcloud-swipe-hitbox'));
 
     expect(onTogglePlayback).toHaveBeenCalledTimes(1);

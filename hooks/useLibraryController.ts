@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
 import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
 import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
@@ -62,6 +62,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   const { sortMode, setSortMode } = useLibrarySortMode();
   const { viewMode, cycleViewMode } = useLibrarySongViewMode();
+  const deferredQuery = useDeferredValue(query);
   const sortedSongs = useMemo(() => sortLibrarySongs(songs, sortMode), [songs, sortMode]);
 
   const {
@@ -78,7 +79,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     favoriteIds,
     isReady,
     playlists,
-    query,
+    query: deferredQuery,
     scanFolders,
     songs: sortedSongs,
   });

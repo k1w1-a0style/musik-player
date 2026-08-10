@@ -87,6 +87,8 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
       progressAccent={state.progressAccent} progressAccentDark={state.progressAccentDark}
       foregroundOnAccent={state.foregroundOnAccent} volume={state.volume} onVolumeChange={state.setVolume}
       bottomInset={state.bottomInset} onOpenTrackInfo={state.openTrackInfo}
+      onSwipeToNext={state.swipeToNext} onSwipeToPrevious={state.swipeToPrevious}
+      canSwipeToNext={state.canSwipeToNext} canSwipeToPrevious={Boolean(state.previousSong)}
     />
   ), [layout.coverAreaHeight, layout.coverSize, state]);
   const renderDetails = useCallback(() => (

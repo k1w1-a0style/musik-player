@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../hooks/useSoundCloudCarouselMotion';
@@ -46,7 +46,10 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     onNext: onSwipeToNext, onPrevious: onSwipeToPrevious, hasPrevious: Boolean(previousSong),
     hasNext: hasNextTrack(nextSong, canSwipeToNext), reduceMotion });
   const vertical = useVerticalPlayerMotion({ height: Math.max(1, height), onCollapse, reduceMotion });
-  const trackTranslateX = Animated.add(horizontal.constrainedDrag, -panelWidth);
+  const trackTranslateX = useMemo(
+    () => Animated.add(horizontal.constrainedDrag, -panelWidth),
+    [horizontal.constrainedDrag, panelWidth],
+  );
   return (
     <View testID="soundcloud-track-carousel-root" style={styles.root}>
       <PanGestureHandler testID="soundcloud-collapse-gesture" activeOffsetY={[-100000, 24]}
@@ -63,7 +66,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
               style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
               <View style={{ width: panelWidth }}>
                 <SoundCloudCarouselPanel song={nullableSong(previousSong)} role="previous" artworkUri={previousArtworkUri}
-                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={isPlaying}
+                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={false}
                   reduceMotion={reduceMotion} renderPage={renderPage} />
               </View>
               <View style={{ width: panelWidth }}>
@@ -73,7 +76,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
               </View>
               <View style={{ width: panelWidth }}>
                 <SoundCloudCarouselPanel song={nullableSong(nextSong)} role="next" artworkUri={nextArtworkUri}
-                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={isPlaying}
+                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={false}
                   reduceMotion={reduceMotion} renderPage={renderPage} />
               </View>
             </Animated.View>

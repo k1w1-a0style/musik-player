@@ -12,6 +12,7 @@ const INDEX_KEY = `${PREFIX}index`;
 const MAX_CACHED_WAVEFORMS = 80;
 let cacheMutationQueue = Promise.resolve();
 let cacheInitialization: Promise<void> | null = null;
+let cachedIndex: WaveformSourceIdentity[] | null = null;
 
 const keyForSource = (sourceKey: string): string => `${PREFIX}${sourceKey}`;
 const isPayloadKey = (key: string): boolean => key.startsWith(PREFIX) && key !== INDEX_KEY;
@@ -94,8 +95,11 @@ const reconcileIndex = async (preferred: WaveformSourceIdentity[]): Promise<Wave
 };
 
 const readIndex = async (): Promise<WaveformSourceIdentity[]> => {
+  if (cachedIndex) return cachedIndex;
   const raw = await AsyncStorage.getItem(INDEX_KEY);
-  return reconcileIndex(parseIndex(raw));
+  const reconciled = await reconcileIndex(parseIndex(raw));
+  cachedIndex = reconciled;
+  return reconciled;
 };
 
 const runCacheMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -124,6 +128,7 @@ export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> =
     const next = [identity, ...existing.filter(entry => entry.sourceKey !== waveform.sourceKey)];
     try {
       await writeIndex(next);
+      cachedIndex = next.slice(0, MAX_CACHED_WAVEFORMS);
     } catch (error) {
       if (previousPayload === null) await AsyncStorage.removeItem(payloadKey).catch(() => undefined);
       else await AsyncStorage.setItem(payloadKey, previousPayload).catch(() => undefined);
@@ -139,9 +144,11 @@ export const clearWaveformCache = async (): Promise<void> => runCacheMutation(as
   await initializeCache();
   const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(LEGACY_PREFIX));
   await Promise.all(keys.map(key => AsyncStorage.removeItem(key)));
+  cachedIndex = [];
 });
 
 export const resetWaveformCacheStateForTests = (): void => {
   cacheMutationQueue = Promise.resolve();
   cacheInitialization = null;
+  cachedIndex = null;
 };

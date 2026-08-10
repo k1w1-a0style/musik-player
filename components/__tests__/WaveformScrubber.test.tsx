@@ -116,6 +116,29 @@ describe('WaveformScrubber seek semantics', () => {
     expect(getAllByText('0:50').length).toBeGreaterThan(0);
   });
 
+  test('keeps bar colors static and moves the lightweight played clip during drag', () => {
+    const { getByTestId, UNSAFE_getAllByType } = render(
+      <WaveformScrubber waveform={waveform} currentPosition={10_000} duration={100_000}
+        onSeek={jest.fn()} accent="red" />,
+    );
+    const scrubber = getByTestId('waveform-scrubber').findByProps({ accessibilityRole: 'adjustable' });
+
+    act(() => {
+      scrubber.props.onLayout(layout);
+    });
+    const fillsBeforeDrag = UNSAFE_getAllByType(Rect).map(rect => rect.props.fill);
+
+    act(() => {
+      scrubber.props.onResponderGrant(touchAt(20));
+      scrubber.props.onResponderMove(touchAt(160));
+    });
+
+    expect(UNSAFE_getAllByType(Rect).map(rect => rect.props.fill)).toEqual(fillsBeforeDrag);
+    expect(getByTestId('waveform-rest-layer')).toBeTruthy();
+    expect(getByTestId('waveform-played-layer')).toBeTruthy();
+    expect(getByTestId('waveform-played-clip')).toBeTruthy();
+  });
+
   test('uses app theme rest and time colors while preserving seek behavior', () => {
     mockAppTheme = getAppTheme('light', 'graphite');
     const onSeek = jest.fn();

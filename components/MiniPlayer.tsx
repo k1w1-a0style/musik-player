@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMiniPlayerMusicContext, useMusicContext } from '../contexts/MusicContext';
+import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
@@ -26,7 +26,7 @@ interface MiniPlayerControlsProps {
   onOpen: () => void;
 }
 
-const MiniPlayerControls = ({ color, isPlaying, canSkipNext, canSkipPrevious, showSecondary,
+const MiniPlayerControls = memo(({ color, isPlaying, canSkipNext, canSkipPrevious, showSecondary,
   onPrevious, onToggle, onNext, onOpen }: MiniPlayerControlsProps) => (
   <View style={styles.right}>
     {showSecondary ? <Pressable testID="mini-player-previous" accessibilityRole="button"
@@ -50,18 +50,27 @@ const MiniPlayerControls = ({ color, isPlaying, canSkipNext, canSkipPrevious, sh
       <ListMusic color={color} size={19} opacity={0.85} />
     </Pressable> : null}
   </View>
-);
+));
+
+MiniPlayerControls.displayName = 'MiniPlayerControls';
+
+const MiniPlayerPlaybackProgress = memo(({ accent }: { accent: string }) => {
+  const progress = useMiniPlayerProgress();
+  return <MiniPlayerProgress progress={progress} accent={accent} />;
+});
+
+MiniPlayerPlaybackProgress.displayName = 'MiniPlayerPlaybackProgress';
 
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
-  const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
-  const { palette } = useMusicContext();
+  const { currentSong, isPlaying, togglePlayPause, next, previous,
+    canSkipNext, canSkipPrevious, palette } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
   const { width } = useWindowDimensions();
   const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width);
   const [coverFailed, setCoverFailed] = useState(false);
-  const progress = useMiniPlayerProgress();
   const artworkUri = getSongArtworkUri(currentSong);
+  const artworkSource = useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const displayArtistName = currentSong ? displayArtist(currentSong) : '';
   const effectivePalette = useMemo(
@@ -93,15 +102,15 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   }, [canSkipNext, next]);
 
   if (!currentSong) return null;
-  const showCover = !!artworkUri && !coverFailed;
+  const showCover = artworkSource !== null && !coverFailed;
 
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
       <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: coverAccentMuted }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
         <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated, borderColor: coverAccentMuted }]}>
           {showCover ? (
-            <Image source={{ uri: artworkUri }} style={styles.thumbImage} accessible={false}
-              onError={() => setCoverFailed(true)} />
+            <Image source={artworkSource!} style={styles.thumbImage} accessible={false}
+              resizeMethod="resize" fadeDuration={0} onError={() => setCoverFailed(true)} />
           ) : (
             <Disc3 color={coverAccentMuted} size={18} />
           )}
@@ -119,7 +128,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         <MiniPlayerControls color={appTheme.palette.text.primary} isPlaying={isPlaying}
           canSkipNext={canSkipNext} canSkipPrevious={canSkipPrevious} showSecondary={showSecondaryControls}
           onPrevious={handlePrevious} onToggle={handleTogglePlayPause} onNext={handleNext} onOpen={onOpen} />
-        <MiniPlayerProgress progress={progress} accent={coverAccent} />
+        <MiniPlayerPlaybackProgress accent={coverAccent} />
       </Pressable>
     </View>
   );

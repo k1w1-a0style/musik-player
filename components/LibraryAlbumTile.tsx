@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -15,6 +15,7 @@ export const getAlbumTileFallbackLetter = (title: string): string =>
 const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
+  const coverSource = useMemo(() => album.cover ? { uri: album.cover } : null, [album.cover]);
 
   useEffect(() => {
     setCoverFailed(false);
@@ -28,7 +29,7 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
     setCoverFailed(true);
   }, []);
 
-  const showCover = !!album.cover && !coverFailed;
+  const showCover = coverSource !== null && !coverFailed;
 
   return (
     <Pressable
@@ -49,8 +50,9 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
         testID={`library-album-art-${album.id}`}
       >
         {showCover ? (
-          <Image source={{ uri: album.cover }} style={styles.albumImage} accessible={false}
-            testID={`library-album-cover-${album.id}`} onError={handleCoverError} />
+          <Image source={coverSource!} style={styles.albumImage} accessible={false}
+            resizeMethod="resize" fadeDuration={0} testID={`library-album-cover-${album.id}`}
+            onError={handleCoverError} />
         ) : (
           <Text style={[styles.albumLetter, { color: theme.palette.primary }]}>{getAlbumTileFallbackLetter(album.title)}</Text>
         )}

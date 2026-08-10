@@ -84,6 +84,15 @@ test('serializes concurrent index updates without losing cache entries', async (
   await expect(Promise.all(waveforms.map(item => getCachedWaveform(item)))).resolves.toEqual(waveforms);
 });
 
+test('reuses the validated in-memory index instead of rescanning every cached payload', async () => {
+  await setCachedWaveform(waveformFor('first'));
+  const callsAfterFirstWrite = (AsyncStorage.getAllKeys as jest.Mock).mock.calls.length;
+
+  await setCachedWaveform(waveformFor('second', 2));
+
+  expect((AsyncStorage.getAllKeys as jest.Mock).mock.calls).toHaveLength(callsAfterFirstWrite);
+});
+
 test('rolls back a new payload when the authoritative index write fails', async () => {
   const waveform = waveformFor('broken');
   (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key: string, value: string) => {

@@ -40,7 +40,9 @@ const getZeroScrollOffset = (): number => 0;
 
 const QueueArtwork = ({ id, artworkUri, title, colors }: { id: string; artworkUri?: string;
   title: string; colors: NowPlayingQueueColors }) => {
-  if (artworkUri) return <Image source={{ uri: artworkUri }} style={styles.queueArtwork} resizeMode="cover" testID={`queue-artwork-${id}`} />;
+  const artworkSource = React.useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
+  if (artworkSource) return <Image source={artworkSource} style={styles.queueArtwork} resizeMode="cover"
+    resizeMethod="resize" fadeDuration={0} accessible={false} testID={`queue-artwork-${id}`} />;
   return (
     <View style={[styles.queueArtwork, styles.queueArtworkFallback, { backgroundColor: colors.surfaceElevated }]}
       testID={`queue-artwork-fallback-${id}`}>
@@ -86,6 +88,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
   const drag = useQueueRowDrag({ index, queueLength, rowHeight, minShiftIndex, canDrag,
     getScrollOffset, onDragPosition, onDragEnd, onShift });
   const previewY = useAnimatedQueuePreview(previewOffsetY);
+  const translateY = React.useMemo(() => Animated.add(drag.dragY, previewY), [drag.dragY, previewY]);
   const handlePress = React.useCallback(() => {
     if (drag.dragEnabled) return drag.reset();
     onPress(id);
@@ -95,7 +98,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
 
   return (
     <Animated.View style={[styles.animatedRow,
-      { height: rowHeight, transform: [{ translateY: Animated.add(drag.dragY, previewY) }] },
+      { height: rowHeight, transform: [{ translateY }] },
       drag.dragging && styles.animatedRowDragging]}>
       <Pressable testID={`queue-row-${id}`} onPress={handlePress} onLongPress={drag.enableDrag}
         delayLongPress={260} accessibilityRole="button" accessibilityLabel={accessibilityLabel + (canDrag ? dragLabel : '')}

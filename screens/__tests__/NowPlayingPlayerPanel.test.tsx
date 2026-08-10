@@ -68,7 +68,7 @@ jest.mock('lucide-react-native', () => ({
   VolumeX: 'VolumeX',
 }));
 
-const renderPanel = () => render(
+const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayerPanel>> = {}) => render(
   <NowPlayingPlayerPanel
     currentSong={null}
     isPlaying={false}
@@ -86,6 +86,7 @@ const renderPanel = () => render(
     onVolumeChange={jest.fn(async () => undefined)}
     bottomInset={0}
     onOpenTrackInfo={jest.fn()}
+    {...props}
   />,
 );
 
@@ -111,10 +112,25 @@ describe('NowPlayingPlayerPanel', () => {
     expect(getByTestId('now-playing-volume-wrap')).toBeTruthy();
   });
 
-  test('keeps cover swipe disabled in the classic player layout', () => {
+  test('keeps cover swipe disabled when no track actions are provided', () => {
     renderPanel();
 
     expect(mockCoverProps[0].swipeEnabled).toBe(false);
+  });
+
+  test('wires native cover swipe directions and queue boundaries', () => {
+    const onSwipeToNext = jest.fn();
+    const onSwipeToPrevious = jest.fn();
+    renderPanel({ currentSong: { id: 's1', title: 'One', artist: 'Artist' },
+      onSwipeToNext, onSwipeToPrevious, canSwipeToNext: true, canSwipeToPrevious: false });
+
+    expect(mockCoverProps[0]).toEqual(expect.objectContaining({
+      swipeEnabled: true,
+      onSwipeLeft: onSwipeToNext,
+      onSwipeRight: onSwipeToPrevious,
+      canSwipeLeft: true,
+      canSwipeRight: false,
+    }));
   });
 
 });

@@ -21,10 +21,9 @@ interface SongCardProps {
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
-  const artworkUri = getSongArtworkUri(song);
-  const songTestId = song.id.trim() || buildSongKey(song);
-  const metadataLabel = getSongCardMetadataLabel(song);
-
+  const artworkUri = getSongArtworkUri(song); const artworkSource = useMemo(
+    () => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
+  const songTestId = song.id.trim() || buildSongKey(song); const metadataLabel = getSongCardMetadataLabel(song);
   const selectedColors = useMemo(() => ({
     accent: theme.palette.primary,
     text: theme.palette.text.primary,
@@ -45,7 +44,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     onInfoSong?.(song);
   }, [onInfoSong, song]);
 
-  const showCover = !!artworkUri && !coverFailed;
+  const showCover = artworkSource !== null && !coverFailed;
   const iconSize = variant === 'banner' ? 24 : variant === 'tile' ? 26 : 17;
 
   const cover = (
@@ -62,7 +61,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       testID={`song-card-cover-${songTestId}`}
     >
       {showCover ? (
-        <Image source={{ uri: artworkUri }} style={styles.coverImage} onError={() => setCoverFailed(true)} resizeMode="cover" />
+        <Image source={artworkSource!} style={styles.coverImage} onError={() => setCoverFailed(true)}
+          resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
       ) : (
         <Music2 color={isCurrent ? selectedColors.accent : theme.palette.text.muted} size={iconSize} />
       )}

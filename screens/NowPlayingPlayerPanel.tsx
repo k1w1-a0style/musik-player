@@ -24,6 +24,10 @@ interface NowPlayingPlayerPanelProps {
   onVolumeChange: (value: number) => Promise<void>;
   bottomInset: number;
   onOpenTrackInfo: () => void;
+  onSwipeToNext?: () => void;
+  onSwipeToPrevious?: () => void;
+  canSwipeToNext?: boolean;
+  canSwipeToPrevious?: boolean;
 }
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
@@ -44,6 +48,10 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onVolumeChange,
   bottomInset,
   onOpenTrackInfo,
+  onSwipeToNext,
+  onSwipeToPrevious,
+  canSwipeToNext = false,
+  canSwipeToPrevious = false,
 }) => (
   <View style={styles.playerPage} testID="now-playing-player-panel">
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
@@ -53,7 +61,11 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
         isPlaying={isPlaying}
         accent={accent}
         coverSize={coverSize}
-        swipeEnabled={false}
+        swipeEnabled={Boolean(currentSong && (onSwipeToNext || onSwipeToPrevious))}
+        onSwipeLeft={onSwipeToNext}
+        onSwipeRight={onSwipeToPrevious}
+        canSwipeLeft={canSwipeToNext}
+        canSwipeRight={canSwipeToPrevious}
       />
     </View>
 

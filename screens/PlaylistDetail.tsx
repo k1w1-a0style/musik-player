@@ -235,6 +235,7 @@ const PlaylistDetail: React.FC = () => {
         data={playlistSongs}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={renderSong}
+        initialNumToRender={12} maxToRenderPerBatch={10} updateCellsBatchingPeriod={70} windowSize={7}
         contentContainerStyle={styles.content}
         ListHeaderComponent={(
           <View style={styles.header}>

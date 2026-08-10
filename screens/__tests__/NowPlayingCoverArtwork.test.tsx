@@ -1,5 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { Animated } from 'react-native';
+import { State } from 'react-native-gesture-handler';
 import NowPlayingCoverArtwork from '../NowPlayingCoverArtwork';
 
 jest.mock('../../contexts/AppThemeContext', () => ({
@@ -55,8 +57,31 @@ describe('NowPlayingCoverArtwork', () => {
     );
 
     const card = getByTestId('now-playing-cover-card');
-    expect(card.props.onMoveShouldSetResponder).toEqual(expect.any(Function));
-    expect(getByTestId('now-playing-cover-image')).toBeTruthy();
+    const gesture = getByTestId('now-playing-cover-swipe-gesture');
+    expect(card.props.onMoveShouldSetResponder).toBeUndefined();
+    expect(gesture.props.onGestureEvent).toEqual(expect.any(Function));
+    expect(gesture.props.onHandlerStateChange).toEqual(expect.any(Function));
+    expect(getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
+  });
+
+  test('commits an allowed left swipe once after the native animation finishes', () => {
+    const onSwipeLeft = jest.fn();
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: true }),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }) as Animated.CompositeAnimation);
+    const { getByTestId } = render(
+      <NowPlayingCoverArtwork song={song} isPlaying accent="#123456" coverSize={160}
+        swipeEnabled canSwipeLeft onSwipeLeft={onSwipeLeft} />,
+    );
+
+    getByTestId('now-playing-cover-swipe-gesture').props.onHandlerStateChange({
+      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 2 },
+    });
+
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+    timing.mockRestore();
   });
 
   test('resets instead of finishing a left swipe when left swipes are disabled', () => {
@@ -73,12 +98,10 @@ describe('NowPlayingCoverArtwork', () => {
       />,
     );
 
-    const card = getByTestId('now-playing-cover-card');
-    const startEvent = { nativeEvent: { pageX: 100, pageY: 50 } };
-    const endEvent = { nativeEvent: { pageX: 40, pageY: 52 } };
-
-    card.props.onStartShouldSetResponder(startEvent);
-    card.props.onResponderRelease(endEvent);
+    const gesture = getByTestId('now-playing-cover-swipe-gesture');
+    gesture.props.onHandlerStateChange({
+      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60 },
+    });
 
     expect(onSwipeLeft).not.toHaveBeenCalled();
   });

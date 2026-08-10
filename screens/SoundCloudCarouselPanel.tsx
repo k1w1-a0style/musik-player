@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import type { SoundCloudCarouselPageRole, SoundCloudCarouselRenderPage } from './soundCloudCarouselTypes';
+
+const PAUSE_TRANSITION_MS = 220;
 
 interface ArtworkMotionOptions {
   role: SoundCloudCarouselPageRole;
@@ -14,17 +16,18 @@ interface ArtworkMotionOptions {
 }
 
 const useArtworkMotion = ({ role, isPlaying, panelWidth, horizontalDrag, reduceMotion }: ArtworkMotionOptions) => {
+  const isPaused = role === 'current' && !isPlaying;
   const drift = useRef(new Animated.Value(0)).current;
-  const paused = useRef(new Animated.Value(isPlaying ? 0 : 1)).current;
+  const paused = useRef(new Animated.Value(isPaused ? 1 : 0)).current;
   useEffect(() => {
     if (reduceMotion) {
       paused.stopAnimation();
-      paused.setValue(isPlaying ? 0 : 1);
+      paused.setValue(isPaused ? 1 : 0);
       return;
     }
-    Animated.timing(paused, { toValue: isPlaying ? 0 : 1, duration: 220,
+    Animated.timing(paused, { toValue: isPaused ? 1 : 0, duration: PAUSE_TRANSITION_MS,
       easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [isPlaying, paused, reduceMotion]);
+  }, [isPaused, paused, reduceMotion]);
   useEffect(() => {
     if (reduceMotion || role !== 'current' || !isPlaying) {
       drift.stopAnimation();
@@ -32,7 +35,7 @@ const useArtworkMotion = ({ role, isPlaying, panelWidth, horizontalDrag, reduceM
         drift.setValue(0);
         return undefined;
       }
-      Animated.timing(drift, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+      Animated.timing(drift, { toValue: 0, duration: PAUSE_TRANSITION_MS, useNativeDriver: true }).start();
       return undefined;
     }
     const animation = Animated.loop(Animated.sequence([
@@ -47,9 +50,10 @@ const useArtworkMotion = ({ role, isPlaying, panelWidth, horizontalDrag, reduceM
     outputRange: [panelWidth * 0.08, 0, -panelWidth * 0.08], extrapolate: 'clamp' }), [horizontalDrag, panelWidth]);
   const driftX = useMemo(() => drift.interpolate({ inputRange: [-1, 1],
     outputRange: [-panelWidth * 0.03, panelWidth * 0.03] }), [drift, panelWidth]);
+  const translateX = useMemo(() => Animated.add(swipe, driftX), [driftX, swipe]);
   const scale = useMemo(() => paused.interpolate({ inputRange: [0, 1],
     outputRange: [1.08, 1.12] }), [paused]);
-  return { translateX: Animated.add(swipe, driftX), scale, pauseTransition: paused };
+  return { translateX, scale, pauseTransition: paused };
 };
 
 interface SoundCloudCarouselPanelProps {
@@ -66,18 +70,40 @@ interface SoundCloudCarouselPanelProps {
 const SoundCloudCarouselPanel = ({ song, role, artworkUri, panelWidth,
   horizontalDrag, isPlaying, reduceMotion = false, renderPage }: SoundCloudCarouselPanelProps) => {
   const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song);
+  const artworkSource = useMemo(
+    () => resolvedArtworkUri ? { uri: resolvedArtworkUri } : null,
+    [resolvedArtworkUri],
+  );
+  const isPaused = role === 'current' && !isPlaying && artworkSource !== null;
+  const [renderPausedArtwork, setRenderPausedArtwork] = useState(isPaused);
+  const showPausedArtwork = isPaused || (!reduceMotion && renderPausedArtwork);
   const motion = useArtworkMotion({ role, isPlaying, panelWidth, horizontalDrag, reduceMotion });
+
+  useEffect(() => {
+    if (isPaused) {
+      setRenderPausedArtwork(true);
+      return undefined;
+    }
+    if (reduceMotion) {
+      setRenderPausedArtwork(false);
+      return undefined;
+    }
+    if (!renderPausedArtwork) return undefined;
+    const timer = setTimeout(() => setRenderPausedArtwork(false), PAUSE_TRANSITION_MS + 40);
+    return () => clearTimeout(timer);
+  }, [isPaused, reduceMotion, renderPausedArtwork]);
+
   return (
     <View style={styles.panel} testID={`soundcloud-carousel-${role}-panel`}
       accessibilityElementsHidden={role !== 'current'}
       importantForAccessibility={role === 'current' ? 'auto' : 'no-hide-descendants'}>
-      {resolvedArtworkUri ? <Animated.Image source={{ uri: resolvedArtworkUri }} resizeMode="cover"
-        accessible={false}
+      {artworkSource ? <Animated.Image source={artworkSource} resizeMode="cover"
+        resizeMethod="resize" fadeDuration={0} accessible={false}
         style={[styles.panelArtwork, { transform: [{ translateX: motion.translateX }, { scale: motion.scale }] }]}
         testID={`soundcloud-carousel-${role}-artwork`} />
         : <View style={[StyleSheet.absoluteFill, styles.emptyArtwork]} />}
-      {role === 'current' && resolvedArtworkUri ? <Animated.Image source={{ uri: resolvedArtworkUri }}
-        resizeMode="cover" blurRadius={18} accessible={false}
+      {showPausedArtwork && artworkSource ? <Animated.Image source={artworkSource}
+        resizeMode="cover" resizeMethod="resize" fadeDuration={0} blurRadius={18} accessible={false}
         style={[styles.panelArtwork, { opacity: motion.pauseTransition,
           transform: [{ translateX: motion.translateX }, { scale: motion.scale }] }]}
         testID="soundcloud-carousel-current-paused-artwork" /> : null}

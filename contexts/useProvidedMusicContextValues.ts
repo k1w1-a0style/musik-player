@@ -105,7 +105,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         next,
         previous,
         playbackQueue,
-        repeatMode,
+        repeatMode, palette,
         hydrationStatus, retryHydration,
       }),
     [
@@ -115,7 +115,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       next,
       previous,
       playbackQueue,
-      repeatMode,
+      repeatMode, palette,
       hydrationStatus, retryHydration,
     ],
   );

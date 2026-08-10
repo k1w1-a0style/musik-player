@@ -97,11 +97,12 @@ export interface SoundCloudTrackPageProps {
 const SoundCloudTrackPage = ({ song, role, isPlaying, canSwipeToNext, topInset, bottomInset,
   onTogglePlayback, onPrevious, onNext, onSeek, waveformGestureRef, reduceMotion = false }: SoundCloudTrackPageProps) => {
   const isCurrent = role === 'current';
-  const transition = useRef(new Animated.Value(isCurrent && !isPlaying ? 1 : 0)).current;
+  const isPaused = isCurrent && !isPlaying;
+  const transition = useRef(new Animated.Value(isPaused ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(transition, { toValue: isCurrent && !isPlaying ? 1 : 0, duration: reduceMotion ? 0 : 220,
+    Animated.timing(transition, { toValue: isPaused ? 1 : 0, duration: reduceMotion ? 0 : 220,
       easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [isCurrent, isPlaying, reduceMotion, transition]);
+  }, [isPaused, reduceMotion, transition]);
   const controlsScale = useMemo(() => transition.interpolate({ inputRange: [0, 1],
     outputRange: [0.92, 1] }), [transition]);
   return (
@@ -114,7 +115,7 @@ const SoundCloudTrackPage = ({ song, role, isPlaying, canSwipeToNext, topInset, 
         accessibilityLabel={isCurrent ? (isPlaying ? 'Pausieren' : 'Abspielen') : undefined}
         testID={isCurrent ? 'soundcloud-swipe-hitbox' : `soundcloud-${role}-page-hitbox`}>
         {isCurrent ? <><Animated.View pointerEvents="none" style={[styles.pauseDim, { opacity: transition }]}
-          testID="soundcloud-pause-dim" /><PausedControls hidden={isPlaying} transition={transition}
+          testID="soundcloud-pause-dim" /><PausedControls hidden={!isPaused} transition={transition}
           scale={controlsScale} canGoNext={canSwipeToNext} onPrevious={onPrevious}
           onPlay={onTogglePlayback} onNext={onNext} /></> : null}
       </Pressable>

@@ -7,6 +7,7 @@ import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { getPlaylistModalBackdropColor } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
+import { searchableSongText } from '../utils/librarySearch';
 
 interface PlaylistAddSongsModalProps {
   visible: boolean;
@@ -21,8 +22,7 @@ const normalizeSearchText = (value: string): string => value.trim().toLocaleLowe
 export const filterPlaylistAddSongs = (songs: Song[], query: string): Song[] => {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return songs;
-  return songs.filter(song => [displayTitle(song), displayArtist(song), song.album ?? '']
-    .some(value => normalizeSearchText(value).includes(normalizedQuery)));
+  return songs.filter(song => searchableSongText(song).includes(normalizedQuery));
 };
 
 const PlaylistAddSongsModal = ({ visible, playlistName, songs,
@@ -91,7 +91,7 @@ const PlaylistAddSongsModal = ({ visible, playlistName, songs,
           </View>
           <FlatList data={filteredSongs} keyExtractor={song => song.id} renderItem={renderSong}
             keyboardShouldPersistTaps="handled" initialNumToRender={12} maxToRenderPerBatch={10}
-            windowSize={7} contentContainerStyle={styles.listContent}
+            updateCellsBatchingPeriod={70} windowSize={7} contentContainerStyle={styles.listContent}
             ListEmptyComponent={<Text style={[styles.empty, { color: theme.palette.text.muted }]}
               testID="playlist-detail-add-empty">{emptyMessage}</Text>}
             testID="playlist-detail-add-list" />

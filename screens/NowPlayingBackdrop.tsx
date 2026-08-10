@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import type { ColorValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
 
@@ -15,9 +14,6 @@ interface NowPlayingBackdropProps {
   artworkUri?: string;
 }
 
-
-const BACKDROP_BLUR_INTENSITY = 32;
-
 const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   gradientColors,
   accent,
@@ -26,17 +22,14 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
 }) => {
   const { theme } = useAppTheme();
   const overlayColors = getNowPlayingBackdropOverlayColors(theme.appearance);
+  const artworkSource = useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
 
   return (
     <>
-      {artworkUri ? (
-        <Image
-          source={{ uri: artworkUri }}
-          resizeMode="cover"
-          blurRadius={28}
-          style={styles.coverBackdrop}
-          testID="now-playing-cover-backdrop"
-        />
+      {artworkSource ? (
+        <Image source={artworkSource} resizeMode="cover" resizeMethod="resize" fadeDuration={0}
+          blurRadius={28} accessible={false} style={styles.coverBackdrop}
+          testID="now-playing-cover-backdrop" />
       ) : null}
       <LinearGradient
         pointerEvents="none"
@@ -46,12 +39,6 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
         style={StyleSheet.absoluteFill}
       />
       <View pointerEvents="none" style={[styles.glowOrb, { backgroundColor: accent, left: glowLeft }]} />
-      <BlurView
-        pointerEvents="none"
-        intensity={BACKDROP_BLUR_INTENSITY}
-        tint={theme.appearance === 'light' ? 'light' : 'dark'}
-        style={StyleSheet.absoluteFill}
-      />
       <LinearGradient colors={overlayColors} style={StyleSheet.absoluteFill} pointerEvents="none" />
     </>
   );

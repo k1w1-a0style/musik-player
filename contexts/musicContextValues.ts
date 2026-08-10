@@ -32,7 +32,7 @@ type LibraryMusicContextInput = Pick<
 
 type MiniPlayerMusicContextInput = Pick<
   MusicContextValue,
-  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'repeatMode'
+  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'repeatMode' | 'palette'
   | 'hydrationStatus' | 'retryHydration'
 >;
 
@@ -115,6 +115,7 @@ export const buildMiniPlayerMusicContextValue = ({
   previous,
   playbackQueue,
   repeatMode,
+  palette,
   hydrationStatus,
   retryHydration,
 }: MiniPlayerMusicContextInput): MiniPlayerMusicContextValue => ({
@@ -125,6 +126,7 @@ export const buildMiniPlayerMusicContextValue = ({
   previous,
   canSkipNext: canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode }),
   canSkipPrevious: currentSong !== null,
+  palette,
   ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
   ...(retryHydration === undefined ? {} : { retryHydration }),
 });

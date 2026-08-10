@@ -77,6 +77,7 @@ const ValuesProbe = () => {
       <Text testID="library-remove-song-ref">{String(libraryValue.removeSongFromPlaylist === removeSongFromPlaylist)}</Text>
       <Text testID="library-move-song-ref">{String(libraryValue.moveSongInPlaylist === moveSongInPlaylist)}</Text>
       <Text testID="mini-can-next">{String(miniPlayerValue.canSkipNext)}</Text>
+      <Text testID="mini-has-palette">{String(miniPlayerValue.palette === baseValue.palette)}</Text>
       <Text testID="now-can-skip">{String(nowPlayingValue.canSkip)}</Text>
       <Text testID="now-volume">{String(nowPlayingValue.volume)}</Text>
       <Text testID="sleep-active">{String(nowPlayingValue.sleepTimerActive)}</Text>
@@ -101,6 +102,7 @@ describe('useProvidedMusicContextValues', () => {
     expect(getByTestId('library-remove-song-ref').props.children).toBe('true');
     expect(getByTestId('library-move-song-ref').props.children).toBe('true');
     expect(getByTestId('mini-can-next').props.children).toBe('true');
+    expect(getByTestId('mini-has-palette').props.children).toBe('true');
     expect(getByTestId('now-can-skip').props.children).toBe('true');
     expect(getByTestId('now-volume').props.children).toBe('0.8');
     expect(getByTestId('sleep-active').props.children).toBe('false');

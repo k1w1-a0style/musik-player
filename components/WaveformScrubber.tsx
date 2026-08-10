@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, View,
+  type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -38,101 +39,126 @@ const ratioFromEvent = (event: GestureResponderEvent, width: number): number => 
   return clampWaveformRatio(event.nativeEvent.locationX / width);
 };
 
-const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
-  waveform,
-  currentPosition,
-  duration,
-  onSeek,
-  onSeekPreview,
-  accent,
-  restColor,
-  height = 58,
-}) => {
+interface WaveformBarsProps {
+  points: readonly number[];
+  sourceKey: string;
+  color: string;
+  height: number;
+  svgWidth: number;
+  width: number | string;
+  layer: 'rest' | 'played';
+}
+
+const WaveformBars = React.memo(({ points, sourceKey, color, height, svgWidth,
+  width, layer }: WaveformBarsProps) => (
+  <Svg width={width} height={height} viewBox={`0 0 ${svgWidth} ${height}`}
+    preserveAspectRatio="none" testID={`waveform-${layer}-layer`}>
+    {points.map((point, index) => {
+      const barHeight = Math.max(4, point * height);
+      const x = index * 5;
+      return <Rect key={`${sourceKey}-${layer}-${index}`} x={x}
+        y={(height - barHeight) / 2} width={3} height={barHeight} rx={1.5} fill={color} />;
+    })}
+  </Svg>
+));
+
+WaveformBars.displayName = 'WaveformBars';
+
+const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPosition, duration,
+  onSeek, onSeekPreview, accent, restColor, height = 58 }) => {
   const { theme } = useAppTheme();
   const resolvedRestColor = restColor ?? theme.palette.borderStrong;
   const widthRef = useRef(0);
   const latestRatioRef = useRef(0);
   const lastPreviewAtRef = useRef(0);
-  const [dragRatio, setDragRatio] = useState<number | null>(null);
+  const draggingRef = useRef(false);
+  const [surfaceWidth, setSurfaceWidth] = useState(0);
+  const [previewPosition, setPreviewPosition] = useState<number | null>(null);
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : waveform.durationMs;
   const safePosition = safeDuration > 0 ? Math.min(Math.max(0, currentPosition), safeDuration) : 0;
   const baseRatio = safeDuration > 0 ? safePosition / safeDuration : 0;
-  const displayRatio = dragRatio ?? baseRatio;
-  const displayPosition = displayRatio * safeDuration;
+  const baseRatioRef = useRef(baseRatio);
+  baseRatioRef.current = baseRatio;
+  const animatedRatio = useRef(new Animated.Value(baseRatio)).current;
 
   const bars = useMemo(() => {
     const points = waveform.points.length > 0 ? waveform.points : [0.08];
-    const gap = 2;
-    const barWidth = 3;
-    const svgWidth = points.length * barWidth + Math.max(0, points.length - 1) * gap;
-    return { points, gap, barWidth, svgWidth };
+    return { points, svgWidth: points.length * 3 + Math.max(0, points.length - 1) * 2 };
   }, [waveform.points]);
+  const playedClipWidth = useMemo(
+    () => Animated.multiply(animatedRatio, surfaceWidth),
+    [animatedRatio, surfaceWidth],
+  );
+  useEffect(() => {
+    draggingRef.current = false;
+    latestRatioRef.current = baseRatioRef.current;
+    animatedRatio.setValue(baseRatioRef.current);
+    setPreviewPosition(null);
+  }, [animatedRatio, waveform.sourceKey]);
 
-  // Preview: updates local dragRatio state + fires throttled onSeekPreview (position in ms).
-  // Never calls onSeek during drag.
+  useEffect(() => {
+    if (draggingRef.current) return;
+    latestRatioRef.current = baseRatio;
+    animatedRatio.setValue(baseRatio);
+  }, [animatedRatio, baseRatio]);
+
+  const publishPreview = useCallback((ratio: number, force = false) => {
+    const position = ratio * safeDuration;
+    const now = Date.now();
+    if (!force && now - lastPreviewAtRef.current < LIVE_PREVIEW_THROTTLE_MS) return;
+    lastPreviewAtRef.current = now;
+    setPreviewPosition(position);
+    onSeekPreview?.(position);
+  }, [onSeekPreview, safeDuration]);
+
   const previewRatio = useCallback((ratio: number) => {
     latestRatioRef.current = ratio;
-    setDragRatio(ratio);
-    const now = Date.now();
-    if (now - lastPreviewAtRef.current >= LIVE_PREVIEW_THROTTLE_MS) {
-      lastPreviewAtRef.current = now;
-      onSeekPreview?.(ratio * safeDuration);
-    }
-  }, [onSeekPreview, safeDuration]);
+    animatedRatio.setValue(ratio);
+    publishPreview(ratio);
+  }, [animatedRatio, publishPreview]);
 
   const startInteraction = useCallback((event: GestureResponderEvent) => {
     const ratio = ratioFromEvent(event, widthRef.current);
+    draggingRef.current = true;
     latestRatioRef.current = ratio;
     lastPreviewAtRef.current = 0;
-    setDragRatio(ratio);
-    // Fire initial preview (position in ms, no native seek)
-    onSeekPreview?.(ratio * safeDuration);
-  }, [onSeekPreview, safeDuration]);
+    animatedRatio.setValue(ratio);
+    publishPreview(ratio, true);
+  }, [animatedRatio, publishPreview]);
 
-  // Commit: fires onSeek exactly once with the final position in ms. No throttle.
   const finishInteraction = useCallback(() => {
-    if (safeDuration > 0) onSeek(latestRatioRef.current * safeDuration);
-    setDragRatio(null);
-  }, [onSeek, safeDuration]);
+    const finalRatio = latestRatioRef.current;
+    draggingRef.current = false;
+    animatedRatio.setValue(finalRatio);
+    if (safeDuration > 0) onSeek(finalRatio * safeDuration);
+    setPreviewPosition(null);
+  }, [animatedRatio, onSeek, safeDuration]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
-    widthRef.current = event.nativeEvent.layout.width;
+    const width = Math.max(0, Math.round(event.nativeEvent.layout.width));
+    widthRef.current = width;
+    setSurfaceWidth(current => Math.abs(current - width) > 1 ? width : current);
   }, []);
+
+  const displayPosition = previewPosition ?? safePosition;
+  const displayRatio = safeDuration > 0 ? clampWaveformRatio(displayPosition / safeDuration) : 0;
 
   return (
     <View style={styles.root} testID="waveform-scrubber">
-      <View
-        style={[styles.waveformSurface, { height }]}
-        onLayout={handleLayout}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
+      <View style={[styles.waveformSurface, { height }]} onLayout={handleLayout}
+        onStartShouldSetResponder={() => true} onMoveShouldSetResponder={() => true}
         onResponderGrant={startInteraction}
         onResponderMove={event => previewRatio(ratioFromEvent(event, widthRef.current))}
-        onResponderRelease={finishInteraction}
-        onResponderTerminate={finishInteraction}
-        accessibilityRole="adjustable"
-        accessibilityLabel="Audiospur-Fortschritt"
-        accessibilityValue={{ min: 0, max: 100, now: Math.round(displayRatio * 100) }}
-      >
-        <Svg width="100%" height={height} viewBox={`0 0 ${bars.svgWidth} ${height}`} preserveAspectRatio="none">
-          {bars.points.map((point, index) => {
-            const barHeight = Math.max(4, point * height);
-            const x = index * (bars.barWidth + bars.gap);
-            const y = (height - barHeight) / 2;
-            const barRatio = bars.points.length <= 1 ? 0 : index / (bars.points.length - 1);
-            return (
-              <Rect
-                key={`${waveform.sourceKey}-${index}`}
-                x={x}
-                y={y}
-                width={bars.barWidth}
-                height={barHeight}
-                rx={1.5}
-                fill={barRatio <= displayRatio ? accent : resolvedRestColor}
-              />
-            );
-          })}
-        </Svg>
+        onResponderRelease={finishInteraction} onResponderTerminate={finishInteraction}
+        accessibilityRole="adjustable" accessibilityLabel="Audiospur-Fortschritt"
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(displayRatio * 100) }}>
+        <WaveformBars points={bars.points} sourceKey={waveform.sourceKey} color={resolvedRestColor}
+          height={height} svgWidth={bars.svgWidth} width="100%" layer="rest" />
+        <Animated.View pointerEvents="none" style={[styles.playedClip, { width: playedClipWidth }]}
+          testID="waveform-played-clip">
+          <WaveformBars points={bars.points} sourceKey={waveform.sourceKey} color={accent}
+            height={height} svgWidth={bars.svgWidth} width={Math.max(1, surfaceWidth)} layer="played" />
+        </Animated.View>
       </View>
       <View style={styles.timeRow}>
         <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(displayPosition)}</Text>
@@ -144,7 +170,9 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({
 
 const styles = StyleSheet.create({
   root: { paddingHorizontal: APP_THEME_TOKENS.spacing.md, marginVertical: APP_THEME_TOKENS.spacing.sm, width: '100%' },
-  waveformSurface: { justifyContent: 'center', overflow: 'hidden', paddingVertical: 4 },
+  waveformSurface: { position: 'relative', justifyContent: 'center', overflow: 'hidden', paddingVertical: 4 },
+  playedClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden',
+    alignItems: 'flex-start', justifyContent: 'center' },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   time: { fontSize: 11, fontFamily: APP_THEME_TOKENS.fonts.body },
 });

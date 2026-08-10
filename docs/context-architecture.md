@@ -23,10 +23,10 @@ The split keeps high-churn consumers from depending on the entire `MusicContextV
 | --- | --- | --- |
 | `MusicContext` / `useMusicContext` | Legacy or broad consumers that still need the full music surface | Songs, queue, playback controls, equalizer, visualizer, playlists, persistence-ready state, and library mutations. |
 | `LibraryMusicContext` / `useLibraryMusicContext` | Library and tag-editor flows | Songs, `setSongs`, current song, play actions, readiness, playback state, metadata update, playlists, and playlist playback. |
-| `MiniPlayerMusicContext` / `useMiniPlayerMusicContext` | `MiniPlayer` | Current song, play/pause, previous/next, and derived skip availability. |
+| `MiniPlayerMusicContext` / `useMiniPlayerMusicContext` | `MiniPlayer` | Current song, play/pause, previous/next, cover-derived palette, and derived skip availability. |
 | `NowPlayingMusicContext` / `useNowPlayingMusicContext` | Now Playing screen hooks/components | Queue, current song, seek, volume, visualizer/palette state, play action, save-queue-as-playlist, and derived skip availability. |
 
-`useProvidedMusicContextValues` receives the full `MusicContextValue`, stabilizes it through `useMusicContextValue`, and memoizes the library, mini-player, and now-playing slices via the `build*MusicContextValue` helpers.
+`useProvidedMusicContextValues` receives the full `MusicContextValue`, stabilizes it through `useMusicContextValue`, and memoizes the library, mini-player, and now-playing slices via the `build*MusicContextValue` helpers. Mini-player playback progress is subscribed by a dedicated child so the compact player's artwork, metadata, and controls do not rerender on every progress tick.
 
 ## Controller and action composition
 
