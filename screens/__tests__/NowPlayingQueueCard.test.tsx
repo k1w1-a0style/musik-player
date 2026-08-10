@@ -108,7 +108,7 @@ test('renders drag handles for upcoming tracks only', () => {
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
   expect(getByTestId('queue-artwork-s2').props.source.uri).toBe('file:///two.jpg');
   expect(getByTestId('now-playing-queue-header')).toBeTruthy();
-  expect(getByText('Next up')).toBeTruthy();
+  expect(getByText('Als Nächstes')).toBeTruthy();
 
   fireEvent.press(getByTestId('queue-row-s2'));
   expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
@@ -133,9 +133,9 @@ test('uses row text contrast instead of foregroundOnAccent for active text while
   );
 
   expect(JSON.stringify(getByText(longQueue[0].title).props.style)).toContain(mockAppTheme.theme.palette.text.primary);
-  expect(JSON.stringify(getByText('Now Playing').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
+  expect(JSON.stringify(getByText('Läuft gerade').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
   expect(JSON.stringify(getByText(longQueue[0].title).props.style)).not.toContain('#101820');
-  expect(JSON.stringify(getByText('Now Playing').props.style)).not.toContain('#101820');
+  expect(JSON.stringify(getByText('Läuft gerade').props.style)).not.toContain('#101820');
 
   expect(JSON.stringify(getByTestId('queue-row-s1').props.style)).toContain('#F9E27D');
   expect(JSON.stringify(getByTestId('queue-active-indicator-s1').props.style)).toContain('#F9E27D');
@@ -183,6 +183,7 @@ test('does not expose drag handles before the current track', () => {
   expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
   expect(queryByTestId('queue-drag-handle-s2')).toBeNull();
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
+  expect(getByTestId('now-playing-queue-list').props.initialScrollIndex).toBe(1);
 });
 
 test.each(['light', 'dark'] as const)('renders queue card and preview row with %s app theme without crashing', appearance => {

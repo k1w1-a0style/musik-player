@@ -38,7 +38,7 @@ test('renders header and toggles enabled state', () => {
   const { getByText, UNSAFE_getByType } = render(<EqualizerHeader eqEnabled={false} onToggleEnabled={onToggleEnabled} />);
 
   expect(getByText('SOUND')).toBeTruthy();
-  expect(getByText('Equalizer')).toBeTruthy();
+  expect(getByText('Klangbild')).toBeTruthy();
 
   fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
   expect(onToggleEnabled).toHaveBeenCalledWith(true);
@@ -48,5 +48,5 @@ test('uses app theme colors', () => {
   const { getByText } = render(<EqualizerHeader eqEnabled={false} onToggleEnabled={jest.fn()} />);
 
   expect(JSON.stringify(getByText('SOUND').props.style)).toContain(mockAppTheme.palette.primary);
-  expect(JSON.stringify(getByText('Equalizer').props.style)).toContain(mockAppTheme.palette.text.primary);
+  expect(JSON.stringify(getByText('Klangbild').props.style)).toContain(mockAppTheme.palette.text.primary);
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import AppBackground from '../components/AppBackground';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
@@ -116,12 +117,11 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.palette.background }]} testID="settings-screen">
+    <AppBackground><View style={styles.root} testID="settings-screen">
       <ScrollView
         testID="settings-scroll"
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
       >
-        <Text style={[styles.header, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Einstellungen</Text>
         <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
           Wähle Darstellung, Oberfläche und Player-Ansicht. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
         </Text>
@@ -160,20 +160,17 @@ const Settings: React.FC = () => {
             <View style={[styles.previewLine, { backgroundColor: theme.palette.borderStrong }]} />
             <View style={[styles.previewPill, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} />
           </View>
-          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>Die vollständige Migration alter Screens erfolgt schrittweise, damit keine UI-Baustelle explodiert.</Text>
+          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>So wirkt deine aktuelle Auswahl im Player und in der Bibliothek.</Text>
         </View>
       </ScrollView>
     </View>
+    </AppBackground>
   );
 };
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {},
-  header: {
-    fontSize: 28,
-    letterSpacing: -0.6,
-  },
   description: {
     fontSize: 14,
     lineHeight: 20,

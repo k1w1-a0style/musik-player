@@ -15,6 +15,8 @@ interface SoundCloudWaveformViewportProps {
   accent?: string;
   height?: number;
   interactive?: boolean;
+  showProgress?: boolean;
+  gestureHandlerRef?: React.RefObject<unknown | null>;
 }
 
 const clampPosition = (value: number, duration: number): number => {
@@ -29,17 +31,18 @@ const formatTime = (millis: number): string => {
 
 const WaveformTimeRow = ({ position, duration }: { position: number; duration: number }) => (
   <View pointerEvents="none" style={styles.timeRow}>
-    <Text style={styles.time}>{formatTime(position)}</Text>
+    <Text style={styles.time} testID="soundcloud-waveform-current-time">{formatTime(position)}</Text>
     <Text style={styles.time}>{formatTime(duration)}</Text>
   </View>
 );
 
 const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({ waveform,
   currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.accent,
-  height = 116, interactive = true,
+  height = 116, interactive = true, showProgress = true, gestureHandlerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
+  const [previewPosition, setPreviewPosition] = useState<number | null>(null);
   const viewportWidth = Math.max(1, measuredWidth || windowWidth);
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : waveform.durationMs;
   const safePosition = clampPosition(currentPosition, safeDuration);
@@ -48,7 +51,8 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
   const travelWidth = Math.max(1, stripWidth - 3);
   const viewportCenter = viewportWidth / 2;
   const motion = useSoundCloudWaveformMotion({ progressRatio, safeDuration, safePosition,
-    isPlaying, travelWidth, viewportCenter, waveformKey: waveform.sourceKey, onSeek });
+    isPlaying, travelWidth, viewportCenter, waveformKey: waveform.sourceKey, onSeek,
+    onPreviewPosition: setPreviewPosition });
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
     if (nextWidth > 0) setMeasuredWidth(current => Math.abs(current - nextWidth) > 1 ? nextWidth : current);
@@ -68,14 +72,15 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       onAccessibilityAction={handleAccessibilityAction}>
       <SoundCloudWaveformLayers points={waveform.points} sourceKey={waveform.sourceKey}
         stripWidth={stripWidth} height={height} viewportCenter={viewportCenter}
-        accent={accent} translateX={motion.translateX} />
+        accent={accent} translateX={motion.translateX} showProgress={showProgress} />
     </View>
   );
   return (
     <View style={styles.root} testID="soundcloud-waveform-viewport">
-      {interactive ? <PanGestureHandler activeOffsetX={[-6, 6]} failOffsetY={[-18, 18]}
+      {interactive ? <PanGestureHandler ref={gestureHandlerRef} testID="soundcloud-waveform-gesture"
+        activeOffsetX={[-6, 6]} failOffsetY={[-18, 18]}
         onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>{surface}</PanGestureHandler> : surface}
-      <WaveformTimeRow position={safePosition} duration={safeDuration} />
+      <WaveformTimeRow position={previewPosition ?? safePosition} duration={safeDuration} />
     </View>
   );
 };

@@ -171,4 +171,4 @@ const styles = StyleSheet.create({
   dotPressed: { opacity: 0.55 },
 });
 
-export default NowPlayingSnapPager;
+export default React.memo(NowPlayingSnapPager);

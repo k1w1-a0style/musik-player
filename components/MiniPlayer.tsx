@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext, useMusicContext } from '../contexts/MusicContext';
@@ -12,11 +12,53 @@ import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
+export const shouldShowMiniPlayerSecondaryControls = (width: number): boolean => width >= 390;
+
+interface MiniPlayerControlsProps {
+  color: string;
+  isPlaying: boolean;
+  canSkipNext: boolean;
+  canSkipPrevious: boolean;
+  showSecondary: boolean;
+  onPrevious: (event: GestureResponderEvent) => void;
+  onToggle: (event: GestureResponderEvent) => void;
+  onNext: (event: GestureResponderEvent) => void;
+  onOpen: () => void;
+}
+
+const MiniPlayerControls = ({ color, isPlaying, canSkipNext, canSkipPrevious, showSecondary,
+  onPrevious, onToggle, onNext, onOpen }: MiniPlayerControlsProps) => (
+  <View style={styles.right}>
+    {showSecondary ? <Pressable testID="mini-player-previous" accessibilityRole="button"
+      accessibilityLabel="Vorheriger Titel" accessibilityState={{ disabled: !canSkipPrevious }}
+      onPress={onPrevious} style={[styles.transportButton, !canSkipPrevious && styles.disabled]} hitSlop={5}>
+      <SkipBack color={color} size={18} />
+    </Pressable> : null}
+    <Pressable testID="mini-player-play-pause" accessibilityRole="button"
+      accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={onToggle}
+      style={styles.playBtn} hitSlop={4}>
+      {isPlaying ? <Pause color={color} size={19} /> : <Play color={color} size={19} />}
+    </Pressable>
+    <Pressable testID="mini-player-next" accessibilityRole="button" accessibilityLabel="Nächster Titel"
+      accessibilityState={{ disabled: !canSkipNext }} onPress={onNext}
+      style={[styles.transportButton, !canSkipNext && styles.disabled]} hitSlop={5}>
+      <SkipForward color={color} size={18} />
+    </Pressable>
+    {showSecondary ? <Pressable testID="mini-player-queue" accessibilityRole="button"
+      accessibilityLabel="Warteschlange öffnen" style={styles.transportButton} hitSlop={5}
+      onPress={event => { event.stopPropagation(); onOpen(); }}>
+      <ListMusic color={color} size={19} opacity={0.85} />
+    </Pressable> : null}
+  </View>
+);
+
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous, canSkipNext, canSkipPrevious } = useMiniPlayerMusicContext();
   const { palette } = useMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width);
   const [coverFailed, setCoverFailed] = useState(false);
   const progress = useMiniPlayerProgress();
   const artworkUri = getSongArtworkUri(currentSong);
@@ -58,7 +100,8 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
       <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: coverAccentMuted }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
         <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated, borderColor: coverAccentMuted }]}>
           {showCover ? (
-            <Image source={{ uri: artworkUri }} style={styles.thumbImage} onError={() => setCoverFailed(true)} />
+            <Image source={{ uri: artworkUri }} style={styles.thumbImage} accessible={false}
+              onError={() => setCoverFailed(true)} />
           ) : (
             <Disc3 color={coverAccentMuted} size={18} />
           )}
@@ -73,38 +116,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           </Text>
         </View>
 
-        <View style={styles.right}>
-          <Pressable
-            testID="mini-player-previous"
-            accessibilityRole="button"
-            accessibilityLabel="Vorheriger Titel"
-            accessibilityState={{ disabled: !canSkipPrevious }}
-            onPress={handlePrevious}
-            style={!canSkipPrevious && styles.disabled}
-          >
-            <SkipBack color={appTheme.palette.text.primary} size={18} />
-          </Pressable>
-          <Pressable testID="mini-player-play-pause" accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pausieren' : 'Abspielen'} onPress={handleTogglePlayPause} style={styles.playBtn}>
-            {isPlaying ? (
-              <Pause color={appTheme.palette.text.primary} size={19} />
-            ) : (
-              <Play color={appTheme.palette.text.primary} size={19} />
-            )}
-          </Pressable>
-          <Pressable
-            testID="mini-player-next"
-            accessibilityRole="button"
-            accessibilityLabel="Nächster Titel"
-            accessibilityState={{ disabled: !canSkipNext }}
-            onPress={handleNext}
-            style={!canSkipNext && styles.disabled}
-          >
-            <SkipForward color={appTheme.palette.text.primary} size={18} />
-          </Pressable>
-          <Pressable testID="mini-player-queue" accessibilityRole="button" accessibilityLabel="Warteschlange öffnen" onPress={(event) => { event.stopPropagation(); onOpen(); }}>
-            <ListMusic color={appTheme.palette.text.primary} size={19} opacity={0.85} />
-          </Pressable>
-        </View>
+        <MiniPlayerControls color={appTheme.palette.text.primary} isPlaying={isPlaying}
+          canSkipNext={canSkipNext} canSkipPrevious={canSkipPrevious} showSecondary={showSecondaryControls}
+          onPrevious={handlePrevious} onToggle={handleTogglePlayPause} onNext={handleNext} onOpen={onOpen} />
         <MiniPlayerProgress progress={progress} accent={coverAccent} />
       </Pressable>
     </View>
@@ -152,8 +166,9 @@ const styles = StyleSheet.create({
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 4,
   },
+  transportButton: { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
   playBtn: {
     width: 34,
     height: 34,

@@ -18,7 +18,7 @@ const EqualizerHeader: React.FC<EqualizerHeaderProps> = ({
     <>
       <Text style={[styles.eyebrow, { color: theme.palette.primary }]}>SOUND</Text>
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.palette.text.primary }]}>Equalizer</Text>
+        <Text style={[styles.title, { color: theme.palette.text.primary }]}>Klangbild</Text>
         <Switch
           value={eqEnabled}
           onValueChange={onToggleEnabled}

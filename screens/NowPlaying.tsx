@@ -83,17 +83,15 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
       currentSong={state.currentSong} artworkUri={state.artworkUri} isPlaying={state.isPlaying}
       accent={state.accent} coverAreaHeight={layout.coverAreaHeight} coverSize={layout.coverSize}
       favorite={state.favorite} favoritePending={state.favoritePending} onToggleFavorite={state.toggleFavorite}
-      position={state.position} duration={state.duration} onSeek={state.seekTo}
+      onSeek={state.seekTo}
       progressAccent={state.progressAccent} progressAccentDark={state.progressAccentDark}
       foregroundOnAccent={state.foregroundOnAccent} volume={state.volume} onVolumeChange={state.setVolume}
-      bottomInset={state.bottomInset} onOpenTrackInfo={state.openTrackInfo} controlsMode={state.controlsMode}
-      onSwipeToNext={state.swipeToNext} onSwipeToPrevious={state.swipeToPrevious} canSwipeToNext={state.canSwipeToNext}
+      bottomInset={state.bottomInset} onOpenTrackInfo={state.openTrackInfo}
     />
   ), [layout.coverAreaHeight, layout.coverSize, state]);
   const renderDetails = useCallback(() => (
     <NowPlayingDetailsPanel
-      queue={state.queue} currentSong={state.currentSong} albumTitle={state.albumTitle}
-      accentMuted={state.progressAccent} foregroundOnAccent={state.foregroundOnAccent}
+      queue={state.queue} currentSong={state.currentSong} accentMuted={state.progressAccent}
       listHeight={layout.detailPageListHeight} onPlayQueueItem={state.playQueueItemById}
       onQueueShift={state.moveQueueItem} canShiftQueue={state.canReorderQueue}
     />

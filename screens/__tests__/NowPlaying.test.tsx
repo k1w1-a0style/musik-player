@@ -159,6 +159,7 @@ jest.mock('../../components/WaveformScrubber', () => () => null);
 jest.mock('../../components/VolumeSlider', () => () => null);
 jest.mock('../../components/GlassCard', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
 jest.mock('../../components/Screen', () => ({ children }: { children?: React.ReactNode }) => <>{children}</>);
+jest.mock('../NowPlayingQueueCard', () => () => null);
 
 describe('NowPlaying cover fallback', () => {
   beforeEach(() => {

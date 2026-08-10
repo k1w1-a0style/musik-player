@@ -4,7 +4,7 @@ import { render, waitFor } from '@testing-library/react-native';
 import { AppContent } from '../App';
 import * as recovery from '../utils/tagWriterRecovery';
 
-jest.mock('@expo-google-fonts/bricolage-grotesque', () => ({
+jest.mock('expo-font', () => ({
   useFonts: () => [true],
 }));
 
@@ -41,6 +41,7 @@ jest.mock('../navigation/RootNavigator', () => ({
 }));
 
 test('continues into the read-only app after startup recovery times out', async () => {
+  const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.spyOn(recovery, 'restoreAndReconcileTagWrites')
     .mockRejectedValueOnce(new recovery.TagWriteStartupTimeoutError());
   const view = render(<AppContent />);
@@ -48,4 +49,9 @@ test('continues into the read-only app after startup recovery times out', async 
   await waitFor(() => expect(view.getByTestId('app-providers')).toBeTruthy());
   expect(view.queryByTestId('app-loading')).toBeNull();
   expect(view.getByTestId('root-navigator')).toBeTruthy();
+  expect(warning).toHaveBeenCalledWith(
+    '[TagWriter] Startup recovery timed out; continuing with tag writes disabled.',
+    expect.stringContaining('TagWriteStartupTimeoutError'),
+  );
+  warning.mockRestore();
 });

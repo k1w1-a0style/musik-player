@@ -150,7 +150,7 @@ describe('Settings', () => {
     const previewStyle = StyleSheet.flatten(getByTestId('settings-theme-preview').props.style);
 
     expect(getByText(activeTheme.label)).toBeTruthy();
-    expect(screenStyle.backgroundColor).toBe(activeTheme.palette.background);
+    expect(screenStyle.flex).toBe(1);
     expect(scrollContentStyle.padding).toBe(activeTheme.tokens.spacing.md);
     expect(scrollContentStyle.gap).toBe(activeTheme.tokens.spacing.md);
     expect(previewStyle.backgroundColor).toBe(activeTheme.palette.surfaceGlass);

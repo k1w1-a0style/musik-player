@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNowPlayingMusicContext } from '../contexts/MusicContext';
-import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import { useNowPlayingFavorite } from './useNowPlayingFavorite';
 import { useNowPlayingMenu } from './useNowPlayingMenu';
@@ -81,7 +80,6 @@ export const useNowPlayingScreenState = () => {
     shuffle, toggleShuffle,
     repeatMode, cycleRepeatMode,
   } = useNowPlayingMusicContext();
-  const { position, duration } = usePlaybackProgress();
   const favoriteState = useNowPlayingFavorite(currentSong?.id);
   const menuState = useNowPlayingMenu(currentSong?.id);
   const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
@@ -118,8 +116,6 @@ export const useNowPlayingScreenState = () => {
     cancelSleepTimer,
     volume,
     setVolume,
-    position,
-    duration,
     bottomInset: insets.bottom,
     topInset: insets.top,
     controlsMode,

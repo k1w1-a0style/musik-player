@@ -4,12 +4,15 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryMenuActions } from '../useLibraryMenuActions';
 
 const setMenuOpen = jest.fn();
+const setQuery = jest.fn();
 const setSearchOpen = jest.fn();
 const onOpenSettings = jest.fn();
 
-const LibraryMenuActionsProbe = () => {
+const LibraryMenuActionsProbe = ({ searchOpen = false }: { searchOpen?: boolean }) => {
   const actions = useLibraryMenuActions({
+    searchOpen,
     setMenuOpen,
+    setQuery,
     setSearchOpen,
     onOpenSettings,
   });
@@ -29,15 +32,22 @@ describe('useLibraryMenuActions', () => {
     jest.clearAllMocks();
   });
 
-  test('toggles search state with updater function', () => {
+  test('opens search without changing the query', () => {
     const { getByTestId } = render(<LibraryMenuActionsProbe />);
 
     fireEvent.press(getByTestId('toggle-search'));
 
-    expect(setSearchOpen).toHaveBeenCalledTimes(1);
-    const updater = setSearchOpen.mock.calls[0][0] as (value: boolean) => boolean;
-    expect(updater(false)).toBe(true);
-    expect(updater(true)).toBe(false);
+    expect(setSearchOpen).toHaveBeenCalledWith(true);
+    expect(setQuery).not.toHaveBeenCalled();
+  });
+
+  test('clears the query when search is closed', () => {
+    const { getByTestId } = render(<LibraryMenuActionsProbe searchOpen />);
+
+    fireEvent.press(getByTestId('toggle-search'));
+
+    expect(setQuery).toHaveBeenCalledWith('');
+    expect(setSearchOpen).toHaveBeenCalledWith(false);
   });
 
   test('opens and closes menu', () => {

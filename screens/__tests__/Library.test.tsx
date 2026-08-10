@@ -179,16 +179,16 @@ describe('Library', () => {
 
   test('renders compact Samsung-style library chrome without the old scan block', async () => {
     const view = render(<Library />);
-    const { getByText, queryByText } = view;
+    const { getAllByText, getByText, queryByText } = view;
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
 
     expect(getByText('K1W1 Music')).toBeTruthy();
-    expect(getByText('Titel')).toBeTruthy();
+    expect(getAllByText('Titel')).toHaveLength(2);
     expect(getByText('Favoriten')).toBeTruthy();
     expect(getByText('Genres')).toBeTruthy();
     expect(getByText('Ordner')).toBeTruthy();
-    expect(getByText('Name')).toBeTruthy();
+    expect(queryByText('Name')).toBeNull();
     expect(queryByText('Scan-Ordner')).toBeNull();
     expect(queryByText('Bibliothek')).toBeNull();
 

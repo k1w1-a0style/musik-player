@@ -48,6 +48,13 @@ test('calls onToggleSearch when search button is pressed', () => {
   expect(onToggleSearch).toHaveBeenCalledTimes(1);
 });
 
+test('announces the destructive close action while search is open', () => {
+  const { getByTestId } = render(<LibraryTopBar searchOpen onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
+
+  expect(getByTestId('library-toggle-search').props.accessibilityLabel)
+    .toBe('Suche schließen und Filter löschen');
+});
+
 test('calls onOpenMenu when menu button is pressed', () => {
   const onOpenMenu = jest.fn();
   const { getByTestId } = render(<LibraryTopBar onToggleSearch={jest.fn()} onOpenMenu={onOpenMenu} />);

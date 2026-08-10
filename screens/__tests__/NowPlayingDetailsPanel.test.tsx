@@ -48,9 +48,7 @@ const renderPanel = (overrides: Partial<React.ComponentProps<typeof NowPlayingDe
   const props: React.ComponentProps<typeof NowPlayingDetailsPanel> = {
     queue,
     currentSong: queue[0],
-    albumTitle: 'Album should not render in queue details',
     accentMuted: '#3366FF',
-    foregroundOnAccent: '#101820',
     listHeight: 220,
     onPlayQueueItem: jest.fn(),
     onQueueShift: jest.fn(),
@@ -69,7 +67,6 @@ describe('NowPlayingDetailsPanel queue track list', () => {
     expect(queryByText('WARTESCHLANGE')).toBeNull();
     expect(queryByTestId('now-playing-details-card')).toBeNull();
     expect(queryByText('METADATEN')).toBeNull();
-    expect(queryByText('Album should not render in queue details')).toBeNull();
   });
 
   test('keeps multiple tracks list-ready, calls onPlayQueueItem, and marks active track with accent color', () => {
@@ -86,18 +83,15 @@ describe('NowPlayingDetailsPanel queue track list', () => {
     expect(props.onPlayQueueItem).toHaveBeenCalledWith('s2');
   });
 
-  test('does not use foregroundOnAccent as active row text color on weakly tinted rows', () => {
+  test('uses theme text colors on weakly tinted active rows', () => {
     const { getByTestId, getByText } = renderPanel({
       accentMuted: '#F9E27D',
-      foregroundOnAccent: '#101820',
     });
 
     expect(JSON.stringify(getByTestId('queue-row-s1').props.style)).toContain('#F9E27D');
     expect(JSON.stringify(getByTestId('queue-active-indicator-s1').props.style)).toContain('#F9E27D');
     expect(JSON.stringify(getByText('One').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
-    expect(JSON.stringify(getByText('Now Playing').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
-    expect(JSON.stringify(getByText('One').props.style)).not.toContain('#101820');
-    expect(JSON.stringify(getByText('Now Playing').props.style)).not.toContain('#101820');
+    expect(JSON.stringify(getByText('Läuft gerade').props.style)).toContain(mockAppTheme.theme.palette.text.primary);
   });
 
   test('renders a light empty state inside the list frame', () => {

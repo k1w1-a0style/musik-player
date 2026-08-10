@@ -1,5 +1,6 @@
-import React from 'react';
-import { FlatList, Platform, StyleSheet, Text, type ListRenderItem } from 'react-native';
+import React, { useCallback } from 'react';
+import { FlatList, Platform, StyleSheet, Text, View, useWindowDimensions,
+  type ListRenderItem, type ListRenderItemInfo } from 'react-native';
 import LibraryAlbumViewToggle from './LibraryAlbumViewToggle';
 import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import LibraryEmptyState from './LibraryEmptyState';
@@ -25,6 +26,34 @@ const GROUP_WINDOW_SIZE = 7;
 const SONG_INITIAL_RENDER_COUNT = 10;
 const SONG_WINDOW_SIZE = 7;
 const shouldRemoveClippedSubviews = Platform.OS !== 'web';
+const ALBUM_GRID_GAP = 12;
+const LIBRARY_HORIZONTAL_PADDING = 40;
+
+export const getResponsiveAlbumGridMetrics = (windowWidth: number) => {
+  const contentWidth = Math.max(1, windowWidth - LIBRARY_HORIZONTAL_PADDING);
+  const columns = contentWidth >= 920 ? 5 : contentWidth >= 700 ? 4 : contentWidth >= 500 ? 3 : 2;
+  const tileWidth = Math.max(1, Math.floor((contentWidth - ALBUM_GRID_GAP * (columns - 1)) / columns));
+  return { columns, tileWidth };
+};
+
+const ResponsiveAlbumGrid = ({ albumGroups, emptyState, renderAlbumTile }: {
+  albumGroups: LibraryGroupItem[];
+  emptyState: React.ReactElement;
+  renderAlbumTile: ListRenderItem<LibraryGroupItem>;
+}) => {
+  const { width } = useWindowDimensions();
+  const { columns, tileWidth } = getResponsiveAlbumGridMetrics(width);
+  const renderGridItem = useCallback((info: ListRenderItemInfo<LibraryGroupItem>) => (
+    <View style={{ width: tileWidth }} testID={`library-album-cell-${info.item.id}`}>
+      {renderAlbumTile(info)}
+    </View>
+  ), [renderAlbumTile, tileWidth]);
+  return <FlatList key={`library-albums-grid-${columns}`} data={albumGroups}
+    keyExtractor={groupKeyExtractor} contentContainerStyle={styles.albumGridContent}
+    renderItem={renderGridItem} numColumns={columns} columnWrapperStyle={styles.albumColumn}
+    initialNumToRender={8} windowSize={GROUP_WINDOW_SIZE}
+    removeClippedSubviews={shouldRemoveClippedSubviews} ListEmptyComponent={emptyState} />;
+};
 
 interface SongItemLayout {
   length: number;
@@ -130,19 +159,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           <LibraryAlbumViewToggle mode={albumViewMode} onToggle={onToggleAlbumView} />
         </LibrarySectionHeader>
         {albumViewMode === 'grid' ? (
-          <FlatList
-            key="library-albums-grid"
-            data={albumGroups}
-            keyExtractor={groupKeyExtractor}
-            contentContainerStyle={styles.albumGridContent}
-            renderItem={renderAlbumTile}
-            numColumns={2}
-            columnWrapperStyle={styles.albumColumn}
-            initialNumToRender={8}
-            windowSize={GROUP_WINDOW_SIZE}
-            removeClippedSubviews={shouldRemoveClippedSubviews}
-            ListEmptyComponent={emptyState}
-          />
+          <ResponsiveAlbumGrid albumGroups={albumGroups} emptyState={emptyState}
+            renderAlbumTile={renderAlbumTile} />
         ) : (
           <FlatList
             key="library-albums-list"
@@ -215,7 +233,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
 
   return (
     <LibraryListShell testID={`library-${activeTab}-shell`}>
-      <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Name'}>
+      <LibrarySectionHeader title={activeTab === 'favorites' ? 'Favoriten' : 'Titel'}>
         <LibrarySongViewControl mode={songViewMode} onCycle={onCycleSongViewMode} />
         <LibrarySortControl mode={sortMode} onSelect={onSelectSortMode} />
         <LibraryPlaybackActions
@@ -249,7 +267,7 @@ const styles = StyleSheet.create({
   folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   listContent: { paddingBottom: 96 },
   albumGridContent: { paddingBottom: 104 },
-  albumColumn: { gap: 12 },
+  albumColumn: { gap: ALBUM_GRID_GAP },
   songGridColumn: { gap: 12, paddingHorizontal: 12 },
 });
 

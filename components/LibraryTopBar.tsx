@@ -1,17 +1,19 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { MoreVertical, Search } from 'lucide-react-native';
+import { MoreVertical, Search, X } from 'lucide-react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 export interface LibraryTopBarProps {
   title?: string;
+  searchOpen?: boolean;
   onToggleSearch: () => void;
   onOpenMenu: () => void;
 }
 
 const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
   title = 'K1W1 Music',
+  searchOpen = false,
   onToggleSearch,
   onOpenMenu,
 }) => {
@@ -23,12 +25,13 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
       <View style={styles.topActions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Suche öffnen"
+          accessibilityLabel={searchOpen ? 'Suche schließen und Filter löschen' : 'Suche öffnen'}
           onPress={onToggleSearch}
           style={styles.iconButton}
           testID="library-toggle-search"
         >
-          <Search color={theme.palette.text.primary} size={22} />
+          {searchOpen ? <X color={theme.palette.text.primary} size={22} />
+            : <Search color={theme.palette.text.primary} size={22} />}
         </Pressable>
         <Pressable
           accessibilityRole="button"

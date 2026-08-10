@@ -99,19 +99,19 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     showScanFolders,
     toggleSearch,
   } = useLibraryControllerActions({
+    searchOpen,
     scanFolders,
     setActiveTab,
     setImportStatus,
     setLoading,
     setMenuOpen,
+    setQuery,
     setScanFolders,
     setSearchOpen,
     setSongs,
     applySongMetadataPatches,
     songs,
   });
-
-
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const handleCreatePlaylist = useCallback(() => {
     const trimmedName = newPlaylistName.trim();
@@ -155,7 +155,6 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       addSongToPlaylist(playlistId, playlistPickerSong.id);
     }
   }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
-
 
   useLibraryCoverBackfill({ songs, applySongMetadataPatches });
   useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });

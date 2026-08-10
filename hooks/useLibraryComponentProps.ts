@@ -64,8 +64,7 @@ export const useLibraryComponentProps = ({
   renderGroupItem,
   renderPlaylistItem,
   renderSongItem,
-  scanFolders,
-  searchOpen,
+  scanFolders, searchOpen,
   setActiveTab,
   setQuery,
   showScanFolders,
@@ -82,8 +81,9 @@ export const useLibraryComponentProps = ({
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
     openMenu,
+    searchOpen,
     toggleSearch,
-  }), [openMenu, toggleSearch]);
+  }), [openMenu, searchOpen, toggleSearch]);
 
   const tabsProps = useMemo(() => buildLibraryTabsProps({
     activeTab,

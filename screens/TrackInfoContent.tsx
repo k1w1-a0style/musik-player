@@ -1,9 +1,8 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import type { Song } from '../types/Song';
 import AppBackground from '../components/AppBackground';
 import Screen from '../components/Screen';
-import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import TrackInfoActions from './TrackInfoActions';
 import TrackInfoCover from './TrackInfoCover';
@@ -33,11 +32,9 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
   onOpenTagEditor,
   onRemoveFromLibrary,
 }) => {
-  const { theme } = useAppTheme();
-
   return (
     <AppBackground>
-      <Screen contentStyle={styles.container}>
+      <Screen edges={['bottom']} contentStyle={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
           <TrackInfoCover
             coverUri={coverUri}
@@ -45,7 +42,6 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
             onCoverError={onCoverError}
           />
 
-          <Text style={[styles.header, { color: theme.palette.text.primary }]}>Titelinfo</Text>
           <TrackInfoActions
             onOpenTagEditor={onOpenTagEditor}
             onRemoveFromLibrary={onRemoveFromLibrary}
@@ -66,7 +62,6 @@ const TrackInfoContent: React.FC<TrackInfoContentProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: APP_THEME_TOKENS.spacing.md, paddingBottom: 120, gap: 6 },
-  header: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 24, marginBottom: 4 },
 });
 
 export default TrackInfoContent;

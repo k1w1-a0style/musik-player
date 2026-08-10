@@ -46,10 +46,6 @@ jest.mock('../../contexts/MusicContext', () => ({
   }),
 }));
 
-jest.mock('../../contexts/PlaybackProgressContext', () => ({
-  usePlaybackProgress: () => ({ position: 3, duration: 9 }),
-}));
-
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   useNowPlayingControlsMode: () => ({
     mode: mockPlayerLayout,
@@ -106,8 +102,6 @@ const ScreenStateProbe = () => {
       <Text testID="favorite">{String(state.favorite)}</Text>
       <Text testID="queue-count">{state.queue.length}</Text>
       <Text testID="album-title">{state.albumTitle}</Text>
-      <Text testID="position">{state.position}</Text>
-      <Text testID="duration">{state.duration}</Text>
       <Text testID="player-layout">{state.controlsMode}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
       <Pressable testID="save-queue" onPress={state.saveCurrentQueueAsPlaylist}>
@@ -151,8 +145,6 @@ describe('useNowPlayingScreenState', () => {
     expect(getByTestId('favorite').props.children).toBe('true');
     expect(getByTestId('queue-count').props.children).toBe(1);
     expect(getByTestId('album-title').props.children).toBe('Album');
-    expect(getByTestId('position').props.children).toBe(3);
-    expect(getByTestId('duration').props.children).toBe(9);
     expect(getByTestId('player-layout').props.children).toBe('classic');
     expect(getByTestId('can-save-queue').props.children).toBe('true');
   });

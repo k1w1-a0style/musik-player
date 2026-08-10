@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { Search } from 'lucide-react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Search, X } from 'lucide-react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
@@ -35,6 +35,10 @@ const LibrarySearchBar: React.FC<LibrarySearchBarProps> = ({ value, onChangeText
         autoFocus={autoFocus}
         testID="library-search-input"
       />
+      {value ? <Pressable accessibilityRole="button" accessibilityLabel="Suchtext löschen"
+        onPress={() => onChangeText('')} style={styles.clearButton} testID="library-search-clear">
+        <X color={theme.palette.text.secondary} size={18} />
+      </Pressable> : null}
     </View>
   );
 };
@@ -56,6 +60,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
   },
+  clearButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default LibrarySearchBar;

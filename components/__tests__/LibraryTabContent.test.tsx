@@ -95,7 +95,7 @@ test('renders tracks tab shell and icon empty state', () => {
   const screen = render(<LibraryTabContent {...baseProps} activeTab="tracks" />);
 
   expect(screen.getByTestId('library-tracks-shell')).toBeTruthy();
-  expect(screen.getByText('Name')).toBeTruthy();
+  expect(screen.getByText('Titel')).toBeTruthy();
   expect(screen.getByTestId('library-empty-state-tracks')).toBeTruthy();
   expect(screen.getByText('Leer')).toBeTruthy();
 });

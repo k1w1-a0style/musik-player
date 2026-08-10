@@ -121,6 +121,22 @@ describe('music context value builders', () => {
       canSkipNext: false,
       canSkipPrevious: true,
     });
+
+    expect(
+      buildMiniPlayerMusicContextValue({
+        ...baseValue,
+        currentSong: baseValue.playbackQueue[1],
+        repeatMode: 'off',
+      }),
+    ).toMatchObject({ canSkipNext: false });
+
+    expect(
+      buildMiniPlayerMusicContextValue({
+        ...baseValue,
+        currentSong: baseValue.playbackQueue[1],
+        repeatMode: 'all',
+      }),
+    ).toMatchObject({ canSkipNext: true });
   });
 
   test('builds the now playing slice with skip actions and canSkip flag', () => {

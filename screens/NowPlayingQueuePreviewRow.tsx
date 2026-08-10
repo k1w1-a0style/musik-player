@@ -55,7 +55,7 @@ const PlayingBadge = ({ id, visible, accentColor, textColor }: { id: string; vis
   return (
     <View style={[styles.playingBadge, { borderColor: accentColor }]} testID={`queue-active-indicator-${id}`}>
       <View testID={`queue-active-icon-${id}`}><Volume2 color={accentColor} size={14} /></View>
-      <Text style={[styles.playingLabel, { color: textColor }]} numberOfLines={1}>Now Playing</Text>
+      <Text style={[styles.playingLabel, { color: textColor }]} numberOfLines={1}>Läuft gerade</Text>
     </View>
   );
 };

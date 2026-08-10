@@ -42,6 +42,7 @@ export interface SoundCloudPlayerChromeProps {
   onCycleRepeatMode: () => unknown | Promise<unknown>;
   topInset: number;
   bottomInset: number;
+  reduceMotion?: boolean;
 }
 
 const QueueOverlay = ({ visible, onClose, ...props }: Omit<SoundCloudPlayerChromeProps,
@@ -52,7 +53,7 @@ const QueueOverlay = ({ visible, onClose, ...props }: Omit<SoundCloudPlayerChrom
     onPlayQueueItem={props.onPlayQueueItem} onQueueShift={props.onQueueShift}
     canShiftQueue={props.canShiftQueue} shuffle={props.shuffle} repeatMode={props.repeatMode}
     onToggleShuffle={props.onToggleShuffle} onCycleRepeatMode={props.onCycleRepeatMode}
-    topInset={props.topInset} bottomInset={props.bottomInset} />;
+    topInset={props.topInset} bottomInset={props.bottomInset} reduceMotion={props.reduceMotion} />;
 };
 
 const SoundCloudPlayerChrome = (props: SoundCloudPlayerChromeProps) => {
@@ -68,7 +69,7 @@ const SoundCloudPlayerChrome = (props: SoundCloudPlayerChromeProps) => {
       </View>
       <View style={[styles.actionBar, { paddingBottom: Math.max(props.bottomInset, 8) }]}
         pointerEvents="box-none" testID="soundcloud-action-bar">
-        <PlayerAction label="Like" testID="soundcloud-like" onPress={props.onToggleFavorite}
+        <PlayerAction label="Gefällt mir" testID="soundcloud-like" onPress={props.onToggleFavorite}
           disabled={!hasSong || props.favoritePending} active={props.favorite}>
           <Heart color={props.favorite ? SOUNDCLOUD_PLAYER_COLORS.accent : SOUNDCLOUD_PLAYER_COLORS.foreground}
             fill={props.favorite ? SOUNDCLOUD_PLAYER_COLORS.accent : 'transparent'} size={23} />
@@ -79,7 +80,7 @@ const SoundCloudPlayerChrome = (props: SoundCloudPlayerChromeProps) => {
         <PlayerAction label="Teilen" testID="soundcloud-share" onPress={props.onShare} disabled={!hasSong}>
           <Share2 color={SOUNDCLOUD_PLAYER_COLORS.foreground} size={23} />
         </PlayerAction>
-        <PlayerAction label="Queue" testID="soundcloud-open-queue" onPress={() => setQueueOpen(true)}>
+        <PlayerAction label="Liste" testID="soundcloud-open-queue" onPress={() => setQueueOpen(true)}>
           <ListMusic color={SOUNDCLOUD_PLAYER_COLORS.foreground} size={23} />
         </PlayerAction>
         <PlayerAction label="Mehr" testID="soundcloud-more" onPress={props.onOpenMenu}>

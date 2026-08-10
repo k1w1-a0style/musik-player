@@ -33,7 +33,7 @@ const EqualizerContent: React.FC<EqualizerContentProps> = ({
   curvePath,
 }) => (
   <AppBackground>
-    <Screen style={styles.container} testID="equalizer-screen" contentStyle={styles.content}>
+    <Screen edges={['bottom']} style={styles.container} testID="equalizer-screen" contentStyle={styles.content}>
       <ScrollView>
         <EqualizerHeader eqEnabled={eqEnabled} onToggleEnabled={onToggleEnabled} />
         <EqualizerStatusCard eqNative={eqNative} />

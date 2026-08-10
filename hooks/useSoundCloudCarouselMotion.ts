@@ -9,9 +9,11 @@ interface TrackSwitchOptions {
   panelWidth: number;
   onNext: () => void;
   onPrevious: () => void;
+  reduceMotion: boolean;
 }
 
-const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPrevious }: TrackSwitchOptions) => {
+const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPrevious,
+  reduceMotion }: TrackSwitchOptions) => {
   const switchingRef = useRef(false);
   const songIdRef = useRef(currentSongId);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,9 +25,15 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
   }, []);
   const animateBack = useCallback(() => {
     clearReset();
+    if (reduceMotion) {
+      drag.stopAnimation();
+      drag.setValue(0);
+      switchingRef.current = false;
+      return;
+    }
     Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true })
       .start(() => { switchingRef.current = false; });
-  }, [clearReset, drag]);
+  }, [clearReset, drag, reduceMotion]);
   useLayoutEffect(() => {
     clearReset();
     drag.stopAnimation();
@@ -38,6 +46,13 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
   }, [clearReset, drag]);
   const complete = useCallback((direction: 'next' | 'previous') => {
     switchingRef.current = true;
+    if (reduceMotion) {
+      drag.stopAnimation();
+      drag.setValue(0);
+      if (direction === 'next') onNext(); else onPrevious();
+      switchingRef.current = false;
+      return;
+    }
     Animated.timing(drag, { toValue: direction === 'next' ? -panelWidth : panelWidth,
       duration: 270, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
       if (!finished) return animateBack();
@@ -49,7 +64,7 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
         if (switchingRef.current && songIdRef.current === previousSongId) animateBack();
       }, 500);
     });
-  }, [animateBack, clearReset, drag, onNext, onPrevious, panelWidth]);
+  }, [animateBack, clearReset, drag, onNext, onPrevious, panelWidth, reduceMotion]);
   return { switchingRef, animateBack, complete };
 };
 
@@ -59,9 +74,9 @@ interface HorizontalMotionOptions extends Omit<TrackSwitchOptions, 'drag'> {
 }
 
 export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, onPrevious,
-  hasPrevious, hasNext }: HorizontalMotionOptions) => {
+  hasPrevious, hasNext, reduceMotion }: HorizontalMotionOptions) => {
   const drag = useRef(new Animated.Value(0)).current;
-  const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious });
+  const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious, reduceMotion });
   const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent>(
     [{ nativeEvent: { translationX: drag } }], { useNativeDriver: true }), [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
@@ -82,21 +97,36 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   return { drag, constrainedDrag, onGestureEvent, onStateChange };
 };
 
-export const useVerticalPlayerMotion = ({ height, onCollapse }: { height: number; onCollapse: () => void }) => {
+export const useVerticalPlayerMotion = ({ height, onCollapse, reduceMotion }: {
+  height: number;
+  onCollapse: () => void;
+  reduceMotion: boolean;
+}) => {
   const drag = useRef(new Animated.Value(0)).current;
   useEffect(() => () => drag.stopAnimation(), [drag]);
-  const animateBack = useCallback(() => Animated.spring(drag, { toValue: 0,
-    tension: 150, friction: 22, useNativeDriver: true }).start(), [drag]);
+  const animateBack = useCallback(() => {
+    if (reduceMotion) {
+      drag.stopAnimation();
+      drag.setValue(0);
+      return;
+    }
+    Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true }).start();
+  }, [drag, reduceMotion]);
   const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent>(
     [{ nativeEvent: { translationY: drag } }], { useNativeDriver: true }), [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationY = 0, velocityY = 0 } = event.nativeEvent;
     if (oldState === State.ACTIVE && shouldCollapseSoundCloudPlayer({ translationY, velocityY, height })) {
+      if (reduceMotion) {
+        drag.setValue(0);
+        onCollapse();
+        return;
+      }
       Animated.timing(drag, { toValue: height, duration: 220,
         easing: Easing.out(Easing.cubic), useNativeDriver: true })
         .start(({ finished }) => { if (finished) onCollapse(); });
     } else if (oldState === State.ACTIVE || state === State.CANCELLED || state === State.FAILED) animateBack();
-  }, [animateBack, drag, height, onCollapse]);
+  }, [animateBack, drag, height, onCollapse, reduceMotion]);
   const translateY = useMemo(() => drag.interpolate({ inputRange: [-1, 0, height],
     outputRange: [0, 0, height], extrapolate: 'clamp' }), [drag, height]);
   const scale = useMemo(() => drag.interpolate({ inputRange: [0, height],

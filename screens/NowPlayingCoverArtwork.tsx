@@ -173,4 +173,4 @@ const styles = StyleSheet.create({
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
 });
 
-export default NowPlayingCoverArtwork;
+export default React.memo(NowPlayingCoverArtwork);

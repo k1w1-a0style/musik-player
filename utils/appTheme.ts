@@ -145,7 +145,7 @@ const graphiteDark: AppTheme = {
     text: {
       primary: '#F4F5F7',
       secondary: 'rgba(244, 245, 247, 0.70)',
-      muted: 'rgba(244, 245, 247, 0.42)',
+      muted: 'rgba(244, 245, 247, 0.52)',
       onPrimary: '#07090C',
     },
   },
@@ -184,7 +184,7 @@ const graphiteLight: AppTheme = {
     text: {
       primary: '#101319',
       secondary: 'rgba(16, 19, 25, 0.68)',
-      muted: 'rgba(16, 19, 25, 0.42)',
+      muted: 'rgba(16, 19, 25, 0.60)',
       onPrimary: '#FFFFFF',
     },
   },

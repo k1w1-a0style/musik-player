@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, BackHandler, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Repeat, Repeat1, Shuffle, X } from 'lucide-react-native';
 import type { RepeatMode, Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -29,6 +29,7 @@ export interface SoundCloudQueueSheetProps {
   onCycleRepeatMode: () => unknown | Promise<unknown>;
   topInset: number;
   bottomInset: number;
+  reduceMotion?: boolean;
 }
 
 interface QueueHeaderProps extends Pick<SoundCloudQueueSheetProps,
@@ -42,7 +43,7 @@ const QueueHeader = ({ shuffle, repeatMode, onToggleShuffle, onCycleRepeatMode, 
       : SOUNDCLOUD_PLAYER_COLORS.accent} size={22} />;
   return (
     <View style={styles.queueHeader}>
-      <View><Text style={styles.queueEyebrow}>SOUNDCLOUD PLAYER</Text><Text style={styles.queueTitle}>Next up</Text></View>
+      <View><Text style={styles.queueEyebrow}>SOUNDCLOUD PLAYER</Text><Text style={styles.queueTitle}>Als Nächstes</Text></View>
       <View style={styles.queueHeaderActions}>
         <Pressable style={[styles.queueHeaderButton, shuffle && styles.active]}
           onPress={() => void runPlaybackUiAction('soundcloud-shuffle', onToggleShuffle, { dropIfPending: true })}
@@ -64,18 +65,25 @@ const QueueHeader = ({ shuffle, repeatMode, onToggleShuffle, onCycleRepeatMode, 
 
 const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, onQueueShift,
   canShiftQueue, shuffle, repeatMode, onToggleShuffle, onCycleRepeatMode,
-  topInset, bottomInset }: SoundCloudQueueSheetProps) => {
+  topInset, bottomInset, reduceMotion = false }: SoundCloudQueueSheetProps) => {
   const { height } = useWindowDimensions();
-  const translateY = useRef(new Animated.Value(height)).current;
+  const translateY = useRef(new Animated.Value(reduceMotion ? 0 : height)).current;
   useEffect(() => {
-    Animated.timing(translateY, { toValue: 0, duration: 260,
+    Animated.timing(translateY, { toValue: 0, duration: reduceMotion ? 0 : 260,
       easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [translateY]);
+  }, [reduceMotion, translateY]);
   const closeAnimated = useCallback(() => {
-    Animated.timing(translateY, { toValue: height, duration: 220,
+    Animated.timing(translateY, { toValue: height, duration: reduceMotion ? 0 : 220,
       easing: Easing.in(Easing.cubic), useNativeDriver: true })
       .start(({ finished }) => { if (finished) onClose(); });
-  }, [height, onClose, translateY]);
+  }, [height, onClose, reduceMotion, translateY]);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeAnimated();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeAnimated]);
   const topPadding = Math.max(topInset, 16);
   const bottomPadding = Math.max(bottomInset, 12);
   return (

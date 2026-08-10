@@ -2,7 +2,9 @@ import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
 export interface UseLibraryMenuActionsOptions {
+  searchOpen: boolean;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setQuery: Dispatch<SetStateAction<string>>;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
   onOpenSettings: () => void;
 }
@@ -15,13 +17,16 @@ export interface UseLibraryMenuActionsResult {
 }
 
 export const useLibraryMenuActions = ({
+  searchOpen,
   setMenuOpen,
+  setQuery,
   setSearchOpen,
   onOpenSettings,
 }: UseLibraryMenuActionsOptions): UseLibraryMenuActionsResult => {
   const toggleSearch = useCallback(() => {
-    setSearchOpen(value => !value);
-  }, [setSearchOpen]);
+    if (searchOpen) setQuery('');
+    setSearchOpen(!searchOpen);
+  }, [searchOpen, setQuery, setSearchOpen]);
 
   const openMenu = useCallback(() => {
     setMenuOpen(true);

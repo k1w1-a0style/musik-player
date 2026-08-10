@@ -13,8 +13,10 @@ interface PlaybackProgressContextValue {
 
 const PlaybackProgressContext = createContext<PlaybackProgressContextValue | null>(null);
 
+export const PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS = 500;
+
 export const PlaybackProgressProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const progress = useProgress(500);
+  const progress = useProgress(PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS);
 
   const value = useMemo<PlaybackProgressContextValue>(
     () => ({

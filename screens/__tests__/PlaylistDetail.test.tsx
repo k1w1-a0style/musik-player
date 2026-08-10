@@ -65,10 +65,14 @@ jest.mock('../../contexts/MusicContext', () => ({
 }));
 
 jest.mock('lucide-react-native', () => ({
+  ChevronDown: 'ChevronDown',
+  ChevronUp: 'ChevronUp',
   Edit3: 'Edit3',
   Plus: 'Plus',
   Play: 'Play',
+  Search: 'Search',
   Trash2: 'Trash2',
+  X: 'X',
 }));
 
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
@@ -194,6 +198,17 @@ test('adds a song to the playlist through the existing playlist action', () => {
   fireEvent.press(getByTestId('playlist-detail-add-song-song-c'));
 
   expect(mockAddSongToPlaylist).toHaveBeenCalledWith('playlist-1', 'song-c');
+});
+
+test('filters the virtualized add list by title, artist, or album', () => {
+  mockSongs.push(song('song-d', { title: 'Night Drive', artist: 'Kiwi', album: 'Autobahn' }));
+  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
+
+  fireEvent.press(getByTestId('playlist-detail-add-button'));
+  fireEvent.changeText(getByTestId('playlist-detail-add-search'), 'autobahn');
+
+  expect(getByTestId('playlist-detail-add-candidate-song-d')).toBeTruthy();
+  expect(queryByTestId('playlist-detail-add-candidate-song-c')).toBeNull();
 });
 
 test('shows add empty state when all songs are already in the playlist', () => {

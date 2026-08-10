@@ -16,6 +16,7 @@ import type { LibraryPlaylistItem } from './libraryPlaylists';
 
 export interface LibraryTopBarPropsBuilderOptions {
   openMenu: () => void;
+  searchOpen: boolean;
   toggleSearch: () => void;
 }
 
@@ -87,8 +88,10 @@ export interface LibraryMenuModalPropsBuilderOptions {
   canResumeRefresh?: boolean;
 }
 
-export const buildLibraryTopBarProps = ({ openMenu, toggleSearch }: LibraryTopBarPropsBuilderOptions): LibraryTopBarProps => ({
+export const buildLibraryTopBarProps = ({ openMenu, searchOpen,
+  toggleSearch }: LibraryTopBarPropsBuilderOptions): LibraryTopBarProps => ({
   onOpenMenu: openMenu,
+  searchOpen,
   onToggleSearch: toggleSearch,
 });
 

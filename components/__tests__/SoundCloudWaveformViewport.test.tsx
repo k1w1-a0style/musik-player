@@ -57,4 +57,16 @@ describe('SoundCloudWaveformViewport', () => {
     expect(onSeek).toHaveBeenNthCalledWith(1, 35_000);
     expect(onSeek).toHaveBeenNthCalledWith(2, 15_000);
   });
+
+  test('renders adjacent preview waveforms without duplicate progress layers', () => {
+    const { getByTestId, queryByTestId } = render(
+      <SoundCloudWaveformViewport waveform={waveform} currentPosition={0}
+        duration={100_000} isPlaying={false} onSeek={jest.fn()}
+        interactive={false} showProgress={false} />,
+    );
+
+    expect(getByTestId('soundcloud-waveform-unplayed-layer')).toBeTruthy();
+    expect(queryByTestId('soundcloud-waveform-played-layer')).toBeNull();
+    expect(queryByTestId('soundcloud-waveform-playhead')).toBeNull();
+  });
 });

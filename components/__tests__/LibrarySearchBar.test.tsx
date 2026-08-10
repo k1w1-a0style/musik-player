@@ -8,6 +8,7 @@ const mockAppTheme = {
     border: 'rgba(255, 255, 255, 0.08)',
     text: {
       primary: '#F4F5F7',
+      secondary: 'rgba(244, 245, 247, 0.70)',
       muted: 'rgba(244, 245, 247, 0.42)',
     },
   },
@@ -43,6 +44,15 @@ test('passes autoFocus to text input', () => {
   const { getByTestId } = render(<LibrarySearchBar value="" onChangeText={jest.fn()} autoFocus />);
 
   expect(getByTestId('library-search-input').props.autoFocus).toBe(true);
+});
+
+test('clears a visible search term', () => {
+  const onChangeText = jest.fn();
+  const { getByTestId } = render(<LibrarySearchBar value="techno" onChangeText={onChangeText} />);
+
+  fireEvent.press(getByTestId('library-search-clear'));
+
+  expect(onChangeText).toHaveBeenCalledWith('');
 });
 
 test('uses localized accessibility label and placeholder', () => {

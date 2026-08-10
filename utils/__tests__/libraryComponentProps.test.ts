@@ -46,8 +46,9 @@ const makeTabOptions = (): LibraryTabContentPropsBuilderOptions => ({
 });
 
 test('buildLibraryTopBarProps returns top bar props', () => {
-  expect(buildLibraryTopBarProps({ openMenu: fn, toggleSearch: fn })).toEqual({
+  expect(buildLibraryTopBarProps({ openMenu: fn, searchOpen: true, toggleSearch: fn })).toEqual({
     onOpenMenu: fn,
+    searchOpen: true,
     onToggleSearch: fn,
   });
 });

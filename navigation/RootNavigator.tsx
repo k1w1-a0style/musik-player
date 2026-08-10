@@ -24,9 +24,10 @@ const RootNavigator: React.FC = () => {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          headerStyle: { backgroundColor: theme.palette.surface },
+          headerStyle: { backgroundColor: theme.palette.background },
           headerTintColor: theme.palette.text.primary,
           headerTitleStyle: { color: theme.palette.text.primary },
+          headerShadowVisible: false,
         }}
       >
       <Stack.Screen name={APP_STACK_ROUTES.MAIN_TABS}>
@@ -62,7 +63,8 @@ const RootNavigator: React.FC = () => {
       <Stack.Screen
         name={APP_STACK_ROUTES.NOW_PLAYING}
         component={NowPlaying}
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        options={{ presentation: 'transparentModal', animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: 'transparent' } }}
       />
       </Stack.Navigator>
     </NavigationContainer>

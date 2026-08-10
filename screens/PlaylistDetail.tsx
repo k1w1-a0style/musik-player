@@ -9,7 +9,7 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { Edit3, Plus, Trash2, Play } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Edit3, Plus, Trash2, Play } from 'lucide-react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -17,6 +17,7 @@ import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { AppStackParamList } from '../types/navigation';
 import type { Song } from '../types/Song';
+import PlaylistAddSongsModal from './PlaylistAddSongsModal';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
 type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
@@ -177,7 +178,7 @@ const PlaylistDetail: React.FC = () => {
             ]}
             testID={`playlist-detail-move-up-song-${item.id}`}
           >
-            <Text style={[styles.moveSongText, { color: theme.palette.text.secondary }]}>Hoch</Text>
+            <ChevronUp color={moveUpDisabled ? theme.palette.text.muted : theme.palette.text.secondary} size={20} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -194,7 +195,7 @@ const PlaylistDetail: React.FC = () => {
             ]}
             testID={`playlist-detail-move-down-song-${item.id}`}
           >
-            <Text style={[styles.moveSongText, { color: theme.palette.text.secondary }]}>Runter</Text>
+            <ChevronDown color={moveDownDisabled ? theme.palette.text.muted : theme.palette.text.secondary} size={20} />
           </Pressable>
         </View>
         <Pressable
@@ -210,7 +211,7 @@ const PlaylistDetail: React.FC = () => {
           ]}
           testID={`playlist-detail-remove-song-${item.id}`}
         >
-          <Text style={[styles.removeSongText, { color: theme.palette.error }]}>Entfernen</Text>
+          <Trash2 color={theme.palette.error} size={19} />
         </Pressable>
       </View>
     );
@@ -309,54 +310,6 @@ const PlaylistDetail: React.FC = () => {
                 <Text style={[styles.deleteButtonText, { color: theme.palette.error }]}>Löschen</Text>
               </Pressable>
             </View>
-            {addOpen && (
-              <View
-                style={[
-                  styles.addPanel,
-                  {
-                    backgroundColor: theme.palette.surfaceElevated,
-                    borderColor: theme.palette.border,
-                  },
-                ]}
-                testID="playlist-detail-add-panel"
-              >
-                <Text style={[styles.panelTitle, { color: theme.palette.text.primary }]}>Titel hinzufügen</Text>
-                {addableSongs.length === 0 ? (
-                  <Text style={[styles.panelEmpty, { color: theme.palette.text.muted }]} testID="playlist-detail-add-empty">
-                    Alle verfügbaren Titel sind bereits in dieser Playlist.
-                  </Text>
-                ) : (
-                  addableSongs.map(song => (
-                    <View
-                      key={song.id}
-                      style={[styles.addSongRow, { borderTopColor: theme.palette.border }]}
-                      testID={`playlist-detail-add-candidate-${song.id}`}
-                    >
-                      <View style={styles.addSongTextWrap}>
-                        <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-                          {song.title || 'Unbekannter Titel'}
-                        </Text>
-                        <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-                          {song.artist || 'Unbekannter Künstler'}
-                        </Text>
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${song.title || 'Unbekannter Titel'} zur Playlist hinzufügen`}
-                        onPress={() => handleAddSong(song.id)}
-                        style={[
-                          styles.addSongButton,
-                          { borderColor: theme.palette.primaryDark, backgroundColor: theme.palette.primary },
-                        ]}
-                        testID={`playlist-detail-add-song-${song.id}`}
-                      >
-                        <Text style={[styles.addSongButtonText, { color: theme.palette.text.onPrimary }]}>Hinzufügen</Text>
-                      </Pressable>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
             {renameOpen && (
               <View
                 style={[
@@ -426,6 +379,8 @@ const PlaylistDetail: React.FC = () => {
           </Text>
         )}
       />
+      <PlaylistAddSongsModal visible={addOpen} playlistName={playlist.name} songs={addableSongs}
+        onAddSong={handleAddSong} onClose={() => setAddOpen(false)} />
     </View>
   );
 };
@@ -513,41 +468,6 @@ const styles = StyleSheet.create({
     fontFamily: APP_THEME_TOKENS.fonts.heading,
     fontSize: 14,
   },
-  addPanel: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: APP_THEME_TOKENS.radii.card,
-    gap: APP_THEME_TOKENS.spacing.sm,
-    marginTop: APP_THEME_TOKENS.spacing.sm,
-    padding: APP_THEME_TOKENS.spacing.md,
-  },
-  panelTitle: {
-    fontFamily: APP_THEME_TOKENS.fonts.heading,
-    fontSize: 16,
-  },
-  panelEmpty: {
-    fontFamily: APP_THEME_TOKENS.fonts.body,
-    fontSize: 13,
-  },
-  addSongRow: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: APP_THEME_TOKENS.spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: APP_THEME_TOKENS.spacing.sm,
-  },
-  addSongTextWrap: { flex: 1, minWidth: 0 },
-  addSongButton: {
-    minHeight: 34,
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
-    paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
-  },
-  addSongButtonText: {
-    fontFamily: APP_THEME_TOKENS.fonts.heading,
-    fontSize: 12,
-  },
   renamePanel: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: APP_THEME_TOKENS.radii.card,
@@ -618,26 +538,20 @@ const styles = StyleSheet.create({
     gap: APP_THEME_TOKENS.spacing.xs,
   },
   moveSongButton: {
-    minHeight: 34,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: APP_THEME_TOKENS.borderRadius.pill,
-    paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
-  },
-  moveSongText: {
-    fontFamily: APP_THEME_TOKENS.fonts.heading,
-    fontSize: 12,
   },
   removeSongButton: {
-    minHeight: 34,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: APP_THEME_TOKENS.borderRadius.pill,
-    paddingHorizontal: APP_THEME_TOKENS.spacing.sm,
-  },
-  removeSongText: {
-    fontFamily: APP_THEME_TOKENS.fonts.heading,
-    fontSize: 12,
   },
 });
 

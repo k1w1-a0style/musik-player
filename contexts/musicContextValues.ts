@@ -4,6 +4,7 @@ import type {
   MusicContextValue,
   NowPlayingMusicContextValue,
 } from './musicContextTypes';
+import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 
 type LibraryMusicContextInput = Pick<
   MusicContextValue,
@@ -31,7 +32,8 @@ type LibraryMusicContextInput = Pick<
 
 type MiniPlayerMusicContextInput = Pick<
   MusicContextValue,
-  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'hydrationStatus' | 'retryHydration'
+  'currentSong' | 'isPlaying' | 'togglePlayPause' | 'next' | 'previous' | 'playbackQueue' | 'repeatMode'
+  | 'hydrationStatus' | 'retryHydration'
 >;
 
 type NowPlayingMusicContextInput = Pick<
@@ -112,6 +114,7 @@ export const buildMiniPlayerMusicContextValue = ({
   next,
   previous,
   playbackQueue,
+  repeatMode,
   hydrationStatus,
   retryHydration,
 }: MiniPlayerMusicContextInput): MiniPlayerMusicContextValue => ({
@@ -120,7 +123,7 @@ export const buildMiniPlayerMusicContextValue = ({
   togglePlayPause,
   next,
   previous,
-  canSkipNext: currentSong !== null && playbackQueue.length > 1,
+  canSkipNext: canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode }),
   canSkipPrevious: currentSong !== null,
   ...(hydrationStatus === undefined ? {} : { hydrationStatus }),
   ...(retryHydration === undefined ? {} : { retryHydration }),

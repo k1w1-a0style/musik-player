@@ -121,6 +121,10 @@ export const getLibraryMenuBackdropColor = (
   appearance: AppAppearance,
 ): string => (appearance === 'light' ? 'rgba(0,0,0,0.14)' : 'rgba(0,0,0,0.22)');
 
+export const getPlaylistModalBackdropColor = (
+  appearance: AppAppearance,
+): string => (appearance === 'light' ? 'rgba(0,0,0,0.28)' : 'rgba(0,0,0,0.52)');
+
 export const getLibraryListShellBackgroundColor = (
   appearance: AppAppearance,
 ): string => (appearance === 'light' ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.055)');

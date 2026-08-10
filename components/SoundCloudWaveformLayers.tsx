@@ -38,10 +38,11 @@ interface SoundCloudWaveformLayersProps {
   viewportCenter: number;
   accent: string;
   translateX: Animated.AnimatedAddition<number>;
+  showProgress?: boolean;
 }
 
 const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewportCenter,
-  accent, translateX }: SoundCloudWaveformLayersProps) => {
+  accent, translateX, showProgress = true }: SoundCloudWaveformLayersProps) => {
   const stripStyle = useMemo(() => ({ width: stripWidth, height,
     transform: [{ translateX }] }), [height, stripWidth, translateX]);
   return (
@@ -50,14 +51,14 @@ const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewp
         <WaveformBars points={points} sourceKey={`${sourceKey}-rest`} width={stripWidth}
           height={height} color={SOUNDCLOUD_PLAYER_COLORS.waveformRest} />
       </Animated.View>
-      <View style={[styles.playedClip, { width: viewportCenter }]} testID="soundcloud-waveform-played-clip">
+      {showProgress ? <><View style={[styles.playedClip, { width: viewportCenter }]} testID="soundcloud-waveform-played-clip">
         <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-played-layer">
           <WaveformBars points={points} sourceKey={`${sourceKey}-played`} width={stripWidth}
             height={height} color={accent} />
         </Animated.View>
       </View>
       <View pointerEvents="none" style={[styles.playhead, { left: viewportCenter - 1, backgroundColor: accent }]}
-        testID="soundcloud-waveform-playhead" />
+        testID="soundcloud-waveform-playhead" /></> : null}
     </>
   );
 };

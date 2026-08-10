@@ -72,6 +72,7 @@ test('returns library component props', () => {
   expect(result.current.topBarProps).toEqual({
     onOpenMenu: fn,
     onToggleSearch: fn,
+    searchOpen: true,
   });
   expect(result.current.tabsProps).toEqual({
     activeTab: 'tracks',

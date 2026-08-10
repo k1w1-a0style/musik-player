@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryAlbumTile, { getAlbumTileFallbackLetter } from '../LibraryAlbumTile';
+import { getResponsiveAlbumGridMetrics } from '../LibraryTabContent';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 
 const mockAppTheme = {
@@ -79,4 +80,10 @@ test('uses app theme album chrome and text colors', () => {
   expect(JSON.stringify(getByText('W').props.style)).toContain(mockAppTheme.palette.primary);
   expect(JSON.stringify(getByText('Warehouse Dreams').props.style)).toContain(mockAppTheme.palette.text.primary);
   expect(JSON.stringify(getByText('DJ Kiwi • 12 Titel').props.style)).toContain(mockAppTheme.palette.text.secondary);
+});
+
+test('uses responsive album columns without oversized tablet tiles', () => {
+  expect(getResponsiveAlbumGridMetrics(360)).toEqual({ columns: 2, tileWidth: 154 });
+  expect(getResponsiveAlbumGridMetrics(800)).toEqual({ columns: 4, tileWidth: 181 });
+  expect(getResponsiveAlbumGridMetrics(1200)).toEqual({ columns: 5, tileWidth: 222 });
 });

@@ -6,7 +6,6 @@ interface NowPlayingScreenSize {
 interface NowPlayingLayoutMetrics {
   coverSize: number;
   coverAreaHeight: number;
-  queueCardMaxHeight: number;
   glowLeft: number;
   /** Height of a single snap page, based on the measured available content area. */
   snapPageHeight: number;
@@ -36,7 +35,6 @@ export const buildNowPlayingLayoutMetrics = ({
   return {
     coverSize,
     coverAreaHeight,
-    queueCardMaxHeight: detailPageListHeight,
     glowLeft: safeWidth / 2 - 130,
     snapPageHeight,
     detailPageListHeight,

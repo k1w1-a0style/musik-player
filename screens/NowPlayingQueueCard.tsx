@@ -18,6 +18,7 @@ const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number
   offset: SOUNDCLOUD_QUEUE_ROW_HEIGHT * index,
   index,
 });
+const getInitialQueueIndex = (currentIndex: number): number | undefined => currentIndex > 0 ? currentIndex : undefined;
 
 interface NowPlayingQueueCardProps {
   queue: Song[];
@@ -40,7 +41,7 @@ const NowPlayingQueueHeader = ({ visible, upcomingCount, accentColor, colors }: 
         <ListMusic color={accentColor} size={20} />
       </View>
       <View style={styles.headerText}>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Next up</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Als Nächstes</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{upcomingCount} Titel als Nächstes</Text>
       </View>
     </View>
@@ -97,6 +98,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
       <NowPlayingQueueHeader visible={showHeader} upcomingCount={upcomingCount} accentColor={accentColor} colors={rowColors} />
       <NativeViewGestureHandler disallowInterruption>
         <FlatList ref={listRef} testID="now-playing-queue-list" data={queue} keyExtractor={buildSongKey}
+          initialScrollIndex={getInitialQueueIndex(currentIndex)}
           renderItem={renderQueueItem} onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
           onScroll={handleScroll} scrollEventThrottle={16} nestedScrollEnabled scrollEnabled
           showsVerticalScrollIndicator getItemLayout={getQueueItemLayout} style={styles.queueList}

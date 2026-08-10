@@ -316,7 +316,9 @@ test('wires controller state, actions, renderers, playback, and props without ch
     songs: [],
   });
   expect(useLibraryMenuActions).toHaveBeenCalledWith({
+    searchOpen: false,
     setMenuOpen: mockScreenState.setMenuOpen,
+    setQuery: mockScreenState.setQuery,
     setSearchOpen: mockScreenState.setSearchOpen,
     onOpenSettings: mockNavigationActions.openSettings,
   });

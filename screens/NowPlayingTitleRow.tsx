@@ -56,4 +56,4 @@ const styles = StyleSheet.create({
   heartBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });
 
-export default NowPlayingTitleRow;
+export default React.memo(NowPlayingTitleRow);

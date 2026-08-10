@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
-import MiniPlayer from '../MiniPlayer';
+import MiniPlayer, { shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
 
 type MiniCtx = {
   currentSong: { id: string; title: string; artist: string; album?: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
@@ -84,6 +84,11 @@ const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
 });
 
 describe('MiniPlayer', () => {
+  test('keeps secondary controls off narrow phones to preserve title space', () => {
+    expect(shouldShowMiniPlayerSecondaryControls(360)).toBe(false);
+    expect(shouldShowMiniPlayerSecondaryControls(390)).toBe(true);
+  });
+
   beforeEach(() => {
     mockUseMiniPlayerMusicContext.mockReset();
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());

@@ -4,9 +4,9 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import App, { AppContent } from '../App';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 
-const mockUseFonts = jest.fn((_fonts: unknown) => [true]);
+const mockUseFonts = jest.fn((_fonts: unknown): [boolean, Error?] => [true]);
 
-jest.mock('@expo-google-fonts/bricolage-grotesque', () => ({
+jest.mock('expo-font', () => ({
   useFonts: (fonts: unknown) => mockUseFonts(fonts),
 }));
 
@@ -67,6 +67,19 @@ describe('App', () => {
     expect(getByTestId('app-loading')).toBeTruthy();
     expect(queryByTestId('app-providers')).toBeNull();
     await act(async () => { await Promise.resolve(); });
+  });
+
+  test('continues with system fonts when custom font loading fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockUseFonts.mockReturnValueOnce([false, new Error('font unavailable')]);
+
+    const { getByTestId } = render(<AppContent />);
+
+    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
+    expect(warn).toHaveBeenCalledWith(
+      '[Fonts] Custom fonts failed to load; using the system fallback.',
+      'Error: font unavailable',
+    );
   });
 
   test('renders providers and navigation after startup restoration', async () => {

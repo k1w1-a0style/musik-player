@@ -68,7 +68,7 @@ jest.mock('lucide-react-native', () => ({
   VolumeX: 'VolumeX',
 }));
 
-const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayerPanel>> = {}) => render(
+const renderPanel = () => render(
   <NowPlayingPlayerPanel
     currentSong={null}
     isPlaying={false}
@@ -78,8 +78,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayer
     favorite={false}
     favoritePending={false}
     onToggleFavorite={jest.fn()}
-    position={0}
-    duration={0}
     onSeek={jest.fn(async () => undefined)}
     progressAccent="#abcdef"
     progressAccentDark="#012345"
@@ -88,9 +86,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof NowPlayingPlayer
     onVolumeChange={jest.fn(async () => undefined)}
     bottomInset={0}
     onOpenTrackInfo={jest.fn()}
-    controlsMode={props.controlsMode ?? 'classic'}
-    onSwipeToNext={props.onSwipeToNext ?? jest.fn()}
-    onSwipeToPrevious={props.onSwipeToPrevious ?? jest.fn()}
   />,
 );
 
@@ -117,14 +112,9 @@ describe('NowPlayingPlayerPanel', () => {
   });
 
   test('keeps cover swipe disabled in the classic player layout', () => {
-    renderPanel({ controlsMode: 'classic' });
+    renderPanel();
 
     expect(mockCoverProps[0].swipeEnabled).toBe(false);
   });
 
-  test('does not enable cover swipe in the placeholder SoundCloud layout yet', () => {
-    renderPanel({ controlsMode: 'soundcloud' });
-
-    expect(mockCoverProps[0].swipeEnabled).toBeFalsy();
-  });
 });

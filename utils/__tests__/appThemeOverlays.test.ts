@@ -1,6 +1,7 @@
 import {
   getLibraryListShellBackgroundColor,
   getLibraryMenuBackdropColor,
+  getPlaylistModalBackdropColor,
   getNowPlayingBackdropOverlayColors,
   getNowPlayingMenuBackdropColor,
   getNowPlayingSnapPagerInactiveDotColor,
@@ -66,6 +67,11 @@ describe('appThemeOverlays', () => {
 
     expect(getLibraryMenuBackdropColor('dark')).toBe('rgba(0,0,0,0.22)');
     expect(getLibraryMenuBackdropColor('light')).toBe('rgba(0,0,0,0.14)');
+  });
+
+  test('returns playlist sheet backdrop colors per appearance', () => {
+    expect(getPlaylistModalBackdropColor('dark')).toBe('rgba(0,0,0,0.52)');
+    expect(getPlaylistModalBackdropColor('light')).toBe('rgba(0,0,0,0.28)');
   });
 
   test('returns Library list shell background colors per appearance', () => {

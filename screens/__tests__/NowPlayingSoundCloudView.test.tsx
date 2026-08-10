@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Animated, Share, View } from 'react-native';
+import { Alert, Animated, BackHandler, Share, StatusBar, View } from 'react-native';
 import NowPlayingSoundCloudView from '../NowPlayingSoundCloudView';
 
 const mockWaveformViewport = jest.fn((_props: Record<string, unknown>) => null);
@@ -39,6 +39,10 @@ jest.mock('../../hooks/useSongWaveform', () => ({
       points: [0.2, 0.8, 0.5],
     },
   }),
+}));
+
+jest.mock('../../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => false,
 }));
 
 jest.mock('../../components/SoundCloudWaveformViewport', () => ({
@@ -177,19 +181,43 @@ describe('NowPlayingSoundCloudView', () => {
     expect(onTogglePlayback).toHaveBeenCalledTimes(1);
     expect(onSwipeToNext).not.toHaveBeenCalled();
     expect(getByTestId('soundcloud-next-button').props.accessibilityState.disabled).toBe(true);
+    expect(getByTestId('soundcloud-carousel-current-paused-artwork').props.blurRadius).toBe(18);
   });
 
   test('moves metadata and waveforms with all three artwork pages', () => {
     const { getByTestId, getByText, getAllByTestId } = renderSoundCloudView();
+    const hidden = { includeHiddenElements: true };
 
-    expect(getByTestId('soundcloud-carousel-previous-artwork').props.source.uri).toBe(songs[0].cover);
+    expect(getByTestId('soundcloud-carousel-previous-artwork', hidden).props.source.uri).toBe(songs[0].cover);
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
-    expect(getByTestId('soundcloud-carousel-next-artwork').props.source.uri).toBe(songs[2].cover);
-    expect(getByText('Previous track')).toBeTruthy();
+    expect(getByTestId('soundcloud-carousel-next-artwork', hidden).props.source.uri).toBe(songs[2].cover);
+    expect(getByText('Previous track', hidden)).toBeTruthy();
     expect(getByText('Track title')).toBeTruthy();
-    expect(getByText('Next track')).toBeTruthy();
-    expect(getAllByTestId('adjacent-waveform')).toHaveLength(2);
+    expect(getByText('Next track', hidden)).toBeTruthy();
+    expect(getAllByTestId('adjacent-waveform', hidden)).toHaveLength(2);
     expect(getByTestId('active-waveform')).toBeTruthy();
+    expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
+      .toBe('no-hide-descendants');
+  });
+
+  test('forces readable status-bar icons over the dark player', () => {
+    const view = renderSoundCloudView();
+
+    expect(view.UNSAFE_getByType(StatusBar).props.barStyle).toBe('light-content');
+  });
+
+  test('closes the queue before Android back can close the player', () => {
+    const addListener = jest.spyOn(BackHandler, 'addEventListener');
+    const { getByTestId, queryByTestId } = renderSoundCloudView();
+
+    fireEvent.press(getByTestId('soundcloud-open-queue'));
+    const backCall = addListener.mock.calls.find(([event]) => event === 'hardwareBackPress');
+
+    expect(backCall).toBeTruthy();
+    let handled = false;
+    act(() => { handled = backCall?.[1]() ?? false; });
+    expect(handled).toBe(true);
+    expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
   });
 
   test('wires close, like, info, share, queue, and more actions', async () => {
@@ -217,13 +245,24 @@ describe('NowPlayingSoundCloudView', () => {
     expect(Share.share).toHaveBeenCalledWith({ title: 'Track title', message: 'Track title — Artist' });
     expect(onOpenMenu).toHaveBeenCalledTimes(1);
     expect(getByTestId('soundcloud-queue-sheet')).toBeTruthy();
-    expect(getByText('Next up')).toBeTruthy();
-    expect(JSON.stringify(getByText('Now Playing').props.style)).toContain('#ffffff');
-    expect(JSON.stringify(getByText('Now Playing').props.style)).not.toContain('#101319');
+    expect(getByText('Als Nächstes')).toBeTruthy();
+    expect(JSON.stringify(getByText('Läuft gerade').props.style)).toContain('#ffffff');
+    expect(JSON.stringify(getByText('Läuft gerade').props.style)).not.toContain('#101319');
 
     await act(async () => {
       fireEvent.press(getByTestId('soundcloud-queue-shuffle'));
       fireEvent.press(getByTestId('soundcloud-queue-repeat'));
     });
+  });
+
+  test('shows useful feedback when the platform share sheet fails', async () => {
+    jest.spyOn(Share, 'share').mockRejectedValueOnce(new Error('share unavailable'));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { getByTestId } = renderSoundCloudView();
+
+    fireEvent.press(getByTestId('soundcloud-share'));
+
+    await act(async () => undefined);
+    expect(alert).toHaveBeenCalledWith('Teilen nicht möglich', 'Der Titel konnte nicht geteilt werden.');
   });
 });

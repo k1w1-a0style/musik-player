@@ -62,4 +62,4 @@ const styles = StyleSheet.create({
   glowOrb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, top: 150, opacity: 0.14 },
 });
 
-export default NowPlayingBackdrop;
+export default React.memo(NowPlayingBackdrop);

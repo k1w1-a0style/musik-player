@@ -12,11 +12,13 @@ import { useLibraryNavigationActions } from './useLibraryNavigationActions';
 import { useLibraryScanFolderActions } from './useLibraryScanFolderActions';
 
 export interface UseLibraryControllerActionsOptions {
+  searchOpen: boolean;
   scanFolders: ScanFolder[];
   setActiveTab: Dispatch<SetStateAction<LibraryTab>>;
   setImportStatus: Dispatch<SetStateAction<string | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setQuery: Dispatch<SetStateAction<string>>;
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
   setSongs: (songs: Song[]) => void;
@@ -42,11 +44,13 @@ export interface UseLibraryControllerActionsResult {
 }
 
 export const useLibraryControllerActions = ({
+  searchOpen,
   scanFolders,
   setActiveTab,
   setImportStatus,
   setLoading,
   setMenuOpen,
+  setQuery,
   setScanFolders,
   setSearchOpen,
   setSongs,
@@ -63,7 +67,9 @@ export const useLibraryControllerActions = ({
   }, [navigateToEqualizer, setMenuOpen]);
 
   const { closeMenu, openMenu, openSettings, toggleSearch } = useLibraryMenuActions({
+    searchOpen,
     setMenuOpen,
+    setQuery,
     setSearchOpen,
     onOpenSettings: navigateToSettings,
   });

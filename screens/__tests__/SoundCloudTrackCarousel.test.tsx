@@ -76,7 +76,9 @@ describe('SoundCloudTrackCarousel gestures', () => {
 
   test('blocks a next swipe when there is no queue candidate', () => {
     const onSwipeToNext = jest.fn();
-    const { getByTestId, unmount } = renderCarousel({ nextSong: null, canSwipeToNext: false, onSwipeToNext });
+    const { getByTestId, queryByTestId, unmount } = renderCarousel({
+      nextSong: null, nextArtworkUri: undefined, canSwipeToNext: false, onSwipeToNext,
+    });
 
     act(() => {
       fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
@@ -91,16 +93,18 @@ describe('SoundCloudTrackCarousel gestures', () => {
     });
 
     expect(onSwipeToNext).not.toHaveBeenCalled();
+    expect(queryByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true })).toBeNull();
     unmount();
   });
 
   test('collapses after a deliberate downward fling and keeps all page content in the track', () => {
     const onCollapse = jest.fn();
     const { getByTestId, unmount } = renderCarousel({ onCollapse });
+    const hidden = { includeHiddenElements: true };
 
-    expect(getByTestId('page-content-previous')).toBeTruthy();
+    expect(getByTestId('page-content-previous', hidden)).toBeTruthy();
     expect(getByTestId('page-content-current')).toBeTruthy();
-    expect(getByTestId('page-content-next')).toBeTruthy();
+    expect(getByTestId('page-content-next', hidden)).toBeTruthy();
 
     act(() => {
       fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {

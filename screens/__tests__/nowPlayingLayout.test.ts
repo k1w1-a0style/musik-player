@@ -5,7 +5,6 @@ describe('buildNowPlayingLayoutMetrics', () => {
     expect(buildNowPlayingLayoutMetrics({ width: 400, height: 704 })).toEqual({
       coverSize: 302,
       coverAreaHeight: 322,
-      queueCardMaxHeight: 620,
       glowLeft: 70,
       snapPageHeight: 704,
       detailPageListHeight: 620,
@@ -42,7 +41,6 @@ describe('buildNowPlayingLayoutMetrics', () => {
     const large = buildNowPlayingLayoutMetrics({ width: 700, height: 1100 });
 
     expect(large.coverSize).toBe(473);
-    expect(large.queueCardMaxHeight).toBe(1016);
     expect(large.snapPageHeight).toBe(1100);
     expect(large.detailPageListHeight).toBe(1016);
   });

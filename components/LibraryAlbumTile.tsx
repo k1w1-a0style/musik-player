@@ -49,7 +49,8 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
         testID={`library-album-art-${album.id}`}
       >
         {showCover ? (
-          <Image source={{ uri: album.cover }} style={styles.albumImage} testID={`library-album-cover-${album.id}`} onError={handleCoverError} />
+          <Image source={{ uri: album.cover }} style={styles.albumImage} accessible={false}
+            testID={`library-album-cover-${album.id}`} onError={handleCoverError} />
         ) : (
           <Text style={[styles.albumLetter, { color: theme.palette.primary }]}>{getAlbumTileFallbackLetter(album.title)}</Text>
         )}
@@ -57,7 +58,7 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
       <Text style={[styles.albumTitle, { color: theme.palette.text.primary }]} numberOfLines={2}>
         {album.title}
       </Text>
-      <Text style={[styles.albumSubtitle, { color: theme.palette.text.secondary }]}>
+      <Text style={[styles.albumSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
         {album.subtitle}
       </Text>
     </Pressable>
@@ -67,7 +68,7 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
 const LibraryAlbumTile = memo(LibraryAlbumTileComponent);
 
 const styles = StyleSheet.create({
-  albumTile: { width: '48%', height: 184, marginBottom: 14 },
+  albumTile: { width: '100%', marginBottom: 14 },
   albumArt: {
     aspectRatio: 1,
     borderRadius: 18,

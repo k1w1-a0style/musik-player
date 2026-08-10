@@ -81,7 +81,7 @@ class SystemAudioWaveformModule : Module() {
       extractor.selectTrack(audioTrackIndex)
       val format = extractor.getTrackFormat(audioTrackIndex)
       val durationMs = readDurationMs(uri, format, cancellation)
-      val peaks = readSampleEnvelope(extractor, pointCount, cancellation)
+      val peaks = readSampleEnvelope(extractor, pointCount, durationMs, cancellation)
       throwIfCancelled(cancellation)
       if (peaks.isEmpty()) return null
       mapOf(
@@ -157,20 +157,66 @@ class SystemAudioWaveformModule : Module() {
   private fun readSampleEnvelope(
     extractor: MediaExtractor,
     pointCount: Int,
+    durationMs: Long?,
+    cancellation: AtomicBoolean,
+  ): DoubleArray {
+    val durationUs = durationMs?.takeIf { it > 0 && it <= Long.MAX_VALUE / 1000L }?.times(1000L)
+    if (durationUs != null) {
+      val distributed = readDistributedSampleEnvelope(extractor, pointCount, durationUs, cancellation)
+      if (distributed.any { it > 0.0 }) return distributed
+      extractor.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+    }
+    return readSequentialSampleEnvelope(extractor, pointCount, cancellation)
+  }
+
+  private fun readDistributedSampleEnvelope(
+    extractor: MediaExtractor,
+    pointCount: Int,
+    durationUs: Long,
     cancellation: AtomicBoolean,
   ): DoubleArray {
     val peaks = DoubleArray(pointCount)
     val buffer = ByteBuffer.allocateDirect(SAMPLE_BUFFER_BYTES)
-    var sampleIndex = 0
-    while (sampleIndex < MAX_SAMPLES_TO_READ) {
+    for (bucket in 0 until pointCount) {
+      throwIfCancelled(cancellation)
+      val bucketStartUs = bucket.toLong() * durationUs / pointCount
+      val bucketEndUs = (bucket + 1L) * durationUs / pointCount
+      extractor.seekTo(bucketStartUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+      var samplesRead = 0
+      while (samplesRead < MAX_SAMPLES_PER_BUCKET) {
+        throwIfCancelled(cancellation)
+        val sampleTimeUs = extractor.sampleTime
+        if (sampleTimeUs < 0) break
+        buffer.clear()
+        val sampleSize = extractor.readSampleData(buffer, 0)
+        if (sampleSize <= 0) break
+        peaks[bucket] = max(peaks[bucket], sampleSize.toDouble())
+        samplesRead += 1
+        if (sampleTimeUs >= bucketEndUs || !extractor.advance()) break
+      }
+    }
+    return peaks
+  }
+
+  private fun readSequentialSampleEnvelope(
+    extractor: MediaExtractor,
+    pointCount: Int,
+    cancellation: AtomicBoolean,
+  ): DoubleArray {
+    val samples = ArrayList<Double>(MAX_SAMPLES_TO_READ)
+    val buffer = ByteBuffer.allocateDirect(SAMPLE_BUFFER_BYTES)
+    while (samples.size < MAX_SAMPLES_TO_READ) {
       throwIfCancelled(cancellation)
       buffer.clear()
       val sampleSize = extractor.readSampleData(buffer, 0)
       if (sampleSize <= 0) break
-      val bucket = min(pointCount - 1, (sampleIndex.toLong() * pointCount / MAX_SAMPLES_TO_READ).toInt())
-      peaks[bucket] = max(peaks[bucket], sampleSize.toDouble())
-      sampleIndex += 1
+      samples.add(sampleSize.toDouble())
       if (!extractor.advance()) break
+    }
+    val peaks = DoubleArray(pointCount)
+    samples.forEachIndexed { index, sampleSize ->
+      val bucket = min(pointCount - 1, (index.toLong() * pointCount / samples.size).toInt())
+      peaks[bucket] = max(peaks[bucket], sampleSize)
     }
     return peaks
   }
@@ -196,5 +242,6 @@ class SystemAudioWaveformModule : Module() {
     private const val MAX_WAVEFORM_POINTS = 160
     private const val SAMPLE_BUFFER_BYTES = 64 * 1024
     private const val MAX_SAMPLES_TO_READ = 2400
+    private const val MAX_SAMPLES_PER_BUCKET = 24
   }
 }

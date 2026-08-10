@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
-import type { NowPlayingControlsMode } from '../utils/nowPlayingControlsMode';
 import NowPlayingBottomControlsRow from './NowPlayingBottomControlsRow';
 import NowPlayingCoverArtwork from './NowPlayingCoverArtwork';
 import NowPlayingPlaybackSection from './NowPlayingPlaybackSection';
@@ -17,8 +16,6 @@ interface NowPlayingPlayerPanelProps {
   favorite: boolean;
   favoritePending: boolean;
   onToggleFavorite: () => void;
-  position: number;
-  duration: number;
   onSeek: (position: number) => Promise<void>;
   progressAccent: string;
   progressAccentDark: string;
@@ -27,10 +24,6 @@ interface NowPlayingPlayerPanelProps {
   onVolumeChange: (value: number) => Promise<void>;
   bottomInset: number;
   onOpenTrackInfo: () => void;
-  controlsMode: NowPlayingControlsMode;
-  onSwipeToNext: () => void;
-  onSwipeToPrevious: () => void;
-  canSwipeToNext?: boolean;
 }
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
@@ -43,8 +36,6 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   favorite,
   favoritePending,
   onToggleFavorite,
-  position,
-  duration,
   onSeek,
   progressAccent,
   progressAccentDark,
@@ -53,10 +44,6 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   onVolumeChange,
   bottomInset,
   onOpenTrackInfo,
-  controlsMode: _controlsMode,
-  onSwipeToNext: _onSwipeToNext,
-  onSwipeToPrevious: _onSwipeToPrevious,
-  canSwipeToNext: _canSwipeToNext = true,
 }) => (
   <View style={styles.playerPage} testID="now-playing-player-panel">
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
@@ -80,8 +67,6 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
 
       <NowPlayingPlaybackSection
         currentSong={currentSong}
-        position={position}
-        duration={duration}
         onSeek={onSeek}
         progressAccent={progressAccent}
         progressAccentDark={progressAccentDark}
@@ -105,4 +90,4 @@ const styles = StyleSheet.create({
   fixedControlsArea: { width: '100%' },
 });
 
-export default NowPlayingPlayerPanel;
+export default React.memo(NowPlayingPlayerPanel);

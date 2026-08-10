@@ -26,7 +26,7 @@ const TrackInfo: React.FC = () => {
   if (!isReady) {
     return (
       <AppBackground>
-        <Screen contentStyle={styles.loadingContainer}>
+        <Screen edges={['bottom']} contentStyle={styles.loadingContainer}>
           <ActivityIndicator color={theme.palette.primary} />
           <Text style={[styles.loadingText, { color: theme.palette.text.secondary }]}>Track-Informationen werden geladen…</Text>
         </Screen>

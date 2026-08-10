@@ -6,9 +6,7 @@ import NowPlayingQueueCard from './NowPlayingQueueCard';
 interface NowPlayingDetailsPanelProps {
   queue: Song[];
   currentSong: Song | null;
-  albumTitle: string;
   accentMuted: string;
-  foregroundOnAccent: string;
   listHeight: number;
   onPlayQueueItem: (songId: string) => void;
   onQueueShift: (fromIndex: number, toIndex: number) => void;
@@ -18,9 +16,7 @@ interface NowPlayingDetailsPanelProps {
 const NowPlayingDetailsPanel: React.FC<NowPlayingDetailsPanelProps> = ({
   queue,
   currentSong,
-  albumTitle: _albumTitle,
   accentMuted,
-  foregroundOnAccent: _foregroundOnAccent,
   listHeight,
   onPlayQueueItem,
   onQueueShift,
@@ -46,4 +42,4 @@ const styles = StyleSheet.create({
   queueRegion: { flex: 1, minHeight: 0 },
 });
 
-export default NowPlayingDetailsPanel;
+export default React.memo(NowPlayingDetailsPanel);
