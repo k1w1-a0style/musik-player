@@ -66,9 +66,15 @@ const useCoverSwipeMotion = ({ coverSize, onSwipeLeft, onSwipeRight,
       else finishSwipe(finalX);
     } else if (state === State.CANCELLED || state === State.FAILED) resetCover();
   }, [finishSwipe, resetCover]);
+  const constrainedX = useMemo(() => translateX.interpolate({
+    inputRange: [-coverSize, 0, coverSize],
+    outputRange: [canSwipeLeft ? -coverSize : -coverSize * 0.12, 0,
+      canSwipeRight ? coverSize : coverSize * 0.12],
+    extrapolate: 'clamp',
+  }), [canSwipeLeft, canSwipeRight, coverSize, translateX]);
   const animatedStyle = useMemo(
-    () => ({ transform: [{ translateX }] }) as unknown as ViewStyle,
-    [translateX],
+    () => ({ transform: [{ translateX: constrainedX }] }) as unknown as ViewStyle,
+    [constrainedX],
   );
   return { animatedStyle, onGestureEvent, onStateChange };
 };
