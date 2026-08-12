@@ -25,7 +25,6 @@ jobs:
       PACKAGE_NAME: com.k1w1a0style.musikplayer.dev
       AVD_NAME: musik-player-api-35
       ANDROID_API: '35'
-      ANDROID_AVD_HOME: ${{ runner.temp }}/android-avd
       EAS_BUILD_PROFILE: development
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
@@ -93,6 +92,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          export ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           mkdir -p "$ANDROID_AVD_HOME"
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
