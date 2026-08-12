@@ -8,7 +8,11 @@ import NowPlayingTitleRow from './NowPlayingTitleRow';
 
 interface NowPlayingPlayerPanelProps {
   currentSong: Song | null;
+  previousSong?: Song | null;
+  nextSong?: Song | null;
   artworkUri?: string;
+  previousArtworkUri?: string;
+  nextArtworkUri?: string;
   isPlaying: boolean;
   accent: string;
   coverAreaHeight: number;
@@ -32,7 +36,11 @@ interface NowPlayingPlayerPanelProps {
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   currentSong,
+  previousSong,
+  nextSong,
   artworkUri,
+  previousArtworkUri,
+  nextArtworkUri,
   isPlaying,
   accent,
   coverAreaHeight,
@@ -57,7 +65,11 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
         song={currentSong}
+        previousSong={previousSong}
+        nextSong={nextSong}
         artworkUri={artworkUri}
+        previousArtworkUri={previousArtworkUri}
+        nextArtworkUri={nextArtworkUri}
         isPlaying={isPlaying}
         accent={accent}
         coverSize={coverSize}

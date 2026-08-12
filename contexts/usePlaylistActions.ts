@@ -6,6 +6,7 @@ import {
   moveSongInPlaylistById,
   removeSongFromPlaylistById,
   renamePlaylistById,
+  type PlaylistSongMoveRequest,
 } from '../utils/playlistState';
 import {
   appendPlaylist,
@@ -15,7 +16,7 @@ import {
 } from './playlistActionHelpers';
 export { buildPlaylistQueue } from './playlistActionHelpers';
 
-export type PlaylistSongMoveDirection = 'up' | 'down';
+export type { PlaylistSongMoveDirection, PlaylistSongMoveRequest } from '../utils/playlistState';
 
 export interface PlaylistActionsArgs {
   playlists: Playlist[];
@@ -31,7 +32,7 @@ export interface PlaylistActions {
   renamePlaylist: (id: string, name: string) => void;
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
-  moveSongInPlaylist: (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) => void;
+  moveSongInPlaylist: (playlistId: string, songId: string, request: PlaylistSongMoveRequest) => void;
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 
@@ -94,8 +95,8 @@ export const usePlaylistActions = ({
   );
 
   const moveSongInPlaylist = useCallback(
-    (playlistId: string, songId: string, direction: PlaylistSongMoveDirection) =>
-      setPlaylists(prev => moveSongInPlaylistById(prev, playlistId, songId, direction)),
+    (playlistId: string, songId: string, request: PlaylistSongMoveRequest) =>
+      setPlaylists(prev => moveSongInPlaylistById(prev, playlistId, songId, request)),
     [setPlaylists],
   );
 

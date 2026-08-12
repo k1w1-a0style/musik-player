@@ -87,12 +87,14 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
   const release = React.useCallback((gesture: PanResponderGestureState) => {
     const target = resolveTarget(gesture.dy);
     const shouldShift = canDrag && target !== index;
-    Animated.spring(dragY, { toValue: shouldShift ? (target - index) * rowHeight : 0,
+    const scrollCompensation = getScrollOffset() - startScrollRef.current;
+    const settledRowOffset = shouldShift ? (target - index) * rowHeight : 0;
+    Animated.spring(dragY, { toValue: settledRowOffset - scrollCompensation,
       tension: 180, friction: 24, useNativeDriver: true }).start(() => {
       if (shouldShift) onShift?.(index, target);
       reset();
     });
-  }, [canDrag, dragY, index, onShift, reset, resolveTarget, rowHeight]);
+  }, [canDrag, dragY, getScrollOffset, index, onShift, reset, resolveTarget, rowHeight]);
   const panResponder = useQueuePanResponder({ canDrag, dragEnabled, onGrant: grant, onMove: move, onRelease: release, onCancel: reset });
   const enableDrag = React.useCallback(() => {
     if (!canDrag) return;

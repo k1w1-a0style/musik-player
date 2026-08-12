@@ -25,6 +25,8 @@ jest.mock('lucide-react-native', () => ({
 }));
 
 const song = { id: 's1', title: 'One', artist: 'Artist' };
+const previousSong = { id: 's0', title: 'Zero', artist: 'Artist' };
+const nextSong = { id: 's2', title: 'Two', artist: 'Artist' };
 
 describe('NowPlayingCoverArtwork', () => {
   afterEach(() => {
@@ -50,7 +52,11 @@ describe('NowPlayingCoverArtwork', () => {
     const { getByTestId } = render(
       <NowPlayingCoverArtwork
         song={song}
+        previousSong={previousSong}
+        nextSong={nextSong}
         artworkUri="file:///cover.jpg"
+        previousArtworkUri="file:///previous.jpg"
+        nextArtworkUri="file:///next.jpg"
         isPlaying
         accent="#123456"
         coverSize={160}
@@ -62,6 +68,8 @@ describe('NowPlayingCoverArtwork', () => {
 
     expect(getByTestId('now-playing-cover-swipe-gesture')).toBeTruthy();
     expect(getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
+    expect(getByTestId('now-playing-cover-previous-image').props.source).toEqual({ uri: 'file:///previous.jpg' });
+    expect(getByTestId('now-playing-cover-next-image').props.source).toEqual({ uri: 'file:///next.jpg' });
   });
 
   test('commits an allowed left swipe once after the native animation finishes', () => {
@@ -72,7 +80,7 @@ describe('NowPlayingCoverArtwork', () => {
       reset: jest.fn(),
     }) as Animated.CompositeAnimation);
     const { getByTestId } = render(
-      <NowPlayingCoverArtwork song={song} isPlaying accent="#123456" coverSize={160}
+      <NowPlayingCoverArtwork song={song} nextSong={nextSong} isPlaying accent="#123456" coverSize={160}
         swipeEnabled canSwipeLeft onSwipeLeft={onSwipeLeft} />,
     );
 
@@ -91,6 +99,7 @@ describe('NowPlayingCoverArtwork', () => {
     const { getByTestId } = render(
       <NowPlayingCoverArtwork
         song={song}
+        nextSong={nextSong}
         isPlaying
         accent="#123456"
         coverSize={160}

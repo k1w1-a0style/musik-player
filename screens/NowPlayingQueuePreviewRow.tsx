@@ -26,6 +26,7 @@ interface NowPlayingQueuePreviewRowProps {
   onDragEnd?: () => void;
   artworkUri?: string;
   previewOffsetY?: number;
+  dragScrollCompensation?: Animated.Value;
   colors?: NowPlayingQueueColors;
   title: string;
   artist: string;
@@ -75,7 +76,7 @@ const DragHandle = ({ id, visible, enabled, accentColor, colors }: { id: string;
 const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, rowHeight = 68,
   minShiftIndex = 1, getScrollOffset = getZeroScrollOffset, onDragPosition, onDragEnd,
   artworkUri, previewOffsetY = 0, colors, title, artist, isCurrent, canShift = false,
-  accentColor, onPress, onShift,
+  dragScrollCompensation, accentColor, onPress, onShift,
 }: NowPlayingQueuePreviewRowProps) => {
   const { theme } = useAppTheme();
   const rowColors = React.useMemo<NowPlayingQueueColors>(() => colors ?? ({
@@ -88,7 +89,10 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
   const drag = useQueueRowDrag({ index, queueLength, rowHeight, minShiftIndex, canDrag,
     getScrollOffset, onDragPosition, onDragEnd, onShift });
   const previewY = useAnimatedQueuePreview(previewOffsetY);
-  const translateY = React.useMemo(() => Animated.add(drag.dragY, previewY), [drag.dragY, previewY]);
+  const translateY = React.useMemo(
+    () => Animated.add(Animated.add(drag.dragY, previewY), dragScrollCompensation ?? 0),
+    [drag.dragY, dragScrollCompensation, previewY],
+  );
   const handlePress = React.useCallback(() => {
     if (drag.dragEnabled) return drag.reset();
     onPress(id);

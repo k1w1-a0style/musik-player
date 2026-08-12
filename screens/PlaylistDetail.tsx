@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -8,8 +8,11 @@ import {
   TextInput,
   View,
   type ListRenderItem,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
-import { ChevronDown, ChevronUp, Edit3, Plus, Trash2, Play } from 'lucide-react-native';
+import { Edit3, Plus, Trash2, Play } from 'lucide-react-native';
+import { NativeViewGestureHandler } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -17,7 +20,10 @@ import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { AppStackParamList } from '../types/navigation';
 import type { Song } from '../types/Song';
+import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
+import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
+import PlaylistDetailSongRow, { PLAYLIST_DETAIL_ROW_HEIGHT } from './PlaylistDetailSongRow';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
 type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
@@ -42,6 +48,11 @@ const PlaylistDetail: React.FC = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const listRef = useRef<FlatList<Song>>(null);
+  const scrollOffsetRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+  const headerHeightRef = useRef(0);
+  const rowStartOffsetRef = useRef(0);
 
   const playlist = useMemo(
     () => playlists.find(item => item.id === playlistId),
@@ -102,12 +113,31 @@ const PlaylistDetail: React.FC = () => {
     addSongToPlaylist(playlist.id, songId);
   };
 
-  const handleMoveSong = (songId: string, direction: 'up' | 'down') => {
-    if (!playlist || !moveSongInPlaylist) return;
-    moveSongInPlaylist(playlist.id, songId, direction);
-  };
+  const { dragPreview, dragScrollCompensation,
+    handleDragPosition, handleDragEnd } = useReorderableSongListDrag({
+    queueLength: playlistSongs.length,
+    currentIndex: -1,
+    listRef,
+    scrollOffsetRef,
+    viewportHeightRef,
+    rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
+    minimumReorderIndex: 0,
+    contentHeightOffsetRef: headerHeightRef,
+    rowStartOffsetRef,
+  });
+  const getScrollOffset = useCallback(() => scrollOffsetRef.current, []);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffsetRef.current = Math.max(0, event.nativeEvent.contentOffset.y);
+  }, []);
+  const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
+    if (!playlist || !moveSongInPlaylist || fromIndex === toIndex) return;
+    const sourceSong = playlistSongs[fromIndex];
+    const targetSong = playlistSongs[toIndex];
+    if (!sourceSong || !targetSong) return;
+    moveSongInPlaylist(playlist.id, sourceSong.id, { targetSongId: targetSong.id });
+  }, [moveSongInPlaylist, playlist, playlistSongs]);
 
-  const confirmRemoveSong = (song: Song) => {
+  const confirmRemoveSong = useCallback((song: Song) => {
     if (!playlist) return;
     Alert.alert(
       'Titel entfernen',
@@ -121,7 +151,7 @@ const PlaylistDetail: React.FC = () => {
         },
       ],
     );
-  };
+  }, [playlist, removeSongFromPlaylist]);
 
   const confirmDeletePlaylist = () => {
     if (!playlist) return;
@@ -142,80 +172,20 @@ const PlaylistDetail: React.FC = () => {
     );
   };
 
-  const renderSong: ListRenderItem<Song> = ({ item, index }) => {
-    const isFirstSong = index === 0;
-    const isLastSong = index === playlistSongs.length - 1;
-    const moveUpDisabled = isFirstSong || !canMoveSongs;
-    const moveDownDisabled = isLastSong || !canMoveSongs;
-
-    return (
-      <View
-        style={[styles.songRow, { borderBottomColor: theme.palette.border }]}
-        testID={`playlist-detail-song-${item.id}`}
-      >
-        <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
-        <View style={styles.songTextWrap}>
-          <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-            {item.title || 'Unbekannter Titel'}
-          </Text>
-          <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-            {item.artist || 'Unbekannter Künstler'}
-          </Text>
-        </View>
-        <View style={styles.moveSongActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach oben verschieben`}
-            accessibilityState={{ disabled: moveUpDisabled }}
-            disabled={moveUpDisabled}
-            onPress={() => handleMoveSong(item.id, 'up')}
-            style={[
-              styles.moveSongButton,
-              {
-                backgroundColor: theme.palette.surface,
-                borderColor: theme.palette.border,
-              },
-            ]}
-            testID={`playlist-detail-move-up-song-${item.id}`}
-          >
-            <ChevronUp color={moveUpDisabled ? theme.palette.text.muted : theme.palette.text.secondary} size={20} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${item.title || 'Unbekannter Titel'} nach unten verschieben`}
-            accessibilityState={{ disabled: moveDownDisabled }}
-            disabled={moveDownDisabled}
-            onPress={() => handleMoveSong(item.id, 'down')}
-            style={[
-              styles.moveSongButton,
-              {
-                backgroundColor: theme.palette.surface,
-                borderColor: theme.palette.border,
-              },
-            ]}
-            testID={`playlist-detail-move-down-song-${item.id}`}
-          >
-            <ChevronDown color={moveDownDisabled ? theme.palette.text.muted : theme.palette.text.secondary} size={20} />
-          </Pressable>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${item.title || 'Unbekannter Titel'} aus Playlist entfernen`}
-          onPress={() => confirmRemoveSong(item)}
-          style={[
-            styles.removeSongButton,
-            {
-              backgroundColor: theme.palette.surface,
-              borderColor: theme.palette.error,
-            },
-          ]}
-          testID={`playlist-detail-remove-song-${item.id}`}
-        >
-          <Trash2 color={theme.palette.error} size={19} />
-        </Pressable>
-      </View>
-    );
-  };
+  const renderSong: ListRenderItem<Song> = useCallback(({ item, index }) => (
+    <PlaylistDetailSongRow song={item} index={index} songCount={playlistSongs.length}
+      canReorder={canMoveSongs} getScrollOffset={getScrollOffset}
+      onDragPosition={handleDragPosition} onDragEnd={handleDragEnd}
+      previewOffsetY={dragPreview ? getQueuePreviewOffset({
+        index,
+        dragIndex: dragPreview.index,
+        targetIndex: dragPreview.targetIndex,
+        rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
+      }) : 0}
+      dragScrollCompensation={dragPreview?.index === index ? dragScrollCompensation : undefined}
+      onReorder={handleReorder} onRemove={confirmRemoveSong} />
+  ), [canMoveSongs, confirmRemoveSong, dragPreview, getScrollOffset, handleDragEnd,
+    handleDragPosition, handleReorder, dragScrollCompensation, playlistSongs.length]);
 
   if (!playlist) {
     return (
@@ -231,14 +201,25 @@ const PlaylistDetail: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.palette.background }]} testID="playlist-detail-screen">
+      <NativeViewGestureHandler disallowInterruption>
       <FlatList
+        ref={listRef}
+        testID="playlist-detail-list"
         data={playlistSongs}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
+        keyExtractor={item => item.id}
         renderItem={renderSong}
+        onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        removeClippedSubviews={false}
         initialNumToRender={12} maxToRenderPerBatch={10} updateCellsBatchingPeriod={70} windowSize={7}
         contentContainerStyle={styles.content}
         ListHeaderComponent={(
-          <View style={styles.header}>
+          <View style={styles.header} onLayout={event => {
+            rowStartOffsetRef.current = event.nativeEvent.layout.height
+              + APP_THEME_TOKENS.spacing.lg + APP_THEME_TOKENS.spacing.md;
+            headerHeightRef.current = rowStartOffsetRef.current + 96;
+          }}>
             <Text style={[styles.title, { color: theme.palette.text.primary }]} numberOfLines={2}>
               {playlist.name}
             </Text>
@@ -380,6 +361,7 @@ const PlaylistDetail: React.FC = () => {
           </Text>
         )}
       />
+      </NativeViewGestureHandler>
       <PlaylistAddSongsModal visible={addOpen} playlistName={playlist.name} songs={addableSongs}
         onAddSong={handleAddSong} onClose={() => setAddOpen(false)} />
     </View>
@@ -510,49 +492,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: APP_THEME_TOKENS.spacing.xl,
     textAlign: 'center',
-  },
-  songRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: APP_THEME_TOKENS.spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  songIndex: {
-    width: 24,
-    textAlign: 'right',
-    fontFamily: APP_THEME_TOKENS.fonts.body,
-    fontSize: 12,
-  },
-  songTextWrap: { flex: 1, minWidth: 0 },
-  songTitle: {
-    fontFamily: APP_THEME_TOKENS.fonts.heading,
-    fontSize: 15,
-  },
-  songSubtitle: {
-    fontFamily: APP_THEME_TOKENS.fonts.body,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  moveSongActions: {
-    flexDirection: 'row',
-    gap: APP_THEME_TOKENS.spacing.xs,
-  },
-  moveSongButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
-  },
-  removeSongButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: APP_THEME_TOKENS.borderRadius.pill,
   },
 });
 

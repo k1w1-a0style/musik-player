@@ -1,6 +1,7 @@
 import type { Playlist } from '../types/Song';
 
 export type PlaylistSongMoveDirection = 'up' | 'down';
+export type PlaylistSongMoveRequest = PlaylistSongMoveDirection | { targetSongId: string };
 
 const normalizeId = (value: string): string | undefined => {
   const trimmed = value.trim();
@@ -33,16 +34,18 @@ const uniqueValidSongIds = (songIds: string[], normalizedValidSongIds?: Set<stri
 
 const sameSongIds = (a: string[], b: string[]): boolean => a.length === b.length && a.every((songId, index) => songId === b[index]);
 
-const moveSongId = (songIds: string[], songId: string, direction: PlaylistSongMoveDirection): string[] => {
+const moveSongId = (songIds: string[], songId: string, request: PlaylistSongMoveRequest): string[] => {
   const currentIndex = songIds.indexOf(songId);
   if (currentIndex < 0) return songIds;
-  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  const targetIndex = typeof request === 'string'
+    ? request === 'up' ? currentIndex - 1 : currentIndex + 1
+    : songIds.indexOf(request.targetSongId);
   if (targetIndex < 0 || targetIndex >= songIds.length) return songIds;
+  if (targetIndex === currentIndex) return songIds;
   const next = [...songIds];
-  const currentSongId = next[currentIndex]!;
-  const targetSongId = next[targetIndex]!;
-  next[currentIndex] = targetSongId;
-  next[targetIndex] = currentSongId;
+  const [currentSongId] = next.splice(currentIndex, 1);
+  if (!currentSongId) return songIds;
+  next.splice(targetIndex, 0, currentSongId);
   return next;
 };
 
@@ -136,7 +139,7 @@ export const moveSongInPlaylistById = (
   items: Playlist[],
   playlistId: string,
   songId: string,
-  direction: PlaylistSongMoveDirection,
+  request: PlaylistSongMoveRequest,
   now?: number,
 ): Playlist[] => {
   const targetPlaylistId = normalizeId(playlistId);
@@ -147,7 +150,10 @@ export const moveSongInPlaylistById = (
   const next = items.map(playlist => {
     if (normalizeId(playlist.id) !== targetPlaylistId) return playlist;
     const songIds = uniqueValidSongIds(playlist.songIds);
-    const movedSongIds = moveSongId(songIds, targetSongId, direction);
+    const normalizedRequest = typeof request === 'string'
+      ? request
+      : { targetSongId: normalizeId(request.targetSongId) ?? '' };
+    const movedSongIds = moveSongId(songIds, targetSongId, normalizedRequest);
     if (sameSongIds(movedSongIds, playlist.songIds)) return playlist;
     changed = true;
     timestamp ??= now ?? Date.now();

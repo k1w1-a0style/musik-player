@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, View } from 'react-native';
+import { Animated, FlatList, View } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type { Song } from '../../types/Song';
 import { getAppTheme } from '../../utils/appTheme';
@@ -9,6 +9,7 @@ type MockQueueRowProps = {
   id: string;
   onDragPosition?: (index: number, dragY: number, movementDirection: -1 | 0 | 1) => void;
   onDragEnd?: () => void;
+  dragScrollCompensation?: Animated.Value;
 };
 
 const MockView = View;
@@ -43,6 +44,9 @@ const queue: Song[] = Array.from({ length: 10 }, (_, index) => ({
 
 const getFlatList = (getByTestId: ReturnType<typeof render>['getByTestId']) =>
   getByTestId('now-playing-queue-list-frame').findAllByType(FlatList)[0];
+const getAnimatedValue = (value?: Animated.Value): number | undefined => value
+  ? (value as Animated.Value & { __getValue: () => number }).__getValue()
+  : undefined;
 
 describe('NowPlayingQueueCard auto-scroll timer', () => {
   let scrollToOffsetSpy: jest.SpyInstance;
@@ -85,6 +89,8 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     act(() => jest.advanceTimersByTime(32 * 10));
     expect(scrollToOffsetSpy).toHaveBeenCalledTimes(10);
     expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 120, animated: false });
+    const dragScrollCompensation = mockQueueRowProps.get('s6')?.dragScrollCompensation;
+    expect(getAnimatedValue(dragScrollCompensation)).toBe(120);
     expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => row.onDragPosition?.(5, -350, 1));
@@ -98,6 +104,8 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => row.onDragEnd?.());
+    expect(getAnimatedValue(dragScrollCompensation)).toBe(0);
+    expect(mockQueueRowProps.get('s6')?.dragScrollCompensation).toBeUndefined();
     const callsAfterDragEnd = scrollToOffsetSpy.mock.calls.length;
     act(() => jest.advanceTimersByTime(64));
     expect(scrollToOffsetSpy).toHaveBeenCalledTimes(callsAfterDragEnd);

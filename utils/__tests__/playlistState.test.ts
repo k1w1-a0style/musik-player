@@ -244,6 +244,21 @@ describe('playlistState helpers', () => {
     expect(movedDown[0].updatedAt).toBe(112);
   });
 
+  test('moves a playlist song directly to a target song in one update', () => {
+    const source: Playlist[] = [{ id: 'pl-1', name: 'One',
+      songIds: ['s1', 's2', 's3', 's4'], createdAt: 1, updatedAt: 1 }];
+
+    const movedDown = moveSongInPlaylistById(source, 'pl-1', 's1',
+      { targetSongId: 's4' }, 201);
+    expect(movedDown[0].songIds).toEqual(['s2', 's3', 's4', 's1']);
+    expect(movedDown[0].updatedAt).toBe(201);
+
+    const movedUp = moveSongInPlaylistById(movedDown, 'pl-1', 's1',
+      { targetSongId: 's2' }, 202);
+    expect(movedUp[0].songIds).toEqual(['s1', 's2', 's3', 's4']);
+    expect(movedUp[0].updatedAt).toBe(202);
+  });
+
   test('uses Date.now when moving a playlist song without an explicit timestamp', () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(4321);
     const source: Playlist[] = [{ id: 'pl-1', name: 'One', songIds: ['s1', 's2'], createdAt: 1, updatedAt: 1 }];

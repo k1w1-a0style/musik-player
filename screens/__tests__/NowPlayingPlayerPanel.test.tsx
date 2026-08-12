@@ -3,6 +3,10 @@ import { render } from '@testing-library/react-native';
 import NowPlayingPlayerPanel from '../NowPlayingPlayerPanel';
 
 type MockCoverProps = {
+  previousSong?: { id: string } | null;
+  nextSong?: { id: string } | null;
+  previousArtworkUri?: string;
+  nextArtworkUri?: string;
   swipeEnabled?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
@@ -122,6 +126,9 @@ describe('NowPlayingPlayerPanel', () => {
     const onSwipeToNext = jest.fn();
     const onSwipeToPrevious = jest.fn();
     renderPanel({ currentSong: { id: 's1', title: 'One', artist: 'Artist' },
+      previousSong: { id: 's0', title: 'Zero', artist: 'Artist' },
+      nextSong: { id: 's2', title: 'Two', artist: 'Artist' },
+      previousArtworkUri: 'file:///zero.jpg', nextArtworkUri: 'file:///two.jpg',
       onSwipeToNext, onSwipeToPrevious, canSwipeToNext: true, canSwipeToPrevious: false });
 
     expect(mockCoverProps[0]).toEqual(expect.objectContaining({
@@ -130,6 +137,10 @@ describe('NowPlayingPlayerPanel', () => {
       onSwipeRight: onSwipeToPrevious,
       canSwipeLeft: true,
       canSwipeRight: false,
+      previousSong: expect.objectContaining({ id: 's0' }),
+      nextSong: expect.objectContaining({ id: 's2' }),
+      previousArtworkUri: 'file:///zero.jpg',
+      nextArtworkUri: 'file:///two.jpg',
     }));
   });
 

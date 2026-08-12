@@ -124,6 +124,7 @@ export const useNowPlayingScreenState = () => {
     canSwipeToNext,
     shuffle, toggleShuffle,
     repeatMode, cycleRepeatMode,
+    paletteLoading,
     saveCurrentQueueAsPlaylist,
     moveQueueItem: queueShift,
     canReorderQueue: queueState.queue.length > 1 && !!reorderQueue,

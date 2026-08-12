@@ -80,7 +80,9 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
   }, []);
   const renderPlayer = useCallback(() => (
     <NowPlayingPlayerPanel
-      currentSong={state.currentSong} artworkUri={state.artworkUri} isPlaying={state.isPlaying}
+      currentSong={state.currentSong} previousSong={state.previousSong} nextSong={state.nextSong}
+      artworkUri={state.artworkUri} previousArtworkUri={state.previousArtworkUri}
+      nextArtworkUri={state.nextArtworkUri} isPlaying={state.isPlaying}
       accent={state.accent} coverAreaHeight={layout.coverAreaHeight} coverSize={layout.coverSize}
       favorite={state.favorite} favoritePending={state.favoritePending} onToggleFavorite={state.toggleFavorite}
       onSeek={state.seekTo}
@@ -101,7 +103,9 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
 
   return (
     <Screen style={styles.root} testID="now-playing-screen" contentStyle={styles.content}>
-      <NowPlayingBackdrop gradientColors={state.gradientColors} accent={state.accent} glowLeft={layout.glowLeft} artworkUri={state.artworkUri} />
+      <NowPlayingBackdrop gradientColors={state.gradientColors} accent={state.accent}
+        glowLeft={layout.glowLeft} artworkUri={state.artworkUri}
+        paletteLoading={state.paletteLoading} />
       <NowPlayingHeader albumTitle={state.albumTitle} sleepTimerActive={state.sleepTimerActive}
         sleepTimerRemainingSeconds={state.sleepTimerRemainingSeconds} onClose={state.handleClose} onMore={state.openMenu} />
       <View style={styles.pagerSlot} onLayout={handlePagerLayout} testID="now-playing-pager-slot">

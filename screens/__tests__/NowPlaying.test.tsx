@@ -90,6 +90,10 @@ jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   }),
 }));
 
+jest.mock('../../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => true,
+}));
+
 const mockNowPlayingContext = {
   playbackQueue: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
   currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },

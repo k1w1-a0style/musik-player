@@ -65,9 +65,8 @@ jest.mock('../../contexts/MusicContext', () => ({
 }));
 
 jest.mock('lucide-react-native', () => ({
-  ChevronDown: 'ChevronDown',
-  ChevronUp: 'ChevronUp',
   Edit3: 'Edit3',
+  GripVertical: 'GripVertical',
   Plus: 'Plus',
   Play: 'Play',
   Search: 'Search',
@@ -127,10 +126,8 @@ test('renders playlist name, valid song count, and contained songs in playlist o
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-up-song-song-b')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-down-song-song-b')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-up-song-song-a')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-down-song-song-a')).toBeTruthy();
+  expect(getByTestId('playlist-detail-drag-handle-song-b')).toBeTruthy();
+  expect(getByTestId('playlist-detail-drag-handle-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-b')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-a')).toBeTruthy();
   expect(getByText('Beta')).toBeTruthy();
@@ -147,35 +144,43 @@ test('plays the playlist through the existing playlist playback action', () => {
   expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
 });
 
-test('moves songs through the existing playlist move action', () => {
+test('moves songs atomically through the playlist reorder action', () => {
   const { getByTestId } = render(<PlaylistDetail />);
 
-  fireEvent.press(getByTestId('playlist-detail-move-down-song-song-b'));
-  fireEvent.press(getByTestId('playlist-detail-move-up-song-song-a'));
+  fireEvent(getByTestId('playlist-detail-song-song-b'), 'accessibilityAction', {
+    nativeEvent: { actionName: 'increment' },
+  });
+  fireEvent(getByTestId('playlist-detail-song-song-a'), 'accessibilityAction', {
+    nativeEvent: { actionName: 'decrement' },
+  });
 
-  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(1, 'playlist-1', 'song-b', 'down');
-  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(2, 'playlist-1', 'song-a', 'up');
+  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(1, 'playlist-1', 'song-b',
+    { targetSongId: 'song-a' });
+  expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(2, 'playlist-1', 'song-a',
+    { targetSongId: 'song-b' });
 });
 
-test('disables move controls at playlist boundaries', () => {
+test('ignores accessibility reorder actions at playlist boundaries', () => {
   const { getByTestId } = render(<PlaylistDetail />);
 
-  expect(getByTestId('playlist-detail-move-up-song-song-b').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(false);
-  expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(false);
-  expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
+  fireEvent(getByTestId('playlist-detail-song-song-b'), 'accessibilityAction', {
+    nativeEvent: { actionName: 'decrement' },
+  });
+  fireEvent(getByTestId('playlist-detail-song-song-a'), 'accessibilityAction', {
+    nativeEvent: { actionName: 'increment' },
+  });
+
   expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
 });
 
-test('disables move controls when the move action is unavailable', () => {
+test('hides drag handles when the move action is unavailable', () => {
   mockMoveSongInPlaylistEnabled = false;
 
-  const { getByTestId } = render(<PlaylistDetail />);
+  const { getByTestId, queryByTestId } = render(<PlaylistDetail />);
 
-  expect(getByTestId('playlist-detail-move-up-song-song-b').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('playlist-detail-move-down-song-song-b').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('playlist-detail-move-up-song-song-a').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('playlist-detail-move-down-song-song-a').props.accessibilityState.disabled).toBe(true);
+  expect(queryByTestId('playlist-detail-drag-handle-song-b')).toBeNull();
+  expect(queryByTestId('playlist-detail-drag-handle-song-a')).toBeNull();
+  expect(getByTestId('playlist-detail-song-song-b').props.accessibilityActions).toBeUndefined();
   expect(mockMoveSongInPlaylist).not.toHaveBeenCalled();
 });
 
@@ -330,8 +335,7 @@ test('shows empty state for an empty playlist and disables play action', () => {
   expect(getByTestId('playlist-detail-add-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-rename-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
-  expect(queryByTestId('playlist-detail-move-up-song-song-a')).toBeNull();
-  expect(queryByTestId('playlist-detail-move-down-song-song-a')).toBeNull();
+  expect(queryByTestId('playlist-detail-drag-handle-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
   fireEvent.press(playButton);
   expect(mockPlayPlaylist).not.toHaveBeenCalled();
@@ -351,8 +355,8 @@ test('shows missing song warning without rendering missing songs', () => {
   expect(getByTestId('playlist-detail-delete-button')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-song-song-c')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-up-song-song-a')).toBeTruthy();
-  expect(getByTestId('playlist-detail-move-down-song-song-c')).toBeTruthy();
+  expect(getByTestId('playlist-detail-drag-handle-song-a')).toBeTruthy();
+  expect(getByTestId('playlist-detail-drag-handle-song-c')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-a')).toBeTruthy();
   expect(getByTestId('playlist-detail-remove-song-song-c')).toBeTruthy();
   expect(queryByTestId('playlist-detail-song-missing-song')).toBeNull();
@@ -370,7 +374,6 @@ test('shows not found state for an unknown playlist id', () => {
   expect(queryByTestId('playlist-detail-add-button')).toBeNull();
   expect(queryByTestId('playlist-detail-rename-button')).toBeNull();
   expect(queryByTestId('playlist-detail-delete-button')).toBeNull();
-  expect(queryByTestId('playlist-detail-move-up-song-song-a')).toBeNull();
-  expect(queryByTestId('playlist-detail-move-down-song-song-a')).toBeNull();
+  expect(queryByTestId('playlist-detail-drag-handle-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
 });

@@ -71,7 +71,8 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
     () => currentSongId ? queue.findIndex(song => song.id === currentSongId) : -1,
     [currentSongId, queue],
   );
-  const { dragPreview, minShiftIndex, handleDragPosition, handleDragEnd } = useNowPlayingQueueDrag({
+  const { dragPreview, dragScrollCompensation, minShiftIndex,
+    handleDragPosition, handleDragEnd } = useNowPlayingQueueDrag({
     queueLength: queue.length, currentIndex, listRef, scrollOffsetRef, viewportHeightRef,
   });
   const getScrollOffset = React.useCallback(() => scrollOffsetRef.current, []);
@@ -86,11 +87,14 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
       artworkUri={getSongArtworkUri(item)} previewOffsetY={dragPreview ? getQueuePreviewOffset({
         index, dragIndex: dragPreview.index, targetIndex: dragPreview.targetIndex,
         rowHeight: SOUNDCLOUD_QUEUE_ROW_HEIGHT }) : 0}
+      dragScrollCompensation={dragPreview?.index === index ? dragScrollCompensation : undefined}
       title={displayTitle(item)} artist={displayArtist(item)} isCurrent={item.id === currentSongId}
       canShift={canShiftQueue && (currentIndex < 0 || index > currentIndex)}
       onPress={onPlayQueueItem} onShift={onQueueShift} accentColor={accentColor} colors={rowColors}
     />
-  ), [accentColor, canShiftQueue, currentIndex, currentSongId, dragPreview, getScrollOffset, handleDragEnd, handleDragPosition, minShiftIndex, onPlayQueueItem, onQueueShift, queue.length, rowColors]);
+  ), [accentColor, canShiftQueue, currentIndex, currentSongId, dragPreview,
+    dragScrollCompensation, getScrollOffset, handleDragEnd, handleDragPosition, minShiftIndex,
+    onPlayQueueItem, onQueueShift, queue.length, rowColors]);
   const upcomingCount = Math.max(0, queue.length - Math.max(0, currentIndex + 1));
 
   return (
