@@ -105,6 +105,8 @@ jobs:
             'platform-tools' \
             'emulator' \
             "system-images;android-${ANDROID_API};google_apis;x86_64"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --force \
             --name "$AVD_NAME" \
