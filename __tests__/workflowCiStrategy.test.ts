@@ -413,6 +413,12 @@ describe('GitHub workflow CI strategy', () => {
     expect(smoke).not.toContain('pull_request:');
     expect(smoke).not.toContain('push:');
     expect(smoke).not.toContain('repository_dispatch:');
+    expect(smoke).toContain('ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"');
+    expect(smoke).toContain('echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"');
+    expect(smoke).not.toContain('ANDROID_AVD_HOME: ${{ runner.temp }}');
+    expect(smoke).toContain('set +o pipefail');
+    expect(smoke).toContain('echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"');
+    expect(smoke).toContain('timeout 180 adb wait-for-device');
   });
 
 });
