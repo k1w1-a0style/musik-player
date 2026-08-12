@@ -1,0 +1,24 @@
+name: One-shot Expo cloud development build
+
+on:
+  push:
+    branches:
+      - codex
+    paths:
+      - .github/workflows/one-shot-expo-cloud-development-2026-08-12.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Dispatch development build to EAS Cloud
+    if: github.event.head_commit.message == 'ci: trigger Expo cloud development build'
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      ref: codex
+      profile: development
+      platform: android
+      autofix: false
+      strict_lockfile: auto
+    secrets: inherit
