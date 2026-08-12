@@ -1,0 +1,130 @@
+name: One-shot existing development APK emulator diagnostic
+
+on:
+  push:
+    branches: [codex]
+    paths:
+      - '.github/workflows/one-shot-existing-dev-apk-emulator-3-2026-08-12.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  emulator-smoke:
+    name: Install and launch verified development APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer.dev
+      AVD_NAME: musik-player-api-35
+      ANDROID_API: '35'
+      SOURCE_ARTIFACT_ID: '9151089998'
+    steps:
+      - name: Download verified development APK artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifact ci-logs
+          curl --fail --location --retry 3 --retry-all-errors \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            --output artifact.zip
+          unzip -q artifact.zip -d artifact
+          test -s artifact/artifacts/musik-player-development.apk
+
+      - name: Prepare Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          set -o pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' \
+            'emulator' \
+            "system-images;android-${ANDROID_API};google_apis;x86_64"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force \
+            --name "$AVD_NAME" \
+            --package "system-images;android-${ANDROID_API};google_apis;x86_64" \
+            --device pixel_6
+
+      - name: Boot emulator, install and launch APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "$AVD_NAME" \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -camera-back none \
+            -camera-front none \
+            > ci-logs/emulator.log 2>&1 &
+          emulator_pid=$!
+          echo "$emulator_pid" > ci-logs/emulator.pid
+
+          adb start-server
+          device_ready=0
+          for attempt in $(seq 1 90); do
+            if adb get-state 2>/dev/null | grep -qx device; then
+              device_ready=1
+              break
+            fi
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              tail -n 160 ci-logs/emulator.log || true
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$device_ready" -ne 1 ]; then
+            tail -n 160 ci-logs/emulator.log || true
+            exit 1
+          fi
+
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell input keyevent 82 || true
+          adb logcat -c
+
+          APK=artifact/artifacts/musik-player-development.apk
+          adb install -r "$APK" | tee ci-logs/adb-install.log
+          adb shell am force-stop "$PACKAGE_NAME"
+          adb shell am start -W -n "$PACKAGE_NAME/.MainActivity" | tee ci-logs/adb-launch.log
+          sleep 8
+
+          pid=$(adb shell pidof "$PACKAGE_NAME" | tr -d '\r')
+          test -n "$pid"
+          echo "appPid=$pid" | tee ci-logs/app-process.log
+          adb shell dumpsys activity activities > ci-logs/dumpsys-activities.txt
+          grep -F "$PACKAGE_NAME" ci-logs/dumpsys-activities.txt >/dev/null
+          adb logcat -d -v threadtime > ci-logs/logcat.txt
+          if grep -A20 -B5 -F "Process: ${PACKAGE_NAME}," ci-logs/logcat.txt; then
+            echo "::error::The development APK crashed during launch smoke."
+            exit 1
+          fi
+
+      - name: Upload verified APK and smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-development-apk-emulator-diagnostic-${{ github.run_number }}
+          path: |
+            artifact/artifacts/musik-player-development.apk
+            ci-logs/**
+          if-no-files-found: warn
+          retention-days: 5
