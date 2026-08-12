@@ -129,7 +129,10 @@ jobs:
             > ci-logs/emulator.log 2>&1 &
           echo $! > ci-logs/emulator.pid
 
-          adb wait-for-device
+          if ! timeout 180 adb wait-for-device; then
+            tail -n 160 ci-logs/emulator.log || true
+            exit 1
+          fi
           timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
           adb shell input keyevent 82 || true
           adb logcat -c
