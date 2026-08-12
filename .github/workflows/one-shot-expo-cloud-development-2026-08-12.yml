@@ -8,19 +8,23 @@ on:
       - .github/workflows/one-shot-expo-cloud-development-2026-08-12.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-    name: Dispatch development build to EAS Cloud
-    if: github.event.head_commit.message == 'ci: trigger Expo cloud development build'
-    permissions:
-      contents: write
-    uses: ./.github/workflows/eas-build.yml
-    with:
-      ref: codex
-      profile: development
-      platform: android
-      autofix: false
-      strict_lockfile: auto
-    secrets: inherit
+  dispatch:
+    name: Trigger the trusted EAS development workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch development build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/dispatches" \
+            --data '{"event_type":"trigger-eas-build","client_payload":{"ref":"codex","build_profile":"development","autofix":false,"strict_lockfile":"auto"}}'
