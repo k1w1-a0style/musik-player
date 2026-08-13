@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main, codex]
   push:
-    branches: [main, codex, "fix/**", "refactor/**", "review/**"]
+    branches: [main, codex, 'fix/**', 'feat/**', 'chore/**', 'refactor/**', 'review/**', 'codex/**']
+    branches-ignore: ['dependabot/**']
   workflow_dispatch:
 
 permissions:
