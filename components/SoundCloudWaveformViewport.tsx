@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSoundCloudWaveformMotion } from '../hooks/useSoundCloudWaveformMotion';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
@@ -64,7 +64,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
     if (direction) void onSeek(clampPosition(safePosition + direction * 10_000, safeDuration));
   }, [onSeek, safeDuration, safePosition]);
   const surface = (
-    <View style={[styles.surface, { height }]} testID="soundcloud-waveform-surface" onLayout={handleLayout}
+    <Animated.View style={[styles.surface, { height }]} testID="soundcloud-waveform-surface" onLayout={handleLayout}
       accessible accessibilityRole="adjustable" accessibilityLabel="Waveform vor- oder zurückspulen"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progressRatio * 100) }}
       accessibilityActions={[{ name: 'increment', label: '10 Sekunden vorspulen' },
@@ -73,7 +73,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       <SoundCloudWaveformLayers points={waveform.points} sourceKey={waveform.sourceKey}
         stripWidth={stripWidth} height={height} viewportCenter={viewportCenter}
         accent={accent} translateX={motion.translateX} showProgress={showProgress} />
-    </View>
+    </Animated.View>
   );
   return (
     <View style={styles.root} testID="soundcloud-waveform-viewport">

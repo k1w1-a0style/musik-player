@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import SoundCloudWaveformViewport from '../SoundCloudWaveformViewport';
 import { WAVEFORM_VERSION, type SongWaveform } from '../../utils/waveformTypes';
 
@@ -15,6 +15,20 @@ const waveform: SongWaveform = {
 };
 
 describe('SoundCloudWaveformViewport', () => {
+  test('binds the native gesture event to an animated surface', () => {
+    const { getByTestId } = render(
+      <SoundCloudWaveformViewport
+        waveform={waveform}
+        currentPosition={25_000}
+        duration={100_000}
+        isPlaying={false}
+        onSeek={jest.fn()}
+      />,
+    );
+
+    expect(getByTestId('soundcloud-waveform-gesture').parent?.parent?.type).toBe(Animated.View);
+  });
+
   test('renders cached played and unplayed layers under a fixed center playhead', () => {
     const { getByTestId } = render(
       <SoundCloudWaveformViewport

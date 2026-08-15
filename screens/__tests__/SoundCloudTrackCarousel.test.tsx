@@ -74,6 +74,55 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
+  test('dispatches before animation and keeps the rendered pages stable until it finishes', () => {
+    let finishTrackAnimation: ((result: { finished: boolean }) => void) | undefined;
+    (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mockImplementation((_value, config) => ({
+      start: callback => {
+        if (config.duration === 270) {
+          finishTrackAnimation = callback;
+          return;
+        }
+        callback?.({ finished: true });
+      },
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }) as Animated.CompositeAnimation);
+    const onSwipeToNext = jest.fn();
+    const afterNext = { id: 'after-next', title: 'After next', artist: 'Artist' };
+    const renderPage: React.ComponentProps<typeof SoundCloudTrackCarousel>['renderPage'] = ({ role, song }) => (
+      <View testID={`page-content-${role}`} accessibilityLabel={song?.id} />
+    );
+    const initialProps: React.ComponentProps<typeof SoundCloudTrackCarousel> = {
+      currentSong: songs[1], previousSong: songs[0], nextSong: songs[2], isPlaying: false,
+      onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), renderPage,
+    };
+    const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);
+
+    act(() => {
+      fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
+        nativeEvent: {
+          oldState: State.ACTIVE,
+          state: State.END,
+          translationX: -80,
+          translationY: 4,
+          velocityX: -1_000,
+        },
+      });
+    });
+
+    expect(finishTrackAnimation).toEqual(expect.any(Function));
+    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
+
+    rerender(<SoundCloudTrackCarousel {...initialProps} currentSong={songs[2]}
+      previousSong={songs[1]} nextSong={afterNext} />);
+    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('current');
+
+    act(() => finishTrackAnimation?.({ finished: true }));
+    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
+    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
+    unmount();
+  });
+
   test('blocks a next swipe when there is no queue candidate', () => {
     const onSwipeToNext = jest.fn();
     const { getByTestId, queryByTestId, unmount } = renderCarousel({
@@ -118,6 +167,20 @@ describe('SoundCloudTrackCarousel gestures', () => {
     });
 
     expect(onCollapse).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  test('keeps the decorative artwork loop out of the interaction queue', () => {
+    const { unmount } = renderCarousel({ isPlaying: true });
+    const driftConfigs = (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mock.calls
+      .map(([, config]) => config)
+      .filter(config => (config.duration ?? 0) >= 9_000);
+
+    expect(driftConfigs).toHaveLength(3);
+    expect(driftConfigs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ duration: 9_000, isInteraction: false }),
+      expect.objectContaining({ duration: 18_000, isInteraction: false }),
+    ]));
     unmount();
   });
 });
