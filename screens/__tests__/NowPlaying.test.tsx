@@ -145,6 +145,7 @@ jest.mock('../../hooks/useSongWaveform', () => ({
       points: [0.1, 0.4, 0.8],
     },
     sourceKey: 'test-waveform',
+    waveformReady: true,
     loadingNative: false,
   }),
 }));

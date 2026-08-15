@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import {
   Pause,
@@ -15,6 +15,7 @@ import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { RepeatMode, Song } from '../types/Song';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
+import CrossfadeLayers from './CrossfadeLayers';
 
 const REPEAT_MODE_LABELS: Record<RepeatMode, string> = {
   off: 'Wiederholung aus',
@@ -250,28 +251,38 @@ interface ControlsProps {
 const Controls: React.FC<ControlsProps> = ({ accentColor, accentDarkColor, onAccentColor }) => {
   const { theme } = useAppTheme();
   const music = useMusicContext();
+  const colors = useMemo(() => ({
+    accentColor: accentColor ?? theme.palette.primary,
+    accentDarkColor: accentDarkColor ?? theme.palette.primaryDark,
+    onAccentColor: onAccentColor ?? theme.palette.text.onPrimary,
+  }), [accentColor, accentDarkColor, onAccentColor, theme.palette.primary,
+    theme.palette.primaryDark, theme.palette.text.onPrimary]);
+  const colorKey = `${colors.accentColor}|${colors.accentDarkColor}|${colors.onAccentColor}`;
   return (
     <View style={styles.container} testID="controls">
-      <ControlRail
-        currentSong={music.currentSong}
-        playbackQueue={music.playbackQueue}
-        repeatMode={music.repeatMode}
-        shuffle={music.shuffle}
-        isPlaying={music.isPlaying}
-        isBuffering={music.isBuffering}
-        accentColor={accentColor ?? theme.palette.primary}
-        accentDarkColor={accentDarkColor ?? theme.palette.primaryDark}
-        onAccentColor={onAccentColor ?? theme.palette.text.onPrimary}
-        primaryTextColor={theme.palette.text.primary}
-        mutedTextColor={theme.palette.text.muted}
-        surfaceColor={theme.palette.surfaceGlass}
-        borderColor={theme.palette.border}
-        toggleShuffle={music.toggleShuffle}
-        previous={music.previous}
-        togglePlayPause={music.togglePlayPause}
-        next={music.next}
-        cycleRepeatMode={music.cycleRepeatMode}
-      />
+      <CrossfadeLayers value={colors} valueKey={colorKey} testID="controls-color-transition"
+        renderLayer={layerColors => (
+          <ControlRail
+            currentSong={music.currentSong}
+            playbackQueue={music.playbackQueue}
+            repeatMode={music.repeatMode}
+            shuffle={music.shuffle}
+            isPlaying={music.isPlaying}
+            isBuffering={music.isBuffering}
+            accentColor={layerColors.accentColor}
+            accentDarkColor={layerColors.accentDarkColor}
+            onAccentColor={layerColors.onAccentColor}
+            primaryTextColor={theme.palette.text.primary}
+            mutedTextColor={theme.palette.text.muted}
+            surfaceColor={theme.palette.surfaceGlass}
+            borderColor={theme.palette.border}
+            toggleShuffle={music.toggleShuffle}
+            previous={music.previous}
+            togglePlayPause={music.togglePlayPause}
+            next={music.next}
+            cycleRepeatMode={music.cycleRepeatMode}
+          />
+        )} />
     </View>
   );
 };

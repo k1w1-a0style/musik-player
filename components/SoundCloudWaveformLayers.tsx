@@ -33,6 +33,7 @@ WaveformBars.displayName = 'SoundCloudWaveformBars';
 interface SoundCloudWaveformLayersProps {
   points: readonly number[];
   sourceKey: string;
+  ready?: boolean;
   stripWidth: number;
   height: number;
   viewportCenter: number;
@@ -42,20 +43,23 @@ interface SoundCloudWaveformLayersProps {
 }
 
 const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewportCenter,
-  accent, translateX, showProgress = true }: SoundCloudWaveformLayersProps) => {
+  accent, translateX, ready = true, showProgress = true }: SoundCloudWaveformLayersProps) => {
   const stripStyle = useMemo(() => ({ width: stripWidth, height,
     transform: [{ translateX }] }), [height, stripWidth, translateX]);
   return (
     <>
-      <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-unplayed-layer">
+      {ready ? <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-unplayed-layer">
         <WaveformBars points={points} sourceKey={`${sourceKey}-rest`} width={stripWidth}
           height={height} color={SOUNDCLOUD_PLAYER_COLORS.waveformRest} />
-      </Animated.View>
+      </Animated.View> : <View pointerEvents="none" style={[styles.loadingLine,
+        { width: '100%', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.waveformRest }]}
+        testID="soundcloud-waveform-loading-line" />}
       {showProgress ? <><View style={[styles.playedClip, { width: viewportCenter }]} testID="soundcloud-waveform-played-clip">
-        <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-played-layer">
+        {ready ? <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-played-layer">
           <WaveformBars points={points} sourceKey={`${sourceKey}-played`} width={stripWidth}
             height={height} color={accent} />
-        </Animated.View>
+        </Animated.View> : <View style={[styles.loadingLine, { width: viewportCenter, backgroundColor: accent }]}
+          testID="soundcloud-waveform-loading-played-line" />}
       </View>
       <View pointerEvents="none" style={[styles.playhead, { left: viewportCenter - 1, backgroundColor: accent }]}
         testID="soundcloud-waveform-playhead" /></> : null}
@@ -66,6 +70,8 @@ const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewp
 const styles = StyleSheet.create({
   strip: { position: 'absolute', left: 0, top: 0 },
   playedClip: { ...StyleSheet.absoluteFillObject, right: undefined, overflow: 'hidden' },
+  loadingLine: { position: 'absolute', left: 0, top: '50%', height: 2,
+    marginTop: -1, borderRadius: 1 },
   playhead: { position: 'absolute', top: 4, bottom: 4, width: 2, borderRadius: 1 },
 });
 

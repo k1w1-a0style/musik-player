@@ -10,32 +10,25 @@ import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
-import { buildFallbackWaveform, normalizeWaveformPoints } from '../utils/waveformGenerator';
+import { normalizeWaveformPoints } from '../utils/waveformGenerator';
 import type { SoundCloudCarouselPageRole } from './soundCloudCarouselTypes';
 
 const ActiveWaveform = React.memo(({ song, isPlaying, onSeek, gestureHandlerRef }: { song: Song;
   isPlaying: boolean; onSeek: (position: number) => Promise<void>;
   gestureHandlerRef?: React.RefObject<unknown | null> }) => {
   const { position, duration } = usePlaybackProgress();
-  const { waveform: source } = useSongWaveform({ song, durationMs: duration, pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT });
+  const { waveform: source, waveformReady } = useSongWaveform({
+    song, durationMs: duration, pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
+  });
   const waveform = useMemo(() => source.points.length === SOUNDCLOUD_WAVEFORM_POINT_COUNT ? source
     : { ...source, points: normalizeWaveformPoints(source.points, SOUNDCLOUD_WAVEFORM_POINT_COUNT) }, [source]);
-  return <SoundCloudWaveformViewport waveform={waveform} currentPosition={position} duration={duration}
+  return <SoundCloudWaveformViewport waveform={waveform} ready={waveformReady}
+    currentPosition={position} duration={duration}
     isPlaying={isPlaying} onSeek={onSeek} accent={SOUNDCLOUD_PLAYER_COLORS.accent} height={116}
     gestureHandlerRef={gestureHandlerRef} />;
 });
 
 ActiveWaveform.displayName = 'SoundCloudActiveWaveform';
-
-const AdjacentWaveform = React.memo(({ song }: { song: Song }) => {
-  const duration = song.duration ?? song.audioInfo?.durationMs ?? 0;
-  const waveform = useMemo(() => buildFallbackWaveform(song, duration, 80), [duration, song]);
-  return <SoundCloudWaveformViewport waveform={waveform} currentPosition={0} duration={duration}
-    isPlaying={false} onSeek={() => undefined} accent={SOUNDCLOUD_PLAYER_COLORS.accent}
-    height={116} interactive={false} showProgress={false} />;
-});
-
-AdjacentWaveform.displayName = 'SoundCloudAdjacentWaveform';
 
 const TrackMetadata = ({ song }: { song: Song }) => (
   <View style={styles.metadata} pointerEvents="none">
@@ -122,13 +115,14 @@ const SoundCloudTrackPage = ({ song, role, isPlaying, canSwipeToNext, topInset, 
       <View style={styles.waveformWrap}>{isCurrent
         ? <ActiveWaveform song={song} isPlaying={isPlaying} onSeek={onSeek}
           gestureHandlerRef={waveformGestureRef} />
-        : <AdjacentWaveform song={song} />}</View>
+        : null}</View>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  trackPage: { flex: 1, paddingHorizontal: 18 }, metadata: { alignItems: 'flex-start', gap: 4 },
+  trackPage: { flex: 1, paddingHorizontal: 18 },
+  metadata: { height: 82, alignItems: 'flex-start', gap: 4, overflow: 'hidden' },
   title: { maxWidth: '88%', color: SOUNDCLOUD_PLAYER_COLORS.foreground,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.titleSurface, paddingHorizontal: 8,
     paddingVertical: 4, fontSize: 18, lineHeight: 23, fontFamily: APP_THEME_TOKENS.fonts.heading },

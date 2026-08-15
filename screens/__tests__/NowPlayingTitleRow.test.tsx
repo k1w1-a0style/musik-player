@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import NowPlayingTitleRow from '../NowPlayingTitleRow';
 import type { Song } from '../../types/Song';
 const mockAppTheme = {
@@ -101,6 +102,23 @@ describe('NowPlayingTitleRow metadata display fallbacks', () => {
     });
 
     expect(getByText('Clean Song Title')).toBeTruthy();
+  });
+
+  test('reserves the same two-line metadata geometry for short and long track names', () => {
+    const short = renderRow({ ...baseSong, title: 'Short' });
+    const shortRow = StyleSheet.flatten(short.getByTestId('now-playing-title-row').props.style);
+    const shortTitle = StyleSheet.flatten(short.getByTestId('now-playing-title-text').props.style);
+    short.unmount();
+
+    const long = renderRow({ ...baseSong,
+      title: 'A deliberately long title that occupies both reserved lines' });
+    const longRow = StyleSheet.flatten(long.getByTestId('now-playing-title-row').props.style);
+    const longTitle = StyleSheet.flatten(long.getByTestId('now-playing-title-text').props.style);
+
+    expect(shortRow.height).toBe(68);
+    expect(longRow.height).toBe(shortRow.height);
+    expect(shortTitle.height).toBe(44);
+    expect(longTitle.height).toBe(shortTitle.height);
   });
 
   test.each([

@@ -19,7 +19,6 @@ const renderCarousel = (props: Partial<React.ComponentProps<typeof SoundCloudTra
     previousArtworkUri: songs[0].cover,
     nextArtworkUri: songs[2].cover,
     canSwipeToNext: true,
-    isPlaying: false,
     onSwipeToNext: jest.fn(),
     onSwipeToPrevious: jest.fn(),
     onCollapse: jest.fn(),
@@ -74,7 +73,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
-  test('dispatches before animation and keeps the rendered pages stable until it finishes', () => {
+  test('slides frozen artwork while the one stationary page follows the current song', () => {
     let finishTrackAnimation: ((result: { finished: boolean }) => void) | undefined;
     (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mockImplementation((_value, config) => ({
       start: callback => {
@@ -93,7 +92,9 @@ describe('SoundCloudTrackCarousel gestures', () => {
       <View testID={`page-content-${role}`} accessibilityLabel={song?.id} />
     );
     const initialProps: React.ComponentProps<typeof SoundCloudTrackCarousel> = {
-      currentSong: songs[1], previousSong: songs[0], nextSong: songs[2], isPlaying: false,
+      currentSong: songs[1], previousSong: songs[0], nextSong: songs[2],
+      currentArtworkUri: songs[1].cover, previousArtworkUri: songs[0].cover,
+      nextArtworkUri: songs[2].cover,
       onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), renderPage,
     };
     const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);
@@ -114,12 +115,15 @@ describe('SoundCloudTrackCarousel gestures', () => {
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
 
     rerender(<SoundCloudTrackCarousel {...initialProps} currentSong={songs[2]}
-      previousSong={songs[1]} nextSong={afterNext} />);
-    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('current');
+      previousSong={songs[1]} nextSong={afterNext} currentArtworkUri={songs[2].cover}
+      previousArtworkUri={songs[1].cover} nextArtworkUri={undefined} />);
+    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
+    expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
 
     act(() => finishTrackAnimation?.({ finished: true }));
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
     expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
+    expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[2].cover);
     unmount();
   });
 
@@ -146,14 +150,15 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
-  test('collapses after a deliberate downward fling and keeps all page content in the track', () => {
+  test('collapses after a deliberate downward fling and renders only one stationary page', () => {
     const onCollapse = jest.fn();
-    const { getByTestId, unmount } = renderCarousel({ onCollapse });
+    const { getByTestId, queryByTestId, unmount } = renderCarousel({ onCollapse });
     const hidden = { includeHiddenElements: true };
 
-    expect(getByTestId('page-content-previous', hidden)).toBeTruthy();
     expect(getByTestId('page-content-current')).toBeTruthy();
-    expect(getByTestId('page-content-next', hidden)).toBeTruthy();
+    expect(queryByTestId('page-content-previous', hidden)).toBeNull();
+    expect(queryByTestId('page-content-next', hidden)).toBeNull();
+    expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
 
     act(() => {
       fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
@@ -170,17 +175,14 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
-  test('keeps the decorative artwork loop out of the interaction queue', () => {
-    const { unmount } = renderCarousel({ isPlaying: true });
+  test('keeps artwork static except for the explicit pager transition', () => {
+    const { unmount } = renderCarousel();
     const driftConfigs = (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mock.calls
       .map(([, config]) => config)
       .filter(config => (config.duration ?? 0) >= 9_000);
 
-    expect(driftConfigs).toHaveLength(3);
-    expect(driftConfigs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ duration: 9_000, isInteraction: false }),
-      expect.objectContaining({ duration: 18_000, isInteraction: false }),
-    ]));
+    expect(driftConfigs).toHaveLength(0);
+    expect(Animated.loop).not.toHaveBeenCalled();
     unmount();
   });
 });

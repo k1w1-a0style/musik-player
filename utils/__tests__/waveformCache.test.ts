@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   clearWaveformCache,
   getCachedWaveform,
+  peekCachedWaveform,
   resetWaveformCacheStateForTests,
   setCachedWaveform,
 } from '../waveformCache';
@@ -40,6 +41,16 @@ test('stores and reads a valid waveform', async () => {
   const waveform = waveformFor('source-1');
   await setCachedWaveform(waveform);
   await expect(getCachedWaveform(waveform)).resolves.toEqual(waveform);
+});
+
+test('serves a finalized waveform synchronously from the bounded memory cache', async () => {
+  const waveform = waveformFor('instant');
+  expect(peekCachedWaveform(waveform)).toBeNull();
+
+  const persistence = setCachedWaveform(waveform);
+
+  expect(peekCachedWaveform(waveform)).toEqual(waveform);
+  await persistence;
 });
 
 test('returns null for a missing waveform', async () => {
@@ -102,6 +113,7 @@ test('rolls back a new payload when the authoritative index write fails', async 
 
   await expect(setCachedWaveform(waveform)).rejects.toThrow('index unavailable');
   await expect(AsyncStorage.getItem(`${PREFIX}broken`)).resolves.toBeNull();
+  expect(peekCachedWaveform(waveform)).toEqual(waveform);
 });
 
 test('a failed mutation does not poison later cache writes', async () => {

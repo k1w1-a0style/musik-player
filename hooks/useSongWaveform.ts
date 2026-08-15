@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Song } from '../types/Song';
-import { getCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
+import { getCachedWaveform, peekCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
 import { buildImmediateWaveform, extractNativeWaveform, resolveWaveformUri } from '../utils/waveformExtraction';
 import { getWaveformSourceIdentity } from '../utils/waveformGenerator';
 import {
@@ -54,7 +54,23 @@ export const logWaveformDecision = (diagnostics: WaveformSourceDiagnostics): voi
 interface UseSongWaveformResult {
   waveform: SongWaveform;
   sourceKey: string;
+  waveformReady: boolean;
   loadingNative: boolean;
+}
+
+interface ResolvedWaveform {
+  identity: WaveformSourceIdentity;
+  waveform: SongWaveform;
+}
+
+interface WaveformResolutionOptions {
+  song: Song | null;
+  durationMs: number;
+  pointCount: number;
+  canExtractNative: boolean;
+  immediate: SongWaveform;
+  sourceIdentity: WaveformSourceIdentity;
+  onWaveformDecision: (diagnostics: WaveformSourceDiagnostics) => void;
 }
 
 const cacheWaveformObserved = (waveform: SongWaveform): void => {
@@ -78,6 +94,71 @@ const getCachedWaveformUntilAbort = (
   void getCachedWaveform(identity).then(finish, () => finish(null));
 });
 
+const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
+  left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
+
+const useResolvedWaveform = ({ song, durationMs, pointCount, canExtractNative, immediate,
+  sourceIdentity, onWaveformDecision }: WaveformResolutionOptions): SongWaveform | null => {
+  const songRef = useRef(song);
+  const durationRef = useRef(durationMs);
+  songRef.current = song;
+  durationRef.current = durationMs;
+  const synchronousCached = peekCachedWaveform(sourceIdentity);
+  const [resolved, setResolved] = useState<ResolvedWaveform | null>(() => {
+    const waveform = synchronousCached ?? (!canExtractNative ? immediate : null);
+    return waveform ? { identity: sourceIdentity, waveform } : null;
+  });
+  const { sourceKey, sourceFingerprint } = sourceIdentity;
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const requestedIdentity = { sourceKey, sourceFingerprint };
+    const requestedSong = songRef.current;
+    const stop = (): void => {
+      active = false;
+      controller.abort();
+    };
+    const finalFallback = (): SongWaveform => buildImmediateWaveform(
+      requestedSong, durationRef.current, pointCount,
+    );
+    const commit = (waveform: SongWaveform): void => {
+      if (active) setResolved({ identity: requestedIdentity, waveform });
+    };
+    const cachedInMemory = peekCachedWaveform(requestedIdentity);
+    if (cachedInMemory) {
+      commit(cachedInMemory);
+      return stop;
+    }
+    if (!canExtractNative) {
+      const fallback = finalFallback();
+      commit(fallback);
+      cacheWaveformObserved(fallback);
+      return stop;
+    }
+
+    void (async () => {
+      const cached = await getCachedWaveformUntilAbort(requestedIdentity, controller.signal);
+      if (!active) return;
+      // A finalized cached fallback is intentionally just as stable as native
+      // data: once visible, this source never morphs into another shape.
+      if (cached) return commit(cached);
+      const native = await extractNativeWaveform(requestedSong, durationRef.current, {
+        pointCount, signal: controller.signal, onDecision: onWaveformDecision,
+      });
+      if (!active) return;
+      const finalized = native ?? finalFallback();
+      commit(finalized);
+      cacheWaveformObserved(finalized);
+    })();
+    return stop;
+  }, [canExtractNative, onWaveformDecision, pointCount, sourceFingerprint, sourceKey]);
+
+  return resolved && sameIdentity(resolved.identity, sourceIdentity)
+    ? resolved.waveform
+    : synchronousCached;
+};
+
 export const useSongWaveform = ({
   song,
   durationMs,
@@ -91,58 +172,11 @@ export const useSongWaveform = ({
     [durationMs, pointCount, song],
   );
   const canExtractNative = useMemo(() => Boolean(resolveWaveformUri(song)), [song]);
-  const [waveform, setWaveform] = useState<SongWaveform>(immediate);
-  const [loadingNative, setLoadingNative] = useState(false);
+  const resolvedForSource = useResolvedWaveform({ song, durationMs, pointCount,
+    canExtractNative, immediate, sourceIdentity, onWaveformDecision });
+  const waveformReady = Boolean(resolvedForSource) || !canExtractNative;
+  const waveform = resolvedForSource ?? immediate;
+  const loadingNative = canExtractNative && !waveformReady;
 
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    setWaveform(immediate);
-
-    if (!canExtractNative) {
-      setLoadingNative(false);
-      cacheWaveformObserved(immediate);
-      return () => {
-        active = false;
-        controller.abort();
-      };
-    }
-
-    setLoadingNative(true);
-
-    void (async () => {
-      const cached = await getCachedWaveformUntilAbort(sourceIdentity, controller.signal);
-      if (!active) return;
-      if (cached) {
-        setWaveform(cached);
-        // Native waveforms are stable for the same source identity. Do not
-        // re-extract on every NowPlaying remount/track revisit.
-        if (cached.source === 'native') {
-          setLoadingNative(false);
-          return;
-        }
-      }
-
-      const nativeWaveform = await extractNativeWaveform(song, durationMs, {
-        pointCount,
-        signal: controller.signal,
-        onDecision: onWaveformDecision,
-      });
-      if (!active) return;
-      if (nativeWaveform) {
-        setWaveform(nativeWaveform);
-        cacheWaveformObserved(nativeWaveform);
-      } else if (!cached) {
-        cacheWaveformObserved(immediate);
-      }
-      setLoadingNative(false);
-    })();
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [canExtractNative, durationMs, immediate, onWaveformDecision, pointCount, song, sourceIdentity]);
-
-  return { waveform, sourceKey, loadingNative };
+  return { waveform, sourceKey, waveformReady, loadingNative };
 };

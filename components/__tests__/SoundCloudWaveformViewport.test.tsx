@@ -83,4 +83,16 @@ describe('SoundCloudWaveformViewport', () => {
     expect(queryByTestId('soundcloud-waveform-played-layer')).toBeNull();
     expect(queryByTestId('soundcloud-waveform-playhead')).toBeNull();
   });
+
+  test('shows only a straight seekable line until the final waveform is ready', () => {
+    const { getByTestId, queryByTestId } = render(
+      <SoundCloudWaveformViewport waveform={waveform} ready={false} currentPosition={25_000}
+        duration={100_000} isPlaying={false} onSeek={jest.fn()} interactive={false} />,
+    );
+
+    expect(getByTestId('soundcloud-waveform-loading-line')).toBeTruthy();
+    expect(getByTestId('soundcloud-waveform-loading-played-line')).toBeTruthy();
+    expect(queryByTestId('soundcloud-waveform-unplayed-layer')).toBeNull();
+    expect(queryByTestId('soundcloud-waveform-played-layer')).toBeNull();
+  });
 });

@@ -26,11 +26,14 @@ interface QueuePanResponderOptions {
 const useQueuePanResponder = ({ canDrag, dragEnabled, onGrant, onMove, onRelease, onCancel }: QueuePanResponderOptions) => React.useMemo(() => PanResponder.create({
   onStartShouldSetPanResponder: () => false,
   onMoveShouldSetPanResponder: (_event, gesture) => canDrag && dragEnabled && Math.abs(gesture.dy) > 4,
+  onMoveShouldSetPanResponderCapture: (_event, gesture) =>
+    canDrag && dragEnabled && Math.abs(gesture.dy) > 4,
   onPanResponderGrant: onGrant,
   onPanResponderMove: (_event, gesture) => onMove(gesture),
   onPanResponderRelease: (_event, gesture) => onRelease(gesture),
   onPanResponderTerminate: onCancel,
-  onShouldBlockNativeResponder: () => false,
+  onPanResponderTerminationRequest: () => false,
+  onShouldBlockNativeResponder: () => true,
 }), [canDrag, dragEnabled, onCancel, onGrant, onMove, onRelease]);
 
 export const useAnimatedQueuePreview = (previewOffsetY: number): Animated.Value => {
@@ -87,14 +90,14 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
   const release = React.useCallback((gesture: PanResponderGestureState) => {
     const target = resolveTarget(gesture.dy);
     const shouldShift = canDrag && target !== index;
-    const scrollCompensation = getScrollOffset() - startScrollRef.current;
-    const settledRowOffset = shouldShift ? (target - index) * rowHeight : 0;
-    Animated.spring(dragY, { toValue: settledRowOffset - scrollCompensation,
-      tension: 180, friction: 24, useNativeDriver: true }).start(() => {
-      if (shouldShift) onShift?.(index, target);
-      reset();
-    });
-  }, [canDrag, dragY, getScrollOffset, index, onShift, reset, resolveTarget, rowHeight]);
+    // Commit the data mutation in the same release event. Waiting for an
+    // animation callback made a native-list responder cancellation silently
+    // drop the reorder. The preview offsets and the reordered data now settle
+    // in one React batch, so rows remain visually continuous without a second
+    // deferred mutation.
+    if (shouldShift) onShift?.(index, target);
+    reset();
+  }, [canDrag, index, onShift, reset, resolveTarget]);
   const panResponder = useQueuePanResponder({ canDrag, dragEnabled, onGrant: grant, onMove: move, onRelease: release, onCancel: reset });
   const enableDrag = React.useCallback(() => {
     if (!canDrag) return;

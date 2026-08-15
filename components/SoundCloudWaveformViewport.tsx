@@ -8,6 +8,7 @@ import SoundCloudWaveformLayers from './SoundCloudWaveformLayers';
 
 interface SoundCloudWaveformViewportProps {
   waveform: SongWaveform;
+  ready?: boolean;
   currentPosition: number;
   duration: number;
   isPlaying: boolean;
@@ -38,7 +39,7 @@ const WaveformTimeRow = ({ position, duration }: { position: number; duration: n
 
 const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({ waveform,
   currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.accent,
-  height = 116, interactive = true, showProgress = true, gestureHandlerRef,
+  height = 116, interactive = true, ready = true, showProgress = true, gestureHandlerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
@@ -72,7 +73,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       onAccessibilityAction={handleAccessibilityAction}>
       <SoundCloudWaveformLayers points={waveform.points} sourceKey={waveform.sourceKey}
         stripWidth={stripWidth} height={height} viewportCenter={viewportCenter}
-        accent={accent} translateX={motion.translateX} showProgress={showProgress} />
+        accent={accent} translateX={motion.translateX} ready={ready} showProgress={showProgress} />
     </Animated.View>
   );
   return (

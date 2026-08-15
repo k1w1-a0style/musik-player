@@ -12,7 +12,6 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { Edit3, Plus, Trash2, Play } from 'lucide-react-native';
-import { NativeViewGestureHandler } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -201,7 +200,6 @@ const PlaylistDetail: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.palette.background }]} testID="playlist-detail-screen">
-      <NativeViewGestureHandler disallowInterruption>
       <FlatList
         ref={listRef}
         testID="playlist-detail-list"
@@ -211,6 +209,7 @@ const PlaylistDetail: React.FC = () => {
         onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        scrollEnabled={!dragPreview}
         removeClippedSubviews={false}
         initialNumToRender={12} maxToRenderPerBatch={10} updateCellsBatchingPeriod={70} windowSize={7}
         contentContainerStyle={styles.content}
@@ -361,7 +360,6 @@ const PlaylistDetail: React.FC = () => {
           </Text>
         )}
       />
-      </NativeViewGestureHandler>
       <PlaylistAddSongsModal visible={addOpen} playlistName={playlist.name} songs={addableSongs}
         onAddSong={handleAddSong} onClose={() => setAddOpen(false)} />
     </View>

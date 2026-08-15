@@ -38,6 +38,8 @@ jest.mock('../../hooks/useSongWaveform', () => ({
       durationMs: 120_000,
       points: [0.2, 0.8, 0.5],
     },
+    waveformReady: true,
+    loadingNative: false,
   }),
 }));
 
@@ -49,7 +51,7 @@ jest.mock('../../components/SoundCloudWaveformViewport', () => ({
   __esModule: true,
   default: (props: Record<string, unknown>) => {
     mockWaveformViewport(props);
-    return <MockView testID={props.interactive === false ? 'adjacent-waveform' : 'active-waveform'} />;
+    return <MockView testID="active-waveform" />;
   },
 }));
 
@@ -159,6 +161,7 @@ describe('NowPlayingSoundCloudView', () => {
       duration: 120_000,
       isPlaying: true,
       height: 116,
+      ready: true,
     }));
   });
 
@@ -182,21 +185,20 @@ describe('NowPlayingSoundCloudView', () => {
     expect(onTogglePlayback).toHaveBeenCalledTimes(1);
     expect(onSwipeToNext).not.toHaveBeenCalled();
     expect(getByTestId('soundcloud-next-button').props.accessibilityState.disabled).toBe(true);
-    expect(getByTestId('soundcloud-carousel-current-paused-artwork').props.blurRadius).toBe(18);
   });
 
-  test('moves metadata and waveforms with all three artwork pages', () => {
-    const { getByTestId, getByText, getAllByTestId } = renderSoundCloudView();
+  test('slides three artwork tiles but keeps one metadata and waveform layer stationary', () => {
+    const { getByTestId, getByText, queryByText, getAllByTestId } = renderSoundCloudView();
     const hidden = { includeHiddenElements: true };
 
     expect(getByTestId('soundcloud-carousel-previous-artwork', hidden).props.source.uri).toBe(songs[0].cover);
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
     expect(getByTestId('soundcloud-carousel-next-artwork', hidden).props.source.uri).toBe(songs[2].cover);
-    expect(getByText('Previous track', hidden)).toBeTruthy();
     expect(getByText('Track title')).toBeTruthy();
-    expect(getByText('Next track', hidden)).toBeTruthy();
-    expect(getAllByTestId('adjacent-waveform', hidden)).toHaveLength(2);
-    expect(getByTestId('active-waveform')).toBeTruthy();
+    expect(queryByText('Previous track', hidden)).toBeNull();
+    expect(queryByText('Next track', hidden)).toBeNull();
+    expect(getAllByTestId('active-waveform')).toHaveLength(1);
+    expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
       .toBe('no-hide-descendants');
   });

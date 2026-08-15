@@ -13,6 +13,7 @@ const MAX_CACHED_WAVEFORMS = 80;
 let cacheMutationQueue = Promise.resolve();
 let cacheInitialization: Promise<void> | null = null;
 let cachedIndex: WaveformSourceIdentity[] | null = null;
+const memoryWaveforms = new Map<string, SongWaveform>();
 
 const keyForSource = (sourceKey: string): string => `${PREFIX}${sourceKey}`;
 const isPayloadKey = (key: string): boolean => key.startsWith(PREFIX) && key !== INDEX_KEY;
@@ -20,6 +21,24 @@ const isLegacyKey = (key: string): boolean => key.startsWith(LEGACY_PREFIX) && !
 
 const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
   left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
+
+const rememberWaveform = (waveform: SongWaveform): void => {
+  memoryWaveforms.delete(waveform.sourceKey);
+  memoryWaveforms.set(waveform.sourceKey, waveform);
+  while (memoryWaveforms.size > MAX_CACHED_WAVEFORMS) {
+    const oldestSourceKey = memoryWaveforms.keys().next().value as string | undefined;
+    if (!oldestSourceKey) break;
+    memoryWaveforms.delete(oldestSourceKey);
+  }
+};
+
+export const peekCachedWaveform = (identity: WaveformSourceIdentity): SongWaveform | null => {
+  if (!isWaveformSourceIdentity(identity)) return null;
+  const waveform = memoryWaveforms.get(identity.sourceKey);
+  if (!waveform || !sameIdentity(waveform, identity)) return null;
+  rememberWaveform(waveform);
+  return waveform;
+};
 
 const initializeCache = async (): Promise<void> => {
   if (!cacheInitialization) {
@@ -110,13 +129,21 @@ const runCacheMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
 
 export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promise<SongWaveform | null> => {
   if (!isWaveformSourceIdentity(identity)) return null;
+  const inMemory = peekCachedWaveform(identity);
+  if (inMemory) return inMemory;
   await initializeCache();
   const waveform = await readStoredWaveform(keyForSource(identity.sourceKey));
-  return waveform && sameIdentity(waveform, identity) ? waveform : null;
+  if (!waveform || !sameIdentity(waveform, identity)) return null;
+  rememberWaveform(waveform);
+  return waveform;
 };
 
 export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> => {
   if (!isSongWaveform(waveform)) return;
+  // Make the finalized shape available to remounts immediately. Persistence is
+  // still serialized below, but a slow storage write must not trigger a second
+  // extraction or a different interim waveform in the current app session.
+  rememberWaveform(waveform);
   await runCacheMutation(async () => {
     await initializeCache();
     const existing = await readIndex();
@@ -145,10 +172,12 @@ export const clearWaveformCache = async (): Promise<void> => runCacheMutation(as
   const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(LEGACY_PREFIX));
   await Promise.all(keys.map(key => AsyncStorage.removeItem(key)));
   cachedIndex = [];
+  memoryWaveforms.clear();
 });
 
 export const resetWaveformCacheStateForTests = (): void => {
   cacheMutationQueue = Promise.resolve();
   cacheInitialization = null;
   cachedIndex = null;
+  memoryWaveforms.clear();
 };

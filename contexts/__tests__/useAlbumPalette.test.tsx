@@ -133,11 +133,13 @@ describe('useAlbumPalette', () => {
     await waitFor(() => expect(readPalette(getByTestId('palette').props.children)).toEqual(secondEffectivePalette));
   });
 
-  test('does not start a competing palette and ignores the stale result after artwork changes', async () => {
+  test('queues the current palette and ignores the stale result after artwork changes', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
-    jest.spyOn(SystemAudio, 'extractPalette').mockReturnValueOnce(new Promise(resolve => {
-      resolveFirst = resolve;
-    }));
+    jest.spyOn(SystemAudio, 'extractPalette')
+      .mockReturnValueOnce(new Promise(resolve => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValueOnce({ dominant: '#222222' });
 
     const { getByTestId, rerender } = render(<PaletteProbe song={songWithCover} />);
     rerender(<PaletteProbe song={secondSongWithCover} />);
@@ -149,8 +151,9 @@ describe('useAlbumPalette', () => {
       resolveFirst({ dominant: '#111111' });
     });
 
-    expect(getByTestId('palette').props.children).toBe('');
-    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(readDominant(getByTestId('palette').props.children)).toBe('#222222'));
+    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(2);
+    expect(SystemAudio.extractPalette).toHaveBeenLastCalledWith('file:///cover-2.jpg');
   });
 
   test('resets palette immediately when extraction is pending and stays clear after failure', async () => {

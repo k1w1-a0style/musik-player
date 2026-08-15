@@ -8,6 +8,7 @@ import type { SongWaveform } from '../utils/waveformTypes';
 
 interface WaveformScrubberProps {
   waveform: SongWaveform;
+  ready?: boolean;
   currentPosition: number;
   duration: number;
   /** Called once on release/commit with the final seek position in ms. Triggers native seekTo. */
@@ -67,8 +68,43 @@ const WaveformBars = React.memo(({ points, sourceKey, color, height, svgWidth,
 
 WaveformBars.displayName = 'WaveformBars';
 
+interface WaveformVisualProps {
+  ready: boolean;
+  points: readonly number[];
+  svgWidth: number;
+  sourceKey: string;
+  restColor: string;
+  accent: string;
+  height: number;
+  surfaceWidth: number;
+  animatedRatio: Animated.Value;
+}
+
+const WaveformVisual = ({ ready, points, svgWidth, sourceKey, restColor, accent,
+  height, surfaceWidth, animatedRatio }: WaveformVisualProps) => {
+  const playedClipWidth = useMemo(
+    () => Animated.multiply(animatedRatio, surfaceWidth),
+    [animatedRatio, surfaceWidth],
+  );
+  return (
+    <>
+      {ready ? <WaveformBars points={points} sourceKey={sourceKey} color={restColor}
+        height={height} svgWidth={svgWidth} width="100%" layer="rest" />
+        : <View pointerEvents="none" style={[styles.loadingLine,
+          { width: '100%', backgroundColor: restColor }]} testID="waveform-loading-line" />}
+      <Animated.View pointerEvents="none" style={[styles.playedClip, { width: playedClipWidth }]}
+        testID="waveform-played-clip">
+        {ready ? <WaveformBars points={points} sourceKey={sourceKey} color={accent}
+          height={height} svgWidth={svgWidth} width={Math.max(1, surfaceWidth)} layer="played" />
+          : <View style={[styles.loadingLine, { width: Math.max(1, surfaceWidth),
+            backgroundColor: accent }]} testID="waveform-loading-played-line" />}
+      </Animated.View>
+    </>
+  );
+};
+
 const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPosition, duration,
-  onSeek, onSeekPreview, accent, restColor, height = 58 }) => {
+  ready = true, onSeek, onSeekPreview, accent, restColor, height = 58 }) => {
   const { theme } = useAppTheme();
   const resolvedRestColor = restColor ?? theme.palette.borderStrong;
   const widthRef = useRef(0);
@@ -88,10 +124,6 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
     const points = waveform.points.length > 0 ? waveform.points : [0.08];
     return { points, svgWidth: points.length * 3 + Math.max(0, points.length - 1) * 2 };
   }, [waveform.points]);
-  const playedClipWidth = useMemo(
-    () => Animated.multiply(animatedRatio, surfaceWidth),
-    [animatedRatio, surfaceWidth],
-  );
   useEffect(() => {
     draggingRef.current = false;
     latestRatioRef.current = baseRatioRef.current;
@@ -155,13 +187,9 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
         onResponderRelease={finishInteraction} onResponderTerminate={finishInteraction}
         accessibilityRole="adjustable" accessibilityLabel="Audiospur-Fortschritt"
         accessibilityValue={{ min: 0, max: 100, now: Math.round(displayRatio * 100) }}>
-        <WaveformBars points={bars.points} sourceKey={waveform.sourceKey} color={resolvedRestColor}
-          height={height} svgWidth={bars.svgWidth} width="100%" layer="rest" />
-        <Animated.View pointerEvents="none" style={[styles.playedClip, { width: playedClipWidth }]}
-          testID="waveform-played-clip">
-          <WaveformBars points={bars.points} sourceKey={waveform.sourceKey} color={accent}
-            height={height} svgWidth={bars.svgWidth} width={Math.max(1, surfaceWidth)} layer="played" />
-        </Animated.View>
+        <WaveformVisual ready={ready} points={bars.points} svgWidth={bars.svgWidth}
+          sourceKey={waveform.sourceKey} restColor={resolvedRestColor} accent={accent}
+          height={height} surfaceWidth={surfaceWidth} animatedRatio={animatedRatio} />
       </View>
       <View style={styles.timeRow}>
         <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(displayPosition)}</Text>
@@ -174,6 +202,8 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
 const styles = StyleSheet.create({
   root: { paddingHorizontal: APP_THEME_TOKENS.spacing.md, marginVertical: APP_THEME_TOKENS.spacing.sm, width: '100%' },
   waveformSurface: { position: 'relative', justifyContent: 'center', overflow: 'hidden', paddingVertical: 4 },
+  loadingLine: { position: 'absolute', left: 0, top: '50%', height: 2, marginTop: -1,
+    borderRadius: 1 },
   playedClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden',
     alignItems: 'flex-start', justifyContent: 'center' },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },

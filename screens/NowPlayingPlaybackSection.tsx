@@ -7,6 +7,7 @@ import { useSongWaveform } from '../hooks/useSongWaveform';
 import type { Song } from '../types/Song';
 import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
 import { getNowPlayingWaveformRestColor } from '../utils/appThemeOverlays';
+import CrossfadeLayers from '../components/CrossfadeLayers';
 
 interface NowPlayingPlaybackSectionProps {
   currentSong: Song | null;
@@ -24,10 +25,15 @@ interface PlaybackWaveformProps extends Pick<NowPlayingPlaybackSectionProps,
 const PlaybackWaveform = React.memo(({ currentSong, onSeek, progressAccent,
   restColor }: PlaybackWaveformProps) => {
   const { position, duration } = usePlaybackProgress();
-  const { waveform } = useSongWaveform({ song: currentSong, durationMs: duration });
+  const { waveform, waveformReady } = useSongWaveform({ song: currentSong, durationMs: duration });
 
-  return <WaveformScrubber waveform={waveform} currentPosition={position} duration={duration}
-    onSeek={onSeek} accent={progressAccent} restColor={restColor} />;
+  return <CrossfadeLayers value={{ accent: progressAccent, restColor }}
+    valueKey={`${progressAccent}|${restColor}`} testID="waveform-color-transition"
+    renderLayer={colors => (
+      <WaveformScrubber waveform={waveform} ready={waveformReady}
+        currentPosition={position} duration={duration}
+        onSeek={onSeek} accent={colors.accent} restColor={colors.restColor} />
+    )} />;
 });
 
 PlaybackWaveform.displayName = 'NowPlayingPlaybackWaveform';

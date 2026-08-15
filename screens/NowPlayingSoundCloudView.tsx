@@ -82,7 +82,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
       <SoundCloudTrackCarousel currentSong={props.currentSong} previousSong={props.previousSong}
         nextSong={props.nextSong} currentArtworkUri={props.artworkUri}
         previousArtworkUri={props.previousArtworkUri} nextArtworkUri={props.nextArtworkUri}
-        canSwipeToNext={canGoNext} isPlaying={props.isPlaying} onSwipeToNext={props.onSwipeToNext}
+        canSwipeToNext={canGoNext} onSwipeToNext={props.onSwipeToNext}
         onSwipeToPrevious={props.onSwipeToPrevious} onCollapse={props.onCollapse}
         waveformGestureRef={waveformGestureRef} reduceMotion={reduceMotion} renderPage={renderPage} chrome={chrome} />
     </View>

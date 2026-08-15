@@ -17,7 +17,6 @@ export interface SoundCloudTrackCarouselProps {
   previousArtworkUri?: string;
   nextArtworkUri?: string;
   canSwipeToNext?: boolean;
-  isPlaying: boolean;
   onSwipeToNext: () => void;
   onSwipeToPrevious: () => void;
   onCollapse: () => void;
@@ -37,7 +36,6 @@ interface TrackTransitionSnapshot {
   currentArtworkUri?: string;
   previousArtworkUri?: string;
   nextArtworkUri?: string;
-  isPlaying: boolean;
 }
 
 const CarouselChrome = ({ children }: { children?: React.ReactNode }) => {
@@ -47,7 +45,7 @@ const CarouselChrome = ({ children }: { children?: React.ReactNode }) => {
 
 const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ currentSong, previousSong,
   nextSong, currentArtworkUri, previousArtworkUri, nextArtworkUri, canSwipeToNext = true,
-  isPlaying, onSwipeToNext, onSwipeToPrevious, onCollapse, renderPage, chrome, waveformGestureRef,
+  onSwipeToNext, onSwipeToPrevious, onCollapse, renderPage, chrome, waveformGestureRef,
   reduceMotion = false,
 }) => {
   const { width, height } = useWindowDimensions();
@@ -60,8 +58,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     currentArtworkUri,
     previousArtworkUri,
     nextArtworkUri,
-    isPlaying,
-  }), [currentArtworkUri, currentSong, isPlaying, nextArtworkUri, nextSong,
+  }), [currentArtworkUri, currentSong, nextArtworkUri, nextSong,
     previousArtworkUri, previousSong]);
   const releaseTransitionPages = useCallback(() => setTransitionSnapshot(null), []);
   const horizontal = useHorizontalTrackMotion({ currentSongId: currentSong?.id, panelWidth,
@@ -70,7 +67,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     onTransitionStart: holdTransitionPages, onTransitionEnd: releaseTransitionPages });
   const vertical = useVerticalPlayerMotion({ height: Math.max(1, height), onCollapse, reduceMotion });
   const displayed = transitionSnapshot ?? { currentSong, previousSong: nullableSong(previousSong),
-    nextSong: nullableSong(nextSong), currentArtworkUri, previousArtworkUri, nextArtworkUri, isPlaying };
+    nextSong: nullableSong(nextSong), currentArtworkUri, previousArtworkUri, nextArtworkUri };
   const trackTranslateX = useMemo(
     () => Animated.add(horizontal.constrainedDrag, -panelWidth),
     [horizontal.constrainedDrag, panelWidth],
@@ -87,24 +84,26 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
             failOffsetY={[-18, 18]} waitFor={waveformGestureRef}
             onGestureEvent={horizontal.onGestureEvent}
             onHandlerStateChange={horizontal.onStateChange}>
-            <Animated.View testID="soundcloud-track-carousel"
-              style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
-              <View style={{ width: panelWidth }}>
-                <SoundCloudCarouselPanel song={displayed.previousSong} role="previous" artworkUri={displayed.previousArtworkUri}
-                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={false}
-                  reduceMotion={reduceMotion} renderPage={renderPage} />
+            <View style={styles.carouselViewport} collapsable={false}>
+              <Animated.View testID="soundcloud-track-carousel"
+                style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
+                <View style={{ width: panelWidth }}>
+                  <SoundCloudCarouselPanel song={displayed.previousSong} role="previous"
+                    artworkUri={displayed.previousArtworkUri} />
+                </View>
+                <View style={{ width: panelWidth }}>
+                  <SoundCloudCarouselPanel song={displayed.currentSong} role="current"
+                    artworkUri={displayed.currentArtworkUri} />
+                </View>
+                <View style={{ width: panelWidth }}>
+                  <SoundCloudCarouselPanel song={displayed.nextSong} role="next"
+                    artworkUri={displayed.nextArtworkUri} />
+                </View>
+              </Animated.View>
+              <View style={styles.currentPage} testID="soundcloud-current-page-layer">
+                {renderPage({ song: currentSong, role: 'current' })}
               </View>
-              <View style={{ width: panelWidth }}>
-                <SoundCloudCarouselPanel song={displayed.currentSong} role="current" artworkUri={displayed.currentArtworkUri}
-                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={displayed.isPlaying}
-                  reduceMotion={reduceMotion} renderPage={renderPage} />
-              </View>
-              <View style={{ width: panelWidth }}>
-                <SoundCloudCarouselPanel song={displayed.nextSong} role="next" artworkUri={displayed.nextArtworkUri}
-                  panelWidth={panelWidth} horizontalDrag={horizontal.drag} isPlaying={false}
-                  reduceMotion={reduceMotion} renderPage={renderPage} />
-              </View>
-            </Animated.View>
+            </View>
           </PanGestureHandler>
           <CarouselChrome>{chrome}</CarouselChrome>
         </Animated.View>
@@ -116,7 +115,9 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden', backgroundColor: 'transparent' },
   player: { flex: 1, overflow: 'hidden', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.playerBackground },
+  carouselViewport: { flex: 1, overflow: 'hidden' },
   track: { flex: 1, flexDirection: 'row' },
+  currentPage: { ...StyleSheet.absoluteFillObject },
 });
 
 export default React.memo(SoundCloudTrackCarousel);

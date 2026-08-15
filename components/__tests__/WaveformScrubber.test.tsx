@@ -139,6 +139,18 @@ describe('WaveformScrubber seek semantics', () => {
     expect(getByTestId('waveform-played-clip')).toBeTruthy();
   });
 
+  test('renders one stable line and no provisional bars while the waveform is loading', () => {
+    const { getByTestId, queryByTestId } = render(
+      <WaveformScrubber waveform={waveform} ready={false} currentPosition={10_000}
+        duration={100_000} onSeek={jest.fn()} accent="red" />,
+    );
+
+    expect(getByTestId('waveform-loading-line')).toBeTruthy();
+    expect(getByTestId('waveform-loading-played-line')).toBeTruthy();
+    expect(queryByTestId('waveform-rest-layer')).toBeNull();
+    expect(queryByTestId('waveform-played-layer')).toBeNull();
+  });
+
   test('uses app theme rest and time colors while preserving seek behavior', () => {
     mockAppTheme = getAppTheme('light', 'graphite');
     const onSeek = jest.fn();
