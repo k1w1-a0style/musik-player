@@ -103,11 +103,12 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
   return (
     <Animated.View style={[styles.animatedRow,
       { height: rowHeight, transform: [{ translateY }] },
-      drag.dragging && styles.animatedRowDragging]}>
+      drag.dragging && styles.animatedRowDragging]} {...drag.panHandlers}
+      testID={`queue-drag-surface-${id}`}>
       <Pressable testID={`queue-row-${id}`} onPress={handlePress} onLongPress={drag.enableDrag}
         delayLongPress={260} accessibilityRole="button" accessibilityLabel={accessibilityLabel + (canDrag ? dragLabel : '')}
         accessibilityHint={canDrag ? 'Lange gedrückt halten, dann nach oben oder unten ziehen.' : undefined}
-        accessibilityState={{ selected: isCurrent }} {...drag.panHandlers}
+        accessibilityState={{ selected: isCurrent }}
         style={({ pressed }) => [styles.queueItem,
           isCurrent && [styles.queueItemActive, { borderColor: resolvedAccentColor, backgroundColor: `${resolvedAccentColor}18` }],
           drag.dragEnabled && [styles.queueItemEditing, { borderColor: resolvedAccentColor }],

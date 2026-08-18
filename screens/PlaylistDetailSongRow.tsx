@@ -95,9 +95,10 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
 
   return (
     <Animated.View style={[styles.animatedRow, { height: PLAYLIST_DETAIL_ROW_HEIGHT,
-      transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}>
+      transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
+      {...drag.panHandlers} testID={`playlist-detail-drag-surface-${song.id}`}>
       <Pressable testID={`playlist-detail-song-${song.id}`} onPress={cancelArmedDrag}
-        onLongPress={drag.enableDrag} delayLongPress={260} {...drag.panHandlers}
+        onLongPress={drag.enableDrag} delayLongPress={260}
         accessible accessibilityRole="adjustable"
         accessibilityLabel={`${title} von ${artist}. Position ${index + 1} von ${songCount}`}
         accessibilityHint={canDrag ? 'Gedrückt halten und nach oben oder unten ziehen.' : undefined}

@@ -16,25 +16,34 @@ interface QueueRowDragOptions {
 
 interface QueuePanResponderOptions {
   canDrag: boolean;
-  dragEnabled: boolean;
+  isDragEnabled: () => boolean;
   onGrant: () => void;
   onMove: (gesture: PanResponderGestureState) => void;
   onRelease: (gesture: PanResponderGestureState) => void;
   onCancel: () => void;
 }
 
-const useQueuePanResponder = ({ canDrag, dragEnabled, onGrant, onMove, onRelease, onCancel }: QueuePanResponderOptions) => React.useMemo(() => PanResponder.create({
-  onStartShouldSetPanResponder: () => false,
-  onMoveShouldSetPanResponder: (_event, gesture) => canDrag && dragEnabled && Math.abs(gesture.dy) > 4,
-  onMoveShouldSetPanResponderCapture: (_event, gesture) =>
-    canDrag && dragEnabled && Math.abs(gesture.dy) > 4,
-  onPanResponderGrant: onGrant,
-  onPanResponderMove: (_event, gesture) => onMove(gesture),
-  onPanResponderRelease: (_event, gesture) => onRelease(gesture),
-  onPanResponderTerminate: onCancel,
-  onPanResponderTerminationRequest: () => false,
-  onShouldBlockNativeResponder: () => true,
-}), [canDrag, dragEnabled, onCancel, onGrant, onMove, onRelease]);
+const useQueuePanResponder = (options: QueuePanResponderOptions) => {
+  const optionsRef = React.useRef(options);
+  optionsRef.current = options;
+  return React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, gesture) => {
+      const { canDrag, isDragEnabled } = optionsRef.current;
+      return canDrag && isDragEnabled() && Math.abs(gesture.dy) > 4;
+    },
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => {
+      const { canDrag, isDragEnabled } = optionsRef.current;
+      return canDrag && isDragEnabled() && Math.abs(gesture.dy) > 4;
+    },
+    onPanResponderGrant: () => optionsRef.current.onGrant(),
+    onPanResponderMove: (_event, gesture) => optionsRef.current.onMove(gesture),
+    onPanResponderRelease: (_event, gesture) => optionsRef.current.onRelease(gesture),
+    onPanResponderTerminate: () => optionsRef.current.onCancel(),
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
+  }), []);
+};
 
 export const useAnimatedQueuePreview = (previewOffsetY: number): Animated.Value => {
   const previewY = React.useRef(new Animated.Value(previewOffsetY)).current;
@@ -51,6 +60,7 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
   getScrollOffset, onDragPosition, onDragEnd, onShift }: QueueRowDragOptions) => {
   const [dragEnabled, setDragEnabled] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
+  const dragEnabledRef = React.useRef(false);
   const dragY = React.useRef(new Animated.Value(0)).current;
   const startScrollRef = React.useRef(0);
   const previousYRef = React.useRef(0);
@@ -61,6 +71,7 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     maxIndex: Math.max(minShiftIndex, queueLength - 1),
   }), [getScrollOffset, index, minShiftIndex, queueLength, rowHeight]);
   const reset = React.useCallback(() => {
+    dragEnabledRef.current = false;
     previousYRef.current = 0;
     previousTargetRef.current = index;
     onDragEnd?.();
@@ -98,9 +109,14 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     if (shouldShift) onShift?.(index, target);
     reset();
   }, [canDrag, index, onShift, reset, resolveTarget]);
-  const panResponder = useQueuePanResponder({ canDrag, dragEnabled, onGrant: grant, onMove: move, onRelease: release, onCancel: reset });
+  const isDragEnabled = React.useCallback(() => dragEnabledRef.current, []);
+  const panResponder = useQueuePanResponder({ canDrag, isDragEnabled, onGrant: grant, onMove: move, onRelease: release, onCancel: reset });
   const enableDrag = React.useCallback(() => {
     if (!canDrag) return;
+    // The long-press is fired in the middle of the native touch sequence. Keep
+    // the responder itself stable and arm it synchronously through a ref, so
+    // the very next move from that same touch can be captured on Android.
+    dragEnabledRef.current = true;
     Vibration.vibrate(10);
     setDragEnabled(true);
   }, [canDrag]);

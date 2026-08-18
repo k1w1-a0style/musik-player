@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import NowPlayingQueueCard, { resolveQueueAutoScrollDirection } from '../NowPlayingQueueCard';
 import { resolveQueueReorderTargetIndex } from '../NowPlayingQueuePreviewRow';
 import type { Song } from '../../types/Song';
@@ -30,6 +30,27 @@ const queue: Song[] = [
   { id: 's2', title: 'Two', artist: 'B', cover: 'file:///two.jpg' },
   { id: 's3', title: 'Three', artist: 'C' },
 ];
+
+const responderEvent = (currentY: number, previousY: number, timestamp: number) => ({
+  nativeEvent: { touches: [{}] },
+  touchHistory: {
+    numberActiveTouches: 1,
+    indexOfSingleActiveTouch: 0,
+    mostRecentTimeStamp: timestamp,
+    touchBank: [{
+      touchActive: true,
+      startPageX: 0,
+      startPageY: 0,
+      currentPageX: 0,
+      currentPageY: currentY,
+      previousPageX: 0,
+      previousPageY: previousY,
+      startTimeStamp: 1,
+      currentTimeStamp: timestamp,
+      previousTimeStamp: Math.max(1, timestamp - 1),
+    }],
+  },
+});
 
 test('queue reorder target includes auto-scroll distance and never crosses the current-song boundary', () => {
   expect(resolveQueueReorderTargetIndex({
@@ -112,6 +133,29 @@ test('renders drag handles for upcoming tracks only', () => {
 
   fireEvent.press(getByTestId('queue-row-s2'));
   expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
+});
+
+test('long-press drag is handled by the outer queue row and commits the move', () => {
+  const onQueueShift = jest.fn();
+  const { getByTestId, unmount } = render(
+    <NowPlayingQueueCard queue={queue} currentSongId="s1" maxHeight={240}
+      onPlayQueueItem={jest.fn()} onQueueShift={onQueueShift}
+      canShiftQueue accentColor="#3366FF" />,
+  );
+  const row = getByTestId('queue-row-s2');
+  const surface = getByTestId('queue-drag-surface-s2');
+  const capture = responderEvent(10, 0, 2);
+  const move = responderEvent(80, 10, 3);
+
+  fireEvent(row, 'longPress');
+  expect(typeof surface.props.onMoveShouldSetResponderCapture).toBe('function');
+  expect(surface.props.onMoveShouldSetResponderCapture(capture)).toBe(true);
+  act(() => surface.props.onResponderGrant(capture));
+  act(() => surface.props.onResponderMove(move));
+  act(() => surface.props.onResponderRelease(move));
+
+  expect(onQueueShift).toHaveBeenCalledWith(1, 2);
+  act(() => unmount());
 });
 
 test('uses row text contrast instead of foregroundOnAccent for active text while preserving accent affordances', () => {

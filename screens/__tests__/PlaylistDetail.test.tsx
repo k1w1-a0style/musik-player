@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import PlaylistDetail from '../PlaylistDetail';
 import type { Playlist, Song } from '../../types/Song';
 
@@ -91,6 +91,27 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
   updatedAt: patch.updatedAt ?? 1,
 });
 
+const responderEvent = (currentY: number, previousY: number, timestamp: number) => ({
+  nativeEvent: { touches: [{}] },
+  touchHistory: {
+    numberActiveTouches: 1,
+    indexOfSingleActiveTouch: 0,
+    mostRecentTimeStamp: timestamp,
+    touchBank: [{
+      touchActive: true,
+      startPageX: 0,
+      startPageY: 0,
+      currentPageX: 0,
+      currentPageY: currentY,
+      previousPageX: 0,
+      previousPageY: previousY,
+      startTimeStamp: 1,
+      currentTimeStamp: timestamp,
+      previousTimeStamp: Math.max(1, timestamp - 1),
+    }],
+  },
+});
+
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
   mockMoveSongInPlaylistEnabled = true;
@@ -158,6 +179,25 @@ test('moves songs atomically through the playlist reorder action', () => {
     { targetSongId: 'song-a' });
   expect(mockMoveSongInPlaylist).toHaveBeenNthCalledWith(2, 'playlist-1', 'song-a',
     { targetSongId: 'song-b' });
+});
+
+test('long-press drag is handled by the outer playlist row and commits the move', () => {
+  const { getByTestId, unmount } = render(<PlaylistDetail />);
+  const row = getByTestId('playlist-detail-song-song-b');
+  const surface = getByTestId('playlist-detail-drag-surface-song-b');
+  const capture = responderEvent(10, 0, 2);
+  const move = responderEvent(80, 10, 3);
+
+  fireEvent(row, 'longPress');
+  expect(typeof surface.props.onMoveShouldSetResponderCapture).toBe('function');
+  expect(surface.props.onMoveShouldSetResponderCapture(capture)).toBe(true);
+  act(() => surface.props.onResponderGrant(capture));
+  act(() => surface.props.onResponderMove(move));
+  act(() => surface.props.onResponderRelease(move));
+
+  expect(mockMoveSongInPlaylist).toHaveBeenCalledWith('playlist-1', 'song-b',
+    { targetSongId: 'song-a' });
+  act(() => unmount());
 });
 
 test('ignores accessibility reorder actions at playlist boundaries', () => {
