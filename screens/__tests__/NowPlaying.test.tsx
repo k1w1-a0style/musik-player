@@ -205,7 +205,7 @@ describe('NowPlaying cover fallback', () => {
     expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
   });
 
-  test('renders the edge-to-edge SoundCloud player without the classic backdrop and snap pager', () => {
+  test('renders the SoundCloud player with the smooth shared backdrop and without the snap pager', () => {
     jest.useFakeTimers();
     mockPlayerLayout = 'soundcloud';
 
@@ -213,7 +213,7 @@ describe('NowPlaying cover fallback', () => {
 
     expect(getByTestId('now-playing-soundcloud-view')).toBeTruthy();
     expect(getByTestId('soundcloud-action-bar')).toBeTruthy();
-    expect(queryByTestId('now-playing-cover-backdrop')).toBeNull();
+    expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
     expect(queryByTestId('now-playing-pager-slot')).toBeNull();
     act(() => {
       jest.runOnlyPendingTimers();

@@ -1,9 +1,13 @@
 import { act, renderHook } from '@testing-library/react-native';
-import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import { State, type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../useSoundCloudCarouselMotion';
 
 const gestureEvent = (nativeEvent: { translationX?: number; translationY?: number }) => (
   { nativeEvent } as unknown as PanGestureHandlerGestureEvent
+);
+const stateEvent = (nativeEvent: Record<string, number>) => (
+  { nativeEvent } as unknown as PanGestureHandlerStateChangeEvent
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
@@ -29,11 +33,35 @@ describe('SoundCloud carousel gesture listeners', () => {
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
       height: 800,
       onCollapse: jest.fn(),
+      onOpenQueue: jest.fn(),
       reduceMotion: false,
     }));
 
     expect(typeof result.current.onGestureEvent).toBe('function');
     expect(() => act(() => result.current.onGestureEvent(gestureEvent({ translationY: 64 })))).not.toThrow();
+    unmount();
+  });
+
+  test('opens the queue for an upward fling without collapsing the player', () => {
+    const onCollapse = jest.fn();
+    const onOpenQueue = jest.fn();
+    const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+      height: 800,
+      onCollapse,
+      onOpenQueue,
+      reduceMotion: true,
+    }));
+
+    act(() => result.current.onStateChange(stateEvent({
+      oldState: State.ACTIVE,
+      state: State.END,
+      translationX: 2,
+      translationY: -70,
+      velocityY: -1_000,
+    })));
+
+    expect(onOpenQueue).toHaveBeenCalledTimes(1);
+    expect(onCollapse).not.toHaveBeenCalled();
     unmount();
   });
 });

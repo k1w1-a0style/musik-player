@@ -25,6 +25,7 @@ export type NativeWaveformDecision =
   | 'no-uri'
   | 'no-native-extractor'
   | 'native-empty'
+  | 'native-unsupported-analysis'
   | 'native-unusable-shape'
   | 'native-source-key-changed'
   | 'native-timeout'
@@ -73,6 +74,7 @@ export const isNativeWaveformAccepted = (decision: NativeWaveformDecision): bool
  */
 export const isNativeWaveformRejectionNoteworthy = (decision: NativeWaveformDecision): boolean =>
   decision === 'native-empty'
+  || decision === 'native-unsupported-analysis'
   || decision === 'native-unusable-shape'
   || decision === 'native-source-key-changed'
   || decision === 'native-timeout'

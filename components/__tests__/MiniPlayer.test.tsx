@@ -29,6 +29,7 @@ type PaletteCtx = {
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
 const mockUseMusicContext = jest.fn<PaletteCtx, []>();
 const mockUseMiniPlayerProgress = jest.fn<number, []>();
+const mockUseSongWaveform = jest.fn();
 
 jest.mock('../../contexts/MusicContext', () => ({
   useMiniPlayerMusicContext: () => mockUseMiniPlayerMusicContext(),
@@ -42,6 +43,10 @@ jest.mock('../../hooks/useMiniPlayerProgress', () => {
     useMiniPlayerProgress: () => mockUseMiniPlayerProgress(),
   };
 });
+
+jest.mock('../../hooks/useSongWaveform', () => ({
+  useSongWaveform: (options: unknown) => mockUseSongWaveform(options),
+}));
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
@@ -98,6 +103,17 @@ describe('MiniPlayer', () => {
     mockUseMusicContext.mockReturnValue({ palette: null });
     mockUseMiniPlayerProgress.mockReset();
     mockUseMiniPlayerProgress.mockReturnValue(0.42);
+    mockUseSongWaveform.mockReset();
+    mockUseSongWaveform.mockReturnValue({ waveformReady: false, loadingNative: true });
+  });
+
+  test('starts waveform extraction before the full player is opened', () => {
+    render(<MiniPlayer onOpen={jest.fn()} />);
+
+    expect(mockUseSongWaveform).toHaveBeenCalledWith(expect.objectContaining({
+      song: expect.objectContaining({ id: 's1' }),
+      pointCount: 160,
+    }));
   });
 
   test('falls back when cover image errors', () => {

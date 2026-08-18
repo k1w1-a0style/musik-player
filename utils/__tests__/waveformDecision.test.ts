@@ -40,6 +40,7 @@ describe('waveformDecision', () => {
         'no-uri',
         'no-native-extractor',
         'native-empty',
+        'native-unsupported-analysis',
         'native-unusable-shape',
         'native-source-key-changed',
         'native-timeout',
@@ -53,6 +54,7 @@ describe('waveformDecision', () => {
   describe('isNativeWaveformRejectionNoteworthy', () => {
     test('only flags source-specific native rejections, not normal or capacity states', () => {
       expect(isNativeWaveformRejectionNoteworthy('native-empty')).toBe(true);
+      expect(isNativeWaveformRejectionNoteworthy('native-unsupported-analysis')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-unusable-shape')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-source-key-changed')).toBe(true);
       expect(isNativeWaveformRejectionNoteworthy('native-timeout')).toBe(true);

@@ -11,6 +11,20 @@ import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
+import { useSongWaveform } from '../hooks/useSongWaveform';
+import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
+import type { Song } from '../types/Song';
+
+const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
+  useSongWaveform({
+    song,
+    durationMs: song.duration ?? song.audioInfo?.durationMs ?? 0,
+    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
+  });
+  return null;
+});
+
+CurrentWaveformPreloader.displayName = 'MiniPlayerCurrentWaveformPreloader';
 
 export const shouldShowMiniPlayerSecondaryControls = (width: number): boolean => width >= 390;
 
@@ -106,6 +120,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
+      <CurrentWaveformPreloader song={currentSong} />
       <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: coverAccentMuted }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
         <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated, borderColor: coverAccentMuted }]}>
           {showCover ? (

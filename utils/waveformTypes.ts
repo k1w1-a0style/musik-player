@@ -1,4 +1,4 @@
-export const WAVEFORM_VERSION = 3;
+export const WAVEFORM_VERSION = 4;
 export const DEFAULT_WAVEFORM_POINT_COUNT = 72;
 export const WAVEFORM_FINGERPRINT_PREFIX = `wf${WAVEFORM_VERSION}:`;
 
@@ -20,6 +20,7 @@ export interface SongWaveform extends WaveformSourceIdentity {
 export interface NativeWaveformResult {
   points: number[];
   durationMs?: number;
+  analysis?: 'decoded-pcm-v1';
 }
 
 export const isWaveformSourceIdentity = (value: unknown): value is WaveformSourceIdentity => {

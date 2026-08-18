@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
-import { shouldCollapseSoundCloudPlayer, shouldCommitSoundCloudSwipe } from '../utils/soundCloudPlayer';
+import { shouldCollapseSoundCloudPlayer, shouldCommitSoundCloudSwipe,
+  shouldOpenSoundCloudQueue } from '../utils/soundCloudPlayer';
 
 interface TrackSwitchOptions {
   drag: Animated.Value;
@@ -167,9 +168,10 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   return { drag, constrainedDrag, onGestureEvent, onStateChange };
 };
 
-export const useVerticalPlayerMotion = ({ height, onCollapse, reduceMotion }: {
+export const useVerticalPlayerMotion = ({ height, onCollapse, onOpenQueue, reduceMotion }: {
   height: number;
   onCollapse: () => void;
+  onOpenQueue: () => void;
   reduceMotion: boolean;
 }) => {
   const drag = useRef(new Animated.Value(0)).current;
@@ -186,7 +188,7 @@ export const useVerticalPlayerMotion = ({ height, onCollapse, reduceMotion }: {
     drag.setValue(event.nativeEvent.translationY ?? 0);
   }, [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
-    const { oldState, state, translationY = 0, velocityY = 0 } = event.nativeEvent;
+    const { oldState, state, translationX = 0, translationY = 0, velocityY = 0 } = event.nativeEvent;
     if (oldState === State.ACTIVE && shouldCollapseSoundCloudPlayer({ translationY, velocityY, height })) {
       if (reduceMotion) {
         drag.setValue(0);
@@ -196,8 +198,14 @@ export const useVerticalPlayerMotion = ({ height, onCollapse, reduceMotion }: {
       Animated.timing(drag, { toValue: height, duration: 220,
         easing: Easing.out(Easing.cubic), useNativeDriver: true })
         .start(({ finished }) => { if (finished) onCollapse(); });
+    } else if (oldState === State.ACTIVE && shouldOpenSoundCloudQueue({
+      translationX, translationY, velocityY, height,
+    })) {
+      drag.stopAnimation();
+      drag.setValue(0);
+      onOpenQueue();
     } else if (oldState === State.ACTIVE || state === State.CANCELLED || state === State.FAILED) animateBack();
-  }, [animateBack, drag, height, onCollapse, reduceMotion]);
+  }, [animateBack, drag, height, onCollapse, onOpenQueue, reduceMotion]);
   const translateY = useMemo(() => drag.interpolate({ inputRange: [-1, 0, height],
     outputRange: [0, 0, height], extrapolate: 'clamp' }), [drag, height]);
   const scale = useMemo(() => drag.interpolate({ inputRange: [0, height],

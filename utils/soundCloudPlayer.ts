@@ -53,6 +53,24 @@ export const shouldCollapseSoundCloudPlayer = ({
   return translationY >= height * 0.18 || velocityY >= 900;
 };
 
+export const shouldOpenSoundCloudQueue = ({
+  translationX,
+  translationY,
+  velocityY,
+  height,
+}: {
+  translationX: number;
+  translationY: number;
+  velocityY: number;
+  height: number;
+}): boolean => {
+  if (![translationX, translationY, velocityY, height].every(Number.isFinite)
+    || height <= 0 || translationY >= 0) return false;
+  const verticalDistance = Math.abs(translationY);
+  const hasVerticalIntent = verticalDistance > Math.abs(translationX) * 1.2;
+  return hasVerticalIntent && (verticalDistance >= height * 0.12 || velocityY <= -850);
+};
+
 export const getQueuePreviewOffset = ({
   index,
   dragIndex,

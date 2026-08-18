@@ -40,6 +40,9 @@ const SoundCloudNowPlayingContent = ({ state }: { state: NowPlayingState }) => (
       artworkUri={state.artworkUri}
       previousArtworkUri={state.previousArtworkUri}
       nextArtworkUri={state.nextArtworkUri}
+      gradientColors={state.gradientColors}
+      accent={state.accent}
+      paletteLoading={state.paletteLoading}
       isPlaying={state.isPlaying}
       onSeek={state.seekTo}
       onTogglePlayback={state.togglePlayPause}

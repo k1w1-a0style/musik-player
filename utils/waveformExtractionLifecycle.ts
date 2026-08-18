@@ -5,7 +5,11 @@ export const WAVEFORM_FAILURE_BACKOFF_MS = 30_000;
 export const MAX_WAVEFORM_FAILURE_BACKOFF_ENTRIES = 80;
 export const MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS = 2;
 
-type NativeResult = { points: number[]; durationMs?: number } | null;
+type NativeResult = {
+  points: number[];
+  durationMs?: number;
+  analysis?: 'decoded-pcm-v1';
+} | null;
 type NativeOperation = (signal: AbortSignal) => Promise<NativeResult>;
 
 export class WaveformSchedulerUnavailableError extends Error {
@@ -39,7 +43,8 @@ interface Flight {
 
 interface FailureBackoff {
   expiresAt: number;
-  reason: 'native-empty' | 'native-unusable-shape' | 'native-error' | 'native-timeout';
+  reason: 'native-empty' | 'native-unsupported-analysis' | 'native-unusable-shape'
+    | 'native-error' | 'native-timeout';
 }
 
 let lifecycleGeneration = 0;

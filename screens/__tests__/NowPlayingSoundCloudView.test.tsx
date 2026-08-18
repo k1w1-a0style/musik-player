@@ -30,10 +30,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 jest.mock('../../hooks/useSongWaveform', () => ({
   useSongWaveform: () => ({
     waveform: {
-      version: 3,
+      version: 4,
       source: 'fallback',
       sourceKey: 'test-waveform',
-      sourceFingerprint: 'wf3:00000000000000000000000000000001',
+      sourceFingerprint: 'wf4:00000000000000000000000000000001',
       generatedAt: 1,
       durationMs: 120_000,
       points: [0.2, 0.8, 0.5],
@@ -94,6 +94,8 @@ const renderSoundCloudView = (props: Partial<React.ComponentProps<typeof NowPlay
     artworkUri: songs[1].cover,
     previousArtworkUri: songs[0].cover,
     nextArtworkUri: songs[2].cover,
+    gradientColors: ['#111111', '#050505', '#000000'],
+    accent: '#ff5500',
     isPlaying: false,
     onSeek: jest.fn(async () => undefined),
     onTogglePlayback: jest.fn(async () => undefined),
@@ -201,12 +203,31 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
       .toBe('no-hide-descendants');
+    expect(getByTestId('soundcloud-carousel-current-artwork-frame').props.style)
+      .toMatchObject({ width: '82%', aspectRatio: 1 });
   });
 
   test('forces readable status-bar icons over the dark player', () => {
     const view = renderSoundCloudView();
 
     expect(view.UNSAFE_getByType(StatusBar).props.barStyle).toBe('light-content');
+    expect(view.UNSAFE_getByType(StatusBar).props.translucent).toBe(true);
+  });
+
+  test('opens the same queue sheet by swiping upward on the player', () => {
+    const { getByTestId } = renderSoundCloudView();
+
+    fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
+      nativeEvent: {
+        oldState: 4,
+        state: 5,
+        translationX: 2,
+        translationY: -80,
+        velocityY: -1_000,
+      },
+    });
+
+    expect(getByTestId('soundcloud-queue-sheet')).toBeTruthy();
   });
 
   test('closes the queue before Android back can close the player', () => {
@@ -248,6 +269,7 @@ describe('NowPlayingSoundCloudView', () => {
     expect(Share.share).toHaveBeenCalledWith({ title: 'Track title', message: 'Track title — Artist' });
     expect(onOpenMenu).toHaveBeenCalledTimes(1);
     expect(getByTestId('soundcloud-queue-sheet')).toBeTruthy();
+    expect(getByTestId('soundcloud-collapse-gesture').props.enabled).toBe(false);
     expect(getByText('Als Nächstes')).toBeTruthy();
     expect(JSON.stringify(getByText('Läuft gerade').props.style)).toContain('#ffffff');
     expect(JSON.stringify(getByText('Läuft gerade').props.style)).not.toContain('#101319');

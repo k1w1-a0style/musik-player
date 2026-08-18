@@ -1,10 +1,13 @@
-import React, { useCallback, useRef } from 'react';
-import { Alert, Share, StatusBar, StyleSheet, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { Alert, Share, StatusBar, StyleSheet, View, useWindowDimensions, type ColorValue } from 'react-native';
 import type { RepeatMode, Song } from '../types/Song';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useSongWaveform } from '../hooks/useSongWaveform';
+import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
+import NowPlayingBackdrop from './NowPlayingBackdrop';
 import SoundCloudPlayerChrome from './SoundCloudPlayerChrome';
 import SoundCloudTrackCarousel from './SoundCloudTrackCarousel';
 import SoundCloudTrackPage from './SoundCloudTrackPage';
@@ -17,6 +20,9 @@ interface NowPlayingSoundCloudViewProps {
   artworkUri?: string;
   previousArtworkUri?: string;
   nextArtworkUri?: string;
+  gradientColors: readonly [ColorValue, ColorValue, ...ColorValue[]];
+  accent: string;
+  paletteLoading?: boolean;
   isPlaying: boolean;
   onSeek: (position: number) => Promise<void>;
   onTogglePlayback: () => Promise<void>;
@@ -41,8 +47,23 @@ interface NowPlayingSoundCloudViewProps {
   bottomInset: number;
 }
 
+const WaveformPreloader = React.memo(({ song }: { song: Song | null | undefined }) => {
+  useSongWaveform({
+    song: song ?? null,
+    durationMs: song?.duration ?? song?.audioInfo?.durationMs ?? 0,
+    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
+  });
+  return null;
+});
+
+WaveformPreloader.displayName = 'SoundCloudNextWaveformPreloader';
+
 const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props => {
   const waveformGestureRef = useRef<unknown>(null);
+  const { width } = useWindowDimensions();
+  const [queueOpen, setQueueOpen] = useState(false);
+  const openQueue = useCallback(() => setQueueOpen(true), []);
+  const closeQueue = useCallback(() => setQueueOpen(false), []);
   const reduceMotion = useReducedMotion();
   const { onSwipeToNext } = props;
   const canGoNext = props.canSwipeToNext ?? true;
@@ -75,15 +96,22 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
     queue={props.queue} onPlayQueueItem={props.onPlayQueueItem} onQueueShift={props.onQueueShift}
     canShiftQueue={props.canShiftQueue} shuffle={props.shuffle} repeatMode={props.repeatMode}
     onToggleShuffle={props.onToggleShuffle} onCycleRepeatMode={props.onCycleRepeatMode}
-    topInset={props.topInset} bottomInset={props.bottomInset} reduceMotion={reduceMotion} />;
+    topInset={props.topInset} bottomInset={props.bottomInset} reduceMotion={reduceMotion}
+    queueOpen={queueOpen} onOpenQueue={openQueue} onCloseQueue={closeQueue} />;
   return (
     <View style={styles.root} testID="now-playing-soundcloud-view">
-      <StatusBar barStyle="light-content" backgroundColor={SOUNDCLOUD_PLAYER_COLORS.playerBackground} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <NowPlayingBackdrop gradientColors={props.gradientColors} accent={props.accent}
+        glowLeft={width / 2 - 130} artworkUri={props.artworkUri}
+        paletteLoading={props.paletteLoading} />
+      <WaveformPreloader song={props.nextSong} />
       <SoundCloudTrackCarousel currentSong={props.currentSong} previousSong={props.previousSong}
         nextSong={props.nextSong} currentArtworkUri={props.artworkUri}
         previousArtworkUri={props.previousArtworkUri} nextArtworkUri={props.nextArtworkUri}
         canSwipeToNext={canGoNext} onSwipeToNext={props.onSwipeToNext}
         onSwipeToPrevious={props.onSwipeToPrevious} onCollapse={props.onCollapse}
+        onOpenQueue={openQueue}
+        verticalGestureEnabled={!queueOpen}
         waveformGestureRef={waveformGestureRef} reduceMotion={reduceMotion} renderPage={renderPage} chrome={chrome} />
     </View>
   );

@@ -24,7 +24,7 @@ test('builds deterministic fallback waveform points and full source identity', (
   expect(first.source).toBe('fallback');
   expect(first.sourceKey).toBe(getWaveformSourceKey(song));
   expect(first).toMatchObject(identity);
-  expect(first.sourceFingerprint).toMatch(/^wf3:[0-9a-f]{32}$/);
+  expect(first.sourceFingerprint).toMatch(/^wf4:[0-9a-f]{32}$/);
   expect(first.points).toHaveLength(16);
   expect(first.points).toEqual(second.points);
   expect(first.points.every(point => point >= 0 && point <= 1)).toBe(true);

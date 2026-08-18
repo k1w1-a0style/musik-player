@@ -2,12 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isSongWaveform,
   isWaveformSourceIdentity,
+  WAVEFORM_VERSION,
   type SongWaveform,
   type WaveformSourceIdentity,
 } from './waveformTypes';
 
 const LEGACY_PREFIX = '@musikplayer:waveform:';
-const PREFIX = `${LEGACY_PREFIX}v3:`;
+const PREFIX = `${LEGACY_PREFIX}v${WAVEFORM_VERSION}:`;
 const INDEX_KEY = `${PREFIX}index`;
 const MAX_CACHED_WAVEFORMS = 80;
 let cacheMutationQueue = Promise.resolve();

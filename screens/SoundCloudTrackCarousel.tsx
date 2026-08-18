@@ -3,7 +3,6 @@ import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
-import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import SoundCloudCarouselPanel from './SoundCloudCarouselPanel';
 import type { SoundCloudCarouselRenderPage } from './soundCloudCarouselTypes';
 
@@ -20,6 +19,8 @@ export interface SoundCloudTrackCarouselProps {
   onSwipeToNext: () => void;
   onSwipeToPrevious: () => void;
   onCollapse: () => void;
+  onOpenQueue: () => void;
+  verticalGestureEnabled?: boolean;
   renderPage: SoundCloudCarouselRenderPage;
   chrome?: React.ReactNode;
   waveformGestureRef?: React.RefObject<unknown | null>;
@@ -45,7 +46,8 @@ const CarouselChrome = ({ children }: { children?: React.ReactNode }) => {
 
 const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ currentSong, previousSong,
   nextSong, currentArtworkUri, previousArtworkUri, nextArtworkUri, canSwipeToNext = true,
-  onSwipeToNext, onSwipeToPrevious, onCollapse, renderPage, chrome, waveformGestureRef,
+  onSwipeToNext, onSwipeToPrevious, onCollapse, onOpenQueue, verticalGestureEnabled = true,
+  renderPage, chrome, waveformGestureRef,
   reduceMotion = false,
 }) => {
   const { width, height } = useWindowDimensions();
@@ -65,7 +67,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     onNext: onSwipeToNext, onPrevious: onSwipeToPrevious, hasPrevious: Boolean(previousSong),
     hasNext: hasNextTrack(nextSong, canSwipeToNext), reduceMotion, dispatchBeforeAnimation: true,
     onTransitionStart: holdTransitionPages, onTransitionEnd: releaseTransitionPages });
-  const vertical = useVerticalPlayerMotion({ height: Math.max(1, height), onCollapse, reduceMotion });
+  const vertical = useVerticalPlayerMotion({ height: Math.max(1, height), onCollapse, onOpenQueue, reduceMotion });
   const displayed = transitionSnapshot ?? { currentSong, previousSong: nullableSong(previousSong),
     nextSong: nullableSong(nextSong), currentArtworkUri, previousArtworkUri, nextArtworkUri };
   const trackTranslateX = useMemo(
@@ -74,7 +76,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
   );
   return (
     <View testID="soundcloud-track-carousel-root" style={styles.root}>
-      <PanGestureHandler testID="soundcloud-collapse-gesture" activeOffsetY={[-100000, 24]}
+      <PanGestureHandler testID="soundcloud-collapse-gesture" enabled={verticalGestureEnabled}
+        activeOffsetY={[-24, 24]}
         failOffsetX={[-18, 18]} onGestureEvent={vertical.onGestureEvent}
         onHandlerStateChange={vertical.onStateChange}>
         <Animated.View style={[styles.player, { opacity: vertical.opacity,
@@ -101,7 +104,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
                 </View>
               </Animated.View>
               <View style={styles.currentPage} testID="soundcloud-current-page-layer">
-                {renderPage({ song: currentSong, role: 'current' })}
+                {renderPage({ song: displayed.currentSong, role: 'current' })}
               </View>
             </View>
           </PanGestureHandler>
@@ -114,7 +117,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden', backgroundColor: 'transparent' },
-  player: { flex: 1, overflow: 'hidden', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.playerBackground },
+  player: { flex: 1, overflow: 'hidden', backgroundColor: 'transparent' },
   carouselViewport: { flex: 1, overflow: 'hidden' },
   track: { flex: 1, flexDirection: 'row' },
   currentPage: { ...StyleSheet.absoluteFillObject },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronDown, Heart, Info, ListMusic, MoreHorizontal, Share2 } from 'lucide-react-native';
 import type { RepeatMode, Song } from '../types/Song';
@@ -43,6 +43,9 @@ export interface SoundCloudPlayerChromeProps {
   topInset: number;
   bottomInset: number;
   reduceMotion?: boolean;
+  queueOpen: boolean;
+  onOpenQueue: () => void;
+  onCloseQueue: () => void;
 }
 
 const QueueOverlay = ({ visible, onClose, ...props }: Omit<SoundCloudPlayerChromeProps,
@@ -57,7 +60,6 @@ const QueueOverlay = ({ visible, onClose, ...props }: Omit<SoundCloudPlayerChrom
 };
 
 const SoundCloudPlayerChrome = (props: SoundCloudPlayerChromeProps) => {
-  const [queueOpen, setQueueOpen] = useState(false);
   const hasSong = Boolean(props.currentSong);
   return (
     <>
@@ -80,14 +82,14 @@ const SoundCloudPlayerChrome = (props: SoundCloudPlayerChromeProps) => {
         <PlayerAction label="Teilen" testID="soundcloud-share" onPress={props.onShare} disabled={!hasSong}>
           <Share2 color={SOUNDCLOUD_PLAYER_COLORS.foreground} size={23} />
         </PlayerAction>
-        <PlayerAction label="Liste" testID="soundcloud-open-queue" onPress={() => setQueueOpen(true)}>
+        <PlayerAction label="Liste" testID="soundcloud-open-queue" onPress={props.onOpenQueue}>
           <ListMusic color={SOUNDCLOUD_PLAYER_COLORS.foreground} size={23} />
         </PlayerAction>
         <PlayerAction label="Mehr" testID="soundcloud-more" onPress={props.onOpenMenu}>
           <MoreHorizontal color={SOUNDCLOUD_PLAYER_COLORS.foreground} size={24} />
         </PlayerAction>
       </View>
-      <QueueOverlay {...props} visible={queueOpen} onClose={() => setQueueOpen(false)} />
+      <QueueOverlay {...props} visible={props.queueOpen} onClose={props.onCloseQueue} />
     </>
   );
 };
@@ -106,4 +108,4 @@ const styles = StyleSheet.create({
   activeLabel: { color: SOUNDCLOUD_PLAYER_COLORS.accent },
 });
 
-export default SoundCloudPlayerChrome;
+export default React.memo(SoundCloudPlayerChrome);

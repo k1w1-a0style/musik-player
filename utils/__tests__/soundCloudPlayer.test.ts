@@ -3,6 +3,7 @@ import {
   resolveSoundCloudSeekRatio,
   shouldCommitSoundCloudSwipe,
   shouldCollapseSoundCloudPlayer,
+  shouldOpenSoundCloudQueue,
 } from '../soundCloudPlayer';
 
 describe('SoundCloud player gesture math', () => {
@@ -28,6 +29,17 @@ describe('SoundCloud player gesture math', () => {
     expect(shouldCollapseSoundCloudPlayer({ translationY: 160, velocityY: 100, height: 700 })).toBe(true);
     expect(shouldCollapseSoundCloudPlayer({ translationY: 40, velocityY: 1100, height: 700 })).toBe(true);
     expect(shouldCollapseSoundCloudPlayer({ translationY: -200, velocityY: -1200, height: 700 })).toBe(false);
+  });
+
+  test('queue opens only for a deliberate upward drag or fling', () => {
+    expect(shouldOpenSoundCloudQueue({ translationX: 4, translationY: -100,
+      velocityY: -100, height: 700 })).toBe(true);
+    expect(shouldOpenSoundCloudQueue({ translationX: 4, translationY: -30,
+      velocityY: -950, height: 700 })).toBe(true);
+    expect(shouldOpenSoundCloudQueue({ translationX: 120, translationY: -60,
+      velocityY: -1000, height: 700 })).toBe(false);
+    expect(shouldOpenSoundCloudQueue({ translationX: 0, translationY: 100,
+      velocityY: 1000, height: 700 })).toBe(false);
   });
 });
 

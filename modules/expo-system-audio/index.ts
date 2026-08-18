@@ -89,6 +89,8 @@ export interface AudioInfoResult {
 export interface WaveformPeaksResult {
   points: number[];
   durationMs?: number;
+  /** Identifies results derived from decoded audio samples, not container packet sizes. */
+  analysis?: 'decoded-pcm-v1';
 }
 
 /**

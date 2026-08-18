@@ -22,6 +22,7 @@ const renderCarousel = (props: Partial<React.ComponentProps<typeof SoundCloudTra
     onSwipeToNext: jest.fn(),
     onSwipeToPrevious: jest.fn(),
     onCollapse: jest.fn(),
+    onOpenQueue: jest.fn(),
     renderPage: ({ role }) => <View testID={`page-content-${role}`} />,
   };
   return render(<SoundCloudTrackCarousel {...defaults} {...props} />);
@@ -73,7 +74,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
-  test('slides frozen artwork while the one stationary page follows the current song', () => {
+  test('freezes artwork, title and waveform source until the page transition finishes', () => {
     let finishTrackAnimation: ((result: { finished: boolean }) => void) | undefined;
     (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mockImplementation((_value, config) => ({
       start: callback => {
@@ -95,7 +96,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
       currentSong: songs[1], previousSong: songs[0], nextSong: songs[2],
       currentArtworkUri: songs[1].cover, previousArtworkUri: songs[0].cover,
       nextArtworkUri: songs[2].cover,
-      onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), renderPage,
+      onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), onOpenQueue: jest.fn(), renderPage,
     };
     const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);
 
@@ -117,7 +118,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
     rerender(<SoundCloudTrackCarousel {...initialProps} currentSong={songs[2]}
       previousSong={songs[1]} nextSong={afterNext} currentArtworkUri={songs[2].cover}
       previousArtworkUri={songs[1].cover} nextArtworkUri={undefined} />);
-    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
+    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('current');
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
 
     act(() => finishTrackAnimation?.({ finished: true }));
@@ -172,6 +173,26 @@ describe('SoundCloudTrackCarousel gestures', () => {
     });
 
     expect(onCollapse).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  test('opens the queue after an upward fling', () => {
+    const onOpenQueue = jest.fn();
+    const { getByTestId, unmount } = renderCarousel({ onOpenQueue });
+
+    act(() => {
+      fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
+        nativeEvent: {
+          oldState: State.ACTIVE,
+          state: State.END,
+          translationX: 2,
+          translationY: -70,
+          velocityY: -1_000,
+        },
+      });
+    });
+
+    expect(onOpenQueue).toHaveBeenCalledTimes(1);
     unmount();
   });
 

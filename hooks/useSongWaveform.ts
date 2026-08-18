@@ -60,7 +60,8 @@ interface UseSongWaveformResult {
 
 interface ResolvedWaveform {
   identity: WaveformSourceIdentity;
-  waveform: SongWaveform;
+  waveform: SongWaveform | null;
+  settled: boolean;
 }
 
 interface WaveformResolutionOptions {
@@ -68,7 +69,6 @@ interface WaveformResolutionOptions {
   durationMs: number;
   pointCount: number;
   canExtractNative: boolean;
-  immediate: SongWaveform;
   sourceIdentity: WaveformSourceIdentity;
   onWaveformDecision: (diagnostics: WaveformSourceDiagnostics) => void;
 }
@@ -97,16 +97,18 @@ const getCachedWaveformUntilAbort = (
 const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
   left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
 
-const useResolvedWaveform = ({ song, durationMs, pointCount, canExtractNative, immediate,
-  sourceIdentity, onWaveformDecision }: WaveformResolutionOptions): SongWaveform | null => {
+const useResolvedWaveform = ({ song, durationMs, pointCount, canExtractNative,
+  sourceIdentity, onWaveformDecision }: WaveformResolutionOptions): ResolvedWaveform | null => {
   const songRef = useRef(song);
   const durationRef = useRef(durationMs);
   songRef.current = song;
   durationRef.current = durationMs;
   const synchronousCached = peekCachedWaveform(sourceIdentity);
   const [resolved, setResolved] = useState<ResolvedWaveform | null>(() => {
-    const waveform = synchronousCached ?? (!canExtractNative ? immediate : null);
-    return waveform ? { identity: sourceIdentity, waveform } : null;
+    const waveform = synchronousCached?.source === 'native' ? synchronousCached : null;
+    return waveform || !canExtractNative
+      ? { identity: sourceIdentity, waveform, settled: true }
+      : null;
   });
   const { sourceKey, sourceFingerprint } = sourceIdentity;
 
@@ -119,44 +121,37 @@ const useResolvedWaveform = ({ song, durationMs, pointCount, canExtractNative, i
       active = false;
       controller.abort();
     };
-    const finalFallback = (): SongWaveform => buildImmediateWaveform(
-      requestedSong, durationRef.current, pointCount,
-    );
-    const commit = (waveform: SongWaveform): void => {
-      if (active) setResolved({ identity: requestedIdentity, waveform });
+    const commit = (waveform: SongWaveform | null): void => {
+      if (active) setResolved({ identity: requestedIdentity, waveform, settled: true });
     };
     const cachedInMemory = peekCachedWaveform(requestedIdentity);
-    if (cachedInMemory) {
+    if (cachedInMemory?.source === 'native') {
       commit(cachedInMemory);
       return stop;
     }
     if (!canExtractNative) {
-      const fallback = finalFallback();
-      commit(fallback);
-      cacheWaveformObserved(fallback);
+      commit(null);
       return stop;
     }
 
     void (async () => {
       const cached = await getCachedWaveformUntilAbort(requestedIdentity, controller.signal);
       if (!active) return;
-      // A finalized cached fallback is intentionally just as stable as native
-      // data: once visible, this source never morphs into another shape.
-      if (cached) return commit(cached);
+      if (cached?.source === 'native') return commit(cached);
       const native = await extractNativeWaveform(requestedSong, durationRef.current, {
         pointCount, signal: controller.signal, onDecision: onWaveformDecision,
       });
       if (!active) return;
-      const finalized = native ?? finalFallback();
-      commit(finalized);
-      cacheWaveformObserved(finalized);
+      commit(native);
+      if (native) cacheWaveformObserved(native);
     })();
     return stop;
   }, [canExtractNative, onWaveformDecision, pointCount, sourceFingerprint, sourceKey]);
 
-  return resolved && sameIdentity(resolved.identity, sourceIdentity)
-    ? resolved.waveform
-    : synchronousCached;
+  if (resolved && sameIdentity(resolved.identity, sourceIdentity)) return resolved;
+  return synchronousCached?.source === 'native'
+    ? { identity: sourceIdentity, waveform: synchronousCached, settled: true }
+    : null;
 };
 
 export const useSongWaveform = ({
@@ -173,10 +168,10 @@ export const useSongWaveform = ({
   );
   const canExtractNative = useMemo(() => Boolean(resolveWaveformUri(song)), [song]);
   const resolvedForSource = useResolvedWaveform({ song, durationMs, pointCount,
-    canExtractNative, immediate, sourceIdentity, onWaveformDecision });
-  const waveformReady = Boolean(resolvedForSource) || !canExtractNative;
-  const waveform = resolvedForSource ?? immediate;
-  const loadingNative = canExtractNative && !waveformReady;
+    canExtractNative, sourceIdentity, onWaveformDecision });
+  const waveformReady = resolvedForSource?.waveform?.source === 'native';
+  const waveform = resolvedForSource?.waveform ?? immediate;
+  const loadingNative = canExtractNative && !resolvedForSource?.settled;
 
   return { waveform, sourceKey, waveformReady, loadingNative };
 };

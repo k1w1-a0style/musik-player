@@ -82,10 +82,9 @@ describe('waveformExtraction', () => {
     test.each([
       ['empty array', [], false],
       ['fewer than 8 finite values', [0.1, 0.4, 0.6, Number.NaN, Number.POSITIVE_INFINITY, 0.8, 0.9], false],
-      ['flat values', Array(10).fill(0.5), false],
-      ['ignores NaN and Infinity but accepts useful finite shape', [Number.NaN, 0.04, 0.88, Number.POSITIVE_INFINITY, 0.12, 0.76, 0.2, 0.92, Number.NEGATIVE_INFINITY, 0.34, 0.68, 0.16, 0.84], true],
-      ['range just below threshold', [0.4, 0.57, 0.4, 0.57, 0.4, 0.57, 0.4, 0.57], false],
-      ['variance just below threshold', [0.4, 0.58, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49], false],
+      ['flat decoded silence/master', Array(10).fill(0.04), true],
+      ['rejects NaN and Infinity', [Number.NaN, 0.04, 0.88, Number.POSITIVE_INFINITY, 0.12, 0.76, 0.2, 0.92], false],
+      ['rejects out-of-range values', [0.4, 0.57, 0.4, 1.2, 0.4, 0.57, 0.4, 0.57], false],
       ['clearly dynamic peaks', dynamicPeaks, true],
     ])('%s -> %s', (_name, points, expected) => {
       expect(hasUsefulNativeShape(points as number[])).toBe(expected);
@@ -113,10 +112,18 @@ describe('waveformExtraction', () => {
       await expect(extractNativeWaveform(baseSong, 1000)).resolves.toBeNull();
     });
 
-    test('returns null for flat unusable native peaks', async () => {
-      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: Array(12).fill(0.5) });
+    test('rejects packet-size results from an older Development APK', async () => {
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: dynamicPeaks });
 
       await expect(extractNativeWaveform(baseSong, 1000)).resolves.toBeNull();
+    });
+
+    test('accepts a flat waveform when it is backed by decoded PCM', async () => {
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: Array(12).fill(0.04), analysis: 'decoded-pcm-v1',
+      });
+
+      await expect(extractNativeWaveform(baseSong, 1000)).resolves.toMatchObject({ source: 'native' });
     });
 
     test('returns null when native extractor rejects', async () => {
@@ -160,7 +167,9 @@ describe('waveformExtraction', () => {
     });
 
     test('returns native waveform for useful native peaks', async () => {
-      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: dynamicPeaks, durationMs: 2000 });
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: dynamicPeaks, durationMs: 2000, analysis: 'decoded-pcm-v1',
+      });
 
       const waveform = await extractNativeWaveform(baseSong, 1000, { pointCount: 8 });
 
@@ -177,7 +186,7 @@ describe('waveformExtraction', () => {
       const mutableSong: Song = { ...baseSong, fileInfo: { ...baseSong.fileInfo } };
       mockedSystemAudio.extractWaveformPeaks = jest.fn().mockImplementation(async () => {
         mutableSong.fileInfo = { ...mutableSong.fileInfo, importedAt: 9999 };
-        return { points: dynamicPeaks };
+        return { points: dynamicPeaks, analysis: 'decoded-pcm-v1' };
       });
 
       await expect(extractNativeWaveform(mutableSong, 1000)).resolves.toBeNull();
@@ -218,8 +227,21 @@ describe('waveformExtraction', () => {
       );
     });
 
-    test('reports native-unusable-shape for flat native peaks (same gate for mp3 and m4a)', async () => {
-      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: Array(12).fill(0.5) });
+    test('reports unsupported analysis for legacy packet-size results', async () => {
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: dynamicPeaks });
+      const onDecision = jest.fn();
+
+      await extractNativeWaveform(baseSong, 1000, { onDecision });
+
+      expect(onDecision).toHaveBeenCalledWith(
+        expect.objectContaining({ decision: 'native-unsupported-analysis', source: 'fallback' }),
+      );
+    });
+
+    test('reports native-unusable-shape for invalid decoded peaks (same gate for mp3 and m4a)', async () => {
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: [0.04, 0.2, 0.4, 0.6, 0.8, 1.2, 0.3, 0.5], analysis: 'decoded-pcm-v1',
+      });
       const mp3Decision = jest.fn();
       const m4aDecision = jest.fn();
 
@@ -235,7 +257,9 @@ describe('waveformExtraction', () => {
     });
 
     test('reports native-accepted with matching container for useful peaks', async () => {
-      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({ points: dynamicPeaks, durationMs: 2000 });
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: dynamicPeaks, durationMs: 2000, analysis: 'decoded-pcm-v1',
+      });
       const onDecision = jest.fn();
       const waveform = await extractNativeWaveform(m4aSong, 1000, { pointCount: 8, onDecision });
       expect(waveform?.source).toBe('native');
