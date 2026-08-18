@@ -9,7 +9,7 @@
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
       "reason": "Build-tool-only Expo/Metro image parsing DoS advisories; no compatible patched image-size release is published yet, and the suggested React Native downgrade is incompatible with this SDK line.",
-      "expiresOn": "2026-08-15",
+      "expiresOn": "2026-08-25",
       "advisories": [
         {
           "source": 1138808,
