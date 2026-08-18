@@ -15,7 +15,7 @@ const waveform: SongWaveform = {
 };
 
 describe('SoundCloudWaveformViewport', () => {
-  test('binds the native gesture event to an animated surface', () => {
+  test('binds the gesture event to an animated surface', () => {
     const { getByTestId } = render(
       <SoundCloudWaveformViewport
         waveform={waveform}

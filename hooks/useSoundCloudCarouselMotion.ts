@@ -146,8 +146,9 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   const drag = useRef(new Animated.Value(0)).current;
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
     reduceMotion, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
-  const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent>(
-    [{ nativeEvent: { translationX: drag } }], { useNativeDriver: true }), [drag]);
+  const onGestureEvent = useCallback((event: PanGestureHandlerGestureEvent) => {
+    drag.setValue(event.nativeEvent.translationX ?? 0);
+  }, [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
     if (oldState === State.ACTIVE) {
@@ -181,8 +182,9 @@ export const useVerticalPlayerMotion = ({ height, onCollapse, reduceMotion }: {
     }
     Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true }).start();
   }, [drag, reduceMotion]);
-  const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent>(
-    [{ nativeEvent: { translationY: drag } }], { useNativeDriver: true }), [drag]);
+  const onGestureEvent = useCallback((event: PanGestureHandlerGestureEvent) => {
+    drag.setValue(event.nativeEvent.translationY ?? 0);
+  }, [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationY = 0, velocityY = 0 } = event.nativeEvent;
     if (oldState === State.ACTIVE && shouldCollapseSoundCloudPlayer({ translationY, velocityY, height })) {
