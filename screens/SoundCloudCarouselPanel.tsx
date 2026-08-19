@@ -11,7 +11,7 @@ interface SoundCloudCarouselPanelProps {
   artworkUri?: string;
 }
 
-/** A deliberately static artwork tile; motion belongs to the outer pager only. */
+/** A deliberately static full-panel artwork layer; motion belongs to the outer pager only. */
 const SoundCloudCarouselPanel = ({ song, role, artworkUri }: SoundCloudCarouselPanelProps) => {
   const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song);
   const artworkSource = useMemo(
@@ -36,12 +36,9 @@ const SoundCloudCarouselPanel = ({ song, role, artworkUri }: SoundCloudCarouselP
 };
 
 const styles = StyleSheet.create({
-  panel: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
-  artworkFrame: { width: '82%', maxWidth: 460, aspectRatio: 1, overflow: 'hidden', borderRadius: 12,
-    backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkBackground, borderWidth: StyleSheet.hairlineWidth,
-    borderColor: SOUNDCLOUD_PLAYER_COLORS.artworkFrameBorder, elevation: 8,
-    shadowColor: SOUNDCLOUD_PLAYER_COLORS.artworkShadow, shadowOpacity: 0.32,
-    shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+  panel: { flex: 1, backgroundColor: 'transparent' },
+  artworkFrame: { ...StyleSheet.absoluteFillObject, overflow: 'hidden',
+    backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkBackground },
   panelArtwork: { ...StyleSheet.absoluteFillObject },
   emptyArtwork: { backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkFallback },
   artworkShade: { ...StyleSheet.absoluteFillObject, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkShade },

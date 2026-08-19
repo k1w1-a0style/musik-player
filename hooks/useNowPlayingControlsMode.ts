@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { storage } from '../utils/storage';
 import {
   DEFAULT_NOW_PLAYING_CONTROLS_MODE,
@@ -15,6 +15,11 @@ export interface UseNowPlayingControlsModeResult {
 
 const STORAGE_KEY = 'nowPlayingPlayerLayout';
 const PREVIOUS_STORAGE_KEY = 'nowPlayingControlsMode';
+let rememberedMode: NowPlayingControlsMode | null = null;
+
+export const resetRememberedNowPlayingControlsModeForTests = (): void => {
+  rememberedMode = null;
+};
 
 const normalizeStoredMode = (value: unknown): NowPlayingControlsMode =>
   normalizeNowPlayingPlayerLayout(value);
@@ -30,17 +35,23 @@ const persistStoredMode = async (mode: NowPlayingControlsMode): Promise<void> =>
 };
 
 export const useNowPlayingControlsMode = (): UseNowPlayingControlsModeResult => {
+  const rememberedModeAtMount = rememberedMode;
   const { value: mode, setValue: setModeState, isHydrated } = useHydratedStoredPreference({
-    defaultValue: DEFAULT_NOW_PLAYING_CONTROLS_MODE,
+    defaultValue: rememberedModeAtMount ?? DEFAULT_NOW_PLAYING_CONTROLS_MODE,
     load: loadStoredMode,
     persist: persistStoredMode,
     normalize: normalizeStoredMode,
     label: 'now-playing-layout',
   });
 
+  useEffect(() => {
+    if (isHydrated) rememberedMode = mode;
+  }, [isHydrated, mode]);
+
   const setMode = useCallback((nextMode: NowPlayingControlsMode) => {
+    rememberedMode = nextMode;
     setModeState(nextMode);
   }, [setModeState]);
 
-  return { mode, isHydrated, setMode };
+  return { mode, isHydrated: isHydrated || rememberedModeAtMount !== null, setMode };
 };

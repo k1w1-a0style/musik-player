@@ -103,6 +103,7 @@ const ScreenStateProbe = () => {
       <Text testID="queue-count">{state.queue.length}</Text>
       <Text testID="album-title">{state.albumTitle}</Text>
       <Text testID="player-layout">{state.controlsMode}</Text>
+      <Text testID="player-layout-hydrated">{String(state.controlsModeHydrated)}</Text>
       <Text testID="can-save-queue">{String(typeof state.saveCurrentQueueAsPlaylist === 'function')}</Text>
       <Pressable testID="save-queue" onPress={state.saveCurrentQueueAsPlaylist}>
         <Text>Save queue</Text>

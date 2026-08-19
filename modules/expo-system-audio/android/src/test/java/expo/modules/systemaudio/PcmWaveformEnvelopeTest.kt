@@ -32,6 +32,20 @@ class PcmWaveformEnvelopeTest {
     assertTrue(points[3] > 0.9)
   }
 
+  @Test fun longTracksUseABoundedPcmSamplingStride() {
+    val durationUs = 180_000_000L
+    val sampleRate = 44_100
+    val pointCount = 160
+    val envelope = PcmWaveformEnvelope(pointCount = pointCount, durationUs = durationUs)
+
+    val stride = envelope.sampleStrideFor(sampleRate)
+    val totalFrames = durationUs * sampleRate / 1_000_000L
+    val sampledFrames = (totalFrames + stride - 1L) / stride
+
+    assertTrue(stride > 1)
+    assertTrue(sampledFrames <= pointCount * 1_024L)
+  }
+
   private fun pcm16(samples: ShortArray): ByteBuffer = ByteBuffer
     .allocate(samples.size * Short.SIZE_BYTES)
     .order(ByteOrder.nativeOrder())

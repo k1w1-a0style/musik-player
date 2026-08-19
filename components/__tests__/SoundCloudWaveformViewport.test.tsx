@@ -8,7 +8,7 @@ const waveform: SongWaveform = {
   version: WAVEFORM_VERSION,
   source: 'fallback',
   sourceKey: 'soundcloud-test',
-  sourceFingerprint: 'wf4:00000000000000000000000000000001',
+  sourceFingerprint: 'wf5:00000000000000000000000000000001',
   generatedAt: 1,
   durationMs: 100_000,
   points: [0.2, 0.6, 0.4, 0.8],

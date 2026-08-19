@@ -30,10 +30,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 jest.mock('../../hooks/useSongWaveform', () => ({
   useSongWaveform: () => ({
     waveform: {
-      version: 4,
+      version: 5,
       source: 'fallback',
       sourceKey: 'test-waveform',
-      sourceFingerprint: 'wf4:00000000000000000000000000000001',
+      sourceFingerprint: 'wf5:00000000000000000000000000000001',
       generatedAt: 1,
       durationMs: 120_000,
       points: [0.2, 0.8, 0.5],
@@ -189,7 +189,7 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByTestId('soundcloud-next-button').props.accessibilityState.disabled).toBe(true);
   });
 
-  test('slides three artwork tiles but keeps one metadata and waveform layer stationary', () => {
+  test('slides three full-panel artworks but keeps one metadata and waveform layer stationary', () => {
     const { getByTestId, getByText, queryByText, getAllByTestId } = renderSoundCloudView();
     const hidden = { includeHiddenElements: true };
 
@@ -204,7 +204,7 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
       .toBe('no-hide-descendants');
     expect(getByTestId('soundcloud-carousel-current-artwork-frame').props.style)
-      .toMatchObject({ width: '82%', aspectRatio: 1 });
+      .toMatchObject({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
   });
 
   test('forces readable status-bar icons over the dark player', () => {

@@ -181,19 +181,18 @@ test('moves songs atomically through the playlist reorder action', () => {
     { targetSongId: 'song-b' });
 });
 
-test('long-press drag is handled by the outer playlist row and commits the move', () => {
+test('dragging the visible playlist grip claims the touch immediately and commits the move', () => {
   const { getByTestId, unmount } = render(<PlaylistDetail />);
-  const row = getByTestId('playlist-detail-song-song-b');
   const surface = getByTestId('playlist-detail-drag-surface-song-b');
-  const capture = responderEvent(10, 0, 2);
+  const handle = getByTestId('playlist-detail-drag-handle-song-b');
+  const start = responderEvent(0, 0, 1);
   const move = responderEvent(80, 10, 3);
 
-  fireEvent(row, 'longPress');
-  expect(typeof surface.props.onMoveShouldSetResponderCapture).toBe('function');
-  expect(surface.props.onMoveShouldSetResponderCapture(capture)).toBe(true);
-  act(() => surface.props.onResponderGrant(capture));
-  act(() => surface.props.onResponderMove(move));
-  act(() => surface.props.onResponderRelease(move));
+  expect(surface.props.onStartShouldSetResponderCapture).toBeUndefined();
+  expect(handle.props.onStartShouldSetResponderCapture(start)).toBe(true);
+  act(() => handle.props.onResponderGrant(start));
+  act(() => handle.props.onResponderMove(move));
+  act(() => handle.props.onResponderRelease(move));
 
   expect(mockMoveSongInPlaylist).toHaveBeenCalledWith('playlist-1', 'song-b',
     { targetSongId: 'song-a' });

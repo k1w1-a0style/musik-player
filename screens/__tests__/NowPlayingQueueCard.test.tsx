@@ -135,24 +135,23 @@ test('renders drag handles for upcoming tracks only', () => {
   expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
 });
 
-test('long-press drag is handled by the outer queue row and commits the move', () => {
+test('dragging the visible queue grip claims the touch immediately and commits the move', () => {
   const onQueueShift = jest.fn();
   const { getByTestId, unmount } = render(
     <NowPlayingQueueCard queue={queue} currentSongId="s1" maxHeight={240}
       onPlayQueueItem={jest.fn()} onQueueShift={onQueueShift}
       canShiftQueue accentColor="#3366FF" />,
   );
-  const row = getByTestId('queue-row-s2');
   const surface = getByTestId('queue-drag-surface-s2');
-  const capture = responderEvent(10, 0, 2);
+  const handle = getByTestId('queue-drag-handle-s2');
+  const start = responderEvent(0, 0, 1);
   const move = responderEvent(80, 10, 3);
 
-  fireEvent(row, 'longPress');
-  expect(typeof surface.props.onMoveShouldSetResponderCapture).toBe('function');
-  expect(surface.props.onMoveShouldSetResponderCapture(capture)).toBe(true);
-  act(() => surface.props.onResponderGrant(capture));
-  act(() => surface.props.onResponderMove(move));
-  act(() => surface.props.onResponderRelease(move));
+  expect(surface.props.onStartShouldSetResponderCapture).toBeUndefined();
+  expect(handle.props.onStartShouldSetResponderCapture(start)).toBe(true);
+  act(() => handle.props.onResponderGrant(start));
+  act(() => handle.props.onResponderMove(move));
+  act(() => handle.props.onResponderRelease(move));
 
   expect(onQueueShift).toHaveBeenCalledWith(1, 2);
   act(() => unmount());

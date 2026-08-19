@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type GestureResponderHandlers,
   type NativeSyntheticEvent,
 } from 'react-native';
 import { GripVertical, Trash2 } from 'lucide-react-native';
@@ -89,19 +90,14 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
   const title = displayTitle(song);
   const artist = displayArtist(song);
   const handleAccessibilityAction = usePlaylistRowAccessibilityAction(index, songCount, onReorder);
-  const cancelArmedDrag = React.useCallback(() => {
-    if (drag.dragEnabled) drag.reset();
-  }, [drag]);
-
   return (
     <Animated.View style={[styles.animatedRow, { height: PLAYLIST_DETAIL_ROW_HEIGHT,
       transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
-      {...drag.panHandlers} testID={`playlist-detail-drag-surface-${song.id}`}>
-      <Pressable testID={`playlist-detail-song-${song.id}`} onPress={cancelArmedDrag}
-        onLongPress={drag.enableDrag} delayLongPress={260}
+      testID={`playlist-detail-drag-surface-${song.id}`}>
+      <Pressable testID={`playlist-detail-song-${song.id}`}
         accessible accessibilityRole="adjustable"
         accessibilityLabel={`${title} von ${artist}. Position ${index + 1} von ${songCount}`}
-        accessibilityHint={canDrag ? 'Gedrückt halten und nach oben oder unten ziehen.' : undefined}
+        accessibilityHint={canDrag ? 'Den Griff rechts nach oben oder unten ziehen.' : undefined}
         accessibilityActions={canDrag ? [{ name: 'decrement', label: 'Nach oben verschieben' },
           { name: 'increment', label: 'Nach unten verschieben' }] : undefined}
         onAccessibilityAction={canDrag ? handleAccessibilityAction : undefined}
@@ -129,8 +125,9 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
         </Pressable>
         {canDrag ? (
           <View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}
+            {...(drag.panHandlers as GestureResponderHandlers)}
             testID={`playlist-detail-drag-handle-${song.id}`}>
-            <GripVertical color={drag.dragEnabled ? theme.palette.primary : theme.palette.text.muted}
+            <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
               size={21} />
           </View>
         ) : null}

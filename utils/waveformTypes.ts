@@ -1,5 +1,6 @@
-export const WAVEFORM_VERSION = 4;
-export const DEFAULT_WAVEFORM_POINT_COUNT = 72;
+export const WAVEFORM_VERSION = 5;
+export const WAVEFORM_CACHE_POINT_COUNT = 160;
+export const DEFAULT_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const WAVEFORM_FINGERPRINT_PREFIX = `wf${WAVEFORM_VERSION}:`;
 
 export type WaveformSource = 'fallback' | 'native';

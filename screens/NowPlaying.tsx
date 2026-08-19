@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { useAppTheme } from '../contexts/AppThemeContext';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
@@ -119,11 +120,24 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
   );
 };
 
-const NowPlayingScreenInner: React.FC = () => {
-  const state = useNowPlayingScreenState();
-  return state.controlsMode === 'soundcloud'
+const HydratedNowPlayingContent = ({ state }: { state: NowPlayingState }) =>
+  state.controlsMode === 'soundcloud'
     ? <SoundCloudNowPlayingContent state={state} />
     : <ClassicNowPlayingContent state={state} />;
+
+const NowPlayingScreenInner: React.FC = () => {
+  const { theme } = useAppTheme();
+  const state = useNowPlayingScreenState();
+  if (!state.controlsModeHydrated) {
+    return (
+      <Screen edges={[]} style={styles.root} contentStyle={styles.layoutLoadingContent}
+        testID="now-playing-screen">
+        <View style={[styles.layoutLoading, { backgroundColor: theme.palette.backgroundDeep }]}
+          testID="now-playing-layout-loading" />
+      </Screen>
+    );
+  }
+  return <HydratedNowPlayingContent state={state} />;
 };
 
 const NowPlaying: React.FC = () => (
@@ -137,6 +151,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1, paddingTop: APP_THEME_TOKENS.spacing.xs, paddingBottom: 0 },
   soundCloudContent: { flex: 1, paddingTop: 0, paddingBottom: 0 },
+  layoutLoadingContent: { flex: 1, paddingTop: 0, paddingBottom: 0 },
+  layoutLoading: { flex: 1 },
   pagerSlot: { flex: 1, minHeight: 1 },
 });
 

@@ -16,7 +16,6 @@ interface QueueRowDragOptions {
 
 interface QueuePanResponderOptions {
   canDrag: boolean;
-  isDragEnabled: () => boolean;
   onGrant: () => void;
   onMove: (gesture: PanResponderGestureState) => void;
   onRelease: (gesture: PanResponderGestureState) => void;
@@ -27,15 +26,13 @@ const useQueuePanResponder = (options: QueuePanResponderOptions) => {
   const optionsRef = React.useRef(options);
   optionsRef.current = options;
   return React.useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_event, gesture) => {
-      const { canDrag, isDragEnabled } = optionsRef.current;
-      return canDrag && isDragEnabled() && Math.abs(gesture.dy) > 4;
-    },
-    onMoveShouldSetPanResponderCapture: (_event, gesture) => {
-      const { canDrag, isDragEnabled } = optionsRef.current;
-      return canDrag && isDragEnabled() && Math.abs(gesture.dy) > 4;
-    },
+    // These handlers are installed only on the visible grip. Claiming its
+    // touch at START avoids trying to steal an already-active Android list
+    // gesture after a delayed long-press.
+    onStartShouldSetPanResponder: () => optionsRef.current.canDrag,
+    onStartShouldSetPanResponderCapture: () => optionsRef.current.canDrag,
+    onMoveShouldSetPanResponder: () => optionsRef.current.canDrag,
+    onMoveShouldSetPanResponderCapture: () => optionsRef.current.canDrag,
     onPanResponderGrant: () => optionsRef.current.onGrant(),
     onPanResponderMove: (_event, gesture) => optionsRef.current.onMove(gesture),
     onPanResponderRelease: (_event, gesture) => optionsRef.current.onRelease(gesture),
@@ -58,9 +55,7 @@ export const useAnimatedQueuePreview = (previewOffsetY: number): Animated.Value 
 
 export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, canDrag,
   getScrollOffset, onDragPosition, onDragEnd, onShift }: QueueRowDragOptions) => {
-  const [dragEnabled, setDragEnabled] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
-  const dragEnabledRef = React.useRef(false);
   const dragY = React.useRef(new Animated.Value(0)).current;
   const startScrollRef = React.useRef(0);
   const previousYRef = React.useRef(0);
@@ -71,19 +66,18 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     maxIndex: Math.max(minShiftIndex, queueLength - 1),
   }), [getScrollOffset, index, minShiftIndex, queueLength, rowHeight]);
   const reset = React.useCallback(() => {
-    dragEnabledRef.current = false;
     previousYRef.current = 0;
     previousTargetRef.current = index;
     onDragEnd?.();
     setDragging(false);
     dragY.setValue(0);
-    setDragEnabled(false);
   }, [dragY, index, onDragEnd]);
   const grant = React.useCallback(() => {
     if (!canDrag) return;
     startScrollRef.current = getScrollOffset();
     previousYRef.current = 0;
     previousTargetRef.current = index;
+    Vibration.vibrate(10);
     setDragging(true);
     dragY.setValue(0);
     onDragPosition?.(index, 0, 0);
@@ -109,16 +103,7 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     if (shouldShift) onShift?.(index, target);
     reset();
   }, [canDrag, index, onShift, reset, resolveTarget]);
-  const isDragEnabled = React.useCallback(() => dragEnabledRef.current, []);
-  const panResponder = useQueuePanResponder({ canDrag, isDragEnabled, onGrant: grant, onMove: move, onRelease: release, onCancel: reset });
-  const enableDrag = React.useCallback(() => {
-    if (!canDrag) return;
-    // The long-press is fired in the middle of the native touch sequence. Keep
-    // the responder itself stable and arm it synchronously through a ref, so
-    // the very next move from that same touch can be captured on Android.
-    dragEnabledRef.current = true;
-    Vibration.vibrate(10);
-    setDragEnabled(true);
-  }, [canDrag]);
-  return { dragEnabled, dragging, dragY, panHandlers: panResponder.panHandlers, reset, enableDrag };
+  const panResponder = useQueuePanResponder({ canDrag, onGrant: grant, onMove: move,
+    onRelease: release, onCancel: reset });
+  return { dragEnabled: dragging, dragging, dragY, panHandlers: panResponder.panHandlers, reset };
 };

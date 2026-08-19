@@ -293,7 +293,7 @@ class SystemAudioWaveformModule : Module() {
 
   private companion object {
     private const val TAG = "SystemAudioWaveform"
-    private const val DEFAULT_WAVEFORM_POINTS = 72
+    private const val DEFAULT_WAVEFORM_POINTS = 160
     private const val MIN_WAVEFORM_POINTS = 16
     private const val MAX_WAVEFORM_POINTS = 160
     private const val SAMPLE_BUFFER_BYTES = 64 * 1024

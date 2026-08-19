@@ -21,7 +21,7 @@ const waveform = {
   version: WAVEFORM_VERSION,
   source: 'fallback' as const,
   sourceKey: 'test-waveform',
-  sourceFingerprint: 'wf4:00000000000000000000000000000001',
+  sourceFingerprint: 'wf5:00000000000000000000000000000001',
   generatedAt: 1_782_950_400_000,
   durationMs: 100_000,
   points: [0.2, 0.6, 0.4, 0.8],

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View,
+  type GestureResponderHandlers } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDrag';
@@ -63,11 +64,13 @@ const PlayingBadge = ({ id, visible, accentColor, textColor }: { id: string; vis
   );
 };
 
-const DragHandle = ({ id, visible, enabled, accentColor, colors }: { id: string; visible: boolean;
-  enabled: boolean; accentColor: string; colors: NowPlayingQueueColors }) => {
+const DragHandle = ({ id, visible, enabled, accentColor, colors, panHandlers }: { id: string; visible: boolean;
+  enabled: boolean; accentColor: string; colors: NowPlayingQueueColors;
+  panHandlers?: GestureResponderHandlers }) => {
   if (!visible) return null;
   return (
-    <View style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]} testID={`queue-drag-handle-${id}`}>
+    <View style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}
+      {...panHandlers} testID={`queue-drag-handle-${id}`}>
       <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
     </View>
   );
@@ -94,20 +97,19 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
     [drag.dragY, dragScrollCompensation, previewY],
   );
   const handlePress = React.useCallback(() => {
-    if (drag.dragEnabled) return drag.reset();
     onPress(id);
-  }, [drag, id, onPress]);
+  }, [id, onPress]);
   const accessibilityLabel = artist.trim() ? `${title} von ${artist.trim()} abspielen` : `${title} abspielen`;
-  const dragLabel = drag.dragEnabled ? ' Ziehen zum Umsortieren aktiv.' : ' Zum Umsortieren gedrückt halten und ziehen.';
+  const dragLabel = ' Zum Umsortieren den Griff rechts ziehen.';
 
   return (
     <Animated.View style={[styles.animatedRow,
       { height: rowHeight, transform: [{ translateY }] },
-      drag.dragging && styles.animatedRowDragging]} {...drag.panHandlers}
+      drag.dragging && styles.animatedRowDragging]}
       testID={`queue-drag-surface-${id}`}>
-      <Pressable testID={`queue-row-${id}`} onPress={handlePress} onLongPress={drag.enableDrag}
-        delayLongPress={260} accessibilityRole="button" accessibilityLabel={accessibilityLabel + (canDrag ? dragLabel : '')}
-        accessibilityHint={canDrag ? 'Lange gedrückt halten, dann nach oben oder unten ziehen.' : undefined}
+      <Pressable testID={`queue-row-${id}`} onPress={handlePress}
+        accessibilityRole="button" accessibilityLabel={accessibilityLabel + (canDrag ? dragLabel : '')}
+        accessibilityHint={canDrag ? 'Den Griff rechts nach oben oder unten ziehen.' : undefined}
         accessibilityState={{ selected: isCurrent }}
         style={({ pressed }) => [styles.queueItem,
           isCurrent && [styles.queueItemActive, { borderColor: resolvedAccentColor, backgroundColor: `${resolvedAccentColor}18` }],
@@ -124,7 +126,8 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
             numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
         </View>
         <PlayingBadge id={id} visible={isCurrent} accentColor={resolvedAccentColor} textColor={rowColors.textPrimary} />
-        <DragHandle id={id} visible={canDrag} enabled={drag.dragEnabled} accentColor={resolvedAccentColor} colors={rowColors} />
+        <DragHandle id={id} visible={canDrag} enabled={drag.dragging}
+          accentColor={resolvedAccentColor} colors={rowColors} panHandlers={drag.panHandlers} />
       </Pressable>
     </Animated.View>
   );

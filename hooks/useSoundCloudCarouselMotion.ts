@@ -8,13 +8,16 @@ interface TrackSwitchOptions {
   drag: Animated.Value;
   currentSongId?: string;
   panelWidth: number;
-  onNext: () => void;
-  onPrevious: () => void;
+  onNext: () => void | Promise<void>;
+  onPrevious: () => void | Promise<void>;
   reduceMotion: boolean;
   dispatchBeforeAnimation?: boolean;
   onTransitionStart?: () => void;
   onTransitionEnd?: () => void;
 }
+
+const TRACK_SWITCH_CONFIRMATION_GRACE_MS = 1_500;
+const TRACK_SWITCH_ACTION_TIMEOUT_MS = 8_000;
 
 const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
   dispatchBeforeAnimation = false, onTransitionEnd }: Pick<TrackSwitchOptions, 'drag' | 'currentSongId'
@@ -91,44 +94,68 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
     switchingRef.current = true;
     originSongIdRef.current = songIdRef.current;
     animationFinishedRef.current = false;
+    const invokeAction = (): void | Promise<void> => direction === 'next' ? onNext() : onPrevious();
     if (reduceMotion) {
       drag.stopAnimation();
       drag.setValue(0);
-      if (direction === 'next') onNext(); else onPrevious();
+      void invokeAction();
       switchingRef.current = false;
       return;
     }
+    let actionSettled = false;
+    let animationSettled = false;
+    const scheduleConfirmationFallback = () => {
+      if (!actionSettled || !animationSettled || !switchingRef.current) return;
+      if (songIdRef.current !== originSongIdRef.current) {
+        resetToCurrentTrack();
+        return;
+      }
+      clearReset();
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
+        if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
+      }, TRACK_SWITCH_CONFIRMATION_GRACE_MS);
+    };
+    const scheduleActionWatchdog = () => {
+      if (actionSettled || !animationSettled || !switchingRef.current) return;
+      clearReset();
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
+        if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
+      }, TRACK_SWITCH_ACTION_TIMEOUT_MS);
+    };
+    const observeAction = (result: void | Promise<void>) => {
+      void Promise.resolve(result)
+        .catch(() => undefined)
+        .finally(() => {
+          actionSettled = true;
+          scheduleConfirmationFallback();
+        });
+    };
     // Give native playback the full page-transition window to prepare the next
     // track. The caller keeps the visible page data frozen until both sides
     // have settled, so an early active-track event cannot replace it mid-swipe.
     if (dispatchBeforeAnimation) {
       transitionStartedRef.current = true;
       onTransitionStart?.();
-      if (direction === 'next') onNext(); else onPrevious();
+      observeAction(invokeAction());
     }
     Animated.timing(drag, { toValue: direction === 'next' ? -panelWidth : panelWidth,
       duration: 270, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
       if (!finished) return animateBack();
       animationFinishedRef.current = true;
+      animationSettled = true;
       if (dispatchBeforeAnimation) {
         if (songIdRef.current !== originSongIdRef.current) {
           resetToCurrentTrack();
           return;
         }
-        clearReset();
-        resetTimerRef.current = setTimeout(() => {
-          resetTimerRef.current = null;
-          if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
-        }, 500);
+        if (actionSettled) scheduleConfirmationFallback();
+        else scheduleActionWatchdog();
         return;
       }
-      const previousSongId = songIdRef.current;
-      if (direction === 'next') onNext(); else onPrevious();
-      clearReset();
-      resetTimerRef.current = setTimeout(() => {
-        resetTimerRef.current = null;
-        if (switchingRef.current && songIdRef.current === previousSongId) animateBack();
-      }, 500);
+      observeAction(invokeAction());
+      scheduleActionWatchdog();
     });
   }, [animateBack, animationFinishedRef, clearReset, dispatchBeforeAnimation, drag,
     onNext, onPrevious, onTransitionStart, originSongIdRef, panelWidth, reduceMotion,

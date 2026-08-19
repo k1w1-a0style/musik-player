@@ -24,6 +24,10 @@ jest.mock('lucide-react-native', () => ({
   Disc3: 'Disc3',
 }));
 
+jest.mock('../../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => false,
+}));
+
 const song = { id: 's1', title: 'One', artist: 'Artist' };
 const previousSong = { id: 's0', title: 'Zero', artist: 'Artist' };
 const nextSong = { id: 's2', title: 'Two', artist: 'Artist' };
@@ -72,7 +76,7 @@ describe('NowPlayingCoverArtwork', () => {
     expect(getByTestId('now-playing-cover-next-image').props.source).toEqual({ uri: 'file:///next.jpg' });
   });
 
-  test('commits an allowed left swipe once after the native animation finishes', () => {
+  test('dispatches an allowed left swipe before the native animation finishes', () => {
     const onSwipeLeft = jest.fn();
     const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
       start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: true }),
@@ -92,6 +96,47 @@ describe('NowPlayingCoverArtwork', () => {
 
     expect(onSwipeLeft).toHaveBeenCalledTimes(1);
     timing.mockRestore();
+  });
+
+  test('keeps the three cover pages frozen until the animated track switch settles', () => {
+    const onSwipeLeft = jest.fn();
+    let finishAnimation: ((result: { finished: boolean }) => void) | undefined;
+    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: (callback?: (result: { finished: boolean }) => void) => { finishAnimation = callback; },
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }) as Animated.CompositeAnimation);
+    const initialProps = {
+      song,
+      previousSong,
+      nextSong,
+      artworkUri: 'file:///one.jpg',
+      previousArtworkUri: 'file:///zero.jpg',
+      nextArtworkUri: 'file:///two.jpg',
+      isPlaying: true,
+      accent: '#123456',
+      coverSize: 160,
+      swipeEnabled: true,
+      canSwipeLeft: true,
+      onSwipeLeft,
+    };
+    const { getByTestId, rerender } = render(<NowPlayingCoverArtwork {...initialProps} />);
+
+    act(() => {
+      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 1 },
+      });
+    });
+    rerender(<NowPlayingCoverArtwork {...initialProps}
+      song={nextSong} previousSong={song} nextSong={{ id: 's3', title: 'Three', artist: 'Artist' }}
+      artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" nextArtworkUri="file:///three.jpg" />);
+
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+    expect(getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///one.jpg' });
+
+    act(() => finishAnimation?.({ finished: true }));
+
+    expect(getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///two.jpg' });
   });
 
   test('resets instead of finishing a left swipe when left swipes are disabled', () => {

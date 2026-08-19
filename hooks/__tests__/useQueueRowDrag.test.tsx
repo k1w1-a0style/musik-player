@@ -23,7 +23,7 @@ const responderEvent = (currentY: number, previousY: number, timestamp: number) 
 });
 
 describe('useQueueRowDrag responder contract', () => {
-  test('captures the same touch after it is armed and commits the reorder synchronously', () => {
+  test('claims a grip touch immediately and commits the reorder synchronously', () => {
     const onShift = jest.fn();
     const onDragEnd = jest.fn();
     const { result } = renderHook(() => useQueueRowDrag({
@@ -37,20 +37,13 @@ describe('useQueueRowDrag responder contract', () => {
       onDragEnd,
     }));
 
-    // Native keeps dispatching the active touch to the responder handlers that
-    // were installed when the press began. Arming after the long-press must not
-    // depend on replacing those handlers during the gesture.
     const handlers = result.current.panHandlers as Record<string, (...args: unknown[]) => unknown>;
-    act(() => result.current.enableDrag());
-    expect(result.current.panHandlers).toBe(handlers);
     const start = responderEvent(0, 0, 1);
-    const capture = responderEvent(10, 0, 2);
     const move = responderEvent(80, 10, 3);
 
-    handlers.onStartShouldSetResponderCapture?.(start);
-    expect(handlers.onMoveShouldSetResponderCapture?.(capture)).toBe(true);
+    expect(handlers.onStartShouldSetResponderCapture?.(start)).toBe(true);
     expect(handlers.onResponderTerminationRequest?.()).toBe(false);
-    act(() => handlers.onResponderGrant?.(capture));
+    act(() => handlers.onResponderGrant?.(start));
     act(() => handlers.onResponderMove?.(move));
     act(() => handlers.onResponderRelease?.(move));
 

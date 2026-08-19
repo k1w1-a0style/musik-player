@@ -191,6 +191,35 @@ describe('useSongWaveform lifecycle', () => {
     second.unmount();
   });
 
+  test('stores one canonical detailed waveform while serving each requested display size', async () => {
+    const native = deferred<NativeResult>();
+    const currentSong = song('shared-different-point-counts');
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
+    const compact = renderHook(() => useSongWaveform({
+      song: currentSong,
+      durationMs: 1000,
+      pointCount: 16,
+    }));
+    const detailed = renderHook(() => useSongWaveform({
+      song: currentSong,
+      durationMs: 1000,
+      pointCount: 160,
+    }));
+
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    expect(extractor.extractWaveformPeaks.mock.calls[0]?.[1]).toBe(160);
+    native.resolve(decoded());
+    await flush();
+
+    expect(compact.result.current.waveform).toMatchObject({ source: 'native' });
+    expect(compact.result.current.waveform.points).toHaveLength(16);
+    expect(detailed.result.current.waveform).toMatchObject({ source: 'native' });
+    expect(detailed.result.current.waveform.points).toHaveLength(160);
+    compact.unmount();
+    detailed.unmount();
+  });
+
   test('a superseded queued request never starts after the active flight', async () => {
     const active = deferred<NativeResult>();
     const activeSong = song('active');

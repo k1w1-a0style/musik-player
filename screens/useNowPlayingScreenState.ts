@@ -84,7 +84,7 @@ export const useNowPlayingScreenState = () => {
   const menuState = useNowPlayingMenu(currentSong?.id);
   const queueState = useNowPlayingQueue({ playbackQueue, currentSong, playSong });
   const presentation = useNowPlayingPresentation({ currentSong, palette, paletteLoading });
-  const { mode: controlsMode } = useNowPlayingControlsMode();
+  const { mode: controlsMode, isHydrated: controlsModeHydrated } = useNowPlayingControlsMode();
   const queueShift = reorderQueue ?? noopQueueShift;
   const saveCurrentQueueAsPlaylist = useCallback(
     () => savePlaybackQueueAsPlaylist(saveQueueAsPlaylist, playbackQueue),
@@ -94,12 +94,12 @@ export const useNowPlayingScreenState = () => {
   const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
 
   const swipeToNext = useCallback(() => {
-    if (!canSwipeToNext) return;
-    void runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
+    if (!canSwipeToNext) return Promise.resolve();
+    return runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
   }, [canSwipeToNext, next]);
 
-  const swipeToPrevious = useCallback(() => { void runPlaybackUiAction(
-    'now-playing-previous', previous, { dropIfPending: true }); }, [previous]);
+  const swipeToPrevious = useCallback(() => runPlaybackUiAction(
+    'now-playing-previous', previous, { dropIfPending: true }), [previous]);
 
   return {
     currentSong,
@@ -119,6 +119,7 @@ export const useNowPlayingScreenState = () => {
     bottomInset: insets.bottom,
     topInset: insets.top,
     controlsMode,
+    controlsModeHydrated,
     swipeToNext,
     swipeToPrevious,
     canSwipeToNext,

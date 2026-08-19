@@ -68,6 +68,7 @@ const mockSetFavoriteSongId = jest.fn<Promise<string[]>, [string, boolean]>(() =
 const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte Warteschlange', songIds: ['s1'], createdAt: 1 }));
 let mockNowPlayingStateCrash = false;
 let mockPlayerLayout: 'classic' | 'soundcloud' = 'classic';
+let mockPlayerLayoutHydrated = true;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -85,7 +86,7 @@ jest.mock('../../utils/storage', () => ({
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
   useNowPlayingControlsMode: () => ({
     mode: mockPlayerLayout,
-    isHydrated: true,
+    isHydrated: mockPlayerLayoutHydrated,
     setMode: jest.fn(),
   }),
 }));
@@ -170,6 +171,7 @@ describe('NowPlaying cover fallback', () => {
   beforeEach(() => {
     mockNowPlayingStateCrash = false;
     mockPlayerLayout = 'classic';
+    mockPlayerLayoutHydrated = true;
     setCurrentSongId('s1');
     mockGoBack.mockClear();
     mockNavigate.mockClear();
@@ -220,6 +222,17 @@ describe('NowPlaying cover fallback', () => {
       unmount();
     });
     jest.useRealTimers();
+  });
+
+  test('does not flash the classic player before the stored layout is hydrated', () => {
+    mockPlayerLayout = 'classic';
+    mockPlayerLayoutHydrated = false;
+
+    const { getByTestId, queryByTestId } = render(<NowPlaying />);
+
+    expect(getByTestId('now-playing-layout-loading')).toBeTruthy();
+    expect(queryByTestId('now-playing-pager-slot')).toBeNull();
+    expect(queryByTestId('now-playing-soundcloud-view')).toBeNull();
   });
 
   test('navigates to track info from the title row info button', () => {
