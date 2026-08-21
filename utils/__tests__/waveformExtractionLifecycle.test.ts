@@ -161,6 +161,40 @@ describe('waveformExtractionLifecycle', () => {
     expect(duplicateForegroundOperation).not.toHaveBeenCalled();
   });
 
+  test('drops joined foreground priority after that waiter aborts', async () => {
+    const preloadNative = deferred<NativeResult>();
+    const nextForegroundNative = deferred<NativeResult>();
+    const preloadOperation = jest.fn(() => preloadNative.promise);
+    const duplicateForegroundOperation = jest.fn(() => Promise.resolve({ points: [0.1, 0.9] }));
+    const nextForegroundOperation = jest.fn(() => nextForegroundNative.promise);
+    const joinedForegroundController = new AbortController();
+
+    const preloadWaiter = scheduleNativeWaveformExtraction(
+      'song:promoted-then-left', preloadOperation, new AbortController().signal,
+      { priority: 'preload' },
+    ).catch(error => error as Error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    const joinedForegroundWaiter = scheduleNativeWaveformExtraction(
+      'song:promoted-then-left', duplicateForegroundOperation, joinedForegroundController.signal,
+    );
+    joinedForegroundController.abort(new OperationAbortError('visible song changed again'));
+    await expect(joinedForegroundWaiter).rejects.toThrow('visible song changed again');
+
+    const nextForegroundWaiter = scheduleNativeWaveformExtraction(
+      'song:new-visible', nextForegroundOperation, new AbortController().signal,
+    ).catch(error => error as Error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    expect(nextForegroundOperation).toHaveBeenCalledTimes(1);
+    await expect(preloadWaiter).resolves.toBeInstanceOf(OperationAbortError);
+    expect(duplicateForegroundOperation).not.toHaveBeenCalled();
+    nextForegroundNative.resolve({ points: [0.4, 0.6] });
+    await expect(nextForegroundWaiter).resolves.toEqual({ points: [0.4, 0.6] });
+    preloadNative.resolve(null);
+    await Promise.resolve();
+  });
+
   test('a likely-next preload preempts lower-priority previous-track work', async () => {
     const previousNative = deferred<NativeResult>();
     const nextNative = deferred<NativeResult>();
