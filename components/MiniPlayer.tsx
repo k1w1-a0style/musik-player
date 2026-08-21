@@ -11,16 +11,11 @@ import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
-import { useSongWaveform } from '../hooks/useSongWaveform';
-import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
+import { useWaveformPreload } from '../hooks/useWaveformPreload';
 import type { Song } from '../types/Song';
 
 const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
-  useSongWaveform({
-    song,
-    durationMs: song.duration ?? song.audioInfo?.durationMs ?? 0,
-    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
-  });
+  useWaveformPreload(song);
   return null;
 });
 

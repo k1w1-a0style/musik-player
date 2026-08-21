@@ -3,12 +3,14 @@ import type { Song } from '../../types/Song';
 import {
   buildImmediateWaveform,
   extractNativeWaveform,
+  getWaveformExtractionKey,
   hasUsefulNativeShape,
   resolveWaveformUri,
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../waveformExtraction';
-import { getWaveformSourceKey } from '../waveformGenerator';
+import { getWaveformSourceIdentity, getWaveformSourceKey } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
+import type { NativeWaveformResult } from '../waveformTypes';
 
 const mockedSystemAudio = SystemAudio as typeof SystemAudio & {
   extractWaveformPeaks?: jest.Mock;
@@ -58,6 +60,12 @@ describe('waveformExtraction', () => {
     test('returns undefined for nullish songs', () => {
       expect(resolveWaveformUri(null)).toBeUndefined();
       expect(resolveWaveformUri(undefined)).toBeUndefined();
+    });
+
+    test('isolates scheduler work with the full independent fingerprint', () => {
+      expect(getWaveformExtractionKey(baseSong))
+        .toBe(getWaveformSourceIdentity(baseSong).sourceFingerprint);
+      expect(getWaveformExtractionKey(baseSong)).not.toBe(getWaveformSourceKey(baseSong));
     });
   });
 
@@ -164,6 +172,27 @@ describe('waveformExtraction', () => {
       expect(mockedSystemAudio.cancelWaveformExtraction).toHaveBeenCalledWith(
         expect.stringMatching(/^waveform-/),
       );
+    });
+
+    test('rapid return restarts after native cancellation instead of joining the cancelled call', async () => {
+      jest.useFakeTimers();
+      const cancelledNative = new Promise<NativeWaveformResult | null>(() => undefined);
+      mockedSystemAudio.hasNativeWaveformCancellation = true;
+      mockedSystemAudio.cancelWaveformExtraction = jest.fn().mockReturnValue(true);
+      mockedSystemAudio.extractWaveformPeaks = jest.fn()
+        .mockReturnValueOnce(cancelledNative)
+        .mockResolvedValueOnce({ points: dynamicPeaks, analysis: 'decoded-pcm-v1' });
+      const firstController = new AbortController();
+
+      const first = extractNativeWaveform(baseSong, 1000, { signal: firstController.signal });
+      await jest.advanceTimersByTimeAsync(120);
+      firstController.abort();
+      await expect(first).resolves.toBeNull();
+
+      const returned = extractNativeWaveform(baseSong, 1000);
+      await jest.advanceTimersByTimeAsync(120);
+      await expect(returned).resolves.toMatchObject({ source: 'native' });
+      expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledTimes(2);
     });
 
     test('returns native waveform for useful native peaks', async () => {

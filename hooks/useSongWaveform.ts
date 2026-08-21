@@ -3,19 +3,14 @@ import type { Song } from '../types/Song';
 import { getCachedWaveform, peekCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
 import { buildImmediateWaveform, extractNativeWaveform, resolveWaveformUri } from '../utils/waveformExtraction';
 import { getWaveformSourceIdentity, normalizeWaveformPoints } from '../utils/waveformGenerator';
-import {
-  describeWaveformDecision,
-  isNativeWaveformRejectionNoteworthy,
-  type WaveformSourceDiagnostics,
-} from '../utils/waveformDecision';
+import type { WaveformSourceDiagnostics } from '../utils/waveformDecision';
+import { logWaveformDecision } from '../utils/waveformTelemetry';
 import {
   DEFAULT_WAVEFORM_POINT_COUNT,
   WAVEFORM_CACHE_POINT_COUNT,
   type SongWaveform,
   type WaveformSourceIdentity,
 } from '../utils/waveformTypes';
-
-declare const __DEV__: boolean;
 
 interface UseSongWaveformOptions {
   song: Song | null;
@@ -24,33 +19,7 @@ interface UseSongWaveformOptions {
   onWaveformDecision?: (diagnostics: WaveformSourceDiagnostics) => void;
 }
 
-/**
- * Default telemetry: only in dev builds and only when the native path was
- * attempted and then rejected. This surfaces MP3/M4A native-vs-fallback
- * differences with container + reason context without spamming production or
- * normal fallback-only devices.
- */
-const loggedWaveformDecisionKeys = new Set<string>();
-
-export const resetWaveformDecisionLogThrottleForTests = (): void => {
-  loggedWaveformDecisionKeys.clear();
-};
-
-const getWaveformDecisionLogKey = (diagnostics: WaveformSourceDiagnostics): string => [
-  diagnostics.source,
-  diagnostics.decision,
-  diagnostics.container ?? 'unknown',
-].join('|');
-
-export const logWaveformDecision = (diagnostics: WaveformSourceDiagnostics): void => {
-  if (typeof __DEV__ !== 'undefined' && __DEV__ && isNativeWaveformRejectionNoteworthy(diagnostics.decision)) {
-    const key = getWaveformDecisionLogKey(diagnostics);
-    if (loggedWaveformDecisionKeys.has(key)) return;
-    loggedWaveformDecisionKeys.add(key);
-    // eslint-disable-next-line no-console
-    console.info(describeWaveformDecision(diagnostics));
-  }
-};
+export { logWaveformDecision, resetWaveformDecisionLogThrottleForTests } from '../utils/waveformTelemetry';
 
 interface UseSongWaveformResult {
   waveform: SongWaveform;
@@ -138,6 +107,8 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
       const cached = await getCachedWaveformUntilAbort(requestedIdentity, controller.signal);
       if (!active) return;
       if (cached?.source === 'native') return commit(cached);
+      const racedMemoryHit = peekCachedWaveform(requestedIdentity);
+      if (racedMemoryHit?.source === 'native') return commit(racedMemoryHit);
       const native = await extractNativeWaveform(requestedSong, durationRef.current, {
         pointCount: WAVEFORM_CACHE_POINT_COUNT, signal: controller.signal,
         onDecision: onWaveformDecision,
