@@ -161,6 +161,74 @@ describe('waveformExtractionLifecycle', () => {
     expect(duplicateForegroundOperation).not.toHaveBeenCalled();
   });
 
+  test('drops joined foreground priority after that waiter aborts', async () => {
+    const preloadNative = deferred<NativeResult>();
+    const nextForegroundNative = deferred<NativeResult>();
+    const preloadOperation = jest.fn(() => preloadNative.promise);
+    const duplicateForegroundOperation = jest.fn(() => Promise.resolve({ points: [0.1, 0.9] }));
+    const nextForegroundOperation = jest.fn(() => nextForegroundNative.promise);
+    const joinedForegroundController = new AbortController();
+
+    const preloadWaiter = scheduleNativeWaveformExtraction(
+      'song:promoted-then-left', preloadOperation, new AbortController().signal,
+      { priority: 'preload' },
+    ).catch(error => error as Error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    const joinedForegroundWaiter = scheduleNativeWaveformExtraction(
+      'song:promoted-then-left', duplicateForegroundOperation, joinedForegroundController.signal,
+    );
+    const nextForegroundWaiter = scheduleNativeWaveformExtraction(
+      'song:new-visible', nextForegroundOperation, new AbortController().signal,
+    ).catch(error => error as Error);
+
+    joinedForegroundController.abort(new OperationAbortError('visible song changed again'));
+    await expect(joinedForegroundWaiter).rejects.toThrow('visible song changed again');
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    expect(nextForegroundOperation).toHaveBeenCalledTimes(1);
+    await expect(preloadWaiter).resolves.toBeInstanceOf(OperationAbortError);
+    expect(duplicateForegroundOperation).not.toHaveBeenCalled();
+    nextForegroundNative.resolve({ points: [0.4, 0.6] });
+    await expect(nextForegroundWaiter).resolves.toEqual({ points: [0.4, 0.6] });
+    preloadNative.resolve(null);
+    await Promise.resolve();
+  });
+
+  test('rechecks an active flight when a queued source gains a foreground waiter', async () => {
+    const activeNative = deferred<NativeResult>();
+    const queuedNative = deferred<NativeResult>();
+    const activeOperation = jest.fn(() => activeNative.promise);
+    const queuedOperation = jest.fn(() => queuedNative.promise);
+    const duplicateForegroundOperation = jest.fn(() => Promise.resolve({ points: [0.1, 0.9] }));
+
+    const activeWaiter = scheduleNativeWaveformExtraction(
+      'song:active-preload', activeOperation, new AbortController().signal,
+      { priority: 'preload' },
+    ).catch(error => error as Error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    const queuedPreloadWaiter = scheduleNativeWaveformExtraction(
+      'song:queued-promoted', queuedOperation, new AbortController().signal,
+      { priority: 'preload' },
+    ).catch(error => error as Error);
+    const queuedForegroundWaiter = scheduleNativeWaveformExtraction(
+      'song:queued-promoted', duplicateForegroundOperation, new AbortController().signal,
+    ).catch(error => error as Error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    expect(queuedOperation).toHaveBeenCalledTimes(1);
+    await expect(activeWaiter).resolves.toBeInstanceOf(OperationAbortError);
+    expect(duplicateForegroundOperation).not.toHaveBeenCalled();
+    queuedNative.resolve({ points: [0.45, 0.55] });
+    await expect(Promise.all([queuedPreloadWaiter, queuedForegroundWaiter])).resolves.toEqual([
+      { points: [0.45, 0.55] },
+      { points: [0.45, 0.55] },
+    ]);
+    activeNative.resolve(null);
+    await Promise.resolve();
+  });
+
   test('a likely-next preload preempts lower-priority previous-track work', async () => {
     const previousNative = deferred<NativeResult>();
     const nextNative = deferred<NativeResult>();

@@ -35,6 +35,7 @@ interface Pending {
   resolve: (value: NativeResult) => void;
   reject: (reason: Error) => void;
   waiters: number;
+  waiterPriorities: Map<WaveformExtractionPriority, number>;
   settled: boolean;
   generation: number;
 }
@@ -174,6 +175,7 @@ const makePending = (
     resolve,
     reject,
     waiters: 0,
+    waiterPriorities: new Map(),
     settled: false,
     generation: lifecycleGeneration,
   };
@@ -213,13 +215,40 @@ const preemptLowerPriorityFlight = (flight: Flight): void => {
 const deferredPriorityError = (): WaveformSchedulerUnavailableError =>
   new WaveformSchedulerUnavailableError('Waveform work deferred behind a higher-priority request');
 
-const upgradePriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
-  if (priorityRank(priority) > priorityRank(pending.priority)) pending.priority = priority;
+const reevaluateActiveAndQueuedPriority = (): void => {
+  const flight = activeFlight;
+  const queued = pendingLatest;
+  if (!flight || flight.pending.settled || !queued) return;
+  if (priorityRank(queued.priority) > priorityRank(flight.pending.priority)) {
+    preemptLowerPriorityFlight(flight);
+  }
 };
 
-const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResult> => {
+const addWaiterPriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
+  pending.waiterPriorities.set(priority, (pending.waiterPriorities.get(priority) ?? 0) + 1);
+  if (priorityRank(priority) > priorityRank(pending.priority)) pending.priority = priority;
+  reevaluateActiveAndQueuedPriority();
+};
+
+const removeWaiterPriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
+  const count = pending.waiterPriorities.get(priority) ?? 0;
+  if (count <= 1) pending.waiterPriorities.delete(priority);
+  else pending.waiterPriorities.set(priority, count - 1);
+
+  if (pending.waiterPriorities.has('foreground')) pending.priority = 'foreground';
+  else if (pending.waiterPriorities.has('preload')) pending.priority = 'preload';
+  else pending.priority = 'background';
+  reevaluateActiveAndQueuedPriority();
+};
+
+const awaitPending = (
+  pending: Pending,
+  signal: AbortSignal,
+  priority: WaveformExtractionPriority,
+): Promise<NativeResult> => {
   throwIfAborted(signal);
   pending.waiters += 1;
+  addWaiterPriority(pending, priority);
 
   return new Promise<NativeResult>((resolve, reject) => {
     let settled = false;
@@ -227,6 +256,7 @@ const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResu
       if (settled) return false;
       settled = true;
       pending.waiters -= 1;
+      removeWaiterPriority(pending, priority);
       signal.removeEventListener('abort', abort);
       return true;
     };
@@ -271,19 +301,16 @@ export const scheduleNativeWaveformExtraction = (
   throwIfAborted(signal);
   const priority = options.priority ?? 'foreground';
   if (activeFlight?.key === sourceKey) {
-    upgradePriority(activeFlight.pending, priority);
-    return awaitPending(activeFlight.pending, signal);
+    return awaitPending(activeFlight.pending, signal, priority);
   }
   if (pendingLatest?.key === sourceKey) {
-    upgradePriority(pendingLatest, priority);
-    return awaitPending(pendingLatest, signal);
+    return awaitPending(pendingLatest, signal, priority);
   }
   const detachedSameSource = options.rejoinDetached === false
     ? undefined
     : findDetachedFlight(sourceKey);
   if (detachedSameSource) {
-    upgradePriority(detachedSameSource.pending, priority);
-    return awaitPending(detachedSameSource.pending, signal);
+    return awaitPending(detachedSameSource.pending, signal, priority);
   }
 
   if (activeFlight && priorityRank(priority) > priorityRank(activeFlight.pending.priority)) {
@@ -305,7 +332,7 @@ export const scheduleNativeWaveformExtraction = (
   const pending = makePending(sourceKey, operation, priority);
   pendingLatest = pending;
   armPending(pending);
-  return awaitPending(pending, signal);
+  return awaitPending(pending, signal, priority);
 };
 
 export const getWaveformFailureBackoff = (sourceKey: string): FailureBackoff['reason'] | null => {
