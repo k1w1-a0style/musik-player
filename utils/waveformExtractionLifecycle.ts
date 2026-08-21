@@ -215,9 +215,19 @@ const preemptLowerPriorityFlight = (flight: Flight): void => {
 const deferredPriorityError = (): WaveformSchedulerUnavailableError =>
   new WaveformSchedulerUnavailableError('Waveform work deferred behind a higher-priority request');
 
+const reevaluateActiveAndQueuedPriority = (): void => {
+  const flight = activeFlight;
+  const queued = pendingLatest;
+  if (!flight || flight.pending.settled || !queued) return;
+  if (priorityRank(queued.priority) > priorityRank(flight.pending.priority)) {
+    preemptLowerPriorityFlight(flight);
+  }
+};
+
 const addWaiterPriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
   pending.waiterPriorities.set(priority, (pending.waiterPriorities.get(priority) ?? 0) + 1);
   if (priorityRank(priority) > priorityRank(pending.priority)) pending.priority = priority;
+  reevaluateActiveAndQueuedPriority();
 };
 
 const removeWaiterPriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
@@ -228,6 +238,7 @@ const removeWaiterPriority = (pending: Pending, priority: WaveformExtractionPrio
   if (pending.waiterPriorities.has('foreground')) pending.priority = 'foreground';
   else if (pending.waiterPriorities.has('preload')) pending.priority = 'preload';
   else pending.priority = 'background';
+  reevaluateActiveAndQueuedPriority();
 };
 
 const awaitPending = (
