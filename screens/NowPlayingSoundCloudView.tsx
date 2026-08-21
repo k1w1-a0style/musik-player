@@ -5,8 +5,6 @@ import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { useSongWaveform } from '../hooks/useSongWaveform';
-import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
 import SoundCloudPlayerChrome from './SoundCloudPlayerChrome';
 import SoundCloudTrackCarousel from './SoundCloudTrackCarousel';
@@ -46,17 +44,6 @@ interface NowPlayingSoundCloudViewProps {
   topInset: number;
   bottomInset: number;
 }
-
-const WaveformPreloader = React.memo(({ song }: { song: Song | null | undefined }) => {
-  useSongWaveform({
-    song: song ?? null,
-    durationMs: song?.duration ?? song?.audioInfo?.durationMs ?? 0,
-    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
-  });
-  return null;
-});
-
-WaveformPreloader.displayName = 'SoundCloudNextWaveformPreloader';
 
 const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props => {
   const waveformGestureRef = useRef<unknown>(null);
@@ -104,7 +91,6 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
       <NowPlayingBackdrop gradientColors={props.gradientColors} accent={props.accent}
         glowLeft={width / 2 - 130} artworkUri={props.artworkUri}
         paletteLoading={props.paletteLoading} />
-      <WaveformPreloader song={props.nextSong} />
       <SoundCloudTrackCarousel currentSong={props.currentSong} previousSong={props.previousSong}
         nextSong={props.nextSong} currentArtworkUri={props.artworkUri}
         previousArtworkUri={props.previousArtworkUri} nextArtworkUri={props.nextArtworkUri}

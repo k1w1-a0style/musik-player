@@ -11,6 +11,12 @@ type NativeResult = {
   analysis?: 'decoded-pcm-v1';
 } | null;
 type NativeOperation = (signal: AbortSignal) => Promise<NativeResult>;
+export type WaveformExtractionPriority = 'foreground' | 'preload' | 'background';
+
+interface WaveformScheduleOptions {
+  priority?: WaveformExtractionPriority;
+  rejoinDetached?: boolean;
+}
 
 export class WaveformSchedulerUnavailableError extends Error {
   constructor(message = 'Native waveform extraction is temporarily unavailable') {
@@ -21,6 +27,7 @@ export class WaveformSchedulerUnavailableError extends Error {
 
 interface Pending {
   key: string;
+  priority: WaveformExtractionPriority;
   operation: NativeOperation;
   readyAt: number;
   timer: ReturnType<typeof setTimeout> | null;
@@ -79,7 +86,7 @@ const schedulerCapacityError = (): WaveformSchedulerUnavailableError =>
   );
 
 const findDetachedFlight = (sourceKey: string): Flight | undefined =>
-  [...detachedFlights].find(flight => flight.key === sourceKey);
+  [...detachedFlights].find(flight => flight.key === sourceKey && !flight.pending.settled);
 
 function armPending(pending: Pending): void {
   if (pendingLatest !== pending || pending.settled || activeFlight) return;
@@ -145,7 +152,11 @@ function startPending(pending: Pending): void {
     });
 }
 
-const makePending = (key: string, operation: NativeOperation): Pending => {
+const makePending = (
+  key: string,
+  operation: NativeOperation,
+  priority: WaveformExtractionPriority,
+): Pending => {
   let resolve!: Pending['resolve'];
   let reject!: Pending['reject'];
   const promise = new Promise<NativeResult>((res, rej) => {
@@ -155,6 +166,7 @@ const makePending = (key: string, operation: NativeOperation): Pending => {
 
   return {
     key,
+    priority,
     operation,
     readyAt: Date.now() + WAVEFORM_EXTRACTION_DEBOUNCE_MS,
     timer: null,
@@ -182,6 +194,27 @@ const detachActiveFlight = (flight: Flight): void => {
   }
 
   if (pendingLatest) armPending(pendingLatest);
+};
+
+const priorityRank = (priority: WaveformExtractionPriority): number => {
+  if (priority === 'foreground') return 2;
+  if (priority === 'preload') return 1;
+  return 0;
+};
+
+const preemptLowerPriorityFlight = (flight: Flight): void => {
+  rejectPending(
+    flight.pending,
+    new OperationAbortError('Waveform work preempted by a higher-priority request'),
+  );
+  detachActiveFlight(flight);
+};
+
+const deferredPriorityError = (): WaveformSchedulerUnavailableError =>
+  new WaveformSchedulerUnavailableError('Waveform work deferred behind a higher-priority request');
+
+const upgradePriority = (pending: Pending, priority: WaveformExtractionPriority): void => {
+  if (priorityRank(priority) > priorityRank(pending.priority)) pending.priority = priority;
 };
 
 const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResult> => {
@@ -226,28 +259,50 @@ const awaitPending = (pending: Pending, signal: AbortSignal): Promise<NativeResu
  * for the same source rejoins the detached flight instead of starting a duplicate.
  * After two non-settling native calls the scheduler fails fast until one settles,
  * avoiding both a global waiter deadlock and unbounded native concurrency.
+ * Higher-priority work can preempt a different lower-priority flight. The
+ * ordering is visible foreground, likely-next preload, then previous/background.
  */
 export const scheduleNativeWaveformExtraction = (
   sourceKey: string,
   operation: NativeOperation,
   signal: AbortSignal,
+  options: WaveformScheduleOptions = {},
 ): Promise<NativeResult> => {
   throwIfAborted(signal);
-  if (activeFlight?.key === sourceKey) return awaitPending(activeFlight.pending, signal);
-  if (pendingLatest?.key === sourceKey) return awaitPending(pendingLatest, signal);
-  const detachedSameSource = findDetachedFlight(sourceKey);
-  if (detachedSameSource) return awaitPending(detachedSameSource.pending, signal);
+  const priority = options.priority ?? 'foreground';
+  if (activeFlight?.key === sourceKey) {
+    upgradePriority(activeFlight.pending, priority);
+    return awaitPending(activeFlight.pending, signal);
+  }
+  if (pendingLatest?.key === sourceKey) {
+    upgradePriority(pendingLatest, priority);
+    return awaitPending(pendingLatest, signal);
+  }
+  const detachedSameSource = options.rejoinDetached === false
+    ? undefined
+    : findDetachedFlight(sourceKey);
+  if (detachedSameSource) {
+    upgradePriority(detachedSameSource.pending, priority);
+    return awaitPending(detachedSameSource.pending, signal);
+  }
+
+  if (activeFlight && priorityRank(priority) > priorityRank(activeFlight.pending.priority)) {
+    preemptLowerPriorityFlight(activeFlight);
+  }
   if (!activeFlight && detachedFlights.size >= MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS) {
     throw schedulerCapacityError();
   }
 
   if (pendingLatest) {
+    if (priorityRank(priority) < priorityRank(pendingLatest.priority)) {
+      return Promise.reject(deferredPriorityError());
+    }
     const superseded = pendingLatest;
     pendingLatest = null;
     rejectPending(superseded, new OperationAbortError('Waveform request superseded'));
   }
 
-  const pending = makePending(sourceKey, operation);
+  const pending = makePending(sourceKey, operation, priority);
   pendingLatest = pending;
   armPending(pending);
   return awaitPending(pending, signal);

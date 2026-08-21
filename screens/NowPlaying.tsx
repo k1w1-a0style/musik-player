@@ -13,8 +13,20 @@ import NowPlayingSoundCloudView from './NowPlayingSoundCloudView';
 import NowPlayingDetailsPanel from './NowPlayingDetailsPanel';
 import { buildNowPlayingLayoutMetrics } from './nowPlayingLayout';
 import { useNowPlayingScreenState } from './useNowPlayingScreenState';
+import { useAdjacentWaveformPreload } from '../hooks/useWaveformPreload';
+import type { Song } from '../types/Song';
 
 type NowPlayingState = ReturnType<typeof useNowPlayingScreenState>;
+
+const AdjacentWaveformPreloader = React.memo(({ nextSong, previousSong }: {
+  nextSong: Song | null | undefined;
+  previousSong: Song | null | undefined;
+}) => {
+  useAdjacentWaveformPreload(nextSong, previousSong);
+  return null;
+});
+
+AdjacentWaveformPreloader.displayName = 'NowPlayingAdjacentWaveformPreloader';
 
 const NowPlayingMenu = ({ state }: { state: NowPlayingState }) => (
   <NowPlayingMenuModal
@@ -120,10 +132,14 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
   );
 };
 
-const HydratedNowPlayingContent = ({ state }: { state: NowPlayingState }) =>
-  state.controlsMode === 'soundcloud'
-    ? <SoundCloudNowPlayingContent state={state} />
-    : <ClassicNowPlayingContent state={state} />;
+const HydratedNowPlayingContent = ({ state }: { state: NowPlayingState }) => (
+  <>
+    {state.controlsMode === 'soundcloud'
+      ? <SoundCloudNowPlayingContent state={state} />
+      : <ClassicNowPlayingContent state={state} />}
+    <AdjacentWaveformPreloader nextSong={state.nextSong} previousSong={state.previousSong} />
+  </>
+);
 
 const NowPlayingScreenInner: React.FC = () => {
   const { theme } = useAppTheme();

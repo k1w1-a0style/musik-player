@@ -12,9 +12,16 @@ import {
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
   WAVEFORM_FAILURE_BACKOFF_MS,
 } from '../../utils/waveformExtractionLifecycle';
-import { WAVEFORM_EXTRACTION_TIMEOUT_MS } from '../../utils/waveformExtraction';
+import {
+  getWaveformExtractionKey,
+  WAVEFORM_EXTRACTION_TIMEOUT_MS,
+} from '../../utils/waveformExtraction';
 import { getWaveformSourceKey } from '../../utils/waveformGenerator';
 import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
+import {
+  preloadSongWaveform,
+  resetWaveformPreloadStateForTests,
+} from '../../utils/waveformPreload';
 
 type NativeResult = {
   points: number[];
@@ -44,6 +51,7 @@ describe('useSongWaveform lifecycle', () => {
   beforeEach(async () => {
     resetWaveformExtractionLifecycleForTests();
     resetWaveformCacheStateForTests();
+    resetWaveformPreloadStateForTests();
     extractor.extractWaveformPeaks = jest.fn();
     await AsyncStorage.clear();
     jest.useFakeTimers();
@@ -52,6 +60,7 @@ describe('useSongWaveform lifecycle', () => {
   afterEach(() => {
     resetWaveformExtractionLifecycleForTests();
     resetWaveformCacheStateForTests();
+    resetWaveformPreloadStateForTests();
     jest.useRealTimers();
   });
 
@@ -191,6 +200,36 @@ describe('useSongWaveform lifecycle', () => {
     second.unmount();
   });
 
+  test('visible waveform preempts a stuck next-track preload', async () => {
+    const stuckPreload = deferred<NativeResult>();
+    const nextSong = song('next-preload-stuck');
+    const currentSong = song('visible-current');
+    extractor.extractWaveformPeaks.mockImplementation((uri: string) =>
+      uri.includes('next-preload-stuck') ? stuckPreload.promise : Promise.resolve(decoded()));
+
+    const preload = preloadSongWaveform(nextSong);
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith(
+      'file:///next-preload-stuck.mp3', 160,
+    );
+
+    const visible = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual([
+      'file:///next-preload-stuck.mp3',
+      'file:///visible-current.mp3',
+    ]);
+    expect(visible.result.current.waveform).toMatchObject({
+      source: 'native', sourceKey: getWaveformSourceKey(currentSong),
+    });
+    await expect(preload).resolves.toBeNull();
+
+    visible.unmount();
+    stuckPreload.resolve(null);
+    await flush();
+  });
+
   test('stores one canonical detailed waveform while serving each requested display size', async () => {
     const native = deferred<NativeResult>();
     const currentSong = song('shared-different-point-counts');
@@ -322,7 +361,7 @@ describe('useSongWaveform lifecycle', () => {
     expect(blocked.result.current.loadingNative).toBe(false);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
     expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
-    expect(getWaveformFailureBackoff(getWaveformSourceKey(blockedSong))).toBeNull();
+    expect(getWaveformFailureBackoff(getWaveformExtractionKey(blockedSong))).toBeNull();
     blocked.unmount();
 
     firstNative.resolve(decoded());
