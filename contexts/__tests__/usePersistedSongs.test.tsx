@@ -25,7 +25,7 @@ jest.mock('../../utils/coverCacheCleanup', () => ({
     replaceProtectedSongCovers: jest.fn(),
     release: jest.fn(),
   })),
-  invalidateCoverCacheCleanup: jest.fn(),
+  resetCoverCacheCleanupForTests: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 

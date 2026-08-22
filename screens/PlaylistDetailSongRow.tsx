@@ -10,6 +10,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { GripVertical, Trash2 } from 'lucide-react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDrag';
 import type { Song } from '../types/Song';
@@ -97,7 +98,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
       <Pressable testID={`playlist-detail-song-${song.id}`}
         accessible accessibilityRole="adjustable"
         accessibilityLabel={`${title} von ${artist}. Position ${index + 1} von ${songCount}`}
-        accessibilityHint={canDrag ? 'Den Griff rechts nach oben oder unten ziehen.' : undefined}
+        accessibilityHint={canDrag ? 'Die Zeile lange drücken und ziehen oder den Griff rechts verwenden.' : undefined}
         accessibilityActions={canDrag ? [{ name: 'decrement', label: 'Nach oben verschieben' },
           { name: 'increment', label: 'Nach unten verschieben' }] : undefined}
         onAccessibilityAction={canDrag ? handleAccessibilityAction : undefined}
@@ -106,17 +107,22 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
             backgroundColor: theme.palette.surfaceElevated, borderWidth: 1 },
           drag.dragging && styles.songRowDragging,
           pressed && !drag.dragging && styles.songRowPressed]}>
-        <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
-        <SongArtwork song={song} title={title} backgroundColor={theme.palette.surfaceElevated}
-          textColor={theme.palette.text.muted} />
-        <View style={styles.songTextWrap}>
-          <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-            {artist}
-          </Text>
-        </View>
+        <PanGestureHandler enabled={canDrag} activateAfterLongPress={340}
+          {...drag.longPressGestureHandlers} testID={`playlist-detail-long-press-drag-${song.id}`}>
+          <Animated.View style={styles.longPressArea}>
+            <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
+            <SongArtwork song={song} title={title} backgroundColor={theme.palette.surfaceElevated}
+              textColor={theme.palette.text.muted} />
+            <View style={styles.songTextWrap}>
+              <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+                {artist}
+              </Text>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
         <Pressable accessibilityRole="button" accessibilityLabel={`${title} aus Playlist entfernen`}
           onPress={() => onRemove(song)} style={[styles.removeSongButton,
             { backgroundColor: theme.palette.surface, borderColor: theme.palette.error }]}
@@ -148,6 +154,8 @@ const styles = StyleSheet.create({
     borderRadius: APP_THEME_TOKENS.radii.input,
     paddingHorizontal: APP_THEME_TOKENS.spacing.xs,
   },
+  longPressArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center',
+    gap: APP_THEME_TOKENS.spacing.sm },
   songRowDragging: { borderWidth: 1, opacity: 0.98, transform: [{ scale: 1.015 }] },
   songRowPressed: { opacity: 0.76 },
   songIndex: { width: 24, textAlign: 'right', fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12 },

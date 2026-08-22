@@ -32,7 +32,7 @@ jest.mock('../../utils/coverCacheCleanup', () => ({
     replaceProtectedSongCovers: jest.fn(),
     release: jest.fn(),
   })),
-  invalidateCoverCacheCleanup: jest.fn(),
+  resetCoverCacheCleanupForTests: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 
@@ -342,7 +342,7 @@ describe('musicHydrationHelpers', () => {
   });
 
   test('keeps refs uncommitted when reset fails while clearing a malformed restored song', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const malformedSongs: Song[] = [
       { id: 's1', title: 'One', artist: 'A', uri: '   ' },
       { id: 's2', title: 'Two', artist: 'A', uri: 'file:///s2.mp3' },
@@ -634,7 +634,7 @@ describe('musicHydrationHelpers', () => {
   });
 
   test('clears native ref and keeps queue refs uncommitted when hydrated native queue initialization fails', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const queueContextRef = createSongRef();
     const baseQueueContextRef = createSongRef();
     const nativeQueueRef = createSongRef();

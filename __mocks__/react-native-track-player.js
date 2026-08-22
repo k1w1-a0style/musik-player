@@ -47,6 +47,7 @@ const AppKilledPlaybackBehavior = {
 };
 
 let state = State.Paused;
+let playWhenReady = false;
 let queue = [];
 let currentIdx = -1;
 let volume = 1;
@@ -66,6 +67,7 @@ const TrackPlayer = {
     queue = [];
     currentIdx = -1;
     state = State.None;
+    playWhenReady = false;
   }),
   add: jest.fn(async (tracks, insertBeforeIndex) => {
     const additions = Array.isArray(tracks) ? tracks : [tracks];
@@ -77,12 +79,15 @@ const TrackPlayer = {
     }
   }),
   play: jest.fn(async () => {
+    playWhenReady = true;
     state = State.Playing;
   }),
   pause: jest.fn(async () => {
+    playWhenReady = false;
     state = State.Paused;
   }),
   stop: jest.fn(async () => {
+    playWhenReady = false;
     state = State.Stopped;
   }),
   seekTo: jest.fn().mockResolvedValue(undefined),
@@ -121,6 +126,7 @@ const TrackPlayer = {
   getActiveTrackIndex: jest.fn(async () => currentIdx >= 0 ? currentIdx : undefined),
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),
+  getPlayWhenReady: jest.fn(async () => playWhenReady),
   updateMetadataForTrack: jest.fn(async (trackIndex, metadata) => {
     if (typeof trackIndex !== 'number') return;
     if (trackIndex < 0 || trackIndex >= queue.length) return;
@@ -140,6 +146,7 @@ const TrackPlayer = {
   // Test helpers
   __reset: () => {
     state = State.Paused;
+    playWhenReady = false;
     queue = [];
     currentIdx = -1;
     volume = 1;
@@ -149,11 +156,15 @@ const TrackPlayer = {
   __getQueue: () => queue,
   __getActiveTrackIndex: () => currentIdx,
   __getState: () => state,
+  __getPlayWhenReady: () => playWhenReady,
   __getRepeatMode: () => repeatMode,
   __getListeners: event => Array.from(listeners.get(event) ?? []),
   __trigger: trigger,
   __setState: nextState => {
     state = nextState;
+  },
+  __setPlayWhenReady: value => {
+    playWhenReady = value;
   },
 };
 

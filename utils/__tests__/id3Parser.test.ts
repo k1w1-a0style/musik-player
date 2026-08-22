@@ -1,4 +1,4 @@
-import { normalizeId3Genre, parseId3Buffer, parseMp4CoverFromBuffer, parseMp4TagsFromBuffer } from '../id3Parser';
+import { normalizeId3Genre, parseId3Buffer, parseMp4TagsFromBuffer } from '../id3Parser';
 
 /**
  * Build a minimal ID3v2.3 header + a single text frame.
@@ -423,7 +423,7 @@ describe('parseId3Buffer (v2.4)', () => {
   });
 });
 
-describe('parseMp4CoverFromBuffer', () => {
+describe('parseMp4TagsFromBuffer', () => {
   const atom = (type: string, payload: number[]): number[] => {
     const size = payload.length + 8;
     return [...u32be(size), ...enc(type), ...payload];
@@ -438,7 +438,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const udta = atom('udta', meta);
     const moov = atom('moov', udta);
 
-    const cover = parseMp4CoverFromBuffer(new Uint8Array(moov));
+    const cover = parseMp4TagsFromBuffer(new Uint8Array(moov)).cover;
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
@@ -568,7 +568,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const mdat = atom('mdat', new Array(16 * 1024).fill(0x2a));
     const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
     const bytes = new Uint8Array([...ftyp, ...mdat, ...moov]);
-    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: true });
+    const cover = parseMp4TagsFromBuffer(bytes, { trustedTopLevel: true }).cover;
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
@@ -577,7 +577,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const dataPayload = [0, 0, 0, 13, 0, 0, 0, 0, ...jpeg];
     const moov = atom('moov', atom('udta', atom('meta', [0, 0, 0, 0, ...atom('ilst', atom('covr', atom('data', dataPayload)))])));
     const bytes = new Uint8Array(new Array(3005).fill(0x7a).concat(moov));
-    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: false });
+    const cover = parseMp4TagsFromBuffer(bytes, { trustedTopLevel: false }).cover;
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
@@ -589,7 +589,7 @@ describe('parseMp4CoverFromBuffer', () => {
     const fakeType = [0x7a, 0x7a, 0x7a, 0x7a];
     const fakePayload = new Array(24).fill(0x00);
     const bytes = new Uint8Array([...fakeSize, ...fakeType, ...fakePayload, ...moov]);
-    const cover = parseMp4CoverFromBuffer(bytes, { trustedTopLevel: false });
+    const cover = parseMp4TagsFromBuffer(bytes, { trustedTopLevel: false }).cover;
     expect(cover?.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 });

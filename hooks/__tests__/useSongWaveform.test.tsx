@@ -13,10 +13,9 @@ import {
   WAVEFORM_FAILURE_BACKOFF_MS,
 } from '../../utils/waveformExtractionLifecycle';
 import {
-  getWaveformExtractionKey,
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../../utils/waveformExtraction';
-import { getWaveformSourceKey } from '../../utils/waveformGenerator';
+import { getWaveformSourceIdentity } from '../../utils/waveformGenerator';
 import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
 import {
   preloadSongWaveform,
@@ -35,6 +34,8 @@ const decoded = (points = peaks, durationMs?: number): Exclude<NativeResult, nul
   analysis: 'decoded-pcm-v1',
 });
 const song = (id: string): Song => ({ id, title: id, artist: 'Artist', uri: `file:///${id}.mp3` });
+const sourceKeyFor = (value: Song): string => getWaveformSourceIdentity(value).sourceKey;
+const extractionKeyFor = (value: Song): string => getWaveformSourceIdentity(value).sourceFingerprint;
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
@@ -80,12 +81,12 @@ describe('useSongWaveform lifecycle', () => {
     a.resolve(decoded());
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
 
-    expect(hook.result.current.sourceKey).toBe(getWaveformSourceKey(songB));
-    expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: getWaveformSourceKey(songB) });
+    expect(hook.result.current.sourceKey).toBe(sourceKeyFor(songB));
+    expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: sourceKeyFor(songB) });
     expect(onDecision).not.toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
     const keys = [...(AsyncStorage as typeof AsyncStorage & { __getStore(): Map<string, string> }).__getStore().keys()].join('|');
-    expect(keys).not.toContain(getWaveformSourceKey(songA));
-    expect(keys).toContain(getWaveformSourceKey(songB));
+    expect(keys).not.toContain(sourceKeyFor(songA));
+    expect(keys).toContain(sourceKeyFor(songB));
     hook.unmount();
   });
 
@@ -221,7 +222,7 @@ describe('useSongWaveform lifecycle', () => {
       'file:///visible-current.mp3',
     ]);
     expect(visible.result.current.waveform).toMatchObject({
-      source: 'native', sourceKey: getWaveformSourceKey(currentSong),
+      source: 'native', sourceKey: sourceKeyFor(currentSong),
     });
     await expect(preload).resolves.toBeNull();
 
@@ -361,7 +362,7 @@ describe('useSongWaveform lifecycle', () => {
     expect(blocked.result.current.loadingNative).toBe(false);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
     expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
-    expect(getWaveformFailureBackoff(getWaveformExtractionKey(blockedSong))).toBeNull();
+    expect(getWaveformFailureBackoff(extractionKeyFor(blockedSong))).toBeNull();
     blocked.unmount();
 
     firstNative.resolve(decoded());

@@ -61,9 +61,6 @@ export const createWaveformSourceIdentity = (
 export const getWaveformSourceIdentity = (song: Song | null | undefined): WaveformSourceIdentity =>
   createWaveformSourceIdentity(getWaveformCanonicalIdentity(song));
 
-export const getWaveformSourceKey = (song: Song | null | undefined): string =>
-  getWaveformSourceIdentity(song).sourceKey;
-
 export const clampWaveformPoint = (value: number): number => {
   if (!Number.isFinite(value)) return 0.08;
   return Math.max(0.04, Math.min(1, value));

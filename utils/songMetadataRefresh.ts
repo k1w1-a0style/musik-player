@@ -133,9 +133,6 @@ const normalizeCoverReference = (value?: string): NormalizedCoverReference | und
   };
 };
 
-export const normalizeCoverReferenceForComparison = (value?: string): string | undefined =>
-  normalizeCoverReference(value)?.withoutQueryOrFragment;
-
 const areCoverReferencesEquivalent = (left?: string, right?: string): boolean => {
   const normalizedLeft = normalizeCoverReference(left);
   const normalizedRight = normalizeCoverReference(right);
@@ -190,11 +187,6 @@ export const buildId3SongPatch = (song: Song, tags: Id3Tags): Partial<Song> => {
   }
 
   return patch;
-};
-
-export const applyId3TagsToSong = (song: Song, tags: Id3Tags): Song => {
-  const patch = buildId3SongPatch(song, tags);
-  return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
 };
 
 const DEFAULT_CONCURRENCY = 2;

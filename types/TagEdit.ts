@@ -113,15 +113,6 @@ export interface WriteOperationPlan {
   blockingReasons: TagWriterErrorCode[];
 }
 
-export interface WriteOrchestrationResult {
-  ok: boolean;
-  plan: WriteOperationPlan;
-  primaryBlockingReason?: TagWriterErrorCode;
-  blockingReasons: TagWriterErrorCode[];
-  warnings: string[];
-  simulatedSteps: string[];
-}
-
 export type TagEditPlan = WriteOperationPlan;
 
 export interface WriteTagsResult {

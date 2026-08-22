@@ -655,34 +655,8 @@ export const setFavoriteSongId = async (songId: string, favorite: boolean): Prom
   });
 };
 
-// Named aliases are kept for production dependency injection at library-startup boundaries.
+// Named alias kept for production dependency injection at library-startup boundaries.
 export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScanFolders();
-
-const getScanFolderIdentity = (folder: ScanFolder): string => folder.id || folder.uri;
-
-const mergeScanFolder = (currentFolder: ScanFolder | undefined, incomingFolder: ScanFolder): ScanFolder => {
-  if (!currentFolder) return incomingFolder;
-  // Current-wins is intentional: snapshot saves must not overwrite newer targeted mutations.
-  return { ...incomingFolder, ...currentFolder };
-};
-
-const mergeScanFolderSnapshots = (currentFolders: ScanFolder[], incomingFolders: ScanFolder[]): ScanFolder[] => {
-  const currentFoldersByIdentity = new Map(currentFolders.map(folder => [getScanFolderIdentity(folder), folder]));
-  const incomingIdentities = new Set(incomingFolders.map(getScanFolderIdentity));
-  const mergedIncomingFolders = incomingFolders.map(folder =>
-    mergeScanFolder(currentFoldersByIdentity.get(getScanFolderIdentity(folder)), folder),
-  );
-  const currentOnlyFolders = currentFolders.filter(folder => !incomingIdentities.has(getScanFolderIdentity(folder)));
-  return [...mergedIncomingFolders, ...currentOnlyFolders];
-};
-
-export const saveScanFolders = async (folders: ScanFolder[]): Promise<void> => {
-  // Exported for snapshot-style persistence/tests only: this is a current-wins merge, not a blind replace.
-  await withScanFoldersMutationLock(async () => {
-    const currentFolders = await getScanFolders();
-    await storage.setScanFolders(mergeScanFolderSnapshots(currentFolders, folders));
-  });
-};
 
 export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> =>
   withScanFoldersMutationLock(async () => {
@@ -723,9 +697,3 @@ export const updateScanFolder = async (id: string, patch: Partial<ScanFolder>): 
     await storage.setScanFolders(next);
     return next;
   });
-
-export const clearScanFolders = async (): Promise<void> => {
-  await withScanFoldersMutationLock(async () => {
-    await storage.remove(StorageKeys.SCAN_FOLDERS);
-  });
-};

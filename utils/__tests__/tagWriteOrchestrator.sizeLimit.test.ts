@@ -1,10 +1,9 @@
 import {
-  assertSafeWriteAllowed,
   createTagWriteOperationPlan,
   DEFAULT_MAX_SAFE_TAG_WRITE_FILE_BYTES,
-  simulateTagWriteOperation,
 } from '../tagWriteOrchestrator';
 import type { Song } from '../../types/Song';
+import { assertSafeWriteAllowed, simulateTagWriteOperation } from './tagWriteOrchestratorTestHelpers';
 
 const draft = { songId: 's1', tags: { title: 'New Title' } };
 

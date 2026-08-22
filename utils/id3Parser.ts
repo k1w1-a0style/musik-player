@@ -472,7 +472,7 @@ const skipExtendedId3Header = (
   return start;
 };
 
-const hasUnsupportedFrameFlags = (majorVersion: number, flag1: number, flag2: number): boolean => {
+const hasUnsupportedFrameFlags = (majorVersion: number, _flag1: number, flag2: number): boolean => {
   if (majorVersion === 3) return (flag2 & 0xe0) !== 0;
   if (majorVersion === 4) return (flag2 & 0x4d) !== 0;
   return false;
@@ -855,12 +855,6 @@ export const parseMp4TagsFromBuffer = (
   options: { includeCover?: boolean; trustedTopLevel?: boolean } = {},
 ): Id3Tags =>
   findMp4Tags(bytes, 0, bytes.length, { includeCover: options.includeCover !== false, trustedBoundary: options.trustedTopLevel === true });
-
-export const parseMp4CoverFromBuffer = (
-  bytes: Uint8Array,
-  options: { trustedTopLevel?: boolean } = {},
-): string | undefined =>
-  parseMp4TagsFromBuffer(bytes, { includeCover: true, trustedTopLevel: options.trustedTopLevel }).cover;
 
 const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
 

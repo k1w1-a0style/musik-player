@@ -4,7 +4,6 @@ import {
   createWaveformSourceIdentity,
   getWaveformCanonicalIdentity,
   getWaveformSourceIdentity,
-  getWaveformSourceKey,
   normalizeWaveformPoints,
 } from '../waveformGenerator';
 
@@ -22,7 +21,7 @@ test('builds deterministic fallback waveform points and full source identity', (
   const identity = getWaveformSourceIdentity(song);
 
   expect(first.source).toBe('fallback');
-  expect(first.sourceKey).toBe(getWaveformSourceKey(song));
+  expect(first.sourceKey).toBe(identity.sourceKey);
   expect(first).toMatchObject(identity);
   expect(first.sourceFingerprint).toMatch(/^wf5:[0-9a-f]{32}$/);
   expect(first.points).toHaveLength(16);

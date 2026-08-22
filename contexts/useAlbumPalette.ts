@@ -81,6 +81,3 @@ export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteStat
 
   return state;
 };
-
-export const useAlbumPalette = (currentSong: Song | null): PaletteResult | null =>
-  useAlbumPaletteState(currentSong).palette;

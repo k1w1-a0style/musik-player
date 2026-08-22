@@ -306,7 +306,7 @@ test('cleared album keeps empty string in draft', async () => {
 
 test('removeCover + written clears cover fields in updateSongMetadata patch', async () => {
   mockWriteTagsToFile.mockResolvedValue({ status: 'written' });
-  const { getByTestId, getByText } = render(<TagEditor />);
+  const { getByTestId } = render(<TagEditor />);
   fireEvent.press(getByTestId('remove-cover'));
   fireEvent.changeText(getByTestId('input-title'), 'With Cover Remove');
   fireEvent.press(getByTestId('save-button'));

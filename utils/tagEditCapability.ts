@@ -59,8 +59,6 @@ export const getSupportedContainer = (song: Song): TagEditableContainer => {
   return 'unsupported';
 };
 
-export const isSupportedTagEditContainer = (song: Song): boolean => getSupportedContainer(song) !== 'unsupported';
-
 export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
 
 /**

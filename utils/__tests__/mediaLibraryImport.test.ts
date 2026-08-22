@@ -430,8 +430,8 @@ describe('mediaLibraryImport', () => {
         ? { assets: [mediaAsset('1', 'one.mp3', 90), mediaAsset('2', 'two.mp3', 90)], hasNextPage: true, endCursor: 'a' }
         : { assets: [mediaAsset('3', 'three.mp3', 90)], hasNextPage: false, endCursor: 'b' },
     ) as any;
-    const result = await mediaImport.loadAllAudioAssetsFromMediaLibrary(getAssetsPage);
-    expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+    expect(result.assets.map(a => a.id)).toEqual(['1', '2', '3']);
   });
 
   test('saf scan enters dotted folders like AC.DC and Vol.1', async () => {

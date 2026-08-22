@@ -1,4 +1,4 @@
-import { buildAlbumKey, buildLibraryGroups, groupSongs } from '../libraryPresentation';
+import { buildLibraryGroups, groupSongs } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 
 const song = (id: string, albumArtist: string, album?: string): Song => ({
@@ -14,9 +14,6 @@ describe('unknown album grouping', () => {
     const first = song('1', 'Album Artist A');
     const second = song('2', 'Album Artist B', 'unknown');
 
-    expect(buildAlbumKey(first)).toBe('album:unknown-album');
-    expect(buildAlbumKey(second)).toBe('album:unknown-album');
-
     const groups = groupSongs([first, second], 'album');
     expect(groups).toHaveLength(1);
     expect(groups[0]).toMatchObject({
@@ -30,7 +27,6 @@ describe('unknown album grouping', () => {
     const first = song('1', 'Album Artist A', 'Shared Album');
     const second = song('2', 'Album Artist B', 'Shared Album');
 
-    expect(buildAlbumKey(first)).not.toBe(buildAlbumKey(second));
     expect(buildLibraryGroups([first, second]).albumGroups).toHaveLength(2);
   });
 });

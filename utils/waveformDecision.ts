@@ -63,9 +63,6 @@ export const classifyWaveformContainer = (uri: string | null | undefined): Wavef
   return CONTAINER_BY_EXTENSION[extension] ?? 'other';
 };
 
-export const isNativeWaveformAccepted = (decision: NativeWaveformDecision): boolean =>
-  decision === 'native-accepted';
-
 /**
  * A decision is only worth logging when the native path was actually attempted
  * for this source and then rejected. Missing URIs, a device without the native

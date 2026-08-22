@@ -157,6 +157,26 @@ test('dragging the visible queue grip claims the touch immediately and commits t
   act(() => unmount());
 });
 
+test('long-pressing an upcoming queue row activates drag without taking over normal scrolling first', () => {
+  const onQueueShift = jest.fn();
+  const { getByTestId } = render(
+    <NowPlayingQueueCard queue={queue} currentSongId="s1" maxHeight={240}
+      onPlayQueueItem={jest.fn()} onQueueShift={onQueueShift}
+      canShiftQueue accentColor="#3366FF" />,
+  );
+  const gesture = getByTestId('queue-long-press-drag-s2');
+
+  fireEvent(gesture, 'handlerStateChange', {
+    nativeEvent: { oldState: 2, state: 4, translationY: 0 },
+  });
+  fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: 80 } });
+  fireEvent(gesture, 'handlerStateChange', {
+    nativeEvent: { oldState: 4, state: 5, translationY: 80 },
+  });
+
+  expect(onQueueShift).toHaveBeenCalledWith(1, 2);
+});
+
 test('uses row text contrast instead of foregroundOnAccent for active text while preserving accent affordances', () => {
   const longQueue: Song[] = [
     { id: 's1', title: 'One'.repeat(40), artist: 'Artist '.repeat(30) },

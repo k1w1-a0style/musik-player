@@ -1,7 +1,10 @@
 import React from 'react';
 import { Animated, Text } from 'react-native';
 import { act, render } from '@testing-library/react-native';
-import CrossfadeLayers, { PLAYER_COLOR_CROSSFADE_MS } from '../CrossfadeLayers';
+import CrossfadeLayers, {
+  PLAYER_COLOR_CROSSFADE_DELAY_MS,
+  PLAYER_COLOR_CROSSFADE_MS,
+} from '../CrossfadeLayers';
 
 let mockReduceMotion = false;
 
@@ -22,7 +25,7 @@ describe('CrossfadeLayers', () => {
 
   test('keeps an outgoing visual layer while the incoming value fades in', () => {
     let finish: ((result: { finished: boolean }) => void) | undefined;
-    jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => ({
+    jest.spyOn(Animated, 'timing').mockImplementation((_value, _config) => ({
       start: callback => {
         finish = callback;
       },
@@ -44,6 +47,7 @@ describe('CrossfadeLayers', () => {
     expect(getByTestId('value-red', { includeHiddenElements: true })).toBeTruthy();
     expect(getByTestId('value-blue')).toBeTruthy();
     expect(Animated.timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      delay: PLAYER_COLOR_CROSSFADE_DELAY_MS,
       duration: PLAYER_COLOR_CROSSFADE_MS,
       useNativeDriver: true,
     }));

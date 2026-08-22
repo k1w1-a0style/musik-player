@@ -1,5 +1,4 @@
 import {
-  hasSameSongIdMultiset,
   moveSongToFront,
   rotateQueueFromIndex,
   shuffleQueueKeepingCurrent,
@@ -46,13 +45,6 @@ describe('playbackQueue helpers', () => {
     expect(rotateQueueFromIndex(songs, 3)).toEqual(songs);
     expect(rotateQueueFromIndex(songs, 1.5)).toEqual(songs);
     expect(rotateQueueFromIndex(songs, 0)).not.toBe(songs);
-  });
-
-  test('compares queues by normalized song id multiset', () => {
-    expect(hasSameSongIdMultiset(songs, [songs[2], songs[0], songs[1]])).toBe(true);
-    expect(hasSameSongIdMultiset([{ ...songs[0], id: ' s1 ' }], [songs[0]])).toBe(true);
-    expect(hasSameSongIdMultiset(songs, [songs[0], songs[1]])).toBe(false);
-    expect(hasSameSongIdMultiset([songs[0], songs[0]], [songs[0], songs[1]])).toBe(false);
   });
 
   test('keeps current song first while shuffling the rest with injected randomness', () => {

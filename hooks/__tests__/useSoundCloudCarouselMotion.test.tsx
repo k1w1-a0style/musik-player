@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Animated } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../useSoundCloudCarouselMotion';
@@ -31,6 +32,7 @@ describe('SoundCloud carousel gesture listeners', () => {
 
   test('exposes a function listener for the nested vertical gesture', () => {
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+      drag: new Animated.Value(0),
       height: 800,
       onCollapse: jest.fn(),
       onOpenQueue: jest.fn(),
@@ -46,6 +48,7 @@ describe('SoundCloud carousel gesture listeners', () => {
     const onCollapse = jest.fn();
     const onOpenQueue = jest.fn();
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+      drag: new Animated.Value(0),
       height: 800,
       onCollapse,
       onOpenQueue,
@@ -100,6 +103,7 @@ describe('SoundCloud carousel gesture listeners', () => {
       const onCollapse = jest.fn();
       const onOpenQueue = jest.fn();
       const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+        drag: new Animated.Value(0),
         height: 800,
         onCollapse,
         onOpenQueue,

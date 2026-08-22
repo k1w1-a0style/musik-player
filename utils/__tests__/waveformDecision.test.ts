@@ -1,9 +1,7 @@
 import {
   classifyWaveformContainer,
   describeWaveformDecision,
-  isNativeWaveformAccepted,
   isNativeWaveformRejectionNoteworthy,
-  type NativeWaveformDecision,
 } from '../waveformDecision';
 
 describe('waveformDecision', () => {
@@ -30,24 +28,6 @@ describe('waveformDecision', () => {
       expect(classifyWaveformContainer(null)).toBe('other');
       expect(classifyWaveformContainer(undefined)).toBe('other');
       expect(classifyWaveformContainer('')).toBe('other');
-    });
-  });
-
-  describe('isNativeWaveformAccepted', () => {
-    test('is only true for the accepted decision', () => {
-      expect(isNativeWaveformAccepted('native-accepted')).toBe(true);
-      const rejections: NativeWaveformDecision[] = [
-        'no-uri',
-        'no-native-extractor',
-        'native-empty',
-        'native-unsupported-analysis',
-        'native-unusable-shape',
-        'native-source-key-changed',
-        'native-timeout',
-        'native-scheduler-unavailable',
-        'native-error',
-      ];
-      rejections.forEach(decision => expect(isNativeWaveformAccepted(decision)).toBe(false));
     });
   });
 

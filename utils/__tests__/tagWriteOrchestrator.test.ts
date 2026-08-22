@@ -1,7 +1,8 @@
 import type { Song } from '../../types/Song';
-import { assertSafeWriteAllowed, createRollbackPlan, createTagWriteOperationPlan, getPrimaryBlockingReason, simulateTagWriteOperation, validateWritePreconditions } from '../tagWriteOrchestrator';
+import { createRollbackPlan, createTagWriteOperationPlan, validateWritePreconditions } from '../tagWriteOrchestrator';
 import { writeTagsToFile } from '../tagWriter';
 import { getTagEditCapability } from '../tagEditCapability';
+import { assertSafeWriteAllowed, getPrimaryBlockingReason, simulateTagWriteOperation } from './tagWriteOrchestratorTestHelpers';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 'A', artist: 'B', ...overrides });
 const draft = { songId: '1', tags: { title: 'New' } };

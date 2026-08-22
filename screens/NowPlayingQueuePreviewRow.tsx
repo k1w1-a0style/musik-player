@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, View,
   type GestureResponderHandlers } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDrag';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -100,7 +101,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
     onPress(id);
   }, [id, onPress]);
   const accessibilityLabel = artist.trim() ? `${title} von ${artist.trim()} abspielen` : `${title} abspielen`;
-  const dragLabel = ' Zum Umsortieren den Griff rechts ziehen.';
+  const dragLabel = ' Zum Umsortieren lange drücken und ziehen oder den Griff rechts verwenden.';
 
   return (
     <Animated.View style={[styles.animatedRow,
@@ -109,23 +110,29 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
       testID={`queue-drag-surface-${id}`}>
       <Pressable testID={`queue-row-${id}`} onPress={handlePress}
         accessibilityRole="button" accessibilityLabel={accessibilityLabel + (canDrag ? dragLabel : '')}
-        accessibilityHint={canDrag ? 'Den Griff rechts nach oben oder unten ziehen.' : undefined}
+        accessibilityHint={canDrag ? 'Die Zeile lange drücken und ziehen oder den Griff rechts verwenden.' : undefined}
         accessibilityState={{ selected: isCurrent }}
         style={({ pressed }) => [styles.queueItem,
           isCurrent && [styles.queueItemActive, { borderColor: resolvedAccentColor, backgroundColor: `${resolvedAccentColor}18` }],
           drag.dragEnabled && [styles.queueItemEditing, { borderColor: resolvedAccentColor }],
           drag.dragging && [styles.queueItemDragging, { backgroundColor: rowColors.surfaceElevated }],
           pressed && !drag.dragging && styles.queueItemPressed]}>
-        <View style={[styles.queueAccent, { backgroundColor: rowColors.border },
-          isCurrent && { backgroundColor: resolvedAccentColor }]} testID={`queue-accent-bar-${id}`} />
-        <QueueArtwork id={id} artworkUri={artworkUri} title={title} colors={rowColors} />
-        <View style={styles.queueTextWrap}>
-          <Text style={[styles.queueTitle, { color: rowColors.textPrimary }, isCurrent && styles.queueTitleActive]}
-            numberOfLines={1} ellipsizeMode="tail">{title}</Text>
-          <Text style={[styles.queueArtist, { color: rowColors.textSecondary }]}
-            numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
-        </View>
-        <PlayingBadge id={id} visible={isCurrent} accentColor={resolvedAccentColor} textColor={rowColors.textPrimary} />
+        <PanGestureHandler enabled={canDrag} activateAfterLongPress={340}
+          {...drag.longPressGestureHandlers} testID={`queue-long-press-drag-${id}`}>
+          <Animated.View style={styles.longPressArea}>
+            <View style={[styles.queueAccent, { backgroundColor: rowColors.border },
+              isCurrent && { backgroundColor: resolvedAccentColor }]} testID={`queue-accent-bar-${id}`} />
+            <QueueArtwork id={id} artworkUri={artworkUri} title={title} colors={rowColors} />
+            <View style={styles.queueTextWrap}>
+              <Text style={[styles.queueTitle, { color: rowColors.textPrimary }, isCurrent && styles.queueTitleActive]}
+                numberOfLines={1} ellipsizeMode="tail">{title}</Text>
+              <Text style={[styles.queueArtist, { color: rowColors.textSecondary }]}
+                numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
+            </View>
+            <PlayingBadge id={id} visible={isCurrent} accentColor={resolvedAccentColor}
+              textColor={rowColors.textPrimary} />
+          </Animated.View>
+        </PanGestureHandler>
         <DragHandle id={id} visible={canDrag} enabled={drag.dragging}
           accentColor={resolvedAccentColor} colors={rowColors} panHandlers={drag.panHandlers} />
       </Pressable>
@@ -136,6 +143,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
 const styles = StyleSheet.create({
   animatedRow: { zIndex: 1 }, animatedRowDragging: { zIndex: 20, elevation: 8 },
   queueItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: APP_THEME_TOKENS.radii.input, paddingHorizontal: 8 },
+  longPressArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
   queueItemActive: { borderWidth: 1 }, queueItemEditing: { borderWidth: 1 },
   queueItemDragging: { opacity: 0.97 }, queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 32, borderRadius: 3 },

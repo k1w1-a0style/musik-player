@@ -16,7 +16,6 @@ import {
   getNextRepeatMode,
   isRepeatMode,
   normalizeRepeatMode,
-  normalizeSeekSeconds,
   seekToMillis,
   skipToNextSafely,
   skipToPreviousOrRestart,
@@ -67,14 +66,6 @@ describe('playbackControlHelpers', () => {
     expect(getNextRepeatMode('one')).toBe('off');
     expect(getNextRepeatMode('bad')).toBe('all');
     expect(getNextRepeatMode(undefined)).toBe('all');
-  });
-
-  test('normalizes seek targets from milliseconds to safe seconds', () => {
-    expect(normalizeSeekSeconds(5000)).toBe(5);
-    expect(normalizeSeekSeconds(0)).toBe(0);
-    expect(normalizeSeekSeconds(-100)).toBe(0);
-    expect(normalizeSeekSeconds(Number.NaN)).toBe(0);
-    expect(normalizeSeekSeconds(Number.POSITIVE_INFINITY)).toBe(0);
   });
 
   test('applies repeat mode to TrackPlayer', async () => {

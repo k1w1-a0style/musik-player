@@ -45,7 +45,7 @@ export class NativeMutationHydrationStaleError extends Error {
 let nativeMutationChain: Promise<unknown> = Promise.resolve();
 let nativeQueueReplacementVersion = 0;
 
-export const getNativeQueueReplacementVersion = (): number => nativeQueueReplacementVersion;
+export const getNativeQueueReplacementVersionForTests = (): number => nativeQueueReplacementVersion;
 
 export const markNativeQueueReplacementIntent = (): number => {
   nativeQueueReplacementVersion += 1;

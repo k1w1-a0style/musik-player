@@ -1,12 +1,11 @@
 import React from 'react';
 import { Text, Pressable } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
 import { MusicProvider, useMusicContext } from '../MusicContext';
 import { storage, StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SystemAudio from 'expo-system-audio';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',

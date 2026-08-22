@@ -279,7 +279,6 @@ describe('GitHub workflow CI strategy', () => {
   it('patches success status with the validated EAS build-detail URL output', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
     const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
-    const successStep = namedStep(easWorkflow, 'Update Build Status - Success');
     const success = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
     const hasBuildUrlProducerForSuccess = (source: string) => {
       const sourceBuildStep = parsedNamedStepFromSource(source, 'Run EAS Build (WAIT)');
@@ -305,7 +304,6 @@ describe('GitHub workflow CI strategy', () => {
   });
 
   it('does not use build URLs or job IDs directly inside privileged shell scripts', () => {
-    const easWorkflow = readWorkflow('eas-build.yml');
     const buildStatusStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Building');
     const successStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Success');
     const failureStep = parsedNamedStep('eas-build.yml', 'Update Build Status - Failed');

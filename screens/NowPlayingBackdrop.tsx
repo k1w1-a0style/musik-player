@@ -21,7 +21,8 @@ interface BackdropSnapshot extends NowPlayingBackdropProps {
   artworkSource: ImageSourcePropType | null;
 }
 
-const BACKDROP_CROSSFADE_MS = 680;
+const BACKDROP_CROSSFADE_DELAY_MS = 120;
+const BACKDROP_CROSSFADE_MS = 760;
 
 const buildSnapshot = ({ gradientColors, accent, glowLeft, artworkUri }: NowPlayingBackdropProps): BackdropSnapshot => ({
   gradientColors,
@@ -86,6 +87,7 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     Animated.timing(transition, {
       toValue: 1,
       duration: BACKDROP_CROSSFADE_MS,
+      delay: BACKDROP_CROSSFADE_DELAY_MS,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {

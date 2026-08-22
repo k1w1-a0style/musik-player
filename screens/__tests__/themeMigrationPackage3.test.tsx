@@ -58,8 +58,11 @@ test('TrackInfo row renders inside AppThemeProvider with dynamic text color', as
   const { getByText } = renderWithProvider(<TrackInfoRow label="Codec" value="AAC" />);
 
   await waitFor(() => {
-    const rowStyle = StyleSheet.flatten(getByText('Codec: AAC').props.style);
-    expect(rowStyle.color).toBe(expectedTheme.palette.text.secondary);
+    const labelStyle = StyleSheet.flatten(getByText('Codec').props.style);
+    const valueStyle = StyleSheet.flatten(getByText('AAC').props.style);
+    expect(labelStyle.color).toBe(expectedTheme.palette.text.muted);
+    expect(valueStyle.color).toBe(expectedTheme.palette.text.primary);
+    expect(valueStyle.fontFamily).toBe(expectedTheme.tokens.fonts.heading);
   });
 });
 
