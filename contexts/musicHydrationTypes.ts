@@ -35,10 +35,13 @@ export interface HydrateStoredSongsArgs {
   setCurrentSong: Dispatch<SetStateAction<Song | null>>;
   setPlaybackQueue: Dispatch<SetStateAction<Song[]>>;
   isCancelled: () => boolean;
+  onLibraryHydrated?: (playlists: Playlist[]) => void;
+  beforeNativeHydration?: () => Promise<void>;
 }
 
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setLibraryHydrationReady?: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   gateOwner?: NativeHydrationGateOwner;
 }

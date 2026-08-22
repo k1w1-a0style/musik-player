@@ -12,6 +12,7 @@ export interface MusicProviderEffectsArgs {
   persistCurrentSongId: (song: Song | null) => Promise<void>;
   isReady: boolean;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   songs: Song[];
@@ -42,6 +43,7 @@ export const useMusicProviderEffects = ({
   persistCurrentSongId,
   isReady,
   setIsReady,
+  setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
   songs,
@@ -69,6 +71,7 @@ export const useMusicProviderEffects = ({
     baseQueueContextRef,
     nativeQueueRef,
     setIsReady,
+    setLibraryHydrationReady,
     setHydrationStatus,
     hydrationRetryToken,
     setSongsState,

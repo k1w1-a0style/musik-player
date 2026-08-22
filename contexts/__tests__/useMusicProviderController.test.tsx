@@ -42,6 +42,8 @@ describe('useMusicProviderController', () => {
       state: {
         isReady: true,
         setIsReady: noop,
+        libraryHydrationReady: true,
+        setLibraryHydrationReady: noop,
         songs: [song],
         setSongsState: noop,
         currentSong: song,
@@ -216,6 +218,6 @@ describe('useMusicProviderController', () => {
     expect(mockedUseActions).toHaveBeenCalledWith(runtime);
     expect(mockedUseEffects).toHaveBeenCalledWith(runtime);
     expect(mockedUseComposition).toHaveBeenCalledWith(runtime, actions);
-    expect(result.current).toBe(values);
+    expect(result.current).toEqual({ ...values, contentReady: true });
   });
 });

@@ -157,8 +157,8 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     }
   }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
 
-  useLibraryCoverBackfill({ songs, applySongMetadataPatches });
-  useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches });
+  useLibraryCoverBackfill({ songs, applySongMetadataPatches, enabled: isReady });
+  useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches, enabled: isReady });
 
   const refreshOperation = useMetadataRefreshOperation();
   const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);

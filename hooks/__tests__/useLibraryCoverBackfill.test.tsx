@@ -48,6 +48,25 @@ describe('useLibraryCoverBackfill', () => {
     (createCoverCacheProtection as jest.Mock).mockClear();
   });
 
+  test('waits for completed music hydration before starting background cover work', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(null);
+    const applySongMetadataPatches = jest.fn();
+    const rendered = renderHook(
+      ({ enabled }: { enabled: boolean }) => useLibraryCoverBackfill({
+        songs: [song('a')],
+        applySongMetadataPatches,
+        enabled,
+      }),
+      { initialProps: { enabled: false } },
+    );
+
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+
+    rendered.rerender({ enabled: true });
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1));
+  });
+
   test('requeues coverless songs after an aborted stale backfill round', async () => {
     const deferred: Array<{ resolve: (value: { uri: string }) => void }> = [];
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(

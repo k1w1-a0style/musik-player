@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useFonts } from 'expo-font';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -12,46 +12,35 @@ import {
   isTagWriteStartupTimeoutError,
   restoreAndReconcileTagWrites,
 } from './utils/tagWriterRecovery';
+import { startStartupTimer } from './utils/startupTiming';
 
 export const AppContent = (): React.ReactElement => {
   const [fontsLoaded, fontError] = useFonts(appFonts);
-  const [tagWritesReady, setTagWritesReady] = useState(false);
-  const [tagWritesFailed, setTagWritesFailed] = useState(false);
-  const mountedRef = useRef(true);
-  const recoveryRef = useRef<Promise<void> | null>(null);
+  const finishFontTimingRef = useRef<ReturnType<typeof startStartupTimer> | null>(null);
+  if (!finishFontTimingRef.current) finishFontTimingRef.current = startStartupTimer('fonts');
 
-  const restoreTagWrites = useCallback(() => {
-    if (recoveryRef.current) return recoveryRef.current;
-    if (mountedRef.current) setTagWritesFailed(false);
-    const recovery = restoreAndReconcileTagWrites().then(() => {
-      if (mountedRef.current) setTagWritesReady(true);
-    }, error => {
+  useEffect(() => {
+    const finishRecoveryTiming = startStartupTimer('tag-write-recovery');
+    void restoreAndReconcileTagWrites().then(() => {
+      finishRecoveryTiming('ready');
+    }).catch(error => {
       if (isTagWriteStartupTimeoutError(error)) {
+        finishRecoveryTiming('timeout');
         console.warn('[TagWriter] Startup recovery timed out; continuing with tag writes disabled.', String(error));
-        if (mountedRef.current) setTagWritesReady(true);
         return;
       }
+      finishRecoveryTiming('failed');
       console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
-      if (mountedRef.current) setTagWritesFailed(true);
-    }).finally(() => {
-      if (recoveryRef.current === recovery) recoveryRef.current = null;
     });
-    recoveryRef.current = recovery;
-    return recovery;
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
-    void restoreTagWrites();
-    return () => { mountedRef.current = false; };
-  }, [restoreTagWrites]);
-
-  useEffect(() => {
+    if (fontsLoaded) finishFontTimingRef.current?.('ready');
+    else if (fontError) finishFontTimingRef.current?.('fallback');
     if (fontError) console.warn('[Fonts] Custom fonts failed to load; using the system fallback.', String(fontError));
-  }, [fontError]);
+  }, [fontError, fontsLoaded]);
 
-  if ((!fontsLoaded && !fontError) || !tagWritesReady)
-    return <AppLoading degraded={tagWritesFailed} onRetry={restoreTagWrites} />;
+  if (!fontsLoaded && !fontError) return <AppLoading />;
 
   return (
     <AppProviders>

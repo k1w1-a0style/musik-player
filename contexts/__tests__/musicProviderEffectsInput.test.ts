@@ -16,6 +16,7 @@ const baseInput: MusicProviderEffectsArgs = {
   persistCurrentSongId: noopAsync,
   isReady: true,
   setIsReady: noop,
+  setLibraryHydrationReady: noop,
   songs,
   setSongsState: noop,
   currentSongSetter: noop,
@@ -50,6 +51,7 @@ describe('buildMusicProviderEffectsInput', () => {
         state: {
           isReady: baseInput.isReady,
           setIsReady: baseInput.setIsReady,
+          setLibraryHydrationReady: baseInput.setLibraryHydrationReady,
           songs: baseInput.songs,
           setSongsState: baseInput.setSongsState,
           currentSongSetter: baseInput.currentSongSetter,

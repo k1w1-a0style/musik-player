@@ -15,7 +15,12 @@ describe('expo-system-audio wrapper', () => {
       errorCode: 'WriteNotImplemented',
       verified: false,
     });
-    await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toEqual({ pendingCount: 0, transactions: [] });
+    await expect(SystemAudio.getAudioTagRecoveryStatus()).resolves.toEqual({
+      available: true,
+      pendingCount: 0,
+      retainedOutcomeCount: 0,
+      transactions: [],
+    });
     await expect(SystemAudio.recoverPendingAudioTagTransactions()).resolves.toMatchObject({
       success: false, errorCode: 'WriteNotImplemented', recoveryPending: false,
     });

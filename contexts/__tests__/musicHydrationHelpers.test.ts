@@ -102,6 +102,23 @@ describe('musicHydrationHelpers', () => {
     expect(mockMigrateLegacySongFavoritesFromStoredSongs).toHaveBeenCalledTimes(1);
   });
 
+  test('starts stored-state reads without waiting for legacy favorites migration', async () => {
+    let finishMigration!: () => void;
+    const pendingMigration = new Promise<string[]>(resolve => {
+      finishMigration = () => resolve([]);
+    });
+    mockMigrateLegacySongFavoritesFromStoredSongs.mockReturnValueOnce(pendingMigration);
+    const getSpy = jest.spyOn(storage, 'get');
+
+    const loading = loadStoredMusicHydrationState();
+    await Promise.resolve();
+
+    expect(getSpy).toHaveBeenCalledTimes(9);
+    finishMigration();
+    await loading;
+    getSpy.mockRestore();
+  });
+
   test('validates and normalizes stored playback settings during hydration load', async () => {
     await storage.set(StorageKeys.SONGS, songs);
     await AsyncStorage.setItem('@musikplayer:volume', '2');

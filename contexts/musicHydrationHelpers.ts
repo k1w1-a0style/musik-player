@@ -34,6 +34,7 @@ import type {
 } from './musicHydrationTypes';
 import { publishNativeHydrationGate } from '../utils/nativeHydrationGate';
 import type { NativeHydrationGateOwner, NativeHydrationGateStatus } from '../utils/nativeHydrationGate';
+import { startStartupTimer } from '../utils/startupTiming';
 
 const publishHydrationStatus = (
   owner: NativeHydrationGateOwner | undefined,
@@ -170,6 +171,8 @@ export const hydrateStoredSongs = async ({
   setCurrentSong,
   setPlaybackQueue,
   isCancelled,
+  onLibraryHydrated,
+  beforeNativeHydration,
 }: HydrateStoredSongsArgs): Promise<HydrateStoredSongsResult> => {
   const refs = { nativeQueueRef, queueContextRef, baseQueueContextRef };
   const sourceSongs = stored.songs ?? [];
@@ -182,6 +185,7 @@ export const hydrateStoredSongs = async ({
     const plan = createStoredHydrationPlan(stored, sanitizedSongs);
 
     applyHydratedSongsState(plan, { songsRef, setSongsState });
+    onLibraryHydrated?.(plan.normalizedPlaylists ?? []);
 
     const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
     if (songsPersistResult.status === 'unconfirmed') {
@@ -197,6 +201,9 @@ export const hydrateStoredSongs = async ({
     if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     const hydratedStored = toHydratedStoredState(stored, plan);
+
+    await beforeNativeHydration?.();
+    if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     const initialNativeResult = await applyHydratedNativeQueue({
       plan,
@@ -219,63 +226,174 @@ export const hydrateStoredSongs = async ({
   }
 };
 
-export const runMusicHydration = async ({
-  setIsReady,
+type MusicHydrationOutcome = 'failed' | 'ready' | 'retry-required' | 'degraded' | 'fallback-ready' | 'cancelled';
+type FinishStartupTiming = ReturnType<typeof startStartupTimer>;
+type MusicHydrationCoreArgs = Omit<RunMusicHydrationArgs,
+  'setIsReady' | 'setLibraryHydrationReady' | 'setHydrationStatus' | 'gateOwner'>;
+
+interface MusicHydrationTimings {
+  hydration: FinishStartupTiming;
+  trackPlayer: FinishStartupTiming;
+  storage: FinishStartupTiming;
+  library: FinishStartupTiming;
+}
+
+type TrackPlayerSetupOutcome = Promise<{ ok: true } | { ok: false; error: unknown }>;
+
+const createMusicHydrationTimings = (): MusicHydrationTimings => ({
+  hydration: startStartupTimer('music-hydration'),
+  trackPlayer: startStartupTimer('track-player-setup'),
+  storage: startStartupTimer('music-storage'),
+  library: startStartupTimer('music-library'),
+});
+
+const startTrackPlayerHydrationSetup = (finish: FinishStartupTiming): TrackPlayerSetupOutcome =>
+  setupTrackPlayer().then(
+    () => { finish('ready'); return { ok: true as const }; },
+    error => { finish('failed'); return { ok: false as const, error }; },
+  );
+
+const requireTrackPlayerSetup = async (setup: TrackPlayerSetupOutcome): Promise<void> => {
+  const outcome = await setup;
+  if (!outcome.ok) throw outcome.error;
+};
+
+const loadStoredStateForHydration = async (finish: FinishStartupTiming): Promise<StoredMusicHydrationState> => {
+  try {
+    const stored = await loadStoredMusicHydrationState();
+    finish('ready');
+    return stored;
+  } catch (error) {
+    finish('failed');
+    console.warn('[MusicHydration:StorageError] Failed to load stored hydration state.', error);
+    throw error;
+  }
+};
+
+const runPrimaryMusicHydration = async ({
+  args,
+  setLibraryHydrationReady,
   setHydrationStatus,
   gateOwner,
-  isCancelled,
+  trackPlayerSetup,
+  timings,
+}: {
+  args: MusicHydrationCoreArgs;
+  setLibraryHydrationReady: RunMusicHydrationArgs['setLibraryHydrationReady'];
+  setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'];
+  gateOwner: NativeHydrationGateOwner | undefined;
+  trackPlayerSetup: TrackPlayerSetupOutcome;
+  timings: MusicHydrationTimings;
+}): Promise<MusicHydrationOutcome> => {
+  const stored = await loadStoredStateForHydration(timings.storage);
+  if (args.isCancelled()) return 'cancelled';
+
+  const hydratedStored = await hydrateStoredSongs({
+    stored,
+    ...args,
+    beforeNativeHydration: () => requireTrackPlayerSetup(trackPlayerSetup),
+    onLibraryHydrated: playlists => {
+      args.setPlaylists(playlists);
+      setLibraryHydrationReady?.(true);
+      timings.library('ready', {
+        songCount: args.songsRef.current.length,
+        playlistCount: playlists.length,
+      });
+    },
+  }).catch(error => {
+    console.warn('[MusicHydration:SanitizeError] Failed while hydrating stored songs.', error);
+    throw error;
+  });
+
+  if (args.isCancelled()) return 'cancelled';
+  if (hydratedStored.verifiedState === 'confirmed' && hydratedStored.planStatus === 'retry-required') {
+    console.error('[MusicHydration:RetryRequired] Native truth was verified but the stored hydration plan was not restored.');
+    publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
+    return 'retry-required';
+  }
+  if (hydratedStored.verifiedState === null) {
+    if (hydratedStored.nativeStatus === 'readback-unstable') {
+      console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',
+        hydratedStored.recoveryErrors?.originalError);
+      publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
+      return 'degraded';
+    }
+    throw hydratedStored.recoveryErrors?.originalError
+      ?? new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
+  }
+
+  try {
+    await applyStoredPlaybackSettings({
+      stored: hydratedStored,
+      skipShuffle: hydratedStored.superseded === true,
+      ...args,
+    });
+    return 'ready';
+  } catch (error) {
+    console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);
+    throw error;
+  }
+};
+
+const runMusicHydrationFallback = async (
+  args: MusicHydrationCoreArgs,
+  trackPlayerSetup: TrackPlayerSetupOutcome,
+  error: unknown,
+  gateOwner: NativeHydrationGateOwner | undefined,
+  setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
+): Promise<{ completed: boolean; outcome: MusicHydrationOutcome }> => {
+  if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
+  // Fallback must never race an in-flight native setup attempt. The captured
+  // outcome also prevents an unhandled rejection when storage failed first.
+  await trackPlayerSetup;
+  if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
+  const fallback = await applyHydrationFailureFallback(args, error);
+  const completed = completeHydrationFallback(fallback, args.isCancelled, gateOwner, setHydrationStatus);
+  const outcome = completed ? 'fallback-ready' : fallback.status === 'failed' ? 'degraded' : 'cancelled';
+  return { completed, outcome };
+};
+
+const finishMusicHydration = (
+  outcome: MusicHydrationOutcome,
+  completed: boolean,
+  args: MusicHydrationCoreArgs,
+  timings: MusicHydrationTimings,
+  setIsReady: RunMusicHydrationArgs['setIsReady'],
+  gateOwner: NativeHydrationGateOwner | undefined,
+  setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
+): void => {
+  const cancelled = args.isCancelled();
+  const finalOutcome = cancelled ? 'cancelled' : outcome;
+  timings.storage(finalOutcome);
+  timings.library(finalOutcome);
+  timings.hydration(finalOutcome);
+  if (!cancelled && completed) {
+    setIsReady(true);
+    publishHydrationStatus(gateOwner, setHydrationStatus, 'ready');
+  }
+};
+
+export const runMusicHydration = async ({
+  setIsReady,
+  setLibraryHydrationReady,
+  setHydrationStatus,
+  gateOwner,
   ...args
 }: RunMusicHydrationArgs): Promise<void> => {
-  let hydrationCompleted = false;
+  const timings = createMusicHydrationTimings();
+  const trackPlayerSetup = startTrackPlayerHydrationSetup(timings.trackPlayer);
+  let completed = false;
+  let outcome: MusicHydrationOutcome = 'failed';
   try {
-    await setupTrackPlayer();
-    if (isCancelled()) return;
-
-    const stored = await loadStoredMusicHydrationState().catch(error => {
-      console.warn('[MusicHydration:StorageError] Failed to load stored hydration state.', error);
-      throw error;
+    outcome = await runPrimaryMusicHydration({
+      args, setLibraryHydrationReady, setHydrationStatus, gateOwner, trackPlayerSetup, timings,
     });
-
-    if (isCancelled()) return;
-
-    const hydratedStored = await hydrateStoredSongs({ stored, isCancelled, ...args }).catch(error => {
-      console.warn('[MusicHydration:SanitizeError] Failed while hydrating stored songs.', error);
-      throw error;
-    });
-
-    if (isCancelled()) return;
-    if (hydratedStored.verifiedState === 'confirmed' && hydratedStored.planStatus === 'retry-required') {
-      console.error('[MusicHydration:RetryRequired] Native truth was verified but the stored hydration plan was not restored.');
-      publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
-      return;
-    }
-    if (hydratedStored.verifiedState === null) {
-      if (hydratedStored.nativeStatus === 'readback-unstable') {
-        console.error('[MusicHydration:ReadbackFailed] Native readback remained unstable; publishing degraded hydration state.',
-          hydratedStored.recoveryErrors?.originalError);
-        publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
-        return;
-      }
-      throw hydratedStored.recoveryErrors?.originalError
-        ?? new Error(`Native queue hydration was not verified (${hydratedStored.nativeStatus}:${hydratedStored.failureStage}).`);
-    }
-
-    try {
-      await applyStoredPlaybackSettings({ stored: hydratedStored, isCancelled, skipShuffle: hydratedStored.superseded === true, ...args });
-      hydrationCompleted = true;
-    } catch (error) {
-      console.warn('[MusicHydration:TrackPlayerError] Failed to apply stored playback settings.', error);
-      throw error;
-    }
+    completed = outcome === 'ready';
   } catch (error) {
-    if (isCancelled()) return;
-
-    const fallback = await applyHydrationFailureFallback({ ...args, isCancelled }, error);
-    hydrationCompleted = completeHydrationFallback(fallback, isCancelled, gateOwner, setHydrationStatus);
+    const fallback = await runMusicHydrationFallback(args, trackPlayerSetup, error, gateOwner, setHydrationStatus);
+    completed = fallback.completed;
+    outcome = fallback.outcome;
   } finally {
-    if (!isCancelled() && hydrationCompleted) {
-      setIsReady(true);
-      publishHydrationStatus(gateOwner, setHydrationStatus, 'ready');
-    }
+    finishMusicHydration(outcome, completed, args, timings, setIsReady, gateOwner, setHydrationStatus);
   }
 };

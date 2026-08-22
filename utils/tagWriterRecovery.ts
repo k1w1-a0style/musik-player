@@ -3,6 +3,7 @@ import type { SafWriteOperationStatus } from './tagWriterLocks';
 import {
   beginSafWriteStartupRestoration, finishSafWriteStartupRestoration,
   hasSafWriteOperationOwner,
+  isSafWriteStartupReady,
   reconcileSafWriteOperation, restoreSafWriteOperations, retryConfirmedSafWriteCommit,
   retryConfirmedSafWriteOutcome, stageConfirmedSafWriteOutcomes, persistNativeOnlyRecoveryEvidence,
 } from './tagWriterLocks';
@@ -157,6 +158,19 @@ const runNativeRecovery = async (unresolved: SafWriteOperationStatus[]): Promise
   assertRecoverySummarySettled(recovery, terminalFailureCount);
 };
 
+const nativeRecoveryIsRequired = async (unresolved: SafWriteOperationStatus[]): Promise<boolean> => {
+  if (unresolved.length > 0) return true;
+  try {
+    const status = await SystemAudio.getAudioTagRecoveryStatus();
+    return status.available !== true || status.pendingCount !== 0 || status.retainedOutcomeCount !== 0 ||
+      !Array.isArray(status.transactions) || status.transactions.length !== 0;
+  } catch {
+    // Status is an optimization only. If it cannot prove that the native
+    // journal is empty, preserve the existing fail-closed full recovery path.
+    return true;
+  }
+};
+
 const performStartupRecovery = async (): Promise<SafWriteOperationStatus[]> => {
   const restored = await restoreSafWriteOperations();
   for (const operation of restored) {
@@ -167,12 +181,12 @@ const performStartupRecovery = async (): Promise<SafWriteOperationStatus[]> => {
     }
   }
   const unresolved = restored.filter(operation => !operation.commitConfirmed && !operation.confirmedTerminalOutcome);
-  const priorRecoveryWasComplete = restored.length > 0 && restored.every(operation =>
-    operation.confirmedTerminalOutcome?.nativeRecoverySummaryComplete === true,
-  );
   if (unresolved.length > 0 && !SystemAudio.hasNativeTagWriter) {
     await reconcileWithoutNativeWriter(unresolved);
-  } else if (SystemAudio.hasNativeTagWriter && !priorRecoveryWasComplete) {
+  } else if (
+    SystemAudio.hasNativeTagWriter &&
+    await nativeRecoveryIsRequired(unresolved)
+  ) {
     await runNativeRecovery(unresolved);
   }
   return restored;
@@ -224,5 +238,14 @@ export const restoreAndReconcileTagWrites = async (): Promise<SafWriteOperationS
   } catch (error) {
     if (isTagWriteStartupTimeoutError(error)) finishSafWriteStartupRestoration(error);
     throw error;
+  }
+};
+
+/** Retries restoration on demand while keeping every SAF mutation fail-closed. */
+export const ensureTagWriteStartupReady = async (): Promise<void> => {
+  if (isSafWriteStartupReady()) return;
+  await restoreAndReconcileTagWrites();
+  if (!isSafWriteStartupReady()) {
+    throw new Error('SAF tag writes remain unavailable after startup restoration.');
   }
 };

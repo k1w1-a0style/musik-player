@@ -182,6 +182,23 @@ describe('MusicContext', () => {
     expect(getByTestId('probe-songs-count').props.children).toBe('0');
   });
 
+  test('renders the stored library while native TrackPlayer setup is still pending', async () => {
+    let finishSetup!: () => void;
+    const pendingSetup = new Promise<void>(resolve => { finishSetup = resolve; });
+    jest.mocked(TrackPlayer.setupPlayer).mockImplementationOnce(() => pendingSetup);
+    await storage.set(StorageKeys.SONGS, SONGS);
+
+    const view = render(<MusicProvider><Probe /></MusicProvider>);
+
+    await waitFor(() => expect(view.getByTestId('probe-songs-count').props.children).toBe('4'));
+    expect(view.getByTestId('probe-ready').props.children).toBe('false');
+    expect(view.queryByTestId('app-loading')).toBeNull();
+
+    finishSetup();
+    await pendingSetup;
+    await waitReady(view.getByTestId);
+  });
+
   test('setSongs persists songs', async () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);

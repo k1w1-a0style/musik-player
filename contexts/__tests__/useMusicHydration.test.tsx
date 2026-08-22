@@ -35,6 +35,7 @@ const storedPlaylists: Playlist[] = [
 
 const HydrationProbe = () => {
   const [isReady, setIsReady] = useState(false);
+  const [libraryHydrationReady, setLibraryHydrationReady] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [queue, setQueue] = useState<Song[]>([]);
@@ -57,6 +58,7 @@ const HydrationProbe = () => {
     baseQueueContextRef,
     nativeQueueRef,
     setIsReady,
+    setLibraryHydrationReady,
     setSongsState: setSongs,
     setCurrentSong,
     setPlaybackQueue: setQueue,
@@ -72,6 +74,7 @@ const HydrationProbe = () => {
   return (
     <>
       <Text testID="ready">{String(isReady)}</Text>
+      <Text testID="library-ready">{String(libraryHydrationReady)}</Text>
       <Text testID="songs">{songs.map(song => song.id).join(',')}</Text>
       <Text testID="queue">{queue.map(song => song.id).join(',')}</Text>
       <Text testID="current">{currentSong?.id ?? ''}</Text>
@@ -102,6 +105,24 @@ describe('useMusicHydration', () => {
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(TrackPlayer.add).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's2' })]));
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
+  });
+
+  test('publishes the stored library before TrackPlayer setup finishes', async () => {
+    let finishSetup!: () => void;
+    const pendingSetup = new Promise<void>(resolve => { finishSetup = resolve; });
+    jest.mocked(TrackPlayer.setupPlayer).mockImplementationOnce(() => pendingSetup);
+    await storage.set(StorageKeys.SONGS, storedSongs);
+    await storage.set(StorageKeys.PLAYLISTS, storedPlaylists);
+
+    const { getByTestId } = render(<HydrationProbe />);
+
+    await waitFor(() => expect(getByTestId('library-ready').props.children).toBe('true'), { timeout: 300 });
+    expect(getByTestId('songs').props.children).toBe('s1,s2');
+    expect(getByTestId('ready').props.children).toBe('false');
+
+    finishSetup();
+    await pendingSetup;
+    await waitFor(() => expect(getByTestId('ready').props.children).toBe('true'));
   });
 
   test('runs hydration only once for a provider mount across rerenders', async () => {

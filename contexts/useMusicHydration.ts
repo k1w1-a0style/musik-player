@@ -9,6 +9,7 @@ interface UseMusicHydrationArgs {
   baseQueueContextRef: MutableRefObject<Song[]>;
   nativeQueueRef: MutableRefObject<Song[]>;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setLibraryHydrationReady?: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   setSongsState: Dispatch<SetStateAction<Song[]>>;
@@ -29,6 +30,7 @@ export const useMusicHydration = ({
   baseQueueContextRef,
   nativeQueueRef,
   setIsReady,
+  setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
   setSongsState,
@@ -55,6 +57,7 @@ export const useMusicHydration = ({
       baseQueueContextRef,
       nativeQueueRef,
       setIsReady,
+      setLibraryHydrationReady,
       setHydrationStatus,
       gateOwner,
       setSongsState,

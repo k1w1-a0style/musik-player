@@ -856,8 +856,10 @@ class AudioTagTransactionManager(
         )
       }
       mapOf(
+        "available" to true,
         "pendingCount" to transactions.size,
         "quarantineCount" to storage.quarantinedDirs().size,
+        "retainedOutcomeCount" to storage.retainedRecoveryOutcomes().size,
         "transactions" to transactions,
       )
     }

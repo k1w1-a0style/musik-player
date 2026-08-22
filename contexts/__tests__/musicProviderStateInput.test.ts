@@ -11,6 +11,8 @@ const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A' }];
 const state: MusicProviderState = {
   isReady: true,
   setIsReady: noop,
+  libraryHydrationReady: true,
+  setLibraryHydrationReady: noop,
   songs,
   setSongsState: noop,
   currentSong: songs[0],
@@ -39,6 +41,7 @@ describe('musicProviderStateInput', () => {
     expect(buildMusicProviderEffectsStateInput(state)).toEqual({
       isReady: true,
       setIsReady: state.setIsReady,
+      setLibraryHydrationReady: state.setLibraryHydrationReady,
       songs,
       setSongsState: state.setSongsState,
       currentSongSetter: state.setCurrentSong,

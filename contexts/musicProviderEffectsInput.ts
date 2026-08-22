@@ -13,6 +13,7 @@ type ProviderStateInput = Pick<
   MusicProviderEffectsArgs,
   | 'isReady'
   | 'setIsReady'
+  | 'setLibraryHydrationReady'
   | 'songs'
   | 'setSongsState'
   | 'currentSongSetter'

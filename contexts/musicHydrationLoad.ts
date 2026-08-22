@@ -2,18 +2,10 @@ import { migrateLegacySongFavoritesFromStoredSongs, StorageKeys, storage } from 
 import type { StoredMusicHydrationState } from './musicHydrationTypes';
 
 export const loadStoredMusicHydrationState = async (): Promise<StoredMusicHydrationState> => {
-  await migrateLegacySongFavoritesFromStoredSongs();
-  const [
-    songs,
-    playlists,
-    eqEnabled,
-    eqBands,
-    eqPreset,
-    volume,
-    repeatMode,
-    shuffle,
-    currentSongId,
-  ] = await Promise.all([
+  // The migration must finish before sanitized songs can be persisted, but it
+  // does not need to serialize the independent read-only hydration snapshot.
+  const migration = migrateLegacySongFavoritesFromStoredSongs();
+  const storedState = Promise.all([
     storage.get(StorageKeys.SONGS),
     storage.get(StorageKeys.PLAYLISTS),
     storage.get(StorageKeys.EQ_ENABLED),
@@ -24,6 +16,17 @@ export const loadStoredMusicHydrationState = async (): Promise<StoredMusicHydrat
     storage.get(StorageKeys.SHUFFLE),
     storage.get(StorageKeys.CURRENT_SONG_ID),
   ]);
+  const [, [
+    songs,
+    playlists,
+    eqEnabled,
+    eqBands,
+    eqPreset,
+    volume,
+    repeatMode,
+    shuffle,
+    currentSongId,
+  ]] = await Promise.all([migration, storedState]);
 
   return {
     songs,

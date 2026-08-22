@@ -10,7 +10,8 @@ export {
 } from './musicContexts';
 
 export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { value, libraryValue, miniPlayerValue, nowPlayingValue } = useMusicProviderController();
+  const { value, libraryValue, miniPlayerValue, nowPlayingValue, contentReady } = useMusicProviderController();
+  const hydrationFailed = value.hydrationStatus === 'degraded' || value.hydrationStatus === 'retry-required';
 
   return (
     <MusicContextProviders
@@ -19,9 +20,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       miniPlayerValue={miniPlayerValue}
       nowPlayingValue={nowPlayingValue}
     >
-      {value.hydrationStatus === 'ready' || value.hydrationStatus === undefined
+      {contentReady && !hydrationFailed
         ? children
-        : <AppLoading degraded={value.hydrationStatus === 'degraded' || value.hydrationStatus === 'retry-required'} onRetry={value.retryHydration} />}
+        : <AppLoading degraded={hydrationFailed} onRetry={value.retryHydration} />}
     </MusicContextProviders>
   );
 };

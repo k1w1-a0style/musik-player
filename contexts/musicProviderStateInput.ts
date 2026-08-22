@@ -11,6 +11,7 @@ type EffectsStateInput = Pick<
   MusicProviderEffectsArgs,
   | 'isReady'
   | 'setIsReady'
+  | 'setLibraryHydrationReady'
   | 'setHydrationStatus'
   | 'hydrationRetryToken'
   | 'songs'
@@ -46,6 +47,7 @@ export const buildMusicProviderContextStateInput = ({
 export const buildMusicProviderEffectsStateInput = ({
   isReady,
   setIsReady,
+  setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
   songs,
@@ -59,6 +61,7 @@ export const buildMusicProviderEffectsStateInput = ({
 }: MusicProviderState): EffectsStateInput => ({
   isReady,
   setIsReady,
+  setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
   songs,

@@ -11,6 +11,7 @@ import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 interface UseLibraryAudioInfoBackfillOptions {
   songs: Song[];
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
+  enabled?: boolean;
 }
 
 interface SafeAudioInfoPatchInput {
@@ -22,6 +23,10 @@ interface SafeAudioInfoPatchInput {
 
 const PROGRESSIVE_AUDIO_INFO_PATCH_BATCH_SIZE = 6;
 const PROGRESSIVE_AUDIO_INFO_PATCH_FLUSH_MS = 750;
+const NO_BACKFILL_SONGS: Song[] = [];
+
+const selectBackfillSongs = (songs: Song[], enabled: boolean): Song[] =>
+  enabled ? songs : NO_BACKFILL_SONGS;
 
 const shallowEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 
@@ -64,15 +69,13 @@ export const buildSafeAudioInfoBackfillPatches = ({
   return patchesBySongId;
 };
 
-export const useLibraryAudioInfoBackfill = ({
-  songs,
-  applySongMetadataPatches,
-}: UseLibraryAudioInfoBackfillOptions): void => {
+export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, enabled = true }: UseLibraryAudioInfoBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
   const metadataRefreshActive = useMetadataRefreshActive();
+  const backfillSongs = selectBackfillSongs(songs, enabled);
 
   latestSongsRef.current = songs;
 
@@ -83,7 +86,7 @@ export const useLibraryAudioInfoBackfill = ({
   useEffect(() => {
     // Pause while a user-triggered manual metadata refresh runs exclusively.
     if (metadataRefreshActive) return undefined;
-    const candidates = songs.filter(song => {
+    const candidates = backfillSongs.filter(song => {
       const key = buildAudioInfoBackfillAttemptKey(song);
       return needsAudioInfoBackfill(song) && !attemptedRef.current.has(key);
     });
@@ -170,8 +173,6 @@ export const useLibraryAudioInfoBackfill = ({
       if (!controller.signal.aborted) console.warn('[LibraryAudioInfoBackfill] AudioInfo backfill failed.', error);
     });
 
-    return () => {
-      controller.abort();
-    };
-  }, [songs, applySongMetadataPatches, metadataRefreshActive]);
+    return () => controller.abort();
+  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive]);
 };

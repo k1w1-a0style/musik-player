@@ -1,8 +1,8 @@
 # Music Context Architecture Map
 
-## Round 8.5 scope
+## Scope
 
-This is a maintenance map for the current provider/context layout. It documents existing structure only; it does not introduce a runtime architecture change.
+This is a maintenance map for the current provider/context layout, including the progressive startup-hydration boundary.
 
 ## Provider stack
 
@@ -32,7 +32,7 @@ The split keeps high-churn consumers from depending on the entire `MusicContextV
 
 `useMusicProviderController` wires the provider in layers:
 
-- `useMusicProviderState` owns React state for readiness, songs, current song, queue, playlists, shuffle/repeat, equalizer, and volume.
+- `useMusicProviderState` owns React state for library readiness, native playback readiness, songs, current song, queue, playlists, shuffle/repeat, equalizer, and volume.
 - `useMusicProviderControls` owns playback/equalizer controls such as `usePlaybackControls`.
 - `useMusicProviderAudioFeatures` owns visualizer/palette/native audio feature state.
 - `useMusicPlaybackRefs` creates the queue and library refs used by actions and hydration.
@@ -52,7 +52,11 @@ Hydration enters through `useMusicHydration`, which calls `runMusicHydration` fr
 - `queueContextRef`: the active playable queue shown to React consumers.
 - `nativeQueueRef`: the queue believed to be installed in React Native Track Player.
 
-`runMusicHydration` sanitizes stored songs, normalizes duplicate IDs, restores playlists/settings, rebuilds playable queue state, and only resets/adds the native queue for the guarded cases already covered by hydration tests. A restored playable current song triggers native reset/add; a restored non-playable current song clears persisted current id, resets TrackPlayer, and empties `nativeQueueRef`. If there is no current song but the playable queue exists, hydration leaves the native queue untouched instead of doing a reset/add.
+`runMusicHydration` starts TrackPlayer setup and persisted-state loading concurrently. After stored songs have been sanitized and playlists normalized, it publishes the library and sets `libraryHydrationReady`; `MusicProvider` can then render the app while native queue reconciliation and playback-setting restoration continue. `isReady` and the native hydration gate remain false until all native playback work is verified, so playback and queue mutations stay fail-closed during the progressive phase.
+
+The native queue rules are unchanged: a restored playable current song triggers native reset/add; a restored non-playable current song clears the persisted current id, resets TrackPlayer, and empties `nativeQueueRef`. If there is no current song but the playable queue exists, hydration leaves the native queue untouched instead of doing a reset/add.
+
+Cover and audio-info backfills are post-start work and remain disabled until `isReady`. See [`architecture/startup-hydration.md`](architecture/startup-hydration.md) for the phase model, diagnostics, and New-Architecture decision.
 
 ## ErrorBoundary pattern
 
@@ -78,6 +82,7 @@ const Screen = () => (
 ## Maintenance cautions
 
 - Keep context slices narrow unless a consumer truly needs the full `MusicContext`.
+- Do not treat `libraryHydrationReady` as permission for native playback work; only `isReady`/the native hydration gate grant that permission.
 - Keep queue mutations synchronized across React state, `queueContextRef`, `baseQueueContextRef`, and `nativeQueueRef`.
 - Do not reset the native queue during hydration unless the current guarded branches require it.
 - Preserve the `ScreenInner` under `AppErrorBoundary` shape when editing screen controllers.
