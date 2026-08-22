@@ -197,6 +197,7 @@ describe('MiniPlayer', () => {
     const fillStyle = JSON.stringify(getByTestId('mini-player-progress-fill').props.style);
 
     expect(getByTestId('mini-player-progress')).toBeTruthy();
+    expect(getByTestId('mini-player-progress-color-transition')).toBeTruthy();
     expect(fillStyle).toContain('42%');
     expect(fillStyle).not.toContain('undefined');
   });
@@ -214,10 +215,10 @@ describe('MiniPlayer', () => {
     }));
 
     const { getByTestId } = render(<MiniPlayer onOpen={jest.fn()} />);
-    const containerStyle = JSON.stringify(getByTestId('mini-player-open').props.style);
+    const borderStyle = JSON.stringify(getByTestId('mini-player-accent-border-fill').props.style);
     const fillStyle = JSON.stringify(getByTestId('mini-player-progress-fill').props.style);
 
-    expect(containerStyle).toContain('#553311');
+    expect(borderStyle).toContain('#553311');
     expect(fillStyle).toContain('#AA5500');
   });
 

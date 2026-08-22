@@ -1,5 +1,4 @@
 export type NowPlayingPlayerLayout = 'classic' | 'soundcloud';
-export type LegacyNowPlayingControlsMode = 'buttons' | 'coverSwipe';
 
 // Keep the old exported type name as a compatibility alias while the hook and
 // consumers migrate from "controls mode" wording to "player layout" wording.
@@ -10,8 +9,6 @@ export const NOW_PLAYING_PLAYER_LAYOUTS: readonly NowPlayingPlayerLayout[] = [
   'soundcloud',
 ] as const;
 
-export const NOW_PLAYING_CONTROLS_MODES = NOW_PLAYING_PLAYER_LAYOUTS;
-
 export const DEFAULT_NOW_PLAYING_PLAYER_LAYOUT: NowPlayingPlayerLayout = 'classic';
 export const DEFAULT_NOW_PLAYING_CONTROLS_MODE = DEFAULT_NOW_PLAYING_PLAYER_LAYOUT;
 
@@ -20,14 +17,10 @@ export const NOW_PLAYING_PLAYER_LAYOUT_LABELS: Record<NowPlayingPlayerLayout, st
   soundcloud: 'SoundCloud',
 };
 
-export const NOW_PLAYING_CONTROLS_MODE_LABELS = NOW_PLAYING_PLAYER_LAYOUT_LABELS;
-
 export const NOW_PLAYING_PLAYER_LAYOUT_DESCRIPTIONS: Record<NowPlayingPlayerLayout, string> = {
   classic: 'Cover, Waveform und feste Vor-/Zurück-Buttons.',
   soundcloud: 'Großes Cover als Hintergrund; Waveform im Vordergrund, Tippen = Play/Pause, Wischen = Trackwechsel.',
 };
-
-export const NOW_PLAYING_CONTROLS_MODE_DESCRIPTIONS = NOW_PLAYING_PLAYER_LAYOUT_DESCRIPTIONS;
 
 export const isNowPlayingPlayerLayout = (value: unknown): value is NowPlayingPlayerLayout =>
   NOW_PLAYING_PLAYER_LAYOUTS.includes(value as NowPlayingPlayerLayout);
@@ -38,5 +31,3 @@ export const normalizeNowPlayingPlayerLayout = (value: unknown): NowPlayingPlaye
   if (value === 'coverSwipe') return 'soundcloud';
   return DEFAULT_NOW_PLAYING_PLAYER_LAYOUT;
 };
-
-export const isNowPlayingControlsMode = isNowPlayingPlayerLayout;

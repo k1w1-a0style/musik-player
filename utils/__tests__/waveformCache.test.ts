@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  clearWaveformCache,
   getCachedWaveform,
   peekCachedWaveform,
   resetWaveformCacheStateForTests,
@@ -69,18 +68,6 @@ test('invalidates legacy cache entries on first access', async () => {
   await AsyncStorage.setItem('@musikplayer:waveform:legacy-source', JSON.stringify({ version: 2 }));
   await getCachedWaveform(identityFor('current'));
   await expect(AsyncStorage.getItem('@musikplayer:waveform:legacy-source')).resolves.toBeNull();
-});
-
-test('clears indexed, orphaned and legacy waveform payloads', async () => {
-  const waveform = waveformFor('source-1');
-  await setCachedWaveform(waveform);
-  await AsyncStorage.setItem(`${PREFIX}orphan`, JSON.stringify(waveformFor('orphan', 2)));
-  await AsyncStorage.setItem('@musikplayer:waveform:legacy', '{}');
-
-  await clearWaveformCache();
-
-  const keys = await AsyncStorage.getAllKeys();
-  expect(keys.filter(key => key.startsWith('@musikplayer:waveform:'))).toEqual([]);
 });
 
 test('serializes concurrent index updates without losing cache entries', async () => {
@@ -156,13 +143,4 @@ test('enforces the 80-entry LRU boundary at 79/80/81', async () => {
   expect(index.at(-1)?.sourceKey).toBe('source-1');
   await expect(AsyncStorage.getItem(`${PREFIX}source-0`)).resolves.toBeNull();
   await expect(getCachedWaveform(waveforms[80])).resolves.toEqual(waveforms[80]);
-});
-
-test('serializes clear behind an in-flight write', async () => {
-  const waveform = waveformFor('raced');
-  const write = setCachedWaveform(waveform);
-  const clear = clearWaveformCache();
-  await Promise.all([write, clear]);
-
-  expect((await AsyncStorage.getAllKeys()).filter(key => key.startsWith('@musikplayer:waveform:'))).toEqual([]);
 });

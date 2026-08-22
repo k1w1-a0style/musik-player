@@ -10,12 +10,17 @@ Die App soll die gespeicherte Bibliothek so früh wie sicher möglich anzeigen, 
 
 | Phase | Läuft | Blockiert die sichtbare App? | Freigabe |
 | --- | --- | --- | --- |
-| Fonts | `useFonts` lädt die App-Schriften; bei Fehler werden Systemschriften verwendet. | Ja, nur bis Erfolg oder Fehler. | App-Provider und Navigation dürfen mounten. |
 | SAF-Tag-Recovery | JS-Owner werden wiederhergestellt; ein nativer Read-only-Status überspringt die teure Recovery nur bei nachweislich leeren Journalen und ohne zurückgehaltene Ergebnisbelege. | Nein. | Tag-Schreiben bleibt bis erfolgreicher Recovery fail-closed und stößt bei Bedarf einen Retry an. |
 | Storage + Player-Setup | Persistierte Zustände werden gelesen, während TrackPlayer parallel initialisiert. Read-only-Storage-Aufrufe und die Legacy-Favoritenmigration starten ebenfalls parallel. | Nur solange noch keine sichere Bibliothek vorliegt. | Keine native Wiedergabe. |
 | Bibliothek | Songs werden sanitisiert, IDs normalisiert und Playlists bereinigt. Danach wird `libraryHydrationReady` gesetzt. | Nein. | Bibliothek und Navigation werden sichtbar; Playlist-Änderungen werden bereits serialisiert persistiert, native Aktionen bleiben gesperrt. |
 | Native Hydration | Queue-Wahrheit, aktueller Titel, Lautstärke, Repeat und Shuffle werden geprüft bzw. wiederhergestellt. | Normalerweise nein; ein bestätigter degradierter/retry-required Zustand zeigt den Recovery-Screen. | Erst `isReady` plus nativer Hydration-Gate-Status `ready` erlauben Playback-/Queue-Mutationen. |
 | Post-Start | Cover- und AudioInfo-Backfills laufen erst nach `isReady`. | Nein. | Hintergrund-Metadatenarbeit. |
+
+Die drei Bricolage-Schriften werden über das `expo-font`-Config-Plugin in den nativen Build
+eingebettet. Es gibt bewusst keinen JavaScript-`useFonts`-Start-Gate mehr: Provider und
+Navigation mounten sofort. Nach einer Änderung der nativen Font-Konfiguration ist deshalb
+ein neuer Development Build nötig; ein reiner Metro-Reload kann diese Änderung nicht
+nachladen.
 
 Sekundäre Screens (`NowPlaying`, Track-Info, Tag-Editor, Equalizer, Einstellungen und Playlist-Detail) verwenden React Navigation `getComponent` und werden nicht beim initialen Rendern ausgewertet. Der initiale `MainShell` bleibt statisch importiert.
 
@@ -35,6 +40,12 @@ Sekundäre Screens (`NowPlaying`, Track-Info, Tag-Editor, Equalizer, Einstellung
 
 Ein Dev-Start umfasst mehr als die App-Hydration: Der Development Client verbindet sich mit Metro; Metro transformiert bei kaltem oder geleertem Cache den erreichbaren Modulgraph, erzeugt Source Maps und aktiviert Entwicklungsinstrumentierung. Danach wertet Hermes den Startpfad aus und die oben beschriebenen App-Phasen beginnen. Ein laufender Metro-Prozess mit warmem Cache ist daher deutlich aussagekräftiger für den täglichen Entwicklungszyklus; ein Release-Build ist der Maßstab für Nutzer-Startzeiten.
 
+Ein lokaler Kontrolllauf am 2026-08-22 bestätigt die Größenordnung: Ein vollständig kalter
+Android-/Hermes-Export musste 3.213 Module transformieren und benötigte allein für das
+Bundling rund 15,7 Sekunden. Das ist **keine** gemessene Geräte-Startzeit, erklärt aber den
+großen Unterschied zwischen erstem Dev-Start mit leerem Metro-Cache und späteren warmen
+Reloads.
+
 Das verzögerte `getComponent` reduziert frühe Modulevaluation. React Native erhält dadurch jedoch kein garantiertes natives Bundle-Splitting. Ebenso wird `inlineRequires` nicht pauschal aktiviert: Eine globale Änderung der Auswertungsreihenfolge kann Side-Effect-sensitive Module beschädigen und muss getrennt gegen Production Tree Shaking und Playback-/Service-Initialisierung geprüft werden.
 
 Referenzen: [Expo Metro](https://docs.expo.dev/versions/latest/config/metro/), [Expo Tree Shaking](https://docs.expo.dev/guides/tree-shaking/), [Metro-Konfiguration](https://metrobundler.dev/docs/configuration/).
@@ -45,7 +56,6 @@ In Nicht-Test-Builds erscheinen datensparsame Ereignisse als `[StartupTiming]`:
 
 | `phase` | Aussage |
 | --- | --- |
-| `fonts` | Zeit bis App-Schrift oder Systemschrift-Fallback. |
 | `music-storage` | Persistierte Musikdaten und Migration gelesen. |
 | `music-library` | Sanitierte Songs/Playlists sichtbar; enthält nur Anzahlen. |
 | `track-player-setup` | TrackPlayer-Setup abgeschlossen oder fehlgeschlagen. |

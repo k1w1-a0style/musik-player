@@ -3,12 +3,11 @@ import type { Song } from '../../types/Song';
 import {
   buildImmediateWaveform,
   extractNativeWaveform,
-  getWaveformExtractionKey,
   hasUsefulNativeShape,
   resolveWaveformUri,
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../waveformExtraction';
-import { getWaveformSourceIdentity, getWaveformSourceKey } from '../waveformGenerator';
+import { getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 import type { NativeWaveformResult } from '../waveformTypes';
 
@@ -63,9 +62,8 @@ describe('waveformExtraction', () => {
     });
 
     test('isolates scheduler work with the full independent fingerprint', () => {
-      expect(getWaveformExtractionKey(baseSong))
-        .toBe(getWaveformSourceIdentity(baseSong).sourceFingerprint);
-      expect(getWaveformExtractionKey(baseSong)).not.toBe(getWaveformSourceKey(baseSong));
+      const identity = getWaveformSourceIdentity(baseSong);
+      expect(identity.sourceFingerprint).not.toBe(identity.sourceKey);
     });
   });
 
@@ -78,7 +76,7 @@ describe('waveformExtraction', () => {
 
       expect(first).toEqual(second);
       expect(first.source).toBe('fallback');
-      expect(first.sourceKey).toBe(getWaveformSourceKey(baseSong));
+      expect(first.sourceKey).toBe(getWaveformSourceIdentity(baseSong).sourceKey);
     });
 
     test('respects pointCount', () => {
@@ -205,7 +203,7 @@ describe('waveformExtraction', () => {
       expect(waveform).toMatchObject({
         source: 'native',
         durationMs: 2000,
-        sourceKey: getWaveformSourceKey(baseSong),
+        sourceKey: getWaveformSourceIdentity(baseSong).sourceKey,
       });
       expect(waveform?.points).toHaveLength(8);
       expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledWith('file:///preferred.mp3', 8);

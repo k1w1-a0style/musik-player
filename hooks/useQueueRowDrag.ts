@@ -1,5 +1,7 @@
 import React from 'react';
 import { Animated, PanResponder, Vibration, type PanResponderGestureState } from 'react-native';
+import { State, type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { resolveQueueReorderTargetIndex } from '../utils/soundCloudPlayer';
 
 interface QueueRowDragOptions {
@@ -82,18 +84,18 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     dragY.setValue(0);
     onDragPosition?.(index, 0, 0);
   }, [canDrag, dragY, getScrollOffset, index, onDragPosition]);
-  const move = React.useCallback((gesture: PanResponderGestureState) => {
+  const move = React.useCallback((dy: number) => {
     if (!canDrag) return;
-    const delta = gesture.dy - previousYRef.current;
-    previousYRef.current = gesture.dy;
-    dragY.setValue(gesture.dy);
-    const target = resolveTarget(gesture.dy);
+    const delta = dy - previousYRef.current;
+    previousYRef.current = dy;
+    dragY.setValue(dy);
+    const target = resolveTarget(dy);
     if (target !== previousTargetRef.current) Vibration.vibrate(6);
     previousTargetRef.current = target;
-    onDragPosition?.(index, gesture.dy, delta === 0 ? 0 : delta < 0 ? -1 : 1);
+    onDragPosition?.(index, dy, delta === 0 ? 0 : delta < 0 ? -1 : 1);
   }, [canDrag, dragY, index, onDragPosition, resolveTarget]);
-  const release = React.useCallback((gesture: PanResponderGestureState) => {
-    const target = resolveTarget(gesture.dy);
+  const release = React.useCallback((dy: number) => {
+    const target = resolveTarget(dy);
     const shouldShift = canDrag && target !== index;
     // Commit the data mutation in the same release event. Waiting for an
     // animation callback made a native-list responder cancellation silently
@@ -103,7 +105,26 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     if (shouldShift) onShift?.(index, target);
     reset();
   }, [canDrag, index, onShift, reset, resolveTarget]);
-  const panResponder = useQueuePanResponder({ canDrag, onGrant: grant, onMove: move,
-    onRelease: release, onCancel: reset });
-  return { dragEnabled: dragging, dragging, dragY, panHandlers: panResponder.panHandlers, reset };
+  const panResponder = useQueuePanResponder({ canDrag, onGrant: grant,
+    onMove: gesture => move(gesture.dy), onRelease: gesture => release(gesture.dy), onCancel: reset });
+  const onLongPressGestureEvent = React.useCallback((event: PanGestureHandlerGestureEvent) => {
+    move(event.nativeEvent.translationY ?? 0);
+  }, [move]);
+  const onLongPressStateChange = React.useCallback((event: PanGestureHandlerStateChangeEvent) => {
+    const { oldState, state, translationY = 0 } = event.nativeEvent;
+    if (state === State.ACTIVE && oldState === State.BEGAN) grant();
+    else if (state === State.END && oldState === State.ACTIVE) release(translationY);
+    else if (state === State.CANCELLED || state === State.FAILED) reset();
+  }, [grant, release, reset]);
+  return {
+    dragEnabled: dragging,
+    dragging,
+    dragY,
+    panHandlers: panResponder.panHandlers,
+    longPressGestureHandlers: {
+      onGestureEvent: onLongPressGestureEvent,
+      onHandlerStateChange: onLongPressStateChange,
+    },
+    reset,
+  };
 };

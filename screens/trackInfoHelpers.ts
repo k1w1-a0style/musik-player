@@ -1,5 +1,5 @@
 import type { BitrateMode, Song } from '../types/Song';
-import { displayFilename, normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist, resolveDisplayTitle } from '../utils/musicParser';
+import { displayFilename, normalizeMetadataText, resolveDisplayTitle } from '../utils/musicParser';
 
 export const formatDuration = (ms?: number): string => {
   if (!ms || ms <= 0) return 'Nicht verfügbar';
@@ -80,11 +80,6 @@ export const valueOrNA = (value?: string | number): string => {
 
 export const getTrackInfoTitle = (song: Song): string =>
   resolveDisplayTitle(song.title, song.fileInfo?.filename, song.fileInfo?.uri ?? song.uri);
-
-export const getTrackInfoArtist = (song: Song): string => resolveDisplayArtist(song.artist);
-export const getTrackInfoAlbum = (song: Song): string => resolveDisplayAlbum(song.album);
-export const getTrackInfoAlbumArtist = (song: Song): string =>
-  normalizeMetadataText(song.albumArtist) ?? getTrackInfoArtist(song);
 
 export const getTrackInfoFilename = (song: Song): string =>
   displayFilename(song.fileInfo?.filename, song.fileInfo?.uri ?? song.uri) ?? 'Nicht verfügbar';

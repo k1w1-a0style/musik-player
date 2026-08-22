@@ -5,7 +5,6 @@ import {
   getNowPlayingBackdropOverlayColors,
   getNowPlayingMenuBackdropColor,
   getNowPlayingSnapPagerInactiveDotColor,
-  getNowPlayingSoundCloudOverlayColors,
   getNowPlayingWaveformRestColor,
   getTagEditorWarningBoxColors,
 } from '../appThemeOverlays';
@@ -23,32 +22,6 @@ describe('appThemeOverlays', () => {
       'rgba(244,245,247,0.44)',
       'rgba(244,245,247,0.86)',
     ]);
-  });
-
-  test('returns SoundCloud overlay colors per appearance', () => {
-    expect(getNowPlayingSoundCloudOverlayColors('dark')).toEqual({
-      gradient: ['rgba(0,0,0,0.72)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)'],
-      titleBackgroundColor: 'rgba(0,0,0,0.78)',
-      artistBackgroundColor: 'rgba(0,0,0,0.68)',
-      infoBackgroundColor: 'rgba(0,0,0,0.68)',
-      playButtonBackgroundColor: 'rgba(0,0,0,0.46)',
-      carouselScrimColor: 'rgba(0,0,0,0.16)',
-      carouselTitleColor: '#ffffff',
-      carouselArtistColor: 'rgba(255,255,255,0.78)',
-      carouselTextShadowColor: 'rgba(0,0,0,0.45)',
-    });
-
-    expect(getNowPlayingSoundCloudOverlayColors('light')).toEqual({
-      gradient: ['rgba(255,255,255,0.72)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.78)'],
-      titleBackgroundColor: 'rgba(255,255,255,0.78)',
-      artistBackgroundColor: 'rgba(255,255,255,0.68)',
-      infoBackgroundColor: 'rgba(255,255,255,0.68)',
-      playButtonBackgroundColor: 'rgba(255,255,255,0.46)',
-      carouselScrimColor: 'rgba(255,255,255,0.12)',
-      carouselTitleColor: '#101318',
-      carouselArtistColor: 'rgba(16,19,25,0.78)',
-      carouselTextShadowColor: 'rgba(255,255,255,0.45)',
-    });
   });
 
   test('returns Now Playing snap pager inactive dot colors per appearance', () => {

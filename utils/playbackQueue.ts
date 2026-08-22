@@ -20,23 +20,6 @@ export const rotateQueueFromIndex = (queue: Song[], index: number): Song[] => {
   return normalizedIndex > 0 ? [...queue.slice(normalizedIndex), ...queue.slice(0, normalizedIndex)] : queue.slice();
 };
 
-export const hasSameSongIdMultiset = (a: Song[], b: Song[]): boolean => {
-  if (a.length !== b.length) return false;
-  const counts = new Map<string, number>();
-  a.forEach(song => {
-    const id = normalizeSongId(song.id) ?? '';
-    counts.set(id, (counts.get(id) ?? 0) + 1);
-  });
-  return b.every(song => {
-    const id = normalizeSongId(song.id) ?? '';
-    const next = (counts.get(id) ?? 0) - 1;
-    if (next < 0) return false;
-    if (next === 0) counts.delete(id);
-    else counts.set(id, next);
-    return true;
-  });
-};
-
 export const shuffleQueueKeepingCurrent = (
   queue: Song[],
   currentSongId?: string,
@@ -56,14 +39,4 @@ export const shuffleQueueKeepingCurrent = (
 export const hasSameOrderedSongIds = (a: Song[], b: Song[]): boolean => {
   if (a.length !== b.length) return false;
   return a.every((song, index) => normalizeSongId(song.id) === normalizeSongId(b[index]?.id));
-};
-
-export const hasSameCircularOrderedSongIds = (a: Song[], b: Song[]): boolean => {
-  if (a.length !== b.length) return false;
-  if (a.length === 0) return true;
-  const bIds = b.map(song => normalizeSongId(song.id));
-  return a.some((song, offset) => {
-    if (normalizeSongId(song.id) !== bIds[0]) return false;
-    return bIds.every((id, index) => normalizeSongId(a[(offset + index) % a.length]?.id) === id);
-  });
 };

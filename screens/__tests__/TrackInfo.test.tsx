@@ -139,53 +139,56 @@ describe('TrackInfo', () => {
     mockNavigate.mockReset();
   });
 
-  test('renders title artist album and file fields', () => {
-    const { getByText } = render(<TrackInfo />);
+  test('renders a typographic hero and separated metadata fields', () => {
+    const { getByLabelText, getByTestId, getByText } = render(<TrackInfo />);
 
-    expect(getByText(/Titel: Song/)).toBeTruthy();
-    expect(getByText(/Album-Künstler: Album Artist/)).toBeTruthy();
-    expect(getByText(/Dateiname: song.mp3/)).toBeTruthy();
-    expect(getByText(/Tracknummer: 3\/12/)).toBeTruthy();
-    expect(getByText(/Discnummer: 1\/2/)).toBeTruthy();
-    expect(getByText(/Kommentar: Kommentar/)).toBeTruthy();
+    expect(getByTestId('track-info-hero')).toBeTruthy();
+    expect(getByText('Song')).toBeTruthy();
+    expect(getByText('Artist')).toBeTruthy();
+    expect(getByText('Album')).toBeTruthy();
+    expect(getByLabelText('Album-Künstler: Album Artist')).toBeTruthy();
+    expect(getByLabelText('Dateiname: song.mp3')).toBeTruthy();
+    expect(getByLabelText('Tracknummer: 3/12')).toBeTruthy();
+    expect(getByLabelText('Discnummer: 1/2')).toBeTruthy();
+    expect(getByLabelText('Kommentar: Kommentar')).toBeTruthy();
   });
 
   test('shows extended audio and cover technical data', () => {
-    const { getByText } = render(<TrackInfo />);
+    const { getByLabelText } = render(<TrackInfo />);
 
-    expect(getByText(/Dauer: 4:05/)).toBeTruthy();
-    expect(getByText(/Dateigröße: 1.00 MB/)).toBeTruthy();
-    expect(getByText(/Codec: audio\/mpeg/)).toBeTruthy();
-    expect(getByText(/Bitrate: 320 kbps/)).toBeTruthy();
-    expect(getByText(/Bitrate-Modus: VBR/)).toBeTruthy();
-    expect(getByText(/Sample Rate: 44.1 kHz/)).toBeTruthy();
-    expect(getByText(/Kanäle: 2 Kanäle \(Stereo\)/)).toBeTruthy();
-    expect(getByText(/Cover-MIME-Type: image\/jpeg/)).toBeTruthy();
-    expect(getByText(/Cover-Dateigröße: 2.00 KB/)).toBeTruthy();
-    expect(getByText(/Cover-Abmessungen: 800 × 600 px/)).toBeTruthy();
+    expect(getByLabelText('Dauer: 4:05')).toBeTruthy();
+    expect(getByLabelText('Dateigröße: 1.00 MB')).toBeTruthy();
+    expect(getByLabelText('Codec: audio/mpeg')).toBeTruthy();
+    expect(getByLabelText('Bitrate: 320 kbps')).toBeTruthy();
+    expect(getByLabelText('Bitrate-Modus: VBR')).toBeTruthy();
+    expect(getByLabelText('Sample Rate: 44.1 kHz')).toBeTruthy();
+    expect(getByLabelText('Kanäle: 2 Kanäle (Stereo)')).toBeTruthy();
+    expect(getByLabelText('Cover-MIME-Type: image/jpeg')).toBeTruthy();
+    expect(getByLabelText('Cover-Dateigröße: 2.00 KB')).toBeTruthy();
+    expect(getByLabelText('Cover-Abmessungen: 800 × 600 px')).toBeTruthy();
   });
 
   test('shows mime type when available', () => {
-    const { getByText } = render(<TrackInfo />);
+    const { getByLabelText } = render(<TrackInfo />);
 
-    expect(getByText(/MIME-Type: audio\/mpeg/)).toBeTruthy();
+    expect(getByLabelText('MIME-Type: audio/mpeg')).toBeTruthy();
   });
 
   test('shows not available mime when missing', () => {
     mockRouteSongId = '2';
-    const { getAllByText, getByText } = render(<TrackInfo />);
+    const { getAllByLabelText, getByLabelText } = render(<TrackInfo />);
 
-    expect(getAllByText(/MIME-Type: Nicht verfügbar/).length).toBe(2);
-    expect(getByText(/Bitrate-Modus: Nicht verfügbar/)).toBeTruthy();
-    expect(getByText(/Cover-Abmessungen: Nicht verfügbar/)).toBeTruthy();
+    expect(getAllByLabelText(/MIME-Type: Nicht verfügbar/).length).toBe(2);
+    expect(getByLabelText('Bitrate-Modus: Nicht verfügbar')).toBeTruthy();
+    expect(getByLabelText('Cover-Abmessungen: Nicht verfügbar')).toBeTruthy();
   });
 
   test('cover fallback on image error', () => {
-    const { UNSAFE_getByType, getByText } = render(<TrackInfo />);
+    const { UNSAFE_getByType, getByLabelText } = render(<TrackInfo />);
 
     fireEvent(UNSAFE_getByType(Image), 'error');
 
-    expect(getByText(/Cover-Typ: Gecachtes Cover/)).toBeTruthy();
+    expect(getByLabelText('Cover-Typ: Gecachtes Cover')).toBeTruthy();
   });
 
   test('navigates to tag editor', () => {

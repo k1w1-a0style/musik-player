@@ -1,5 +1,4 @@
-import type { Song } from '../types/Song';
-import { asPlayableSong, type PlayableSong } from './playableSong';
+import type { PlayableSong } from './playableSong';
 import { getSongArtworkUri } from './songArtwork';
 
 const normalizeOptionalText = (value?: string): string | undefined => {
@@ -23,14 +22,4 @@ export const toTrackPlayerTrack = (song: PlayableSong) => {
     artwork: getSongArtworkUri(song),
     duration: song.duration && song.duration > 0 ? song.duration / 1000 : undefined,
   };
-};
-
-export const tryToTrackPlayerTrack = (song: Song) => {
-  const playableSong = asPlayableSong(song);
-  if (!playableSong) {
-    console.warn(`[TrackPlayer] Skipping non-playable song ${song.id}.`);
-    return null;
-  }
-
-  return toTrackPlayerTrack(playableSong);
 };

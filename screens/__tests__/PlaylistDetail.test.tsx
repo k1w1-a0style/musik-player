@@ -199,6 +199,22 @@ test('dragging the visible playlist grip claims the touch immediately and commit
   act(() => unmount());
 });
 
+test('long-pressing a playlist row activates native drag reordering', () => {
+  const { getByTestId } = render(<PlaylistDetail />);
+  const gesture = getByTestId('playlist-detail-long-press-drag-song-b');
+
+  fireEvent(gesture, 'handlerStateChange', {
+    nativeEvent: { oldState: 2, state: 4, translationY: 0 },
+  });
+  fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: 80 } });
+  fireEvent(gesture, 'handlerStateChange', {
+    nativeEvent: { oldState: 4, state: 5, translationY: 80 },
+  });
+
+  expect(mockMoveSongInPlaylist).toHaveBeenCalledWith('playlist-1', 'song-b',
+    { targetSongId: 'song-a' });
+});
+
 test('ignores accessibility reorder actions at playlist boundaries', () => {
   const { getByTestId } = render(<PlaylistDetail />);
 

@@ -67,7 +67,7 @@ jest.mock('expo-file-system/legacy', () => ({
 describe('coverCache', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
-    coverCacheCleanup.invalidateCoverCacheCleanup();
+    coverCacheCleanup.resetCoverCacheCleanupForTests();
     jest.clearAllMocks();
     (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });

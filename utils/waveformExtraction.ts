@@ -26,10 +26,6 @@ const nextWaveformRequestId = (): string =>
 export const resolveWaveformUri = (song: Song | null | undefined): string | undefined =>
   song?.fileInfo?.uri ?? song?.uri;
 
-/** Independent 128-bit identity used for scheduler and failure isolation. */
-export const getWaveformExtractionKey = (song: Song | null | undefined): string =>
-  getWaveformSourceIdentity(song).sourceFingerprint;
-
 export const buildImmediateWaveform = (
   song: Song | null | undefined,
   durationMs: number,

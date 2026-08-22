@@ -22,10 +22,6 @@ export const UNKNOWN_ALBUM_KEY = 'unknown-album';
 export const UNKNOWN_GENRE_KEY = 'unknown-genre';
 export const UNKNOWN_SONG_KEY = 'unknown-song';
 
-interface SongWithOptionalAlbumArtist extends Pick<Song, 'album' | 'artist' | 'fileInfo' | 'id' | 'title' | 'uri'> {
-  albumArtist?: string;
-}
-
 const basename = (value?: string): string => {
   if (!value) return '';
   const cleaned = value.replace(/\/+$/, '');
@@ -60,12 +56,6 @@ export const normalizeArtistName = (value?: string | null): string => normalizeM
 export const getDisplayAlbumName = (value?: string | null): string => resolveDisplayAlbum(cleanPersonLikeLabel(value ?? undefined));
 export const getDisplayArtistName = (value?: string | null): string => resolveDisplayArtist(cleanPersonLikeLabel(value ?? undefined));
 export const buildArtistKey = (value?: string | null): string => `artist:${normalizeArtistName(value)}`;
-export const buildAlbumKey = (song: SongWithOptionalAlbumArtist): string => {
-  const albumPart = normalizeAlbumName(song.album);
-  const albumArtistNorm = normalizeMetadataText(song.albumArtist);
-  if (albumPart === UNKNOWN_ALBUM_KEY || !albumArtistNorm) return `album:${albumPart}`;
-  return `album:${albumPart}::${albumArtistNorm.toLocaleLowerCase('de-DE')}`;
-};
 
 const buildAlbumGroupingKeyResolver = (songs: Song[]): ((song: Song) => string) => {
   const knownAlbumArtistsByAlbum = new Map<string, Set<string>>();

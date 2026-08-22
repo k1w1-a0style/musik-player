@@ -168,14 +168,6 @@ export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> =
   });
 };
 
-export const clearWaveformCache = async (): Promise<void> => runCacheMutation(async () => {
-  await initializeCache();
-  const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(LEGACY_PREFIX));
-  await Promise.all(keys.map(key => AsyncStorage.removeItem(key)));
-  cachedIndex = [];
-  memoryWaveforms.clear();
-});
-
 export const resetWaveformCacheStateForTests = (): void => {
   cacheMutationQueue = Promise.resolve();
   cacheInitialization = null;

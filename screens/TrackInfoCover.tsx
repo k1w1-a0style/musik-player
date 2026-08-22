@@ -29,14 +29,12 @@ const TrackInfoCover: React.FC<TrackInfoCoverProps> = ({
 
 const styles = StyleSheet.create({
   coverWrap: {
-    width: 130,
-    height: 130,
+    width: 116,
+    height: 116,
     borderRadius: 16,
-    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    marginBottom: 8,
   },
   cover: { width: '100%', height: '100%' },
 });

@@ -106,7 +106,7 @@ export const blockSeekLaneForNativeMutation = (): NativeSeekLaneBarrier => {
   };
 };
 
-export const isSeekDraining = (): boolean => draining;
+export const isSeekDrainingForTests = (): boolean => draining;
 
 export const resetSeekControllerForTests = (): void => {
   pendingTargetMillis = null;

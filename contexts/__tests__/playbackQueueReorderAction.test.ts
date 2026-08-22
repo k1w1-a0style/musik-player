@@ -10,7 +10,7 @@ const songs: Song[] = [
 ];
 const ref = (current: Song[] = []) => ({ current });
 const player = TrackPlayer as unknown as { __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number;
-  __getState: () => State; __setState: (state: State) => void };
+  __getState: () => State; __setState: (state: State) => void; __setPlayWhenReady: (value: boolean) => void };
 const mutations = {
   reset: (TrackPlayer.reset as jest.Mock).getMockImplementation(), add: (TrackPlayer.add as jest.Mock).getMockImplementation(),
   play: (TrackPlayer.play as jest.Mock).getMockImplementation(), pause: (TrackPlayer.pause as jest.Mock).getMockImplementation(),
@@ -23,6 +23,9 @@ const restore = () => {
   (TrackPlayer.getActiveTrackIndex as jest.Mock).mockImplementation(async () => player.__getActiveTrackIndex() >= 0 ? player.__getActiveTrackIndex() : undefined);
   (TrackPlayer.getProgress as jest.Mock).mockResolvedValue({ position: 42 });
   (TrackPlayer.getPlaybackState as jest.Mock).mockImplementation(async () => ({ state: player.__getState() }));
+  (TrackPlayer.getPlayWhenReady as jest.Mock).mockImplementation(async () => (
+    TrackPlayer as unknown as { __getPlayWhenReady: () => boolean }
+  ).__getPlayWhenReady());
 };
 const seed = async (queue: Song[], index = 0) => {
   for (const [method, implementation] of Object.entries(mutations)) (TrackPlayer[method as keyof typeof mutations] as jest.Mock).mockImplementation(implementation);
@@ -68,6 +71,41 @@ test('shuffle preserves stopped playback instead of starting audio', async () =>
   expect(player.__getState()).toBe(State.Stopped);
   expect(TrackPlayer.play).not.toHaveBeenCalled();
 });
+
+test.each([State.Buffering, State.Loading])(
+  'reorder preserves active playback intent while native state is %s',
+  async transientState => {
+    await seed(songs);
+    player.__setState(transientState);
+    player.__setPlayWhenReady(true);
+    const input = createArgs();
+
+    const result = await runReorderQueueAction({
+      ...input, fromIndex: 2, toIndex: 1, currentSongId: 's1', shuffle: false,
+    });
+
+    expect(result.status).toBe('applied');
+    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    expect(player.__getState()).toBe(State.Playing);
+  },
+);
+
+test.each([State.Buffering, State.Loading])(
+  'shuffle preserves paused intent while native state is %s',
+  async transientState => {
+    await seed(songs);
+    player.__setState(transientState);
+    player.__setPlayWhenReady(false);
+    const input = createArgs();
+
+    const result = await runShuffleQueueAction({ ...input, currentSongId: 's1', shuffle: false });
+
+    expect(result.status).toBe('applied');
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(player.__getState()).toBe(State.Paused);
+  },
+);
 
 test('reorder during shuffle preserves the semantic base after a post-mutation failure', async () => {
   const shuffled = [songs[1], songs[0], songs[2]];

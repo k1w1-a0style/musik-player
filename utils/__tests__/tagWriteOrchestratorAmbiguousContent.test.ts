@@ -1,9 +1,8 @@
 import type { Song } from '../../types/Song';
 import {
-  assertSafeWriteAllowed,
   createTagWriteOperationPlan,
-  simulateTagWriteOperation,
 } from '../tagWriteOrchestrator';
+import { assertSafeWriteAllowed, simulateTagWriteOperation } from './tagWriteOrchestratorTestHelpers';
 
 const song = (overrides: Partial<Song>): Song => ({
   id: 'ambiguous-content',

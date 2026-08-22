@@ -2,19 +2,21 @@
 
 ## Auftrag und Ausgangspunkt
 
-Geprüft wurde der vollständige Stand des Branches `codex` ab
-`f870ecac603ac8e7b497a7c7871879ee0ff74e97`. Der Review umfasste Logik,
+Geprüft wurde der vollständige Stand des Arbeitsbranches `fix/final-player-polish` ab
+`daee04ea27932d961b56b322a4985a9f4cad03ed`. Der Review umfasste Logik,
 Laufzeitverhalten, SoundCloud- und Classic-Player, Bibliothek, Playlists,
 Nebenseiten, Accessibility, Theme-Konformität, Abhängigkeiten, Android-Konfiguration
-und Release-Gates. Die SoundCloud-Ansicht wurde zusätzlich gegen die bereitgestellte
-APK-Oberflächenanalyse abgeglichen.
+und Release-Gates. Die SoundCloud-Ansicht wurde zusätzlich gegen die beiden am
+2026-08-22 bereitgestellten Android-Referenzscreens (Pause/Wiedergabe) abgeglichen.
 
 ## Ergebnis
 
-Alle im Quellcode reproduzierbaren High- und Medium-Befunde dieses Durchlaufs wurden
-behoben. Es bleiben zwei externe Release-Gates offen: die native Android-/Geräteprüfung
-und der bereits verfolgte `image-size`-Upstream-Fund. Es wurde weder ein unsicherer
-Zwangs-Downgrade noch `npm audit fix --force` eingesetzt.
+Alle im Quellcode reproduzierbaren High- und Medium-Befunde dieses Durchlaufs und des
+Nachtrags vom 2026-08-22 wurden behoben. Als externes Release-Gate bleibt die native
+Android-/Geräteprüfung offen. Der `image-size`-Upstream-Fund wird weiter verfolgt, ist aber
+durch eine eng begrenzte, aktive Ausnahme plus deaktivierte gefährdete Parserfamilien
+abgesichert. Es wurde weder ein unsicherer Zwangs-Downgrade noch `npm audit fix --force`
+eingesetzt.
 
 ## Umgesetzte Befunde
 
@@ -25,7 +27,7 @@ Zwangs-Downgrade noch `npm audit fix --force` eingesetzt.
 | Queue | Lange Queue öffnete immer am Anfang | Aktueller Titel wird als initialer Listenindex verwendet | Behoben |
 | Android Back | Zurück schloss den Player trotz geöffneter SoundCloud-Queue | Queue fängt Hardware-Back zuerst ab und schließt animiert | Behoben |
 | Teilen | Fehler des Plattform-Share-Sheets blieben unsichtbar | Verständlicher Fehlerdialog ergänzt | Behoben |
-| Font-Start | Ein Font-Ladefehler konnte den Startbildschirm dauerhaft halten | System-Fallback wird nach protokolliertem Fehler freigegeben | Behoben |
+| Font-Start | Der JavaScript-Font-Gate verzögerte den Provider-/Navigations-Mount | Drei Schriften werden nativ eingebettet; der JS-Gate wurde vollständig entfernt | Behoben |
 | Classic-Performance | Der komplette Player renderte mit jedem 500-ms-Progress-Tick neu | Progress-Verbrauch in eine kleine memo-isierte Waveform-Unterkomponente isoliert | Behoben |
 | Classic-Struktur | Mehrere ungenutzte Props und doppelte Layoutwerte | Props entfernt, Komponenten memo-isiert, redundantes Layoutfeld entfernt | Behoben |
 | SoundCloud-Progress | 650-ms-Vorhersage übersprang das 500-ms-Providerintervall sichtbar | Beide Takte auf 500 ms synchronisiert | Behoben |
@@ -52,16 +54,28 @@ Zwangs-Downgrade noch `npm audit fix --force` eingesetzt.
 | Testqualität | Ein VirtualizedList-Timer erzeugte eine React-`act`-Warnung | Im übergeordneten Screen-Test durch die separat getestete Queue isoliert | Behoben |
 | Komplexität | Sechs berührte Hotspots überschritten ihre bestehenden Budgets | Responsive Grid und Mini-Steuerung extrahiert; keine Ausnahme angehoben | Behoben |
 | Native Waveform | Maximal 2.400 komprimierte Pakete vom Dateianfang verzerrten lange Songs | Zeitlich verteilte Stichproben über die volle Dauer plus korrigierter Fallback | Behoben, Android-Kompilierung offen |
+| Playback-Restore | `Ready`/`Buffering` konnte beim Queue-Rebuild fälschlich als laufende Wiedergabe zurückkehren | `playWhenReady` wird als native Wiedergabeabsicht wiederhergestellt | Behoben |
+| Queue-Geste | Das Hochwischen öffnete die Warteschlange erst nach Ende der Geste | Gemeinsamer nativer Animated-Wert zeigt eine fingerfolgende Vorschau; Abwärtsgeste und Android-Back schließen sie | Behoben |
+| Reihenfolge | Queue und Playlist boten keinen flächigen Long-Press-Drag | Long-Press-Drag auf dem Zeileninhalt ergänzt; Griff bleibt als sofortige Drag-Alternative erhalten | Behoben |
+| SoundCloud-Zustände | Pause und Wiedergabe verwendeten nahezu dieselbe Informationsdichte | Pause zeigt Blur plus große Transportsteuerung; Wiedergabe zeigt Waveform, Zeit-Chip und Cover-Schärfe | Behoben |
+| Cover-Akzent | Coverabhängige Farben wechselten sichtbar abrupt | Cover darf zuerst erscheinen; Backdrop, Waveform, Pause-Fortschritt, Classic-Steuerung, Lautstärke sowie Mini-Player-Fortschritt und -Rahmen wechseln nach 120 ms über 760 ms weich über | Behoben |
+| Track-Infos | Metadaten waren typografisch und räumlich wenig gegliedert | Hero-Bereich, vier semantische Karten, abgestufte Typografie und Mono-Darstellung für technische Langwerte | Behoben |
+| SoundCloud-Chrome | Helle APK-Kontexttasten und die iconbasierte untere Aktionsleiste wurden noch nicht korrekt getroffen | Rechte Kontexttasten auf helle Kreisflächen mit dunklen Icons umgestellt; untere Leiste ohne zusätzliche sichtbare Textlabels verdichtet | Behoben |
+| Deadcode/Redundanz | Alte Queue-, Theme-, Tag-Dry-Run-, Album-, Waveform-, Storage- und Kompatibilitäts-Exports sowie eine transitive Direktabhängigkeit blieben liegen | Unreferenzierte Produktionspfade entfernt, Testsimulationen aus dem Runtime-Bundle verschoben, Zeitformatierung konsolidiert und `expo-asset` als unnötige Direktabhängigkeit gestrichen | Behoben |
 
 ## SoundCloud-Abgleich
 
-Die aktuelle Ansicht bildet die zentralen Merkmale der Analyse nun als zusammenhängende
-Interaktion ab: vollflächiges Cover, dunkle Kontrastflächen, orange Akzentfarbe,
-oben links eingeblendete Metadaten, breite Waveform mit Zeitmarken, Tap-to-Pause,
-Pause-Transport, horizontaler Drei-Seiten-Trackwechsel, vertikales Einklappen und eine
-eigene dunkle Queue. Wichtig für die gefühlte Flüssigkeit sind dabei nicht nur kürzere
-Animationen, sondern vor allem die Entkopplung des Progress-Takts, native Animated-Werte,
-die Gesten-Priorität und das Vermeiden doppelter Waveform-Layer.
+Die aktuelle Ansicht bildet die zentralen Merkmale der bereitgestellten SoundCloud-
+Referenz nun als zusammenhängende Interaktion ab: gerahmte Cover-Karte, dunkle
+Kontrastflächen, oben links eingeblendete Metadaten, rechte runde Kontextaktionen und eine
+untere iconbasierte Aktionsleiste. Die rechten Kontextaktionen verwenden wie in den
+Referenzscreens helle Kreisflächen mit dunklen Icons. Während der Wiedergabe liegen Waveform, Playhead und zentrierter
+Zeit-Chip über dem scharfen Cover; im Pausenzustand treten Blur und große
+Zurück/Play/Weiter-Steuerung an ihre Stelle. Hinzu kommen horizontaler Drei-Seiten-
+Trackwechsel, fingerfolgendes Hochwischen zur Queue sowie weich verzögerte,
+coverabhängige Akzentwechsel. Wichtig für die gefühlte Flüssigkeit sind die Entkopplung
+des Progress-Takts, native Animated-Werte, die Gesten-Priorität und das Vermeiden
+doppelter Waveform-Layer.
 
 Eine abschließende Pixel-/Bewegungsabnahme bleibt auf einem echten Samsung-Gerät nötig,
 weil Schrift-Rasterung, Status-/Navigationsleisten, Decoderverhalten und 60/120-Hz-Frame-
@@ -73,15 +87,15 @@ Timing im Jest-/Metro-Umfeld nicht realistisch messbar sind.
 | --- | --- |
 | TypeScript | bestanden |
 | ESLint (`--max-warnings=0`) | bestanden |
-| Komplexität | 2.595 Produktionsfunktionen bestanden |
-| Vollständige Jest-Coverage | 301 Suites / 2.906 Tests bestanden |
-| Coverage | 94,50 % Lines / 94,25 % Functions / 83,34 % Branches |
-| Source-NUL-Gate | 747 Textquellen bestanden |
+| Komplexität | 2.729 Produktionsfunktionen bestanden |
+| Vollständige Jest-Coverage | 311 Suites / 2.998 Tests bestanden |
+| Coverage | 95,34 % Lines / 94,97 % Functions / 84,30 % Branches |
+| Source-NUL-Gate | 774 Textquellen bestanden |
 | Android-Manifest/Permissions | bestanden; nur erwartete Audio-/Storage-/Service-Rechte |
 | Expo Dependency Check | alle Versionen passend |
 | Reproduzierbares `npm ci` | bestanden; RNTP-4.1.2-Patch angewendet |
-| Android Metro/Hermes Export | bestanden; 3 Font-Assets, 6,16-MB-HBC, 6,3-MB-Export |
-| Audit-Policy | bestanden; 0 Critical, 1 freigegebener High-Root, 9 kollabierte Effekte |
+| Android Metro/Hermes Export | kalter Export bestanden; 3.213 Module, 17 Metro-Assets, 6,19-MB-HBC |
+| Audit-Policy | bestanden; 0 Critical, 1 freigegebener High-Root, 42 kollabierte transitive Effekte |
 | `newArchEnabled` | unverändert `false` |
 
 ## Offene Release-Gates
@@ -92,10 +106,12 @@ Timing im Jest-/Metro-Umfeld nicht realistisch messbar sind.
    und gemäß Issue #234 auf Samsung geprüft werden. Besonders zu testen sind Waveform,
    Scrubbing, horizontale/vertikale Gesten, Queue-Back, Hintergrundwiedergabe, Neustart-
    Persistenz und Hell-/Dunkelkontrast. Huawei bleibt Test oder dokumentiertes Restrisiko.
-2. **Supply Chain:** `image-size@1.2.1` bleibt ausschließlich über Expo/Metro im Build-
-   Tooling betroffen. Stand 2026-08-10 ist selbst die veröffentlichte Version 2.0.2 laut
-   beiden Advisories betroffen. Die eng gebundene Ausnahme in Issue #378 läuft am
-   2026-08-15 ab und darf ohne erneute Entscheidung nicht verlängert werden.
+2. **Supply Chain (verfolgt, aktuell nicht abgelaufen):** `image-size@1.2.1` bleibt im
+   Expo/Metro-Build-Tooling betroffen. Die gefährdeten ICNS-, JXL-/JXL-Stream- und
+   HEIF-Parser sind in Metro fail-closed deaktiviert. Die am 2026-08-22 erneut geprüfte,
+   exakt auf Version und beide Advisories begrenzte Ausnahme läuft am 2026-11-20 ab;
+   Issue #378 muss spätestens dann erneut bewertet oder durch ein Upstream-Update
+   geschlossen werden.
 3. **Preview/Production:** In diesem Durchlauf wurden weder Preview noch Production
    ausgelöst. Diese Schritte bleiben eine separate Release-Freigabe.
 
@@ -104,5 +120,5 @@ Timing im Jest-/Metro-Umfeld nicht realistisch messbar sind.
 1. Branch-CI für den neuen `codex`-Commit vollständig abwarten.
 2. Development-APK exakt aus dieser SHA bauen und Artefakt-SHA dokumentieren.
 3. Samsung-Smoke und Theme-/Restart-Smoke aus #234/#236 durchführen.
-4. Den `image-size`-Stand spätestens am 2026-08-15 neu bewerten.
+4. Den `image-size`-Stand spätestens am 2026-11-20 neu bewerten.
 5. Erst nach grünen Geräte-Smokes Preview und danach Production separat freigeben.

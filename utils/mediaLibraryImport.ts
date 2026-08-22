@@ -852,11 +852,3 @@ export const importSongsFromSources = async (options: ImportSongsOptions = {}): 
   }
   return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers ?? true, readId3Tags: readId3Tags ?? true, signal });
 };
-
-export const loadAllAudioAssetsFromMediaLibrary = async (
-  getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync,
-  options: Omit<MediaLibraryScanOptions, 'signal'> = {},
-): Promise<MediaAsset[]> => {
-  const result = await scanAudioAssetsFromMediaLibrary(getAssetsPage, options);
-  return result.assets;
-};

@@ -1,6 +1,6 @@
 import TrackPlayer, { Event } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
-import { cancelSleepTimer, enforceExpiredSleepTimer, restorePersistedSleepTimer } from './sleepTimerController';
+import { enforceExpiredSleepTimer, restorePersistedSleepTimer } from './sleepTimerController';
 import { getNativeHydrationGate } from '../utils/nativeHydrationGate';
 
 const logRemotePlaybackError = (action: string, error: unknown): void => {
@@ -69,8 +69,4 @@ export const PlaybackService = async (): Promise<void> => {
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, () => {
     enforceExpiredSleepTimer().catch(error => logRemotePlaybackError('sleep timer expiry', error));
   });
-};
-
-export const cleanupPlaybackService = (): void => {
-  cancelSleepTimer();
 };

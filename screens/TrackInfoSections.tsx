@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -17,7 +17,6 @@ import {
   getTrackInfoDurationMs,
   getTrackInfoFilename,
   getTrackInfoMimeType,
-  getTrackInfoTitle,
   valueOrNA,
 } from './trackInfoHelpers';
 import TrackInfoRow from './TrackInfoRow';
@@ -40,6 +39,17 @@ const OptionalTagRow = ({ label, value, long = false }: { label: string; value?:
   hasTagValue(value) ? <TrackInfoRow label={label} value={valueOrNA(value)} long={long} /> : null
 );
 
+const TrackInfoSection = ({ title, children }: { title: string; children: React.ReactNode }) => {
+  const { theme } = useAppTheme();
+  return (
+    <View style={[styles.sectionCard, { backgroundColor: theme.palette.surfaceGlass,
+      borderColor: theme.palette.border }]}>
+      <Text style={[styles.sectionTitle, { color: theme.palette.text.primary }]}>{title}</Text>
+      <View>{children}</View>
+    </View>
+  );
+};
+
 const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   song,
   coverUri,
@@ -47,55 +57,59 @@ const TrackInfoSections: React.FC<TrackInfoSectionsProps> = ({
   coverDimensions,
   importedAt,
 }) => {
-  const { theme } = useAppTheme();
   const coverWidth = coverDimensions?.width ?? song.coverInfo?.width;
   const coverHeight = coverDimensions?.height ?? song.coverInfo?.height;
-  const sectionStyle = [styles.section, { color: theme.palette.text.secondary }];
 
   return (
-    <>
-      <Text style={sectionStyle}>Basis</Text>
-      <TrackInfoRow label="Titel" value={getTrackInfoTitle(song)} />
-      <OptionalTagRow label="Künstler" value={song.artist} />
-      <OptionalTagRow label="Album" value={song.album} />
-      <OptionalTagRow label="Album-Künstler" value={song.albumArtist} />
-      <OptionalTagRow label="Jahr" value={song.year} />
-      <OptionalTagRow label="Genre" value={song.genre} />
-      <OptionalTagRow label="Tracknummer" value={song.trackNumber} />
-      <OptionalTagRow label="Discnummer" value={song.discNumber} />
-      <OptionalTagRow label="Kommentar" value={song.comment} long />
-      <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
+    <View style={styles.sections}>
+      <TrackInfoSection title="Metadaten">
+        <OptionalTagRow label="Album-Künstler" value={song.albumArtist} />
+        <OptionalTagRow label="Jahr" value={song.year} />
+        <OptionalTagRow label="Genre" value={song.genre} />
+        <OptionalTagRow label="Tracknummer" value={song.trackNumber} />
+        <OptionalTagRow label="Discnummer" value={song.discNumber} />
+        <OptionalTagRow label="Kommentar" value={song.comment} long />
+        <TrackInfoRow label="Dauer" value={formatDuration(getTrackInfoDurationMs(song))} />
+      </TrackInfoSection>
 
-      <Text style={sectionStyle}>Datei</Text>
-      <TrackInfoRow label="Dateiname" value={getTrackInfoFilename(song)} />
-      <TrackInfoRow label="Dateiendung" value={valueOrNA(song.fileInfo?.extension)} />
-      <TrackInfoRow label="Container" value={getTrackInfoContainer(song)} />
-      <TrackInfoRow label="MIME-Type" value={getTrackInfoMimeType(song)} />
-      <TrackInfoRow label="Dateigröße" value={formatBytes(song.fileInfo?.size)} />
-      <TrackInfoRow label="Import-Quelle" value={valueOrNA(song.fileInfo?.source)} />
-      <TrackInfoRow label="Import-Zeitpunkt" value={importedAt} />
-      <TrackInfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
+      <TrackInfoSection title="Datei">
+        <TrackInfoRow label="Dateiname" value={getTrackInfoFilename(song)} />
+        <TrackInfoRow label="Dateiendung" value={valueOrNA(song.fileInfo?.extension)} />
+        <TrackInfoRow label="Container" value={getTrackInfoContainer(song)} />
+        <TrackInfoRow label="MIME-Type" value={getTrackInfoMimeType(song)} />
+        <TrackInfoRow label="Dateigröße" value={formatBytes(song.fileInfo?.size)} />
+        <TrackInfoRow label="Import-Quelle" value={valueOrNA(song.fileInfo?.source)} />
+        <TrackInfoRow label="Import-Zeitpunkt" value={importedAt} />
+        <TrackInfoRow label="Datei-Pfad / URI" value={valueOrNA(song.fileInfo?.uri ?? song.uri)} long />
+      </TrackInfoSection>
 
-      <Text style={sectionStyle}>Audio-Technik</Text>
-      <TrackInfoRow label="Codec" value={getTrackInfoCodec(song)} />
-      <TrackInfoRow label="Bitrate" value={formatBitrate(song.audioInfo?.bitrate)} />
-      <TrackInfoRow label="Bitrate-Modus" value={formatBitrateMode(song.audioInfo?.bitrateMode)} />
-      <TrackInfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />
-      <TrackInfoRow label="Kanäle" value={formatChannels(song.audioInfo?.channels)} />
+      <TrackInfoSection title="Audio-Technik">
+        <TrackInfoRow label="Codec" value={getTrackInfoCodec(song)} />
+        <TrackInfoRow label="Bitrate" value={formatBitrate(song.audioInfo?.bitrate)} />
+        <TrackInfoRow label="Bitrate-Modus" value={formatBitrateMode(song.audioInfo?.bitrateMode)} />
+        <TrackInfoRow label="Sample Rate" value={formatSampleRate(song.audioInfo?.sampleRate)} />
+        <TrackInfoRow label="Kanäle" value={formatChannels(song.audioInfo?.channels)} />
+      </TrackInfoSection>
 
-      <Text style={sectionStyle}>Cover</Text>
-      <TrackInfoRow label="Cover vorhanden" value={coverUri ? 'Ja' : 'Nein'} />
-      <TrackInfoRow label="Cover-Typ" value={formatCoverStatus(coverStatus)} />
-      <TrackInfoRow label="Cover-MIME-Type" value={valueOrNA(song.coverInfo?.mimeType)} />
-      <TrackInfoRow label="Cover-Dateigröße" value={formatBytes(song.coverInfo?.byteLength)} />
-      <TrackInfoRow label="Cover-Abmessungen" value={formatCoverDimensions(coverWidth, coverHeight)} />
-      <TrackInfoRow label="Cover-URI" value={valueOrNA(coverUri)} long />
-    </>
+      <TrackInfoSection title="Cover">
+        <TrackInfoRow label="Cover vorhanden" value={coverUri ? 'Ja' : 'Nein'} />
+        <TrackInfoRow label="Cover-Typ" value={formatCoverStatus(coverStatus)} />
+        <TrackInfoRow label="Cover-MIME-Type" value={valueOrNA(song.coverInfo?.mimeType)} />
+        <TrackInfoRow label="Cover-Dateigröße" value={formatBytes(song.coverInfo?.byteLength)} />
+        <TrackInfoRow label="Cover-Abmessungen" value={formatCoverDimensions(coverWidth, coverHeight)} />
+        <TrackInfoRow label="Cover-URI" value={valueOrNA(coverUri)} long />
+      </TrackInfoSection>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  section: { fontFamily: APP_THEME_TOKENS.fonts.heading, marginTop: 8, letterSpacing: 0.2 },
+  sections: { gap: APP_THEME_TOKENS.spacing.md },
+  sectionCard: { borderRadius: APP_THEME_TOKENS.radii.elevatedCard, borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: APP_THEME_TOKENS.spacing.md, paddingTop: APP_THEME_TOKENS.spacing.md,
+    overflow: 'hidden' },
+  sectionTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 18, lineHeight: 23,
+    marginBottom: 3 },
 });
 
 export default TrackInfoSections;

@@ -18,6 +18,10 @@ const renderCarousel = (props: Partial<React.ComponentProps<typeof SoundCloudTra
     currentArtworkUri: songs[1].cover,
     previousArtworkUri: songs[0].cover,
     nextArtworkUri: songs[2].cover,
+    isPlaying: true,
+    topInset: 0,
+    bottomInset: 0,
+    verticalDrag: new Animated.Value(0),
     canSwipeToNext: true,
     onSwipeToNext: jest.fn(),
     onSwipeToPrevious: jest.fn(),
@@ -96,6 +100,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
       currentSong: songs[1], previousSong: songs[0], nextSong: songs[2],
       currentArtworkUri: songs[1].cover, previousArtworkUri: songs[0].cover,
       nextArtworkUri: songs[2].cover,
+      isPlaying: true, topInset: 0, bottomInset: 0, verticalDrag: new Animated.Value(0),
       onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), onOpenQueue: jest.fn(), renderPage,
     };
     const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);

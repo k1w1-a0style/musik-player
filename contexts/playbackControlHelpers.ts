@@ -30,11 +30,6 @@ export const getNextRepeatMode = (repeatMode: RepeatMode | unknown): RepeatMode 
   return 'off';
 };
 
-export const normalizeSeekSeconds = (millis: number): number => {
-  if (!Number.isFinite(millis) || millis <= 0) return 0;
-  return millis / 1000;
-};
-
 export const toggleTrackPlayerPlayback = async (): Promise<void> => {
   await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     const state = (await TrackPlayer.getPlaybackState()).state;

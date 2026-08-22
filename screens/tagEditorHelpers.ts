@@ -7,7 +7,6 @@ import type {
   WriteOperationPlan,
   WriteTagsResult,
 } from '../types/TagEdit';
-import type { PickedTagCover } from '../utils/tagCoverPicker';
 import { normalizeEditableTags } from '../utils/tagValidation';
 
 export type FormState = Record<keyof EditableTrackTags, string>;
@@ -21,17 +20,6 @@ const ID3V24_UNSUPPORTED_MESSAGE =
 const TAG_LAYOUT_UNSUPPORTED_MESSAGE = 'Dieses Tag-Layout wird aktuell noch nicht sicher geschrieben.';
 const FILE_REPLACE_UNSUPPORTED_MESSAGE = 'Sicheres Ersetzen wird auf dieser Plattform noch nicht unterstützt.';
 const MP4_ATOM_STRUCTURE_UNSUPPORTED_MESSAGE = 'Diese MP4/M4A-Atomstruktur wird nicht sicher geschrieben.';
-
-let embeddedArtworkRevision = 0;
-
-export const nextEmbeddedArtworkRevision = (): number => {
-  embeddedArtworkRevision += 1;
-  return embeddedArtworkRevision;
-};
-
-export const resetEmbeddedArtworkRevisionForTests = (): void => {
-  embeddedArtworkRevision = 0;
-};
 
 export const FIELDS: Array<{ key: keyof EditableTrackTags; label: string }> = [
   { key: 'title', label: 'Titel' },
@@ -195,74 +183,6 @@ export const buildFormAfterSave = (
     }
   }
   return next;
-};
-
-const applyEditableTagPatch = (
-  metadataPatch: Partial<Song>,
-  key: keyof EditableTrackTags,
-  value: string | undefined,
-): void => {
-  switch (key) {
-    case 'title':
-      metadataPatch.title = value;
-      break;
-    case 'artist':
-      metadataPatch.artist = value;
-      break;
-    case 'albumArtist':
-      metadataPatch.albumArtist = value;
-      break;
-    case 'album':
-      metadataPatch.album = value;
-      break;
-    case 'year':
-      metadataPatch.year = value;
-      break;
-    case 'genre':
-      metadataPatch.genre = value;
-      break;
-    case 'trackNumber':
-      metadataPatch.trackNumber = value;
-      break;
-    case 'discNumber':
-      metadataPatch.discNumber = value;
-      break;
-    case 'comment':
-      metadataPatch.comment = value;
-      break;
-  }
-};
-
-export const buildMetadataPatchFromDraft = (
-  draft: TagEditDraft,
-  replacementCover?: PickedTagCover | null,
-): Partial<Song> => {
-  const normalizedTags = normalizeEditableTags(draft.tags);
-  const metadataPatch: Partial<Song> = {};
-  for (const field of FIELDS) {
-    if (!Object.prototype.hasOwnProperty.call(draft.tags, field.key)) continue;
-    applyEditableTagPatch(metadataPatch, field.key, normalizedTags[field.key]);
-  }
-
-  if (draft.removeCover) {
-    metadataPatch.cover = undefined;
-    metadataPatch.coverInfo = undefined as SongCoverInfo | undefined;
-  }
-
-  if (draft.cover) {
-    const previewUri = replacementCover?.uri;
-    metadataPatch.cover = previewUri;
-    metadataPatch.coverInfo = {
-      status: 'external',
-      uri: previewUri,
-      embeddedArtworkChecked: false,
-      embeddedArtworkRevision: nextEmbeddedArtworkRevision(),
-      pendingEmbeddedArtworkRefresh: true,
-      embeddedArtworkRefreshFailed: false,
-    } satisfies SongCoverInfo;
-  }
-
-  return metadataPatch;
 };
 
 const REMOVABLE_COVER_STATUSES: ReadonlySet<NonNullable<SongCoverInfo['status']>> = new Set(['embedded', 'cached']);

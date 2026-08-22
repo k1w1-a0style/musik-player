@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert, Animated, BackHandler, Share, StatusBar, View } from 'react-native';
+import { Alert, Animated, BackHandler, Share, StatusBar, StyleSheet, View } from 'react-native';
 import NowPlayingSoundCloudView from '../NowPlayingSoundCloudView';
 
 const mockWaveformViewport = jest.fn((_props: Record<string, unknown>) => null);
@@ -62,6 +62,7 @@ jest.mock('expo-linear-gradient', () => ({
 }));
 
 jest.mock('lucide-react-native', () => ({
+  AudioLines: 'AudioLines',
   ChevronDown: 'ChevronDown',
   Heart: 'Heart',
   Info: 'Info',
@@ -148,13 +149,14 @@ describe('NowPlayingSoundCloudView', () => {
     jest.restoreAllMocks();
   });
 
-  test('keeps the playing canvas minimal and toggles playback by tapping the artwork', () => {
+  test('keeps the playing cover sharp, shows the waveform, and toggles playback by tapping the artwork', () => {
     const onTogglePlayback = jest.fn(async () => undefined);
     const { getByTestId, queryByTestId } = renderSoundCloudView({ isPlaying: true, onTogglePlayback });
 
     expect(queryByTestId('soundcloud-pause-button')).toBeNull();
     expect(queryByTestId('soundcloud-paused-controls')).toBeNull();
-    expect(queryByTestId('soundcloud-carousel-current-paused-artwork')).toBeNull();
+    expect(getByTestId('soundcloud-carousel-current-artwork').props.blurRadius).toBe(0);
+    expect(queryByTestId('soundcloud-paused-progress')).toBeNull();
     fireEvent.press(getByTestId('soundcloud-swipe-hitbox'));
 
     expect(onTogglePlayback).toHaveBeenCalledTimes(1);
@@ -167,30 +169,38 @@ describe('NowPlayingSoundCloudView', () => {
     }));
   });
 
-  test('shows paused transport controls and respects the queue end guard', () => {
+  test('matches the paused reference with blurred artwork, transport controls, and a simple progress rail', () => {
     const onSwipeToPrevious = jest.fn();
     const onSwipeToNext = jest.fn();
     const onTogglePlayback = jest.fn(async () => undefined);
-    const { getByTestId } = renderSoundCloudView({
+    const onOpenTrackInfo = jest.fn();
+    const { getByTestId, queryByTestId } = renderSoundCloudView({
       isPlaying: false,
       canSwipeToNext: false,
       onSwipeToPrevious,
       onSwipeToNext,
       onTogglePlayback,
+      onOpenTrackInfo,
     });
 
+    expect(getByTestId('soundcloud-carousel-current-artwork').props.blurRadius).toBe(28);
+    expect(queryByTestId('active-waveform')).toBeNull();
+    expect(getByTestId('soundcloud-paused-progress')).toBeTruthy();
+    expect(getByTestId('soundcloud-paused-progress-accent-transition')).toBeTruthy();
+    fireEvent.press(getByTestId('soundcloud-track-info-chip'));
     fireEvent.press(getByTestId('soundcloud-previous-button'));
     fireEvent.press(getByTestId('soundcloud-play-button'));
     fireEvent.press(getByTestId('soundcloud-next-button'));
 
     expect(onSwipeToPrevious).toHaveBeenCalledTimes(1);
+    expect(onOpenTrackInfo).toHaveBeenCalledTimes(1);
     expect(onTogglePlayback).toHaveBeenCalledTimes(1);
     expect(onSwipeToNext).not.toHaveBeenCalled();
     expect(getByTestId('soundcloud-next-button').props.accessibilityState.disabled).toBe(true);
   });
 
   test('slides three full-panel artworks but keeps one metadata and waveform layer stationary', () => {
-    const { getByTestId, getByText, queryByText, getAllByTestId } = renderSoundCloudView();
+    const { getByTestId, getByText, queryByText, getAllByTestId } = renderSoundCloudView({ isPlaying: true });
     const hidden = { includeHiddenElements: true };
 
     expect(getByTestId('soundcloud-carousel-previous-artwork', hidden).props.source.uri).toBe(songs[0].cover);
@@ -203,8 +213,8 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
       .toBe('no-hide-descendants');
-    expect(getByTestId('soundcloud-carousel-current-artwork-frame').props.style)
-      .toMatchObject({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
+    expect(StyleSheet.flatten(getByTestId('soundcloud-carousel-current-artwork-frame').props.style))
+      .toMatchObject({ position: 'absolute', top: 62, right: 0, bottom: 90, left: 0, borderRadius: 30 });
   });
 
   test('forces readable status-bar icons over the dark player', () => {
@@ -227,7 +237,24 @@ describe('NowPlayingSoundCloudView', () => {
       },
     });
 
-    expect(getByTestId('soundcloud-queue-sheet')).toBeTruthy();
+    expect(getByTestId('soundcloud-queue-sheet', { includeHiddenElements: true })).toBeTruthy();
+    expect(getByTestId('now-playing-queue-list')).toBeTruthy();
+  });
+
+  test('reveals a lightweight queue preview with the finger and removes it after a cancelled swipe', () => {
+    const { getByTestId, queryByTestId } = renderSoundCloudView();
+    const gesture = getByTestId('soundcloud-collapse-gesture');
+
+    fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: -90 } });
+
+    expect(getByTestId('soundcloud-queue-sheet', { includeHiddenElements: true })).toBeTruthy();
+    expect(queryByTestId('now-playing-queue-list')).toBeNull();
+
+    fireEvent(gesture, 'handlerStateChange', {
+      nativeEvent: { oldState: 4, state: 5, translationX: 0, translationY: -10, velocityY: 0 },
+    });
+
+    expect(queryByTestId('soundcloud-queue-sheet', { includeHiddenElements: true })).toBeNull();
   });
 
   test('closes the queue before Android back can close the player', () => {
@@ -241,6 +268,19 @@ describe('NowPlayingSoundCloudView', () => {
     let handled = false;
     act(() => { handled = backCall?.[1]() ?? false; });
     expect(handled).toBe(true);
+    expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
+  });
+
+  test('closes the open queue by swiping its header down', () => {
+    const { getByTestId, queryByTestId } = renderSoundCloudView();
+    fireEvent.press(getByTestId('soundcloud-open-queue'));
+
+    const gesture = getByTestId('soundcloud-queue-dismiss-gesture');
+    fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: 180 } });
+    fireEvent(gesture, 'handlerStateChange', {
+      nativeEvent: { oldState: 4, state: 5, translationY: 180, velocityY: 1_000 },
+    });
+
     expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
   });
 

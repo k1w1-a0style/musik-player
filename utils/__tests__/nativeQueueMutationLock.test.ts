@@ -1,5 +1,5 @@
 import {
-  getNativeQueueReplacementVersion,
+  getNativeQueueReplacementVersionForTests,
   resetNativeQueueMutationLockForTests,
   runExclusiveNativePlaybackControl,
   runExclusiveNativeQueueReplacement,
@@ -64,7 +64,7 @@ describe('nativeQueueMutationLock', () => {
       requireStableReadyHydration: true,
     })).rejects.toMatchObject({ name: 'NativeMutationHydrationStaleError' });
     expect(callback).not.toHaveBeenCalled();
-    expect(getNativeQueueReplacementVersion()).toBe(1);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(1);
 
     releaseRunning.resolve();
     await running;
@@ -168,7 +168,7 @@ describe('nativeQueueMutationLock', () => {
     await control;
 
     expect(replacementIsCurrentAfterControlIntent).toBe(true);
-    expect(getNativeQueueReplacementVersion()).toBe(1);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(1);
     expect(events).toEqual(['replacement:start', 'replacement:end', 'control']);
   });
 
@@ -196,7 +196,7 @@ describe('nativeQueueMutationLock', () => {
 
     expect(firstReplacementIsCurrent).toBe(true);
     expect(secondReplacementIsCurrent).toBe(true);
-    expect(getNativeQueueReplacementVersion()).toBe(2);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(2);
   });
 
   test('an older queued replacement starts stale when a newer intent overtakes it', async () => {
@@ -222,7 +222,7 @@ describe('nativeQueueMutationLock', () => {
 
     expect(firstReplacementIsCurrent).toBe(false);
     expect(secondReplacementIsCurrent).toBe(true);
-    expect(getNativeQueueReplacementVersion()).toBe(2);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(2);
   });
 
   test('failed mutations do not block later playback controls', async () => {
@@ -278,7 +278,7 @@ describe('nativeQueueMutationLock', () => {
     });
 
     await replacementStarted.promise;
-    expect(getNativeQueueReplacementVersion()).toBe(1);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(1);
 
     resetNativeQueueMutationLockForTests();
 
@@ -290,7 +290,7 @@ describe('nativeQueueMutationLock', () => {
     releaseBlockedReplacement.resolve();
     await blockedReplacement;
 
-    expect(getNativeQueueReplacementVersion()).toBe(0);
+    expect(getNativeQueueReplacementVersionForTests()).toBe(0);
     expect(events).toEqual(['control:after-reset']);
   });
 });
