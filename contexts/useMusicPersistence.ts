@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type MutableRefObject } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { StorageKeys } from '../utils/storage';
 import { usePersistedSetting } from './usePersistedSetting';
@@ -6,6 +6,7 @@ import { usePersistedSongs } from './usePersistedSongs';
 
 interface UseMusicPersistenceArgs {
   isReady: boolean;
+  libraryHydrationReady: boolean;
   volume: number;
   shuffle: boolean;
   repeatMode: RepeatMode;
@@ -15,10 +16,12 @@ interface UseMusicPersistenceArgs {
   playlists: Playlist[];
   songs: Song[];
   setSongsState: (songs: Song[]) => void;
+  persistedRefs?: MutableRefObject<Record<string, string>>;
 }
 
 export const useMusicPersistence = ({
   isReady,
+  libraryHydrationReady,
   volume,
   shuffle,
   repeatMode,
@@ -28,8 +31,10 @@ export const useMusicPersistence = ({
   playlists,
   songs,
   setSongsState,
+  persistedRefs: sharedPersistedRefs,
 }: UseMusicPersistenceArgs): void => {
-  const persistedRefs = useRef<Record<string, string>>({});
+  const localPersistedRefs = useRef<Record<string, string>>({});
+  const persistedRefs = sharedPersistedRefs ?? localPersistedRefs;
 
   usePersistedSetting(isReady, StorageKeys.VOLUME, volume, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.SHUFFLE, shuffle, persistedRefs);
@@ -37,6 +42,8 @@ export const useMusicPersistence = ({
   usePersistedSetting(isReady, StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_PRESET, eqPreset, persistedRefs);
-  usePersistedSetting(isReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
+  // Playlist editing is intentionally available as soon as the safe library
+  // snapshot is visible, before native playback hydration finishes.
+  usePersistedSetting(libraryHydrationReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
   usePersistedSongs(isReady, songs, setSongsState, persistedRefs);
 };

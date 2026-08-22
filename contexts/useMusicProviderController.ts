@@ -9,5 +9,8 @@ export const useMusicProviderController = () => {
 
   useMusicProviderDomainEffects(runtime);
 
-  return useMusicProviderContextComposition(runtime, actions);
+  return {
+    ...useMusicProviderContextComposition(runtime, actions),
+    contentReady: runtime.state.libraryHydrationReady || runtime.state.isReady,
+  };
 };

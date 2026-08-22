@@ -21,6 +21,10 @@ describe('tag-write startup recovery watchdog', () => {
       configurable: true,
       value: jest.fn().mockResolvedValue(true),
     });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockReset().mockResolvedValue({
+      pendingCount: 1,
+      transactions: [{ transactionId: 'pending-native', state: 'WRITE_STARTED' }],
+    });
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockReset();
   });
 

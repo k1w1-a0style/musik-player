@@ -14,7 +14,7 @@ const SystemAudio = {
   extractMetadataFast: jest.fn().mockResolvedValue(null),
   extractWaveformPeaks: jest.fn().mockResolvedValue(null),
   cancelWaveformExtraction: jest.fn().mockReturnValue(false),
-  getAudioTagRecoveryStatus: jest.fn().mockResolvedValue({ pendingCount: 0, transactions: [] }),
+  getAudioTagRecoveryStatus: jest.fn().mockResolvedValue({ available: true, pendingCount: 0, retainedOutcomeCount: 0, transactions: [] }),
   recoverPendingAudioTagTransactions: jest.fn().mockResolvedValue({ success: true, recoveryPending: false, recovered: false }),
   verifyAudioTagDeletion: jest.fn().mockResolvedValue(false),
   writeAudioTags: jest.fn(async (uri, request = {}) => ({

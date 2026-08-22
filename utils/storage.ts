@@ -597,8 +597,10 @@ const tryMarkLegacySongFavoritesMigrationCompleted = async (): Promise<void> => 
 
 export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> =>
   withFavoriteSongIdsMutationLock(async () => {
-    const existingIds = await storage.getFavoriteSongIds().catch(() => []);
-    const migrationCompleted = await getLegacySongFavoritesMigrationCompleted().catch(() => false);
+    const [existingIds, migrationCompleted] = await Promise.all([
+      storage.getFavoriteSongIds().catch(() => []),
+      getLegacySongFavoritesMigrationCompleted().catch(() => false),
+    ]);
     if (migrationCompleted) return existingIds;
 
     try {

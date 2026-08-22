@@ -102,6 +102,23 @@ describe('musicHydrationHelpers', () => {
     expect(mockMigrateLegacySongFavoritesFromStoredSongs).toHaveBeenCalledTimes(1);
   });
 
+  test('starts stored-state reads without waiting for legacy favorites migration', async () => {
+    let finishMigration!: () => void;
+    const pendingMigration = new Promise<string[]>(resolve => {
+      finishMigration = () => resolve([]);
+    });
+    mockMigrateLegacySongFavoritesFromStoredSongs.mockReturnValueOnce(pendingMigration);
+    const getSpy = jest.spyOn(storage, 'get');
+
+    const loading = loadStoredMusicHydrationState();
+    await Promise.resolve();
+
+    expect(getSpy).toHaveBeenCalledTimes(9);
+    finishMigration();
+    await loading;
+    getSpy.mockRestore();
+  });
+
   test('validates and normalizes stored playback settings during hydration load', async () => {
     await storage.set(StorageKeys.SONGS, songs);
     await AsyncStorage.setItem('@musikplayer:volume', '2');
@@ -669,7 +686,6 @@ describe('musicHydrationHelpers', () => {
       shuffle: true,
       currentSongId: null,
     };
-    const setPlaylists = jest.fn();
     const setEqEnabledState = jest.fn();
     const setEqBandsState = jest.fn();
     const setEqPreset = jest.fn();
@@ -679,7 +695,6 @@ describe('musicHydrationHelpers', () => {
 
     await applyStoredPlaybackSettings({
       stored,
-      setPlaylists,
       setEqEnabledState,
       setEqBandsState,
       setEqPreset,
@@ -688,7 +703,6 @@ describe('musicHydrationHelpers', () => {
       setShuffle,
     });
 
-    expect(setPlaylists).toHaveBeenCalledWith(playlists);
     expect(setEqEnabledState).toHaveBeenCalledWith(true);
     expect(setEqBandsState).toHaveBeenCalledWith(eqBands);
     expect(setEqPreset).toHaveBeenCalledWith('rock');
@@ -697,39 +711,6 @@ describe('musicHydrationHelpers', () => {
     expect(setShuffle).toHaveBeenCalledWith(true);
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
-  });
-
-  test('persists sanitized playlists when applying stored playback settings', async () => {
-    const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 };
-    const setPlaylists = jest.fn();
-
-    await applyStoredPlaybackSettings({
-      stored: {
-        songs,
-        playlists: [dirtyPlaylist],
-        eqEnabled: null,
-        eqBands: null,
-        eqPreset: null,
-        volume: null,
-        repeatMode: null,
-        shuffle: null,
-        currentSongId: null,
-      },
-      setPlaylists,
-      setEqEnabledState: jest.fn(),
-      setEqBandsState: jest.fn(),
-      setEqPreset: jest.fn(),
-      setVolumeState: jest.fn(),
-      setRepeatMode: jest.fn(),
-      setShuffle: jest.fn(),
-    });
-
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
-    ]);
-    expect(setPlaylists).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
-    ]);
   });
 
   test('skips invalid stored eq band arrays when applying settings', async () => {
@@ -747,7 +728,6 @@ describe('musicHydrationHelpers', () => {
         shuffle: null,
         currentSongId: null,
       },
-      setPlaylists: jest.fn(),
       setEqEnabledState: jest.fn(),
       setEqBandsState,
       setEqPreset: jest.fn(),
@@ -779,7 +759,6 @@ describe('musicHydrationHelpers', () => {
         shuffle: null,
         currentSongId: null,
       },
-      setPlaylists: jest.fn(),
       setEqEnabledState: jest.fn(),
       setEqBandsState: jest.fn(),
       setEqPreset: jest.fn(),
@@ -1258,20 +1237,26 @@ describe('musicHydrationHelpers', () => {
     expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
   });
 
-  test('runMusicHydration logs storage load errors, applies fallback and marks provider ready', async () => {
+  test('runMusicHydration logs storage errors, preserves the library and publishes degraded', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getSpy = jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
     const setIsReady = jest.fn();
     const setSongsState = jest.fn();
     const setCurrentSong = jest.fn();
     const setPlaybackQueue = jest.fn();
+    const setLibraryHydrationReady = jest.fn();
+    const setHydrationStatus = jest.fn();
+    const songsRef = createSongRef();
+    songsRef.current = songs;
 
     await runMusicHydration({
-      songsRef: createSongRef(),
+      songsRef,
       queueContextRef: createSongRef(),
       baseQueueContextRef: createSongRef(),
       nativeQueueRef: createSongRef(),
       setIsReady,
+      setLibraryHydrationReady,
+      setHydrationStatus,
       setSongsState,
       setCurrentSong,
       setPlaybackQueue,
@@ -1285,10 +1270,13 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(setSongsState).toHaveBeenCalledWith([]);
+    expect(songsRef.current).toEqual(songs);
+    expect(setSongsState).not.toHaveBeenCalled();
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setCurrentSong).toHaveBeenCalledWith(null);
-    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(setIsReady).not.toHaveBeenCalled();
+    expect(setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     expect(warn).toHaveBeenCalledWith('[MusicHydration:StorageError] Failed to load stored hydration state.', expect.any(Error));
     getSpy.mockRestore();
   });
@@ -1472,8 +1460,8 @@ test('superseded hydration settings never overwrite the newer shuffle intent', a
   await applyStoredPlaybackSettings({
     stored: { songs: [], playlists: null, eqEnabled: null, eqBands: null, eqPreset: null,
       volume: null, repeatMode: null, shuffle: false, currentSongId: null },
-    setPlaylists: jest.fn(), setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(),
-    setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
+    setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(), setEqPreset: jest.fn(),
+    setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
     skipShuffle: true,
   });
   expect(setShuffle).not.toHaveBeenCalled();

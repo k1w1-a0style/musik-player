@@ -9,6 +9,8 @@ const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A' }];
 const providerState: MusicProviderState = {
   isReady: true,
   setIsReady: noop,
+  libraryHydrationReady: true,
+  setLibraryHydrationReady: noop,
   songs,
   setSongsState: noop,
   currentSong: songs[0],

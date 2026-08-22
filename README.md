@@ -30,6 +30,15 @@ npm ci --no-audit --no-fund
 npm run start
 ```
 
+## Dev-Start und Diagnose
+
+- Metro für normale Entwicklungszyklen laufen lassen; `expo start --clear` nur bei einem tatsächlich beschädigten Cache verwenden. Ein kalter Dev-Start muss den Modulgraph neu transformieren und ist nicht mit der Startzeit eines Release-Builds gleichzusetzen.
+- Die App protokolliert datensparsame `[StartupTiming]`-Ereignisse für Fonts, Storage, sichtbare Bibliothek, TrackPlayer-Setup, vollständige Musik-Hydration und Tag-Write-Recovery.
+- Nicht initiale Screens werden erst beim Navigieren ausgewertet. Das reduziert frühe JavaScript-Auswertung, erzeugt auf Android/iOS aber keine garantierten separaten Download-Bundles.
+- Native Änderungen unter `modules/expo-system-audio` werden erst nach einem neuen Development Build wirksam.
+
+Details, Invarianten und Messanleitung: [`docs/architecture/startup-hydration.md`](docs/architecture/startup-hydration.md).
+
 ## Wichtige Checks
 
 ```bash

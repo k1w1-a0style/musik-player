@@ -1,8 +1,11 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { useCurrentSongSync } from './useCurrentSongSync';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
+import { waitForPersistQueueIdle } from './musicPersistenceHelpers';
+import type { BeforeStorageHydrationResult } from './musicHydrationTypes';
+import { StorageKeys } from '../utils/storage';
 
 export interface MusicProviderEffectsArgs {
   songsRef: MutableRefObject<Song[]>;
@@ -11,7 +14,9 @@ export interface MusicProviderEffectsArgs {
   nativeQueueRef: MutableRefObject<Song[]>;
   persistCurrentSongId: (song: Song | null) => Promise<void>;
   isReady: boolean;
+  libraryHydrationReady: boolean;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   songs: Song[];
@@ -34,6 +39,17 @@ export interface MusicProviderEffectsArgs {
   setEqPreset: Dispatch<SetStateAction<EqPresetName | 'custom'>>;
 }
 
+const usePlaylistPersistenceCoordinator = () => {
+  const persistedRefs = useRef<Record<string, string>>({});
+  const beforeStorageHydration = useCallback(async (): Promise<BeforeStorageHydrationResult> => {
+    const result = await waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current);
+    return result.status === 'failed'
+      ? { status: 'retry-required', error: result.error }
+      : { status: 'ready' };
+  }, []);
+  return { persistedRefs, beforeStorageHydration };
+};
+
 export const useMusicProviderEffects = ({
   songsRef,
   queueContextRef,
@@ -41,7 +57,9 @@ export const useMusicProviderEffects = ({
   nativeQueueRef,
   persistCurrentSongId,
   isReady,
+  libraryHydrationReady,
   setIsReady,
+  setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
   songs,
@@ -63,12 +81,17 @@ export const useMusicProviderEffects = ({
   eqPreset,
   setEqPreset,
 }: MusicProviderEffectsArgs): void => {
+  const { persistedRefs, beforeStorageHydration } = usePlaylistPersistenceCoordinator();
+
   useMusicHydration({
     songsRef,
     queueContextRef,
     baseQueueContextRef,
     nativeQueueRef,
     setIsReady,
+    libraryHydrationReady,
+    beforeStorageHydration,
+    setLibraryHydrationReady,
     setHydrationStatus,
     hydrationRetryToken,
     setSongsState,
@@ -93,6 +116,7 @@ export const useMusicProviderEffects = ({
 
   useMusicPersistence({
     isReady,
+    libraryHydrationReady,
     volume,
     shuffle,
     repeatMode,
@@ -102,5 +126,6 @@ export const useMusicProviderEffects = ({
     playlists,
     songs,
     setSongsState,
+    persistedRefs,
   });
 };

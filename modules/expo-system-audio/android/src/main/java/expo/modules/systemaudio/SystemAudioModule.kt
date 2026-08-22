@@ -273,7 +273,12 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
   }
 
   private fun getAudioTagRecoveryStatus(): Map<String, Any?> {
-    val ctx = appContext.reactContext ?: return mapOf("pendingCount" to 0, "transactions" to emptyList<Map<String, Any?>>())
+    val ctx = appContext.reactContext ?: return mapOf(
+      "available" to false,
+      "pendingCount" to 0,
+      "retainedOutcomeCount" to 0,
+      "transactions" to emptyList<Map<String, Any?>>(),
+    )
     return audioTagTransactionManager(ctx).status()
   }
 

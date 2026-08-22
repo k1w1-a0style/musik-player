@@ -13,6 +13,8 @@ const runtime: MusicProviderRuntime = {
   state: {
     isReady: true,
     setIsReady: noop,
+    libraryHydrationReady: true,
+    setLibraryHydrationReady: noop,
     songs: [song],
     setSongsState: noop,
     currentSong: song,

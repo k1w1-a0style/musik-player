@@ -7,6 +7,7 @@ import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
 import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
 import { buildNativeTagWriteRequest, changedFieldsForNativeTagDraft } from './tagWriterNativeRequest';
 import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS, resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
+import { ensureTagWriteStartupReady } from './tagWriterRecovery';
 
 const failureStatus = (code?: string): WriteTagsResult['status'] => {
   if (code === 'MissingWritePermission') return 'permissionDenied';
@@ -29,6 +30,21 @@ const phaseForWriteResult = (result: WriteTagsResult): 'completed' | 'failed' =>
 
 const isRecoveryPendingResult = (result: WriteTagsResult): boolean =>
   result.terminal !== true && (result.operationStatus === 'recovery-pending' || result.recoveryPending === true);
+
+const waitForTagWriteRecovery = async (uri: string): Promise<WriteTagsResult | undefined> => {
+  try {
+    await ensureTagWriteStartupReady();
+    return undefined;
+  } catch (error) {
+    return {
+      status: 'writeFailed', sourceUri: uri, warnings: [],
+      errorCode: 'RecoveryPending',
+      errorMessage: `Tag-write recovery has not completed: ${String(error)}`,
+      terminal: false, retryable: true, recoveryPending: true,
+      operationStatus: 'recovery-pending',
+    };
+  }
+};
 
 const rejectedExecutionResult = (
   uri: string,
@@ -119,6 +135,9 @@ export const writeTagsToSafContentUri = async (
   if (!uri) {
     return { status: 'unsupportedUri', warnings: [], errorCode: 'UnsupportedUri', errorMessage: 'Song has no editable URI.' };
   }
+
+  const recoveryFailure = await waitForTagWriteRecovery(uri);
+  if (recoveryFailure) return recoveryFailure;
 
   const execution = await runSafWriteOperation(uri, async (operationId): Promise<WriteTagsResult> => {
     const container = getSupportedContainer(song);
