@@ -41,6 +41,7 @@ export interface HydrateStoredSongsArgs {
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
+  beforeStorageHydration?: () => Promise<void>;
   setLibraryHydrationReady?: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   gateOwner?: NativeHydrationGateOwner;

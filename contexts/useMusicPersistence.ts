@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type MutableRefObject } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { StorageKeys } from '../utils/storage';
 import { usePersistedSetting } from './usePersistedSetting';
@@ -16,6 +16,7 @@ interface UseMusicPersistenceArgs {
   playlists: Playlist[];
   songs: Song[];
   setSongsState: (songs: Song[]) => void;
+  persistedRefs?: MutableRefObject<Record<string, string>>;
 }
 
 export const useMusicPersistence = ({
@@ -30,8 +31,10 @@ export const useMusicPersistence = ({
   playlists,
   songs,
   setSongsState,
+  persistedRefs: sharedPersistedRefs,
 }: UseMusicPersistenceArgs): void => {
-  const persistedRefs = useRef<Record<string, string>>({});
+  const localPersistedRefs = useRef<Record<string, string>>({});
+  const persistedRefs = sharedPersistedRefs ?? localPersistedRefs;
 
   usePersistedSetting(isReady, StorageKeys.VOLUME, volume, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.SHUFFLE, shuffle, persistedRefs);

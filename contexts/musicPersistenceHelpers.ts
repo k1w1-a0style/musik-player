@@ -171,6 +171,18 @@ export const persistIfChanged = async <T,>(
   return resultPromise;
 };
 
+/** Waits until all writes already queued for a key have reached a terminal result. */
+export const waitForPersistQueueIdle = async (
+  key: string,
+  persistedRefs: Record<string, string>,
+): Promise<void> => {
+  const queueState = getPersistQueueState(persistedRefs, key);
+  while (queueState.inFlight || queueState.pendingRequest) {
+    queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
+    await queueState.drainPromise;
+  }
+};
+
 export const prepareSongsForPersistence = async (
   songs: Song[],
   coverProtection?: CoverCacheProtection,

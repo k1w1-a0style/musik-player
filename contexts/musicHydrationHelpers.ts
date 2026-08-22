@@ -288,6 +288,8 @@ const runPrimaryMusicHydration = async ({
   trackPlayerSetup: TrackPlayerSetupOutcome;
   timings: MusicHydrationTimings;
 }): Promise<MusicHydrationOutcome> => {
+  await args.beforeStorageHydration?.();
+  if (args.isCancelled()) return 'cancelled';
   const stored = await loadStoredStateForHydration(timings.storage);
   if (args.isCancelled()) return 'cancelled';
 

@@ -4,6 +4,7 @@ import {
   normalizePersistedValue,
   persistIfChanged,
   prepareSongsForPersistence,
+  waitForPersistQueueIdle,
 } from '../musicPersistenceHelpers';
 import { EQ_PRESETS, type Playlist, type Song } from '../../types/Song';
 import { StorageKeys, storage } from '../../utils/storage';
@@ -136,6 +137,42 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     expect(refs[StorageKeys.VOLUME]).toBe(JSON.stringify(0.75));
     expect(setSpy).toHaveBeenNthCalledWith(1, StorageKeys.VOLUME, 0.25);
     expect(setSpy).toHaveBeenNthCalledWith(2, StorageKeys.VOLUME, 0.75);
+  });
+
+  test('waits for the active write and the newest queued write before reporting the queue idle', async () => {
+    const refs: Record<string, string> = {};
+    const first = createDeferred<boolean>();
+    const second = createDeferred<boolean>();
+    const setSpy = jest.spyOn(storage, 'set')
+      .mockImplementationOnce(async () => first.promise)
+      .mockImplementationOnce(async () => second.promise);
+
+    const firstPersist = persistIfChanged(StorageKeys.PLAYLISTS, [
+      { id: 'pl-1', name: 'First', songIds: [], createdAt: 1, updatedAt: 1 },
+    ], refs);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(1));
+    const secondPersist = persistIfChanged(StorageKeys.PLAYLISTS, [
+      { id: 'pl-1', name: 'Newest', songIds: ['s1'], createdAt: 1, updatedAt: 2 },
+    ], refs);
+
+    let idle = false;
+    const idlePromise = waitForPersistQueueIdle(StorageKeys.PLAYLISTS, refs).then(() => {
+      idle = true;
+    });
+    await Promise.resolve();
+    expect(idle).toBe(false);
+
+    first.resolve(true);
+    await waitFor(() => expect(setSpy).toHaveBeenCalledTimes(2));
+    expect(idle).toBe(false);
+
+    second.resolve(true);
+    await Promise.all([firstPersist, secondPersist, idlePromise]);
+
+    expect(idle).toBe(true);
+    expect(refs[StorageKeys.PLAYLISTS]).toBe(JSON.stringify([
+      { id: 'pl-1', name: 'Newest', songIds: ['s1'], createdAt: 1, updatedAt: 2 },
+    ]));
   });
 
 
