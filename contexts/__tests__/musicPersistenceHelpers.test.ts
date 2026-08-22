@@ -175,6 +175,36 @@ describe('musicPersistenceHelpers persistIfChanged race handling', () => {
     ]));
   });
 
+  test('reports a terminal newest-write failure until a later retry succeeds', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const refs: Record<string, string> = {};
+    const failedWrite = createDeferred<boolean>();
+    const retryWrite = createDeferred<boolean>();
+    jest.spyOn(storage, 'set')
+      .mockImplementationOnce(async () => failedWrite.promise)
+      .mockImplementationOnce(async () => retryWrite.promise);
+    const playlists: Playlist[] = [
+      { id: 'pl-1', name: 'Newest', songIds: ['s1'], createdAt: 1, updatedAt: 2 },
+    ];
+
+    const firstPersist = persistIfChanged(StorageKeys.PLAYLISTS, playlists, refs);
+    const firstIdle = waitForPersistQueueIdle(StorageKeys.PLAYLISTS, refs);
+    failedWrite.resolve(false);
+
+    await expect(firstPersist).resolves.toEqual({ status: 'failed' });
+    await expect(firstIdle).resolves.toEqual({ status: 'failed' });
+    await expect(waitForPersistQueueIdle(StorageKeys.PLAYLISTS, refs)).resolves.toEqual({ status: 'failed' });
+
+    const retryPersist = persistIfChanged(StorageKeys.PLAYLISTS, playlists, refs);
+    const recoveredIdle = waitForPersistQueueIdle(StorageKeys.PLAYLISTS, refs);
+    retryWrite.resolve(true);
+
+    await expect(retryPersist).resolves.toEqual({ status: 'stored' });
+    await expect(recoveredIdle).resolves.toEqual({ status: 'idle' });
+    expect(refs[StorageKeys.PLAYLISTS]).toBe(JSON.stringify(playlists));
+    warn.mockRestore();
+  });
+
 
   test('does not report unchanged for an old snapshot while a newer write is in-flight', async () => {
     const refs: Record<string, string> = { [StorageKeys.VOLUME]: JSON.stringify(0.25) };

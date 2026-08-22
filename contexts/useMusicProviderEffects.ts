@@ -4,6 +4,7 @@ import { useCurrentSongSync } from './useCurrentSongSync';
 import { useMusicHydration } from './useMusicHydration';
 import { useMusicPersistence } from './useMusicPersistence';
 import { waitForPersistQueueIdle } from './musicPersistenceHelpers';
+import type { BeforeStorageHydrationResult } from './musicHydrationTypes';
 import { StorageKeys } from '../utils/storage';
 
 export interface MusicProviderEffectsArgs {
@@ -40,10 +41,12 @@ export interface MusicProviderEffectsArgs {
 
 const usePlaylistPersistenceCoordinator = () => {
   const persistedRefs = useRef<Record<string, string>>({});
-  const beforeStorageHydration = useCallback(
-    () => waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current),
-    [],
-  );
+  const beforeStorageHydration = useCallback(async (): Promise<BeforeStorageHydrationResult> => {
+    const result = await waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current);
+    return result.status === 'failed'
+      ? { status: 'retry-required', error: result.error }
+      : { status: 'ready' };
+  }, []);
   return { persistedRefs, beforeStorageHydration };
 };
 

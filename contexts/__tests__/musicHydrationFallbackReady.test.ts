@@ -12,6 +12,7 @@ const createRunMusicHydrationArgs = (isCancelled: () => boolean) => ({
   baseQueueContextRef: createSongRef(),
   nativeQueueRef: createSongRef(),
   setIsReady: jest.fn(),
+  setLibraryHydrationReady: jest.fn(),
   setHydrationStatus: jest.fn(),
   setSongsState: jest.fn(),
   setCurrentSong: jest.fn(),
@@ -32,7 +33,7 @@ describe('music hydration failure fallback readiness', () => {
     jest.clearAllMocks();
   });
 
-  test('marks provider ready after storage failure fallback applies safe empty state', async () => {
+  test('publishes degraded after storage failure fallback preserves the library for retry', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const removeSpy = jest.spyOn(storage, 'remove');
     jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
@@ -44,13 +45,15 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.queueContextRef.current).toEqual([]);
     expect(args.baseQueueContextRef.current).toEqual([]);
     expect(args.nativeQueueRef.current).toEqual([]);
-    expect(args.setSongsState).toHaveBeenCalledWith([]);
+    expect(args.setSongsState).not.toHaveBeenCalled();
+    expect(args.setPlaylists).not.toHaveBeenCalled();
     expect(args.setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(args.setCurrentSong).toHaveBeenCalledWith(null);
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(removeSpy).toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
-    expect(args.setIsReady).toHaveBeenCalledWith(true);
-    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('ready');
+    expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(args.setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     warn.mockRestore();
     removeSpy.mockRestore();
   });
@@ -88,6 +91,7 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.setEqPreset).toHaveBeenCalledWith('rock');
     expect(args.setPlaylists).toHaveBeenCalledWith([expect.objectContaining({ id: 'p1', songIds: ['old'] })]);
     expect(args.setIsReady).toHaveBeenCalledWith(true);
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('ready');
   });
 
   test('cancellation before missing-SONGS hydration starts no native reset', async () => {
@@ -114,7 +118,9 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.setPlaybackQueue).toHaveBeenLastCalledWith([]);
     expect(args.setCurrentSong).toHaveBeenLastCalledWith(null);
     expect(args.setShuffle).toHaveBeenLastCalledWith(false);
-    expect(args.setIsReady).toHaveBeenCalledWith(true);
+    expect(args.setIsReady).not.toHaveBeenCalled();
+    expect(args.setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     warn.mockRestore();
   });
 

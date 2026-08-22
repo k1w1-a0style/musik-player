@@ -38,10 +38,14 @@ export interface HydrateStoredSongsArgs {
   beforeNativeHydration?: () => Promise<void>;
 }
 
+export type BeforeStorageHydrationResult =
+  | { status: 'ready' }
+  | { status: 'retry-required'; error?: unknown };
+
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
-  beforeStorageHydration?: () => Promise<void>;
+  beforeStorageHydration?: () => Promise<BeforeStorageHydrationResult>;
   setLibraryHydrationReady?: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   gateOwner?: NativeHydrationGateOwner;

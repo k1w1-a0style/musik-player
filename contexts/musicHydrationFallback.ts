@@ -10,6 +10,7 @@ import type { RunMusicHydrationArgs } from './musicHydrationTypes';
 type HydrationFallbackArgs = Omit<
   RunMusicHydrationArgs,
   | 'setIsReady'
+  | 'setSongsState'
   | 'setPlaylists'
   | 'setEqEnabledState'
   | 'setEqBandsState'
@@ -51,9 +52,7 @@ export const applyHydrationFailureFallback = async (
       },
       shuffleStrategy: { kind: 'confirmed-action', enabled: false },
     });
-    args.songsRef.current = [];
-    args.setSongsState([]);
-    console.warn('[MusicHydration:Fatal] Falling back to safe empty state after hydration failure.', error);
+    console.warn('[MusicHydration:Fatal] Native playback was reset after hydration failure; preserving the library for retry.', error);
     return { status: 'applied', diagnostics };
   } catch (fallbackError) {
     diagnostics.finalReadbackError = fallbackError;

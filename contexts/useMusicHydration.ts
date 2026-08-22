@@ -1,6 +1,7 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { runMusicHydration } from './musicHydrationHelpers';
+import type { BeforeStorageHydrationResult } from './musicHydrationTypes';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate } from '../utils/nativeHydrationGate';
 
 interface UseMusicHydrationArgs {
@@ -10,7 +11,7 @@ interface UseMusicHydrationArgs {
   nativeQueueRef: MutableRefObject<Song[]>;
   setIsReady: Dispatch<SetStateAction<boolean>>;
   libraryHydrationReady: boolean;
-  beforeStorageHydration?: () => Promise<void>;
+  beforeStorageHydration?: () => Promise<BeforeStorageHydrationResult>;
   setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;

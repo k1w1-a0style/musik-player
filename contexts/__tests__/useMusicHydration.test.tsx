@@ -54,6 +54,7 @@ const HydrationProbe = ({
 }) => {
   const [isReady, setIsReady] = useState(false);
   const [libraryHydrationReady, setLibraryHydrationReady] = useState(false);
+  const [hydrationStatus, setHydrationStatus] = useState<'loading' | 'ready' | 'degraded' | 'retry-required'>('loading');
   const [internalRetryToken, setInternalRetryToken] = useState(0);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -71,10 +72,12 @@ const HydrationProbe = ({
   const baseQueueContextRef = useRef<Song[]>([]);
   const nativeQueueRef = useRef<Song[]>([]);
   const persistedRefs = useRef<Record<string, string>>({});
-  const waitForPlaylistPersistence = useCallback(
-    () => waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current),
-    [],
-  );
+  const waitForPlaylistPersistence = useCallback(async () => {
+    const result = await waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current);
+    return result.status === 'failed'
+      ? { status: 'retry-required' as const, error: result.error }
+      : { status: 'ready' as const };
+  }, []);
 
   useMusicHydration({
     songsRef,
@@ -85,6 +88,7 @@ const HydrationProbe = ({
     libraryHydrationReady,
     beforeStorageHydration: persistPlaylists ? waitForPlaylistPersistence : undefined,
     setLibraryHydrationReady,
+    setHydrationStatus,
     hydrationRetryToken: retryToken ?? internalRetryToken,
     setSongsState: setSongs,
     setCurrentSong,
@@ -108,6 +112,7 @@ const HydrationProbe = ({
     <>
       <Text testID="ready">{String(isReady)}</Text>
       <Text testID="library-ready">{String(libraryHydrationReady)}</Text>
+      <Text testID="hydration-status">{hydrationStatus}</Text>
       <Text testID="songs">{songs.map(song => song.id).join(',')}</Text>
       <Text testID="queue">{queue.map(song => song.id).join(',')}</Text>
       <Text testID="current">{currentSong?.id ?? ''}</Text>
@@ -132,6 +137,10 @@ describe('useMusicHydration', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   test('hydrates songs, queue, current song and TrackPlayer state', async () => {
@@ -239,6 +248,61 @@ describe('useMusicHydration', () => {
       expect.objectContaining({ id: 'pl-1', name: 'List' }),
       expect.objectContaining({ id: 'pl-new', name: 'Roadtrip' }),
     ]);
+  });
+
+  test('blocks retry reads and preserves the in-memory playlist after its latest write fails', async () => {
+    await storage.set(StorageKeys.SONGS, storedSongs);
+    await storage.set(StorageKeys.PLAYLISTS, storedPlaylists);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const originalSet = storage.set.bind(storage);
+    const setSpy = jest.spyOn(storage, 'set').mockImplementation(async (key, value) => {
+      if (
+        key === StorageKeys.PLAYLISTS
+        && Array.isArray(value)
+        && value.some(item => (item as Playlist).name === 'Roadtrip')
+      ) return false;
+      return originalSet(key, value);
+    });
+
+    const view = render(<HydrationProbe persistPlaylists />);
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+    const getSpy = jest.spyOn(storage, 'get');
+    getSpy.mockClear();
+
+    fireEvent.press(view.getByTestId('create-playlist-and-retry'));
+
+    await waitFor(() => expect(view.getByTestId('hydration-status').props.children).toBe('retry-required'));
+    expect(view.getByTestId('ready').props.children).toBe('false');
+    expect(view.getByTestId('library-ready').props.children).toBe('true');
+    expect(view.getByTestId('playlist-count').props.children).toBe('2');
+    expect(getSpy).not.toHaveBeenCalledWith(StorageKeys.PLAYLISTS);
+    expect(setSpy).toHaveBeenCalledWith(
+      StorageKeys.PLAYLISTS,
+      expect.arrayContaining([expect.objectContaining({ name: 'Roadtrip' })]),
+    );
+    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual(storedPlaylists);
+    warn.mockRestore();
+    error.mockRestore();
+  });
+
+  test('preserves the library and publishes degraded when a retry storage read fails', async () => {
+    await storage.set(StorageKeys.SONGS, storedSongs);
+    await storage.set(StorageKeys.PLAYLISTS, storedPlaylists);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const view = render(<HydrationProbe />);
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+    expect(view.getByTestId('playlist-count').props.children).toBe('1');
+    jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('retry storage boom'));
+
+    view.rerender(<HydrationProbe retryToken={1} />);
+
+    await waitFor(() => expect(view.getByTestId('hydration-status').props.children).toBe('degraded'));
+    expect(view.getByTestId('playlist-count').props.children).toBe('1');
+    expect(view.getByTestId('songs').props.children).toBe('s1,s2');
+    expect(view.getByTestId('ready').props.children).toBe('false');
+    expect(view.getByTestId('library-ready').props.children).toBe('false');
+    warn.mockRestore();
   });
 
   test('runs hydration only once for a provider mount across rerenders', async () => {

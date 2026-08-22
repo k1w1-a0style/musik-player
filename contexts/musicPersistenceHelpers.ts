@@ -65,6 +65,7 @@ interface PersistQueueState {
   inFlight: boolean;
   pendingRequest?: PendingPersistRequest;
   drainPromise?: Promise<void>;
+  lastCompletedResult?: PersistResult;
 }
 
 const persistQueues = new WeakMap<Record<string, string>, Map<string, PersistQueueState>>();
@@ -91,6 +92,15 @@ const resolveRequest = (request: PendingPersistRequest, result: PersistResult): 
   request.resolve.forEach(resolve => resolve(result));
 };
 
+const completeProcessedRequest = (
+  queueState: PersistQueueState,
+  request: PendingPersistRequest,
+  result: PersistResult,
+): void => {
+  queueState.lastCompletedResult = result;
+  resolveRequest(request, result);
+};
+
 const drainPersistQueue = async (
   key: string,
   persistedRefs: Record<string, string>,
@@ -105,7 +115,7 @@ const drainPersistQueue = async (
       queueState.pendingRequest = undefined;
 
       if (persistedRefs[key] === request.serialized) {
-        resolveRequest(request, { status: 'unchanged' });
+        completeProcessedRequest(queueState, request, { status: 'unchanged' });
         continue;
       }
 
@@ -113,7 +123,7 @@ const drainPersistQueue = async (
         const confirmed = await storage.set(key, request.value);
         if (confirmed !== true) {
           console.warn('[MusicPersistence] Failed to persist setting.', { key, error: undefined });
-          resolveRequest(request, { status: 'failed' });
+          completeProcessedRequest(queueState, request, { status: 'failed' });
           continue;
         }
         persistedRefs[key] = request.serialized;
@@ -123,12 +133,12 @@ const drainPersistQueue = async (
           queueState.pendingRequest = undefined;
         }
 
-        resolveRequest(request, queueState.pendingRequest === undefined
+        completeProcessedRequest(queueState, request, queueState.pendingRequest === undefined
           ? { status: 'stored' }
           : { status: 'superseded' });
       } catch (error) {
         console.warn('[MusicPersistence] Failed to persist setting.', { key, error });
-        resolveRequest(request, { status: 'failed', error });
+        completeProcessedRequest(queueState, request, { status: 'failed', error });
       }
     }
   } finally {
@@ -147,6 +157,7 @@ export const persistIfChanged = async <T,>(
   const queueState = getPersistQueueState(persistedRefs, key);
 
   if (persistedRefs[key] === serialized && queueState.pendingRequest === undefined && !queueState.inFlight) {
+    queueState.lastCompletedResult = { status: 'unchanged' };
     return { status: 'unchanged' };
   }
 
@@ -171,16 +182,23 @@ export const persistIfChanged = async <T,>(
   return resultPromise;
 };
 
-/** Waits until all writes already queued for a key have reached a terminal result. */
+export type PersistQueueIdleResult =
+  | { status: 'idle' }
+  | Extract<PersistResult, { status: 'failed' }>;
+
+/** Waits for queued writes and reports a terminal failure of the newest processed snapshot. */
 export const waitForPersistQueueIdle = async (
   key: string,
   persistedRefs: Record<string, string>,
-): Promise<void> => {
+): Promise<PersistQueueIdleResult> => {
   const queueState = getPersistQueueState(persistedRefs, key);
   while (queueState.inFlight || queueState.pendingRequest) {
     queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
     await queueState.drainPromise;
   }
+  return queueState.lastCompletedResult?.status === 'failed'
+    ? queueState.lastCompletedResult
+    : { status: 'idle' };
 };
 
 export const prepareSongsForPersistence = async (

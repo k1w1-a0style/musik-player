@@ -1237,20 +1237,26 @@ describe('musicHydrationHelpers', () => {
     expect(removeSpy).not.toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
   });
 
-  test('runMusicHydration logs storage load errors, applies fallback and marks provider ready', async () => {
+  test('runMusicHydration logs storage errors, preserves the library and publishes degraded', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getSpy = jest.spyOn(storage, 'get').mockRejectedValueOnce(new Error('storage boom'));
     const setIsReady = jest.fn();
     const setSongsState = jest.fn();
     const setCurrentSong = jest.fn();
     const setPlaybackQueue = jest.fn();
+    const setLibraryHydrationReady = jest.fn();
+    const setHydrationStatus = jest.fn();
+    const songsRef = createSongRef();
+    songsRef.current = songs;
 
     await runMusicHydration({
-      songsRef: createSongRef(),
+      songsRef,
       queueContextRef: createSongRef(),
       baseQueueContextRef: createSongRef(),
       nativeQueueRef: createSongRef(),
       setIsReady,
+      setLibraryHydrationReady,
+      setHydrationStatus,
       setSongsState,
       setCurrentSong,
       setPlaybackQueue,
@@ -1264,10 +1270,13 @@ describe('musicHydrationHelpers', () => {
       isCancelled: () => false,
     });
 
-    expect(setSongsState).toHaveBeenCalledWith([]);
+    expect(songsRef.current).toEqual(songs);
+    expect(setSongsState).not.toHaveBeenCalled();
     expect(setPlaybackQueue).toHaveBeenCalledWith([]);
     expect(setCurrentSong).toHaveBeenCalledWith(null);
-    expect(setIsReady).toHaveBeenCalledWith(true);
+    expect(setIsReady).not.toHaveBeenCalled();
+    expect(setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     expect(warn).toHaveBeenCalledWith('[MusicHydration:StorageError] Failed to load stored hydration state.', expect.any(Error));
     getSpy.mockRestore();
   });

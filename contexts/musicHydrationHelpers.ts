@@ -46,17 +46,13 @@ const publishHydrationStatus = (
 };
 
 const completeHydrationFallback = (
-  fallback: Awaited<ReturnType<typeof applyHydrationFailureFallback>>,
   isCancelled: () => boolean,
   gateOwner: NativeHydrationGateOwner | undefined,
   setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
-): boolean => {
-  if (isCancelled()) return false;
-  if (fallback.status === 'failed') {
-    publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
-    return false;
-  }
-  return true;
+): Extract<MusicHydrationOutcome, 'degraded' | 'cancelled'> => {
+  if (isCancelled()) return 'cancelled';
+  publishHydrationStatus(gateOwner, setHydrationStatus, 'degraded');
+  return 'degraded';
 };
 
 const cleanupHydratedSongCovers = async (songs: Song[]): Promise<void> => {
@@ -229,7 +225,7 @@ export const hydrateStoredSongs = async ({
   }
 };
 
-type MusicHydrationOutcome = 'failed' | 'ready' | 'retry-required' | 'degraded' | 'fallback-ready' | 'cancelled';
+type MusicHydrationOutcome = 'failed' | 'ready' | 'retry-required' | 'degraded' | 'cancelled';
 type FinishStartupTiming = ReturnType<typeof startStartupTimer>;
 type MusicHydrationCoreArgs = Omit<RunMusicHydrationArgs,
   'setIsReady' | 'setLibraryHydrationReady' | 'setHydrationStatus' | 'gateOwner'>;
@@ -288,8 +284,14 @@ const runPrimaryMusicHydration = async ({
   trackPlayerSetup: TrackPlayerSetupOutcome;
   timings: MusicHydrationTimings;
 }): Promise<MusicHydrationOutcome> => {
-  await args.beforeStorageHydration?.();
+  const storageBarrier = await args.beforeStorageHydration?.();
   if (args.isCancelled()) return 'cancelled';
+  if (storageBarrier?.status === 'retry-required') {
+    console.error('[MusicHydration:PlaylistPersistFailed] Retry blocked because the latest playlist snapshot was not persisted.', storageBarrier.error);
+    setLibraryHydrationReady?.(true);
+    publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
+    return 'retry-required';
+  }
   const stored = await loadStoredStateForHydration(timings.storage);
   if (args.isCancelled()) return 'cancelled';
 
@@ -345,6 +347,7 @@ const runMusicHydrationFallback = async (
   trackPlayerSetup: TrackPlayerSetupOutcome,
   error: unknown,
   gateOwner: NativeHydrationGateOwner | undefined,
+  setLibraryHydrationReady: RunMusicHydrationArgs['setLibraryHydrationReady'],
   setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
 ): Promise<{ completed: boolean; outcome: MusicHydrationOutcome }> => {
   if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
@@ -352,10 +355,10 @@ const runMusicHydrationFallback = async (
   // outcome also prevents an unhandled rejection when storage failed first.
   await trackPlayerSetup;
   if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
-  const fallback = await applyHydrationFailureFallback(args, error);
-  const completed = completeHydrationFallback(fallback, args.isCancelled, gateOwner, setHydrationStatus);
-  const outcome = completed ? 'fallback-ready' : fallback.status === 'failed' ? 'degraded' : 'cancelled';
-  return { completed, outcome };
+  await applyHydrationFailureFallback(args, error);
+  if (!args.isCancelled()) setLibraryHydrationReady?.(false);
+  const outcome = completeHydrationFallback(args.isCancelled, gateOwner, setHydrationStatus);
+  return { completed: false, outcome };
 };
 
 const finishMusicHydration = (
@@ -395,7 +398,9 @@ export const runMusicHydration = async ({
     });
     completed = outcome === 'ready';
   } catch (error) {
-    const fallback = await runMusicHydrationFallback(args, trackPlayerSetup, error, gateOwner, setHydrationStatus);
+    const fallback = await runMusicHydrationFallback(
+      args, trackPlayerSetup, error, gateOwner, setLibraryHydrationReady, setHydrationStatus,
+    );
     completed = fallback.completed;
     outcome = fallback.outcome;
   } finally {
