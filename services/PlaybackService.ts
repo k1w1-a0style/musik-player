@@ -7,7 +7,11 @@ const logRemotePlaybackError = (action: string, error: unknown): void => {
   console.warn(`[PlaybackService] Remote ${action} failed`, error);
 };
 
-const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>): void => {
+const handleRemotePlaybackAction = (
+  action: string,
+  run: () => Promise<unknown>,
+  invalidatesPendingSeek = false,
+): void => {
   const queuedAt = getNativeHydrationGate();
   if (queuedAt.status !== 'ready' || !queuedAt.owned) {
     console.warn('[PlaybackService] Remote action blocked', { action, gateStatus: queuedAt.status, reason: 'native-hydration-not-ready' });
@@ -20,7 +24,7 @@ const handleRemotePlaybackAction = (action: string, run: () => Promise<unknown>)
       return;
     }
     await run();
-  }).catch(error => logRemotePlaybackError(action, error));
+  }, { invalidatesPendingSeek }).catch(error => logRemotePlaybackError(action, error));
 };
 
 const normalizeJumpInterval = (interval: unknown): number =>
@@ -41,26 +45,26 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemotePlaybackAction('pause', () => TrackPlayer.pause());
   });
   TrackPlayer.addEventListener(Event.RemoteStop, () => {
-    handleRemotePlaybackAction('stop', () => TrackPlayer.stop());
+    handleRemotePlaybackAction('stop', () => TrackPlayer.stop(), true);
   });
   TrackPlayer.addEventListener(Event.RemoteNext, () => {
-    handleRemotePlaybackAction('next', () => TrackPlayer.skipToNext());
+    handleRemotePlaybackAction('next', () => TrackPlayer.skipToNext(), true);
   });
   TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-    handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious());
+    handleRemotePlaybackAction('previous', () => TrackPlayer.skipToPrevious(), true);
   });
   TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) => {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
       return;
     }
 
-    handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position));
+    handleRemotePlaybackAction('seek', () => TrackPlayer.seekTo(position), true);
   });
   TrackPlayer.addEventListener(Event.RemoteJumpForward, ({ interval }) => {
-    handleRemotePlaybackAction('jump forward', () => TrackPlayer.seekBy(normalizeJumpInterval(interval)));
+    handleRemotePlaybackAction('jump forward', () => TrackPlayer.seekBy(normalizeJumpInterval(interval)), true);
   });
   TrackPlayer.addEventListener(Event.RemoteJumpBackward, ({ interval }) => {
-    handleRemotePlaybackAction('jump backward', () => TrackPlayer.seekBy(-normalizeJumpInterval(interval)));
+    handleRemotePlaybackAction('jump backward', () => TrackPlayer.seekBy(-normalizeJumpInterval(interval)), true);
   });
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, () => {
     enforceExpiredSleepTimer().catch(error => logRemotePlaybackError('sleep timer expiry', error));

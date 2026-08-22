@@ -4,21 +4,6 @@ import { render, waitFor } from '@testing-library/react-native';
 import { AppContent } from '../App';
 import * as recovery from '../utils/tagWriterRecovery';
 
-jest.mock('expo-font', () => ({
-  useFonts: () => [true],
-}));
-
-jest.mock('../appFonts', () => ({
-  appFonts: { BricolageGrotesque_400Regular: 1 },
-}));
-
-jest.mock('../components/AppLoading', () => ({
-  __esModule: true,
-  default: function MockAppLoading() {
-    return <MockView testID="app-loading" />;
-  },
-}));
-
 jest.mock('../components/ThemedStatusBar', () => ({
   __esModule: true,
   default: function MockThemedStatusBar() {

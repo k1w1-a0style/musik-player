@@ -9,6 +9,11 @@ const stableReadyHydrationOptions = () => getNativeHydrationGate().owned
   ? { requireStableReadyHydration: true as const }
   : undefined;
 
+const trackIdentityMutationOptions = () => ({
+  ...stableReadyHydrationOptions(),
+  invalidatesPendingSeek: true,
+});
+
 export const clampVolume = (volume: number): number =>
   Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
 
@@ -43,7 +48,7 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
 };
 
 export const stopTrackPlayerPlayback = async (): Promise<void> => {
-  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), stableReadyHydrationOptions());
+  await runExclusiveNativePlaybackControl(() => TrackPlayer.stop(), trackIdentityMutationOptions());
 };
 
 export const seekToMillis = async (millis: number): Promise<void> => {
@@ -54,7 +59,7 @@ export const seekToMillis = async (millis: number): Promise<void> => {
 
 export const skipToNextSafely = async (): Promise<void> => {
   try {
-    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), stableReadyHydrationOptions());
+    await runExclusiveNativePlaybackControl(() => TrackPlayer.skipToNext(), trackIdentityMutationOptions());
   } catch (error) {
     console.warn('[Playback] skipToNext failed.', error);
   }
@@ -81,7 +86,7 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
           console.warn('[Playback] fallback restart failed.', seekError);
         }
       }
-    }, stableReadyHydrationOptions());
+    }, trackIdentityMutationOptions());
   } catch (error) {
     if (error instanceof NativeMutationHydrationStaleError) {
       console.warn('[Playback] Previous action discarded after hydration changed.', error);

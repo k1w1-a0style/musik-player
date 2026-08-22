@@ -534,7 +534,7 @@ describe('musicHydrationHelpers', () => {
     expect(nativeQueueRef.current).toEqual([]);
   });
 
-  test('hydrated native queue add is not invalidated by queued playback control after reset', async () => {
+  test('drops a seek requested while the hydrated native queue is being replaced', async () => {
     const nativeQueueRef = createSongRef();
     (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
       void seekToMillis(5000);
@@ -564,7 +564,8 @@ describe('musicHydrationHelpers', () => {
 
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
     expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
-    await waitFor(() => expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5));
+    await Promise.resolve();
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 
   test('sets hydrated native queue ref when add is superseded after starting', async () => {

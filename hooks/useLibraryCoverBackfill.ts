@@ -5,6 +5,7 @@ import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../utils
 import { createCoverCacheProtection, type CoverCacheProtection } from '../utils/coverCacheCleanup';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
+import { useAfterInitialInteractions } from './useAfterInitialInteractions';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
@@ -29,8 +30,8 @@ const PROGRESSIVE_COVER_PATCH_BATCH_SIZE = 4;
 const PROGRESSIVE_COVER_PATCH_FLUSH_MS = 750;
 const NO_BACKFILL_SONGS: Song[] = [];
 
-const selectBackfillSongs = (songs: Song[], enabled: boolean): Song[] =>
-  enabled ? songs : NO_BACKFILL_SONGS;
+const selectBackfillSongs = (songs: Song[], enabled: boolean, afterInitialInteractions: boolean): Song[] =>
+  enabled && afterInitialInteractions ? songs : NO_BACKFILL_SONGS;
 
 export const buildCoverBackfillAttemptKey = (song: Song): string =>
   [
@@ -111,7 +112,8 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
   const metadataRefreshActive = useMetadataRefreshActive();
-  const backfillSongs = selectBackfillSongs(songs, enabled);
+  const afterInitialInteractions = useAfterInitialInteractions();
+  const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
 
   latestSongsRef.current = songs;
 

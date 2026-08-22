@@ -8,6 +8,10 @@ jest.mock('expo-system-audio', () => ({
   extractEmbeddedArtwork: jest.fn(),
 }));
 
+jest.mock('../useAfterInitialInteractions', () => ({
+  useAfterInitialInteractions: () => true,
+}));
+
 jest.mock('../../utils/coverCache', () => ({
   cacheLocalCoverFile: jest.fn(async (_songId: string, uri?: string) => uri?.replace('file:///cache/', 'file:///docs/covers/')),
   isLikelyVolatileArtworkUri: jest.fn((uri?: string) => uri?.startsWith('file:///cache/') ?? false),

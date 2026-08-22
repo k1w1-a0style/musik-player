@@ -23,6 +23,7 @@ import {
   readNativeQueueTruth,
   recoverNativeQueueMutation,
   type NativeQueueMutationSnapshot,
+  type NativePlaybackState,
   type NativeQueueRecoveryResult,
   type NativeQueueReplacementProgress,
 } from './nativeQueueRecovery';
@@ -211,6 +212,20 @@ const replaceNativeQueueTracks = async (
   return isCurrent();
 };
 
+const restoreNativePlaybackState = async (
+  queueLength: number,
+  playbackState: NativePlaybackState,
+  isCurrent: () => boolean,
+  onProgress?: (progress: NativeQueueReplacementProgress) => void,
+): Promise<boolean> => {
+  if (queueLength === 0 || playbackState === 'unknown') return true;
+  if (playbackState === 'playing') await TrackPlayer.play();
+  else if (playbackState === 'paused') await TrackPlayer.pause();
+  else await TrackPlayer.stop();
+  onProgress?.('playback-confirmed');
+  return isCurrent();
+};
+
 export const rebuildNativePlaybackQueueUnlocked = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
@@ -218,6 +233,7 @@ export const rebuildNativePlaybackQueueUnlocked = async (
   replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent' | 'beginNativeMutation'>,
   startIndex = 0,
   onProgress?: (progress: NativeQueueReplacementProgress) => void,
+  playbackState: NativePlaybackState = 'playing',
 ): Promise<boolean> => {
   const context = replacementContext ?? { isCurrent: () => true, beginNativeMutation: () => undefined };
   const { isCurrent } = context;
@@ -238,11 +254,7 @@ export const rebuildNativePlaybackQueueUnlocked = async (
     if (!isCurrent()) return false;
   }
 
-  if (queue.length > 0) {
-    await TrackPlayer.play();
-    onProgress?.('playback-confirmed');
-    if (!isCurrent()) return false;
-  }
+  if (!await restoreNativePlaybackState(queue.length, playbackState, isCurrent, onProgress)) return false;
   nativeQueueRef.current = (await readNativeQueueTruth(queue)).queue.slice();
   return true;
 };
@@ -516,6 +528,8 @@ export const runReorderQueueAction = async ({
         progress.position,
         context,
         plan.currentIndex,
+        undefined,
+        snapshot.playbackState,
       );
       if (!rebuilt || !isCurrent()) return { status: 'stale' };
       const readback = await readNativeQueueTruth([...songsRef.current, ...plan.queue]);
@@ -603,6 +617,7 @@ export const runShuffleQueueAction = async ({
       context,
       selectedIndex,
       nextProgress => { progress = nextProgress; },
+      mutationSnapshot.playbackState,
     );
     if (!rebuilt || !isCurrent()) return { status: 'stale' };
     const readback = await readNativeQueueTruth([...songsRef.current, ...nextQueue]);

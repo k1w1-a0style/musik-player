@@ -80,6 +80,34 @@ test('mergeSongs dedupes by normalized uri variants and imported song wins', () 
   expect(mergeSongs([existing], [imported])).toEqual([{ ...existing, ...imported }]);
 });
 
+test('mergeSongs collapses a transitive alias bridge into one canonical song', () => {
+  const existingByUri = song({
+    id: 'uri-match',
+    title: 'URI match',
+    uri: 'content://music/shared-uri.mp3',
+    fileInfo: { filename: 'uri-only.mp3', size: 11 },
+  });
+  const existingByFingerprint = song({
+    id: 'fingerprint-match',
+    title: 'Fingerprint match',
+    uri: 'content://music/other-uri.mp3',
+    duration: 123,
+    fileInfo: { filename: 'bridge.mp3', size: 42 },
+  });
+  const bridge = song({
+    id: 'bridge',
+    title: 'Canonical bridge',
+    uri: 'content://music/shared-uri.mp3',
+    duration: 123,
+    fileInfo: { filename: 'bridge.mp3', size: 42 },
+  });
+
+  const merged = mergeSongs([existingByUri, existingByFingerprint], [bridge]);
+
+  expect(merged).toHaveLength(1);
+  expect(merged[0]).toMatchObject({ id: 'bridge', title: 'Canonical bridge' });
+});
+
 
 test('mergeSongs preserves rich metadata when SAF re-import provides placeholders', () => {
   const existing = song({

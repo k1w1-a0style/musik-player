@@ -1,4 +1,5 @@
 import { getNativeHydrationGate, type NativeHydrationGateSnapshot } from './nativeHydrationGate';
+import { blockSeekLaneForNativeMutation } from './seekController';
 
 export interface NativeQueueReplacementContext {
   replacementVersion: number;
@@ -10,6 +11,7 @@ export type NativeHydrationCapture = NativeHydrationGateSnapshot | null | undefi
 interface NativeMutationOptions {
   requireStableReadyHydration?: boolean;
   hydrationCapture?: NativeHydrationCapture;
+  invalidatesPendingSeek?: boolean;
 }
 export interface NativePlaybackControlContext { assertHydrationCurrent: () => void }
 
@@ -57,9 +59,11 @@ export const runExclusiveNativeQueueReplacement = async <T>(
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
   const replacementVersion = markNativeQueueReplacementIntent();
+  const seekBarrier = blockSeekLaneForNativeMutation();
   const run = nativeMutationChain
     .catch(() => undefined)
-    .then(() => {
+    .then(async () => {
+      await seekBarrier.waitForDrain;
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
       // Explicitly protected queue intents use two phases. Legacy/internal
       // replacements preserve their historical callback-start semantics.
@@ -76,12 +80,13 @@ export const runExclusiveNativeQueueReplacement = async <T>(
         if (!isCurrent()) throw new NativeMutationHydrationStaleError();
         mutationStarted = true;
       };
-      return action({
+      return await action({
         replacementVersion,
         isCurrent,
         beginNativeMutation,
       });
-    });
+    })
+    .finally(seekBarrier.release);
 
   nativeMutationChain = run.catch(() => undefined);
   return run;
@@ -93,13 +98,17 @@ export const runExclusiveNativePlaybackControl = async <T>(
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
-  const run = nativeMutationChain.catch(() => undefined).then(() => {
+  const seekBarrier = options?.invalidatesPendingSeek
+    ? blockSeekLaneForNativeMutation()
+    : null;
+  const run = nativeMutationChain.catch(() => undefined).then(async () => {
+    await seekBarrier?.waitForDrain;
     const assertHydrationCurrent = (): void => {
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
     };
     assertHydrationCurrent();
-    return action({ assertHydrationCurrent });
-  });
+    return await action({ assertHydrationCurrent });
+  }).finally(() => seekBarrier?.release());
   nativeMutationChain = run.catch(() => undefined);
   return run;
 };

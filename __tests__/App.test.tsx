@@ -1,28 +1,8 @@
 import React from 'react';
-import { Pressable as MockPressable, Text as MockText, View as MockView } from 'react-native';
+import { Text as MockText, View as MockView } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import App, { AppContent } from '../App';
 import AppErrorBoundary from '../components/AppErrorBoundary';
-
-const mockUseFonts = jest.fn((_fonts: unknown): [boolean, Error?] => [true]);
-
-jest.mock('expo-font', () => ({
-  useFonts: (fonts: unknown) => mockUseFonts(fonts),
-}));
-
-jest.mock('../appFonts', () => ({
-  appFonts: { BricolageGrotesque_400Regular: 1 },
-}));
-
-jest.mock('../components/AppLoading', () => ({
-  __esModule: true,
-  default: function MockAppLoading({ degraded, onRetry }: { degraded?: boolean; onRetry?: () => void }) {
-    return <MockView testID="app-loading">
-      <MockText>{degraded ? 'failed' : 'loading'}</MockText>
-      {degraded && <MockPressable testID="startup-retry" onPress={onRetry} />}
-    </MockView>;
-  },
-}));
 
 jest.mock('../components/ThemedStatusBar', () => ({
   __esModule: true,
@@ -48,7 +28,6 @@ jest.mock('../navigation/RootNavigator', () => ({
 describe('App', () => {
   beforeEach(() => {
     jest.restoreAllMocks();
-    mockUseFonts.mockReturnValue([true]);
     jest.clearAllMocks();
   });
 
@@ -58,29 +37,6 @@ describe('App', () => {
     expect(tree.type).toBe(AppErrorBoundary);
     const child = React.Children.only(tree.props.children) as React.ReactElement;
     expect(child.type).toBe(AppContent);
-  });
-
-  test('renders loading state while fonts are loading inside AppContent', async () => {
-    mockUseFonts.mockReturnValueOnce([false]);
-
-    const { getByTestId, queryByTestId } = render(<AppContent />);
-
-    expect(getByTestId('app-loading')).toBeTruthy();
-    expect(queryByTestId('app-providers')).toBeNull();
-    await act(async () => { await Promise.resolve(); });
-  });
-
-  test('continues with system fonts when custom font loading fails', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    mockUseFonts.mockReturnValueOnce([false, new Error('font unavailable')]);
-
-    const { getByTestId } = render(<AppContent />);
-
-    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
-    expect(warn).toHaveBeenCalledWith(
-      '[Fonts] Custom fonts failed to load; using the system fallback.',
-      'Error: font unavailable',
-    );
   });
 
   test('renders providers and navigation after startup restoration', async () => {

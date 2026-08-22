@@ -169,6 +169,14 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
     setPreviewPosition(null);
   }, [animatedRatio, onSeek, safeDuration]);
 
+  const cancelInteraction = useCallback(() => {
+    const base = baseRatioRef.current;
+    draggingRef.current = false;
+    latestRatioRef.current = base;
+    animatedRatio.setValue(base);
+    setPreviewPosition(null);
+  }, [animatedRatio]);
+
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.max(0, Math.round(event.nativeEvent.layout.width));
     widthRef.current = width;
@@ -184,7 +192,7 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
         onStartShouldSetResponder={() => true} onMoveShouldSetResponder={() => true}
         onResponderGrant={startInteraction}
         onResponderMove={event => previewRatio(ratioFromEvent(event, widthRef.current))}
-        onResponderRelease={finishInteraction} onResponderTerminate={finishInteraction}
+        onResponderRelease={finishInteraction} onResponderTerminate={cancelInteraction}
         accessibilityRole="adjustable" accessibilityLabel="Audiospur-Fortschritt"
         accessibilityValue={{ min: 0, max: 100, now: Math.round(displayRatio * 100) }}>
         <WaveformVisual ready={ready} points={bars.points} svgWidth={bars.svgWidth}

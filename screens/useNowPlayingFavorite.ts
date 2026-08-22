@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isFavoriteSongId, normalizeStorageSongId, setFavoriteSongId } from '../utils/storage';
+import { publishFavoriteSongIds } from '../utils/favoriteSongState';
 
 interface NowPlayingFavoriteState {
   favorite: boolean;
@@ -52,6 +53,7 @@ export const useNowPlayingFavorite = (songId?: string): NowPlayingFavoriteState 
     setFavoritePending(true);
 
     void setFavoriteSongId(normalizedSongId, next)
+      .then(publishFavoriteSongIds)
       .catch(error => {
         if (requestVersionRef.current === requestVersion) {
           console.warn('[NowPlayingFavorite] Failed to persist favorite state.', { songId: normalizedSongId, favorite: next, error });

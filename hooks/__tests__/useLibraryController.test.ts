@@ -227,6 +227,14 @@ jest.mock('../useLibraryAlerts', () => ({
   useLibraryAlerts: jest.fn(() => mockAlerts),
 }));
 
+jest.mock('../useLibraryAudioInfoBackfill', () => ({
+  useLibraryAudioInfoBackfill: jest.fn(),
+}));
+
+jest.mock('../useLibraryCoverBackfill', () => ({
+  useLibraryCoverBackfill: jest.fn(),
+}));
+
 jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => mockComponentProps),
 }));
