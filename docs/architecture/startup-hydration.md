@@ -13,7 +13,7 @@ Die App soll die gespeicherte Bibliothek so früh wie sicher möglich anzeigen, 
 | Fonts | `useFonts` lädt die App-Schriften; bei Fehler werden Systemschriften verwendet. | Ja, nur bis Erfolg oder Fehler. | App-Provider und Navigation dürfen mounten. |
 | SAF-Tag-Recovery | JS-Owner werden wiederhergestellt; ein nativer Read-only-Status überspringt die teure Recovery nur bei nachweislich leeren Journalen und ohne zurückgehaltene Ergebnisbelege. | Nein. | Tag-Schreiben bleibt bis erfolgreicher Recovery fail-closed und stößt bei Bedarf einen Retry an. |
 | Storage + Player-Setup | Persistierte Zustände werden gelesen, während TrackPlayer parallel initialisiert. Read-only-Storage-Aufrufe und die Legacy-Favoritenmigration starten ebenfalls parallel. | Nur solange noch keine sichere Bibliothek vorliegt. | Keine native Wiedergabe. |
-| Bibliothek | Songs werden sanitisiert, IDs normalisiert und Playlists bereinigt. Danach wird `libraryHydrationReady` gesetzt. | Nein. | Bibliothek und Navigation werden sichtbar; native Aktionen bleiben gesperrt. |
+| Bibliothek | Songs werden sanitisiert, IDs normalisiert und Playlists bereinigt. Danach wird `libraryHydrationReady` gesetzt. | Nein. | Bibliothek und Navigation werden sichtbar; Playlist-Änderungen werden bereits serialisiert persistiert, native Aktionen bleiben gesperrt. |
 | Native Hydration | Queue-Wahrheit, aktueller Titel, Lautstärke, Repeat und Shuffle werden geprüft bzw. wiederhergestellt. | Normalerweise nein; ein bestätigter degradierter/retry-required Zustand zeigt den Recovery-Screen. | Erst `isReady` plus nativer Hydration-Gate-Status `ready` erlauben Playback-/Queue-Mutationen. |
 | Post-Start | Cover- und AudioInfo-Backfills laufen erst nach `isReady`. | Nein. | Hintergrund-Metadatenarbeit. |
 
@@ -26,7 +26,8 @@ Sekundäre Screens (`NowPlaying`, Track-Info, Tag-Editor, Equalizer, Einstellung
 - Ein Fehler oder Timeout der Hintergrund-Recovery blockiert die normale App-Nutzung nicht, aber jeder spätere Tag-Schreibversuch bleibt ohne erfolgreiche On-Demand-Recovery gesperrt.
 - `libraryHydrationReady` ist nur eine UI-Freigabe. Native Playback-, Queue- und Current-Song-Aktionen richten sich ausschließlich nach `isReady` und dem generationsgebundenen nativen Hydration-Gate.
 - Hydration-Fallback und TrackPlayer-Setup laufen nie gleichzeitig gegeneinander.
-- Cover-/AudioInfo-Backfills und normale Persistenz starten nicht vor vollständiger Hydration.
+- Playlist-Persistenz startet mit `libraryHydrationReady`, weil Playlist-Änderungen in der sichtbaren Bibliothek bereits möglich sind. Ein serialisierter Latest-wins-Writer verhindert, dass ein älterer Snapshot eine frühe Änderung überschreibt.
+- Playback-/Equalizer-/Song-Persistenz sowie Cover-/AudioInfo-Backfills starten nicht vor vollständiger Hydration.
 
 ## Warum ein kalter Dev-Start länger dauert
 

@@ -52,7 +52,7 @@ Hydration enters through `useMusicHydration`, which calls `runMusicHydration` fr
 - `queueContextRef`: the active playable queue shown to React consumers.
 - `nativeQueueRef`: the queue believed to be installed in React Native Track Player.
 
-`runMusicHydration` starts TrackPlayer setup and persisted-state loading concurrently. After stored songs have been sanitized and playlists normalized, it publishes the library and sets `libraryHydrationReady`; `MusicProvider` can then render the app while native queue reconciliation and playback-setting restoration continue. `isReady` and the native hydration gate remain false until all native playback work is verified, so playback and queue mutations stay fail-closed during the progressive phase.
+`runMusicHydration` starts TrackPlayer setup and persisted-state loading concurrently. After stored songs have been sanitized and playlists normalized, it publishes the library and sets `libraryHydrationReady`; `MusicProvider` can then render the app while native queue reconciliation and playback-setting restoration continue. Playlist edits are persisted from this boundary through the serialized latest-wins setting writer and are never replaced later by the original hydration snapshot. `isReady` and the native hydration gate remain false until all native playback work is verified, so playback and queue mutations stay fail-closed during the progressive phase.
 
 The native queue rules are unchanged: a restored playable current song triggers native reset/add; a restored non-playable current song clears the persisted current id, resets TrackPlayer, and empties `nativeQueueRef`. If there is no current song but the playable queue exists, hydration leaves the native queue untouched instead of doing a reset/add.
 

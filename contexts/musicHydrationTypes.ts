@@ -16,7 +16,6 @@ export interface StoredMusicHydrationState {
 
 export interface ApplyStoredPlaybackSettingsArgs {
   stored: StoredMusicHydrationState;
-  setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
   setEqEnabledState: Dispatch<SetStateAction<boolean>>;
   setEqBandsState: Dispatch<SetStateAction<number[]>>;
   setEqPreset: Dispatch<SetStateAction<EqPresetName | 'custom'>>;
@@ -41,6 +40,7 @@ export interface HydrateStoredSongsArgs {
 
 export interface RunMusicHydrationArgs extends Omit<HydrateStoredSongsArgs, 'stored'>, Omit<ApplyStoredPlaybackSettingsArgs, 'stored'> {
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
   setLibraryHydrationReady?: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   gateOwner?: NativeHydrationGateOwner;

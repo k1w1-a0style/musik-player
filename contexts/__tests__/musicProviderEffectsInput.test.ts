@@ -15,6 +15,7 @@ const baseInput: MusicProviderEffectsArgs = {
   nativeQueueRef: createSongRef(),
   persistCurrentSongId: noopAsync,
   isReady: true,
+  libraryHydrationReady: true,
   setIsReady: noop,
   setLibraryHydrationReady: noop,
   songs,
@@ -50,6 +51,7 @@ describe('buildMusicProviderEffectsInput', () => {
         },
         state: {
           isReady: baseInput.isReady,
+          libraryHydrationReady: baseInput.libraryHydrationReady,
           setIsReady: baseInput.setIsReady,
           setLibraryHydrationReady: baseInput.setLibraryHydrationReady,
           songs: baseInput.songs,

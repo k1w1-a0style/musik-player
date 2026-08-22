@@ -25,11 +25,12 @@ jest.mock('expo-file-system/legacy', () => ({
 
 const songs: Song[] = [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }];
 
-const PersistenceProbe = ({ ready }: { ready: boolean }) => {
+const PersistenceProbe = ({ ready, libraryReady = ready }: { ready: boolean; libraryReady?: boolean }) => {
   const [currentSongs, setCurrentSongs] = useState(songs);
 
   useMusicPersistence({
     isReady: ready,
+    libraryHydrationReady: libraryReady,
     volume: 0.5,
     shuffle: true,
     repeatMode: 'all',
@@ -69,5 +70,17 @@ describe('useMusicPersistence', () => {
       expect(await storage.get(StorageKeys.EQ_PRESET)).toBe('rock');
       expect(await storage.get(StorageKeys.SONGS)).toEqual(songs);
     });
+  });
+
+  test('persists playlists at library readiness without releasing other persistence', async () => {
+    render(<PersistenceProbe ready={false} libraryReady />);
+
+    await waitFor(async () => {
+      expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([
+        expect.objectContaining({ id: 'pl-1', name: 'List' }),
+      ]);
+    });
+    expect(await storage.get(StorageKeys.VOLUME)).toBeNull();
+    expect(await storage.get(StorageKeys.SONGS)).toBeNull();
   });
 });

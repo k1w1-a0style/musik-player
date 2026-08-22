@@ -40,6 +40,7 @@ describe('musicProviderStateInput', () => {
   test('builds effects state input from provider state', () => {
     expect(buildMusicProviderEffectsStateInput(state)).toEqual({
       isReady: true,
+      libraryHydrationReady: true,
       setIsReady: state.setIsReady,
       setLibraryHydrationReady: state.setLibraryHydrationReady,
       songs,

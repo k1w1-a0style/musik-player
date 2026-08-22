@@ -686,7 +686,6 @@ describe('musicHydrationHelpers', () => {
       shuffle: true,
       currentSongId: null,
     };
-    const setPlaylists = jest.fn();
     const setEqEnabledState = jest.fn();
     const setEqBandsState = jest.fn();
     const setEqPreset = jest.fn();
@@ -696,7 +695,6 @@ describe('musicHydrationHelpers', () => {
 
     await applyStoredPlaybackSettings({
       stored,
-      setPlaylists,
       setEqEnabledState,
       setEqBandsState,
       setEqPreset,
@@ -705,7 +703,6 @@ describe('musicHydrationHelpers', () => {
       setShuffle,
     });
 
-    expect(setPlaylists).toHaveBeenCalledWith(playlists);
     expect(setEqEnabledState).toHaveBeenCalledWith(true);
     expect(setEqBandsState).toHaveBeenCalledWith(eqBands);
     expect(setEqPreset).toHaveBeenCalledWith('rock');
@@ -714,39 +711,6 @@ describe('musicHydrationHelpers', () => {
     expect(setShuffle).toHaveBeenCalledWith(true);
     expect(TrackPlayer.setVolume).toHaveBeenCalledWith(0.7);
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalled();
-  });
-
-  test('persists sanitized playlists when applying stored playback settings', async () => {
-    const dirtyPlaylist = { id: 'pl-1', name: 'Dirty', songIds: ['s1', 'missing', 's1'], createdAt: 1, updatedAt: 1 };
-    const setPlaylists = jest.fn();
-
-    await applyStoredPlaybackSettings({
-      stored: {
-        songs,
-        playlists: [dirtyPlaylist],
-        eqEnabled: null,
-        eqBands: null,
-        eqPreset: null,
-        volume: null,
-        repeatMode: null,
-        shuffle: null,
-        currentSongId: null,
-      },
-      setPlaylists,
-      setEqEnabledState: jest.fn(),
-      setEqBandsState: jest.fn(),
-      setEqPreset: jest.fn(),
-      setVolumeState: jest.fn(),
-      setRepeatMode: jest.fn(),
-      setShuffle: jest.fn(),
-    });
-
-    await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([
-      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
-    ]);
-    expect(setPlaylists).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'pl-1', name: 'Dirty', songIds: ['s1'], createdAt: 1, updatedAt: expect.any(Number) }),
-    ]);
   });
 
   test('skips invalid stored eq band arrays when applying settings', async () => {
@@ -764,7 +728,6 @@ describe('musicHydrationHelpers', () => {
         shuffle: null,
         currentSongId: null,
       },
-      setPlaylists: jest.fn(),
       setEqEnabledState: jest.fn(),
       setEqBandsState,
       setEqPreset: jest.fn(),
@@ -796,7 +759,6 @@ describe('musicHydrationHelpers', () => {
         shuffle: null,
         currentSongId: null,
       },
-      setPlaylists: jest.fn(),
       setEqEnabledState: jest.fn(),
       setEqBandsState: jest.fn(),
       setEqPreset: jest.fn(),
@@ -1489,8 +1451,8 @@ test('superseded hydration settings never overwrite the newer shuffle intent', a
   await applyStoredPlaybackSettings({
     stored: { songs: [], playlists: null, eqEnabled: null, eqBands: null, eqPreset: null,
       volume: null, repeatMode: null, shuffle: false, currentSongId: null },
-    setPlaylists: jest.fn(), setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(),
-    setEqPreset: jest.fn(), setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
+    setEqEnabledState: jest.fn(), setEqBandsState: jest.fn(), setEqPreset: jest.fn(),
+    setVolumeState: jest.fn(), setRepeatMode: jest.fn(), setShuffle,
     skipShuffle: true,
   });
   expect(setShuffle).not.toHaveBeenCalled();

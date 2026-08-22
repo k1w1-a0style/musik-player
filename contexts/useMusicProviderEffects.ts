@@ -11,6 +11,7 @@ export interface MusicProviderEffectsArgs {
   nativeQueueRef: MutableRefObject<Song[]>;
   persistCurrentSongId: (song: Song | null) => Promise<void>;
   isReady: boolean;
+  libraryHydrationReady: boolean;
   setIsReady: Dispatch<SetStateAction<boolean>>;
   setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
@@ -42,6 +43,7 @@ export const useMusicProviderEffects = ({
   nativeQueueRef,
   persistCurrentSongId,
   isReady,
+  libraryHydrationReady,
   setIsReady,
   setLibraryHydrationReady,
   setHydrationStatus,
@@ -96,6 +98,7 @@ export const useMusicProviderEffects = ({
 
   useMusicPersistence({
     isReady,
+    libraryHydrationReady,
     volume,
     shuffle,
     repeatMode,

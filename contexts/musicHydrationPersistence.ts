@@ -1,4 +1,3 @@
-import type { Playlist } from '../types/Song';
 import {
   assertCurrentSongPersistenceSucceeded,
   persistCurrentSongIdSerialized,
@@ -43,10 +42,4 @@ export const persistHydratedCurrentSongIdIfNeeded = async (plan: HydrationPlan):
     resolveDesiredId: () => desiredId,
   });
   assertCurrentSongPersistenceSucceeded(result);
-};
-
-export const persistSanitizedPlaylistsInBackground = (playlists: Playlist[]): void => {
-  void storage.set(StorageKeys.PLAYLISTS, playlists).catch(error => {
-    console.warn('[MusicHydration] Failed to persist sanitized playlists.', error);
-  });
 };

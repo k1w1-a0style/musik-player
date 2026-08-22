@@ -6,6 +6,7 @@ import { usePersistedSongs } from './usePersistedSongs';
 
 interface UseMusicPersistenceArgs {
   isReady: boolean;
+  libraryHydrationReady: boolean;
   volume: number;
   shuffle: boolean;
   repeatMode: RepeatMode;
@@ -19,6 +20,7 @@ interface UseMusicPersistenceArgs {
 
 export const useMusicPersistence = ({
   isReady,
+  libraryHydrationReady,
   volume,
   shuffle,
   repeatMode,
@@ -37,6 +39,8 @@ export const useMusicPersistence = ({
   usePersistedSetting(isReady, StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_PRESET, eqPreset, persistedRefs);
-  usePersistedSetting(isReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
+  // Playlist editing is intentionally available as soon as the safe library
+  // snapshot is visible, before native playback hydration finishes.
+  usePersistedSetting(libraryHydrationReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
   usePersistedSongs(isReady, songs, setSongsState, persistedRefs);
 };

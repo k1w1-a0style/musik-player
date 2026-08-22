@@ -185,6 +185,12 @@ export const hydrateStoredSongs = async ({
     const plan = createStoredHydrationPlan(stored, sanitizedSongs);
 
     applyHydratedSongsState(plan, { songsRef, setSongsState });
+    // Finish any one-time playlist normalization write before exposing
+    // interactive playlist actions. Subsequent writes use the provider's
+    // serialized latest-wins persistence queue.
+    await persistHydratedPlaylistsIfNeeded(plan);
+    if (isCancelled()) return withoutNativeMutation(stored, refs);
+
     onLibraryHydrated?.(plan.normalizedPlaylists ?? []);
 
     const songsPersistResult = await persistHydratedSongsIfNeeded(plan);
@@ -195,9 +201,6 @@ export const hydrateStoredSongs = async ({
       await cleanupHydratedSongCovers(plan.hydratedSongs);
       coverLease.markConfirmedAfterCleanup();
     }
-    if (isCancelled()) return withoutNativeMutation(stored, refs);
-
-    await persistHydratedPlaylistsIfNeeded(plan);
     if (isCancelled()) return withoutNativeMutation(stored, refs);
 
     const hydratedStored = toHydratedStoredState(stored, plan);
