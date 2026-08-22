@@ -49,6 +49,7 @@ export const useMusicHydration = ({
     const gateOwner = acquireNativeHydrationGate();
     publishNativeHydrationGate(gateOwner, 'loading');
     setIsReady(false);
+    setLibraryHydrationReady?.(false);
     setHydrationStatus?.('loading');
 
     void runMusicHydration({

@@ -33,7 +33,7 @@ const storedPlaylists: Playlist[] = [
   { id: 'pl-1', name: 'List', songIds: ['s1'], createdAt: 1, updatedAt: 1 },
 ];
 
-const HydrationProbe = () => {
+const HydrationProbe = ({ retryToken = 0 }: { retryToken?: number }) => {
   const [isReady, setIsReady] = useState(false);
   const [libraryHydrationReady, setLibraryHydrationReady] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -59,6 +59,7 @@ const HydrationProbe = () => {
     nativeQueueRef,
     setIsReady,
     setLibraryHydrationReady,
+    hydrationRetryToken: retryToken,
     setSongsState: setSongs,
     setCurrentSong,
     setPlaybackQueue: setQueue,
@@ -123,6 +124,32 @@ describe('useMusicHydration', () => {
     finishSetup();
     await pendingSetup;
     await waitFor(() => expect(getByTestId('ready').props.children).toBe('true'));
+  });
+
+  test('closes library readiness while a retry generation hydrates a new snapshot', async () => {
+    await storage.set(StorageKeys.SONGS, storedSongs);
+    await storage.set(StorageKeys.PLAYLISTS, storedPlaylists);
+
+    const view = render(<HydrationProbe />);
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+    expect(view.getByTestId('library-ready').props.children).toBe('true');
+
+    let finishRetryRead!: (songs: Song[]) => void;
+    const pendingRetryRead = new Promise<Song[]>(resolve => { finishRetryRead = resolve; });
+    const originalGet = storage.get.bind(storage) as (key: string) => Promise<unknown | null>;
+    jest.spyOn(storage, 'get').mockImplementation((key: string) =>
+      key === StorageKeys.SONGS ? pendingRetryRead : originalGet(key));
+
+    view.rerender(<HydrationProbe retryToken={1} />);
+    await waitFor(() => {
+      expect(view.getByTestId('ready').props.children).toBe('false');
+      expect(view.getByTestId('library-ready').props.children).toBe('false');
+    });
+
+    finishRetryRead(storedSongs);
+    await pendingRetryRead;
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+    expect(view.getByTestId('library-ready').props.children).toBe('true');
   });
 
   test('runs hydration only once for a provider mount across rerenders', async () => {

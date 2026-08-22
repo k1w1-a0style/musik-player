@@ -27,6 +27,7 @@ Sekundäre Screens (`NowPlaying`, Track-Info, Tag-Editor, Equalizer, Einstellung
 - `libraryHydrationReady` ist nur eine UI-Freigabe. Native Playback-, Queue- und Current-Song-Aktionen richten sich ausschließlich nach `isReady` und dem generationsgebundenen nativen Hydration-Gate.
 - Hydration-Fallback und TrackPlayer-Setup laufen nie gleichzeitig gegeneinander.
 - Playlist-Persistenz startet mit `libraryHydrationReady`, weil Playlist-Änderungen in der sichtbaren Bibliothek bereits möglich sind. Ein serialisierter Latest-wins-Writer verhindert, dass ein älterer Snapshot eine frühe Änderung überschreibt.
+- Jede Retry-Generation setzt `libraryHydrationReady` zuerst auf `false`; damit sind UI und Playlist-Persistenz geschlossen, bis der neue Snapshot vollständig normalisiert und veröffentlicht ist.
 - Playback-/Equalizer-/Song-Persistenz sowie Cover-/AudioInfo-Backfills starten nicht vor vollständiger Hydration.
 
 ## Warum ein kalter Dev-Start länger dauert
