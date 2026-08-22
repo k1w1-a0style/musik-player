@@ -9,6 +9,7 @@ import {
   publishNativeHydrationGate,
   resetNativeHydrationGateForTests,
 } from '../nativeHydrationGate';
+import { requestLatestSeek, resetSeekControllerForTests } from '../seekController';
 
 const createDeferred = () => {
   let resolve!: () => void;
@@ -20,6 +21,7 @@ describe('nativeQueueMutationLock', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
     resetNativeHydrationGateForTests();
+    resetSeekControllerForTests();
   });
 
   test.each(['unowned', 'loading', 'degraded', 'retry-required'] as const)(
@@ -236,6 +238,35 @@ describe('nativeQueueMutationLock', () => {
     });
 
     expect(events).toEqual(['replacement:start', 'control:after-failure']);
+  });
+
+  test('invalidates queued seeks and drains the active seek before replacing the queue', async () => {
+    const seekStarted = createDeferred();
+    const releaseSeek = createDeferred();
+    const seek = jest.fn(async () => {
+      seekStarted.resolve();
+      await releaseSeek.promise;
+    });
+    const firstSeek = requestLatestSeek(1000, seek);
+    await seekStarted.promise;
+    void requestLatestSeek(9000, seek);
+    const replacement = jest.fn(async () => undefined);
+
+    const queuedReplacement = runExclusiveNativeQueueReplacement(replacement);
+    await Promise.resolve();
+    const blockedSeek = requestLatestSeek(12000, seek);
+
+    expect(replacement).not.toHaveBeenCalled();
+    expect(seek).toHaveBeenCalledTimes(1);
+
+    releaseSeek.resolve();
+    await Promise.all([firstSeek, blockedSeek, queuedReplacement]);
+
+    expect(replacement).toHaveBeenCalledTimes(1);
+    expect(seek).toHaveBeenCalledTimes(1);
+
+    await requestLatestSeek(13000, seek);
+    expect(seek).toHaveBeenNthCalledWith(2, 13);
   });
 
   test('resetNativeQueueMutationLockForTests clears replacement version and pending chain', async () => {

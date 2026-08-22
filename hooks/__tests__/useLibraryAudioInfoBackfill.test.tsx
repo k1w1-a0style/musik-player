@@ -21,6 +21,10 @@ jest.mock('expo-system-audio', () => {
   };
 });
 
+jest.mock('../useAfterInitialInteractions', () => ({
+  useAfterInitialInteractions: () => true,
+}));
+
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
   id,
   title: id,

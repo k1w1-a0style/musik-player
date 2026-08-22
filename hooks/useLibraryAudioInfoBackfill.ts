@@ -7,6 +7,7 @@ import {
   needsAudioInfoBackfill,
 } from '../utils/songAudioInfoBackfill';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
+import { useAfterInitialInteractions } from './useAfterInitialInteractions';
 
 interface UseLibraryAudioInfoBackfillOptions {
   songs: Song[];
@@ -25,8 +26,8 @@ const PROGRESSIVE_AUDIO_INFO_PATCH_BATCH_SIZE = 6;
 const PROGRESSIVE_AUDIO_INFO_PATCH_FLUSH_MS = 750;
 const NO_BACKFILL_SONGS: Song[] = [];
 
-const selectBackfillSongs = (songs: Song[], enabled: boolean): Song[] =>
-  enabled ? songs : NO_BACKFILL_SONGS;
+const selectBackfillSongs = (songs: Song[], enabled: boolean, afterInitialInteractions: boolean): Song[] =>
+  enabled && afterInitialInteractions ? songs : NO_BACKFILL_SONGS;
 
 const shallowEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 
@@ -75,7 +76,8 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
   const metadataRefreshActive = useMetadataRefreshActive();
-  const backfillSongs = selectBackfillSongs(songs, enabled);
+  const afterInitialInteractions = useAfterInitialInteractions();
+  const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
 
   latestSongsRef.current = songs;
 

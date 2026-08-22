@@ -8,8 +8,9 @@
         "1.2.1"
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
-      "reason": "Build-tool-only Expo/Metro image parsing DoS advisories; no compatible patched image-size release is published yet, and the suggested React Native downgrade is incompatible with this SDK line.",
-      "expiresOn": "2026-08-25",
+      "reason": "Build-tool-only Expo/Metro dependency with no published patched release. Metro startup explicitly disables the vulnerable ICNS, JXL/JXL-stream and HEIF parser families by content type while preserving supported PNG/JPEG assets.",
+      "reviewedOn": "2026-08-22",
+      "expiresOn": "2026-11-20",
       "advisories": [
         {
           "source": 1138808,

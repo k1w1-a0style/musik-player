@@ -42,4 +42,33 @@ describe('useSoundCloudWaveformMotion', () => {
     expect(onSeek).toHaveBeenCalledWith(75_000);
     expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
   });
+
+  test.each([State.CANCELLED, State.FAILED])(
+    'does not commit a seek when an active drag ends as %s',
+    cancelledState => {
+      const onSeek = jest.fn();
+      const onPreviewPosition = jest.fn();
+      const { result } = renderHook(() => useSoundCloudWaveformMotion({
+        progressRatio: 0.5,
+        safeDuration: 100_000,
+        safePosition: 50_000,
+        isPlaying: false,
+        travelWidth: 1_000,
+        viewportCenter: 200,
+        waveformKey: 'track-1',
+        onSeek,
+        onPreviewPosition,
+      }));
+
+      act(() => result.current.onStateChange(stateEvent({
+        state: State.BEGAN, oldState: State.UNDETERMINED, translationX: 0,
+      })));
+      act(() => result.current.onStateChange(stateEvent({
+        state: cancelledState, oldState: State.ACTIVE, translationX: -250,
+      })));
+
+      expect(onSeek).not.toHaveBeenCalled();
+      expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
+    },
+  );
 });

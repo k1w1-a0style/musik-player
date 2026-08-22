@@ -48,3 +48,5 @@ export const buildLibraryViewState = ({
     songsForActiveList,
   };
 };
+
+export type LibraryViewState = ReturnType<typeof buildLibraryViewState>;

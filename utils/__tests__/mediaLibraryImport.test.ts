@@ -121,6 +121,38 @@ describe('mediaLibraryImport', () => {
     expect(unhandled).not.toHaveBeenCalled();
   });
 
+  test('bounds detached SAF provider reads until the raw native promises settle', async () => {
+    jest.useFakeTimers();
+    let resolveFirst!: (value: string[]) => void;
+    let resolveSecond!: (value: string[]) => void;
+    const firstRead = jest.fn(() => new Promise<string[]>(resolve => { resolveFirst = resolve; }));
+    const secondRead = jest.fn(() => new Promise<string[]>(resolve => { resolveSecond = resolve; }));
+
+    const first = mediaImport.readSafDirectoryWithTimeout('content://root/one', firstRead, { readTimeoutMs: 10 });
+    const second = mediaImport.readSafDirectoryWithTimeout('content://root/two', secondRead, { readTimeoutMs: 10 });
+    const firstOutcome = first.catch(error => error);
+    const secondOutcome = second.catch(error => error);
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(10);
+    expect(await firstOutcome).toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+    expect(await secondOutcome).toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+
+    const blockedRead = jest.fn().mockResolvedValue(['content://root/blocked/song.mp3']);
+    await expect(mediaImport.readSafDirectoryWithTimeout('content://root/blocked', blockedRead, {
+      readTimeoutMs: 10,
+    })).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadCapacityError);
+    expect(blockedRead).not.toHaveBeenCalled();
+
+    resolveFirst([]);
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(mediaImport.readSafDirectoryWithTimeout('content://root/recovered', async () => [
+      'content://root/recovered/song.mp3',
+    ], { readTimeoutMs: 10 })).resolves.toEqual(['content://root/recovered/song.mp3']);
+
+    resolveSecond([]);
+    await jest.advanceTimersByTimeAsync(0);
+  });
+
   test('SAF timeout session skip is scoped to an explicit scan-local set', async () => {
     const timedOutDirectoryUris = new Set<string>();
     const read = jest.fn((uri: string) => {

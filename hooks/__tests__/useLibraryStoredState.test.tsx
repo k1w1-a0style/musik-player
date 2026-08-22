@@ -5,6 +5,7 @@ import { useLibraryStoredState } from '../useLibraryStoredState';
 import type { LibraryTab } from '../../utils/libraryTabs';
 import { loadFavoriteSongIds, loadLibraryStartupState } from '../../utils/libraryStorageLoaders';
 import type { ScanFolder } from '../../types/ScanFolder';
+import { publishFavoriteSongIds, resetFavoriteSongStateForTests } from '../../utils/favoriteSongState';
 
 jest.mock('../../utils/libraryStorageLoaders', () => ({
   loadFavoriteSongIds: jest.fn(),
@@ -29,6 +30,7 @@ const HookViewer = ({ activeTab }: { activeTab: LibraryTab }) => {
 };
 
 beforeEach(() => {
+  resetFavoriteSongStateForTests();
   jest.clearAllMocks();
   mockedLoadLibraryStartupState.mockResolvedValue({ scanFolders: [folder('music')], favoriteIds: ['startup-favorite'] });
   mockedLoadFavoriteSongIds.mockResolvedValue(['fresh-favorite']);
@@ -59,5 +61,15 @@ test('reloads favorite ids when favorites tab becomes active', async () => {
   });
 
   await waitFor(() => expect(view.getByTestId('stored-state').props.children).toBe('music|fresh-favorite'));
+  expect(mockedLoadFavoriteSongIds).toHaveBeenCalledTimes(1);
+});
+
+test('updates favorite ids from another mounted screen without a tab change', async () => {
+  const view = render(<HookViewer activeTab="favorites" />);
+  await waitFor(() => expect(view.getByTestId('stored-state').props.children).toBe('music|fresh-favorite'));
+
+  act(() => publishFavoriteSongIds(['now-playing-favorite']));
+
+  await waitFor(() => expect(view.getByTestId('stored-state').props.children).toBe('music|now-playing-favorite'));
   expect(mockedLoadFavoriteSongIds).toHaveBeenCalledTimes(1);
 });

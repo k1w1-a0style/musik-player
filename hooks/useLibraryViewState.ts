@@ -1,7 +1,12 @@
 import { useMemo } from 'react';
 import type { Playlist, Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
-import { buildLibraryViewState } from '../utils/libraryViewState';
+import type { LibraryViewState } from '../utils/libraryViewState';
+import { getLibraryDisplaySongs } from '../utils/libraryDemoSongs';
+import { groupSongs, type LibraryGroupItem } from '../utils/libraryPresentation';
+import { buildLibraryPlaylistItems, type LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import { filterFavoriteSongs, filterLibrarySongs } from '../utils/librarySongs';
+import { countActiveScanFolders, getLibraryEmptyMessage } from '../utils/libraryTabs';
 import type { LibraryTab } from '../utils/libraryTabs';
 
 declare const __DEV__: boolean;
@@ -20,7 +25,11 @@ export interface UseLibraryViewStateOptions {
   songs: Song[];
 }
 
-export type UseLibraryViewStateResult = ReturnType<typeof buildLibraryViewState>;
+export type UseLibraryViewStateResult = LibraryViewState;
+
+const NO_GROUPS: LibraryGroupItem[] = [];
+const NO_PLAYLISTS: LibraryPlaylistItem[] = [];
+const NO_SONGS: Song[] = [];
 
 export const useLibraryViewState = ({
   activeTab,
@@ -32,14 +41,47 @@ export const useLibraryViewState = ({
   query,
   scanFolders,
   songs,
-}: UseLibraryViewStateOptions): UseLibraryViewStateResult => useMemo(() => buildLibraryViewState({
-  activeTab,
-  favoriteIds,
-  isDev,
-  isReady,
-  nodeEnv,
-  playlists,
-  query,
-  scanFolders,
-  songs,
-}), [activeTab, favoriteIds, isDev, isReady, nodeEnv, playlists, query, scanFolders, songs]);
+}: UseLibraryViewStateOptions): UseLibraryViewStateResult => {
+  const displayedSongs = useMemo(
+    () => getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv),
+    [isDev, isReady, nodeEnv, songs],
+  );
+  const filteredSongs = useMemo(
+    () => filterLibrarySongs(displayedSongs, query),
+    [displayedSongs, query],
+  );
+  const albumGroups = useMemo(
+    () => activeTab === 'albums' ? groupSongs(filteredSongs, 'album') : NO_GROUPS,
+    [activeTab, filteredSongs],
+  );
+  const artistGroups = useMemo(
+    () => activeTab === 'artists' ? groupSongs(filteredSongs, 'artist') : NO_GROUPS,
+    [activeTab, filteredSongs],
+  );
+  const genreGroups = useMemo(
+    () => activeTab === 'genres' ? groupSongs(filteredSongs, 'genre') : NO_GROUPS,
+    [activeTab, filteredSongs],
+  );
+  const favoriteSongs = useMemo(
+    () => activeTab === 'favorites' ? filterFavoriteSongs(filteredSongs, favoriteIds) : NO_SONGS,
+    [activeTab, favoriteIds, filteredSongs],
+  );
+  const playlistItems = useMemo(
+    () => activeTab === 'playlists' ? buildLibraryPlaylistItems(playlists, displayedSongs, query) : NO_PLAYLISTS,
+    [activeTab, displayedSongs, playlists, query],
+  );
+  const activeFolders = useMemo(() => countActiveScanFolders(scanFolders), [scanFolders]);
+
+  return useMemo(() => ({
+    activeFolders,
+    albumGroups,
+    artistGroups,
+    displayedSongs,
+    emptyMessage: getLibraryEmptyMessage(activeTab),
+    favoriteSongs,
+    filteredSongs,
+    genreGroups,
+    playlistItems,
+    songsForActiveList: activeTab === 'favorites' ? favoriteSongs : filteredSongs,
+  }), [activeFolders, activeTab, albumGroups, artistGroups, displayedSongs, favoriteSongs, filteredSongs, genreGroups, playlistItems]);
+};

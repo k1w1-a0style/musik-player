@@ -37,6 +37,18 @@ export const TRACK_PLAYER_OPTIONS: UpdateOptions = {
 };
 
 export type TrackPlayerSetupLogger = (message: string, error?: unknown) => void;
+export const TRACK_PLAYER_SETUP_TIMEOUT_MS = 10_000;
+
+export interface TrackPlayerSetupOptions { timeoutMs?: number }
+
+export class TrackPlayerSetupTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`TrackPlayer setup timed out after ${timeoutMs} ms`);
+    this.name = 'TrackPlayerSetupTimeoutError';
+  }
+}
+
+let activeSetupAttempt: Promise<void> | null = null;
 
 export const isTrackPlayerAlreadySetUpError = (error: unknown): boolean => {
   if (!error) return false;
@@ -50,9 +62,7 @@ export const formatTrackPlayerSetupError = (error: unknown): string => {
   return 'Unknown TrackPlayer setup error';
 };
 
-export const setupTrackPlayer = async (
-  logger: TrackPlayerSetupLogger = console.warn,
-): Promise<void> => {
+const runTrackPlayerSetup = async (logger: TrackPlayerSetupLogger): Promise<void> => {
   try {
     await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
   } catch (error) {
@@ -68,4 +78,47 @@ export const setupTrackPlayer = async (
     logger(`TrackPlayer options update failed: ${formatTrackPlayerSetupError(error)}`, error);
     throw error;
   }
+};
+
+const getOrStartTrackPlayerSetup = (logger: TrackPlayerSetupLogger): Promise<void> => {
+  if (activeSetupAttempt) return activeSetupAttempt;
+  const attempt = runTrackPlayerSetup(logger);
+  activeSetupAttempt = attempt;
+  void attempt.then(
+    () => {
+      if (activeSetupAttempt === attempt) activeSetupAttempt = null;
+    },
+    () => {
+      if (activeSetupAttempt === attempt) activeSetupAttempt = null;
+    },
+  );
+  return attempt;
+};
+
+export const setupTrackPlayer = async (
+  logger: TrackPlayerSetupLogger = console.warn,
+  options: TrackPlayerSetupOptions = {},
+): Promise<void> => {
+  const timeoutMs = options.timeoutMs ?? TRACK_PLAYER_SETUP_TIMEOUT_MS;
+  const attempt = getOrStartTrackPlayerSetup(logger);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    await Promise.race([
+      attempt,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const error = new TrackPlayerSetupTimeoutError(timeoutMs);
+          logger(error.message, error);
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+};
+
+export const resetTrackPlayerSetupForTests = (): void => {
+  activeSetupAttempt = null;
 };

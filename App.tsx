@@ -1,11 +1,8 @@
 import 'react-native-gesture-handler';
-import React, { useEffect, useRef } from 'react';
-import { useFonts } from 'expo-font';
+import React, { useEffect } from 'react';
 
 import AppErrorBoundary from './components/AppErrorBoundary';
-import AppLoading from './components/AppLoading';
 import AppProviders from './components/AppProviders';
-import { appFonts } from './appFonts';
 import RootNavigator from './navigation/RootNavigator';
 import ThemedStatusBar from './components/ThemedStatusBar';
 import {
@@ -15,10 +12,6 @@ import {
 import { startStartupTimer } from './utils/startupTiming';
 
 export const AppContent = (): React.ReactElement => {
-  const [fontsLoaded, fontError] = useFonts(appFonts);
-  const finishFontTimingRef = useRef<ReturnType<typeof startStartupTimer> | null>(null);
-  if (!finishFontTimingRef.current) finishFontTimingRef.current = startStartupTimer('fonts');
-
   useEffect(() => {
     const finishRecoveryTiming = startStartupTimer('tag-write-recovery');
     void restoreAndReconcileTagWrites().then(() => {
@@ -33,14 +26,6 @@ export const AppContent = (): React.ReactElement => {
       console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
     });
   }, []);
-
-  useEffect(() => {
-    if (fontsLoaded) finishFontTimingRef.current?.('ready');
-    else if (fontError) finishFontTimingRef.current?.('fallback');
-    if (fontError) console.warn('[Fonts] Custom fonts failed to load; using the system fallback.', String(fontError));
-  }, [fontError, fontsLoaded]);
-
-  if (!fontsLoaded && !fontError) return <AppLoading />;
 
   return (
     <AppProviders>

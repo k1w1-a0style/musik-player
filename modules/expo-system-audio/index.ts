@@ -303,7 +303,7 @@ export const SystemAudio = {
   },
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {
-    return native ? native.extractPalette(uri) : null;
+    return native ? runBoundedNativeRead(() => native.extractPalette(uri)) : null;
   },
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {

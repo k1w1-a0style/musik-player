@@ -53,4 +53,54 @@ describe('shared bounded native read lane', () => {
     finishArtwork(null);
     await jest.advanceTimersByTimeAsync(0);
   });
+
+  test('keeps palette extraction on the shared detached-read lane', async () => {
+    jest.useFakeTimers();
+    jest.resetModules();
+
+    let finishPalette!: (value: null) => void;
+    let finishAudioInfo!: (value: null) => void;
+    const extractPalette = jest.fn(() => new Promise<null>(resolve => { finishPalette = resolve; }));
+    const extractAudioInfo = jest.fn(() => new Promise<null>(resolve => { finishAudioInfo = resolve; }));
+    const extractEmbeddedArtwork = jest.fn().mockResolvedValue({ uri: 'file:///bounded.jpg', mimeType: 'image/jpeg' });
+
+    jest.doMock('expo', () => ({
+      NativeModule: class {},
+      requireNativeModule: jest.fn((name: string) => {
+        if (name === 'ExpoSystemAudio') return {
+          eqInit: jest.fn(),
+          eqSetEnabled: jest.fn(),
+          eqSetBandLevel: jest.fn(),
+          eqRelease: jest.fn(),
+          extractPalette,
+          extractAudioInfo,
+          extractEmbeddedArtwork,
+        };
+        throw new Error('missing optional module');
+      }),
+    }));
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { SystemAudio } = require('../index') as typeof import('../index');
+
+    const palette = SystemAudio.extractPalette('content://cover-1');
+    const audioInfo = SystemAudio.extractAudioInfo('content://song-2');
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(20_000);
+    await expect(palette).resolves.toBeNull();
+    await expect(audioInfo).resolves.toBeNull();
+
+    await expect(SystemAudio.extractEmbeddedArtwork('content://song-3')).resolves.toBeNull();
+    expect(extractEmbeddedArtwork).not.toHaveBeenCalled();
+
+    finishPalette(null);
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(SystemAudio.extractEmbeddedArtwork('content://song-4')).resolves.toEqual({
+      uri: 'file:///bounded.jpg',
+      mimeType: 'image/jpeg',
+    });
+
+    finishAudioInfo(null);
+    await jest.advanceTimersByTimeAsync(0);
+  });
 });

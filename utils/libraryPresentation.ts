@@ -196,20 +196,60 @@ export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlb
 export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeMetadataText(cleanPersonLikeLabel(song.genre)) ?? UNKNOWN_GENRE_LABEL;
 
 export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
-  const byKey = new Map<string, Song>();
-  [...existingSongs, ...importedSongs].forEach(song => {
-    const keys = mergeSongKeys(song);
-    const canonicalKey = keys.find(key => byKey.has(key)) ?? keys[0] ?? buildSongKey(song);
-    const previousSong = byKey.get(canonicalKey);
-    const mergedSong = mergeSongPreservingRichMetadata(previousSong, song);
-    if (previousSong) {
-      byKey.forEach((value, key) => {
-        if (value === previousSong) byKey.set(key, mergedSong);
-      });
+  interface MergeComponent {
+    parent: number;
+    size: number;
+    song: Song;
+    lastSeen: number;
+  }
+
+  const components: MergeComponent[] = [];
+  const ownerByKey = new Map<string, number>();
+  const findRoot = (index: number): number => {
+    let root = index;
+    while (components[root].parent !== root) root = components[root].parent;
+    let current = index;
+    while (components[current].parent !== current) {
+      const parent = components[current].parent;
+      components[current].parent = root;
+      current = parent;
     }
-    keys.forEach(key => byKey.set(key, mergedSong));
+    return root;
+  };
+  const union = (leftIndex: number, rightIndex: number): number => {
+    let left = findRoot(leftIndex);
+    let right = findRoot(rightIndex);
+    if (left === right) return left;
+    if (components[left].size < components[right].size) [left, right] = [right, left];
+    components[right].parent = left;
+    components[left].size += components[right].size;
+    return left;
+  };
+
+  [...existingSongs, ...importedSongs].forEach((song, songIndex) => {
+    const keys = mergeSongKeys(song);
+    const nodeIndex = components.length;
+    components.push({ parent: nodeIndex, size: 1, song, lastSeen: songIndex });
+    const matchedRoots = [...new Set(keys
+      .map(key => ownerByKey.get(key))
+      .filter((owner): owner is number => owner !== undefined)
+      .map(findRoot))]
+      .sort((left, right) => components[left].lastSeen - components[right].lastSeen);
+
+    const mergedSong = matchedRoots.reduce<Song | undefined>(
+      (merged, root) => mergeSongPreservingRichMetadata(merged, components[root].song),
+      undefined,
+    );
+    let root = nodeIndex;
+    matchedRoots.forEach(matchedRoot => { root = union(root, matchedRoot); });
+    root = findRoot(root);
+    components[root].song = mergeSongPreservingRichMetadata(mergedSong, song);
+    components[root].lastSeen = songIndex;
+    keys.forEach(key => ownerByKey.set(key, root));
   });
-  return Array.from(new Set(byKey.values())).sort(byTitle);
+
+  const roots = new Set(components.map((_, index) => findRoot(index)));
+  return [...roots].map(root => components[root].song).sort(byTitle);
 };
 
 const buildAlbumArtistSummary = (sortedSongs: Song[]): string => {

@@ -96,6 +96,29 @@ describe('WaveformScrubber seek semantics', () => {
     expect(onSeek).not.toHaveBeenCalled();
   });
 
+  test('responder termination cancels the preview without committing a seek', () => {
+    const onSeek = jest.fn();
+    const { getByTestId, getAllByText } = render(
+      <WaveformScrubber
+        waveform={waveform}
+        currentPosition={10_000}
+        duration={100_000}
+        onSeek={onSeek}
+        accent="red"
+      />,
+    );
+    const scrubber = getByTestId('waveform-scrubber').findByProps({ accessibilityRole: 'adjustable' });
+
+    act(() => {
+      scrubber.props.onLayout(layout);
+      scrubber.props.onResponderGrant(touchAt(160));
+      scrubber.props.onResponderTerminate();
+    });
+
+    expect(onSeek).not.toHaveBeenCalled();
+    expect(getAllByText('0:10').length).toBeGreaterThan(0);
+  });
+
   test('dragging updates the local displayed position before commit', () => {
     const { getByTestId, getAllByText } = render(
       <WaveformScrubber
