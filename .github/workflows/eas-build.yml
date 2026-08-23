@@ -481,7 +481,11 @@ jobs:
             fi
           fi
 
-          echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+          case "${GH_PROFILE_8777ED}" in
+            development|preview) ARTIFACT_EXT="apk" ;;
+            production) ARTIFACT_EXT="aab" ;;
+          esac
+          echo "ARTIFACT_EXT=${ARTIFACT_EXT}" >> "$GITHUB_ENV"
 
           case "${GH_PROFILE_8777ED}" in
             development)
@@ -897,22 +901,19 @@ jobs:
           curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"
 
           if ! test -s "${OUT}"; then
-            echo "::error::EAS build succeeded, but the validated artifact download did not produce a non-empty APK. Build ID=${GH_BUILD_ID_E68394} Expected output=${OUT}"
+            echo "::error::EAS build succeeded, but the validated artifact download did not produce a non-empty Android artifact. Build ID=${GH_BUILD_ID_E68394} Expected output=${OUT}"
             echo "${ARTIFACT_DIR}/ contents:"
             find "${ARTIFACT_DIR}" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null || true
             exit 1
           fi
 
-          case "${OUT}" in
-            *.apk) ;;
-            *)
-              echo "::error::Expected an APK artifact for Android profile '${GH_PROFILE_8777ED}', got ${OUT}."
-              exit 1
-              ;;
-          esac
+          if [[ "${OUT}" != *."${ARTIFACT_EXT}" ]]; then
+            echo "::error::Expected a .${ARTIFACT_EXT} artifact for Android profile '${GH_PROFILE_8777ED}', got ${OUT}."
+            exit 1
+          fi
 
           echo "artifact_path=${OUT}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=eas-${GH_PLATFORM_A5C067}-${GH_PROFILE_8777ED}-${GH_RUN_NUMBER_DA38B2}-apk" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=eas-${GH_PLATFORM_A5C067}-${GH_PROFILE_8777ED}-${GH_RUN_NUMBER_DA38B2}-${ARTIFACT_EXT}" >> "${GITHUB_OUTPUT}"
           ls -lah "${ARTIFACT_DIR}"
         env:
           GH_PROFILE_8777ED: ${{ inputs.profile }}
@@ -921,7 +922,7 @@ jobs:
           GH_RUN_NUMBER_DA38B2: ${{ github.run_number }}
 
       - name: Resolve Android SDK build tools
-        if: steps.download_artifact.outputs.artifact_path != ''
+        if: steps.download_artifact.outputs.artifact_path != '' && env.ARTIFACT_EXT == 'apk'
         shell: bash
         run: |
           set -euo pipefail
@@ -950,7 +951,7 @@ jobs:
 
       - name: Inspect downloaded Android APK
         id: inspect_apk
-        if: steps.download_artifact.outputs.artifact_path != ''
+        if: steps.download_artifact.outputs.artifact_path != '' && env.ARTIFACT_EXT == 'apk'
         shell: bash
         run: |
           set -euo pipefail
@@ -978,6 +979,20 @@ jobs:
           GH_PROFILE_8777ED: ${{ inputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
+      - name: Inspect downloaded Android App Bundle
+        id: inspect_aab
+        if: steps.download_artifact.outputs.artifact_path != '' && env.ARTIFACT_EXT == 'aab'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/inspectAndroidAppBundle.cjs \
+            "${GH_ARTIFACT_PATH_97F6CF}" \
+            --min-size-bytes 10000001 \
+            --require-signature \
+            | tee ci-logs/android-aab-inspection.log
+        env:
+          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
+
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -988,6 +1003,7 @@ jobs:
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
             ci-logs/android-apk-inspection.log
+            ci-logs/android-aab-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
             !ci-logs/keystore-response.raw.json
@@ -1005,8 +1021,8 @@ jobs:
           rm -f ci-logs/keystore-response.raw.json
           true
 
-      - name: Upload Android APK Artifact
-        if: steps.inspect_apk.outcome == 'success'
+      - name: Upload Android Artifact
+        if: steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.download_artifact.outputs.artifact_name }}
@@ -1035,8 +1051,8 @@ jobs:
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
           - Build ID: ${GH_BUILD_ID_E68394}
           - Diagnostics artifact: eas-build-diagnostics-${GH_RUN_NUMBER_DA38B2}
-          - APK artifact: ${GH_ARTIFACT_NAME_639E28}
-          - APK path: ${GH_ARTIFACT_PATH_97F6CF}
+          - Android artifact: ${GH_ARTIFACT_NAME_639E28}
+          - Artifact path: ${GH_ARTIFACT_PATH_97F6CF}
 
           Artifacts: https://github.com/${GH_REPOSITORY_39E62C}/actions/runs/${GH_RUN_ID_DFF96A}
           EOF

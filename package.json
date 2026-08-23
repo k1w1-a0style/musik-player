@@ -15,6 +15,7 @@
     "test:silent": "jest --runInBand",
     "postinstall": "node scripts/patches/patchReactNativeTrackPlayer.cjs",
     "inspect:android-apk": "node scripts/ci/inspectAndroidApk.cjs",
+    "inspect:android-aab": "node scripts/ci/inspectAndroidAppBundle.cjs",
     "check:complexity": "node scripts/ci/checkCodeComplexity.cjs",
     "check:expo-deps": "expo install --check"
   },

@@ -67,6 +67,7 @@ describe('useMusicPersistence', () => {
       expect(await storage.get(StorageKeys.SHUFFLE)).toBe(true);
       expect(await storage.get(StorageKeys.REPEAT_MODE)).toBe('all');
       expect(await storage.get(StorageKeys.EQ_ENABLED)).toBe(true);
+      expect(await storage.get(StorageKeys.EQ_BANDS)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(await storage.get(StorageKeys.EQ_PRESET)).toBe('rock');
       expect(await storage.get(StorageKeys.SONGS)).toEqual(songs);
     });

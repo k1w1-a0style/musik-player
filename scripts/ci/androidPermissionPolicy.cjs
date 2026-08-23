@@ -21,7 +21,6 @@ const ALLOWED_ANDROID_PERMISSIONS = Object.freeze([
   'android.permission.VIBRATE',
   'android.permission.POST_NOTIFICATIONS',
   'android.permission.READ_EXTERNAL_STORAGE',
-  'android.permission.WRITE_EXTERNAL_STORAGE',
 ]);
 
 const FORBIDDEN_ANDROID_PERMISSIONS = Object.freeze([
@@ -30,6 +29,7 @@ const FORBIDDEN_ANDROID_PERMISSIONS = Object.freeze([
   'android.permission.READ_MEDIA_IMAGES',
   'android.permission.READ_MEDIA_VIDEO',
   'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.ACCESS_COARSE_LOCATION',
 ]);

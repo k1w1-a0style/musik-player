@@ -11,6 +11,7 @@ import { WAVEFORM_CACHE_POINT_COUNT, type SongWaveform } from './waveformTypes';
 import type { WaveformSourceDiagnostics } from './waveformDecision';
 
 const MAX_IN_FLIGHT_WAVEFORM_PRELOADS = 4;
+export const MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS = 20 * 60 * 1000;
 const preloadFlights = new Map<string, Promise<SongWaveform | null>>();
 type WaveformPreloadPriority = Extract<WaveformExtractionPriority, 'preload' | 'background'>;
 
@@ -65,6 +66,12 @@ const loadPreloadedWaveform = async (
   if (racedMemoryHit?.source === 'native') return racedMemoryHit;
 
   const durationMs = song.duration ?? song.audioInfo?.durationMs ?? 0;
+  // Full-file decoding is appropriate for a visible foreground waveform, but
+  // spending that CPU budget speculatively on podcasts, mixes, or audiobooks
+  // is not. A persisted hit above still remains reusable for long-form tracks.
+  if (!Number.isFinite(durationMs) || durationMs > MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS) {
+    return null;
+  }
   const firstAttempt = await extractPreload(song, durationMs, priority);
   if (!firstAttempt.waveform && firstAttempt.schedulerDeferred) {
     // The foreground debounce is finite. Retry once after it has started so

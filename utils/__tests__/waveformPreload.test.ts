@@ -8,7 +8,11 @@ import {
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
 } from '../waveformExtractionLifecycle';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
-import { preloadSongWaveform, resetWaveformPreloadStateForTests } from '../waveformPreload';
+import {
+  MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS,
+  preloadSongWaveform,
+  resetWaveformPreloadStateForTests,
+} from '../waveformPreload';
 
 const extractor = SystemAudio as typeof SystemAudio & { extractWaveformPeaks: jest.Mock };
 const song: Song = {
@@ -68,6 +72,16 @@ describe('waveformPreload', () => {
   test('does nothing for a song without a playable URI', async () => {
     await expect(preloadSongWaveform({ id: 'no-uri', title: 'No URI', artist: 'Nobody' }))
       .resolves.toBeNull();
+    expect(extractor.extractWaveformPeaks).not.toHaveBeenCalled();
+  });
+
+  test('does not decode a known long-form track merely to warm the background cache', async () => {
+    await expect(preloadSongWaveform({
+      ...song,
+      duration: MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS + 1,
+    })).resolves.toBeNull();
+
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).not.toHaveBeenCalled();
   });
 

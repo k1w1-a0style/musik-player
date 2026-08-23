@@ -19,6 +19,8 @@ interface UseMusicPersistenceArgs {
   persistedRefs?: MutableRefObject<Record<string, string>>;
 }
 
+const CONTINUOUS_SETTING_DEBOUNCE_MS = 250;
+
 export const useMusicPersistence = ({
   isReady,
   libraryHydrationReady,
@@ -36,11 +38,15 @@ export const useMusicPersistence = ({
   const localPersistedRefs = useRef<Record<string, string>>({});
   const persistedRefs = sharedPersistedRefs ?? localPersistedRefs;
 
-  usePersistedSetting(isReady, StorageKeys.VOLUME, volume, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.VOLUME, volume, persistedRefs, {
+    debounceMs: CONTINUOUS_SETTING_DEBOUNCE_MS,
+  });
   usePersistedSetting(isReady, StorageKeys.SHUFFLE, shuffle, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.REPEAT_MODE, repeatMode, persistedRefs);
   usePersistedSetting(isReady, StorageKeys.EQ_ENABLED, eqEnabled, persistedRefs);
-  usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs);
+  usePersistedSetting(isReady, StorageKeys.EQ_BANDS, eqBands, persistedRefs, {
+    debounceMs: CONTINUOUS_SETTING_DEBOUNCE_MS,
+  });
   usePersistedSetting(isReady, StorageKeys.EQ_PRESET, eqPreset, persistedRefs);
   // Playlist editing is intentionally available as soon as the safe library
   // snapshot is visible, before native playback hydration finishes.

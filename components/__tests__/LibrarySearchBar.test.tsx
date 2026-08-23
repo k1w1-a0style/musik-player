@@ -55,6 +55,12 @@ test('clears a visible search term', () => {
   expect(onChangeText).toHaveBeenCalledWith('');
 });
 
+test('gives the clear icon a generous touch target', () => {
+  const { getByTestId } = render(<LibrarySearchBar value="techno" onChangeText={jest.fn()} />);
+
+  expect(getByTestId('library-search-clear').props.hitSlop).toBe(8);
+});
+
 test('uses localized accessibility label and placeholder', () => {
   const { getByTestId } = render(<LibrarySearchBar value="" onChangeText={jest.fn()} />);
 

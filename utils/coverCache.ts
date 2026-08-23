@@ -85,6 +85,39 @@ const hashString = (value: string): string => {
   return [h1, h2, h3, h4].map(part => (part >>> 0).toString(16).padStart(8, '0')).join('');
 };
 
+const coverCacheWriteFlights = new Map<string, Promise<void>>();
+
+const ensureCachedCoverFile = async (
+  fileUri: string,
+  isAlreadyCached: () => Promise<boolean>,
+  writeFile: () => Promise<void>,
+): Promise<void> => {
+  const activeFlight = coverCacheWriteFlights.get(fileUri);
+  if (activeFlight) {
+    await activeFlight;
+    return;
+  }
+  if (await isAlreadyCached()) return;
+
+  // A concurrent caller may have completed its existence check while this one
+  // was waiting. Join that write instead of racing two copies to the same URI.
+  const racedFlight = coverCacheWriteFlights.get(fileUri);
+  if (racedFlight) {
+    await racedFlight;
+    return;
+  }
+
+  const flight = Promise.resolve().then(writeFile);
+  coverCacheWriteFlights.set(fileUri, flight);
+  try {
+    await flight;
+  } finally {
+    if (coverCacheWriteFlights.get(fileUri) === flight) {
+      coverCacheWriteFlights.delete(fileUri);
+    }
+  }
+};
+
 const getBaseDirectory = (): string | undefined =>
   documentDirectory
   ?? cacheDirectory
@@ -125,7 +158,7 @@ export const isLikelyVolatileArtworkUri = (uri?: string): boolean => {
 };
 
 export const cacheLocalCoverFile = async (
-  songId: string,
+  _songId: string,
   sourceUri?: string,
   protection?: CoverCacheProtection,
 ): Promise<string | undefined> => {
@@ -153,14 +186,16 @@ export const cacheLocalCoverFile = async (
     if (!sourceInfo.exists) return undefined;
     await withCoverCacheFailureReason(mkdir(directory, { intermediates: true }), 'cache_mkdir_failed');
 
-    const safeSongId = hashString(songId);
     const sourceHash = hashString(source);
-    const fileUri = `${directory}/${safeSongId}-${sourceHash}.${deriveCoverFileExtension(source)}`;
+    const extension = deriveCoverFileExtension(source);
+    const fileUri = `${directory}/${sourceHash}-${hashString(`local:${extension}`)}.${extension}`;
     protection?.protectUri(fileUri);
     await waitForCoverCacheCleanupIdle();
-    const existing = await withCoverCacheFailureReason(getInfo(fileUri), 'cache_info_failed');
-    if (existing.exists) return fileUri;
-    await withCoverCacheFailureReason(copy({ from: source, to: fileUri }), 'cache_write_failed');
+    await ensureCachedCoverFile(
+      fileUri,
+      async () => (await withCoverCacheFailureReason(getInfo(fileUri), 'cache_info_failed')).exists,
+      () => withCoverCacheFailureReason(copy({ from: source, to: fileUri }), 'cache_write_failed'),
+    );
     return fileUri;
   } catch (error) {
     logCoverCacheWarning(getCoverCacheFailureReason(error));
@@ -225,7 +260,7 @@ const resolveCoverCacheWriteApi = (): CoverCacheWriteApi | undefined => {
 };
 
 export const cacheBase64Cover = async (
-  songId: string,
+  _songId: string,
   cover?: string,
   protection?: CoverCacheProtection,
 ): Promise<string | undefined> => {
@@ -255,16 +290,17 @@ export const cacheBase64Cover = async (
 
     const ext = imageExtensionFromMime(validated.mime);
     const contentHash = hashString(validated.base64);
-    const safeSongId = hashString(songId);
-    const fileUri = `${directory}/${safeSongId}-${contentHash}.${ext}`;
+    const fileUri = `${directory}/${contentHash}-${hashString(validated.mime)}.${ext}`;
     protection?.protectUri(fileUri);
     await waitForCoverCacheCleanupIdle();
-    const existing = await withCoverCacheFailureReason(fileSystem.getInfo(fileUri), 'cache_info_failed');
-    if (existing.exists) return fileUri;
     const base64Encoding = (EncodingType.Base64 ?? 'base64') as 'base64';
-    await withCoverCacheFailureReason(fileSystem.write(fileUri, validated.base64, {
-      encoding: base64Encoding,
-    }), 'cache_write_failed');
+    await ensureCachedCoverFile(
+      fileUri,
+      async () => (await withCoverCacheFailureReason(fileSystem.getInfo(fileUri), 'cache_info_failed')).exists,
+      () => withCoverCacheFailureReason(fileSystem.write(fileUri, validated.base64, {
+        encoding: base64Encoding,
+      }), 'cache_write_failed'),
+    );
     return fileUri;
   } catch (error) {
     logCoverCacheWarning(getCoverCacheFailureReason(error));

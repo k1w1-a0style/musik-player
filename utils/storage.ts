@@ -8,6 +8,12 @@ import { DEFAULT_LIBRARY_SONG_VIEW_MODE, isLibrarySongViewMode, type LibrarySong
 import { DEFAULT_LIBRARY_ALBUM_VIEW_MODE, isLibraryAlbumViewMode } from './libraryViewMode';
 import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import { DEFAULT_APP_APPEARANCE, DEFAULT_APP_THEME_SKIN, isAppAppearance, isAppThemeSkin, type AppAppearance, type AppThemeSkin } from './appTheme';
+import {
+  migrateLegacySongLibraryIfNeeded,
+  readStoredSongLibrary,
+  removeStoredSongLibrary,
+  writeStoredSongLibrary,
+} from './songLibraryStorage';
 
 const PREFIX = '@musikplayer:';
 
@@ -371,6 +377,26 @@ const normalizeValueForWrite = <T,>(key: string, value: T): unknown => {
 
 const storageKey = (key: string): string => PREFIX + key;
 
+const readSongsStorageValue = async (): Promise<Song[] | null> => {
+  const legacyKey = storageKey(StorageKeys.SONGS);
+  const snapshot = await readStoredSongLibrary(legacyKey);
+  if (snapshot.source === 'missing') return null;
+  const parsed = parseStoredValue(StorageKeys.SONGS, snapshot.serialized);
+  if (!Array.isArray(parsed)) return null;
+  const songs = parsed as Song[];
+  await migrateLegacySongLibraryIfNeeded(
+    legacyKey,
+    JSON.stringify(songs),
+    snapshot.source,
+  ).catch(() => undefined);
+  return songs;
+};
+
+const writeSongsStorageValue = async (value: unknown): Promise<void> => {
+  const normalized = normalizeValueForWrite(StorageKeys.SONGS, value);
+  await writeStoredSongLibrary(storageKey(StorageKeys.SONGS), JSON.stringify(normalized));
+};
+
 const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
   await AsyncStorage.setItem(storageKey(key), value);
@@ -409,6 +435,13 @@ export const withScanFoldersMutationLock = async <T,>(operation: () => Promise<T
 
 export const storage: StorageApi = {
   async get(key: string): Promise<unknown | null> {
+    if (key === StorageKeys.SONGS) {
+      try {
+        return await readSongsStorageValue();
+      } catch (error) {
+        throw new StorageOperationError('get', key, error);
+      }
+    }
     let raw: string | null;
     try {
       raw = await AsyncStorage.getItem(storageKey(key));
@@ -427,6 +460,10 @@ export const storage: StorageApi = {
   },
   async set<T>(key: string, value: T): Promise<boolean> {
     try {
+      if (key === StorageKeys.SONGS) {
+        await writeSongsStorageValue(value);
+        return true;
+      }
       await AsyncStorage.setItem(storageKey(key), JSON.stringify(normalizeValueForWrite(key, value)));
       return true;
     } catch (error) {
@@ -435,16 +472,20 @@ export const storage: StorageApi = {
   },
   async remove(key: string): Promise<void> {
     try {
+      if (key === StorageKeys.SONGS) {
+        await removeStoredSongLibrary(storageKey(key));
+        return;
+      }
       await AsyncStorage.removeItem(storageKey(key));
     } catch (error) {
       throw new StorageOperationError('remove', key, error);
     }
   },
   async getSongs() {
-    return parseNormalizedArray(await getItem(StorageKeys.SONGS), normalizeStoredSong);
+    return (await readSongsStorageValue()) ?? [];
   },
   async setSongs(songs: unknown[]) {
-    await setJsonItem(StorageKeys.SONGS, songs);
+    await writeSongsStorageValue(songs);
   },
   async getPlaylists() {
     return parseNormalizedArray(await getItem(StorageKeys.PLAYLISTS), normalizeStoredPlaylist);

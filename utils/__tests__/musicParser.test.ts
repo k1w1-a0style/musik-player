@@ -39,7 +39,7 @@ describe('musicParser', () => {
       expect(formatTime(0)).toBe('0:00');
       expect(formatTime(1000)).toBe('0:01');
       expect(formatTime(65000)).toBe('1:05');
-      expect(formatTime(3661000)).toBe('61:01');
+      expect(formatTime(3661000)).toBe('1:01:01');
     });
 
     test('rounds down', () => {

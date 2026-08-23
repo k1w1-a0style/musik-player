@@ -18,6 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../../types/Song';
+import { SONG_LIBRARY_MANIFEST_KEY } from '../songLibraryStorage';
 
 describe('storage', () => {
   const storageTestKey = (key: string): string => `@musikplayer:${key}`;
@@ -185,7 +186,8 @@ describe('storage', () => {
   test('storage.set normalizes non-array songs input to []', async () => {
     await expect(storage.set(StorageKeys.SONGS, { songs: [] } as unknown)).resolves.toBe(true);
     await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([]);
-    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe('[]');
+    expect(await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).not.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBeNull();
   });
 
   test('storage.set normalizes non-array playlists input to []', async () => {
@@ -718,7 +720,7 @@ describe('storage', () => {
     {
       name: 'setSongs',
       action: () => storage.setSongs([{ id: 's1', title: 'Song', artist: 'Artist' }]),
-      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.SONGS) },
+      expectedWrite: { method: 'setItem', key: SONG_LIBRARY_MANIFEST_KEY },
     },
     {
       name: 'setPlaylists',
@@ -1588,11 +1590,8 @@ describe('storage', () => {
       { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
       { id: 's3', title: 'Legacy Song', artist: 'Artist' },
     ]);
-    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe(JSON.stringify([
-      { id: 's1', title: 'Song', artist: 'Artist' },
-      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
-      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
-    ]));
+    expect(await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).not.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBeNull();
   });
 
   test('getSongs returns [] for non-array JSON payloads', async () => {

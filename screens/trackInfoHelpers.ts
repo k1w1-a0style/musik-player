@@ -1,15 +1,9 @@
 import type { BitrateMode, Song } from '../types/Song';
-import { displayFilename, normalizeMetadataText, resolveDisplayTitle } from '../utils/musicParser';
+import { displayFilename, formatTime, normalizeMetadataText, resolveDisplayTitle } from '../utils/musicParser';
 
 export const formatDuration = (ms?: number): string => {
-  if (!ms || ms <= 0) return 'Nicht verfügbar';
-  const totalSec = Math.floor(ms / 1000);
-  const s = totalSec % 60;
-  const m = Math.floor(totalSec / 60) % 60;
-  const h = Math.floor(totalSec / 3600);
-  return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    : `${m}:${String(s).padStart(2, '0')}`;
+  if (!ms || ms <= 0 || !Number.isFinite(ms)) return 'Nicht verfügbar';
+  return formatTime(ms);
 };
 
 export const formatBytes = (value?: number): string => {

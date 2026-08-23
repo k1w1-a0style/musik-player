@@ -5,7 +5,10 @@ const FORBIDDEN_MEDIA_PERMISSIONS = new Set([
   'android.permission.READ_MEDIA_IMAGES',
   'android.permission.READ_MEDIA_VIDEO',
   'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
 ]);
+
+const LEGACY_READ_PERMISSION = 'android.permission.READ_EXTERNAL_STORAGE';
 
 function removeForbiddenPermissions(androidManifest) {
   const manifest = androidManifest.manifest;
@@ -14,15 +17,37 @@ function removeForbiddenPermissions(androidManifest) {
   for (const key of permissionKeys) {
     const entries = manifest[key];
     if (!Array.isArray(entries)) continue;
+    const forbiddenRemovalMarkers = new Set();
 
-    manifest[key] = entries.filter(entry => {
+    manifest[key] = entries.flatMap(entry => {
       const permissionName = entry?.$?.['android:name'];
-      return !FORBIDDEN_MEDIA_PERMISSIONS.has(permissionName);
+      if (FORBIDDEN_MEDIA_PERMISSIONS.has(permissionName)) {
+        if (forbiddenRemovalMarkers.has(permissionName)) return [];
+        forbiddenRemovalMarkers.add(permissionName);
+        return [{
+          $: {
+            'android:name': permissionName,
+            'tools:node': 'remove',
+          },
+        }];
+      }
+      if (permissionName !== LEGACY_READ_PERMISSION) return [entry];
+      return [{
+        ...entry,
+        $: {
+          ...entry.$,
+          'android:maxSdkVersion': '32',
+        },
+      }];
     });
 
     if (manifest[key].length === 0) {
       delete manifest[key];
     }
+  }
+
+  for (const application of manifest.application ?? []) {
+    if (application?.$) delete application.$['android:requestLegacyExternalStorage'];
   }
 
   return androidManifest;

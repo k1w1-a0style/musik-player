@@ -140,6 +140,8 @@ npm run test:coverage -- --runInBand
 - [ ] Android enthält `READ_MEDIA_AUDIO`
 - [ ] Android enthält `FOREGROUND_SERVICE_MEDIA_PLAYBACK`
 - [ ] Android blockiert Mikrofon-/Foto-/Video-Media-Permissions (`RECORD_AUDIO`, `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`)
+- [ ] Legacy-Read ist auf `android:maxSdkVersion="32"` begrenzt; `WRITE_EXTERNAL_STORAGE` wird per Manifest-Merger entfernt
+- [ ] `android:requestLegacyExternalStorage` ist nicht gesetzt
 - [ ] Generiertes `AndroidManifest.xml` enthält keine Foto-/Video-/Mikrofon-Permissions
 
 ```bash
@@ -162,6 +164,16 @@ npx eas build --platform android --profile preview
 - [ ] Build erfolgreich
 - [ ] APK auf echtem Android-Gerät installiert
 - [ ] Build-Link dokumentiert
+
+## Android Production Bundle
+
+```bash
+npx eas build --platform android --profile production
+```
+
+- [ ] Production erzeugt ein signiertes `.aab` (kein sideloadbares APK)
+- [ ] AAB-Struktur und Signatur wurden durch `inspectAndroidAppBundle.cjs` bestätigt
+- [ ] Bundle/Build-ID, Commit-SHA und EAS-Link für den Play-Store-Handoff dokumentiert
 
 ## Smoke Tests
 

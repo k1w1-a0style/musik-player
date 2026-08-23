@@ -36,7 +36,7 @@ const LibrarySearchBar: React.FC<LibrarySearchBarProps> = ({ value, onChangeText
         testID="library-search-input"
       />
       {value ? <Pressable accessibilityRole="button" accessibilityLabel="Suchtext löschen"
-        onPress={() => onChangeText('')} style={styles.clearButton} testID="library-search-clear">
+        onPress={() => onChangeText('')} hitSlop={8} style={styles.clearButton} testID="library-search-clear">
         <X color={theme.palette.text.secondary} size={18} />
       </Pressable> : null}
     </View>

@@ -50,6 +50,47 @@ describe('generated AndroidManifest permission gate', () => {
     expect(result.stdout).toContain('Generated AndroidManifest permission gate passed.');
   });
 
+  it('accepts legacy read access only when capped at Android 12L', () => {
+    const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+</manifest>`);
+
+    expect(result.status).toBe(0);
+  });
+
+  it('fails when legacy read access is not capped', () => {
+    const result = runGate([...requiredPermissions, 'android.permission.READ_EXTERNAL_STORAGE']);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Generated AndroidManifest legacy permission android.permission.READ_EXTERNAL_STORAGE must declare android:maxSdkVersion="32"',
+    );
+  });
+
+  it('fails when legacy write access is present', () => {
+    const result = runGate([...requiredPermissions, 'android.permission.WRITE_EXTERNAL_STORAGE']);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Generated AndroidManifest contains forbidden permission: android.permission.WRITE_EXTERNAL_STORAGE',
+    );
+  });
+
+  it('fails when legacy external-storage mode is requested', () => {
+    const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  <application android:requestLegacyExternalStorage="true" />
+</manifest>`);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Generated AndroidManifest must not declare android:requestLegacyExternalStorage',
+    );
+  });
+
   it('fails when a required playback permission is missing', () => {
     const result = runGate(
       requiredPermissions.filter(

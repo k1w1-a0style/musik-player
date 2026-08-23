@@ -102,7 +102,7 @@ describe('musicHydrationHelpers', () => {
     expect(mockMigrateLegacySongFavoritesFromStoredSongs).toHaveBeenCalledTimes(1);
   });
 
-  test('starts stored-state reads without waiting for legacy favorites migration', async () => {
+  test('extracts legacy favorites before song storage can migrate to chunks', async () => {
     let finishMigration!: () => void;
     const pendingMigration = new Promise<string[]>(resolve => {
       finishMigration = () => resolve([]);
@@ -113,9 +113,10 @@ describe('musicHydrationHelpers', () => {
     const loading = loadStoredMusicHydrationState();
     await Promise.resolve();
 
-    expect(getSpy).toHaveBeenCalledTimes(9);
+    expect(getSpy).not.toHaveBeenCalled();
     finishMigration();
     await loading;
+    expect(getSpy).toHaveBeenCalledTimes(9);
     getSpy.mockRestore();
   });
 

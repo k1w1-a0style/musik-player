@@ -15,8 +15,19 @@ import {
 } from '../utils/metadataRefreshOperation';
 import type { Song } from '../types/Song';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
+
+const runSongQueueAction = (
+  actionName: string,
+  song: Song,
+  action: (selectedSong: Song) => unknown,
+): Promise<void> => runPlaybackUiAction(
+  `library-${actionName}-${song.id}`,
+  () => action(song),
+  { dropIfPending: true },
+);
 
 export const useLibraryController = (): UseLibraryControllerResult => {
   const {
@@ -140,12 +151,12 @@ export const useLibraryController = (): UseLibraryControllerResult => {
   }, [closeSongActionMenu, songActionSong]);
   const playSongNextFromSongMenu = useCallback(() => {
     if (!songActionSong) return;
-    void playSongNext(songActionSong);
+    void runSongQueueAction('play-next', songActionSong, playSongNext);
     closeSongActionMenu();
   }, [closeSongActionMenu, playSongNext, songActionSong]);
   const addSongToQueueFromSongMenu = useCallback(() => {
     if (!songActionSong) return;
-    void addSongToQueue(songActionSong);
+    void runSongQueueAction('add-to-queue', songActionSong, addSongToQueue);
     closeSongActionMenu();
   }, [addSongToQueue, closeSongActionMenu, songActionSong]);
   const toggleSongPlaylist = useCallback((playlistId: string, containsSong: boolean) => {

@@ -112,12 +112,14 @@ Vor einem Preview- oder Release-Build prüfen:
 - [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen; neue oder unerwartete Mikrofon-/Foto-/Video-Permissions blockieren den Main-Handoff.
 - [ ] Der Cover-cache-cleanup Smoke-Check bleibt inklusive `readDirectoryAsync` dokumentiert.
 - [ ] Preview-/Release-Profil und Build-Ziel wurden bewusst ausgewählt.
+- [ ] Preview/Development erzeugen installierbare APKs; Production erzeugt ein signiertes Play-Store-AAB.
 - [ ] Build-Link, Commit-SHA und Smoke-Test-Ergebnis werden im Release-Thread oder PR dokumentiert.
 
 Manueller Start erst nach erfolgreichem Handoff-Check:
 
 ```bash
 npx eas build --platform android --profile preview
+npx eas build --platform android --profile production
 ```
 
 ## Bewusst nicht automatisiert

@@ -3,6 +3,7 @@ import { render } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { useLibrarySongRenderer } from '../useLibrarySongRenderer';
 import type { Song } from '../../types/Song';
+import { runPlaybackUiAction } from '../../utils/playbackUiActions';
 
 type CapturedProps = {
   song: Song;
@@ -19,6 +20,12 @@ jest.mock('../../components/SongCard', () => (props: CapturedProps) => {
   // Return null - we only care about the props snapshot, not the rendered tree.
   return null;
 });
+
+jest.mock('../../utils/playbackUiActions', () => ({
+  runPlaybackUiAction: jest.fn(async (_actionName: string, action: () => unknown) => action()),
+}));
+
+const mockedRunPlaybackUiAction = jest.mocked(runPlaybackUiAction);
 
 const makeSong = (id: string, overrides: Partial<Song> = {}): Song => ({
   id,
@@ -69,6 +76,7 @@ const Harness = ({
 
 beforeEach(() => {
   capturedProps.length = 0;
+  jest.clearAllMocks();
 });
 
 describe('useLibrarySongRenderer performance guarantees', () => {
@@ -195,5 +203,10 @@ describe('useLibrarySongRenderer performance guarantees', () => {
     handler(makeSong('a'));
 
     expect(playSong).toHaveBeenCalledWith(makeSong('a'), filtered);
+    expect(mockedRunPlaybackUiAction).toHaveBeenCalledWith(
+      'library-play-song-a',
+      expect.any(Function),
+      { dropIfPending: true },
+    );
   });
 });
