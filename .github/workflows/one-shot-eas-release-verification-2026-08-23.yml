@@ -1,0 +1,41 @@
+# One-shot trigger; removed after GitHub queues this run.
+name: One-shot EAS release verification 2026-08-23
+
+on:
+  push:
+    branches:
+      - codex
+    paths:
+      - ".github/workflows/one-shot-eas-release-verification-2026-08-23.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: one-shot-eas-release-verification-2026-08-23
+  cancel-in-progress: false
+
+jobs:
+  development-apk:
+    name: Build development APK
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      ref: ${{ github.sha }}
+      profile: development
+      job_id: ""
+      platform: android
+      autofix: false
+      strict_lockfile: "true"
+    secrets: inherit
+
+  production-aab:
+    name: Build production AAB
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      ref: 4b38fd3a5a5c26936a3b68891a9c91504a9292d1
+      profile: production
+      job_id: ""
+      platform: android
+      autofix: false
+      strict_lockfile: "true"
+    secrets: inherit
