@@ -18,6 +18,8 @@ concurrency:
 jobs:
   development-apk:
     name: Build development APK
+    permissions:
+      contents: write
     uses: ./.github/workflows/eas-build.yml
     with:
       ref: ${{ github.sha }}
@@ -30,6 +32,8 @@ jobs:
 
   production-aab:
     name: Build production AAB
+    permissions:
+      contents: write
     uses: ./.github/workflows/eas-build.yml
     with:
       ref: 4b38fd3a5a5c26936a3b68891a9c91504a9292d1
