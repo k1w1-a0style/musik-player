@@ -163,7 +163,7 @@ export const shouldAttemptSafDirectoryRead = (uri: string): boolean => {
   return !KNOWN_NON_AUDIO_EXTENSIONS.has(extension);
 };
 
-export type SafReadDirectoryErrorKind = 'timeout' | 'aborted' | 'session-skip' | 'native' | 'not-directory' | 'permission' | 'unknown';
+export type SafReadDirectoryErrorKind = 'timeout' | 'aborted' | 'session-skip' | 'capacity' | 'native' | 'not-directory' | 'permission' | 'unknown';
 
 const SAF_NOT_DIRECTORY_ERROR_MARKERS = [
   'enotdir',
@@ -211,6 +211,7 @@ export const classifySafReadDirectoryError = (error: unknown): SafReadDirectoryE
   if (error instanceof SafDirectoryReadTimeoutError) return 'timeout';
   if (error instanceof SafDirectoryReadAbortedError) return 'aborted';
   if (error instanceof SafDirectoryReadSessionSkipError) return 'session-skip';
+  if (error instanceof SafDirectoryReadCapacityError) return 'capacity';
   if (error instanceof SafDirectoryNativeReadError) return 'native';
   return classifySafNativeReadErrorMessage(error);
 };
@@ -442,6 +443,16 @@ export class SafDirectoryReadSessionSkipError extends Error {
   }
 }
 
+export class SafDirectoryReadCapacityError extends Error {
+  readonly uri: string;
+
+  constructor(uri: string) {
+    super(`SAF directory read capacity is busy; retry after active provider reads settle: ${uri}`);
+    this.name = 'SafDirectoryReadCapacityError';
+    this.uri = uri;
+  }
+}
+
 const abortErrorFromSignal = (uri: string, signal: AbortSignal): SafDirectoryReadAbortedError => {
   const reason = signal.reason;
   const cause = reason instanceof Error ? reason : new OperationAbortError(typeof reason === 'string' ? reason : undefined);
@@ -450,8 +461,16 @@ const abortErrorFromSignal = (uri: string, signal: AbortSignal): SafDirectoryRea
 
 const safTimeoutKey = (uri: string): string => normalizeImportUriForDedupe(uri) ?? uri;
 
-// Kept for compatibility with older tests/callers. Timeout state is now scan-local.
-export const resetSafTimedOutUrisForTests = (): void => undefined;
+const MAX_SAF_NATIVE_READS_IN_FLIGHT = 2;
+let safNativeReadsInFlight = 0;
+let safNativeReadGeneration = 0;
+
+// Timeout state is scan-local. The generation also isolates detached native
+// promises left by timeout tests so late settlement cannot corrupt a new test.
+export const resetSafTimedOutUrisForTests = (): void => {
+  safNativeReadGeneration += 1;
+  safNativeReadsInFlight = 0;
+};
 
 export const readSafDirectoryWithTimeout = async (
   uri: string,
@@ -468,16 +487,31 @@ export const readSafDirectoryWithTimeout = async (
   if (timedOutDirectoryUris?.has(timeoutKey)) {
     throw new SafDirectoryReadSessionSkipError(uri);
   }
+  if (safNativeReadsInFlight >= MAX_SAF_NATIVE_READS_IN_FLIGHT) {
+    throw new SafDirectoryReadCapacityError(uri);
+  }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abortListener: (() => void) | undefined;
+  const readGeneration = safNativeReadGeneration;
+  safNativeReadsInFlight += 1;
 
   try {
-    const readPromise = Promise.resolve()
+    const nativeSettlement = Promise.resolve()
       .then(() => readDirectory(uri))
-      .catch((error: unknown) => {
-        throw new SafDirectoryNativeReadError(uri, error);
-      });
+      .then(
+        value => ({ kind: 'value' as const, value }),
+        error => ({ kind: 'error' as const, error }),
+      );
+    void nativeSettlement.then(() => {
+      if (safNativeReadGeneration === readGeneration) {
+        safNativeReadsInFlight = Math.max(0, safNativeReadsInFlight - 1);
+      }
+    });
+    const readPromise = nativeSettlement.then(result => {
+      if (result.kind === 'error') throw new SafDirectoryNativeReadError(uri, result.error);
+      return result.value;
+    });
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new SafDirectoryReadTimeoutError(uri, readTimeoutMs)), readTimeoutMs);
     });
@@ -502,7 +536,9 @@ export const readSafDirectoryWithTimeout = async (
 
 const shouldRecordSafReadError = (error: unknown, reportError: boolean): boolean => {
   if (reportError) return true;
-  if (error instanceof SafDirectoryReadTimeoutError || error instanceof SafDirectoryReadSessionSkipError) return true;
+  if (error instanceof SafDirectoryReadTimeoutError
+    || error instanceof SafDirectoryReadSessionSkipError
+    || error instanceof SafDirectoryReadCapacityError) return true;
   if (error instanceof SafDirectoryNativeReadError) return classifySafNativeReadErrorMessage(error.cause) === 'permission';
   return classifySafReadDirectoryError(error) === 'permission';
 };
@@ -815,12 +851,4 @@ export const importSongsFromSources = async (options: ImportSongsOptions = {}): 
     });
   }
   return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers ?? true, readId3Tags: readId3Tags ?? true, signal });
-};
-
-export const loadAllAudioAssetsFromMediaLibrary = async (
-  getAssetsPage: GetAssetsPage = MediaLibrary.getAssetsAsync,
-  options: Omit<MediaLibraryScanOptions, 'signal'> = {},
-): Promise<MediaAsset[]> => {
-  const result = await scanAudioAssetsFromMediaLibrary(getAssetsPage, options);
-  return result.assets;
 };

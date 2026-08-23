@@ -155,7 +155,11 @@ jobs:
             fi
           fi
 
-          echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+          case "${GH_PROFILE_8777ED}" in
+            development|preview) ARTIFACT_EXT="apk" ;;
+            production) ARTIFACT_EXT="aab" ;;
+          esac
+          echo "ARTIFACT_EXT=${ARTIFACT_EXT}" >> "$GITHUB_ENV"
         env:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
 
@@ -365,7 +369,7 @@ jobs:
 
           BUILD_ID="$(printf '%s' "${BUILD_OUTPUT}" | node scripts/ci/resolveEasBuildArtifact.cjs extract-build-id)"
           if [ -z "${BUILD_ID}" ]; then
-            echo "::error::EAS build completed without a build ID; refusing to publish an unverified APK."
+            echo "::error::EAS build completed without a build ID; refusing to publish an unverified Android artifact."
             exit 1
           fi
 
@@ -401,13 +405,13 @@ jobs:
           rm -f "${OUT}"
           curl --fail --location --retry 3 --retry-delay 5 --output "${OUT}" "${ARTIFACT_URL}"
           if ! test -s "${OUT}"; then
-            echo "::error::Release build did not produce a non-empty APK at ${OUT}."
+            echo "::error::Release build did not produce a non-empty Android artifact at ${OUT}."
             exit 1
           fi
-          case "${OUT}" in
-            *.apk) ;;
-            *) echo "::error::Expected an APK artifact, got ${OUT}."; exit 1 ;;
-          esac
+          if [[ "${OUT}" != *."${ARTIFACT_EXT}" ]]; then
+            echo "::error::Expected a .${ARTIFACT_EXT} artifact, got ${OUT}."
+            exit 1
+          fi
           echo "artifact_path=${OUT}" >> "$GITHUB_OUTPUT"
         env:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
@@ -415,6 +419,7 @@ jobs:
 
       - name: Inspect downloaded Android APK
         id: inspect_apk
+        if: env.ARTIFACT_EXT == 'apk'
         shell: bash
         run: |
           set -euo pipefail
@@ -434,17 +439,30 @@ jobs:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
+      - name: Inspect downloaded Android App Bundle
+        id: inspect_aab
+        if: env.ARTIFACT_EXT == 'aab'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/inspectAndroidAppBundle.cjs \
+            "${GH_ARTIFACT_PATH_97F6CF}" \
+            --min-size-bytes 10000001 \
+            --require-signature
+        env:
+          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
+
       - name: Cleanup signing files
         if: always()
         shell: bash
         run: |
           rm -f credentials.json android-upload-keystore.p12 ci-logs/keystore-response.raw.json || true
 
-      - name: Upload Android APK Artifact
-        if: steps.inspect_apk.outcome == 'success'
+      - name: Upload Android Artifact
+        if: steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: k1w1-android-${{ needs.resolve.outputs.profile }}-${{ github.run_number }}-apk
+          name: k1w1-android-${{ needs.resolve.outputs.profile }}-${{ github.run_number }}-${{ env.ARTIFACT_EXT }}
           path: ${{ steps.download_artifact.outputs.artifact_path }}
           retention-days: 30
           if-no-files-found: error

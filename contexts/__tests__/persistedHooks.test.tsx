@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { usePersistedSetting } from '../usePersistedSetting';
 import { usePersistedSongs } from '../usePersistedSongs';
-import { StorageKeys, storage } from '../../utils/storage';
+import { StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import {
   acquireSongCoverProtection,
@@ -17,7 +17,7 @@ jest.mock('../../utils/coverCacheCleanup', () => ({
     replaceProtectedSongCovers: jest.fn(),
     release: jest.fn(),
   })),
-  invalidateCoverCacheCleanup: jest.fn(),
+  resetCoverCacheCleanupForTests: jest.fn(),
   waitForCoverCacheCleanupIdle: jest.fn(async () => undefined),
 }));
 

@@ -3,7 +3,7 @@ import * as LegacyFileSystem from 'expo-file-system/legacy';
 import {
   createCoverCacheProtection,
   cleanupCoverCache,
-  invalidateCoverCacheCleanup,
+  resetCoverCacheCleanupForTests,
   waitForCoverCacheCleanupIdle,
   getCoverCacheDirectory,
   isSafeCoverCacheFileName,
@@ -39,7 +39,7 @@ const stringifyWarnCalls = (warnSpy: jest.SpyInstance): string => JSON.stringify
 
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
-    invalidateCoverCacheCleanup();
+    resetCoverCacheCleanupForTests();
     jest.clearAllMocks();
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
@@ -247,7 +247,7 @@ describe('coverCacheCleanup', () => {
     const staleCleanup = cleanupCoverCache([
       { id: 'old', title: 'Old', artist: 'Artist', cover: 'file:///docs/covers/aaa-bbb.jpg' },
     ]);
-    invalidateCoverCacheCleanup();
+    resetCoverCacheCleanupForTests();
 
     await staleCleanup;
 

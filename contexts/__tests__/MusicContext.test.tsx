@@ -1,12 +1,11 @@
 import React from 'react';
 import { Text, Pressable } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
 import { MusicProvider, useMusicContext } from '../MusicContext';
 import { storage, StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SystemAudio from 'expo-system-audio';
 
 jest.mock('expo-file-system', () => ({
   cacheDirectory: 'file:///cache/',
@@ -180,6 +179,51 @@ describe('MusicContext', () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     expect(getByTestId('probe-songs-count').props.children).toBe('0');
+  });
+
+  test('renders the stored library while native TrackPlayer setup is still pending', async () => {
+    let finishSetup!: () => void;
+    const pendingSetup = new Promise<void>(resolve => { finishSetup = resolve; });
+    jest.mocked(TrackPlayer.setupPlayer).mockImplementationOnce(() => pendingSetup);
+    await storage.set(StorageKeys.SONGS, SONGS);
+
+    const view = render(<MusicProvider><Probe /></MusicProvider>);
+
+    await waitFor(() => expect(view.getByTestId('probe-songs-count').props.children).toBe('4'));
+    expect(view.getByTestId('probe-ready').props.children).toBe('false');
+    expect(view.queryByTestId('app-loading')).toBeNull();
+
+    finishSetup();
+    await pendingSetup;
+    await waitReady(view.getByTestId);
+  });
+
+  test('preserves playlist changes made while native TrackPlayer setup is still pending', async () => {
+    let finishSetup!: () => void;
+    const pendingSetup = new Promise<void>(resolve => { finishSetup = resolve; });
+    jest.mocked(TrackPlayer.setupPlayer).mockImplementationOnce(() => pendingSetup);
+    await storage.set(StorageKeys.SONGS, SONGS);
+    await storage.set(StorageKeys.PLAYLISTS, [{
+      id: 'stored-playlist', name: 'Stored', songIds: ['s1'], createdAt: 1, updatedAt: 1,
+    }]);
+
+    const view = render(<MusicProvider><Probe /></MusicProvider>);
+
+    await waitFor(() => expect(view.getByTestId('probe-playlists-count').props.children).toBe('1'));
+    expect(view.getByTestId('probe-ready').props.children).toBe('false');
+    fireEvent.press(view.getByTestId('create-playlist'));
+    await waitFor(() => expect(view.getByTestId('probe-playlists-count').props.children).toBe('2'));
+
+    finishSetup();
+    await pendingSetup;
+    await waitReady(view.getByTestId);
+    expect(view.getByTestId('probe-playlists-count').props.children).toBe('2');
+    await waitFor(async () => {
+      expect(await storage.get(StorageKeys.PLAYLISTS)).toEqual([
+        expect.objectContaining({ id: 'stored-playlist', name: 'Stored' }),
+        expect.objectContaining({ name: 'Roadtrip' }),
+      ]);
+    });
   });
 
   test('setSongs persists songs', async () => {

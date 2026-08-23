@@ -20,6 +20,8 @@ const playbackRefs: MusicPlaybackRefs = {
 const providerState: MusicProviderState = {
   isReady: true,
   setIsReady: noop,
+  libraryHydrationReady: true,
+  setLibraryHydrationReady: noop,
   songs,
   setSongsState: noop,
   currentSong: songs[0],

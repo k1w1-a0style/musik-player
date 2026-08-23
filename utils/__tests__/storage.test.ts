@@ -1,6 +1,5 @@
 import {
   addScanFolder,
-  clearScanFolders,
   getFavoriteSongIds,
   getScanFolders,
   isFavoriteSongId,
@@ -11,7 +10,6 @@ import {
   normalizeVolumeForStorage,
   migrateLegacySongFavoritesFromStoredSongs,
   removeScanFolder,
-  saveScanFolders,
   setFavoriteSongId,
   storage,
   StorageKeys,
@@ -20,6 +18,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../../types/Song';
+import { SONG_LIBRARY_MANIFEST_KEY } from '../songLibraryStorage';
 
 describe('storage', () => {
   const storageTestKey = (key: string): string => `@musikplayer:${key}`;
@@ -187,7 +186,8 @@ describe('storage', () => {
   test('storage.set normalizes non-array songs input to []', async () => {
     await expect(storage.set(StorageKeys.SONGS, { songs: [] } as unknown)).resolves.toBe(true);
     await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([]);
-    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe('[]');
+    expect(await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).not.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBeNull();
   });
 
   test('storage.set normalizes non-array playlists input to []', async () => {
@@ -451,7 +451,6 @@ describe('storage', () => {
     expect((await getScanFolders())[0]?.enabled).toBe(false);
     await removeScanFolder('1');
     expect(await getScanFolders()).toEqual([]);
-    await clearScanFolders();
   });
 
   test('updateScanFolder preserves folder id even if patch contains id', async () => {
@@ -532,63 +531,6 @@ describe('storage', () => {
       { ...existing, lastError: 'Read failed' },
       added,
     ]);
-  });
-
-  test('merges scan folder hydration saves with normal writes', async () => {
-    const hydrated = { id: 'hydrated', name: 'Hydrated', uri: 'content://hydrated', addedAt: 1, enabled: true };
-    const normal = { id: 'normal', name: 'Normal', uri: 'content://normal', addedAt: 2, enabled: true };
-
-    await Promise.all([
-      saveScanFolders([hydrated]),
-      addScanFolder(normal),
-    ]);
-
-    await expect(getScanFolders()).resolves.toEqual([hydrated, normal]);
-  });
-
-  test('does not let an older scan folder snapshot erase newer metadata', async () => {
-    const oldSnapshot = {
-      id: 'a',
-      name: 'Old Name',
-      uri: 'content://a',
-      addedAt: 1,
-      enabled: true,
-    };
-    const current = {
-      ...oldSnapshot,
-      name: 'Current Name',
-      enabled: false,
-      lastError: 'Read failed',
-      permission: { persisted: true },
-      saf: { treeUri: 'content://tree/a' },
-    } as ScanFolder & { permission: { persisted: boolean }; saf: { treeUri: string } };
-    await storage.set(StorageKeys.SCAN_FOLDERS, [current]);
-
-    await saveScanFolders([oldSnapshot]);
-
-    await expect(getScanFolders()).resolves.toEqual([current]);
-  });
-
-  test('serializes scan folder snapshot saves with updates without erasing newer fields', async () => {
-    const oldSnapshot = { id: 'a', name: 'Folder A', uri: 'content://a', addedAt: 1, enabled: true };
-    await storage.set(StorageKeys.SCAN_FOLDERS, [oldSnapshot]);
-
-    await Promise.all([
-      updateScanFolder('a', { lastError: 'Permission denied' }),
-      saveScanFolders([oldSnapshot]),
-    ]);
-
-    await expect(getScanFolders()).resolves.toEqual([{ ...oldSnapshot, lastError: 'Permission denied' }]);
-  });
-
-  test('snapshot scan folder saves still add incoming folders and keep unrelated existing folders', async () => {
-    const existing = { id: 'existing', name: 'Existing', uri: 'content://existing', addedAt: 1, enabled: true };
-    const incoming = { id: 'incoming', name: 'Incoming', uri: 'content://incoming', addedAt: 2, enabled: true };
-    await storage.set(StorageKeys.SCAN_FOLDERS, [existing]);
-
-    await saveScanFolders([incoming]);
-
-    await expect(getScanFolders()).resolves.toEqual([incoming, existing]);
   });
 
   test('preserves permission and SAF metadata during parallel scan folder updates', async () => {
@@ -778,7 +720,7 @@ describe('storage', () => {
     {
       name: 'setSongs',
       action: () => storage.setSongs([{ id: 's1', title: 'Song', artist: 'Artist' }]),
-      expectedWrite: { method: 'setItem', key: storageTestKey(StorageKeys.SONGS) },
+      expectedWrite: { method: 'setItem', key: SONG_LIBRARY_MANIFEST_KEY },
     },
     {
       name: 'setPlaylists',
@@ -1648,11 +1590,8 @@ describe('storage', () => {
       { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
       { id: 's3', title: 'Legacy Song', artist: 'Artist' },
     ]);
-    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBe(JSON.stringify([
-      { id: 's1', title: 'Song', artist: 'Artist' },
-      { id: 's2', title: 'Has Album Artist', artist: 'Artist', albumArtist: 'Album Artist' },
-      { id: 's3', title: 'Legacy Song', artist: 'Artist' },
-    ]));
+    expect(await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).not.toBeNull();
+    expect(await AsyncStorage.getItem(storageTestKey(StorageKeys.SONGS))).toBeNull();
   });
 
   test('getSongs returns [] for non-array JSON payloads', async () => {

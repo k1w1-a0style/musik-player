@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createHydrationPlan } from '../musicHydrationPlan';
 import {
-  persistHydratedCurrentSongIdIfNeeded,
   persistHydratedPlaylistsIfNeeded,
   persistHydratedSongsIfNeeded,
 } from '../musicHydrationPersistence';
@@ -24,7 +23,7 @@ describe('musicHydrationPersistence', () => {
     jest.clearAllMocks();
   });
 
-  test('persists normalized songs, playlists, and current song id from a plan', async () => {
+  test('persists normalized songs and playlists from a plan', async () => {
     const playlist: Playlist = { id: 'pl-1', name: 'List', songIds: [' s1 ', 'missing'], createdAt: 1, updatedAt: 1 };
     const plan = createHydrationPlan({ ...storedDefaults, songs: [{ ...song, id: ' s1 ' }], playlists: [playlist], currentSongId: ' s1 ' }, [
       { ...song, id: ' s1 ' },
@@ -32,11 +31,9 @@ describe('musicHydrationPersistence', () => {
 
     await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'confirmed' });
     await persistHydratedPlaylistsIfNeeded(plan);
-    await persistHydratedCurrentSongIdIfNeeded(plan);
 
     await expect(storage.get(StorageKeys.SONGS)).resolves.toEqual([expect.objectContaining({ id: 's1' })]);
     await expect(storage.get(StorageKeys.PLAYLISTS)).resolves.toEqual([expect.objectContaining({ songIds: ['s1'] })]);
-    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBe('s1');
   });
 
   test('returns not-needed when hydrated songs already match storage', async () => {
@@ -62,22 +59,5 @@ describe('musicHydrationPersistence', () => {
     jest.spyOn(storage, 'set').mockRejectedValueOnce(error);
 
     await expect(persistHydratedSongsIfNeeded(plan)).resolves.toEqual({ status: 'unconfirmed', error });
-  });
-
-  test('removes current song id when the plan marks it stale', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    await storage.set(StorageKeys.CURRENT_SONG_ID, 's1');
-    const plan = createHydrationPlan({ ...storedDefaults, songs: [song], playlists: null, currentSongId: 's1' }, [
-      { ...song, uri: '   ' },
-    ]);
-
-    await persistHydratedCurrentSongIdIfNeeded(plan);
-
-    await expect(storage.get(StorageKeys.CURRENT_SONG_ID)).resolves.toBeNull();
-    expect(warn).toHaveBeenCalledWith(
-      '[MusicHydration] Restored current song is not playable; clearing persisted current song id.',
-      expect.objectContaining({ songId: 's1' }),
-    );
-    warn.mockRestore();
   });
 });

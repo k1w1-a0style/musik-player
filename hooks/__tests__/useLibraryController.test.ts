@@ -23,6 +23,7 @@ import { useLibraryRenderers } from '../useLibraryRenderers';
 import { useLibraryScanFolderActions } from '../useLibraryScanFolderActions';
 import { useLibraryStoredState } from '../useLibraryStoredState';
 import { useLibraryViewState } from '../useLibraryViewState';
+import { runPlaybackUiAction } from '../../utils/playbackUiActions';
 
 const mockSetSortMode = jest.fn();
 
@@ -227,6 +228,14 @@ jest.mock('../useLibraryAlerts', () => ({
   useLibraryAlerts: jest.fn(() => mockAlerts),
 }));
 
+jest.mock('../useLibraryAudioInfoBackfill', () => ({
+  useLibraryAudioInfoBackfill: jest.fn(),
+}));
+
+jest.mock('../useLibraryCoverBackfill', () => ({
+  useLibraryCoverBackfill: jest.fn(),
+}));
+
 jest.mock('../useLibraryComponentProps', () => ({
   useLibraryComponentProps: jest.fn(() => mockComponentProps),
 }));
@@ -277,6 +286,16 @@ jest.mock('../useLibrarySortMode', () => ({
 
 jest.mock('../useLibrarySongViewMode', () => ({
   useLibrarySongViewMode: jest.fn(() => ({ viewMode: 'list', setViewMode: jest.fn(), cycleViewMode: jest.fn() })),
+}));
+
+jest.mock('../../utils/playbackUiActions', () => ({
+  runPlaybackUiAction: jest.fn(async (_actionName: string, action: () => unknown) => {
+    try {
+      await action();
+    } catch {
+      // Mirrors the production rejection boundary while keeping this test quiet.
+    }
+  }),
 }));
 
 test('returns library screen props from composed hooks', () => {
@@ -377,6 +396,47 @@ test('wires controller state, actions, renderers, playback, and props without ch
     onSelectSortMode: mockSetSortMode,
   }));
   expect(Object.keys(jest.mocked(useLibraryComponentProps).mock.calls[0][0]).some(key => key.toLowerCase().includes('visualizer') || key.toLowerCase().includes('fft'))).toBe(false);
+});
+
+test('routes song-menu queue actions through the playback rejection boundary', async () => {
+  const song = { id: 'song-1', title: 'Song', artist: 'Artist' };
+  const playSongNext = jest.fn(async () => { throw new Error('native play-next failure'); });
+  const addSongToQueue = jest.fn(async () => { throw new Error('native enqueue failure'); });
+  jest.mocked(useLibraryMusicContext).mockReturnValue({
+    ...mockMusicContext,
+    playSongNext,
+    addSongToQueue,
+  });
+  const playbackBoundary = jest.mocked(runPlaybackUiAction);
+  playbackBoundary.mockClear();
+
+  const { rerender } = renderHook(() => useLibraryController());
+  const rendererOptions = jest.mocked(useLibraryRenderers).mock.calls.at(-1)?.[0];
+
+  act(() => rendererOptions?.onOpenSongActions?.(song));
+  rerender(undefined);
+  let props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+  await act(async () => { props?.songActionMenuProps.onPlayNext?.(); });
+
+  act(() => rendererOptions?.onOpenSongActions?.(song));
+  rerender(undefined);
+  props = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)?.[0];
+  await act(async () => { props?.songActionMenuProps.onAddToQueue?.(); });
+
+  expect(playSongNext).toHaveBeenCalledWith(song);
+  expect(addSongToQueue).toHaveBeenCalledWith(song);
+  expect(playbackBoundary).toHaveBeenNthCalledWith(
+    1,
+    'library-play-next-song-1',
+    expect.any(Function),
+    { dropIfPending: true },
+  );
+  expect(playbackBoundary).toHaveBeenNthCalledWith(
+    2,
+    'library-add-to-queue-song-1',
+    expect.any(Function),
+    { dropIfPending: true },
+  );
 });
 
 test('creates playlist with trimmed name and clears input', () => {

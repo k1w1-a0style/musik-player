@@ -64,6 +64,13 @@ test('calls onOpenMenu when menu button is pressed', () => {
   expect(onOpenMenu).toHaveBeenCalledTimes(1);
 });
 
+test('gives both icon buttons a generous touch target', () => {
+  const { getByTestId } = render(<LibraryTopBar onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
+
+  expect(getByTestId('library-toggle-search').props.hitSlop).toBe(8);
+  expect(getByTestId('library-open-menu').props.hitSlop).toBe(8);
+});
+
 
 test('uses app theme text color', () => {
   const { getByText } = render(<LibraryTopBar onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);

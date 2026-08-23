@@ -1,6 +1,7 @@
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { runMusicHydration } from './musicHydrationHelpers';
+import type { BeforeStorageHydrationResult } from './musicHydrationTypes';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate } from '../utils/nativeHydrationGate';
 
 interface UseMusicHydrationArgs {
@@ -9,6 +10,9 @@ interface UseMusicHydrationArgs {
   baseQueueContextRef: MutableRefObject<Song[]>;
   nativeQueueRef: MutableRefObject<Song[]>;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  libraryHydrationReady: boolean;
+  beforeStorageHydration?: () => Promise<BeforeStorageHydrationResult>;
+  setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   setSongsState: Dispatch<SetStateAction<Song[]>>;
@@ -23,60 +27,86 @@ interface UseMusicHydrationArgs {
   setShuffle: Dispatch<SetStateAction<boolean>>;
 }
 
-export const useMusicHydration = ({
-  songsRef,
-  queueContextRef,
-  baseQueueContextRef,
-  nativeQueueRef,
-  setIsReady,
-  setHydrationStatus,
+interface HydrationGeneration {
+  token: number | undefined;
+  gateOwner: ReturnType<typeof acquireNativeHydrationGate>;
+  cancelled: boolean;
+  started: boolean;
+}
+
+type HydrationGenerationRef = MutableRefObject<HydrationGeneration | null>;
+
+const useHydrationGeneration = ({
   hydrationRetryToken,
-  setSongsState,
-  setCurrentSong,
-  setPlaybackQueue,
-  setPlaylists,
-  setEqEnabledState,
-  setEqBandsState,
-  setEqPreset,
-  setVolumeState,
-  setRepeatMode,
-  setShuffle,
-}: UseMusicHydrationArgs): void => {
+  setIsReady,
+  setLibraryHydrationReady,
+  setHydrationStatus,
+}: Pick<
+  UseMusicHydrationArgs,
+  'hydrationRetryToken' | 'setIsReady' | 'setLibraryHydrationReady' | 'setHydrationStatus'
+>
+): HydrationGenerationRef => {
+  const generationRef = useRef<HydrationGeneration | null>(null);
+
+  // Close both action gates for the new generation first. On retries this
+  // deliberately causes a render with libraryHydrationReady=false before the
+  // storage phase starts, so persistence effects from the last interactive
+  // render have a chance to enqueue their final snapshot.
   useEffect(() => {
-    let cancelled = false;
     const gateOwner = acquireNativeHydrationGate();
+    const generation = {
+      token: hydrationRetryToken,
+      gateOwner,
+      cancelled: false,
+      started: false,
+    };
+    generationRef.current = generation;
     publishNativeHydrationGate(gateOwner, 'loading');
     setIsReady(false);
+    setLibraryHydrationReady(false);
     setHydrationStatus?.('loading');
 
-    void runMusicHydration({
-      songsRef,
-      queueContextRef,
-      baseQueueContextRef,
-      nativeQueueRef,
-      setIsReady,
-      setHydrationStatus,
-      gateOwner,
-      setSongsState,
-      setCurrentSong,
-      setPlaybackQueue,
-      setPlaylists,
-      setEqEnabledState,
-      setEqBandsState,
-      setEqPreset,
-      setVolumeState,
-      setRepeatMode,
-      setShuffle,
-      isCancelled: () => cancelled,
-    });
-
     return () => {
-      cancelled = true;
+      generation.cancelled = true;
+      if (generationRef.current === generation) generationRef.current = null;
       releaseNativeHydrationGate(gateOwner);
     };
-    // Hydration must run exactly once for a provider mount. The refs and React
-    // setters are stable hand-off targets for that initial run, not signals for
-    // restarting persisted-state hydration.
+    // A retry token owns one native gate generation. React setters are stable
+    // hand-off targets, not restart signals.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrationRetryToken]);
+
+  return generationRef;
+};
+
+const useHydrationRunner = (
+  args: UseMusicHydrationArgs,
+  generationRef: HydrationGenerationRef,
+): void => {
+  const { libraryHydrationReady, hydrationRetryToken, ...hydrationArgs } = args;
+
+  useEffect(() => {
+    const generation = generationRef.current;
+    if (
+      libraryHydrationReady
+      || generation === null
+      || generation.token !== hydrationRetryToken
+      || generation.started
+    ) return;
+
+    generation.started = true;
+    void runMusicHydration({
+      ...hydrationArgs,
+      gateOwner: generation.gateOwner,
+      isCancelled: () => generation.cancelled,
+    });
+    // The readiness transition is the required second phase of a generation.
+    // Refs and setters remain stable hand-off targets, not restart signals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrationRetryToken, libraryHydrationReady]);
+};
+
+export const useMusicHydration = (args: UseMusicHydrationArgs): void => {
+  const generationRef = useHydrationGeneration(args);
+  useHydrationRunner(args, generationRef);
 };

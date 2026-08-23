@@ -85,8 +85,8 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
       onPreviewPosition?.(safePosition);
       gestureX.setValue(0);
       progressValue.stopAnimation(value => { startRatioRef.current = Math.max(0, Math.min(1, value)); });
-    } else if (oldState === State.ACTIVE) finish(translationX, true);
-    else if (state === State.CANCELLED || state === State.FAILED) finish(translationX, false);
+    } else if (state === State.CANCELLED || state === State.FAILED) finish(translationX, false);
+    else if (state === State.END && oldState === State.ACTIVE) finish(translationX, true);
   }, [draggingRef, finish, gestureX, onPreviewPosition, progressValue, safePosition]);
   return { translateX, onGestureEvent, onStateChange };
 };

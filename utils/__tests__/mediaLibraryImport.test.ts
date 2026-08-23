@@ -121,6 +121,38 @@ describe('mediaLibraryImport', () => {
     expect(unhandled).not.toHaveBeenCalled();
   });
 
+  test('bounds detached SAF provider reads until the raw native promises settle', async () => {
+    jest.useFakeTimers();
+    let resolveFirst!: (value: string[]) => void;
+    let resolveSecond!: (value: string[]) => void;
+    const firstRead = jest.fn(() => new Promise<string[]>(resolve => { resolveFirst = resolve; }));
+    const secondRead = jest.fn(() => new Promise<string[]>(resolve => { resolveSecond = resolve; }));
+
+    const first = mediaImport.readSafDirectoryWithTimeout('content://root/one', firstRead, { readTimeoutMs: 10 });
+    const second = mediaImport.readSafDirectoryWithTimeout('content://root/two', secondRead, { readTimeoutMs: 10 });
+    const firstOutcome = first.catch(error => error);
+    const secondOutcome = second.catch(error => error);
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(10);
+    expect(await firstOutcome).toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+    expect(await secondOutcome).toBeInstanceOf(mediaImport.SafDirectoryReadTimeoutError);
+
+    const blockedRead = jest.fn().mockResolvedValue(['content://root/blocked/song.mp3']);
+    await expect(mediaImport.readSafDirectoryWithTimeout('content://root/blocked', blockedRead, {
+      readTimeoutMs: 10,
+    })).rejects.toBeInstanceOf(mediaImport.SafDirectoryReadCapacityError);
+    expect(blockedRead).not.toHaveBeenCalled();
+
+    resolveFirst([]);
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(mediaImport.readSafDirectoryWithTimeout('content://root/recovered', async () => [
+      'content://root/recovered/song.mp3',
+    ], { readTimeoutMs: 10 })).resolves.toEqual(['content://root/recovered/song.mp3']);
+
+    resolveSecond([]);
+    await jest.advanceTimersByTimeAsync(0);
+  });
+
   test('SAF timeout session skip is scoped to an explicit scan-local set', async () => {
     const timedOutDirectoryUris = new Set<string>();
     const read = jest.fn((uri: string) => {
@@ -398,8 +430,8 @@ describe('mediaLibraryImport', () => {
         ? { assets: [mediaAsset('1', 'one.mp3', 90), mediaAsset('2', 'two.mp3', 90)], hasNextPage: true, endCursor: 'a' }
         : { assets: [mediaAsset('3', 'three.mp3', 90)], hasNextPage: false, endCursor: 'b' },
     ) as any;
-    const result = await mediaImport.loadAllAudioAssetsFromMediaLibrary(getAssetsPage);
-    expect(result.map(a => a.id)).toEqual(['1', '2', '3']);
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(getAssetsPage);
+    expect(result.assets.map(a => a.id)).toEqual(['1', '2', '3']);
   });
 
   test('saf scan enters dotted folders like AC.DC and Vol.1', async () => {

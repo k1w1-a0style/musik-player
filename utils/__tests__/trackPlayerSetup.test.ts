@@ -2,12 +2,15 @@ import TrackPlayer from 'react-native-track-player';
 import {
   formatTrackPlayerSetupError,
   isTrackPlayerAlreadySetUpError,
+  resetTrackPlayerSetupForTests,
   setupTrackPlayer,
+  TrackPlayerSetupTimeoutError,
   TRACK_PLAYER_OPTIONS,
 } from '../trackPlayerSetup';
 
 describe('trackPlayerSetup helpers', () => {
   beforeEach(() => {
+    resetTrackPlayerSetupForTests();
     jest.clearAllMocks();
   });
 
@@ -63,5 +66,43 @@ describe('trackPlayerSetup helpers', () => {
     await expect(setupTrackPlayer(logger)).rejects.toThrow('bad options');
 
     expect(logger).toHaveBeenCalledWith('TrackPlayer options update failed: bad options', expect.any(Error));
+  });
+
+  test('times out a hung native setup without applying options', async () => {
+    jest.useFakeTimers();
+    const logger = jest.fn();
+    (TrackPlayer.setupPlayer as jest.Mock).mockImplementationOnce(() => new Promise(() => undefined));
+
+    const setup = setupTrackPlayer(logger, { timeoutMs: 25 });
+    jest.advanceTimersByTime(25);
+
+    await expect(setup).rejects.toBeInstanceOf(TrackPlayerSetupTimeoutError);
+    expect(TrackPlayer.updateOptions).not.toHaveBeenCalled();
+    expect(logger).toHaveBeenCalledWith(
+      'TrackPlayer setup timed out after 25 ms',
+      expect.any(TrackPlayerSetupTimeoutError),
+    );
+    jest.useRealTimers();
+  });
+
+  test('reuses the unresolved native attempt instead of starting concurrent retries', async () => {
+    jest.useFakeTimers();
+    let resolveNativeSetup!: () => void;
+    (TrackPlayer.setupPlayer as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
+      resolveNativeSetup = resolve;
+    }));
+
+    const first = setupTrackPlayer(jest.fn(), { timeoutMs: 25 });
+    jest.advanceTimersByTime(25);
+    await expect(first).rejects.toBeInstanceOf(TrackPlayerSetupTimeoutError);
+
+    const retry = setupTrackPlayer(jest.fn(), { timeoutMs: 100 });
+    expect(TrackPlayer.setupPlayer).toHaveBeenCalledTimes(1);
+    resolveNativeSetup();
+    await retry;
+
+    expect(TrackPlayer.setupPlayer).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.updateOptions).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
   });
 });

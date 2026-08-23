@@ -8,6 +8,8 @@ export interface MusicProviderState {
   retryHydration?: () => void;
   isReady: boolean;
   setIsReady: Dispatch<SetStateAction<boolean>>;
+  libraryHydrationReady: boolean;
+  setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   songs: Song[];
   setSongsState: Dispatch<SetStateAction<Song[]>>;
   currentSong: Song | null;
@@ -22,6 +24,7 @@ export interface MusicProviderState {
 
 export const useMusicProviderState = (): MusicProviderState => {
   const [isReady, setIsReady] = useState(false);
+  const [libraryHydrationReady, setLibraryHydrationReady] = useState(false);
   const [hydrationStatus, setHydrationStatusState] = useState<'loading' | 'ready' | 'degraded' | 'retry-required'>('loading');
   const [hydrationRetryToken, setHydrationRetryToken] = useState(0);
   const retryPendingRef = useRef(false);
@@ -50,6 +53,8 @@ export const useMusicProviderState = (): MusicProviderState => {
     retryHydration,
     isReady,
     setIsReady,
+    libraryHydrationReady,
+    setLibraryHydrationReady,
     songs,
     setSongsState,
     currentSong,

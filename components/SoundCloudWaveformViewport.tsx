@@ -3,8 +3,10 @@ import { Animated, StyleSheet, Text, View, useWindowDimensions, type LayoutChang
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSoundCloudWaveformMotion } from '../hooks/useSoundCloudWaveformMotion';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
+import { formatTime } from '../utils/musicParser';
 import type { SongWaveform } from '../utils/waveformTypes';
 import SoundCloudWaveformLayers from './SoundCloudWaveformLayers';
+import CrossfadeLayers from './CrossfadeLayers';
 
 interface SoundCloudWaveformViewportProps {
   waveform: SongWaveform;
@@ -23,11 +25,6 @@ interface SoundCloudWaveformViewportProps {
 const clampPosition = (value: number, duration: number): number => {
   if (!Number.isFinite(value) || !Number.isFinite(duration) || duration <= 0) return 0;
   return Math.max(0, Math.min(duration, value));
-};
-
-const formatTime = (millis: number): string => {
-  const seconds = Math.floor(Math.max(0, Number.isFinite(millis) ? millis : 0) / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 };
 
 const WaveformTimeRow = ({ position, duration }: { position: number; duration: number }) => (
@@ -71,9 +68,12 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       accessibilityActions={[{ name: 'increment', label: '10 Sekunden vorspulen' },
         { name: 'decrement', label: '10 Sekunden zurückspulen' }]}
       onAccessibilityAction={handleAccessibilityAction}>
-      <SoundCloudWaveformLayers points={waveform.points} sourceKey={waveform.sourceKey}
-        stripWidth={stripWidth} height={height} viewportCenter={viewportCenter}
-        accent={accent} translateX={motion.translateX} ready={ready} showProgress={showProgress} />
+      <CrossfadeLayers value={accent} valueKey={accent} testID="soundcloud-waveform-accent-transition"
+        style={StyleSheet.absoluteFill}
+        renderLayer={layerAccent => <SoundCloudWaveformLayers points={waveform.points}
+          sourceKey={waveform.sourceKey} stripWidth={stripWidth} height={height}
+          viewportCenter={viewportCenter} accent={layerAccent} translateX={motion.translateX}
+          ready={ready} showProgress={showProgress} />} />
     </Animated.View>
   );
   return (

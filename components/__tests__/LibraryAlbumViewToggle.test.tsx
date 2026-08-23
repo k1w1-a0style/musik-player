@@ -48,3 +48,9 @@ test('calls onToggle when pressed', () => {
 
   expect(onToggle).toHaveBeenCalledTimes(1);
 });
+
+test('gives the icon a generous touch target', () => {
+  const { getByTestId } = render(<LibraryAlbumViewToggle mode="grid" onToggle={jest.fn()} />);
+
+  expect(getByTestId('library-album-view-toggle').props.hitSlop).toBe(8);
+});

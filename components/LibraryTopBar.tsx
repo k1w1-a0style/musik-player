@@ -27,6 +27,7 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
           accessibilityRole="button"
           accessibilityLabel={searchOpen ? 'Suche schließen und Filter löschen' : 'Suche öffnen'}
           onPress={onToggleSearch}
+          hitSlop={8}
           style={styles.iconButton}
           testID="library-toggle-search"
         >
@@ -37,6 +38,7 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
           accessibilityRole="button"
           accessibilityLabel="Mehr Optionen"
           onPress={onOpenMenu}
+          hitSlop={8}
           style={styles.iconButton}
           testID="library-open-menu"
         >

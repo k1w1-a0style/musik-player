@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
-export const PLAYER_COLOR_CROSSFADE_MS = 520;
+export const PLAYER_COLOR_CROSSFADE_DELAY_MS = 120;
+export const PLAYER_COLOR_CROSSFADE_MS = 760;
 
 interface CrossfadeSnapshot<T> {
   key: string;
@@ -15,6 +16,7 @@ interface CrossfadeLayersProps<T> {
   renderLayer: (value: T) => React.ReactNode;
   testID: string;
   duration?: number;
+  delay?: number;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -24,7 +26,8 @@ interface CrossfadeLayersProps<T> {
  * positioned, so controls cannot jump or receive duplicate gestures.
  */
 const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
-  duration = PLAYER_COLOR_CROSSFADE_MS, style }: CrossfadeLayersProps<T>) => {
+  duration = PLAYER_COLOR_CROSSFADE_MS, delay = PLAYER_COLOR_CROSSFADE_DELAY_MS,
+  style }: CrossfadeLayersProps<T>) => {
   const reduceMotion = useReducedMotion();
   const incoming = useMemo<CrossfadeSnapshot<T>>(
     () => ({ key: valueKey, value }),
@@ -57,12 +60,13 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
     Animated.timing(transition, {
       toValue: 1,
       duration,
+      delay,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished && generationRef.current === generation) setOutgoing(null);
     });
-  }, [active, duration, incoming, outgoing, reduceMotion, transition]);
+  }, [active, delay, duration, incoming, outgoing, reduceMotion, transition]);
 
   useEffect(() => () => transition.stopAnimation(), [transition]);
 

@@ -4,6 +4,7 @@ import { Animated, StyleSheet, Text, View,
 import Svg, { Rect } from 'react-native-svg';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { formatTime } from '../utils/musicParser';
 import type { SongWaveform } from '../utils/waveformTypes';
 
 interface WaveformScrubberProps {
@@ -25,14 +26,6 @@ const LIVE_PREVIEW_THROTTLE_MS = 90;
 export const clampWaveformRatio = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
-};
-
-const formatTime = (millis: number): string => {
-  if (!Number.isFinite(millis) || millis < 0) return '0:00';
-  const totalSeconds = Math.floor(millis / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
 const ratioFromEvent = (event: GestureResponderEvent, width: number): number => {
@@ -169,6 +162,14 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
     setPreviewPosition(null);
   }, [animatedRatio, onSeek, safeDuration]);
 
+  const cancelInteraction = useCallback(() => {
+    const base = baseRatioRef.current;
+    draggingRef.current = false;
+    latestRatioRef.current = base;
+    animatedRatio.setValue(base);
+    setPreviewPosition(null);
+  }, [animatedRatio]);
+
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.max(0, Math.round(event.nativeEvent.layout.width));
     widthRef.current = width;
@@ -184,7 +185,7 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
         onStartShouldSetResponder={() => true} onMoveShouldSetResponder={() => true}
         onResponderGrant={startInteraction}
         onResponderMove={event => previewRatio(ratioFromEvent(event, widthRef.current))}
-        onResponderRelease={finishInteraction} onResponderTerminate={finishInteraction}
+        onResponderRelease={finishInteraction} onResponderTerminate={cancelInteraction}
         accessibilityRole="adjustable" accessibilityLabel="Audiospur-Fortschritt"
         accessibilityValue={{ min: 0, max: 100, now: Math.round(displayRatio * 100) }}>
         <WaveformVisual ready={ready} points={bars.points} svgWidth={bars.svgWidth}

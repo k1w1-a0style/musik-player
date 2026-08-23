@@ -50,7 +50,8 @@ describe('NowPlayingBackdrop', () => {
       .toEqual({ uri: 'file:///one.jpg' });
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       toValue: 1,
-      duration: 680,
+      delay: 120,
+      duration: 760,
       useNativeDriver: true,
     }));
 

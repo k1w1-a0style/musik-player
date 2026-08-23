@@ -67,7 +67,7 @@ jest.mock('expo-file-system/legacy', () => ({
 describe('coverCache', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
-    coverCacheCleanup.invalidateCoverCacheCleanup();
+    coverCacheCleanup.resetCoverCacheCleanupForTests();
     jest.clearAllMocks();
     (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: false });
@@ -85,6 +85,20 @@ describe('coverCache', () => {
     expect(result).not.toBe('file:///cache/native-cover.jpg');
     expect(protection.protectUri).toHaveBeenCalledWith(result);
     expect(LegacyFileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///cache/native-cover.jpg', to: result });
+  });
+
+  test('shares one cached local cover across songs using the same source', async () => {
+    (LegacyFileSystem.getInfoAsync as jest.Mock).mockImplementation(async (uri: string) => ({
+      exists: uri === 'file:///cache/shared-cover.jpg',
+    }));
+
+    const [first, second] = await Promise.all([
+      cacheLocalCoverFile('song-a', 'file:///cache/shared-cover.jpg'),
+      cacheLocalCoverFile('song-b', 'file:///cache/shared-cover.jpg'),
+    ]);
+
+    expect(first).toBe(second);
+    expect(LegacyFileSystem.copyAsync).toHaveBeenCalledTimes(1);
   });
 
   test('detects image base64 data uri', () => {
@@ -200,20 +214,22 @@ describe('coverCache', () => {
     warnSpy.mockRestore();
   });
 
-  test('builds stable collision-resistant file names from song id and cover content', async () => {
+  test('content-addresses embedded covers so identical album art is shared across songs', async () => {
     const jpegA = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
     const jpegB = '/9j/4QAQSkZJRgABAQAAAQABAAD=';
-    const first = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`);
-    const second = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`);
+    const [first, second, differentSong] = await Promise.all([
+      cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`),
+      cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegA}`),
+      cacheBase64Cover('song-b', `data:image/jpeg;base64,${jpegA}`),
+    ]);
     const differentCover = await cacheBase64Cover('song-a', `data:image/jpeg;base64,${jpegB}`);
-    const differentSong = await cacheBase64Cover('song-b', `data:image/jpeg;base64,${jpegA}`);
 
     expect(first).toBe(second);
+    expect(differentSong).toBe(first);
     expect(first).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
     expect(differentCover).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
-    expect(differentSong).toMatch(/^file:\/\/\/docs\/covers\/[a-f0-9]{32}-[a-f0-9]{32}\.jpg$/);
     expect(differentCover).not.toBe(first);
-    expect(differentSong).not.toBe(first);
+    expect(LegacyFileSystem.writeAsStringAsync).toHaveBeenCalledTimes(2);
   });
 
   test('sanitizeSongsForStorage does not trigger cover cache cleanup', async () => {
@@ -228,7 +244,7 @@ describe('coverCache', () => {
   test('older cleanup cannot delete a newly sanitized cover before its snapshot is persisted', async () => {
     const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
     const songId = 'new-cover-race';
-    const expectedFileName = `${hashForTest(songId)}-${hashForTest(base64)}.jpg`;
+    const expectedFileName = `${hashForTest(base64)}-${hashForTest('image/jpeg')}.jpg`;
     const expectedUri = `file:///docs/covers/${expectedFileName}`;
     const cachedFiles = new Set(['aaa-bbb.jpg', expectedFileName]);
     const directoryRead = createDeferred<string[]>();
@@ -306,7 +322,7 @@ describe('coverCache', () => {
   test('new sanitization rewrites and persists a cover after an older cleanup delete already started', async () => {
     const base64 = '/9j/4AAQSkZJRgABAQAAAQABAAD=';
     const songId = 'started-delete-race';
-    const expectedFileName = `${hashForTest(songId)}-${hashForTest(base64)}.jpg`;
+    const expectedFileName = `${hashForTest(base64)}-${hashForTest('image/jpeg')}.jpg`;
     const expectedUri = `file:///docs/covers/${expectedFileName}`;
     const cachedFiles = new Set([expectedFileName]);
     const deleteDeferred = createDeferred<void>();

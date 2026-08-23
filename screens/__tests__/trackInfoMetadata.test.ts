@@ -1,7 +1,4 @@
 import {
-  getTrackInfoAlbum,
-  getTrackInfoAlbumArtist,
-  getTrackInfoArtist,
   getTrackInfoCodec,
   getTrackInfoContainer,
   getTrackInfoFilename,
@@ -25,12 +22,9 @@ describe('trackInfoHelpers metadata display', () => {
     expect(valueOrNA(Number.NaN)).toBe('Nicht verfügbar');
   });
 
-  test('uses clean fallbacks for missing title artist album and album artist', () => {
+  test('uses a clean fallback for a missing title', () => {
     const song: Song = { ...baseSong, title: 'unknown', artist: ' ', album: 'undefined', albumArtist: 'null' };
     expect(getTrackInfoTitle(song)).toBe('Title');
-    expect(getTrackInfoArtist(song)).toBe('Unbekannt');
-    expect(getTrackInfoAlbum(song)).toBe('Unbekanntes Album');
-    expect(getTrackInfoAlbumArtist(song)).toBe('Unbekannt');
   });
 
   test('shows M4A audio/mp4 container mime and codec fallbacks', () => {

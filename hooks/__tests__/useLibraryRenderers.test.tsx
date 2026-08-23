@@ -1,5 +1,5 @@
 import mockReact from 'react';
-import { Button as mockButton, Text, Text as mockText } from 'react-native';
+import { Button as mockButton, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryRenderers, type UseLibraryRenderersOptions } from '../useLibraryRenderers';
 import type { Song } from '../../types/Song';

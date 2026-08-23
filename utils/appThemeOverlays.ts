@@ -8,18 +8,6 @@ interface AppThemeBoxOverlayColors {
   borderColor: string;
 }
 
-interface NowPlayingSoundCloudOverlayColors {
-  gradient: AppThemeOverlayGradient;
-  titleBackgroundColor: string;
-  artistBackgroundColor: string;
-  infoBackgroundColor: string;
-  playButtonBackgroundColor: string;
-  carouselScrimColor: string;
-  carouselTitleColor: string;
-  carouselArtistColor: string;
-  carouselTextShadowColor: string;
-}
-
 export const SOUNDCLOUD_PLAYER_COLORS = {
   accent: '#ff5500',
   playerBackground: '#050505',
@@ -41,7 +29,8 @@ export const SOUNDCLOUD_PLAYER_COLORS = {
   primaryControlBorder: 'rgba(255,255,255,0.46)',
   secondaryControlSurface: 'rgba(0,0,0,0.48)',
   secondaryControlBorder: 'rgba(255,255,255,0.36)',
-  chromeButtonSurface: 'rgba(0,0,0,0.38)',
+  chromeButtonSurface: '#f7f7f7',
+  chromeButtonIcon: '#080808',
   actionBarSurface: 'rgba(8,8,8,0.92)',
   actionBarBorder: 'rgba(255,255,255,0.16)',
   queueBackground: '#0b0b0b',
@@ -63,31 +52,6 @@ const nowPlayingBackdropOverlayColors: Record<AppAppearance, AppThemeOverlayGrad
   ],
 };
 
-const nowPlayingSoundCloudOverlayColors: Record<AppAppearance, NowPlayingSoundCloudOverlayColors> = {
-  dark: {
-    gradient: ['rgba(0,0,0,0.72)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)'],
-    titleBackgroundColor: 'rgba(0,0,0,0.78)',
-    artistBackgroundColor: 'rgba(0,0,0,0.68)',
-    infoBackgroundColor: 'rgba(0,0,0,0.68)',
-    playButtonBackgroundColor: 'rgba(0,0,0,0.46)',
-    carouselScrimColor: 'rgba(0,0,0,0.16)',
-    carouselTitleColor: '#ffffff',
-    carouselArtistColor: 'rgba(255,255,255,0.78)',
-    carouselTextShadowColor: 'rgba(0,0,0,0.45)',
-  },
-  light: {
-    gradient: ['rgba(255,255,255,0.72)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.78)'],
-    titleBackgroundColor: 'rgba(255,255,255,0.78)',
-    artistBackgroundColor: 'rgba(255,255,255,0.68)',
-    infoBackgroundColor: 'rgba(255,255,255,0.68)',
-    playButtonBackgroundColor: 'rgba(255,255,255,0.46)',
-    carouselScrimColor: 'rgba(255,255,255,0.12)',
-    carouselTitleColor: '#101318',
-    carouselArtistColor: 'rgba(16,19,25,0.78)',
-    carouselTextShadowColor: 'rgba(255,255,255,0.45)',
-  },
-};
-
 const tagEditorWarningBoxColors: Record<AppAppearance, AppThemeBoxOverlayColors> = {
   dark: {
     backgroundColor: 'rgba(255, 111, 138, 0.12)',
@@ -102,10 +66,6 @@ const tagEditorWarningBoxColors: Record<AppAppearance, AppThemeBoxOverlayColors>
 export const getNowPlayingBackdropOverlayColors = (
   appearance: AppAppearance,
 ): AppThemeOverlayGradient => nowPlayingBackdropOverlayColors[appearance];
-
-export const getNowPlayingSoundCloudOverlayColors = (
-  appearance: AppAppearance,
-): NowPlayingSoundCloudOverlayColors => nowPlayingSoundCloudOverlayColors[appearance];
 
 export const getNowPlayingSnapPagerInactiveDotColor = (
   appearance: AppAppearance,

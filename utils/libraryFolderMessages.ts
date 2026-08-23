@@ -11,6 +11,8 @@ export const libraryFolderMessages = {
   noFolderSelectedMessage: 'Es wurde kein Ordner ausgewählt.',
   duplicateTitle: 'Hinweis',
   duplicateFolderMessage: 'Dieser Ordner ist bereits in der Scan-Liste.',
+  removeFailedTitle: 'Ordner konnte nicht entfernt werden',
+  removeFailedMessage: 'Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
 };
 
 export const getScanFolderUnsupportedAlert = (): LibraryFolderAlert => ({
@@ -31,4 +33,9 @@ export const getScanFolderCancelledAlert = (): LibraryFolderAlert => ({
 export const getDuplicateScanFolderAlert = (): LibraryFolderAlert => ({
   title: libraryFolderMessages.duplicateTitle,
   message: libraryFolderMessages.duplicateFolderMessage,
+});
+
+export const getScanFolderRemoveFailedAlert = (): LibraryFolderAlert => ({
+  title: libraryFolderMessages.removeFailedTitle,
+  message: libraryFolderMessages.removeFailedMessage,
 });

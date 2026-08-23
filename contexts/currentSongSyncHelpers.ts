@@ -41,11 +41,6 @@ export const parseActiveTrackEvent = (event: unknown): ActiveTrackEventParseResu
   return id ? { kind: 'track', trackId: id } : { kind: 'clear' };
 };
 
-export const getTrackIdFromActiveTrackEvent = (event: unknown): string | undefined => {
-  const parsed = parseActiveTrackEvent(event);
-  return parsed.kind === 'track' ? parsed.trackId : undefined;
-};
-
 export const findTrackSongById = (
   trackId: string | undefined,
   songSources: Song[][],

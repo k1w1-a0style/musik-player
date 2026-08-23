@@ -1,9 +1,7 @@
 import { parseId3FromUri } from '../id3Parser';
 import {
-  applyId3TagsToSong,
   buildId3SongPatch,
   MANUAL_METADATA_REFRESH_ID3_OPTIONS,
-  normalizeCoverReferenceForComparison,
   refreshSongsFromId3,
   resolveMetadataRefreshUri,
 } from '../songMetadataRefresh';
@@ -21,6 +19,14 @@ const baseSong: Song = {
   uri: 'file:///song.mp3',
 };
 
+const applyId3Patch = (
+  song: Song,
+  tags: Parameters<typeof buildId3SongPatch>[1],
+): Song => {
+  const patch = buildId3SongPatch(song, tags);
+  return Object.keys(patch).length > 0 ? { ...song, ...patch } : song;
+};
+
 beforeEach(() => {
   (parseId3FromUri as jest.Mock).mockReset();
 });
@@ -33,7 +39,7 @@ test('resolves metadata refresh uri with trimmed primary and fileInfo fallback',
 });
 
 test('applies trimmed ID3 text fields without overwriting with blanks', () => {
-  expect(applyId3TagsToSong(baseSong, {
+  expect(applyId3Patch(baseSong, {
     title: ' New Title ',
     artist: '   ',
     albumArtist: ' Album Artist ',
@@ -231,8 +237,8 @@ test('does not update cover when parsed cover matches normalized stored uri', ()
     coverInfo: { status: 'embedded', uri: storedCover },
   };
 
-  expect(normalizeCoverReferenceForComparison(storedCover)).toBe(parsedCover);
-  expect(applyId3TagsToSong(songWithEquivalentCover, { cover: ` ${parsedCover} ` })).toBe(songWithEquivalentCover);
+  expect(buildId3SongPatch(songWithEquivalentCover, { cover: ` ${parsedCover} ` })).toEqual({});
+  expect(applyId3Patch(songWithEquivalentCover, { cover: ` ${parsedCover} ` })).toBe(songWithEquivalentCover);
 });
 
 
@@ -243,7 +249,7 @@ test('updates cover when both normalized references keep different query identit
     coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=1' },
   };
 
-  expect(applyId3TagsToSong(songWithVersionedCover, { cover: 'file:///covers/Album%20Art.jpg?version=2' })).toEqual({
+  expect(applyId3Patch(songWithVersionedCover, { cover: 'file:///covers/Album%20Art.jpg?version=2' })).toEqual({
     ...songWithVersionedCover,
     cover: 'file:///covers/Album%20Art.jpg?version=2',
     coverInfo: { status: 'embedded', uri: 'file:///covers/Album%20Art.jpg?version=2', embeddedArtworkChecked: true },
@@ -258,7 +264,7 @@ test('repairs stale coverInfo when parsed embedded cover matches existing cover'
     coverInfo: { status: 'cached', uri: 'file:///old-cache.png' },
   };
 
-  expect(applyId3TagsToSong(songWithStaleCoverInfo, { cover })).toEqual({
+  expect(applyId3Patch(songWithStaleCoverInfo, { cover })).toEqual({
     ...songWithStaleCoverInfo,
     coverInfo: { status: 'embedded', uri: cover, embeddedArtworkChecked: true },
   });
@@ -271,7 +277,7 @@ test('allows later ID3 cover refresh to replace a persisted no-cover backfill st
     coverInfo: { status: 'none', embeddedArtworkChecked: true },
   };
 
-  expect(applyId3TagsToSong(songWithoutEmbeddedCover, { cover })).toEqual({
+  expect(applyId3Patch(songWithoutEmbeddedCover, { cover })).toEqual({
     ...songWithoutEmbeddedCover,
     cover,
     coverInfo: { status: 'embedded', uri: cover, embeddedArtworkChecked: true },

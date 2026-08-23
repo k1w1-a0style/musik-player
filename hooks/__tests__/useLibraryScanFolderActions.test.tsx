@@ -11,6 +11,7 @@ import {
 import {
   getDuplicateScanFolderAlert,
   getScanFolderCancelledAlert,
+  getScanFolderRemoveFailedAlert,
   getScanFolderUnavailableAlert,
   getScanFolderUnsupportedAlert,
 } from '../../utils/libraryFolderMessages';
@@ -199,4 +200,16 @@ test('removeFolder persists removal and updates folders', async () => {
 
   await waitFor(() => expect(mockedPersistRemovedScanFolder).toHaveBeenCalledWith('a'));
   expect(setScanFolders).toHaveBeenCalledWith([folder('b')]);
+});
+
+test('removeFolder reports a persistence failure without updating folders', async () => {
+  const setScanFolders = jest.fn();
+  const showAlert = jest.fn();
+  mockedPersistRemovedScanFolder.mockRejectedValue(new Error('remove failed'));
+  const screen = render(<HookHarness setScanFolders={setScanFolders} showAlert={showAlert} />);
+
+  fireEvent.press(screen.getByText('remove'));
+
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderRemoveFailedAlert()));
+  expect(setScanFolders).not.toHaveBeenCalled();
 });

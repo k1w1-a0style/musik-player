@@ -67,6 +67,7 @@ test('renders a visible degraded message and retry action', () => {
   const { getByTestId, getByText, queryByTestId } = render(<AppLoading degraded onRetry={onRetry} />);
   expect(getByText('Die Wiedergabewarteschlange konnte nicht bestätigt werden.')).toBeTruthy();
   expect(queryByTestId('app-loading-spinner')).toBeNull();
+  expect(getByTestId('hydration-retry-button').props.accessibilityLabel).toBe('Erneut versuchen');
   fireEvent.press(getByTestId('hydration-retry-button'));
   expect(onRetry).toHaveBeenCalledTimes(1);
 });

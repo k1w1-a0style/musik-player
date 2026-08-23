@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { getAppTheme } from '../../utils/appTheme';
-import { appNavigationTheme, createAppNavigationTheme } from '../appNavigationTheme';
+import { createAppNavigationTheme } from '../appNavigationTheme';
 
 describe('appNavigationTheme', () => {
   test('maps dark app theme palette into navigation colors', () => {
@@ -29,14 +29,5 @@ describe('appNavigationTheme', () => {
     expect(navigationTheme.colors.border).toBe(theme.palette.border);
     expect(navigationTheme.colors.notification).toBe(theme.palette.accent);
     expect(navigationTheme.fonts).toBe(DefaultTheme.fonts);
-  });
-
-  test('exports a default navigation theme from the default app theme', () => {
-    const defaultTheme = getAppTheme();
-
-    expect(appNavigationTheme.dark).toBe(defaultTheme.navigationDark);
-    expect(appNavigationTheme.colors.primary).toBe(defaultTheme.palette.primary);
-    expect(appNavigationTheme.colors.background).toBe(defaultTheme.palette.background);
-    expect(appNavigationTheme.colors.text).toBe(defaultTheme.palette.text.primary);
   });
 });

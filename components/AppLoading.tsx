@@ -40,7 +40,8 @@ const AppLoading: React.FC<AppLoadingProps> = ({ degraded = false, onRetry }) =>
         {degraded ? 'Die Wiedergabewarteschlange konnte nicht bestätigt werden.' : 'Deine Bibliothek wird vorbereitet'}
       </Text>
       {degraded ? (
-        <Pressable accessibilityRole="button" onPress={onRetry} testID="hydration-retry-button"
+        <Pressable accessibilityRole="button" accessibilityLabel="Erneut versuchen"
+          onPress={onRetry} testID="hydration-retry-button"
           style={[styles.retryButton, { backgroundColor: theme.palette.primary }]}>
           <Text style={[styles.retryText, { color: theme.palette.background }]}>Erneut versuchen</Text>
         </Pressable>

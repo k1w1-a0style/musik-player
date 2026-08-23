@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Animated } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../useSoundCloudCarouselMotion';
@@ -31,6 +32,7 @@ describe('SoundCloud carousel gesture listeners', () => {
 
   test('exposes a function listener for the nested vertical gesture', () => {
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+      drag: new Animated.Value(0),
       height: 800,
       onCollapse: jest.fn(),
       onOpenQueue: jest.fn(),
@@ -46,6 +48,7 @@ describe('SoundCloud carousel gesture listeners', () => {
     const onCollapse = jest.fn();
     const onOpenQueue = jest.fn();
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+      drag: new Animated.Value(0),
       height: 800,
       onCollapse,
       onOpenQueue,
@@ -64,4 +67,60 @@ describe('SoundCloud carousel gesture listeners', () => {
     expect(onCollapse).not.toHaveBeenCalled();
     unmount();
   });
+
+  test.each([State.CANCELLED, State.FAILED])(
+    'does not switch tracks when a horizontal swipe ends as %s',
+    cancelledState => {
+      const onNext = jest.fn();
+      const onPrevious = jest.fn();
+      const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
+        currentSongId: 'track-1',
+        panelWidth: 360,
+        onNext,
+        onPrevious,
+        hasPrevious: true,
+        hasNext: true,
+        reduceMotion: true,
+      }));
+
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.ACTIVE,
+        state: cancelledState,
+        translationX: -300,
+        translationY: 0,
+        velocityX: -1_000,
+      })));
+
+      expect(onNext).not.toHaveBeenCalled();
+      expect(onPrevious).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
+
+  test.each([State.CANCELLED, State.FAILED])(
+    'does not open or collapse the player when a vertical swipe ends as %s',
+    cancelledState => {
+      const onCollapse = jest.fn();
+      const onOpenQueue = jest.fn();
+      const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+        drag: new Animated.Value(0),
+        height: 800,
+        onCollapse,
+        onOpenQueue,
+        reduceMotion: true,
+      }));
+
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.ACTIVE,
+        state: cancelledState,
+        translationX: 0,
+        translationY: 600,
+        velocityY: 1_000,
+      })));
+
+      expect(onCollapse).not.toHaveBeenCalled();
+      expect(onOpenQueue).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
 });

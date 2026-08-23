@@ -10,6 +10,7 @@ import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 
 export { resetCurrentSongPersistenceQueueForTests };
 
+/** Restorable playback intent captured before a destructive queue mutation. */
 export type NativePlaybackState = 'playing' | 'paused' | 'stopped' | 'unknown';
 
 export interface NativeQueueReadback {
@@ -125,10 +126,15 @@ export const mapNativeTracksToSongs = (tracks: Track[], knownSongs: Song[]): Son
   return song;
 });
 
-const toNativePlaybackState = (state: State): NativePlaybackState => {
+const toNativePlaybackState = (state: State, playWhenReady: boolean): NativePlaybackState => {
   if (state === State.Playing) return 'playing';
   if (state === State.Paused) return 'paused';
   if (state === State.Stopped || state === State.None || state === State.Ended) return 'stopped';
+  // Buffering/loading/ready describe the engine, not whether playback should
+  // resume. playWhenReady is the stable user intent that survives a rebuild.
+  if (state === State.Buffering || state === State.Loading || state === State.Ready) {
+    return playWhenReady ? 'playing' : 'paused';
+  }
   return 'unknown';
 };
 
@@ -175,6 +181,7 @@ const readStableNativeQueueAttempt = async (knownSongs: Song[]) => {
   const firstIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
   const progress = await TrackPlayer.getProgress();
   const playback = await TrackPlayer.getPlaybackState();
+  const playWhenReady = await TrackPlayer.getPlayWhenReady();
   const secondTrack = await TrackPlayer.getActiveTrack();
   const secondIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
   const secondTracks = await TrackPlayer.getQueue();
@@ -196,7 +203,8 @@ const readStableNativeQueueAttempt = async (knownSongs: Song[]) => {
   }
   return { observation, readback: {
     queue, activeSong, activeTrackId: secondTrackId, activeIndex,
-    progressSeconds: progress.position, playbackState: toNativePlaybackState(playback.state),
+    progressSeconds: progress.position,
+    playbackState: toNativePlaybackState(playback.state, playWhenReady),
   } satisfies NativeQueueReadback } as const;
 };
 

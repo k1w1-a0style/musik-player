@@ -10,7 +10,7 @@ const song: Song = { id: 's1', title: 'One', artist: 'A', uri: 'file:///1.mp3' }
 const ref = (current: Song[] = []) => ({ current });
 const createArgs = () => ({
   songsRef: ref([song]), queueContextRef: ref([song]), baseQueueContextRef: ref([song]), nativeQueueRef: ref([song]),
-  setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue: jest.fn(), setShuffle: jest.fn(),
+  setSongsState: jest.fn(), setCurrentSong: jest.fn(), setPlaybackQueue: jest.fn(), setPlaylists: jest.fn(), setShuffle: jest.fn(),
   isCancelled: () => false,
 });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -38,6 +38,9 @@ test('fallback waits for reorder replacement between reset and add', async () =>
   expect(args.nativeQueueRef.current).toEqual([]);
   expect(args.queueContextRef.current).toEqual([]);
   expect(args.baseQueueContextRef.current).toEqual([]);
+  expect(args.songsRef.current).toEqual([song]);
+  expect(args.setSongsState).not.toHaveBeenCalled();
+  expect(args.setPlaylists).not.toHaveBeenCalled();
   expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
 });
 

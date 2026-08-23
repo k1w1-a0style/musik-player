@@ -97,7 +97,9 @@ Frische reproduzierbare Installation und frisches `npm audit --omit=dev --json`:
 - Einsatz beim Metro-Bundling/Asset-Parsing; nicht als Java/Kotlin-Bibliothek in der
   Android-Runtime;
 - einzige verbleibende Ausnahme: `image-size` 1.2.1, High, exakt diese beiden Sources/
-  GHSAs, Ablauf **2026-08-15**; keine Verlängerung;
+  GHSAs. Nachtrag 2026-08-22: Nach expliziter Neubewertung und fail-closed Deaktivierung
+  der gefährdeten ICNS-, JXL-/JXL-Stream- und HEIF-Parser ist die aktuelle Frist
+  **2026-11-20**; maßgeblich ist `security/npm-audit-exceptions.json`;
 - `tar` ist exakt 7.5.22 über `expo -> @expo/cli -> tar`; der frühere Bereich `<=7.5.20`
   ist behoben, und der frische Audit enthält keinen `tar`-Fund.
 

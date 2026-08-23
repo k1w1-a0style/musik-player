@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, type Theme as NavigationTheme } from '@react-navigation/native';
-import { getAppTheme, type AppTheme } from '../utils/appTheme';
+import type { AppTheme } from '../utils/appTheme';
 
 export const createAppNavigationTheme = (appTheme: AppTheme): NavigationTheme => {
   const baseTheme = appTheme.navigationDark ? DarkTheme : DefaultTheme;
@@ -18,5 +18,3 @@ export const createAppNavigationTheme = (appTheme: AppTheme): NavigationTheme =>
     },
   };
 };
-
-export const appNavigationTheme = createAppNavigationTheme(getAppTheme());

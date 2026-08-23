@@ -1,4 +1,4 @@
-import { buildAlbumKey, buildArtistKey, buildLibraryGroups, buildSongKey, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, displayTitle, groupSongs, mergeSongs, normalizeAlbumName, normalizeArtistName, normalizeLibraryText } from '../libraryPresentation';
+import { buildArtistKey, buildLibraryGroups, cleanPersonLikeLabel, displayAlbum, displayArtist, displayFolderName, displayGenre, displayTitle, groupSongs, mergeSongs, normalizeAlbumName, normalizeArtistName, normalizeLibraryText } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 
 jest.mock('../mediaLibraryImport', () => ({
@@ -78,6 +78,34 @@ test('mergeSongs dedupes by normalized uri variants and imported song wins', () 
   });
 
   expect(mergeSongs([existing], [imported])).toEqual([{ ...existing, ...imported }]);
+});
+
+test('mergeSongs collapses a transitive alias bridge into one canonical song', () => {
+  const existingByUri = song({
+    id: 'uri-match',
+    title: 'URI match',
+    uri: 'content://music/shared-uri.mp3',
+    fileInfo: { filename: 'uri-only.mp3', size: 11 },
+  });
+  const existingByFingerprint = song({
+    id: 'fingerprint-match',
+    title: 'Fingerprint match',
+    uri: 'content://music/other-uri.mp3',
+    duration: 123,
+    fileInfo: { filename: 'bridge.mp3', size: 42 },
+  });
+  const bridge = song({
+    id: 'bridge',
+    title: 'Canonical bridge',
+    uri: 'content://music/shared-uri.mp3',
+    duration: 123,
+    fileInfo: { filename: 'bridge.mp3', size: 42 },
+  });
+
+  const merged = mergeSongs([existingByUri, existingByFingerprint], [bridge]);
+
+  expect(merged).toHaveLength(1);
+  expect(merged[0]).toMatchObject({ id: 'bridge', title: 'Canonical bridge' });
 });
 
 
@@ -276,36 +304,33 @@ test('placeholder album values share the unknown album group key and label', () 
   expect(unknownGroups[0].id).toBe('album:unknown-album');
   expect(unknownGroups[0].songs.map(item => item.id).sort()).toEqual(['angle', 'missing', 'null', 'undefined', 'unknown']);
   expect(groups.find(group => group.title === 'Real Album')?.id).toBe('album:real album');
-  expect(buildAlbumKey(song({ album: 'unknown' }))).toBe(buildAlbumKey(song({ album: undefined })));
-  expect(buildAlbumKey(song({ album: 'null' }))).toBe(buildAlbumKey(song({ album: undefined })));
-  expect(buildAlbumKey(song({ album: 'undefined' }))).toBe(buildAlbumKey(song({ album: undefined })));
-  expect(buildAlbumKey(song({ album: '<unknown>' }))).toBe(buildAlbumKey(song({ album: undefined })));
 });
 
 test('album keys merge equal album names despite varying track artists', () => {
-  const artistAKey = buildAlbumKey(song({ id: 'a', artist: 'Artist A', album: 'Greatest Hits' }));
-  const artistBKey = buildAlbumKey(song({ id: 'b', artist: 'Artist B', album: 'Greatest Hits' }));
   const groups = groupSongs([
     song({ id: 'a', artist: 'Artist A', title: 'A Song', album: 'Greatest Hits' }),
     song({ id: 'b', artist: 'Artist B', title: 'B Song', album: 'Greatest Hits' }),
   ], 'album');
 
-  expect(artistAKey).toBe(artistBKey);
   expect(groups).toHaveLength(1);
-  expect(groups[0].id).toBe(artistAKey);
+  expect(groups[0].id).toBe('album:greatest hits');
   expect(groups[0].subtitle).toBe('Artist A, Artist B • 2 Titel');
 });
 
 test('album keys are stable for matching album despite case and whitespace', () => {
-  expect(buildAlbumKey(song({ artist: '  Artist A ', album: ' Greatest   Hits ' }))).toBe(
-    buildAlbumKey(song({ artist: 'artist b', album: 'greatest hits' })),
-  );
+  const groups = groupSongs([
+    song({ id: 'a', artist: '  Artist A ', album: ' Greatest   Hits ' }),
+    song({ id: 'b', artist: 'artist b', album: 'greatest hits' }),
+  ], 'album');
+
+  expect(groups).toHaveLength(1);
+  expect(groups[0].id).toBe('album:greatest hits');
 });
 
 test('missing album uses stable unknown key part', () => {
-  const key = buildAlbumKey(song({ artist: '', album: '' }));
+  const [group] = groupSongs([song({ artist: '', album: '' })], 'album');
 
-  expect(key).toBe('album:unknown-album');
+  expect(group.id).toBe('album:unknown-album');
   expect(buildArtistKey('')).toBe('artist:unknown-artist');
   expect(normalizeAlbumName(undefined)).toBe('unknown-album');
   expect(normalizeAlbumName('unknown')).toBe('unknown-album');

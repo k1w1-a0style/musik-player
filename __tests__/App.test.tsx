@@ -1,28 +1,8 @@
 import React from 'react';
-import { Pressable as MockPressable, Text as MockText, View as MockView } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Text as MockText, View as MockView } from 'react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import App, { AppContent } from '../App';
 import AppErrorBoundary from '../components/AppErrorBoundary';
-
-const mockUseFonts = jest.fn((_fonts: unknown): [boolean, Error?] => [true]);
-
-jest.mock('expo-font', () => ({
-  useFonts: (fonts: unknown) => mockUseFonts(fonts),
-}));
-
-jest.mock('../appFonts', () => ({
-  appFonts: { BricolageGrotesque_400Regular: 1 },
-}));
-
-jest.mock('../components/AppLoading', () => ({
-  __esModule: true,
-  default: function MockAppLoading({ degraded, onRetry }: { degraded?: boolean; onRetry?: () => void }) {
-    return <MockView testID="app-loading">
-      <MockText>{degraded ? 'failed' : 'loading'}</MockText>
-      {degraded && <MockPressable testID="startup-retry" onPress={onRetry} />}
-    </MockView>;
-  },
-}));
 
 jest.mock('../components/ThemedStatusBar', () => ({
   __esModule: true,
@@ -47,7 +27,7 @@ jest.mock('../navigation/RootNavigator', () => ({
 
 describe('App', () => {
   beforeEach(() => {
-    mockUseFonts.mockReturnValue([true]);
+    jest.restoreAllMocks();
     jest.clearAllMocks();
   });
 
@@ -59,29 +39,6 @@ describe('App', () => {
     expect(child.type).toBe(AppContent);
   });
 
-  test('renders loading state while fonts are loading inside AppContent', async () => {
-    mockUseFonts.mockReturnValueOnce([false]);
-
-    const { getByTestId, queryByTestId } = render(<AppContent />);
-
-    expect(getByTestId('app-loading')).toBeTruthy();
-    expect(queryByTestId('app-providers')).toBeNull();
-    await act(async () => { await Promise.resolve(); });
-  });
-
-  test('continues with system fonts when custom font loading fails', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    mockUseFonts.mockReturnValueOnce([false, new Error('font unavailable')]);
-
-    const { getByTestId } = render(<AppContent />);
-
-    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
-    expect(warn).toHaveBeenCalledWith(
-      '[Fonts] Custom fonts failed to load; using the system fallback.',
-      'Error: font unavailable',
-    );
-  });
-
   test('renders providers and navigation after startup restoration', async () => {
     const { getByTestId } = render(<App />);
 
@@ -90,37 +47,50 @@ describe('App', () => {
     expect(getByTestId('root-navigator')).toBeTruthy();
   });
 
-  test('offers a retry after startup restoration fails and renders after retry succeeds', async () => {
+  test('does not block providers and navigation while tag-write recovery is pending', async () => {
+    let finishRecovery!: () => void;
+    const pending = new Promise<void>(resolve => { finishRecovery = resolve; });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const recovery = require('../utils/tagWriterRecovery') as typeof import('../utils/tagWriterRecovery');
-    const restore = jest.spyOn(recovery, 'restoreAndReconcileTagWrites')
-      .mockRejectedValueOnce(new Error('storage unavailable'))
-      .mockResolvedValueOnce([]);
-    const { getByTestId } = render(<AppContent />);
+    jest.spyOn(recovery, 'restoreAndReconcileTagWrites').mockImplementationOnce(() => pending.then(() => []));
 
-    await waitFor(() => expect(getByTestId('startup-retry')).toBeTruthy());
-    fireEvent.press(getByTestId('startup-retry'));
-    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
-    expect(restore).toHaveBeenCalledTimes(2);
+    const { getByTestId, queryByTestId } = render(<AppContent />);
+
+    expect(getByTestId('app-providers')).toBeTruthy();
+    expect(getByTestId('root-navigator')).toBeTruthy();
+    expect(queryByTestId('app-loading')).toBeNull();
+
+    await act(async () => { finishRecovery(); await pending; });
   });
 
-  test('coalesces overlapping startup recovery retries', async () => {
-    let finishRetry!: () => void;
-    const retry = new Promise<void>(resolve => { finishRetry = resolve; });
+  test('keeps the app available when background tag-write restoration fails', async () => {
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const recovery = require('../utils/tagWriterRecovery') as typeof import('../utils/tagWriterRecovery');
+    jest.spyOn(recovery, 'restoreAndReconcileTagWrites').mockRejectedValueOnce(new Error('storage unavailable'));
+    const { getByTestId, queryByTestId } = render(<AppContent />);
+
+    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
+    expect(queryByTestId('app-loading')).toBeNull();
+    await waitFor(() => expect(warning).toHaveBeenCalledWith(
+      '[TagWriter] Startup recovery reconciliation failed.',
+      'Error: storage unavailable',
+    ));
+  });
+
+  test('does not restart background tag-write restoration on rerender', async () => {
+    let finishRecovery!: () => void;
+    const pending = new Promise<void>(resolve => { finishRecovery = resolve; });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const recovery = require('../utils/tagWriterRecovery') as typeof import('../utils/tagWriterRecovery');
     const restore = jest.spyOn(recovery, 'restoreAndReconcileTagWrites')
-      .mockRejectedValueOnce(new Error('native unavailable'))
-      .mockImplementationOnce(() => retry.then(() => []));
-    const { getByTestId } = render(<AppContent />);
+      .mockImplementationOnce(() => pending.then(() => []));
+    const view = render(<AppContent />);
 
-    await waitFor(() => expect(getByTestId('startup-retry')).toBeTruthy());
-    const retryButton = getByTestId('startup-retry');
-    fireEvent.press(retryButton);
-    fireEvent.press(retryButton);
-    expect(restore).toHaveBeenCalledTimes(2);
-    await act(async () => { finishRetry(); await retry; });
-    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
+    view.rerender(<AppContent />);
+    expect(view.getByTestId('app-providers')).toBeTruthy();
+    expect(restore).toHaveBeenCalledTimes(1);
+    await act(async () => { finishRecovery(); await pending; });
   });
 
   test('ignores a late startup recovery result after unmount', async () => {

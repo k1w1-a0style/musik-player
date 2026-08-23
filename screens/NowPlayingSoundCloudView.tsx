@@ -1,12 +1,11 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { Alert, Share, StatusBar, StyleSheet, View, useWindowDimensions, type ColorValue } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Share, StatusBar, StyleSheet, View,
+  useWindowDimensions, type ColorValue } from 'react-native';
 import type { RepeatMode, Song } from '../types/Song';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { useSongWaveform } from '../hooks/useSongWaveform';
-import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
 import SoundCloudPlayerChrome from './SoundCloudPlayerChrome';
 import SoundCloudTrackCarousel from './SoundCloudTrackCarousel';
@@ -47,24 +46,57 @@ interface NowPlayingSoundCloudViewProps {
   bottomInset: number;
 }
 
-const WaveformPreloader = React.memo(({ song }: { song: Song | null | undefined }) => {
-  useSongWaveform({
-    song: song ?? null,
-    durationMs: song?.duration ?? song?.audioInfo?.durationMs ?? 0,
-    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
-  });
-  return null;
-});
-
-WaveformPreloader.displayName = 'SoundCloudNextWaveformPreloader';
-
 const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props => {
   const waveformGestureRef = useRef<unknown>(null);
-  const { width } = useWindowDimensions();
-  const [queueOpen, setQueueOpen] = useState(false);
-  const openQueue = useCallback(() => setQueueOpen(true), []);
-  const closeQueue = useCallback(() => setQueueOpen(false), []);
+  const { width, height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+  const queueMotion = useRef(new Animated.Value(0)).current;
+  const queueOpenRef = useRef(false);
+  const [queueMounted, setQueueMounted] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const openQueue = useCallback(() => {
+    queueOpenRef.current = true;
+    setQueueMounted(true);
+    setQueueOpen(true);
+    queueMotion.stopAnimation();
+    if (reduceMotion) {
+      queueMotion.setValue(-height);
+      return;
+    }
+    Animated.timing(queueMotion, { toValue: -height, duration: 260,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [height, queueMotion, reduceMotion]);
+  const closeQueue = useCallback(() => {
+    queueOpenRef.current = false;
+    queueMotion.stopAnimation();
+    const finish = () => {
+      setQueueOpen(false);
+      setQueueMounted(false);
+      queueMotion.setValue(0);
+    };
+    if (reduceMotion) return finish();
+    Animated.timing(queueMotion, { toValue: 0, duration: 220,
+      easing: Easing.in(Easing.cubic), useNativeDriver: true })
+      .start(({ finished }) => { if (finished) finish(); });
+  }, [queueMotion, reduceMotion]);
+  const restoreOpenQueue = useCallback(() => {
+    queueOpenRef.current = true;
+    setQueueOpen(true);
+    if (reduceMotion) {
+      queueMotion.setValue(-height);
+      return;
+    }
+    Animated.spring(queueMotion, { toValue: -height, tension: 150, friction: 22,
+      useNativeDriver: true }).start();
+  }, [height, queueMotion, reduceMotion]);
+  const beginQueuePreview = useCallback(() => setQueueMounted(true), []);
+  const endQueuePreview = useCallback(() => {
+    if (!queueOpenRef.current) setQueueMounted(false);
+  }, []);
+  useEffect(() => {
+    if (queueOpenRef.current) queueMotion.setValue(-height);
+  }, [height, queueMotion]);
+  useEffect(() => () => queueMotion.stopAnimation(), [queueMotion]);
   const { onSwipeToNext } = props;
   const canGoNext = props.canSwipeToNext ?? true;
   const togglePlayback = useCallback(() => {
@@ -83,34 +115,37 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
   }, [props.currentSong]);
   const renderPage = useCallback(({ song, role }: SoundCloudCarouselRenderPageArgs) => {
     if (!song) return null;
-    return <SoundCloudTrackPage song={song} role={role} isPlaying={props.isPlaying}
+    return <SoundCloudTrackPage song={song} role={role} isPlaying={props.isPlaying} accent={props.accent}
       canSwipeToNext={canGoNext} topInset={props.topInset} bottomInset={props.bottomInset}
       onTogglePlayback={togglePlayback} onPrevious={props.onSwipeToPrevious}
-      onNext={handleNext} onSeek={props.onSeek} waveformGestureRef={waveformGestureRef}
+      onNext={handleNext} onSeek={props.onSeek} onOpenTrackInfo={props.onOpenTrackInfo}
+      waveformGestureRef={waveformGestureRef}
       reduceMotion={reduceMotion} />;
-  }, [canGoNext, handleNext, props.bottomInset, props.isPlaying, props.onSeek, props.onSwipeToPrevious,
-    props.topInset, reduceMotion, togglePlayback]);
+  }, [canGoNext, handleNext, props.accent, props.bottomInset, props.isPlaying, props.onOpenTrackInfo,
+    props.onSeek, props.onSwipeToPrevious, props.topInset, reduceMotion, togglePlayback]);
   const chrome = <SoundCloudPlayerChrome currentSong={props.currentSong} onCollapse={props.onCollapse}
     onOpenTrackInfo={props.onOpenTrackInfo} onOpenMenu={props.onOpenMenu} onShare={shareTrack}
     favorite={props.favorite} favoritePending={props.favoritePending} onToggleFavorite={props.onToggleFavorite}
     queue={props.queue} onPlayQueueItem={props.onPlayQueueItem} onQueueShift={props.onQueueShift}
     canShiftQueue={props.canShiftQueue} shuffle={props.shuffle} repeatMode={props.repeatMode}
     onToggleShuffle={props.onToggleShuffle} onCycleRepeatMode={props.onCycleRepeatMode}
-    topInset={props.topInset} bottomInset={props.bottomInset} reduceMotion={reduceMotion}
-    queueOpen={queueOpen} onOpenQueue={openQueue} onCloseQueue={closeQueue} />;
+    topInset={props.topInset} bottomInset={props.bottomInset}
+    queueMounted={queueMounted} queueOpen={queueOpen} queueMotion={queueMotion}
+    onOpenQueue={openQueue} onCloseQueue={closeQueue} onRestoreQueue={restoreOpenQueue} />;
   return (
     <View style={styles.root} testID="now-playing-soundcloud-view">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <NowPlayingBackdrop gradientColors={props.gradientColors} accent={props.accent}
         glowLeft={width / 2 - 130} artworkUri={props.artworkUri}
         paletteLoading={props.paletteLoading} />
-      <WaveformPreloader song={props.nextSong} />
       <SoundCloudTrackCarousel currentSong={props.currentSong} previousSong={props.previousSong}
         nextSong={props.nextSong} currentArtworkUri={props.artworkUri}
         previousArtworkUri={props.previousArtworkUri} nextArtworkUri={props.nextArtworkUri}
+        isPlaying={props.isPlaying} topInset={props.topInset} bottomInset={props.bottomInset}
         canSwipeToNext={canGoNext} onSwipeToNext={props.onSwipeToNext}
         onSwipeToPrevious={props.onSwipeToPrevious} onCollapse={props.onCollapse}
-        onOpenQueue={openQueue}
+        onOpenQueue={openQueue} onQueuePreviewStart={beginQueuePreview}
+        onQueuePreviewEnd={endQueuePreview} verticalDrag={queueMotion}
         verticalGestureEnabled={!queueOpen}
         waveformGestureRef={waveformGestureRef} reduceMotion={reduceMotion} renderPage={renderPage} chrome={chrome} />
     </View>

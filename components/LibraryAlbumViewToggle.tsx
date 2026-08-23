@@ -21,6 +21,7 @@ const LibraryAlbumViewToggle: React.FC<LibraryAlbumViewToggleProps> = ({ mode, o
       accessibilityLabel="Albumansicht wechseln"
       accessibilityHint={mode === 'grid' ? 'Wechselt zur Listenansicht' : 'Wechselt zur Rasteransicht'}
       onPress={onToggle}
+      hitSlop={8}
       style={({ pressed }) => [
         styles.toggle,
         { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },

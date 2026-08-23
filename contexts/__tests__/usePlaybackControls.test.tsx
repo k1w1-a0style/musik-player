@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Text } from 'react-native';
-import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import TrackPlayer, { State } from 'react-native-track-player';
 import {
   clampVolume,
@@ -401,21 +401,21 @@ describe('usePlaybackControls', () => {
     expect(getByTestId('is-playing').props.children).toBe('false');
   });
 
-  test('calls transport controls', async () => {
-    const { getByTestId } = render(<PlaybackControlsProbe />);
+  test('calls transport controls in sequential user-action order', async () => {
+    (TrackPlayer.skipToNext as jest.Mock).mockResolvedValueOnce(undefined);
+    const hook = renderHook(() => usePlaybackControls());
 
     await act(async () => {
-      fireEvent.press(getByTestId('stop'));
-      fireEvent.press(getByTestId('seek'));
-      fireEvent.press(getByTestId('next'));
-      fireEvent.press(getByTestId('previous'));
+      await hook.result.current.stop();
+      await hook.result.current.seekTo(5000);
+      await hook.result.current.next();
+      await hook.result.current.previous();
     });
 
-    await waitFor(() => {
-      expect(TrackPlayer.stop).toHaveBeenCalled();
-      expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5);
-      expect(TrackPlayer.skipToNext).toHaveBeenCalled();
-      expect(TrackPlayer.getProgress).toHaveBeenCalled();
-    });
+    expect(TrackPlayer.stop).toHaveBeenCalled();
+    expect(TrackPlayer.seekTo).toHaveBeenCalledWith(5);
+    expect(TrackPlayer.skipToNext).toHaveBeenCalled();
+    expect(TrackPlayer.getProgress).toHaveBeenCalled();
+    hook.unmount();
   });
 });

@@ -1,6 +1,5 @@
 import {
   findTrackSongById,
-  getTrackIdFromActiveTrackEvent,
   parseActiveTrackEvent,
   syncCurrentSongFromActiveTrackEvent,
 } from '../currentSongSyncHelpers';
@@ -19,12 +18,6 @@ describe('currentSongSyncHelpers', () => {
     expect(parseActiveTrackEvent({ track: {} })).toEqual({ kind: 'clear' });
     expect(parseActiveTrackEvent({})).toEqual({ kind: 'ignore' });
     expect(parseActiveTrackEvent(null)).toEqual({ kind: 'ignore' });
-  });
-
-  test('gets track id from active track event', () => {
-    expect(getTrackIdFromActiveTrackEvent({ track: { id: 's1' } })).toBe('s1');
-    expect(getTrackIdFromActiveTrackEvent({ trackId: 123 })).toBe('123');
-    expect(getTrackIdFromActiveTrackEvent({ track: null })).toBeUndefined();
   });
 
   test('finds tracks across song sources', () => {

@@ -119,8 +119,12 @@ export interface FastMetadataResult {
 }
 
 export type RecoveryStatusResult = {
+  /** False when native storage could not be inspected; callers must recover fail-closed. */
+  available?: boolean;
   pendingCount: number;
   quarantineCount?: number;
+  /** Terminal native receipts still awaiting durable JavaScript acknowledgement. */
+  retainedOutcomeCount?: number;
   transactions: Array<{ transactionId: string; state: string }>;
 };
 
@@ -299,7 +303,7 @@ export const SystemAudio = {
   },
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {
-    return native ? native.extractPalette(uri) : null;
+    return native ? runBoundedNativeRead(() => native.extractPalette(uri)) : null;
   },
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
@@ -340,7 +344,7 @@ export const SystemAudio = {
   async getAudioTagRecoveryStatus(): Promise<RecoveryStatusResult> {
     return native?.getAudioTagRecoveryStatus
       ? native.getAudioTagRecoveryStatus()
-      : { pendingCount: 0, transactions: [] };
+      : { available: true, pendingCount: 0, retainedOutcomeCount: 0, transactions: [] };
   },
 
   async recoverPendingAudioTagTransactions(uri?: string): Promise<RecoveryRunResult> {

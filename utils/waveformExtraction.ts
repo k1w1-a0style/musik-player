@@ -6,9 +6,10 @@ import {
   getWaveformFailureBackoff,
   recordWaveformFailure,
   scheduleNativeWaveformExtraction,
+  type WaveformExtractionPriority,
   WaveformSchedulerUnavailableError,
 } from './waveformExtractionLifecycle';
-import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceKey } from './waveformGenerator';
+import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceIdentity } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
 import {
   classifyWaveformContainer,
@@ -57,11 +58,12 @@ const runScheduledNativeExtraction = (
   cancellationApi: NativeWaveformCancellationApi,
   uri: string,
   pointCount: number,
-  sourceKey: string,
+  extractionKey: string,
   signal?: AbortSignal,
+  priority: WaveformExtractionPriority = 'foreground',
 ): Promise<NativeWaveformResult | null> => withTimeout(
   waiterSignal => scheduleNativeWaveformExtraction(
-    sourceKey,
+    extractionKey,
     async nativeSignal => {
       if (!cancellationApi.hasNativeWaveformCancellation || !cancellationApi.cancelWaveformExtraction) {
         return extractor(uri, pointCount);
@@ -77,52 +79,67 @@ const runScheduledNativeExtraction = (
       }
     },
     waiterSignal,
+    {
+      priority,
+      rejoinDetached: !cancellationApi.hasNativeWaveformCancellation
+        || !cancellationApi.cancelWaveformExtraction,
+    },
   ),
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
   'Waveform extraction timed out',
   { signal },
 );
 
-const acceptDecodedNativeResult = ({ result, song, durationMs, pointCount, sourceKey, report }: {
+const acceptDecodedNativeResult = ({
+  result, song, durationMs, pointCount, sourceKey, sourceFingerprint,
+  extractionKey, report, recordFailures,
+}: {
   result: NativeWaveformResult | null;
   song: Song | null | undefined;
   durationMs: number;
   pointCount: number;
   sourceKey: string;
+  sourceFingerprint: string;
+  extractionKey: string;
   report: DecisionReporter;
+  recordFailures: boolean;
 }): SongWaveform | null => {
+  const recordFailure = (reason: Parameters<typeof recordWaveformFailure>[1]): void => {
+    if (recordFailures) recordWaveformFailure(extractionKey, reason);
+  };
   const points = result?.points ?? [];
   if (!result || points.length === 0) {
-    recordWaveformFailure(sourceKey, 'native-empty');
+    recordFailure('native-empty');
     report('native-empty', 0);
     return null;
   }
   // Older Development APKs returned compressed packet sizes. Those values can
   // visibly contradict silence/peaks in the actual audio and are never shown.
   if (result.analysis !== 'decoded-pcm-v1') {
-    recordWaveformFailure(sourceKey, 'native-unsupported-analysis');
+    recordFailure('native-unsupported-analysis');
     report('native-unsupported-analysis', points.length);
     return null;
   }
   if (!hasUsefulNativeShape(points)) {
-    recordWaveformFailure(sourceKey, 'native-unusable-shape');
+    recordFailure('native-unusable-shape');
     report('native-unusable-shape', points.length);
     return null;
   }
   const waveform = buildNativeWaveform(song, result, durationMs, pointCount);
-  if (waveform.sourceKey !== sourceKey) {
+  if (waveform.sourceKey !== sourceKey || waveform.sourceFingerprint !== sourceFingerprint) {
     report('native-source-key-changed', points.length);
     return null;
   }
   report('native-accepted', points.length);
-  clearWaveformFailure(sourceKey);
+  clearWaveformFailure(extractionKey);
   return waveform;
 };
 
 const handleNativeExtractionError = (
   error: unknown,
-  sourceKey: string,
+  extractionKey: string,
   report: DecisionReporter,
+  recordFailures: boolean,
 ): null => {
   if (isAbortError(error)) return null;
   if (error instanceof WaveformSchedulerUnavailableError) {
@@ -131,11 +148,11 @@ const handleNativeExtractionError = (
     return null;
   }
   if (isTimeoutError(error)) {
-    recordWaveformFailure(sourceKey, 'native-timeout');
+    if (recordFailures) recordWaveformFailure(extractionKey, 'native-timeout');
     report('native-timeout', 0);
     return null;
   }
-  recordWaveformFailure(sourceKey, 'native-error');
+  if (recordFailures) recordWaveformFailure(extractionKey, 'native-error');
   report('native-error', 0);
   return null;
 };
@@ -146,12 +163,16 @@ export const extractNativeWaveform = async (
   options?: {
     pointCount?: number;
     signal?: AbortSignal;
+    priority?: WaveformExtractionPriority;
     onDecision?: (diagnostics: WaveformSourceDiagnostics) => void;
   },
 ): Promise<SongWaveform | null> => {
   const uri = resolveWaveformUri(song);
-  const sourceKey = getWaveformSourceKey(song);
+  const { sourceKey, sourceFingerprint } = getWaveformSourceIdentity(song);
+  const extractionKey = sourceFingerprint;
   const pointCount = options?.pointCount ?? DEFAULT_WAVEFORM_POINT_COUNT;
+  const priority = options?.priority ?? 'foreground';
+  const recordFailures = priority === 'foreground';
   const container = classifyWaveformContainer(uri);
   const report = (decision: NativeWaveformDecision, nativePointCount: number): void => {
     options?.onDecision?.({
@@ -175,14 +196,17 @@ export const extractNativeWaveform = async (
     return null;
   }
 
-  if (getWaveformFailureBackoff(sourceKey)) return null;
+  if (getWaveformFailureBackoff(extractionKey)) return null;
 
   try {
     const result = await runScheduledNativeExtraction(
-      extractor, cancellationApi, uri, pointCount, sourceKey, options?.signal,
+      extractor, cancellationApi, uri, pointCount, extractionKey, options?.signal, priority,
     );
-    return acceptDecodedNativeResult({ result, song, durationMs, pointCount, sourceKey, report });
+    return acceptDecodedNativeResult({
+      result, song, durationMs, pointCount, sourceKey, sourceFingerprint,
+      extractionKey, report, recordFailures,
+    });
   } catch (error) {
-    return handleNativeExtractionError(error, sourceKey, report);
+    return handleNativeExtractionError(error, extractionKey, report, recordFailures);
   }
 };

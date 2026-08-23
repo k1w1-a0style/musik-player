@@ -22,6 +22,14 @@ let pendingTargetMillis: number | null = null;
 let draining = false;
 let drainPromise: Promise<void> | null = null;
 let pendingHydrationGate: CapturedHydrationGate;
+let pendingRevision = 0;
+let seekRevision = 0;
+let seekBlockCount = 0;
+
+export interface NativeSeekLaneBarrier {
+  waitForDrain: Promise<void>;
+  release: () => void;
+}
 
 const captureHydrationGate = (options?: NativeSeekOptions): CapturedHydrationGate => {
   if (!options?.requireStableReadyHydration) return undefined;
@@ -42,10 +50,12 @@ export const requestLatestSeek = async (
   seek: NativeSeek = defaultNativeSeek,
   options?: NativeSeekOptions,
 ): Promise<void> => {
+  if (seekBlockCount > 0) return drainPromise ?? Promise.resolve();
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) return;
   pendingTargetMillis = millis;
   pendingHydrationGate = hydrationGate;
+  pendingRevision = seekRevision;
   if (drainPromise) return drainPromise;
 
   draining = true;
@@ -54,9 +64,10 @@ export const requestLatestSeek = async (
       while (pendingTargetMillis !== null) {
         const target = pendingTargetMillis;
         const targetGate = pendingHydrationGate;
+        const targetRevision = pendingRevision;
         pendingTargetMillis = null;
         pendingHydrationGate = undefined;
-        if (!isGateCurrent(targetGate)) continue;
+        if (targetRevision !== seekRevision || !isGateCurrent(targetGate)) continue;
         try {
           await seek(toSafeSeconds(target));
         } catch (error) {
@@ -72,11 +83,37 @@ export const requestLatestSeek = async (
   return drainPromise;
 };
 
-export const isSeekDraining = (): boolean => draining;
+/**
+ * Invalidates queued seeks and prevents new ones while a track-identity or
+ * queue mutation is pending. An already executing native seek is allowed to
+ * settle before the mutation starts so it can never land on the new track.
+ */
+export const blockSeekLaneForNativeMutation = (): NativeSeekLaneBarrier => {
+  seekBlockCount += 1;
+  seekRevision += 1;
+  pendingTargetMillis = null;
+  pendingHydrationGate = undefined;
+  const waitForDrain = drainPromise ?? Promise.resolve();
+  let released = false;
+
+  return {
+    waitForDrain,
+    release: () => {
+      if (released) return;
+      released = true;
+      seekBlockCount = Math.max(0, seekBlockCount - 1);
+    },
+  };
+};
+
+export const isSeekDrainingForTests = (): boolean => draining;
 
 export const resetSeekControllerForTests = (): void => {
   pendingTargetMillis = null;
   pendingHydrationGate = undefined;
+  pendingRevision = 0;
+  seekRevision = 0;
+  seekBlockCount = 0;
   draining = false;
   drainPromise = null;
 };

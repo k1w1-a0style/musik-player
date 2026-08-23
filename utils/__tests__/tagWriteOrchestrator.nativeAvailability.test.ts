@@ -1,5 +1,6 @@
 import type { Song } from '../../types/Song';
-import { createTagWriteOperationPlan, simulateTagWriteOperation } from '../tagWriteOrchestrator';
+import { createTagWriteOperationPlan } from '../tagWriteOrchestrator';
+import { simulateTagWriteOperation } from './tagWriteOrchestratorTestHelpers';
 
 const safSong: Song = {
   id: 'native-availability',

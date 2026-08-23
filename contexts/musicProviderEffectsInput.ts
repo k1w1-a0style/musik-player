@@ -12,7 +12,9 @@ type PlaybackRefsInput = Pick<
 type ProviderStateInput = Pick<
   MusicProviderEffectsArgs,
   | 'isReady'
+  | 'libraryHydrationReady'
   | 'setIsReady'
+  | 'setLibraryHydrationReady'
   | 'songs'
   | 'setSongsState'
   | 'currentSongSetter'

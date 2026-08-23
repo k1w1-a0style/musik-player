@@ -23,7 +23,6 @@ const file = (moovFirst: boolean, ilstAtom: Uint8Array) => {
   const ftyp = atom(types.ftyp, u8(0,0,0,0)); const mdat = atom(types.mdat, u8(1,2,3,4,5,6)); const moovAtom = moov(udta(meta(ilstAtom)));
   return Uint8Array.from((moovFirst ? [ftyp, moovAtom, mdat] : [ftyp, mdat, moovAtom]).flatMap((x) => Array.from(x)));
 };
-const findAtom = (buffer: Uint8Array, typeText: string): number => new TextDecoder().decode(buffer).indexOf(typeText);
 const findBytes = (buffer: Uint8Array, needle: Uint8Array): number => {
   for (let i = 0; i <= buffer.length - needle.length; i += 1) {
     let ok = true;

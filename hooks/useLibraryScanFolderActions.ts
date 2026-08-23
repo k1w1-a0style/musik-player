@@ -57,6 +57,7 @@ export const useLibraryScanFolderActions = ({
   const { persistChangedFolderUpdates, removeFolder } = useLibraryScanFolderPersistenceActions({
     scanFolders,
     setScanFolders,
+    showAlert,
   });
 
   return {

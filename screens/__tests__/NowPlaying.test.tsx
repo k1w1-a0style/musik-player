@@ -69,6 +69,7 @@ const mockSaveQueueAsPlaylist = jest.fn(() => ({ id: 'pl-1', name: 'Gespeicherte
 let mockNowPlayingStateCrash = false;
 let mockPlayerLayout: 'classic' | 'soundcloud' = 'classic';
 let mockPlayerLayoutHydrated = true;
+const mockUseAdjacentWaveformPreload = jest.fn();
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -93,6 +94,11 @@ jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
 
 jest.mock('../../hooks/useReducedMotion', () => ({
   useReducedMotion: () => true,
+}));
+
+jest.mock('../../hooks/useWaveformPreload', () => ({
+  useAdjacentWaveformPreload: (nextSong: unknown, previousSong: unknown) =>
+    mockUseAdjacentWaveformPreload(nextSong, previousSong),
 }));
 
 const mockNowPlayingContext = {
@@ -173,6 +179,8 @@ describe('NowPlaying cover fallback', () => {
     mockPlayerLayout = 'classic';
     mockPlayerLayoutHydrated = true;
     setCurrentSongId('s1');
+    mockNowPlayingContext.playbackQueue = [mockNowPlayingContext.currentSong];
+    mockUseAdjacentWaveformPreload.mockClear();
     mockGoBack.mockClear();
     mockNavigate.mockClear();
     mockSaveQueueAsPlaylist.mockClear();
@@ -217,6 +225,26 @@ describe('NowPlaying cover fallback', () => {
     expect(getByTestId('soundcloud-action-bar')).toBeTruthy();
     expect(getByTestId('now-playing-cover-backdrop')).toBeTruthy();
     expect(queryByTestId('now-playing-pager-slot')).toBeNull();
+    act(() => {
+      jest.runOnlyPendingTimers();
+      unmount();
+    });
+    jest.useRealTimers();
+  });
+
+  test('warms next and previous queue waveforms in both player layouts', () => {
+    jest.useFakeTimers();
+    const previousSong = {
+      id: 's0', title: 'Previous Song', artist: 'Previous Artist', cover: 'file:///previous.jpg',
+    };
+    const nextSong = {
+      id: 's2', title: 'Next Song', artist: 'Next Artist', cover: 'file:///next.jpg',
+    };
+    mockNowPlayingContext.playbackQueue = [previousSong, mockNowPlayingContext.currentSong, nextSong];
+
+    const { unmount } = render(<NowPlaying />);
+
+    expect(mockUseAdjacentWaveformPreload).toHaveBeenCalledWith(nextSong, previousSong);
     act(() => {
       jest.runOnlyPendingTimers();
       unmount();

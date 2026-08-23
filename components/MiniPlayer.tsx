@@ -11,16 +11,12 @@ import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
-import { useSongWaveform } from '../hooks/useSongWaveform';
-import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
+import { useWaveformPreload } from '../hooks/useWaveformPreload';
 import type { Song } from '../types/Song';
+import CrossfadeLayers from './CrossfadeLayers';
 
 const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
-  useSongWaveform({
-    song,
-    durationMs: song.duration ?? song.audioInfo?.durationMs ?? 0,
-    pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
-  });
+  useWaveformPreload(song);
   return null;
 });
 
@@ -75,6 +71,17 @@ const MiniPlayerPlaybackProgress = memo(({ accent }: { accent: string }) => {
 
 MiniPlayerPlaybackProgress.displayName = 'MiniPlayerPlaybackProgress';
 
+const MiniPlayerAccentBorder = memo(({ color, radius, testID }: { color: string; radius: number; testID: string }) => (
+  <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <CrossfadeLayers value={color} valueKey={color} testID={`${testID}-transition`}
+      style={StyleSheet.absoluteFill}
+      renderLayer={layerColor => <View style={[StyleSheet.absoluteFill, styles.accentBorder,
+        { borderColor: layerColor, borderRadius: radius }]} testID={`${testID}-fill`} />} />
+  </View>
+));
+
+MiniPlayerAccentBorder.displayName = 'MiniPlayerAccentBorder';
+
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous,
     canSkipNext, canSkipPrevious, palette } = useMiniPlayerMusicContext();
@@ -121,14 +128,18 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
       <CurrentWaveformPreloader song={currentSong} />
-      <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass, borderColor: coverAccentMuted }]} testID="mini-player-open" accessibilityRole="button" accessibilityLabel="Wiedergabe öffnen">
-        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated, borderColor: coverAccentMuted }]}>
+      <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass,
+        borderColor: appTheme.palette.border }]} testID="mini-player-open" accessibilityRole="button"
+        accessibilityLabel="Wiedergabe öffnen">
+        <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated,
+          borderColor: appTheme.palette.border }]}>
           {showCover ? (
             <Image source={artworkSource!} style={styles.thumbImage} accessible={false}
               resizeMethod="resize" fadeDuration={0} onError={() => setCoverFailed(true)} />
           ) : (
             <Disc3 color={coverAccentMuted} size={18} />
           )}
+          <MiniPlayerAccentBorder color={coverAccentMuted} radius={10} testID="mini-player-thumb-accent-border" />
         </View>
 
         <View style={styles.textWrap}>
@@ -144,6 +155,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           canSkipNext={canSkipNext} canSkipPrevious={canSkipPrevious} showSecondary={showSecondaryControls}
           onPrevious={handlePrevious} onToggle={handleTogglePlayPause} onNext={handleNext} onOpen={onOpen} />
         <MiniPlayerPlaybackProgress accent={coverAccent} />
+        <MiniPlayerAccentBorder color={coverAccentMuted} radius={20} testID="mini-player-accent-border" />
       </Pressable>
     </View>
   );
@@ -201,6 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   disabled: { opacity: 0.35 },
+  accentBorder: { borderWidth: StyleSheet.hairlineWidth },
 });
 
 export default MiniPlayer;

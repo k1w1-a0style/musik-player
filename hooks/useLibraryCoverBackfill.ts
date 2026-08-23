@@ -5,10 +5,12 @@ import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../utils
 import { createCoverCacheProtection, type CoverCacheProtection } from '../utils/coverCacheCleanup';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
+import { useAfterInitialInteractions } from './useAfterInitialInteractions';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
+  enabled?: boolean;
 }
 
 interface PendingCoverProtection {
@@ -26,6 +28,10 @@ interface SafeBackfillPatchInput {
 
 const PROGRESSIVE_COVER_PATCH_BATCH_SIZE = 4;
 const PROGRESSIVE_COVER_PATCH_FLUSH_MS = 750;
+const NO_BACKFILL_SONGS: Song[] = [];
+
+const selectBackfillSongs = (songs: Song[], enabled: boolean, afterInitialInteractions: boolean): Song[] =>
+  enabled && afterInitialInteractions ? songs : NO_BACKFILL_SONGS;
 
 export const buildCoverBackfillAttemptKey = (song: Song): string =>
   [
@@ -99,13 +105,15 @@ const buildSafeBackfillPatches = ({
   return patchesBySongId;
 };
 
-export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: UseLibraryCoverBackfillOptions): void => {
+export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabled = true }: UseLibraryCoverBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
   const pendingProtectionsRef = useRef<PendingCoverProtection[]>([]);
   const mountedRef = useRef(true);
   const latestSongsRef = useRef(songs);
   const metadataRefreshActive = useMetadataRefreshActive();
+  const afterInitialInteractions = useAfterInitialInteractions();
+  const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
 
   latestSongsRef.current = songs;
 
@@ -123,7 +131,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
   useEffect(() => {
     // Pause while a user-triggered manual metadata refresh runs exclusively.
     if (metadataRefreshActive) return undefined;
-    const candidates = songs.filter(song => needsEmbeddedCoverBackfill(song) && !attemptedRef.current.has(buildCoverBackfillAttemptKey(song)));
+    const candidates = backfillSongs.filter(song => needsEmbeddedCoverBackfill(song) && !attemptedRef.current.has(buildCoverBackfillAttemptKey(song)));
     if (candidates.length === 0) return undefined;
 
     const generation = generationRef.current + 1;
@@ -237,8 +245,6 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches }: Use
       if (!controller.signal.aborted) console.warn('[LibraryCoverBackfill] Cover backfill failed.', error);
     });
 
-    return () => {
-      controller.abort();
-    };
-  }, [songs, applySongMetadataPatches, metadataRefreshActive]);
+    return () => controller.abort();
+  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive]);
 };

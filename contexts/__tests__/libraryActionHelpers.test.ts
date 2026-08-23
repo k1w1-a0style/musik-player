@@ -3,12 +3,10 @@ import {
   mergeUniqueSongs,
   normalizeSongIdForLibrary,
   normalizeSongUriForLibraryDedupe,
-  patchNullableSongById,
   patchSongById,
   patchSongRefs,
   pruneNullableSongByValidIds,
   pruneSongsByValidIds,
-  syncSongRefsToLibrary,
   updateNativeMetadataForSong,
 } from '../libraryActionHelpers';
 import type { Song } from '../../types/Song';
@@ -98,25 +96,10 @@ describe('libraryActionHelpers', () => {
     expect(pruneNullableSongByValidIds(null, new Set(['s1']))).toBeNull();
   });
 
-  test('syncs queue refs to the current library', () => {
-    const queueRef = createSongRef([song('s1'), song(' s2 '), song('missing')]);
-    const baseRef = createSongRef([song('missing'), song('s2')]);
-    const nativeRef = createSongRef([song(' s1 '), song('missing')]);
-
-    syncSongRefsToLibrary(new Set(['s1', 's2']), [queueRef, baseRef, nativeRef]);
-
-    expect(queueRef.current.map(item => item.id)).toEqual(['s1', 's2']);
-    expect(baseRef.current.map(item => item.id)).toEqual(['s2']);
-    expect(nativeRef.current.map(item => item.id)).toEqual(['s1']);
-  });
-
   test('patches song values by normalized id', () => {
     expect(patchSongById(' s1 ', { title: 'Updated' })({ ...songs[0], id: ' s1 ' })).toEqual({ ...songs[0], title: 'Updated' });
     expect(patchSongById('   ', { title: 'Updated' })(songs[0])).toBe(songs[0]);
     expect(patchSongById('missing', { title: 'Updated' })(songs[0])).toBe(songs[0]);
-    expect(patchNullableSongById('s1', { title: 'Updated' }, songs[0])?.title).toBe('Updated');
-    expect(patchNullableSongById('missing', { title: 'Updated' }, songs[0])).toBe(songs[0]);
-    expect(patchNullableSongById('s1', { title: 'Updated' }, null)).toBeNull();
   });
 
   test('patches song refs', () => {

@@ -32,13 +32,15 @@ const snapshot = (overrides: Partial<NativeQueueMutationSnapshot> = {}): NativeQ
 });
 
 beforeEach(() => {
-  const player = TrackPlayer as unknown as { __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number; __getState: () => State };
+  const player = TrackPlayer as unknown as { __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number;
+    __getState: () => State; __getPlayWhenReady: () => boolean };
   player.__reset();
   (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => player.__getQueue());
   (TrackPlayer.getActiveTrack as jest.Mock).mockImplementation(async () => player.__getQueue()[player.__getActiveTrackIndex()]);
   (TrackPlayer.getActiveTrackIndex as jest.Mock).mockImplementation(async () => player.__getActiveTrackIndex() >= 0 ? player.__getActiveTrackIndex() : undefined);
   (TrackPlayer.getProgress as jest.Mock).mockResolvedValue({ position: 0 });
   (TrackPlayer.getPlaybackState as jest.Mock).mockImplementation(async () => ({ state: player.__getState() }));
+  (TrackPlayer.getPlayWhenReady as jest.Mock).mockImplementation(async () => player.__getPlayWhenReady());
   jest.clearAllMocks();
 });
 
@@ -80,6 +82,22 @@ test('snapshot contains queue, progress, shuffle and playback state without read
   const result = await createNativeQueueMutationSnapshot({ knownSongs: songs, shuffleEnabled: true, targets: targets() });
   expect(result).toMatchObject({ nativeQueue: songs, activeIndex: 0, shuffleEnabled: true, playbackState: 'paused' });
   expect(storageSpy).not.toHaveBeenCalled();
+});
+
+test.each([
+  [State.Buffering, true, 'playing'],
+  [State.Loading, true, 'playing'],
+  [State.Buffering, false, 'paused'],
+  [State.Loading, false, 'paused'],
+] as const)('snapshot maps transient %s with playWhenReady=%s to %s intent', async (state, playWhenReady, expected) => {
+  const player = TrackPlayer as unknown as { __setState: (value: State) => void; __setPlayWhenReady: (value: boolean) => void };
+  await TrackPlayer.add(songs.map(song => ({ ...song, url: song.uri! })));
+  player.__setState(state);
+  player.__setPlayWhenReady(playWhenReady);
+
+  await expect(createNativeQueueMutationSnapshot({
+    knownSongs: songs, shuffleEnabled: false, targets: targets(),
+  })).resolves.toMatchObject({ playbackState: expected });
 });
 
 test('ID multiset compares length and duplicate frequencies', () => {

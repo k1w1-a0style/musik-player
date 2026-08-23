@@ -23,6 +23,7 @@ import {
   readNativeQueueTruth,
   recoverNativeQueueMutation,
   type NativeQueueMutationSnapshot,
+  type NativePlaybackState,
   type NativeQueueRecoveryResult,
   type NativeQueueReplacementProgress,
 } from './nativeQueueRecovery';
@@ -31,27 +32,10 @@ const hydrationMutationOptions = (hydrationCapture: NativeHydrationCapture) =>
 
 export type { NativeQueueMutationSnapshot, NativeQueueRecoveryResult } from './nativeQueueRecovery';
 
-interface ApplyPlaybackQueueStateArgs {
-  queueContextRef: MutableRefObject<Song[]>;
-  baseQueueContextRef: MutableRefObject<Song[]>;
-  setPlaybackQueue: Dispatch<SetStateAction<Song[]>>;
-  setCurrentSong: Dispatch<SetStateAction<Song | null>>;
-  orderedQueue: Song[];
-  baseQueue: Song[];
-  selectedSong?: Song;
-}
-
 export type NativeQueueActionResult =
   | { status: 'applied' | 'noop' | 'stale' }
   | { status: 'reconciled' | 'rolled-back'; recovery: Exclude<NativeQueueRecoveryResult, { status: 'failed' }> }
   | { status: 'failed'; recovery?: Extract<NativeQueueRecoveryResult, { status: 'failed' }>; error?: unknown };
-
-export class NativeQueueReplacementStaleError extends Error {
-  constructor() {
-    super('Native queue replacement was superseded.');
-    this.name = 'NativeQueueReplacementStaleError';
-  }
-}
 
 interface PlaybackQueueActionRefs {
   hydrationCapture?: NativeHydrationCapture;
@@ -104,33 +88,6 @@ const normalizeSongId = (songId?: string): string | undefined => {
 export const getCurrentQueueSnapshot = (queueContext: Song[], librarySongs: Song[]): Song[] =>
   (queueContext.length > 0 ? queueContext : librarySongs.filter(isPlayableSong)).slice();
 
-interface ReconcileNativeQueueArgs extends Pick<PlaybackQueueActionRefs,
-  'queueContextRef' | 'baseQueueContextRef' | 'nativeQueueRef' | 'setPlaybackQueue' | 'setCurrentSong'> {
-  knownSongs: Song[];
-  baseQueue?: Song[];
-}
-
-export const reconcilePlaybackQueueFromNative = async ({
-  knownSongs,
-  queueContextRef,
-  baseQueueContextRef,
-  nativeQueueRef,
-  setPlaybackQueue,
-  setCurrentSong,
-  baseQueue,
-}: ReconcileNativeQueueArgs): Promise<NativeQueueRecoveryResult> => {
-  const candidates = [...knownSongs, ...nativeQueueRef.current, ...queueContextRef.current];
-  const readback = await readNativeQueueTruth(candidates);
-  const committed = await commitNativeQueueTruth({
-    readback,
-    preferredBaseQueue: baseQueue ?? readback.queue,
-    librarySongs: knownSongs,
-    targets: { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue, setCurrentSong },
-    shuffleStrategy: { kind: 'derive-from-order' },
-  });
-  return { status: 'reconciled', diagnostics: { originalError: new Error('Explicit native reconciliation.') }, ...committed };
-};
-
 const buildQueueWithInsertedSong = ({
   queue,
   song,
@@ -176,21 +133,6 @@ export const persistRequestedSongId = async (
   assertCurrentSongPersistenceSucceeded(result);
 };
 
-export const applyPlaybackQueueState = ({
-  queueContextRef,
-  baseQueueContextRef,
-  setPlaybackQueue,
-  setCurrentSong,
-  orderedQueue,
-  baseQueue,
-  selectedSong,
-}: ApplyPlaybackQueueStateArgs): void => {
-  queueContextRef.current = orderedQueue.slice();
-  baseQueueContextRef.current = baseQueue.slice();
-  setPlaybackQueue(orderedQueue.slice());
-  if (selectedSong) setCurrentSong(selectedSong);
-};
-
 const replaceNativeQueueTracks = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
@@ -211,6 +153,20 @@ const replaceNativeQueueTracks = async (
   return isCurrent();
 };
 
+const restoreNativePlaybackState = async (
+  queueLength: number,
+  playbackState: NativePlaybackState,
+  isCurrent: () => boolean,
+  onProgress?: (progress: NativeQueueReplacementProgress) => void,
+): Promise<boolean> => {
+  if (queueLength === 0 || playbackState === 'unknown') return true;
+  if (playbackState === 'playing') await TrackPlayer.play();
+  else if (playbackState === 'paused') await TrackPlayer.pause();
+  else await TrackPlayer.stop();
+  onProgress?.('playback-confirmed');
+  return isCurrent();
+};
+
 export const rebuildNativePlaybackQueueUnlocked = async (
   queue: PlayableSong[],
   nativeQueueRef: MutableRefObject<Song[]>,
@@ -218,6 +174,7 @@ export const rebuildNativePlaybackQueueUnlocked = async (
   replacementContext?: Pick<NativeQueueReplacementContext, 'isCurrent' | 'beginNativeMutation'>,
   startIndex = 0,
   onProgress?: (progress: NativeQueueReplacementProgress) => void,
+  playbackState: NativePlaybackState = 'playing',
 ): Promise<boolean> => {
   const context = replacementContext ?? { isCurrent: () => true, beginNativeMutation: () => undefined };
   const { isCurrent } = context;
@@ -238,24 +195,10 @@ export const rebuildNativePlaybackQueueUnlocked = async (
     if (!isCurrent()) return false;
   }
 
-  if (queue.length > 0) {
-    await TrackPlayer.play();
-    onProgress?.('playback-confirmed');
-    if (!isCurrent()) return false;
-  }
+  if (!await restoreNativePlaybackState(queue.length, playbackState, isCurrent, onProgress)) return false;
   nativeQueueRef.current = (await readNativeQueueTruth(queue)).queue.slice();
   return true;
 };
-
-export const rebuildNativePlaybackQueue = async (
-  queue: PlayableSong[],
-  nativeQueueRef: MutableRefObject<Song[]>,
-  resumePositionSeconds?: number,
-  startIndex = 0,
-): Promise<void> => runExclusiveNativeQueueReplacement(async context => {
-  const rebuilt = await rebuildNativePlaybackQueueUnlocked(queue, nativeQueueRef, resumePositionSeconds, context, startIndex);
-  if (!rebuilt) throw new NativeQueueReplacementStaleError();
-});
 
 type PlaySongQueuePlan = NonNullable<ReturnType<typeof buildPlaySongQueuePlan>>;
 
@@ -516,6 +459,8 @@ export const runReorderQueueAction = async ({
         progress.position,
         context,
         plan.currentIndex,
+        undefined,
+        snapshot.playbackState,
       );
       if (!rebuilt || !isCurrent()) return { status: 'stale' };
       const readback = await readNativeQueueTruth([...songsRef.current, ...plan.queue]);
@@ -603,6 +548,7 @@ export const runShuffleQueueAction = async ({
       context,
       selectedIndex,
       nextProgress => { progress = nextProgress; },
+      mutationSnapshot.playbackState,
     );
     if (!rebuilt || !isCurrent()) return { status: 'stale' };
     const readback = await readNativeQueueTruth([...songsRef.current, ...nextQueue]);

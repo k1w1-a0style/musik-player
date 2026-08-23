@@ -2,7 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
-import { useAlbumPalette } from '../useAlbumPalette';
+import { useAlbumPaletteState } from '../useAlbumPalette';
 import { resetAlbumPaletteSingleFlightForTests } from '../albumPaletteHelpers';
 import {
   buildJsFallbackPalette,
@@ -25,7 +25,7 @@ const secondSongWithCover: Song = {
 };
 
 const PaletteProbe = ({ song }: { song: Song | null }) => {
-  const palette = useAlbumPalette(song);
+  const { palette } = useAlbumPaletteState(song);
   return <Text testID="palette">{palette ? JSON.stringify(palette) : ''}</Text>;
 };
 
@@ -164,7 +164,7 @@ describe('useAlbumPalette', () => {
       .mockReturnValueOnce(new Promise(resolve => {
         resolveFirst = resolve;
       }))
-      .mockReturnValueOnce(new Promise((resolve, reject) => {
+      .mockReturnValueOnce(new Promise((_resolve, reject) => {
         rejectSecond = reject;
       }));
 

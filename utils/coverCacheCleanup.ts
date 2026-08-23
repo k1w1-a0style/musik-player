@@ -168,7 +168,7 @@ const drainLatestCleanup = async (): Promise<void> => {
   }
 };
 
-export const invalidateCoverCacheCleanup = (): void => {
+export const resetCoverCacheCleanupForTests = (): void => {
   latestCleanupRequestId += 1;
   latestCleanupSongs = undefined;
 };

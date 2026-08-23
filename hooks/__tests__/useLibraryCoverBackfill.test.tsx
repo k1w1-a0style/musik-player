@@ -8,6 +8,10 @@ jest.mock('expo-system-audio', () => ({
   extractEmbeddedArtwork: jest.fn(),
 }));
 
+jest.mock('../useAfterInitialInteractions', () => ({
+  useAfterInitialInteractions: () => true,
+}));
+
 jest.mock('../../utils/coverCache', () => ({
   cacheLocalCoverFile: jest.fn(async (_songId: string, uri?: string) => uri?.replace('file:///cache/', 'file:///docs/covers/')),
   isLikelyVolatileArtworkUri: jest.fn((uri?: string) => uri?.startsWith('file:///cache/') ?? false),
@@ -46,6 +50,25 @@ describe('useLibraryCoverBackfill', () => {
     mockProtection.protectSongCovers.mockClear();
     mockProtection.replaceProtectedSongCovers.mockClear();
     (createCoverCacheProtection as jest.Mock).mockClear();
+  });
+
+  test('waits for completed music hydration before starting background cover work', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(null);
+    const applySongMetadataPatches = jest.fn();
+    const rendered = renderHook(
+      ({ enabled }: { enabled: boolean }) => useLibraryCoverBackfill({
+        songs: [song('a')],
+        applySongMetadataPatches,
+        enabled,
+      }),
+      { initialProps: { enabled: false } },
+    );
+
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+
+    rendered.rerender({ enabled: true });
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1));
   });
 
   test('requeues coverless songs after an aborted stale backfill round', async () => {

@@ -12,9 +12,15 @@ import {
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
   WAVEFORM_FAILURE_BACKOFF_MS,
 } from '../../utils/waveformExtractionLifecycle';
-import { WAVEFORM_EXTRACTION_TIMEOUT_MS } from '../../utils/waveformExtraction';
-import { getWaveformSourceKey } from '../../utils/waveformGenerator';
+import {
+  WAVEFORM_EXTRACTION_TIMEOUT_MS,
+} from '../../utils/waveformExtraction';
+import { getWaveformSourceIdentity } from '../../utils/waveformGenerator';
 import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
+import {
+  preloadSongWaveform,
+  resetWaveformPreloadStateForTests,
+} from '../../utils/waveformPreload';
 
 type NativeResult = {
   points: number[];
@@ -28,6 +34,8 @@ const decoded = (points = peaks, durationMs?: number): Exclude<NativeResult, nul
   analysis: 'decoded-pcm-v1',
 });
 const song = (id: string): Song => ({ id, title: id, artist: 'Artist', uri: `file:///${id}.mp3` });
+const sourceKeyFor = (value: Song): string => getWaveformSourceIdentity(value).sourceKey;
+const extractionKeyFor = (value: Song): string => getWaveformSourceIdentity(value).sourceFingerprint;
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
@@ -44,6 +52,7 @@ describe('useSongWaveform lifecycle', () => {
   beforeEach(async () => {
     resetWaveformExtractionLifecycleForTests();
     resetWaveformCacheStateForTests();
+    resetWaveformPreloadStateForTests();
     extractor.extractWaveformPeaks = jest.fn();
     await AsyncStorage.clear();
     jest.useFakeTimers();
@@ -52,6 +61,7 @@ describe('useSongWaveform lifecycle', () => {
   afterEach(() => {
     resetWaveformExtractionLifecycleForTests();
     resetWaveformCacheStateForTests();
+    resetWaveformPreloadStateForTests();
     jest.useRealTimers();
   });
 
@@ -71,12 +81,12 @@ describe('useSongWaveform lifecycle', () => {
     a.resolve(decoded());
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
 
-    expect(hook.result.current.sourceKey).toBe(getWaveformSourceKey(songB));
-    expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: getWaveformSourceKey(songB) });
+    expect(hook.result.current.sourceKey).toBe(sourceKeyFor(songB));
+    expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: sourceKeyFor(songB) });
     expect(onDecision).not.toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
     const keys = [...(AsyncStorage as typeof AsyncStorage & { __getStore(): Map<string, string> }).__getStore().keys()].join('|');
-    expect(keys).not.toContain(getWaveformSourceKey(songA));
-    expect(keys).toContain(getWaveformSourceKey(songB));
+    expect(keys).not.toContain(sourceKeyFor(songA));
+    expect(keys).toContain(sourceKeyFor(songB));
     hook.unmount();
   });
 
@@ -189,6 +199,36 @@ describe('useSongWaveform lifecycle', () => {
     expect(second.result.current.waveform.source).toBe('native');
     first.unmount();
     second.unmount();
+  });
+
+  test('visible waveform preempts a stuck next-track preload', async () => {
+    const stuckPreload = deferred<NativeResult>();
+    const nextSong = song('next-preload-stuck');
+    const currentSong = song('visible-current');
+    extractor.extractWaveformPeaks.mockImplementation((uri: string) =>
+      uri.includes('next-preload-stuck') ? stuckPreload.promise : Promise.resolve(decoded()));
+
+    const preload = preloadSongWaveform(nextSong);
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith(
+      'file:///next-preload-stuck.mp3', 160,
+    );
+
+    const visible = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+
+    expect(extractor.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual([
+      'file:///next-preload-stuck.mp3',
+      'file:///visible-current.mp3',
+    ]);
+    expect(visible.result.current.waveform).toMatchObject({
+      source: 'native', sourceKey: sourceKeyFor(currentSong),
+    });
+    await expect(preload).resolves.toBeNull();
+
+    visible.unmount();
+    stuckPreload.resolve(null);
+    await flush();
   });
 
   test('stores one canonical detailed waveform while serving each requested display size', async () => {
@@ -322,7 +362,7 @@ describe('useSongWaveform lifecycle', () => {
     expect(blocked.result.current.loadingNative).toBe(false);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
     expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
-    expect(getWaveformFailureBackoff(getWaveformSourceKey(blockedSong))).toBeNull();
+    expect(getWaveformFailureBackoff(extractionKeyFor(blockedSong))).toBeNull();
     blocked.unmount();
 
     firstNative.resolve(decoded());

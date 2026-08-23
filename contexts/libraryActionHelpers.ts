@@ -99,27 +99,12 @@ export const pruneNullableSongByValidIds = (
   return id === song.id ? song : { ...song, id };
 };
 
-export const syncSongRefsToLibrary = (
-  validSongIds: Set<string>,
-  refs: Array<MutableRefObject<Song[]>>,
-): void => {
-  refs.forEach(ref => {
-    ref.current = pruneSongsByValidIds(ref.current, validSongIds);
-  });
-};
-
 export const patchSongById = (songId: string, patch: Partial<Song>) => (song: Song): Song => {
   const targetSongId = normalizeSongIdForLibrary(songId);
   const currentSongId = normalizeSongIdForLibrary(song.id);
   if (!targetSongId || currentSongId !== targetSongId) return song;
   return { ...song, ...(song.id === currentSongId ? {} : { id: currentSongId }), ...patch };
 };
-
-export const patchNullableSongById = (
-  songId: string,
-  patch: Partial<Song>,
-  song: Song | null,
-): Song | null => (song ? patchSongById(songId, patch)(song) : null);
 
 export const patchSongRefs = (
   patchSong: (song: Song) => Song,

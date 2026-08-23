@@ -61,7 +61,7 @@ describe('useNowPlayingPresentation palette lifecycle', () => {
       .mockReturnValueOnce(new Promise(resolve => {
         resolveFirst = resolve;
       }))
-      .mockReturnValueOnce(new Promise((resolve, reject) => {
+      .mockReturnValueOnce(new Promise((_resolve, reject) => {
         rejectSecond = reject;
       }));
 

@@ -20,6 +20,11 @@ describe('persisted tag-write recovery', () => {
     jest.mocked(AsyncStorage.setItem).mockReset().mockImplementation(async (key, value) => {
       storage.__getStore().set(key, value);
     });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockReset().mockResolvedValue({
+      available: true,
+      pendingCount: 1,
+      transactions: [{ transactionId: 'pending-native', state: 'WRITE_STARTED' }],
+    });
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockReset();
     Object.defineProperty(SystemAudio, 'acknowledgeAudioTagRecoveryOutcomes', {
       configurable: true, value: jest.fn().mockResolvedValue(true),
@@ -306,11 +311,111 @@ describe('persisted tag-write recovery', () => {
 
   test('opens startup normally when both JavaScript and native journals are empty', async () => {
     Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
-    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
-      success: true, transactions: [],
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true,
+      pendingCount: 0,
+      retainedOutcomeCount: 0,
+      transactions: [],
     });
 
     await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.getAudioTagRecoveryStatus).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).not.toHaveBeenCalled();
+  });
+
+  test('runs full recovery for a retained native receipt without an active journal', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true,
+      pendingCount: 0,
+      retainedOutcomeCount: 1,
+      transactions: [],
+    });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true,
+      transactions: [{
+        transactionId: 'retained-native-only',
+        previousState: 'WRITE_STARTED',
+        resultState: 'COMMITTED',
+        recovered: false,
+        pending: false,
+      }],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.acknowledgeAudioTagRecoveryOutcomes).toHaveBeenCalledWith(['retained-native-only']);
+  });
+
+  test('does not let confirmed JavaScript evidence hide a later native-only receipt', async () => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([{
+      operationId: 'confirmed-owner',
+      targetKey: 'content://provider/document/confirmed-owner.mp3',
+      phase: 'pendingNativeResult',
+      terminal: false,
+      retryable: true,
+      operationStatus: 'recovery-pending',
+      errorCode: 'TerminalJournalPersistenceFailed',
+      updatedAt: 1,
+      confirmedTerminalOutcome: {
+        operationStatus: 'completed',
+        phase: 'completed',
+        terminal: true,
+        retryable: false,
+        nativeRecoverySummaryComplete: true,
+      },
+    }]));
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true,
+      pendingCount: 0,
+      retainedOutcomeCount: 1,
+      transactions: [],
+    });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true,
+      transactions: [{
+        transactionId: 'native-after-confirmed-owner',
+        previousState: 'WRITE_STARTED',
+        resultState: 'COMMITTED',
+        recovered: false,
+        pending: false,
+      }],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toHaveLength(1);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+    expect(getSafWriteOperation('confirmed-owner')).toMatchObject({ operationStatus: 'completed', terminal: true });
+    expect(getSafWriteOperation('native-after-confirmed-owner')).toMatchObject({ operationStatus: 'completed', terminal: true });
+  });
+
+  test('falls back to full native recovery when the status fast path fails', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockRejectedValueOnce(new Error('status unavailable'));
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true,
+      transactions: [],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  test('falls back to full native recovery when native storage could not be inspected', async () => {
+    Object.defineProperty(SystemAudio, 'hasNativeTagWriter', { configurable: true, value: true });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: false,
+      pendingCount: 0,
+      retainedOutcomeCount: 0,
+      transactions: [],
+    });
+    jest.mocked(SystemAudio.recoverPendingAudioTagTransactions).mockResolvedValueOnce({
+      success: true,
+      transactions: [],
+    });
+
+    await expect(restoreAndReconcileTagWrites()).resolves.toEqual([]);
+    expect(SystemAudio.recoverPendingAudioTagTransactions).toHaveBeenCalledTimes(1);
   });
 
   test('can retry after native-only startup recovery rejects', async () => {
@@ -498,6 +603,9 @@ describe('persisted tag-write recovery', () => {
     jest.mocked(SystemAudio.recoverPendingAudioTagTransactions)
       .mockResolvedValueOnce(report)
       .mockResolvedValueOnce({ success: true, transactions: [] });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true, pendingCount: 0, retainedOutcomeCount: 0, transactions: [],
+    });
     const writeJournal = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
     jest.mocked(AsyncStorage.setItem)
       .mockImplementationOnce(writeJournal)
@@ -534,6 +642,9 @@ describe('persisted tag-write recovery', () => {
         recovered: true, pending: false,
       }] })
       .mockResolvedValueOnce({ success: true, transactions: [] });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true, pendingCount: 0, retainedOutcomeCount: 0, transactions: [],
+    });
     const writeJournal = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
     jest.mocked(AsyncStorage.setItem)
       .mockImplementationOnce(writeJournal)
@@ -593,6 +704,9 @@ describe('persisted tag-write recovery', () => {
         { transactionId: 'batch-commit', previousState: 'WRITE_STARTED', resultState: 'COMMITTED', recovered: false, pending: false },
         { transactionId: 'batch-rollback', previousState: 'RECOVERY_REQUIRED', resultState: 'RECOVERED', recovered: true, pending: false },
       ],
+    });
+    jest.mocked(SystemAudio.getAudioTagRecoveryStatus).mockResolvedValueOnce({
+      available: true, pendingCount: 0, retainedOutcomeCount: 0, transactions: [],
     });
     jest.mocked(AsyncStorage.setItem).mockRejectedValueOnce(new Error('first evidence write failed'));
 

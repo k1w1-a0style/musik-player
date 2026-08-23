@@ -1,4 +1,4 @@
-import { requestLatestSeek, isSeekDraining, resetSeekControllerForTests } from '../seekController';
+import { requestLatestSeek, isSeekDrainingForTests, resetSeekControllerForTests } from '../seekController';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../nativeHydrationGate';
 
 describe('seekController', () => {
@@ -59,7 +59,7 @@ describe('seekController', () => {
 
     expect(seek).toHaveBeenCalledTimes(1);
     expect(seek).toHaveBeenCalledWith(5);
-    expect(isSeekDraining()).toBe(false);
+    expect(isSeekDrainingForTests()).toBe(false);
   });
 
   test('clamps negative and NaN targets to zero seconds', async () => {
@@ -91,14 +91,14 @@ describe('seekController', () => {
     void requestLatestSeek(3000, seek);
     void requestLatestSeek(8000, seek);
 
-    expect(isSeekDraining()).toBe(true);
+    expect(isSeekDrainingForTests()).toBe(true);
 
     resolveFirst();
     await first;
 
     expect(calls).toEqual([1, 8]);
     expect(seek).toHaveBeenCalledTimes(2);
-    expect(isSeekDraining()).toBe(false);
+    expect(isSeekDrainingForTests()).toBe(false);
   });
 
 
@@ -125,14 +125,14 @@ describe('seekController', () => {
     await Promise.resolve();
 
     expect(secondSettled).toBe(false);
-    expect(isSeekDraining()).toBe(true);
+    expect(isSeekDrainingForTests()).toBe(true);
 
     resolveFirst();
     await Promise.all([first, second]);
 
     expect(calls).toEqual([1, 9]);
     expect(secondSettled).toBe(true);
-    expect(isSeekDraining()).toBe(false);
+    expect(isSeekDrainingForTests()).toBe(false);
   });
 
   test('swallows native seek errors and keeps the lane usable', async () => {
@@ -147,7 +147,7 @@ describe('seekController', () => {
 
     expect(warn).toHaveBeenCalledWith('[Seek] native seek failed.', expect.any(Error));
     expect(seek).toHaveBeenNthCalledWith(2, 6);
-    expect(isSeekDraining()).toBe(false);
+    expect(isSeekDrainingForTests()).toBe(false);
     warn.mockRestore();
   });
 });

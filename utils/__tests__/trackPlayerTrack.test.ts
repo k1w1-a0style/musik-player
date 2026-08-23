@@ -1,5 +1,5 @@
 import { asPlayableSong } from '../playableSong';
-import { resolvePlayableTrackUrl, toTrackPlayerTrack, tryToTrackPlayerTrack } from '../trackPlayerTrack';
+import { resolvePlayableTrackUrl, toTrackPlayerTrack } from '../trackPlayerTrack';
 import type { Song } from '../../types/Song';
 
 describe('trackPlayerTrack adapter', () => {
@@ -33,13 +33,6 @@ describe('trackPlayerTrack adapter', () => {
       artwork: 'file:///cover.jpg',
       duration: 123,
     });
-  });
-
-  test('rejects non-playable song conversion and logs warning', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    expect(tryToTrackPlayerTrack({ id: 's2', title: 'No URI', artist: 'Artist' })).toBeNull();
-    expect(warn).toHaveBeenCalledWith('[TrackPlayer] Skipping non-playable song s2.');
   });
 
   test('uses fallback labels for blank required fields on playable songs', () => {

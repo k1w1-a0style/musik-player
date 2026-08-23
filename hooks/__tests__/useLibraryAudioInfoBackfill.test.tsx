@@ -21,6 +21,10 @@ jest.mock('expo-system-audio', () => {
   };
 });
 
+jest.mock('../useAfterInitialInteractions', () => ({
+  useAfterInitialInteractions: () => true,
+}));
+
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
   id,
   title: id,
@@ -40,6 +44,25 @@ const song = (id: string, patch: Partial<Song> = {}): Song => ({
 describe('useLibraryAudioInfoBackfill', () => {
   beforeEach(() => {
     (SystemAudio.extractAudioInfo as jest.Mock).mockReset();
+  });
+
+  test('waits for completed music hydration before starting background audio-info work', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValue(null);
+    const applySongMetadataPatches = jest.fn();
+    const rendered = renderHook(
+      ({ enabled }: { enabled: boolean }) => useLibraryAudioInfoBackfill({
+        songs: [song('a')],
+        applySongMetadataPatches,
+        enabled,
+      }),
+      { initialProps: { enabled: false } },
+    );
+
+    await Promise.resolve();
+    expect(SystemAudio.extractAudioInfo).not.toHaveBeenCalled();
+
+    rendered.rerender({ enabled: true });
+    await waitFor(() => expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1));
   });
 
   test('detects songs with missing audio information', () => {

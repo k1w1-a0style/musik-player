@@ -1,5 +1,5 @@
 import type { Song } from '../../types/Song';
-import { getTagEditCapability, getUriType, isFileWriteSupportedOnPlatform, isSupportedTagEditContainer } from '../tagEditCapability';
+import { getSupportedContainer, getTagEditCapability, getUriType, isFileWriteSupportedOnPlatform } from '../tagEditCapability';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 't', artist: 'a', ...overrides });
 
@@ -53,9 +53,9 @@ describe('tagEditCapability', () => {
   });
 
   test('infers supported container from URI, filename and mime type when extension is missing', () => {
-    expect(isSupportedTagEditContainer(song({ uri: 'file:///music/a.mp3' }))).toBe(true);
-    expect(isSupportedTagEditContainer(song({ fileInfo: { filename: 'Artist - Track.m4a' }, uri: 'file:///fallback' }))).toBe(true);
-    expect(isSupportedTagEditContainer(song({ fileInfo: { mimeType: 'audio/mpeg' }, uri: 'content://media/1' }))).toBe(true);
+    expect(getSupportedContainer(song({ uri: 'file:///music/a.mp3' }))).toBe('mp3');
+    expect(getSupportedContainer(song({ fileInfo: { filename: 'Artist - Track.m4a' }, uri: 'file:///fallback' }))).toBe('m4a');
+    expect(getSupportedContainer(song({ fileInfo: { mimeType: 'audio/mpeg' }, uri: 'content://media/1' }))).toBe('mp3');
   });
 
   test('platform-gated file capability (ios/web blocked)', () => {
@@ -90,6 +90,6 @@ describe('tagEditCapability', () => {
 
   test('helpers', () => {
     expect(getUriType('file:///a')).toBe('file');
-    expect(isSupportedTagEditContainer(song({ fileInfo: { extension: 'mp3' } }))).toBe(true);
+    expect(getSupportedContainer(song({ fileInfo: { extension: 'mp3' } }))).toBe('mp3');
   });
 });

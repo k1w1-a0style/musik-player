@@ -18,6 +18,7 @@ import type {
   LibraryRendererOpenTrackInfo,
   LibraryRendererPlaySong,
 } from './libraryRendererTypes';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 interface UseLibrarySongRendererOptions {
   currentSongId: string | null;
@@ -58,7 +59,11 @@ export const useLibrarySongRenderer = ({
   const handleSongPress = useCallback<LibraryRendererHandleSongPress>((song, queue) => {
     // Reading refs at press-time avoids stale closures when the filtered list
     // changes between the row render and the actual tap (e.g. active search).
-    void playSongRef.current(song, queue ?? filteredSongsRef.current);
+    void runPlaybackUiAction(
+      `library-play-song-${song.id}`,
+      () => playSongRef.current(song, queue ?? filteredSongsRef.current),
+      { dropIfPending: true },
+    );
   }, []);
 
   const songKeyExtractor = useCallback(getLibrarySongKey, []);

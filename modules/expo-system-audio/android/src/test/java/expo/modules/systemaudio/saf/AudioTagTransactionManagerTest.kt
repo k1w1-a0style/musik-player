@@ -581,11 +581,23 @@ class AudioTagTransactionManagerTest {
     val store = FakeStore("partial".toByteArray())
     val manager = manager(root, store)
     val status = manager.status()
+    assertEquals(true, status["available"])
     assertEquals(1, status["pendingCount"])
     assertEquals(0, store.writes)
     assertEquals(journalBefore, File(dir, "journal.json").readText())
     assertArrayEquals(originalBefore, File(dir, "original.bin").readBytes())
     assertArrayEquals("partial".toByteArray(), store.bytes)
+  }
+
+  @Test fun statusIncludesRetainedRecoveryOutcomesWithoutActiveJournals() {
+    val root = tmp()
+    val storage = storage(root)
+    storage.retainRecoveryOutcome(recoveryReport("BackupCorrupted"))
+
+    val status = AudioTagTransactionManager(storage, FakeStore()).status()
+
+    assertEquals(0, status["pendingCount"])
+    assertEquals(1, status["retainedOutcomeCount"])
   }
 
   @Test fun damagedJournalIsQuarantinedAndDoesNotBlockIndependentUri() {
