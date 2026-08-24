@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 407
+# workflow-version: 408
 # manual-fallback-only: true
 name: Release Build (WAIT)
 
@@ -115,10 +115,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-      WORKFLOW_VERSION: "407"
+      WORKFLOW_VERSION: "408"
 
     steps:
       - name: Checkout repository
@@ -146,13 +143,6 @@ jobs:
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
-          fi
-
-          if [ "${GH_PROFILE_8777ED}" = "production" ]; then
-            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
-              echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
-              exit 1
-            fi
           fi
 
           ARTIFACT_EXT="apk"
@@ -322,37 +312,6 @@ jobs:
           eas --version
           eas whoami
 
-      - name: Export Android signing files (production only)
-        if: inputs.profile == 'production'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ci-logs
-          BODY="$(node -e 'process.stdout.write(JSON.stringify({repo:process.env.GITHUB_REPOSITORY,mode:"production"}))')"
-          HTTP_CODE="$(curl --silent --show-error --retry 3 --connect-timeout 10 --max-time 60 \
-            --output ci-logs/keystore-response.raw.json --write-out '%{http_code}' \
-            -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}" \
-            --data "${BODY}")"
-          node scripts/ci/summarizeKeystoreResponse.cjs \
-            ci-logs/keystore-response.raw.json \
-            ci-logs/keystore-response.summary.json \
-            "${HTTP_CODE}"
-          node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
-          test -f credentials.json
-          test -f android-upload-keystore.p12
-
-      - name: Reconcile Android signing alias
-        if: inputs.profile == 'production'
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/reconcileAndroidKeystoreAlias.cjs
-          test -s credentials.json
-
       - name: Run EAS build (WAIT)
         id: eas
         shell: bash
@@ -442,12 +401,6 @@ jobs:
         env:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
-
-      - name: Cleanup signing files
-        if: always()
-        shell: bash
-        run: |
-          rm -f credentials.json android-upload-keystore.p12 ci-logs/keystore-response.raw.json || true
 
       - name: Upload Android Artifact
         if: steps.inspect_apk.outcome == 'success'

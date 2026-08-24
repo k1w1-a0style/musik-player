@@ -172,6 +172,7 @@ npx eas build --platform android --profile production
 ```
 
 - [ ] Production erzeugt eine signierte, direkt installierbare `.apk`
+- [ ] Production nutzt den bei EAS verwalteten Release-Keystore (`credentialsSource: remote`)
 - [ ] APK-Paket, App-Label und Signatur wurden durch `inspectAndroidApk.cjs` bestätigt
 - [ ] APK/Build-ID, Commit-SHA und EAS-Link für den direkten Download dokumentiert
 
