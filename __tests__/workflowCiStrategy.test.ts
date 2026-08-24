@@ -32,18 +32,25 @@ const androidArtifactContractViolations = (
   const expectedBuildTypes: Record<string, string> = {
     development: 'apk',
     preview: 'apk',
-    production: 'app-bundle',
+    production: 'apk',
   };
   const invalidProfiles = Object.entries(expectedBuildTypes).flatMap(([profile, expected]) => {
     const actual = (config.build[profile] as { android?: { buildType?: string } } | undefined)?.android?.buildType;
     return actual === expected ? [] : [`${profile}: expected ${expected}, got ${actual ?? 'missing'}`];
   });
+  const invalidDistributions = Object.keys(expectedBuildTypes).flatMap(profile => {
+    const actual = (config.build[profile] as { distribution?: string } | undefined)?.distribution;
+    return actual === 'internal' ? [] : [`${profile}: expected internal, got ${actual ?? 'missing'}`];
+  });
 
   return [
     ...(invalidProfiles.length === 0 ? [] : [`Invalid Android build types: ${invalidProfiles.join(', ')}`]),
-    ...(workflow.includes('development|preview) ARTIFACT_EXT="apk"')
-      && workflow.includes('production) ARTIFACT_EXT="aab"')
-      ? [] : ['Workflow does not map profiles to APK/AAB extensions']),
+    ...(invalidDistributions.length === 0 ? [] : [`Invalid Android distributions: ${invalidDistributions.join(', ')}`]),
+    ...(workflow.includes('ARTIFACT_EXT="apk"')
+      && !workflow.includes('ARTIFACT_EXT="aab"')
+      ? [] : ['Workflow does not pin Android artifacts to APK']),
+    ...(workflow.includes('development|preview|production) EXPECTED_DISTRIBUTION="internal"')
+      ? [] : ['Workflow does not validate internal EAS distribution']),
     ...((usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ inputs.profile }}')
       || usesEnvExpression(parsedNamedStepFromSource(workflow, 'Download Android Artifact'), '${{ needs.resolve.outputs.profile }}'))
       && /k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}/.test(namedStep(workflow, 'Download Android Artifact'))
@@ -53,9 +60,9 @@ const androidArtifactContractViolations = (
     ...(workflow.includes('node scripts/ci/inspectAndroidApk.cjs')
       ? []
       : ['Canonical APK inspector is not used']),
-    ...(workflow.includes('node scripts/ci/inspectAndroidAppBundle.cjs')
-      ? []
-      : ['Canonical AAB inspector is not used']),
+    ...(workflow.includes('inspectAndroidAppBundle')
+      ? ['AAB inspector remains active']
+      : []),
   ];
 };
 
@@ -77,7 +84,7 @@ describe('GitHub workflow CI strategy', () => {
     },
   ];
 
-  it.each(workflowContracts)('keeps development/preview APKs and the production AAB aligned in $file', contract => {
+  it.each(workflowContracts)('keeps every Android profile on the installable APK contract in $file', contract => {
     const workflow = readWorkflow(contract.file);
 
     expect(androidArtifactContractViolations(
@@ -97,16 +104,28 @@ describe('GitHub workflow CI strategy', () => {
     )).toEqual([]);
   });
 
-  it('rejects a production APK regression across EAS and workflow configuration', () => {
+  it('rejects a production App Bundle regression across EAS and workflow configuration', () => {
     const regressedConfig = JSON.parse(JSON.stringify(easConfig));
-    regressedConfig.build.production.android.buildType = 'apk';
+    regressedConfig.build.production.android.buildType = 'app-bundle';
 
     const contract = workflowContracts[0];
     expect(androidArtifactContractViolations(
       regressedConfig,
       readWorkflow(contract.file),
     )).toContain(
-      'Invalid Android build types: production: expected app-bundle, got apk'
+      'Invalid Android build types: production: expected apk, got app-bundle'
+    );
+  });
+
+  it('rejects a production store-distribution regression', () => {
+    const regressedConfig = JSON.parse(JSON.stringify(easConfig));
+    regressedConfig.build.production.distribution = 'store';
+
+    expect(androidArtifactContractViolations(
+      regressedConfig,
+      readWorkflow(workflowContracts[0].file),
+    )).toContain(
+      'Invalid Android distributions: production: expected internal, got store'
     );
   });
 
@@ -119,10 +138,14 @@ describe('GitHub workflow CI strategy', () => {
 
     expect(violations(workflow.replace('.${ARTIFACT_EXT}', '.zip')))
       .toContain('Downloaded artifact name does not use the resolved extension');
+    expect(violations(workflow.replace('ARTIFACT_EXT="apk"', 'ARTIFACT_EXT="aab"')))
+      .toContain('Workflow does not pin Android artifacts to APK');
+    expect(violations(workflow.replace(
+      'development|preview|production) EXPECTED_DISTRIBUTION="internal"',
+      'development|preview|production) EXPECTED_DISTRIBUTION="store"',
+    ))).toContain('Workflow does not validate internal EAS distribution');
     expect(violations(workflow.replace('node scripts/ci/inspectAndroidApk.cjs', 'echo skipped')))
       .toContain('Canonical APK inspector is not used');
-    expect(violations(workflow.replace('node scripts/ci/inspectAndroidAppBundle.cjs', 'echo skipped')))
-      .toContain('Canonical AAB inspector is not used');
   });
 
   it.each(workflowContracts)('gates artifact upload in $file on the matching inspector', contract => {
@@ -133,9 +156,9 @@ describe('GitHub workflow CI strategy', () => {
 
     expect(inspectStep).toContain('id: inspect_apk');
     expect(inspectStep).toContain('node scripts/ci/inspectAndroidApk.cjs');
-    expect(inspectBundleStep).toContain('id: inspect_aab');
-    expect(inspectBundleStep).toContain('node scripts/ci/inspectAndroidAppBundle.cjs');
-    expect(uploadStep).toContain("steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'");
+    expect(inspectBundleStep).toBe('');
+    expect(uploadStep).toContain("if: steps.inspect_apk.outcome == 'success'");
+    expect(uploadStep).not.toContain('inspect_aab');
   });
 
   it('keeps the release APK path non-empty, inspected, and fail-closed before publication', () => {
@@ -153,8 +176,7 @@ describe('GitHub workflow CI strategy', () => {
     expect(downloadStep).toContain('eas build:view "${BUILD_ID}" --json');
     expect(downloadStep).toContain('resolveEasBuildArtifact.cjs artifact-url');
     expect(downloadStep).toContain('"${BUILD_ID}" "${PROFILE}" "${PROFILE}" "${EXPECTED_DISTRIBUTION}"');
-    expect(downloadStep).toContain('development|preview) EXPECTED_DISTRIBUTION="internal"');
-    expect(downloadStep).toContain('production) EXPECTED_DISTRIBUTION="store"');
+    expect(downloadStep).toContain('development|preview|production) EXPECTED_DISTRIBUTION="internal"');
     const download = parsedNamedStep('release-build.yml', 'Download Android Artifact');
     expect(usesEnvExpression(download, '${{ needs.resolve.outputs.profile }}')).toBe(true);
     expect(download.run).toMatch(/OUT="build\/k1w1-\$\{[A-Za-z_][A-Za-z0-9_]*\}\.\$\{ARTIFACT_EXT\}"/);
@@ -167,11 +189,11 @@ describe('GitHub workflow CI strategy', () => {
     expect(releaseWorkflow).not.toMatch(/eas build:download[\s\\]*--id[\s\S]{0,200}--output/);
     expect(downloadStep).toContain('if ! test -s "${OUT}"; then');
     expect(inspectStep).toContain('node scripts/ci/inspectAndroidApk.cjs');
-    expect(inspectBundleStep).toContain('node scripts/ci/inspectAndroidAppBundle.cjs');
-    expect(uploadStep).toContain("steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'");
+    expect(inspectBundleStep).toBe('');
+    expect(uploadStep).toContain("if: steps.inspect_apk.outcome == 'success'");
     expect(uploadStep).toContain('path: ${{ steps.download_artifact.outputs.artifact_path }}');
     expect(uploadStep).toContain('if-no-files-found: error');
-    for (const criticalStep of [downloadStep, inspectStep, inspectBundleStep, uploadStep]) {
+    for (const criticalStep of [downloadStep, inspectStep, uploadStep]) {
       expect(criticalStep).not.toContain('continue-on-error');
     }
   });
@@ -263,7 +285,7 @@ describe('GitHub workflow CI strategy', () => {
     expect(easWorkflow).toContain('Expected output=${OUT}');
     expect(easWorkflow).toContain('find "${ARTIFACT_DIR}" -maxdepth 2 -type f');
     expect(easWorkflow).toContain('node scripts/ci/inspectAndroidApk.cjs');
-    expect(easWorkflow).toContain('node scripts/ci/inspectAndroidAppBundle.cjs');
+    expect(easWorkflow).not.toContain('inspectAndroidAppBundle');
     expect(easWorkflow).toContain('--expected-package "${EXPECTED_PACKAGE}"');
     expect(easWorkflow).toContain('--expected-label "k1w1-Musik"');
     expect(easWorkflow).toContain('--min-size-bytes 10000001');

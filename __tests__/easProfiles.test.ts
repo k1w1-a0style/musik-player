@@ -20,12 +20,15 @@ describe('EAS build profile environments', () => {
     expect(easConfig.build.preview.android.withoutCredentials).toBe(true);
   });
 
-  it('pins production to the production environment and Google Play App Bundle output', () => {
+  it('pins production to a signed, internally distributed APK', () => {
     expect(easConfig.build.production.environment).toBe('production');
-    expect(easConfig.build.production.android.buildType).toBe('app-bundle');
+    expect(easConfig.build.production.distribution).toBe('internal');
+    expect(easConfig.build.production.credentialsSource).toBe('local');
+    expect(easConfig.build.production.android.buildType).toBe('apk');
+    expect(easConfig.build.production.android.withoutCredentials).not.toBe(true);
   });
 
-  it('keeps installable profiles on APK and production on the store bundle contract', () => {
+  it('keeps every Android profile directly installable as an APK', () => {
     const androidProfiles = Object.entries(easConfig.build).map(([profile, config]) => ({
       profile,
       buildType: (config as { android?: { buildType?: string } }).android?.buildType,
@@ -34,7 +37,7 @@ describe('EAS build profile environments', () => {
     expect(androidProfiles).toEqual([
       { profile: 'development', buildType: 'apk' },
       { profile: 'preview', buildType: 'apk' },
-      { profile: 'production', buildType: 'app-bundle' },
+      { profile: 'production', buildType: 'apk' },
     ]);
   });
 });

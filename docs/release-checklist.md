@@ -165,15 +165,15 @@ npx eas build --platform android --profile preview
 - [ ] APK auf echtem Android-Gerät installiert
 - [ ] Build-Link dokumentiert
 
-## Android Production Bundle
+## Android Production APK
 
 ```bash
 npx eas build --platform android --profile production
 ```
 
-- [ ] Production erzeugt ein signiertes `.aab` (kein sideloadbares APK)
-- [ ] AAB-Struktur und Signatur wurden durch `inspectAndroidAppBundle.cjs` bestätigt
-- [ ] Bundle/Build-ID, Commit-SHA und EAS-Link für den Play-Store-Handoff dokumentiert
+- [ ] Production erzeugt eine signierte, direkt installierbare `.apk`
+- [ ] APK-Paket, App-Label und Signatur wurden durch `inspectAndroidApk.cjs` bestätigt
+- [ ] APK/Build-ID, Commit-SHA und EAS-Link für den direkten Download dokumentiert
 
 ## Smoke Tests
 
