@@ -23,7 +23,7 @@
     "production": {
       "environment": "production",
       "distribution": "internal",
-      "credentialsSource": "local",
+      "credentialsSource": "remote",
       "android": {
         "buildType": "apk"
       }

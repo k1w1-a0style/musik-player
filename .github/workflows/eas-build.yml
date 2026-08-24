@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 409
+# workflow-version: 410
 name: EAS Build
 
 on:
@@ -43,8 +43,6 @@ on:
       SUPABASE_SERVICE_ROLE_KEY:
         required: false
       SUPABASE_APK_BUCKET:
-        required: false
-      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:
         required: false
 
 permissions:
@@ -149,7 +147,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "20.0.0"
-      WORKFLOW_VERSION: "409"
+      WORKFLOW_VERSION: "410"
 
     steps:
       - name: Checkout
@@ -444,7 +442,6 @@ jobs:
 
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
       RAW_JOB_ID: ${{ inputs.job_id }}
 
     steps:
@@ -472,13 +469,6 @@ jobs:
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
-          fi
-
-          if [ "${GH_PROFILE_8777ED}" = "production" ]; then
-            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
-              echo "::error::Production build requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
-              exit 1
-            fi
           fi
 
           ARTIFACT_EXT="apk"
@@ -732,103 +722,6 @@ jobs:
           set -euo pipefail
           eas whoami | tee ci-logs/eas-whoami.log
 
-      - name: Production credential preflight
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        env:
-          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-          WORKFLOW_REF: ${{ needs.authorize.outputs.ref }}
-        run: |
-          set -euo pipefail
-          echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
-          if [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
-            echo "::error::Missing K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY for production keystore export."
-            exit 1
-          fi
-          if [ -n "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
-            echo "::add-mask::${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"
-          fi
-          node -e '
-            const fs = require("fs");
-            const payload = {
-              repo: process.env.GITHUB_REPOSITORY,
-              mode: "production",
-              run_id: process.env.GITHUB_RUN_ID,
-              ref: process.env.WORKFLOW_REF || "",
-              profile: "production"
-            };
-            fs.mkdirSync("ci-logs", { recursive: true });
-            fs.writeFileSync("ci-logs/keystore-request.json", JSON.stringify(payload, null, 2));
-          '
-
-      - name: Fetch Android keystore (production only)
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        env:
-          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p ci-logs
-
-          CURL_ARGS=(
-            --silent
-            --show-error
-            --retry 3
-            --retry-all-errors
-            --connect-timeout 10
-            --max-time 60
-            -o ci-logs/keystore-response.raw.json
-            -w "%{http_code}"
-            -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"
-            -H "Content-Type: application/json"
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-            -d @ci-logs/keystore-request.json
-          )
-
-          if [ -n "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
-            CURL_ARGS+=(-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}")
-          fi
-
-          HTTP_CODE="$(
-            curl "${CURL_ARGS[@]}"
-          )"
-
-          echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
-
-          node scripts/ci/summarizeKeystoreResponse.cjs \
-            ci-logs/keystore-response.raw.json \
-            ci-logs/keystore-response.summary.json \
-            "${HTTP_CODE}"
-
-      - name: Validate keystore export structure
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          HTTP_CODE="$(cat ci-logs/keystore-response.http_code)"
-          node scripts/ci/summarizeKeystoreResponse.cjs \
-            ci-logs/keystore-response.raw.json \
-            ci-logs/keystore-response.summary.json \
-            "${HTTP_CODE}"
-
-      - name: Write Android signing files
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
-          test -f credentials.json
-          test -f android-upload-keystore.p12
-
-      - name: Reconcile Android signing alias
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/reconcileAndroidKeystoreAlias.cjs
-          test -s credentials.json
-
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
         shell: bash
@@ -993,22 +886,8 @@ jobs:
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
             ci-logs/android-apk-inspection.log
-            ci-logs/keystore-response.http_code
-            ci-logs/keystore-response.summary.json
-            !ci-logs/keystore-response.raw.json
           retention-days: 3
           if-no-files-found: ignore
-
-      - name: Cleanup signing files
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          rm -rf ci-credentials
-          rm -f credentials.json android-upload-keystore.p12
-          rm -f android/keystore.jks android/app/keystore.jks android/keystore.properties
-          rm -f ci-logs/keystore-response.raw.json
-          true
 
       - name: Upload Android Artifact
         if: steps.inspect_apk.outcome == 'success'

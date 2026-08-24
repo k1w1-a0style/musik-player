@@ -112,7 +112,7 @@ Vor einem Preview- oder Release-Build prüfen:
 - [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen; neue oder unerwartete Mikrofon-/Foto-/Video-Permissions blockieren den Main-Handoff.
 - [ ] Der Cover-cache-cleanup Smoke-Check bleibt inklusive `readDirectoryAsync` dokumentiert.
 - [ ] Preview-/Release-Profil und Build-Ziel wurden bewusst ausgewählt.
-- [ ] Development, Preview und Production erzeugen installierbare APKs; Production nutzt den Release-Keystore.
+- [ ] Development, Preview und Production erzeugen installierbare APKs; Production nutzt den bei EAS verwalteten Release-Keystore.
 - [ ] Build-Link, Commit-SHA und Smoke-Test-Ergebnis werden im Release-Thread oder PR dokumentiert.
 
 Manueller Start erst nach erfolgreichem Handoff-Check:

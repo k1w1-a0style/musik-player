@@ -23,7 +23,7 @@ describe('EAS build profile environments', () => {
   it('pins production to a signed, internally distributed APK', () => {
     expect(easConfig.build.production.environment).toBe('production');
     expect(easConfig.build.production.distribution).toBe('internal');
-    expect(easConfig.build.production.credentialsSource).toBe('local');
+    expect(easConfig.build.production.credentialsSource).toBe('remote');
     expect(easConfig.build.production.android.buildType).toBe('apk');
     expect(easConfig.build.production.android.withoutCredentials).not.toBe(true);
   });

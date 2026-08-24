@@ -42,10 +42,15 @@ const androidArtifactContractViolations = (
     const actual = (config.build[profile] as { distribution?: string } | undefined)?.distribution;
     return actual === 'internal' ? [] : [`${profile}: expected internal, got ${actual ?? 'missing'}`];
   });
+  const productionCredentialsSource = (
+    config.build.production as { credentialsSource?: string } | undefined
+  )?.credentialsSource;
 
   return [
     ...(invalidProfiles.length === 0 ? [] : [`Invalid Android build types: ${invalidProfiles.join(', ')}`]),
     ...(invalidDistributions.length === 0 ? [] : [`Invalid Android distributions: ${invalidDistributions.join(', ')}`]),
+    ...(productionCredentialsSource === 'remote'
+      ? [] : [`Production Android credentials must be remote, got ${productionCredentialsSource ?? 'missing'}`]),
     ...(workflow.includes('ARTIFACT_EXT="apk"')
       && !workflow.includes('ARTIFACT_EXT="aab"')
       ? [] : ['Workflow does not pin Android artifacts to APK']),
@@ -60,9 +65,9 @@ const androidArtifactContractViolations = (
     ...(workflow.includes('node scripts/ci/inspectAndroidApk.cjs')
       ? []
       : ['Canonical APK inspector is not used']),
-    ...(workflow.includes('node scripts/ci/reconcileAndroidKeystoreAlias.cjs')
-      ? []
-      : ['Android signing alias preflight is not used']),
+    ...(/android-keystore-export|writeAndroidSigningFilesFromExport|reconcileAndroidKeystoreAlias/.test(workflow)
+      ? ['Workflow still provisions local Android signing credentials']
+      : []),
     ...(workflow.includes('inspectAndroidAppBundle')
       ? ['AAB inspector remains active']
       : []),
@@ -132,6 +137,18 @@ describe('GitHub workflow CI strategy', () => {
     );
   });
 
+  it('rejects a production local-signing regression', () => {
+    const regressedConfig = JSON.parse(JSON.stringify(easConfig));
+    regressedConfig.build.production.credentialsSource = 'local';
+
+    expect(androidArtifactContractViolations(
+      regressedConfig,
+      readWorkflow(workflowContracts[0].file),
+    )).toContain(
+      'Production Android credentials must be remote, got local'
+    );
+  });
+
   it.each(workflowContracts)('rejects extension, naming, and inspector regressions in $file', contract => {
     const workflow = readWorkflow(contract.file);
     const violations = (mutatedWorkflow: string) => androidArtifactContractViolations(
@@ -149,6 +166,8 @@ describe('GitHub workflow CI strategy', () => {
     ))).toContain('Workflow does not validate internal EAS distribution');
     expect(violations(workflow.replace('node scripts/ci/inspectAndroidApk.cjs', 'echo skipped')))
       .toContain('Canonical APK inspector is not used');
+    expect(violations(`${workflow}\n# writeAndroidSigningFilesFromExport`))
+      .toContain('Workflow still provisions local Android signing credentials');
   });
 
   it.each(workflowContracts)('gates artifact upload in $file on the matching inspector', contract => {
