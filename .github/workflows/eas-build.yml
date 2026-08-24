@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 408
+# workflow-version: 409
 name: EAS Build
 
 on:
@@ -149,7 +149,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "20.0.0"
-      WORKFLOW_VERSION: "408"
+      WORKFLOW_VERSION: "409"
 
     steps:
       - name: Checkout
@@ -820,6 +820,14 @@ jobs:
           node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
           test -f credentials.json
           test -f android-upload-keystore.p12
+
+      - name: Reconcile Android signing alias
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/reconcileAndroidKeystoreAlias.cjs
+          test -s credentials.json
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
