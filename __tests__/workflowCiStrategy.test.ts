@@ -60,6 +60,9 @@ const androidArtifactContractViolations = (
     ...(workflow.includes('node scripts/ci/inspectAndroidApk.cjs')
       ? []
       : ['Canonical APK inspector is not used']),
+    ...(workflow.includes('node scripts/ci/reconcileAndroidKeystoreAlias.cjs')
+      ? []
+      : ['Android signing alias preflight is not used']),
     ...(workflow.includes('inspectAndroidAppBundle')
       ? ['AAB inspector remains active']
       : []),

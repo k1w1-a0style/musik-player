@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 406
+# workflow-version: 407
 # manual-fallback-only: true
 name: Release Build (WAIT)
 
@@ -118,7 +118,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-      WORKFLOW_VERSION: "406"
+      WORKFLOW_VERSION: "407"
 
     steps:
       - name: Checkout repository
@@ -344,6 +344,14 @@ jobs:
           node scripts/ci/writeAndroidSigningFilesFromExport.cjs < ci-logs/keystore-response.raw.json
           test -f credentials.json
           test -f android-upload-keystore.p12
+
+      - name: Reconcile Android signing alias
+        if: inputs.profile == 'production'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/reconcileAndroidKeystoreAlias.cjs
+          test -s credentials.json
 
       - name: Run EAS build (WAIT)
         id: eas
