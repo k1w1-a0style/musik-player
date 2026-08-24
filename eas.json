@@ -22,8 +22,10 @@
     },
     "production": {
       "environment": "production",
+      "distribution": "internal",
+      "credentialsSource": "local",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       }
     }
   }

@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 405
+# workflow-version: 406
 # manual-fallback-only: true
 name: Release Build (WAIT)
 
@@ -118,7 +118,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
-      WORKFLOW_VERSION: "405"
+      WORKFLOW_VERSION: "406"
 
     steps:
       - name: Checkout repository
@@ -155,10 +155,7 @@ jobs:
             fi
           fi
 
-          case "${GH_PROFILE_8777ED}" in
-            development|preview) ARTIFACT_EXT="apk" ;;
-            production) ARTIFACT_EXT="aab" ;;
-          esac
+          ARTIFACT_EXT="apk"
           echo "ARTIFACT_EXT=${ARTIFACT_EXT}" >> "$GITHUB_ENV"
         env:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
@@ -391,8 +388,7 @@ jobs:
             exit 1
           fi
           case "${PROFILE}" in
-            development|preview) EXPECTED_DISTRIBUTION="internal" ;;
-            production) EXPECTED_DISTRIBUTION="store" ;;
+            development|preview|production) EXPECTED_DISTRIBUTION="internal" ;;
             *) echo "::error::Unexpected build profile."; exit 1 ;;
           esac
           BUILD_JSON="$(mktemp)"
@@ -439,19 +435,6 @@ jobs:
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
-      - name: Inspect downloaded Android App Bundle
-        id: inspect_aab
-        if: env.ARTIFACT_EXT == 'aab'
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/inspectAndroidAppBundle.cjs \
-            "${GH_ARTIFACT_PATH_97F6CF}" \
-            --min-size-bytes 10000001 \
-            --require-signature
-        env:
-          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
-
       - name: Cleanup signing files
         if: always()
         shell: bash
@@ -459,7 +442,7 @@ jobs:
           rm -f credentials.json android-upload-keystore.p12 ci-logs/keystore-response.raw.json || true
 
       - name: Upload Android Artifact
-        if: steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'
+        if: steps.inspect_apk.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: k1w1-android-${{ needs.resolve.outputs.profile }}-${{ github.run_number }}-${{ env.ARTIFACT_EXT }}

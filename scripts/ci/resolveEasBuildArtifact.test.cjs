@@ -58,10 +58,10 @@ for (const profile of ['development', 'preview']) {
   });
 }
 
-test('resolves a production store artifact from structured JSON', () => {
+test('resolves a production internal artifact from structured JSON', () => {
   const result = validateBuildRecord(JSON.stringify(record({
-    buildProfile: 'production', environment: 'production', distribution: 'STORE',
-  })), { id: BUILD_ID, profile: 'production', environment: 'production', distribution: 'store' });
+    buildProfile: 'production', environment: 'production', distribution: 'INTERNAL',
+  })), { id: BUILD_ID, profile: 'production', environment: 'production', distribution: 'internal' });
   assert.equal(result.artifactUrl, SECRET_URL);
 });
 

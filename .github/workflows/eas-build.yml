@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 407
+# workflow-version: 408
 name: EAS Build
 
 on:
@@ -149,7 +149,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "20.0.0"
-      WORKFLOW_VERSION: "407"
+      WORKFLOW_VERSION: "408"
 
     steps:
       - name: Checkout
@@ -481,10 +481,7 @@ jobs:
             fi
           fi
 
-          case "${GH_PROFILE_8777ED}" in
-            development|preview) ARTIFACT_EXT="apk" ;;
-            production) ARTIFACT_EXT="aab" ;;
-          esac
+          ARTIFACT_EXT="apk"
           echo "ARTIFACT_EXT=${ARTIFACT_EXT}" >> "$GITHUB_ENV"
 
           case "${GH_PROFILE_8777ED}" in
@@ -886,8 +883,7 @@ jobs:
           BUILD_ID="${GH_BUILD_ID_E68394}"
           PROFILE="${GH_PROFILE_8777ED}"
           case "${PROFILE}" in
-            development|preview) EXPECTED_DISTRIBUTION="internal" ;;
-            production) EXPECTED_DISTRIBUTION="store" ;;
+            development|preview|production) EXPECTED_DISTRIBUTION="internal" ;;
             *) echo "::error::Unexpected build profile."; exit 1 ;;
           esac
           BUILD_JSON="$(mktemp)"
@@ -979,20 +975,6 @@ jobs:
           GH_PROFILE_8777ED: ${{ inputs.profile }}
           GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
 
-      - name: Inspect downloaded Android App Bundle
-        id: inspect_aab
-        if: steps.download_artifact.outputs.artifact_path != '' && env.ARTIFACT_EXT == 'aab'
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/inspectAndroidAppBundle.cjs \
-            "${GH_ARTIFACT_PATH_97F6CF}" \
-            --min-size-bytes 10000001 \
-            --require-signature \
-            | tee ci-logs/android-aab-inspection.log
-        env:
-          GH_ARTIFACT_PATH_97F6CF: ${{ steps.download_artifact.outputs.artifact_path }}
-
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -1003,7 +985,6 @@ jobs:
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
             ci-logs/android-apk-inspection.log
-            ci-logs/android-aab-inspection.log
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
             !ci-logs/keystore-response.raw.json
@@ -1022,7 +1003,7 @@ jobs:
           true
 
       - name: Upload Android Artifact
-        if: steps.inspect_apk.outcome == 'success' || steps.inspect_aab.outcome == 'success'
+        if: steps.inspect_apk.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.download_artifact.outputs.artifact_name }}
