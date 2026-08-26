@@ -29,8 +29,12 @@ describe('useSoundCloudWaveformMotion', () => {
     act(() => result.current.onStateChange(stateEvent({
       state: State.BEGAN, oldState: State.UNDETERMINED, translationX: 0,
     })));
-    expect(typeof result.current.onGestureEvent).toBe('function');
-    act(() => result.current.onGestureEvent(gestureEvent(-250)));
+    const event = result.current.onGestureEvent as unknown as {
+      __isNative: boolean;
+      __getHandler: () => (event: PanGestureHandlerGestureEvent) => void;
+    };
+    expect(event.__isNative).toBe(true);
+    act(() => event.__getHandler()(gestureEvent(-250)));
 
     expect(onPreviewPosition).toHaveBeenLastCalledWith(75_000);
 

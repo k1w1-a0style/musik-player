@@ -60,6 +60,26 @@ export const skipToNextSafely = async (): Promise<void> => {
   }
 };
 
+/**
+ * Navigates to the previous queue item without applying the transport button's
+ * "restart after three seconds" convention. Page/carousel gestures represent
+ * an explicit track navigation intent and must never restart the current item.
+ */
+export const skipToPreviousTrackSafely = async (): Promise<void> => {
+  try {
+    await runExclusiveNativePlaybackControl(
+      () => TrackPlayer.skipToPrevious(),
+      trackIdentityMutationOptions(),
+    );
+  } catch (error) {
+    if (error instanceof NativeMutationHydrationStaleError) {
+      console.warn('[Playback] Previous-track navigation discarded after hydration changed.', error);
+      return;
+    }
+    console.warn('[Playback] skipToPrevious track navigation failed.', error);
+  }
+};
+
 export const skipToPreviousOrRestart = async (): Promise<void> => {
   try {
     await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {

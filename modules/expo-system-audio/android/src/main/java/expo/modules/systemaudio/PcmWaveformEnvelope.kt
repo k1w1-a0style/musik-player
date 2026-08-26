@@ -52,7 +52,7 @@ internal class PcmWaveformEnvelope(
    * Decoding still covers the complete file, but RMS aggregation samples a
    * bounded, evenly spaced subset. Processing every individual PCM frame made
    * a three-minute track execute millions of Kotlin iterations without adding
-   * visible detail to a 160-point envelope.
+   * visible detail to a screen-sized envelope.
    */
   internal fun sampleStrideFor(sampleRate: Int): Int {
     if (sampleRate <= 0) return 1

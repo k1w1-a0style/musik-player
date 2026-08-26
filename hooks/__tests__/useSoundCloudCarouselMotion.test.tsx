@@ -12,7 +12,7 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
-  test('exposes a function listener and applies horizontal drag updates', () => {
+  test('binds horizontal drag updates to a native animated event', () => {
     const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
       currentSongId: 'track-1',
       panelWidth: 360,
@@ -23,14 +23,12 @@ describe('SoundCloud carousel gesture listeners', () => {
       reduceMotion: false,
     }));
 
-    expect(typeof result.current.onGestureEvent).toBe('function');
-    act(() => result.current.onGestureEvent(gestureEvent({ translationX: -48 })));
-    const dragValue = result.current.drag as unknown as { __getValue: () => number };
-    expect(dragValue.__getValue()).toBe(-48);
+    const event = result.current.onGestureEvent as unknown as { __isNative: boolean };
+    expect(event.__isNative).toBe(true);
     unmount();
   });
 
-  test('exposes a function listener for the nested vertical gesture', () => {
+  test('uses a native animated event plus a lightweight vertical preview listener', () => {
     const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
       drag: new Animated.Value(0),
       height: 800,
@@ -39,8 +37,12 @@ describe('SoundCloud carousel gesture listeners', () => {
       reduceMotion: false,
     }));
 
-    expect(typeof result.current.onGestureEvent).toBe('function');
-    expect(() => act(() => result.current.onGestureEvent(gestureEvent({ translationY: 64 })))).not.toThrow();
+    const event = result.current.onGestureEvent as unknown as {
+      __isNative: boolean;
+      __getHandler: () => (event: PanGestureHandlerGestureEvent) => void;
+    };
+    expect(event.__isNative).toBe(true);
+    expect(() => act(() => event.__getHandler()(gestureEvent({ translationY: 64 })))).not.toThrow();
     unmount();
   });
 

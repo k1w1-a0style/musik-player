@@ -61,7 +61,7 @@ describe('waveformPreload', () => {
       expect.objectContaining({ source: 'native', points: expect.any(Array) }),
     ]);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
-    expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith('file:///preload-song.mp3', 160);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith('file:///preload-song.mp3', 480);
     await expect(getCachedWaveform(getWaveformSourceIdentity(song)))
       .resolves.toMatchObject({ source: 'native' });
 
@@ -116,7 +116,7 @@ describe('waveformPreload', () => {
     await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith(
-      'file:///foreground-song.mp3', 160,
+      'file:///foreground-song.mp3', 480,
     );
 
     foregroundNative.resolve(decoded);
@@ -125,7 +125,7 @@ describe('waveformPreload', () => {
     await expect(preload).resolves.toMatchObject({ source: 'native' });
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
     expect(extractor.extractWaveformPeaks).toHaveBeenLastCalledWith(
-      'file:///preload-song.mp3', 160,
+      'file:///preload-song.mp3', 480,
     );
   });
 });

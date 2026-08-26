@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
 import WaveformScrubber from '../WaveformScrubber';
-import { Rect } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { getAppTheme } from '../../utils/appTheme';
 import { WAVEFORM_VERSION } from '../../utils/waveformTypes';
 let mockAppTheme = getAppTheme('dark', 'graphite');
@@ -21,7 +21,7 @@ const waveform = {
   version: WAVEFORM_VERSION,
   source: 'fallback' as const,
   sourceKey: 'test-waveform',
-  sourceFingerprint: 'wf5:00000000000000000000000000000001',
+  sourceFingerprint: 'wf6:00000000000000000000000000000001',
   generatedAt: 1_782_950_400_000,
   durationMs: 100_000,
   points: [0.2, 0.6, 0.4, 0.8],
@@ -149,14 +149,14 @@ describe('WaveformScrubber seek semantics', () => {
     act(() => {
       scrubber.props.onLayout(layout);
     });
-    const fillsBeforeDrag = UNSAFE_getAllByType(Rect).map(rect => rect.props.fill);
+    const strokesBeforeDrag = UNSAFE_getAllByType(Path).map(path => path.props.stroke);
 
     act(() => {
       scrubber.props.onResponderGrant(touchAt(20));
       scrubber.props.onResponderMove(touchAt(160));
     });
 
-    expect(UNSAFE_getAllByType(Rect).map(rect => rect.props.fill)).toEqual(fillsBeforeDrag);
+    expect(UNSAFE_getAllByType(Path).map(path => path.props.stroke)).toEqual(strokesBeforeDrag);
     expect(getByTestId('waveform-rest-layer')).toBeTruthy();
     expect(getByTestId('waveform-played-layer')).toBeTruthy();
     expect(getByTestId('waveform-played-clip')).toBeTruthy();
@@ -191,7 +191,7 @@ describe('WaveformScrubber seek semantics', () => {
 
     expect(JSON.stringify(getAllByText('0:25')[0].props.style)).toContain(mockAppTheme.palette.text.muted);
     expect(JSON.stringify(getAllByText('1:40')[0].props.style)).toContain(mockAppTheme.palette.text.muted);
-    expect(JSON.stringify(UNSAFE_getAllByType(Rect)[2].props.fill)).toContain(mockAppTheme.palette.borderStrong);
+    expect(UNSAFE_getAllByType(Path).map(path => path.props.stroke)).toContain(mockAppTheme.palette.borderStrong);
 
     const scrubber = getByTestId('waveform-scrubber').findByProps({ accessibilityRole: 'adjustable' });
     act(() => {

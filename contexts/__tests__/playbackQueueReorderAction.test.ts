@@ -15,7 +15,7 @@ const mutations = {
   reset: (TrackPlayer.reset as jest.Mock).getMockImplementation(), add: (TrackPlayer.add as jest.Mock).getMockImplementation(),
   play: (TrackPlayer.play as jest.Mock).getMockImplementation(), pause: (TrackPlayer.pause as jest.Mock).getMockImplementation(),
   stop: (TrackPlayer.stop as jest.Mock).getMockImplementation(), skip: (TrackPlayer.skip as jest.Mock).getMockImplementation(),
-  seekTo: (TrackPlayer.seekTo as jest.Mock).getMockImplementation(),
+  seekTo: (TrackPlayer.seekTo as jest.Mock).getMockImplementation(), move: (TrackPlayer.move as jest.Mock).getMockImplementation(),
 };
 const restore = () => {
   (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => player.__getQueue());
@@ -46,6 +46,9 @@ test('reorder commits a completely read-back native queue', async () => {
   expect(result.status).toBe('applied');
   expect(input.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's3', 's2']);
   expect(input.setCurrentSong).toHaveBeenCalledWith(songs[0]);
+  expect(TrackPlayer.move).toHaveBeenCalledWith(2, 1);
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
 });
 
 test('reorder preserves paused playback instead of starting audio', async () => {
@@ -73,7 +76,7 @@ test('shuffle preserves stopped playback instead of starting audio', async () =>
 });
 
 test.each([State.Buffering, State.Loading])(
-  'reorder preserves active playback intent while native state is %s',
+  'reorder leaves transient native playback state untouched while state is %s',
   async transientState => {
     await seed(songs);
     player.__setState(transientState);
@@ -85,8 +88,9 @@ test.each([State.Buffering, State.Loading])(
     });
 
     expect(result.status).toBe('applied');
-    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
-    expect(player.__getState()).toBe(State.Playing);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    expect(player.__getState()).toBe(transientState);
   },
 );
 
@@ -111,7 +115,7 @@ test('reorder during shuffle preserves the semantic base after a post-mutation f
   const shuffled = [songs[1], songs[0], songs[2]];
   await seed(shuffled, 0);
   const input = createArgs(shuffled); input.shuffleRef.current = true;
-  (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('pause failed'));
+  (TrackPlayer.move as jest.Mock).mockRejectedValueOnce(new Error('move failed'));
   const result = await runReorderQueueAction({ ...input, fromIndex: 2, toIndex: 1, currentSongId: 's2', shuffle: true });
   expect(['reconciled', 'rolled-back']).toContain(result.status);
   expect(new Set(input.baseQueueContextRef.current.map(song => song.id))).toEqual(new Set(songs.map(song => song.id)));
@@ -120,7 +124,7 @@ test('reorder during shuffle preserves the semantic base after a post-mutation f
 test('direct reorder after recovered insert uses the committed native truth', async () => {
   await seed(songs);
   const input = createArgs();
-  (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('first failed'));
+  (TrackPlayer.move as jest.Mock).mockRejectedValueOnce(new Error('first failed'));
   await runReorderQueueAction({ ...input, fromIndex: 2, toIndex: 1, currentSongId: 's1', shuffle: false });
   const second = await runReorderQueueAction({ ...input, fromIndex: 1, toIndex: 2, currentSongId: 's1', shuffle: false });
   expect(['applied', 'reconciled']).toContain(second.status);
@@ -131,7 +135,7 @@ test('later unshuffle after reorder recovery restores only the confirmed semanti
   const shuffled = [songs[1], songs[0], songs[2]];
   await seed(shuffled);
   const input = createArgs(shuffled); input.shuffleRef.current = true;
-  (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(new Error('reorder failed'));
+  (TrackPlayer.move as jest.Mock).mockRejectedValueOnce(new Error('reorder failed'));
   await runReorderQueueAction({ ...input, fromIndex: 2, toIndex: 1, currentSongId: 's2', shuffle: true });
   expect(input.shuffleRef.current).toBe(true);
   const unshuffle = await runShuffleQueueAction({ ...input, currentSongId: 's2', shuffle: true });

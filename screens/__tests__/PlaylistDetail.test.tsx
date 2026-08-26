@@ -91,26 +91,17 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
   updatedAt: patch.updatedAt ?? 1,
 });
 
-const responderEvent = (currentY: number, previousY: number, timestamp: number) => ({
-  nativeEvent: { touches: [{}] },
-  touchHistory: {
-    numberActiveTouches: 1,
-    indexOfSingleActiveTouch: 0,
-    mostRecentTimeStamp: timestamp,
-    touchBank: [{
-      touchActive: true,
-      startPageX: 0,
-      startPageY: 0,
-      currentPageX: 0,
-      currentPageY: currentY,
-      previousPageX: 0,
-      previousPageY: previousY,
-      startTimeStamp: 1,
-      currentTimeStamp: timestamp,
-      previousTimeStamp: Math.max(1, timestamp - 1),
-    }],
-  },
-});
+type NativeGestureEventHandler = ((event: unknown) => void) | {
+  __getHandler: () => (event: unknown) => void;
+};
+
+const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGestureEventHandler } },
+  translationY: number) => {
+  const event = { nativeEvent: { translationY } };
+  const handler = node.props.onGestureHandlerEvent;
+  if (typeof handler === 'function') handler(event);
+  else handler.__getHandler()(event);
+};
 
 beforeEach(() => {
   mockPlaylistId = 'playlist-1';
@@ -181,18 +172,18 @@ test('moves songs atomically through the playlist reorder action', () => {
     { targetSongId: 'song-b' });
 });
 
-test('dragging the visible playlist grip claims the touch immediately and commits the move', () => {
+test('dragging the visible playlist grip uses the native gesture handler and commits the move', () => {
   const { getByTestId, unmount } = render(<PlaylistDetail />);
   const surface = getByTestId('playlist-detail-drag-surface-song-b');
   const handle = getByTestId('playlist-detail-drag-handle-song-b');
-  const start = responderEvent(0, 0, 1);
-  const move = responderEvent(80, 10, 3);
-
   expect(surface.props.onStartShouldSetResponderCapture).toBeUndefined();
-  expect(handle.props.onStartShouldSetResponderCapture(start)).toBe(true);
-  act(() => handle.props.onResponderGrant(start));
-  act(() => handle.props.onResponderMove(move));
-  act(() => handle.props.onResponderRelease(move));
+  fireEvent(handle, 'handlerStateChange', {
+    nativeEvent: { oldState: 2, state: 4, translationY: 0 },
+  });
+  act(() => emitNativeGesture(handle as never, 80));
+  fireEvent(handle, 'handlerStateChange', {
+    nativeEvent: { oldState: 4, state: 5, translationY: 80 },
+  });
 
   expect(mockMoveSongInPlaylist).toHaveBeenCalledWith('playlist-1', 'song-b',
     { targetSongId: 'song-a' });
@@ -206,7 +197,7 @@ test('long-pressing a playlist row activates native drag reordering', () => {
   fireEvent(gesture, 'handlerStateChange', {
     nativeEvent: { oldState: 2, state: 4, translationY: 0 },
   });
-  fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: 80 } });
+  act(() => emitNativeGesture(gesture as never, 80));
   fireEvent(gesture, 'handlerStateChange', {
     nativeEvent: { oldState: 4, state: 5, translationY: 80 },
   });

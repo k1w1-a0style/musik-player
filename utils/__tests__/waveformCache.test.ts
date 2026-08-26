@@ -7,7 +7,7 @@ import {
 } from '../waveformCache';
 import { WAVEFORM_VERSION, type SongWaveform, type WaveformSourceIdentity } from '../waveformTypes';
 
-const PREFIX = '@musikplayer:waveform:v5:';
+const PREFIX = '@musikplayer:waveform:v6:';
 const INDEX_KEY = `${PREFIX}index`;
 const storage = AsyncStorage as typeof AsyncStorage & {
   __reset(): void;
@@ -17,7 +17,7 @@ const originalSetItem = (AsyncStorage.setItem as jest.Mock).getMockImplementatio
 
 const identityFor = (sourceKey: string, seed = 1): WaveformSourceIdentity => ({
   sourceKey,
-  sourceFingerprint: `wf5:${seed.toString(16).padStart(32, '0')}`,
+  sourceFingerprint: `wf6:${seed.toString(16).padStart(32, '0')}`,
 });
 
 const waveformFor = (sourceKey: string, seed = 1): SongWaveform => ({

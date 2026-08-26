@@ -19,6 +19,7 @@ import {
   seekToMillis,
   skipToNextSafely,
   skipToPreviousOrRestart,
+  skipToPreviousTrackSafely,
   toggleTrackPlayerPlayback,
 } from '../playbackControlHelpers';
 
@@ -178,6 +179,14 @@ describe('playbackControlHelpers', () => {
 
     expect(TrackPlayer.seekTo).toHaveBeenCalledWith(0);
     expect(TrackPlayer.skipToPrevious).not.toHaveBeenCalled();
+  });
+
+  test('explicit previous-track navigation skips regardless of playback position', async () => {
+    await skipToPreviousTrackSafely();
+
+    expect(TrackPlayer.skipToPrevious).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.getProgress).not.toHaveBeenCalled();
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 
   test('previous falls back to restart at beginning of queue', async () => {

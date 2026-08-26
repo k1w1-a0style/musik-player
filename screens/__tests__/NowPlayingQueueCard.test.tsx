@@ -31,26 +31,17 @@ const queue: Song[] = [
   { id: 's3', title: 'Three', artist: 'C' },
 ];
 
-const responderEvent = (currentY: number, previousY: number, timestamp: number) => ({
-  nativeEvent: { touches: [{}] },
-  touchHistory: {
-    numberActiveTouches: 1,
-    indexOfSingleActiveTouch: 0,
-    mostRecentTimeStamp: timestamp,
-    touchBank: [{
-      touchActive: true,
-      startPageX: 0,
-      startPageY: 0,
-      currentPageX: 0,
-      currentPageY: currentY,
-      previousPageX: 0,
-      previousPageY: previousY,
-      startTimeStamp: 1,
-      currentTimeStamp: timestamp,
-      previousTimeStamp: Math.max(1, timestamp - 1),
-    }],
-  },
-});
+type NativeGestureEventHandler = ((event: unknown) => void) | {
+  __getHandler: () => (event: unknown) => void;
+};
+
+const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGestureEventHandler } },
+  translationY: number) => {
+  const event = { nativeEvent: { translationY } };
+  const handler = node.props.onGestureHandlerEvent;
+  if (typeof handler === 'function') handler(event);
+  else handler.__getHandler()(event);
+};
 
 test('queue reorder target includes auto-scroll distance and never crosses the current-song boundary', () => {
   expect(resolveQueueReorderTargetIndex({
@@ -135,7 +126,7 @@ test('renders drag handles for upcoming tracks only', () => {
   expect(onPlayQueueItem).toHaveBeenCalledWith('s2');
 });
 
-test('dragging the visible queue grip claims the touch immediately and commits the move', () => {
+test('dragging the visible queue grip uses the native gesture handler and commits the move', () => {
   const onQueueShift = jest.fn();
   const { getByTestId, unmount } = render(
     <NowPlayingQueueCard queue={queue} currentSongId="s1" maxHeight={240}
@@ -144,14 +135,14 @@ test('dragging the visible queue grip claims the touch immediately and commits t
   );
   const surface = getByTestId('queue-drag-surface-s2');
   const handle = getByTestId('queue-drag-handle-s2');
-  const start = responderEvent(0, 0, 1);
-  const move = responderEvent(80, 10, 3);
-
   expect(surface.props.onStartShouldSetResponderCapture).toBeUndefined();
-  expect(handle.props.onStartShouldSetResponderCapture(start)).toBe(true);
-  act(() => handle.props.onResponderGrant(start));
-  act(() => handle.props.onResponderMove(move));
-  act(() => handle.props.onResponderRelease(move));
+  fireEvent(handle, 'handlerStateChange', {
+    nativeEvent: { oldState: 2, state: 4, translationY: 0 },
+  });
+  act(() => emitNativeGesture(handle as never, 80));
+  fireEvent(handle, 'handlerStateChange', {
+    nativeEvent: { oldState: 4, state: 5, translationY: 80 },
+  });
 
   expect(onQueueShift).toHaveBeenCalledWith(1, 2);
   act(() => unmount());
@@ -169,7 +160,7 @@ test('long-pressing an upcoming queue row activates drag without taking over nor
   fireEvent(gesture, 'handlerStateChange', {
     nativeEvent: { oldState: 2, state: 4, translationY: 0 },
   });
-  fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: 80 } });
+  act(() => emitNativeGesture(gesture as never, 80));
   fireEvent(gesture, 'handlerStateChange', {
     nativeEvent: { oldState: 4, state: 5, translationY: 80 },
   });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, PanResponder, Vibration, type PanResponderGestureState } from 'react-native';
+import { Animated, Vibration } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { resolveQueueReorderTargetIndex } from '../utils/soundCloudPlayer';
@@ -16,33 +16,12 @@ interface QueueRowDragOptions {
   onShift?: (fromIndex: number, toIndex: number) => void;
 }
 
-interface QueuePanResponderOptions {
-  canDrag: boolean;
-  onGrant: () => void;
-  onMove: (gesture: PanResponderGestureState) => void;
-  onRelease: (gesture: PanResponderGestureState) => void;
-  onCancel: () => void;
-}
-
-const useQueuePanResponder = (options: QueuePanResponderOptions) => {
-  const optionsRef = React.useRef(options);
-  optionsRef.current = options;
-  return React.useMemo(() => PanResponder.create({
-    // These handlers are installed only on the visible grip. Claiming its
-    // touch at START avoids trying to steal an already-active Android list
-    // gesture after a delayed long-press.
-    onStartShouldSetPanResponder: () => optionsRef.current.canDrag,
-    onStartShouldSetPanResponderCapture: () => optionsRef.current.canDrag,
-    onMoveShouldSetPanResponder: () => optionsRef.current.canDrag,
-    onMoveShouldSetPanResponderCapture: () => optionsRef.current.canDrag,
-    onPanResponderGrant: () => optionsRef.current.onGrant(),
-    onPanResponderMove: (_event, gesture) => optionsRef.current.onMove(gesture),
-    onPanResponderRelease: (_event, gesture) => optionsRef.current.onRelease(gesture),
-    onPanResponderTerminate: () => optionsRef.current.onCancel(),
-    onPanResponderTerminationRequest: () => false,
-    onShouldBlockNativeResponder: () => true,
-  }), []);
-};
+const createNativeDragEvent = (dragY: Animated.Value, move: (dy: number) => void) => Animated.event<
+  PanGestureHandlerGestureEvent['nativeEvent']
+>([{ nativeEvent: { translationY: dragY } }], {
+  useNativeDriver: true,
+  listener: (event: PanGestureHandlerGestureEvent) => move(event.nativeEvent.translationY ?? 0),
+});
 
 export const useAnimatedQueuePreview = (previewOffsetY: number): Animated.Value => {
   const previewY = React.useRef(new Animated.Value(previewOffsetY)).current;
@@ -88,12 +67,11 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     if (!canDrag) return;
     const delta = dy - previousYRef.current;
     previousYRef.current = dy;
-    dragY.setValue(dy);
     const target = resolveTarget(dy);
     if (target !== previousTargetRef.current) Vibration.vibrate(6);
     previousTargetRef.current = target;
     onDragPosition?.(index, dy, delta === 0 ? 0 : delta < 0 ? -1 : 1);
-  }, [canDrag, dragY, index, onDragPosition, resolveTarget]);
+  }, [canDrag, index, onDragPosition, resolveTarget]);
   const release = React.useCallback((dy: number) => {
     const target = resolveTarget(dy);
     const shouldShift = canDrag && target !== index;
@@ -105,26 +83,28 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     if (shouldShift) onShift?.(index, target);
     reset();
   }, [canDrag, index, onShift, reset, resolveTarget]);
-  const panResponder = useQueuePanResponder({ canDrag, onGrant: grant,
-    onMove: gesture => move(gesture.dy), onRelease: gesture => release(gesture.dy), onCancel: reset });
-  const onLongPressGestureEvent = React.useCallback((event: PanGestureHandlerGestureEvent) => {
-    move(event.nativeEvent.translationY ?? 0);
-  }, [move]);
-  const onLongPressStateChange = React.useCallback((event: PanGestureHandlerStateChangeEvent) => {
+  const rowGestureEvent = React.useMemo(() => createNativeDragEvent(dragY, move), [dragY, move]);
+  const handleGestureEvent = React.useMemo(() => createNativeDragEvent(dragY, move), [dragY, move]);
+  const onGestureStateChange = React.useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationY = 0 } = event.nativeEvent;
     if (state === State.ACTIVE && oldState === State.BEGAN) grant();
     else if (state === State.END && oldState === State.ACTIVE) release(translationY);
     else if (state === State.CANCELLED || state === State.FAILED) reset();
   }, [grant, release, reset]);
+  const longPressGestureHandlers = React.useMemo(() => ({
+    onGestureEvent: rowGestureEvent,
+    onHandlerStateChange: onGestureStateChange,
+  }), [onGestureStateChange, rowGestureEvent]);
+  const handleGestureHandlers = React.useMemo(() => ({
+    onGestureEvent: handleGestureEvent,
+    onHandlerStateChange: onGestureStateChange,
+  }), [handleGestureEvent, onGestureStateChange]);
   return {
     dragEnabled: dragging,
     dragging,
     dragY,
-    panHandlers: panResponder.panHandlers,
-    longPressGestureHandlers: {
-      onGestureEvent: onLongPressGestureEvent,
-      onHandlerStateChange: onLongPressStateChange,
-    },
+    longPressGestureHandlers,
+    handleGestureHandlers,
     reset,
   };
 };

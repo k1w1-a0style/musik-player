@@ -30,10 +30,10 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 jest.mock('../../hooks/useSongWaveform', () => ({
   useSongWaveform: () => ({
     waveform: {
-      version: 5,
+      version: 6,
       source: 'fallback',
       sourceKey: 'test-waveform',
-      sourceFingerprint: 'wf5:00000000000000000000000000000001',
+      sourceFingerprint: 'wf6:00000000000000000000000000000001',
       generatedAt: 1,
       durationMs: 120_000,
       points: [0.2, 0.8, 0.5],
@@ -122,6 +122,18 @@ const renderSoundCloudView = (props: Partial<React.ComponentProps<typeof NowPlay
   };
 
   return render(<NowPlayingSoundCloudView {...defaultProps} {...props} />);
+};
+
+type NativeGestureEventHandler = ((event: unknown) => void) | {
+  __getHandler: () => (event: unknown) => void;
+};
+
+const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGestureEventHandler } },
+  nativeEvent: Record<string, number>) => {
+  const event = { nativeEvent };
+  const handler = node.props.onGestureHandlerEvent;
+  if (typeof handler === 'function') handler(event);
+  else handler.__getHandler()(event);
 };
 
 describe('NowPlayingSoundCloudView', () => {
@@ -245,7 +257,7 @@ describe('NowPlayingSoundCloudView', () => {
     const { getByTestId, queryByTestId } = renderSoundCloudView();
     const gesture = getByTestId('soundcloud-collapse-gesture');
 
-    fireEvent(gesture, 'gestureEvent', { nativeEvent: { translationY: -90 } });
+    act(() => emitNativeGesture(gesture as never, { translationY: -90 }));
 
     expect(getByTestId('soundcloud-queue-sheet', { includeHiddenElements: true })).toBeTruthy();
     expect(queryByTestId('now-playing-queue-list')).toBeNull();

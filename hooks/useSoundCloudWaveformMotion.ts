@@ -63,11 +63,17 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
     const ratio = resolveSoundCloudSeekRatio({ startRatio: startRatioRef.current, translationX, travelWidth });
     onPreviewPosition(ratio * safeDuration);
   }, [onPreviewPosition, safeDuration, travelWidth]);
-  const onGestureEvent = useCallback((event: PanGestureHandlerGestureEvent) => {
-    const translationX = event.nativeEvent.translationX ?? 0;
-    gestureX.setValue(translationX);
-    preview(translationX);
-  }, [gestureX, preview]);
+  const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
+    [{ nativeEvent: { translationX: gestureX } }],
+    {
+      useNativeDriver: true,
+      // The transform stays on the UI thread. JS only receives a throttled time
+      // label update, so a busy render cannot make the waveform lag behind the finger.
+      listener: (event: PanGestureHandlerGestureEvent) => {
+        preview(event.nativeEvent.translationX ?? 0);
+      },
+    },
+  ), [gestureX, preview]);
   const finish = useCallback((translationX: number, commit: boolean) => {
     const nextRatio = resolveSoundCloudSeekRatio({ startRatio: startRatioRef.current, translationX, travelWidth });
     draggingRef.current = false;

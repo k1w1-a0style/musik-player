@@ -10,6 +10,7 @@ import { useNowPlayingQueue } from './useNowPlayingQueue';
 import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
+import { skipToPreviousTrackSafely } from '../contexts/playbackControlHelpers';
 import type { RepeatMode, Song } from '../types/Song';
 
 export const buildSavedQueuePlaylistName = (date = new Date()): string => {
@@ -59,10 +60,8 @@ export const getAdjacentNowPlayingSongs = (
 export const useNowPlayingScreenState = () => {
   const insets = useSafeAreaInsets();
   const {
-    playbackQueue,
-    currentSong,
-    seekTo,
-    isPlaying,
+    playbackQueue, currentSong,
+    seekTo, isPlaying,
     togglePlayPause,
     sleepTimerActive,
     sleepTimerRemainingSeconds,
@@ -74,7 +73,6 @@ export const useNowPlayingScreenState = () => {
     paletteLoading,
     playSong,
     next,
-    previous,
     reorderQueue,
     saveQueueAsPlaylist,
     shuffle, toggleShuffle,
@@ -98,8 +96,12 @@ export const useNowPlayingScreenState = () => {
     return runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
   }, [canSwipeToNext, next]);
 
-  const swipeToPrevious = useCallback(() => runPlaybackUiAction(
-    'now-playing-previous', previous, { dropIfPending: true }), [previous]);
+  const swipeToPrevious = useCallback(() => {
+    if (!adjacentSongs.previousSong) return Promise.resolve();
+    return runPlaybackUiAction(
+      'now-playing-previous-track', skipToPreviousTrackSafely, { dropIfPending: true },
+    );
+  }, [adjacentSongs.previousSong]);
 
   return {
     currentSong,

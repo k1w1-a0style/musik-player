@@ -121,6 +121,17 @@ const TrackPlayer = {
       trigger(Event.PlaybackActiveTrackChanged, { track: queue[currentIdx] });
     }
   }),
+  move: jest.fn(async (fromIndex, toIndex) => {
+    if (fromIndex < 0 || fromIndex >= queue.length || toIndex < 0 || toIndex >= queue.length) {
+      throw new Error('track not found');
+    }
+    if (fromIndex === toIndex) return;
+    const [track] = queue.splice(fromIndex, 1);
+    queue.splice(toIndex, 0, track);
+    if (currentIdx === fromIndex) currentIdx = toIndex;
+    else if (fromIndex < currentIdx && toIndex >= currentIdx) currentIdx -= 1;
+    else if (fromIndex > currentIdx && toIndex <= currentIdx) currentIdx += 1;
+  }),
   getQueue: jest.fn(async () => queue),
   getActiveTrack: jest.fn(async () => queue[currentIdx]),
   getActiveTrackIndex: jest.fn(async () => currentIdx >= 0 ? currentIdx : undefined),

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View,
   type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
-import Svg, { Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { formatTime } from '../utils/musicParser';
@@ -46,18 +46,25 @@ interface WaveformBarsProps {
   layer: 'rest' | 'played';
 }
 
+export const buildWaveformScrubberPath = (points: readonly number[], height: number): string =>
+  points.map((point, index) => {
+    const barHeight = Math.max(4, point * height);
+    const x = index * 5 + 1.5;
+    const top = (height - barHeight) / 2;
+    return `M${x.toFixed(2)} ${top.toFixed(2)}V${(top + barHeight).toFixed(2)}`;
+  }).join('');
+
 const WaveformBars = React.memo(({ points, sourceKey, color, height, svgWidth,
-  width, layer }: WaveformBarsProps) => (
-  <Svg width={width} height={height} viewBox={`0 0 ${svgWidth} ${height}`}
-    preserveAspectRatio="none" testID={`waveform-${layer}-layer`}>
-    {points.map((point, index) => {
-      const barHeight = Math.max(4, point * height);
-      const x = index * 5;
-      return <Rect key={`${sourceKey}-${layer}-${index}`} x={x}
-        y={(height - barHeight) / 2} width={3} height={barHeight} rx={1.5} fill={color} />;
-    })}
-  </Svg>
-));
+  width, layer }: WaveformBarsProps) => {
+  const path = useMemo(() => buildWaveformScrubberPath(points, height), [height, points]);
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${svgWidth} ${height}`}
+      preserveAspectRatio="none" testID={`waveform-${layer}-layer`}>
+      <Path key={`${sourceKey}-${layer}`} d={path} fill="none" stroke={color}
+        strokeWidth={3} strokeLinecap="round" />
+    </Svg>
+  );
+});
 
 WaveformBars.displayName = 'WaveformBars';
 

@@ -1,4 +1,6 @@
-export const SOUNDCLOUD_WAVEFORM_POINT_COUNT = 160;
+import { WAVEFORM_CACHE_POINT_COUNT } from './waveformTypes';
+
+export const SOUNDCLOUD_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const SOUNDCLOUD_QUEUE_ROW_HEIGHT = 68;
 
 const clampUnit = (value: number): number => {

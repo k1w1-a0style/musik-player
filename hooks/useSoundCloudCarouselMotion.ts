@@ -174,9 +174,10 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   const drag = useRef(new Animated.Value(0)).current;
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
     reduceMotion, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
-  const onGestureEvent = useCallback((event: PanGestureHandlerGestureEvent) => {
-    drag.setValue(event.nativeEvent.translationX ?? 0);
-  }, [drag]);
+  const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
+    [{ nativeEvent: { translationX: drag } }],
+    { useNativeDriver: true },
+  ), [drag]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
     if (state === State.CANCELLED || state === State.FAILED) {
@@ -224,14 +225,19 @@ export const useVerticalPlayerMotion = ({ drag, height, onCollapse, onOpenQueue,
     Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true })
       .start(({ finished }) => { if (finished) finishQueuePreview(); });
   }, [drag, finishQueuePreview, reduceMotion]);
-  const onGestureEvent = useCallback((event: PanGestureHandlerGestureEvent) => {
-    const translationY = event.nativeEvent.translationY ?? 0;
-    if (translationY < 0 && !previewingRef.current) {
-      previewingRef.current = true;
-      onQueuePreviewStart?.();
-    }
-    drag.setValue(translationY);
-  }, [drag, onQueuePreviewStart]);
+  const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
+    [{ nativeEvent: { translationY: drag } }],
+    {
+      useNativeDriver: true,
+      listener: (event: PanGestureHandlerGestureEvent) => {
+        const translationY = event.nativeEvent.translationY ?? 0;
+        if (translationY < 0 && !previewingRef.current) {
+          previewingRef.current = true;
+          onQueuePreviewStart?.();
+        }
+      },
+    },
+  ), [drag, onQueuePreviewStart]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityY = 0 } = event.nativeEvent;
     if (state === State.CANCELLED || state === State.FAILED) {

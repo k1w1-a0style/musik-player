@@ -2,12 +2,13 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
 import { assertCurrentSongPersistenceSucceeded } from '../utils/currentSongPersistence';
-import { isPlayableSong, toPlayableSongs, type PlayableSong } from '../utils/playableSong';
+import { isPlayableSong, type PlayableSong } from '../utils/playableSong';
 import {
   buildPlaySongQueuePlan,
   buildShuffleTogglePlan,
 } from '../utils/playbackPlan';
 import { buildQueueReorderPlan } from '../utils/queueReorder';
+import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import {
   type NativeHydrationCapture,
@@ -442,8 +443,6 @@ export const runReorderQueueAction = async ({
     if (!plan.changed) return { status: 'noop' };
 
     const previousShuffle = shuffleRef?.current ?? shuffle;
-    const progress = await TrackPlayer.getProgress();
-    if (!isCurrent()) return { status: 'stale' };
     const targets = { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue,
       setCurrentSong, shuffleRef, setShuffle };
     const snapshot = await createNativeQueueMutationSnapshot({
@@ -453,17 +452,16 @@ export const runReorderQueueAction = async ({
     });
 
     try {
-      const rebuilt = await rebuildNativePlaybackQueueUnlocked(
-        toPlayableSongs(plan.queue),
-        nativeQueueRef,
-        progress.position,
-        context,
-        plan.currentIndex,
-        undefined,
-        snapshot.playbackState,
-      );
-      if (!rebuilt || !isCurrent()) return { status: 'stale' };
+      if (!hasSameOrderedSongIds(snapshot.nativeQueue, currentQueue)) {
+        throw new Error('Native queue changed before reorder could be applied.');
+      }
+      context.beginNativeMutation();
+      await TrackPlayer.move(plan.fromIndex, plan.toIndex);
+      if (!isCurrent()) return { status: 'stale' };
       const readback = await readNativeQueueTruth([...songsRef.current, ...plan.queue]);
+      if (!hasSameOrderedSongIds(readback.queue, plan.queue)) {
+        throw new Error('Native queue did not confirm the requested reorder.');
+      }
       await commitNativeQueueTruth({
         readback,
         preferredBaseQueue: previousShuffle ? snapshot.baseQueue : plan.queue,

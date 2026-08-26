@@ -8,7 +8,7 @@ const waveform: SongWaveform = {
   version: WAVEFORM_VERSION,
   source: 'fallback',
   sourceKey: 'soundcloud-test',
-  sourceFingerprint: 'wf5:00000000000000000000000000000001',
+  sourceFingerprint: 'wf6:00000000000000000000000000000001',
   generatedAt: 1,
   durationMs: 100_000,
   points: [0.2, 0.6, 0.4, 0.8],
@@ -48,7 +48,7 @@ describe('SoundCloudWaveformViewport', () => {
     expect(getByTestId('soundcloud-waveform-unplayed-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-waveform-played-layer')).toBeTruthy();
     expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-played-clip').props.style).width).toBe(100);
-    expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-playhead').props.style).left).toBe(99);
+    expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-playhead').props.style).left).toBe(98);
   });
 
   test('supports accessible relative seeking without absolute tap jumps', () => {

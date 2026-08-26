@@ -1,6 +1,7 @@
 import type { Song } from '../types/Song';
 import {
   DEFAULT_WAVEFORM_POINT_COUNT,
+  WAVEFORM_CACHE_POINT_COUNT,
   WAVEFORM_FINGERPRINT_PREFIX,
   WAVEFORM_VERSION,
   type NativeWaveformResult,
@@ -67,7 +68,7 @@ export const clampWaveformPoint = (value: number): number => {
 };
 
 export const normalizeWaveformPoints = (points: readonly number[], targetCount = DEFAULT_WAVEFORM_POINT_COUNT): number[] => {
-  const safeTarget = Math.max(8, Math.min(160, Math.floor(targetCount)));
+  const safeTarget = Math.max(8, Math.min(WAVEFORM_CACHE_POINT_COUNT, Math.floor(targetCount)));
   const safePoints = points.map(clampWaveformPoint);
   if (safePoints.length === 0) return buildSyntheticPoints('empty', safeTarget);
   if (safePoints.length === safeTarget) return safePoints;

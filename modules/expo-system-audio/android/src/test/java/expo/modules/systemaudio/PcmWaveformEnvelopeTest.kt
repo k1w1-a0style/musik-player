@@ -35,7 +35,7 @@ class PcmWaveformEnvelopeTest {
   @Test fun longTracksUseABoundedPcmSamplingStride() {
     val durationUs = 180_000_000L
     val sampleRate = 44_100
-    val pointCount = 160
+    val pointCount = 480
     val envelope = PcmWaveformEnvelope(pointCount = pointCount, durationUs = durationUs)
 
     val stride = envelope.sampleStrideFor(sampleRate)

@@ -161,11 +161,45 @@ class SystemAudioWaveformModule : Module() {
     if (durationMs > Long.MAX_VALUE / 1000L) return emptyList()
     val durationUs = durationMs * 1000L
     val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return emptyList()
+    val useSampledDecode = durationUs > FULL_DECODE_MAX_DURATION_US
     return if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation)
+      if (useSampledDecode) readSampledRawPcmEnvelope(
+        extractor, inputFormat, pointCount, durationUs, cancellation,
+      ) else readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation)
     } else {
-      decodeCompressedPcmEnvelope(extractor, inputFormat, mime, pointCount, durationUs, cancellation)
+      if (useSampledDecode) decodeSampledCompressedPcmEnvelope(
+        extractor, inputFormat, mime, pointCount, durationUs, cancellation,
+      ) else decodeCompressedPcmEnvelope(extractor, inputFormat, mime, pointCount, durationUs, cancellation)
     }
+  }
+
+  private fun readSampledRawPcmEnvelope(
+    extractor: MediaExtractor,
+    format: MediaFormat,
+    pointCount: Int,
+    durationUs: Long,
+    cancellation: AtomicBoolean,
+  ): List<Double> {
+    if (format.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+      != AudioFormat.ENCODING_PCM_16BIT) return emptyList()
+    val sampleRate = format.intValue(MediaFormat.KEY_SAMPLE_RATE, 0)
+    val channelCount = format.intValue(MediaFormat.KEY_CHANNEL_COUNT, 0)
+    if (sampleRate <= 0 || channelCount <= 0) return emptyList()
+    val envelope = PcmWaveformEnvelope(pointCount, durationUs)
+    val buffer = ByteBuffer.allocateDirect(SAMPLE_BUFFER_BYTES).order(ByteOrder.nativeOrder())
+    for (window in buildWaveformSampleWindows(pointCount, durationUs, SAMPLED_WINDOW_US)) {
+      throwIfCancelled(cancellation)
+      extractor.seekTo(window.targetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+      val presentationTimeUs = extractor.sampleTime
+      if (presentationTimeUs < 0) continue
+      buffer.clear()
+      val size = extractor.readSampleData(buffer, 0)
+      if (size <= 0) continue
+      buffer.position(0)
+      buffer.limit(size)
+      envelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
+    }
+    return envelope.normalizedPoints()
   }
 
   private fun readRawPcmEnvelope(
@@ -280,6 +314,96 @@ class SystemAudioWaveformModule : Module() {
     }
   }
 
+  private fun decodeSampledCompressedPcmEnvelope(
+    extractor: MediaExtractor,
+    inputFormat: MediaFormat,
+    mime: String,
+    pointCount: Int,
+    durationUs: Long,
+    cancellation: AtomicBoolean,
+  ): List<Double> {
+    val codec = MediaCodec.createDecoderByType(mime)
+    var started = false
+    return try {
+      codec.configure(inputFormat, null, null, 0)
+      codec.start()
+      started = true
+      val envelope = PcmWaveformEnvelope(pointCount, durationUs)
+      val bufferInfo = MediaCodec.BufferInfo()
+      var sampleRate = inputFormat.intValue(MediaFormat.KEY_SAMPLE_RATE, 0)
+      var channelCount = inputFormat.intValue(MediaFormat.KEY_CHANNEL_COUNT, 0)
+      var pcmEncoding = AudioFormat.ENCODING_PCM_16BIT
+
+      for (window in buildWaveformSampleWindows(pointCount, durationUs, SAMPLED_WINDOW_US)) {
+        throwIfCancelled(cancellation)
+        extractor.seekTo(window.targetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+        codec.flush()
+        var inputEnded = false
+        var decodedBuffers = 0
+        var attempts = 0
+
+        while (attempts < MAX_SAMPLED_DEQUEUE_ATTEMPTS
+          && decodedBuffers < MAX_OUTPUT_BUFFERS_PER_WINDOW) {
+          throwIfCancelled(cancellation)
+          attempts += 1
+          if (!inputEnded) {
+            val inputIndex = codec.dequeueInputBuffer(SAMPLED_CODEC_DEQUEUE_TIMEOUT_US)
+            if (inputIndex >= 0) {
+              val inputBuffer = codec.getInputBuffer(inputIndex)
+                ?: throw IllegalStateException("Decoder input buffer unavailable")
+              inputBuffer.clear()
+              val size = extractor.readSampleData(inputBuffer, 0)
+              if (size < 0) {
+                codec.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                inputEnded = true
+              } else {
+                codec.queueInputBuffer(inputIndex, 0, size, extractor.sampleTime.coerceAtLeast(0L), 0)
+                extractor.advance()
+              }
+            }
+          }
+
+          when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, SAMPLED_CODEC_DEQUEUE_TIMEOUT_US)) {
+            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+              val outputFormat = codec.outputFormat
+              sampleRate = outputFormat.intValue(MediaFormat.KEY_SAMPLE_RATE, sampleRate)
+              channelCount = outputFormat.intValue(MediaFormat.KEY_CHANNEL_COUNT, channelCount)
+              pcmEncoding = outputFormat.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+            }
+            MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
+            else -> if (outputIndex >= 0) {
+              try {
+                if (bufferInfo.size > 0 && pcmEncoding == AudioFormat.ENCODING_PCM_16BIT
+                  && sampleRate > 0 && channelCount > 0) {
+                  val outputBuffer = codec.getOutputBuffer(outputIndex)
+                    ?: throw IllegalStateException("Decoder output buffer unavailable")
+                  val pcm = outputBuffer.duplicate().order(ByteOrder.nativeOrder())
+                  pcm.position(bufferInfo.offset)
+                  pcm.limit(bufferInfo.offset + bufferInfo.size)
+                  envelope.addPcm16(
+                    pcm.slice().order(ByteOrder.nativeOrder()),
+                    bufferInfo.presentationTimeUs,
+                    sampleRate,
+                    channelCount,
+                  )
+                  decodedBuffers += 1
+                }
+                if (bufferInfo.presentationTimeUs >= window.endUs && decodedBuffers > 0) break
+                if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+              } finally {
+                codec.releaseOutputBuffer(outputIndex, false)
+              }
+            }
+          }
+        }
+      }
+      if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) emptyList() else envelope.normalizedPoints()
+    } finally {
+      if (started) try { codec.stop() } catch (_: Throwable) {}
+      try { codec.release() } catch (_: Throwable) {}
+    }
+  }
+
   private fun MediaFormat.stringValue(key: String): String? =
     if (containsKey(key)) getString(key) else null
 
@@ -293,12 +417,17 @@ class SystemAudioWaveformModule : Module() {
 
   private companion object {
     private const val TAG = "SystemAudioWaveform"
-    private const val DEFAULT_WAVEFORM_POINTS = 160
+    private const val DEFAULT_WAVEFORM_POINTS = 480
     private const val MIN_WAVEFORM_POINTS = 16
-    private const val MAX_WAVEFORM_POINTS = 160
+    private const val MAX_WAVEFORM_POINTS = 480
     private const val SAMPLE_BUFFER_BYTES = 64 * 1024
     private const val CODEC_DEQUEUE_TIMEOUT_US = 10_000L
+    private const val SAMPLED_CODEC_DEQUEUE_TIMEOUT_US = 1_000L
     private const val MAX_IDLE_DEQUEUES = 500
+    private const val FULL_DECODE_MAX_DURATION_US = 30_000_000L
+    private const val SAMPLED_WINDOW_US = 60_000L
+    private const val MAX_OUTPUT_BUFFERS_PER_WINDOW = 3
+    private const val MAX_SAMPLED_DEQUEUE_ATTEMPTS = 24
     private const val ANALYSIS_VERSION = "decoded-pcm-v1"
   }
 }

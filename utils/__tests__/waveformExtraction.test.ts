@@ -161,7 +161,7 @@ describe('waveformExtraction', () => {
       await jest.advanceTimersByTimeAsync(120);
       expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledWith(
         'file:///preferred.mp3',
-        160,
+        480,
         expect.stringMatching(/^waveform-/),
       );
 

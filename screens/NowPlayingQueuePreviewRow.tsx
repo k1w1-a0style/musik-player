@@ -1,6 +1,5 @@
 import React from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View,
-  type GestureResponderHandlers } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -65,15 +64,18 @@ const PlayingBadge = ({ id, visible, accentColor, textColor }: { id: string; vis
   );
 };
 
-const DragHandle = ({ id, visible, enabled, accentColor, colors, panHandlers }: { id: string; visible: boolean;
+const DragHandle = ({ id, visible, enabled, accentColor, colors, gestureHandlers }: { id: string; visible: boolean;
   enabled: boolean; accentColor: string; colors: NowPlayingQueueColors;
-  panHandlers?: GestureResponderHandlers }) => {
+  gestureHandlers: ReturnType<typeof useQueueRowDrag>['handleGestureHandlers'] }) => {
   if (!visible) return null;
   return (
-    <View style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}
-      {...panHandlers} testID={`queue-drag-handle-${id}`}>
-      <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
-    </View>
+    <PanGestureHandler enabled activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
+      {...gestureHandlers} testID={`queue-drag-handle-${id}`}>
+      <Pressable style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}
+        onPress={event => event.stopPropagation()}>
+        <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
+      </Pressable>
+    </PanGestureHandler>
   );
 };
 
@@ -134,7 +136,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
           </Animated.View>
         </PanGestureHandler>
         <DragHandle id={id} visible={canDrag} enabled={drag.dragging}
-          accentColor={resolvedAccentColor} colors={rowColors} panHandlers={drag.panHandlers} />
+          accentColor={resolvedAccentColor} colors={rowColors} gestureHandlers={drag.handleGestureHandlers} />
       </Pressable>
     </Animated.View>
   );

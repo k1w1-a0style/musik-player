@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type GestureResponderHandlers,
   type NativeSyntheticEvent,
 } from 'react-native';
 import { GripVertical, Trash2 } from 'lucide-react-native';
@@ -130,12 +129,13 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           <Trash2 color={theme.palette.error} size={18} />
         </Pressable>
         {canDrag ? (
-          <View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}
-            {...(drag.panHandlers as GestureResponderHandlers)}
-            testID={`playlist-detail-drag-handle-${song.id}`}>
-            <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
-              size={21} />
-          </View>
+          <PanGestureHandler enabled={canDrag} activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
+            {...drag.handleGestureHandlers} testID={`playlist-detail-drag-handle-${song.id}`}>
+            <View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}>
+              <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
+                size={21} />
+            </View>
+          </PanGestureHandler>
         ) : null}
       </Pressable>
     </Animated.View>

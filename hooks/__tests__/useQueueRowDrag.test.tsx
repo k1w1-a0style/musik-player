@@ -1,29 +1,13 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { State, type PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { useQueueRowDrag } from '../useQueueRowDrag';
 
-const responderEvent = (currentY: number, previousY: number, timestamp: number) => ({
-  nativeEvent: { touches: [{}] },
-  touchHistory: {
-    numberActiveTouches: 1,
-    indexOfSingleActiveTouch: 0,
-    mostRecentTimeStamp: timestamp,
-    touchBank: [{
-      touchActive: true,
-      startPageX: 0,
-      startPageY: 0,
-      currentPageX: 0,
-      currentPageY: currentY,
-      previousPageX: 0,
-      previousPageY: previousY,
-      startTimeStamp: 1,
-      currentTimeStamp: timestamp,
-      previousTimeStamp: Math.max(1, timestamp - 1),
-    }],
-  },
-});
+const emitNativeGesture = (event: unknown, translationY: number) => (
+  event as { __getHandler: () => (value: PanGestureHandlerGestureEvent) => void }
+).__getHandler()({ nativeEvent: { translationY } } as PanGestureHandlerGestureEvent);
 
 describe('useQueueRowDrag responder contract', () => {
-  test('claims a grip touch immediately and commits the reorder synchronously', () => {
+  test('commits a grip drag through one native gesture-handler contract', () => {
     const onShift = jest.fn();
     const onDragEnd = jest.fn();
     const { result } = renderHook(() => useQueueRowDrag({
@@ -37,15 +21,14 @@ describe('useQueueRowDrag responder contract', () => {
       onDragEnd,
     }));
 
-    const handlers = result.current.panHandlers as Record<string, (...args: unknown[]) => unknown>;
-    const start = responderEvent(0, 0, 1);
-    const move = responderEvent(80, 10, 3);
-
-    expect(handlers.onStartShouldSetResponderCapture?.(start)).toBe(true);
-    expect(handlers.onResponderTerminationRequest?.()).toBe(false);
-    act(() => handlers.onResponderGrant?.(start));
-    act(() => handlers.onResponderMove?.(move));
-    act(() => handlers.onResponderRelease?.(move));
+    const handlers = result.current.handleGestureHandlers;
+    act(() => handlers.onHandlerStateChange({
+      nativeEvent: { oldState: State.BEGAN, state: State.ACTIVE, translationY: 0 },
+    } as never));
+    act(() => emitNativeGesture(handlers.onGestureEvent, 80));
+    act(() => handlers.onHandlerStateChange({
+      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationY: 80 },
+    } as never));
 
     expect(onShift).toHaveBeenCalledTimes(1);
     expect(onShift).toHaveBeenCalledWith(1, 2);
@@ -63,9 +46,7 @@ describe('useQueueRowDrag responder contract', () => {
     act(() => result.current.longPressGestureHandlers.onHandlerStateChange({
       nativeEvent: { oldState: 2, state: 4, translationY: 0 },
     } as never));
-    act(() => result.current.longPressGestureHandlers.onGestureEvent({
-      nativeEvent: { translationY: 80 },
-    } as never));
+    act(() => emitNativeGesture(result.current.longPressGestureHandlers.onGestureEvent, 80));
     act(() => result.current.longPressGestureHandlers.onHandlerStateChange({
       nativeEvent: { oldState: 4, state: 5, translationY: 80 },
     } as never));

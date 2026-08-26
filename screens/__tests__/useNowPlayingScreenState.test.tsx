@@ -9,6 +9,7 @@ const mockSetVolume = jest.fn(async () => undefined);
 const mockPlaySong = jest.fn(async () => undefined);
 const mockNext = jest.fn(async () => undefined);
 const mockPrevious = jest.fn(async () => undefined);
+const mockSkipToPreviousTrackSafely = jest.fn(async () => undefined);
 const mockTogglePlayPause = jest.fn(async () => undefined);
 const mockToggleShuffle = jest.fn(async () => ({ status: 'committed' as const }));
 const mockCycleRepeatMode = jest.fn(async () => undefined);
@@ -44,6 +45,10 @@ jest.mock('../../contexts/MusicContext', () => ({
     repeatMode: mockRepeatMode,
     cycleRepeatMode: mockCycleRepeatMode,
   }),
+}));
+
+jest.mock('../../contexts/playbackControlHelpers', () => ({
+  skipToPreviousTrackSafely: () => mockSkipToPreviousTrackSafely(),
 }));
 
 jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
@@ -127,6 +132,7 @@ describe('useNowPlayingScreenState', () => {
     mockSaveQueueAsPlaylist.mockClear();
     mockNext.mockClear();
     mockPrevious.mockClear();
+    mockSkipToPreviousTrackSafely.mockClear();
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2026, 5, 11, 14, 35, 0));
@@ -180,12 +186,24 @@ describe('useNowPlayingScreenState', () => {
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 
-  test('keeps previous action available for future swipe layouts', () => {
+  test('does not navigate backward when no previous carousel page exists', () => {
     const { getByTestId } = render(<ScreenStateProbe />);
 
     fireEvent.press(getByTestId('swipe-previous'));
 
-    expect(mockPrevious).toHaveBeenCalledTimes(1);
+    expect(mockSkipToPreviousTrackSafely).not.toHaveBeenCalled();
+    expect(mockPrevious).not.toHaveBeenCalled();
+  });
+
+  test('uses explicit track navigation for a previous-page swipe', () => {
+    mockCurrentSong = mockSong2;
+    mockPlaybackQueue = [mockSong, mockSong2];
+    const { getByTestId } = render(<ScreenStateProbe />);
+
+    fireEvent.press(getByTestId('swipe-previous'));
+
+    expect(mockSkipToPreviousTrackSafely).toHaveBeenCalledTimes(1);
+    expect(mockPrevious).not.toHaveBeenCalled();
   });
 
   test('builds saved queue playlist names with German timestamps', () => {

@@ -211,7 +211,7 @@ describe('useSongWaveform lifecycle', () => {
     const preload = preloadSongWaveform(nextSong);
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith(
-      'file:///next-preload-stuck.mp3', 160,
+      'file:///next-preload-stuck.mp3', 480,
     );
 
     const visible = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
@@ -243,19 +243,19 @@ describe('useSongWaveform lifecycle', () => {
     const detailed = renderHook(() => useSongWaveform({
       song: currentSong,
       durationMs: 1000,
-      pointCount: 160,
+      pointCount: 480,
     }));
 
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
-    expect(extractor.extractWaveformPeaks.mock.calls[0]?.[1]).toBe(160);
+    expect(extractor.extractWaveformPeaks.mock.calls[0]?.[1]).toBe(480);
     native.resolve(decoded());
     await flush();
 
     expect(compact.result.current.waveform).toMatchObject({ source: 'native' });
     expect(compact.result.current.waveform.points).toHaveLength(16);
     expect(detailed.result.current.waveform).toMatchObject({ source: 'native' });
-    expect(detailed.result.current.waveform.points).toHaveLength(160);
+    expect(detailed.result.current.waveform.points).toHaveLength(480);
     compact.unmount();
     detailed.unmount();
   });
