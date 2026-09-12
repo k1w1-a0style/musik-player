@@ -30,6 +30,8 @@ The user's `Android Bundled 163775ms` measures Metro before app startup. The hyd
 
 Local final gate: 317 Jest suites / 3,045 tests passed with coverage; TypeScript, ESLint, code complexity, and generated Android permissions passed. Expo dependency compatibility was checked offline. Device/native verification is performed by the immutable-source APK workflow and recorded in its artifacts; a successful dev-launcher cold start alone is insufficient.
 
+The first remote CI attempt found newly published advisories in build-tool dependencies. Compatible patch releases of `@xmldom/xmldom` (0.8.15 / 0.9.12), `fast-uri` (3.1.6), and `js-yaml` (3.15.2 / 4.3.2) address those roots without a major-version migration. A clean install, the existing audit policy, offline Expo dependency check and generated manifest gate passed again. The existing bounded `image-size` exception remains; this is not a claim of zero audit findings and no security gate was relaxed.
+
 The new Android interaction smoke seeds three generated MP3/M4A/FLAC fixtures through the supported storage hydration path, serves the normal app entry over Metro, then uses Android input gestures for playing/paused seek, previous while playing, queue grip, next after native reorder, and playlist grip. It verifies real 1,024-point envelopes and stable cached shapes and captures screenshots, runtime logs and MediaSession state. Fixture seeding is test setup; it does not claim to test the user's SAF picker flow.
 
 ## Practical limits
