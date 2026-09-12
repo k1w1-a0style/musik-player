@@ -85,6 +85,6 @@ internal class PcmWaveformEnvelope(
     private const val MIN_VISIBLE_POINT = 0.04
     private const val SILENCE_EPSILON = 1e-7
     private const val NORMALIZATION_PERCENTILE = 0.95
-    private const val TARGET_SAMPLES_PER_BUCKET = 1_024L
+    private const val TARGET_SAMPLES_PER_BUCKET = 512L
   }
 }

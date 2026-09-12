@@ -131,10 +131,10 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
         {canDrag ? (
           <PanGestureHandler enabled={canDrag} activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
             {...drag.handleGestureHandlers} testID={`playlist-detail-drag-handle-${song.id}`}>
-            <View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}>
+            <Animated.View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}>
               <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
                 size={21} />
-            </View>
+            </Animated.View>
           </PanGestureHandler>
         ) : null}
       </Pressable>

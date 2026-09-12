@@ -181,7 +181,7 @@ describe('NowPlayingSoundCloudView', () => {
     }));
   });
 
-  test('matches the paused reference with blurred artwork, transport controls, and a simple progress rail', () => {
+  test('keeps the waveform mounted while paused with transport controls', () => {
     const onSwipeToPrevious = jest.fn();
     const onSwipeToNext = jest.fn();
     const onTogglePlayback = jest.fn(async () => undefined);
@@ -196,9 +196,8 @@ describe('NowPlayingSoundCloudView', () => {
     });
 
     expect(getByTestId('soundcloud-carousel-current-artwork').props.blurRadius).toBe(28);
-    expect(queryByTestId('active-waveform')).toBeNull();
-    expect(getByTestId('soundcloud-paused-progress')).toBeTruthy();
-    expect(getByTestId('soundcloud-paused-progress-accent-transition')).toBeTruthy();
+    expect(getByTestId('active-waveform')).toBeTruthy();
+    expect(queryByTestId('soundcloud-paused-progress')).toBeNull();
     fireEvent.press(getByTestId('soundcloud-track-info-chip'));
     fireEvent.press(getByTestId('soundcloud-previous-button'));
     fireEvent.press(getByTestId('soundcloud-play-button'));

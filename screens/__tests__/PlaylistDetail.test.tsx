@@ -91,16 +91,14 @@ const playlist = (id: string, songIds: string[], patch: Partial<Playlist> = {}):
   updatedAt: patch.updatedAt ?? 1,
 });
 
-type NativeGestureEventHandler = ((event: unknown) => void) | {
-  __getHandler: () => (event: unknown) => void;
-};
+type NativeGestureEventHandler = (event: unknown) => void;
 
 const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGestureEventHandler } },
   translationY: number) => {
   const event = { nativeEvent: { translationY } };
   const handler = node.props.onGestureHandlerEvent;
-  if (typeof handler === 'function') handler(event);
-  else handler.__getHandler()(event);
+  expect(typeof handler).toBe('function');
+  handler(event);
 };
 
 beforeEach(() => {

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
+import { getSoundCloudWaveformColors } from '../utils/soundCloudWaveformColors';
 
 interface WaveformBarsProps {
   points: readonly number[];
@@ -55,24 +56,25 @@ interface SoundCloudWaveformLayersProps {
 
 const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewportCenter,
   accent, translateX, ready = true, showProgress = true }: SoundCloudWaveformLayersProps) => {
+  const colors = useMemo(() => getSoundCloudWaveformColors(accent), [accent]);
   const stripStyle = useMemo(() => ({ width: stripWidth, height,
     transform: [{ translateX }] }), [height, stripWidth, translateX]);
   return (
     <>
       {ready ? <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-unplayed-layer">
         <WaveformBars points={points} sourceKey={`${sourceKey}-rest`} width={stripWidth}
-          height={height} color={SOUNDCLOUD_PLAYER_COLORS.waveformRest} />
+          height={height} color={colors.unplayed} />
       </Animated.View> : <View pointerEvents="none" style={[styles.loadingLine,
-        { width: '100%', backgroundColor: SOUNDCLOUD_PLAYER_COLORS.waveformRest }]}
+        { width: '100%', backgroundColor: colors.unplayed }]}
         testID="soundcloud-waveform-loading-line" />}
       {showProgress ? <><View style={[styles.playedClip, { width: viewportCenter }]} testID="soundcloud-waveform-played-clip">
         {ready ? <Animated.View style={[styles.strip, stripStyle]} testID="soundcloud-waveform-played-layer">
           <WaveformBars points={points} sourceKey={`${sourceKey}-played`} width={stripWidth}
-            height={height} color={accent} />
-        </Animated.View> : <View style={[styles.loadingLine, { width: viewportCenter, backgroundColor: accent }]}
+            height={height} color={colors.played} />
+        </Animated.View> : <View style={[styles.loadingLine, { width: viewportCenter, backgroundColor: colors.played }]}
           testID="soundcloud-waveform-loading-played-line" />}
       </View>
-      <View pointerEvents="none" style={[styles.playheadOutline, { left: viewportCenter - 2 }]}
+      <View pointerEvents="none" style={[styles.playheadOutline, { left: viewportCenter - 3 }]}
         testID="soundcloud-waveform-playhead">
         <View style={styles.playhead} />
       </View></> : null}
@@ -85,10 +87,10 @@ const styles = StyleSheet.create({
   playedClip: { ...StyleSheet.absoluteFillObject, right: undefined, overflow: 'hidden' },
   loadingLine: { position: 'absolute', left: 0, top: '50%', height: 2,
     marginTop: -1, borderRadius: 1 },
-  playheadOutline: { position: 'absolute', top: 3, bottom: 3, width: 4, borderRadius: 2,
+  playheadOutline: { position: 'absolute', top: 0, bottom: 0, width: 6, borderRadius: 3, zIndex: 2, elevation: 2,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.waveformPlayheadOutline,
     alignItems: 'center', justifyContent: 'center' },
-  playhead: { width: 2, height: '100%', borderRadius: 1,
+  playhead: { width: 3, height: '100%', borderRadius: 1.5,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.waveformPlayhead },
 });
 

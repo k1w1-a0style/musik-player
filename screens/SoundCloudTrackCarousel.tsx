@@ -95,7 +95,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
             failOffsetY={[-18, 18]} waitFor={waveformGestureRef}
             onGestureEvent={horizontal.onGestureEvent}
             onHandlerStateChange={horizontal.onStateChange}>
-            <View style={styles.carouselViewport} collapsable={false}>
+            <Animated.View style={styles.carouselViewport} collapsable={false}>
               <Animated.View testID="soundcloud-track-carousel"
                 style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
                 <View style={{ width: panelWidth }}>
@@ -117,7 +117,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
               <View style={styles.currentPage} testID="soundcloud-current-page-layer">
                 {renderPage({ song: displayed.currentSong, role: 'current' })}
               </View>
-            </View>
+            </Animated.View>
           </PanGestureHandler>
           <CarouselChrome>{chrome}</CarouselChrome>
         </Animated.View>

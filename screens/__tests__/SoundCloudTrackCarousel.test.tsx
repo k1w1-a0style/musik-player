@@ -33,6 +33,14 @@ const renderCarousel = (props: Partial<React.ComponentProps<typeof SoundCloudTra
 };
 
 describe('SoundCloudTrackCarousel gestures', () => {
+  test('never passes a native Animated event object to a host View listener', () => {
+    const { getByTestId } = renderCarousel();
+    for (const id of ['soundcloud-collapse-gesture', 'soundcloud-track-swipe-gesture']) {
+      const listener = getByTestId(id).props.onGestureHandlerEvent;
+      expect(listener === undefined || typeof listener === 'function').toBe(true);
+    }
+  });
+
   beforeEach(() => {
     jest.useFakeTimers();
     jest.spyOn(Animated, 'timing').mockImplementation((_value, _config) => ({

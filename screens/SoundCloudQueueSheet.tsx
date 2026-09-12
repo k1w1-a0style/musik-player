@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, BackHandler, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler, State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
@@ -73,21 +73,29 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
   topInset, bottomInset, open, motion, onRestore }: SoundCloudQueueSheetProps) => {
   const { height: windowHeight } = useWindowDimensions();
   const height = Math.max(1, windowHeight);
-  const translateY = useMemo(() => motion.interpolate({
+  const dismissY = useRef(new Animated.Value(0)).current;
+  const baseTranslateY = useMemo(() => motion.interpolate({
     inputRange: [-height, 0], outputRange: [0, height], extrapolate: 'clamp',
   }), [height, motion]);
-  const onDismissGesture = useCallback((event: PanGestureHandlerGestureEvent) => {
-    const translationY = Math.max(0, Math.min(height, event.nativeEvent.translationY ?? 0));
-    motion.setValue(-height + translationY);
-  }, [height, motion]);
+  const boundedDismissY = useMemo(() => dismissY.interpolate({ inputRange: [0, height],
+    outputRange: [0, height], extrapolate: 'clamp' }), [dismissY, height]);
+  const translateY = useMemo(() => Animated.add(baseTranslateY, boundedDismissY), [baseTranslateY, boundedDismissY]);
+  const onDismissGesture = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
+    [{ nativeEvent: { translationY: dismissY } }], { useNativeDriver: true },
+  ), [dismissY]);
   const onDismissStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationY = 0, velocityY = 0 } = event.nativeEvent;
+    if (state === State.BEGAN) { dismissY.setValue(0); return; }
+    if (oldState === State.ACTIVE) {
+      motion.setValue(-height + Math.max(0, Math.min(height, translationY)));
+      dismissY.setValue(0);
+    }
     if (state === State.CANCELLED || state === State.FAILED) onRestore();
     else if (state === State.END && oldState === State.ACTIVE) {
       if (shouldCloseSoundCloudQueue({ translationY, velocityY, height })) onClose();
       else onRestore();
     }
-  }, [height, onClose, onRestore]);
+  }, [dismissY, height, motion, onClose, onRestore]);
   useEffect(() => {
     if (!open) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Song } from '../types/Song';
 import { getCachedWaveform, peekCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
 import { buildImmediateWaveform, extractNativeWaveform, resolveWaveformUri } from '../utils/waveformExtraction';
 import { getWaveformSourceIdentity, normalizeWaveformPoints } from '../utils/waveformGenerator';
 import type { WaveformSourceDiagnostics } from '../utils/waveformDecision';
-import { logWaveformDecision } from '../utils/waveformTelemetry';
+import { clearWaveformFailure } from '../utils/waveformExtractionLifecycle';
+import { logWaveformDecision, logWaveformTiming } from '../utils/waveformTelemetry';
 import {
   DEFAULT_WAVEFORM_POINT_COUNT,
   WAVEFORM_CACHE_POINT_COUNT,
@@ -26,6 +27,7 @@ interface UseSongWaveformResult {
   sourceKey: string;
   waveformReady: boolean;
   loadingNative: boolean;
+  retry: () => void;
 }
 
 interface ResolvedWaveform {
@@ -35,6 +37,7 @@ interface ResolvedWaveform {
 }
 
 interface WaveformResolutionOptions {
+  retryCount: number;
   song: Song | null;
   durationMs: number;
   canExtractNative: boolean;
@@ -67,7 +70,7 @@ const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentit
   left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
 
 const useResolvedWaveform = ({ song, durationMs, canExtractNative,
-  sourceIdentity, onWaveformDecision }: WaveformResolutionOptions): ResolvedWaveform | null => {
+  sourceIdentity, onWaveformDecision, retryCount }: WaveformResolutionOptions): ResolvedWaveform | null => {
   const songRef = useRef(song);
   const durationRef = useRef(durationMs);
   songRef.current = song;
@@ -82,6 +85,7 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
   const { sourceKey, sourceFingerprint } = sourceIdentity;
 
   useEffect(() => {
+    const startedAt = Date.now();
     let active = true;
     const controller = new AbortController();
     const requestedIdentity = { sourceKey, sourceFingerprint };
@@ -90,8 +94,10 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
       active = false;
       controller.abort();
     };
-    const commit = (waveform: SongWaveform | null): void => {
-      if (active) setResolved({ identity: requestedIdentity, waveform, settled: true });
+    const commit = (waveform: SongWaveform | null, source: 'cache' | 'native' = 'cache'): void => {
+      if (!active) return;
+      logWaveformTiming(waveform ? source : 'unavailable', Date.now() - startedAt, waveform?.points.length ?? 0);
+      setResolved({ identity: requestedIdentity, waveform, settled: true });
     };
     const cachedInMemory = peekCachedWaveform(requestedIdentity);
     if (cachedInMemory?.source === 'native') {
@@ -103,6 +109,7 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
       return stop;
     }
 
+    setResolved(null);
     void (async () => {
       const cached = await getCachedWaveformUntilAbort(requestedIdentity, controller.signal);
       if (!active) return;
@@ -114,11 +121,11 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
         onDecision: onWaveformDecision,
       });
       if (!active) return;
-      commit(native);
+      commit(native, 'native');
       if (native) cacheWaveformObserved(native);
     })();
     return stop;
-  }, [canExtractNative, onWaveformDecision, sourceFingerprint, sourceKey]);
+  }, [canExtractNative, onWaveformDecision, retryCount, sourceFingerprint, sourceKey]);
 
   if (resolved && sameIdentity(resolved.identity, sourceIdentity)) return resolved;
   return synchronousCached?.source === 'native'
@@ -137,13 +144,18 @@ export const useSongWaveform = ({
     : DEFAULT_WAVEFORM_POINT_COUNT;
   const sourceIdentity = useMemo(() => getWaveformSourceIdentity(song), [song]);
   const sourceKey = sourceIdentity.sourceKey;
+  const [retryCount, setRetryCount] = useState(0);
+  const retry = useCallback(() => {
+    clearWaveformFailure(sourceIdentity.sourceFingerprint);
+    setRetryCount(count => count + 1);
+  }, [sourceIdentity.sourceFingerprint]);
   const immediate = useMemo(
     () => buildImmediateWaveform(song, durationMs, displayPointCount),
     [displayPointCount, durationMs, song],
   );
   const canExtractNative = useMemo(() => Boolean(resolveWaveformUri(song)), [song]);
   const resolvedForSource = useResolvedWaveform({ song, durationMs,
-    canExtractNative, sourceIdentity, onWaveformDecision });
+    canExtractNative, sourceIdentity, onWaveformDecision, retryCount });
   const waveformReady = resolvedForSource?.waveform?.source === 'native';
   const resolvedWaveform = resolvedForSource?.waveform;
   const waveform = useMemo(() => {
@@ -153,5 +165,5 @@ export const useSongWaveform = ({
   }, [displayPointCount, immediate, resolvedWaveform]);
   const loadingNative = canExtractNative && !resolvedForSource?.settled;
 
-  return { waveform, sourceKey, waveformReady, loadingNative };
+  return { waveform, sourceKey, waveformReady, loadingNative, retry };
 };

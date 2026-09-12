@@ -133,14 +133,14 @@ test('reconstructs a corrupt index from validated payload records', async () => 
   await expect(getCachedWaveform(orphan)).resolves.toEqual(orphan);
 });
 
-test('enforces the 80-entry LRU boundary at 79/80/81', async () => {
-  const waveforms = Array.from({ length: 81 }, (_, index) => waveformFor(`source-${index}`, index + 1));
+test('keeps 256 waveforms on disk while memory stays bounded', async () => {
+  const waveforms = Array.from({ length: 257 }, (_, index) => waveformFor(`source-${index}`, index + 1));
   for (const waveform of waveforms) await setCachedWaveform(waveform);
 
   const index = JSON.parse(await AsyncStorage.getItem(INDEX_KEY) ?? '[]') as WaveformSourceIdentity[];
-  expect(index).toHaveLength(80);
-  expect(index[0].sourceKey).toBe('source-80');
+  expect(index).toHaveLength(256);
+  expect(index[0].sourceKey).toBe('source-256');
   expect(index.at(-1)?.sourceKey).toBe('source-1');
   await expect(AsyncStorage.getItem(`${PREFIX}source-0`)).resolves.toBeNull();
-  await expect(getCachedWaveform(waveforms[80])).resolves.toEqual(waveforms[80]);
+  await expect(getCachedWaveform(waveforms[256])).resolves.toEqual(waveforms[256]);
 });

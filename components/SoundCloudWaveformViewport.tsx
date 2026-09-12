@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSoundCloudWaveformMotion } from '../hooks/useSoundCloudWaveformMotion';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
@@ -11,6 +11,8 @@ import CrossfadeLayers from './CrossfadeLayers';
 interface SoundCloudWaveformViewportProps {
   waveform: SongWaveform;
   ready?: boolean;
+  loading?: boolean;
+  onRetry?: () => void;
   currentPosition: number;
   duration: number;
   isPlaying: boolean;
@@ -36,7 +38,7 @@ const WaveformTimeRow = ({ position, duration }: { position: number; duration: n
 
 const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({ waveform,
   currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.accent,
-  height = 116, interactive = true, ready = true, showProgress = true, gestureHandlerRef,
+  height = 116, interactive = true, ready = true, loading = false, onRetry, showProgress = true, gestureHandlerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
@@ -64,6 +66,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
   const surface = (
     <Animated.View style={[styles.surface, { height }]} testID="soundcloud-waveform-surface" onLayout={handleLayout}
       accessible accessibilityRole="adjustable" accessibilityLabel="Waveform vor- oder zurückspulen"
+      accessibilityState={{ busy: loading }}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progressRatio * 100) }}
       accessibilityActions={[{ name: 'increment', label: '10 Sekunden vorspulen' },
         { name: 'decrement', label: '10 Sekunden zurückspulen' }]}
@@ -81,6 +84,10 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       {interactive ? <PanGestureHandler ref={gestureHandlerRef} testID="soundcloud-waveform-gesture"
         activeOffsetX={[-6, 6]} failOffsetY={[-18, 18]}
         onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>{surface}</PanGestureHandler> : surface}
+      {!ready && !loading && onRetry ? <Pressable onPress={onRetry} accessibilityRole="button"
+        accessibilityLabel="Waveform erneut laden" testID="soundcloud-waveform-retry">
+        <Text style={styles.retry}>Waveform erneut laden</Text>
+      </Pressable> : null}
       <WaveformTimeRow position={previewPosition ?? safePosition} duration={safeDuration} />
     </View>
   );
@@ -89,6 +96,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
 const styles = StyleSheet.create({
   root: { width: '100%' }, surface: { width: '100%', overflow: 'hidden', justifyContent: 'center' },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, marginTop: 2 },
+  retry: { color: SOUNDCLOUD_PLAYER_COLORS.waveformTime, fontSize: 11, textAlign: 'center' },
   time: { color: SOUNDCLOUD_PLAYER_COLORS.waveformTime, fontSize: 11, fontVariant: ['tabular-nums'] },
 });
 

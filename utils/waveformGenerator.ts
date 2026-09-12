@@ -129,7 +129,7 @@ export const buildNativeWaveform = (
   pointCount = DEFAULT_WAVEFORM_POINT_COUNT,
 ): SongWaveform => ({
   version: WAVEFORM_VERSION,
-  points: normalizeWaveformPoints(result.points, pointCount),
+  points: normalizeWaveformPoints(result.points, pointCount).map(point => Math.round(point * 1000) / 1000),
   durationMs: Number.isFinite(result.durationMs) && (result.durationMs ?? 0) > 0 ? result.durationMs as number : fallbackDurationMs,
   ...getWaveformSourceIdentity(song),
   source: 'native',

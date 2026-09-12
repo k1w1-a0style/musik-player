@@ -120,11 +120,19 @@ const findKnownSong = (songs: Song[], id: unknown): Song | undefined => {
   return wanted ? songs.find(song => normalizedId(song.id) === wanted) : undefined;
 };
 
-export const mapNativeTracksToSongs = (tracks: Track[], knownSongs: Song[]): Song[] => tracks.map(track => {
-  const song = findKnownSong(knownSongs, track.id);
-  if (!song) throw new Error(`Native queue readback contained unknown track "${String(track.id)}".`);
-  return song;
-});
+export const mapNativeTracksToSongs = (tracks: Track[], knownSongs: Song[]): Song[] => {
+  // A library lookup for every queue entry made each readback quadratic.
+  const byId = new Map<string, Song>();
+  for (const song of knownSongs) {
+    const id = normalizedId(song.id);
+    if (id && !byId.has(id)) byId.set(id, song);
+  }
+  return tracks.map(track => {
+    const song = byId.get(normalizedId(track.id) ?? '');
+    if (!song) throw new Error(`Native queue readback contained unknown track "${String(track.id)}".`);
+    return song;
+  });
+};
 
 const toNativePlaybackState = (state: State, playWhenReady: boolean): NativePlaybackState => {
   if (state === State.Playing) return 'playing';
@@ -176,15 +184,19 @@ const resolveActiveIndex = (queue: Song[], activeTrackId: string | null, sampled
 };
 
 const readStableNativeQueueAttempt = async (knownSongs: Song[]) => {
-  const firstTracks = await TrackPlayer.getQueue();
-  const firstTrack = await TrackPlayer.getActiveTrack();
-  const firstIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
-  const progress = await TrackPlayer.getProgress();
-  const playback = await TrackPlayer.getPlaybackState();
-  const playWhenReady = await TrackPlayer.getPlayWhenReady();
-  const secondTrack = await TrackPlayer.getActiveTrack();
-  const secondIndex = sampleIndex(await TrackPlayer.getActiveTrackIndex());
-  const secondTracks = await TrackPlayer.getQueue();
+  // Keep the before/after consistency boundary, but batch independent reads
+  // instead of paying nine sequential JavaScript/native round trips.
+  const [firstTracks, firstTrack, firstSampledIndex] = await Promise.all([
+    TrackPlayer.getQueue(), TrackPlayer.getActiveTrack(), TrackPlayer.getActiveTrackIndex(),
+  ]);
+  const firstIndex = sampleIndex(firstSampledIndex);
+  const [progress, playback, playWhenReady] = await Promise.all([
+    TrackPlayer.getProgress(), TrackPlayer.getPlaybackState(), TrackPlayer.getPlayWhenReady(),
+  ]);
+  const [secondTrack, secondSampledIndex, secondTracks] = await Promise.all([
+    TrackPlayer.getActiveTrack(), TrackPlayer.getActiveTrackIndex(), TrackPlayer.getQueue(),
+  ]);
+  const secondIndex = sampleIndex(secondSampledIndex);
   const firstTrackId = normalizedId(firstTrack?.id) ?? null;
   const secondTrackId = normalizedId(secondTrack?.id) ?? null;
   const observation: NativeQueueReadbackObservation = {

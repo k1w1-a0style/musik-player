@@ -6,7 +6,10 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Process
+import android.os.SystemClock
 import android.util.Log
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.nio.ByteBuffer
@@ -14,6 +17,12 @@ import java.nio.ByteOrder
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 internal class WaveformCancellationRegistry {
   private val requests = ConcurrentHashMap<String, AtomicBoolean>()
@@ -37,22 +46,42 @@ internal class WaveformCancellationRegistry {
   }
 
   fun activeCount(): Int = requests.size
+
+  fun cancelAll() { requests.values.forEach { it.set(true) } }
 }
 
 /** Decodes the selected audio track to PCM before calculating its envelope. */
 class SystemAudioWaveformModule : Module() {
   private val cancellationRegistry = WaveformCancellationRegistry()
+  // Decode away from Expo's shared module queue and below playback priority.
+  // One worker also bounds native CPU use when obsolete JS waiters detach.
+  private val dispatcher = Executors.newSingleThreadExecutor { task ->
+    Thread({
+      Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+      task.run()
+    }, "waveform-analysis").apply { isDaemon = true }
+  }.asCoroutineDispatcher()
+  private val analysisScope = CoroutineScope(SupervisorJob() + dispatcher)
 
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudioWaveform")
 
-    AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String? ->
+    AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String?, promise: Promise ->
       val cancellation = cancellationRegistry.register(requestId)
-      try {
-        extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation)
-      } finally {
-        cancellationRegistry.complete(requestId, cancellation)
+      // Register before dispatch, so queued obsolete work can be cancelled too.
+      analysisScope.launch {
+        try {
+          promise.resolve(extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation))
+        } finally {
+          cancellationRegistry.complete(requestId, cancellation)
+        }
       }
+    }
+
+    OnDestroy {
+      cancellationRegistry.cancelAll()
+      analysisScope.cancel()
+      dispatcher.close()
     }
 
     Function("cancelWaveformExtraction") { requestId: String ->
@@ -67,6 +96,7 @@ class SystemAudioWaveformModule : Module() {
   ): Map<String, Any?>? {
     val pointCount = requestedPoints.coerceIn(MIN_WAVEFORM_POINTS, MAX_WAVEFORM_POINTS)
     val extractor = MediaExtractor()
+    val startedAt = SystemClock.elapsedRealtime()
     return try {
       throwIfCancelled(cancellation)
       if (!configureDataSource(extractor, uri)) return null
@@ -84,6 +114,7 @@ class SystemAudioWaveformModule : Module() {
         "points" to peaks,
         "durationMs" to durationMs,
         "analysis" to ANALYSIS_VERSION,
+        "analysisDurationMs" to (SystemClock.elapsedRealtime() - startedAt),
       )
     } catch (_: CancellationException) {
       null
@@ -161,45 +192,11 @@ class SystemAudioWaveformModule : Module() {
     if (durationMs > Long.MAX_VALUE / 1000L) return emptyList()
     val durationUs = durationMs * 1000L
     val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return emptyList()
-    val useSampledDecode = durationUs > FULL_DECODE_MAX_DURATION_US
     return if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-      if (useSampledDecode) readSampledRawPcmEnvelope(
-        extractor, inputFormat, pointCount, durationUs, cancellation,
-      ) else readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation)
+      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation)
     } else {
-      if (useSampledDecode) decodeSampledCompressedPcmEnvelope(
-        extractor, inputFormat, mime, pointCount, durationUs, cancellation,
-      ) else decodeCompressedPcmEnvelope(extractor, inputFormat, mime, pointCount, durationUs, cancellation)
+      decodeCompressedPcmEnvelope(extractor, inputFormat, mime, pointCount, durationUs, cancellation)
     }
-  }
-
-  private fun readSampledRawPcmEnvelope(
-    extractor: MediaExtractor,
-    format: MediaFormat,
-    pointCount: Int,
-    durationUs: Long,
-    cancellation: AtomicBoolean,
-  ): List<Double> {
-    if (format.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
-      != AudioFormat.ENCODING_PCM_16BIT) return emptyList()
-    val sampleRate = format.intValue(MediaFormat.KEY_SAMPLE_RATE, 0)
-    val channelCount = format.intValue(MediaFormat.KEY_CHANNEL_COUNT, 0)
-    if (sampleRate <= 0 || channelCount <= 0) return emptyList()
-    val envelope = PcmWaveformEnvelope(pointCount, durationUs)
-    val buffer = ByteBuffer.allocateDirect(SAMPLE_BUFFER_BYTES).order(ByteOrder.nativeOrder())
-    for (window in buildWaveformSampleWindows(pointCount, durationUs, SAMPLED_WINDOW_US)) {
-      throwIfCancelled(cancellation)
-      extractor.seekTo(window.targetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-      val presentationTimeUs = extractor.sampleTime
-      if (presentationTimeUs < 0) continue
-      buffer.clear()
-      val size = extractor.readSampleData(buffer, 0)
-      if (size <= 0) continue
-      buffer.position(0)
-      buffer.limit(size)
-      envelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
-    }
-    return envelope.normalizedPoints()
   }
 
   private fun readRawPcmEnvelope(
@@ -254,11 +251,13 @@ class SystemAudioWaveformModule : Module() {
       var pcmEncoding = AudioFormat.ENCODING_PCM_16BIT
       var idleDequeues = 0
 
+      // Feed without blocking while output is available. The old loop waited
+      // on both sides; the sampled path additionally flushed 480 times/track.
       while (!outputEnded) {
         throwIfCancelled(cancellation)
         var madeProgress = false
         if (!inputEnded) {
-          val inputIndex = codec.dequeueInputBuffer(CODEC_DEQUEUE_TIMEOUT_US)
+          val inputIndex = codec.dequeueInputBuffer(0L)
           if (inputIndex >= 0) {
             val inputBuffer = codec.getInputBuffer(inputIndex)
               ?: throw IllegalStateException("Decoder input buffer unavailable")
@@ -275,7 +274,7 @@ class SystemAudioWaveformModule : Module() {
           }
         }
 
-        when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, CODEC_DEQUEUE_TIMEOUT_US)) {
+        when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, if (madeProgress) 0L else CODEC_DEQUEUE_TIMEOUT_US)) {
           MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
             val outputFormat = codec.outputFormat
             sampleRate = outputFormat.intValue(MediaFormat.KEY_SAMPLE_RATE, sampleRate)
@@ -314,96 +313,6 @@ class SystemAudioWaveformModule : Module() {
     }
   }
 
-  private fun decodeSampledCompressedPcmEnvelope(
-    extractor: MediaExtractor,
-    inputFormat: MediaFormat,
-    mime: String,
-    pointCount: Int,
-    durationUs: Long,
-    cancellation: AtomicBoolean,
-  ): List<Double> {
-    val codec = MediaCodec.createDecoderByType(mime)
-    var started = false
-    return try {
-      codec.configure(inputFormat, null, null, 0)
-      codec.start()
-      started = true
-      val envelope = PcmWaveformEnvelope(pointCount, durationUs)
-      val bufferInfo = MediaCodec.BufferInfo()
-      var sampleRate = inputFormat.intValue(MediaFormat.KEY_SAMPLE_RATE, 0)
-      var channelCount = inputFormat.intValue(MediaFormat.KEY_CHANNEL_COUNT, 0)
-      var pcmEncoding = AudioFormat.ENCODING_PCM_16BIT
-
-      for (window in buildWaveformSampleWindows(pointCount, durationUs, SAMPLED_WINDOW_US)) {
-        throwIfCancelled(cancellation)
-        extractor.seekTo(window.targetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-        codec.flush()
-        var inputEnded = false
-        var decodedBuffers = 0
-        var attempts = 0
-
-        while (attempts < MAX_SAMPLED_DEQUEUE_ATTEMPTS
-          && decodedBuffers < MAX_OUTPUT_BUFFERS_PER_WINDOW) {
-          throwIfCancelled(cancellation)
-          attempts += 1
-          if (!inputEnded) {
-            val inputIndex = codec.dequeueInputBuffer(SAMPLED_CODEC_DEQUEUE_TIMEOUT_US)
-            if (inputIndex >= 0) {
-              val inputBuffer = codec.getInputBuffer(inputIndex)
-                ?: throw IllegalStateException("Decoder input buffer unavailable")
-              inputBuffer.clear()
-              val size = extractor.readSampleData(inputBuffer, 0)
-              if (size < 0) {
-                codec.queueInputBuffer(inputIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                inputEnded = true
-              } else {
-                codec.queueInputBuffer(inputIndex, 0, size, extractor.sampleTime.coerceAtLeast(0L), 0)
-                extractor.advance()
-              }
-            }
-          }
-
-          when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, SAMPLED_CODEC_DEQUEUE_TIMEOUT_US)) {
-            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-              val outputFormat = codec.outputFormat
-              sampleRate = outputFormat.intValue(MediaFormat.KEY_SAMPLE_RATE, sampleRate)
-              channelCount = outputFormat.intValue(MediaFormat.KEY_CHANNEL_COUNT, channelCount)
-              pcmEncoding = outputFormat.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
-            }
-            MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
-            else -> if (outputIndex >= 0) {
-              try {
-                if (bufferInfo.size > 0 && pcmEncoding == AudioFormat.ENCODING_PCM_16BIT
-                  && sampleRate > 0 && channelCount > 0) {
-                  val outputBuffer = codec.getOutputBuffer(outputIndex)
-                    ?: throw IllegalStateException("Decoder output buffer unavailable")
-                  val pcm = outputBuffer.duplicate().order(ByteOrder.nativeOrder())
-                  pcm.position(bufferInfo.offset)
-                  pcm.limit(bufferInfo.offset + bufferInfo.size)
-                  envelope.addPcm16(
-                    pcm.slice().order(ByteOrder.nativeOrder()),
-                    bufferInfo.presentationTimeUs,
-                    sampleRate,
-                    channelCount,
-                  )
-                  decodedBuffers += 1
-                }
-                if (bufferInfo.presentationTimeUs >= window.endUs && decodedBuffers > 0) break
-                if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
-              } finally {
-                codec.releaseOutputBuffer(outputIndex, false)
-              }
-            }
-          }
-        }
-      }
-      if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) emptyList() else envelope.normalizedPoints()
-    } finally {
-      if (started) try { codec.stop() } catch (_: Throwable) {}
-      try { codec.release() } catch (_: Throwable) {}
-    }
-  }
-
   private fun MediaFormat.stringValue(key: String): String? =
     if (containsKey(key)) getString(key) else null
 
@@ -417,17 +326,12 @@ class SystemAudioWaveformModule : Module() {
 
   private companion object {
     private const val TAG = "SystemAudioWaveform"
-    private const val DEFAULT_WAVEFORM_POINTS = 480
+    private const val DEFAULT_WAVEFORM_POINTS = 1024
     private const val MIN_WAVEFORM_POINTS = 16
-    private const val MAX_WAVEFORM_POINTS = 480
+    private const val MAX_WAVEFORM_POINTS = 1024
     private const val SAMPLE_BUFFER_BYTES = 64 * 1024
-    private const val CODEC_DEQUEUE_TIMEOUT_US = 10_000L
-    private const val SAMPLED_CODEC_DEQUEUE_TIMEOUT_US = 1_000L
-    private const val MAX_IDLE_DEQUEUES = 500
-    private const val FULL_DECODE_MAX_DURATION_US = 30_000_000L
-    private const val SAMPLED_WINDOW_US = 60_000L
-    private const val MAX_OUTPUT_BUFFERS_PER_WINDOW = 3
-    private const val MAX_SAMPLED_DEQUEUE_ATTEMPTS = 24
+    private const val CODEC_DEQUEUE_TIMEOUT_US = 1_000L
+    private const val MAX_IDLE_DEQUEUES = 5_000
     private const val ANALYSIS_VERSION = "decoded-pcm-v1"
   }
 }

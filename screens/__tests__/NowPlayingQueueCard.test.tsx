@@ -31,16 +31,14 @@ const queue: Song[] = [
   { id: 's3', title: 'Three', artist: 'C' },
 ];
 
-type NativeGestureEventHandler = ((event: unknown) => void) | {
-  __getHandler: () => (event: unknown) => void;
-};
+type NativeGestureEventHandler = (event: unknown) => void;
 
 const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGestureEventHandler } },
   translationY: number) => {
   const event = { nativeEvent: { translationY } };
   const handler = node.props.onGestureHandlerEvent;
-  if (typeof handler === 'function') handler(event);
-  else handler.__getHandler()(event);
+  expect(typeof handler).toBe('function');
+  handler(event);
 };
 
 test('queue reorder target includes auto-scroll distance and never crosses the current-song boundary', () => {

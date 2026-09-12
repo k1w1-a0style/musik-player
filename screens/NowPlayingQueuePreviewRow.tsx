@@ -71,10 +71,11 @@ const DragHandle = ({ id, visible, enabled, accentColor, colors, gestureHandlers
   return (
     <PanGestureHandler enabled activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
       {...gestureHandlers} testID={`queue-drag-handle-${id}`}>
-      <Pressable style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}
-        onPress={event => event.stopPropagation()}>
-        <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
-      </Pressable>
+      <Animated.View style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}>
+        <Pressable style={styles.dragHandle} onPress={event => event.stopPropagation()}>
+          <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
+        </Pressable>
+      </Animated.View>
     </PanGestureHandler>
   );
 };

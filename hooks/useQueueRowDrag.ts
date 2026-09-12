@@ -37,6 +37,7 @@ export const useAnimatedQueuePreview = (previewOffsetY: number): Animated.Value 
 export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, canDrag,
   getScrollOffset, onDragPosition, onDragEnd, onShift }: QueueRowDragOptions) => {
   const [dragging, setDragging] = React.useState(false);
+  const ownerRef = React.useRef<'row' | 'handle' | null>(null);
   const dragY = React.useRef(new Animated.Value(0)).current;
   const startScrollRef = React.useRef(0);
   const previousYRef = React.useRef(0);
@@ -47,6 +48,7 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     maxIndex: Math.max(minShiftIndex, queueLength - 1),
   }), [getScrollOffset, index, minShiftIndex, queueLength, rowHeight]);
   const reset = React.useCallback(() => {
+    ownerRef.current = null;
     previousYRef.current = 0;
     previousTargetRef.current = index;
     onDragEnd?.();
@@ -64,7 +66,7 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
     onDragPosition?.(index, 0, 0);
   }, [canDrag, dragY, getScrollOffset, index, onDragPosition]);
   const move = React.useCallback((dy: number) => {
-    if (!canDrag) return;
+    if (!canDrag || !ownerRef.current) return;
     const delta = dy - previousYRef.current;
     previousYRef.current = dy;
     const target = resolveTarget(dy);
@@ -85,19 +87,23 @@ export const useQueueRowDrag = ({ index, queueLength, rowHeight, minShiftIndex, 
   }, [canDrag, index, onShift, reset, resolveTarget]);
   const rowGestureEvent = React.useMemo(() => createNativeDragEvent(dragY, move), [dragY, move]);
   const handleGestureEvent = React.useMemo(() => createNativeDragEvent(dragY, move), [dragY, move]);
-  const onGestureStateChange = React.useCallback((event: PanGestureHandlerStateChangeEvent) => {
+  const onGestureStateChange = React.useCallback((owner: 'row' | 'handle', event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationY = 0 } = event.nativeEvent;
-    if (state === State.ACTIVE && oldState === State.BEGAN) grant();
-    else if (state === State.END && oldState === State.ACTIVE) release(translationY);
-    else if (state === State.CANCELLED || state === State.FAILED) reset();
-  }, [grant, release, reset]);
+    if (state === State.ACTIVE && oldState === State.BEGAN && canDrag && !ownerRef.current) {
+      ownerRef.current = owner;
+      grant();
+    } else if (ownerRef.current === owner) {
+      if (state === State.END && oldState === State.ACTIVE) release(translationY);
+      else if (state === State.CANCELLED || state === State.FAILED) reset();
+    }
+  }, [canDrag, grant, release, reset]);
   const longPressGestureHandlers = React.useMemo(() => ({
     onGestureEvent: rowGestureEvent,
-    onHandlerStateChange: onGestureStateChange,
+    onHandlerStateChange: (event: PanGestureHandlerStateChangeEvent) => onGestureStateChange('row', event),
   }), [onGestureStateChange, rowGestureEvent]);
   const handleGestureHandlers = React.useMemo(() => ({
     onGestureEvent: handleGestureEvent,
-    onHandlerStateChange: onGestureStateChange,
+    onHandlerStateChange: (event: PanGestureHandlerStateChangeEvent) => onGestureStateChange('handle', event),
   }), [handleGestureEvent, onGestureStateChange]);
   return {
     dragEnabled: dragging,

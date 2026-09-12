@@ -25,6 +25,12 @@ describe('useQueueRowDrag responder contract', () => {
     act(() => handlers.onHandlerStateChange({
       nativeEvent: { oldState: State.BEGAN, state: State.ACTIVE, translationY: 0 },
     } as never));
+    // The row recognizer fails when the grip wins. It must not end the grip.
+    act(() => result.current.longPressGestureHandlers.onHandlerStateChange({
+      nativeEvent: { oldState: State.BEGAN, state: State.FAILED, translationY: 0 },
+    } as never));
+    expect(result.current.dragging).toBe(true);
+    expect(onDragEnd).not.toHaveBeenCalled();
     act(() => emitNativeGesture(handlers.onGestureEvent, 80));
     act(() => handlers.onHandlerStateChange({
       nativeEvent: { oldState: State.ACTIVE, state: State.END, translationY: 80 },

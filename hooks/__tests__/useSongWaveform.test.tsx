@@ -90,6 +90,22 @@ describe('useSongWaveform lifecycle', () => {
     hook.unmount();
   });
 
+
+  test('explicit retry clears failure backoff without showing a synthetic shape', async () => {
+    const currentSong = song('retry');
+    extractor.extractWaveformPeaks.mockResolvedValueOnce(null).mockResolvedValueOnce(decoded());
+    const hook = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(hook.result.current.loadingNative).toBe(false);
+    expect(hook.result.current.waveformReady).toBe(false);
+    act(() => hook.result.current.retry());
+    expect(hook.result.current.loadingNative).toBe(true);
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(hook.result.current.waveformReady).toBe(true);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+    hook.unmount();
+  });
+
   test('exposes only a loading placeholder until one final waveform is ready', async () => {
     const native = deferred<NativeResult>();
     const currentSong = song('single-visible-shape');
@@ -211,7 +227,7 @@ describe('useSongWaveform lifecycle', () => {
     const preload = preloadSongWaveform(nextSong);
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledWith(
-      'file:///next-preload-stuck.mp3', 480,
+      'file:///next-preload-stuck.mp3', 1024,
     );
 
     const visible = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 1000 }));
@@ -243,19 +259,19 @@ describe('useSongWaveform lifecycle', () => {
     const detailed = renderHook(() => useSongWaveform({
       song: currentSong,
       durationMs: 1000,
-      pointCount: 480,
+      pointCount: 1024,
     }));
 
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
-    expect(extractor.extractWaveformPeaks.mock.calls[0]?.[1]).toBe(480);
+    expect(extractor.extractWaveformPeaks.mock.calls[0]?.[1]).toBe(1024);
     native.resolve(decoded());
     await flush();
 
     expect(compact.result.current.waveform).toMatchObject({ source: 'native' });
     expect(compact.result.current.waveform.points).toHaveLength(16);
     expect(detailed.result.current.waveform).toMatchObject({ source: 'native' });
-    expect(detailed.result.current.waveform.points).toHaveLength(480);
+    expect(detailed.result.current.waveform.points).toHaveLength(1024);
     compact.unmount();
     detailed.unmount();
   });

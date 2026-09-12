@@ -1,7 +1,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
-import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
-import { useLibraryCoverBackfill } from './useLibraryCoverBackfill';
+import { useLibraryBackgroundAnalysis } from './useLibraryBackgroundAnalysis';
 import { useLibraryControllerProps } from './useLibraryControllerProps';
 import { useLibraryControllerRenderers } from './useLibraryControllerRenderers';
 import { useLibraryControllerState } from './useLibraryControllerState';
@@ -168,8 +167,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     }
   }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
 
-  useLibraryCoverBackfill({ songs, applySongMetadataPatches, enabled: isReady });
-  useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches, enabled: isReady });
+  useLibraryBackgroundAnalysis({ songs, applySongMetadataPatches, isReady, isPlaying, loading });
 
   const refreshOperation = useMetadataRefreshOperation();
   const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);

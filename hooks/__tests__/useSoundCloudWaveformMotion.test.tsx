@@ -11,7 +11,7 @@ const gestureEvent = (translationX: number) => (
 );
 
 describe('useSoundCloudWaveformMotion', () => {
-  test('reports a live drag preview and commits the same final seek once', () => {
+  test('reports a live drag preview and commits the same final seek once', async () => {
     const onSeek = jest.fn();
     const onPreviewPosition = jest.fn();
     const { result } = renderHook(() => useSoundCloudWaveformMotion({
@@ -42,9 +42,10 @@ describe('useSoundCloudWaveformMotion', () => {
       state: State.END, oldState: State.ACTIVE, translationX: -250,
     })));
 
+    await act(async () => { await Promise.resolve(); });
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onSeek).toHaveBeenCalledWith(75_000);
-    expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
+    expect(onPreviewPosition).toHaveBeenLastCalledWith(75_000);
   });
 
   test.each([State.CANCELLED, State.FAILED])(
@@ -75,4 +76,28 @@ describe('useSoundCloudWaveformMotion', () => {
       expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
     },
   );
+});
+
+test('stale progress cannot snap a released seek backwards before native confirmation', async () => {
+  const onPreviewPosition = jest.fn();
+  const onSeek = jest.fn();
+  const hook = renderHook<ReturnType<typeof useSoundCloudWaveformMotion>, { position: number }>(
+    ({ position }) => useSoundCloudWaveformMotion({ progressRatio: position / 100000,
+      safeDuration: 100000, safePosition: position, isPlaying: false, travelWidth: 1000,
+      viewportCenter: 200, waveformKey: 'track', onSeek, onPreviewPosition }),
+    { initialProps: { position: 50000 } },
+  );
+  act(() => hook.result.current.onStateChange(stateEvent({ state: State.BEGAN, oldState: State.UNDETERMINED })));
+  await act(async () => hook.result.current.onStateChange(stateEvent({
+    state: State.END, oldState: State.ACTIVE, translationX: -250,
+  })));
+  const offset = () => (hook.result.current.translateX as unknown as { __getValue: () => number }).__getValue();
+  expect(offset()).toBe(-550);
+  hook.rerender({ position: 50500 });
+  expect(offset()).toBe(-550);
+  expect(onPreviewPosition).toHaveBeenLastCalledWith(75000);
+  hook.rerender({ position: 75500 });
+  expect(offset()).toBe(-555);
+  expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
+  hook.unmount();
 });

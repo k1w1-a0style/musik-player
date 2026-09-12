@@ -1093,14 +1093,15 @@ describe('manual secret workflow trust boundaries', () => {
   });
 
   test.each([
-    ['android-emulator-smoke.yml', 'development-apk-smoke', 'Checkout trusted codex head'],
+    ['android-emulator-smoke.yml', 'development-apk-smoke', 'Checkout immutable build source'],
     ['deploy-supabase-functions.yml', 'run-eas-build', 'Checkout trusted codex head'],
   ])('%s exposes manual secrets only on codex and never persists checkout credentials', (file, jobName, checkoutName) => {
     const workflow = load(file);
     const job = workflow.jobs[jobName];
     expect(String(job.if)).toContain("github.ref == 'refs/heads/codex'");
     const checkout = job.steps.find((step: any) => step.name === checkoutName);
-    expect(checkout.with).toMatchObject({ref: 'codex', 'persist-credentials': false});
+    const ref = file === 'android-emulator-smoke.yml' ? '${{ github.sha }}' : 'codex';
+    expect(checkout.with).toMatchObject({ref, 'persist-credentials': false});
   });
 
   test('writable CI-lite autofix restricts target branches before checkout and drops checkout credentials', () => {

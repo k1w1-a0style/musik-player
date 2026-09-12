@@ -1,5 +1,5 @@
 export const WAVEFORM_VERSION = 6;
-export const WAVEFORM_CACHE_POINT_COUNT = 480;
+export const WAVEFORM_CACHE_POINT_COUNT = 1024;
 export const DEFAULT_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const WAVEFORM_FINGERPRINT_PREFIX = `wf${WAVEFORM_VERSION}:`;
 
@@ -22,6 +22,7 @@ export interface NativeWaveformResult {
   points: number[];
   durationMs?: number;
   analysis?: 'decoded-pcm-v1';
+  analysisDurationMs?: number;
 }
 
 export const isWaveformSourceIdentity = (value: unknown): value is WaveformSourceIdentity => {

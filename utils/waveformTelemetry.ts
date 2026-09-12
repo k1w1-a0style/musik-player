@@ -31,3 +31,10 @@ export const logWaveformDecision = (diagnostics: WaveformSourceDiagnostics): voi
   // eslint-disable-next-line no-console
   console.info(describeWaveformDecision(diagnostics));
 };
+
+/** Per-load timing separates cache/analysis latency from Metro startup time. */
+export const logWaveformTiming = (source: 'cache' | 'native' | 'unavailable', elapsedMs: number, points: number): void => {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+  // eslint-disable-next-line no-console
+  console.info('[WaveformTiming]', { source, elapsedMs, points });
+};

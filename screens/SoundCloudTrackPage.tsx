@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AudioLines, Play, SkipBack, SkipForward } from 'lucide-react-native';
-import CrossfadeLayers from '../components/CrossfadeLayers';
 import SoundCloudWaveformViewport from '../components/SoundCloudWaveformViewport';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 import { useSongWaveform } from '../hooks/useSongWaveform';
@@ -10,7 +9,6 @@ import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { formatTime } from '../utils/musicParser';
 import { SOUNDCLOUD_WAVEFORM_POINT_COUNT } from '../utils/soundCloudPlayer';
 import { normalizeWaveformPoints } from '../utils/waveformGenerator';
 import type { SoundCloudCarouselPageRole } from './soundCloudCarouselTypes';
@@ -19,13 +17,13 @@ const ActiveWaveform = React.memo(({ song, isPlaying, accent, onSeek, gestureHan
   isPlaying: boolean; accent: string; onSeek: (position: number) => Promise<void>;
   gestureHandlerRef?: React.RefObject<unknown | null> }) => {
   const { position, duration } = usePlaybackProgress();
-  const { waveform: source, waveformReady } = useSongWaveform({
+  const { waveform: source, waveformReady, loadingNative, retry } = useSongWaveform({
     song, durationMs: duration, pointCount: SOUNDCLOUD_WAVEFORM_POINT_COUNT,
   });
   const waveform = useMemo(() => source.points.length === SOUNDCLOUD_WAVEFORM_POINT_COUNT ? source
     : { ...source, points: normalizeWaveformPoints(source.points, SOUNDCLOUD_WAVEFORM_POINT_COUNT) }, [source]);
   return <SoundCloudWaveformViewport waveform={waveform} ready={waveformReady}
-    currentPosition={position} duration={duration}
+    currentPosition={position} duration={duration} loading={loadingNative} onRetry={retry}
     isPlaying={isPlaying} onSeek={onSeek} accent={accent} height={116}
     gestureHandlerRef={gestureHandlerRef} />;
 });
@@ -43,22 +41,6 @@ const TrackMetadata = ({ song, onOpenTrackInfo }: { song: Song; onOpenTrackInfo:
     </Pressable>
   </View>
 );
-
-const PausedProgress = ({ accent }: { accent: string }) => {
-  const { position, duration } = usePlaybackProgress();
-  const ratio = duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0;
-  return (
-    <View style={styles.pausedProgress} testID="soundcloud-paused-progress">
-      <Text style={styles.pausedTime}>{formatTime(position)}  |  {formatTime(duration)}</Text>
-      <View style={styles.progressRail}>
-        <CrossfadeLayers value={accent} valueKey={accent}
-          testID="soundcloud-paused-progress-accent-transition" style={StyleSheet.absoluteFill}
-          renderLayer={layerAccent => <View style={[styles.progressFill,
-            { width: `${ratio * 100}%`, backgroundColor: layerAccent }]} />} />
-      </View>
-    </View>
-  );
-};
 
 const runTransport = (event: GestureResponderEvent | undefined, action: () => void): void => {
   event?.stopPropagation?.();
@@ -138,10 +120,10 @@ const SoundCloudTrackPage = ({ song, role, isPlaying, accent, canSwipeToNext, to
           scale={controlsScale} canGoNext={canSwipeToNext} onPrevious={onPrevious}
           onPlay={onTogglePlayback} onNext={onNext} /></> : null}
       </Pressable>
-      <View style={styles.progressArea}>{isCurrent && isPlaying
-        ? <ActiveWaveform song={song} isPlaying accent={accent} onSeek={onSeek}
+      <View style={styles.progressArea}>{isCurrent
+        ? <ActiveWaveform song={song} isPlaying={isPlaying} accent={accent} onSeek={onSeek}
           gestureHandlerRef={waveformGestureRef} />
-        : isCurrent ? <PausedProgress accent={accent} /> : null}</View>
+        : null}</View>
     </LinearGradient>
   );
 };
@@ -169,12 +151,6 @@ const styles = StyleSheet.create({
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.secondaryControlSurface, borderWidth: StyleSheet.hairlineWidth,
     borderColor: SOUNDCLOUD_PLAYER_COLORS.secondaryControlBorder, alignItems: 'center', justifyContent: 'center' },
   progressArea: { height: 150, marginHorizontal: -18, justifyContent: 'flex-end' },
-  pausedProgress: { minHeight: 74, justifyContent: 'center', paddingHorizontal: 36, gap: 10 },
-  pausedTime: { alignSelf: 'center', color: SOUNDCLOUD_PLAYER_COLORS.foreground, fontSize: 15,
-    fontVariant: ['tabular-nums'], backgroundColor: SOUNDCLOUD_PLAYER_COLORS.titleSurface,
-    paddingHorizontal: 8, paddingVertical: 3 },
-  progressRail: { height: 2, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.waveformRest, overflow: 'hidden' },
-  progressFill: { height: '100%' },
   disabled: { opacity: 0.34 },
 });
 

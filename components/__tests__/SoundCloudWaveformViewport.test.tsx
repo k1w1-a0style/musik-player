@@ -48,7 +48,7 @@ describe('SoundCloudWaveformViewport', () => {
     expect(getByTestId('soundcloud-waveform-unplayed-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-waveform-played-layer')).toBeTruthy();
     expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-played-clip').props.style).width).toBe(100);
-    expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-playhead').props.style).left).toBe(98);
+    expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-playhead').props.style).left).toBe(97);
   });
 
   test('supports accessible relative seeking without absolute tap jumps', () => {

@@ -11,13 +11,25 @@ interface PlaybackProgressMotionOptions {
   safeDuration: number;
   safePosition: number;
   isPlaying: boolean;
+  onPreviewPosition?: (position: number | null) => void;
 }
 
-const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, isPlaying }: PlaybackProgressMotionOptions) => {
+const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, isPlaying, onPreviewPosition }: PlaybackProgressMotionOptions) => {
   const progressValue = useRef(new Animated.Value(progressRatio)).current;
   const draggingRef = useRef(false);
+  const heldSeek = useRef<{ position: number; expires: number } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseHold = useCallback(() => {
+    heldSeek.current = null;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    onPreviewPosition?.(null);
+  }, [onPreviewPosition]);
   const sync = useCallback(() => {
     if (draggingRef.current) return;
+    const held = heldSeek.current;
+    if (held && Math.abs(safePosition - held.position) > 750 && Date.now() < held.expires) return;
+    if (held) releaseHold();
     progressValue.stopAnimation();
     progressValue.setValue(progressRatio);
     if (!isPlaying || safeDuration <= 0 || safePosition >= safeDuration) return;
@@ -25,12 +37,22 @@ const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, 
     Animated.timing(progressValue, { toValue: predicted / safeDuration,
       duration: PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS,
       easing: Easing.linear, useNativeDriver: true }).start();
-  }, [isPlaying, progressRatio, progressValue, safeDuration, safePosition]);
+  }, [isPlaying, progressRatio, progressValue, releaseHold, safeDuration, safePosition]);
   useEffect(() => {
     sync();
     return () => progressValue.stopAnimation();
   }, [progressValue, sync]);
-  return { progressValue, draggingRef, sync };
+  const latestSync = useRef(sync);
+  latestSync.current = sync;
+  const holdAt = useCallback((ratio: number) => {
+    releaseHold();
+    heldSeek.current = { position: ratio * safeDuration, expires: Date.now() + 2500 };
+    progressValue.setValue(ratio);
+    onPreviewPosition?.(ratio * safeDuration);
+    holdTimer.current = setTimeout(() => { releaseHold(); latestSync.current(); }, 2500);
+  }, [onPreviewPosition, progressValue, releaseHold, safeDuration]);
+  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current); }, []);
+  return { progressValue, draggingRef, sync, holdAt, releaseHold };
 };
 
 interface SoundCloudWaveformMotionOptions extends PlaybackProgressMotionOptions {
@@ -43,14 +65,16 @@ interface SoundCloudWaveformMotionOptions extends PlaybackProgressMotionOptions 
 
 export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safePosition, isPlaying,
   travelWidth, viewportCenter, waveformKey, onSeek, onPreviewPosition }: SoundCloudWaveformMotionOptions) => {
-  const { progressValue, draggingRef, sync } = usePlaybackProgressMotion({ progressRatio, safeDuration, safePosition, isPlaying });
+  const { progressValue, draggingRef, sync, holdAt, releaseHold } = usePlaybackProgressMotion({
+    progressRatio, safeDuration, safePosition, isPlaying, onPreviewPosition });
   const gestureX = useRef(new Animated.Value(0)).current;
   const startRatioRef = useRef(progressRatio);
   const lastPreviewAtRef = useRef(0);
   useEffect(() => {
     gestureX.setValue(0);
     draggingRef.current = false;
-  }, [draggingRef, gestureX, waveformKey]);
+    releaseHold();
+  }, [draggingRef, gestureX, releaseHold, waveformKey]);
   const baseTranslate = useMemo(() => progressValue.interpolate({ inputRange: [0, 1],
     outputRange: [viewportCenter, viewportCenter - travelWidth], extrapolate: 'clamp' }),
   [progressValue, travelWidth, viewportCenter]);
@@ -75,17 +99,24 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
     },
   ), [gestureX, preview]);
   const finish = useCallback((translationX: number, commit: boolean) => {
+    if (!draggingRef.current) return;
     const nextRatio = resolveSoundCloudSeekRatio({ startRatio: startRatioRef.current, translationX, travelWidth });
     draggingRef.current = false;
     gestureX.setValue(0);
     progressValue.setValue(commit ? nextRatio : startRatioRef.current);
-    if (commit && safeDuration > 0) void onSeek(nextRatio * safeDuration);
-    else sync();
-    onPreviewPosition?.(null);
-  }, [draggingRef, gestureX, onPreviewPosition, onSeek, progressValue, safeDuration, sync, travelWidth]);
+    if (commit && safeDuration > 0) {
+      // Keep the released position until the native progress poll confirms it.
+      // Otherwise the next stale poll visibly snaps the strip back after seek.
+      holdAt(nextRatio);
+      void Promise.resolve().then(() => onSeek(nextRatio * safeDuration)).catch(error => {
+        console.warn('[WaveformSeek] Seek failed.', error);
+      });
+    } else { releaseHold(); sync(); }
+  }, [draggingRef, gestureX, holdAt, onSeek, progressValue, releaseHold, safeDuration, sync, travelWidth]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { state, oldState, translationX = 0 } = event.nativeEvent;
     if (state === State.BEGAN) {
+      releaseHold();
       draggingRef.current = true;
       lastPreviewAtRef.current = 0;
       onPreviewPosition?.(safePosition);
@@ -93,6 +124,6 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
       progressValue.stopAnimation(value => { startRatioRef.current = Math.max(0, Math.min(1, value)); });
     } else if (state === State.CANCELLED || state === State.FAILED) finish(translationX, false);
     else if (state === State.END && oldState === State.ACTIVE) finish(translationX, true);
-  }, [draggingRef, finish, gestureX, onPreviewPosition, progressValue, safePosition]);
+  }, [draggingRef, finish, gestureX, onPreviewPosition, progressValue, releaseHold, safePosition]);
   return { translateX, onGestureEvent, onStateChange };
 };

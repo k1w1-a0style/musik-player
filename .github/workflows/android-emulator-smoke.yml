@@ -29,10 +29,10 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout trusted codex head
+      - name: Checkout immutable build source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: codex
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Setup Node
@@ -157,6 +157,19 @@ jobs:
             echo "::error::The development APK crashed during launch smoke."
             exit 1
           fi
+
+      - name: Exercise real player gestures with Metro and local audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          git rev-parse HEAD | tee ci-logs/reviewed-source-sha.txt
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          env -u EXPO_TOKEN EXPO_NO_TELEMETRY=1 EXPO_OFFLINE=1 EAS_BUILD_PROFILE=development CI=1 \
+            npx --no-install expo start --dev-client --localhost --port 8081 > ci-logs/metro.log 2>&1 &
+          metro_pid=$!
+          trap 'kill "$metro_pid" 2>/dev/null || true' EXIT
+          python3 scripts/ci/androidPlayerInteractionSmoke.py
 
       - name: Upload APK and smoke diagnostics
         if: always()
