@@ -122,12 +122,9 @@ def screenshot(name):
     (OUT / (name + '.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
 
 
-def assert_waveform_visuals():
-    x1, y1, x2, y2 = bounds(find('Waveform vor- oder zurückspulen'))
-    pixels = Image.open(BytesIO(adb('exec-out', 'screencap', '-p'))).convert('RGB')
+def assert_waveform_pixels(pixels, viewport):
+    x1, y1, x2, y2 = viewport
     center = (x1 + x2) // 2
-    white = sum(min(pixels.getpixel((center, y))) >= 230 for y in range(y1, y2))
-    assert white > (y2 - y1) * .8, 'The center playhead is not visibly drawn'
     def dominant(left, right):
         colored = Counter(pixels.getpixel((x, y)) for x in range(left, right)
                           for y in range(y1, y2)
@@ -135,8 +132,23 @@ def assert_waveform_visuals():
         assert colored, 'Waveform half has no colored pixels'
         return colored.most_common(1)[0][0]
     played, future = dominant(x1, center - 6), dominant(center + 6, x2)
-    assert all(abs(p - round(f * .55)) <= 4 for p, f in zip(played, future)), 'Played waveform is not darker'
-    print('Visible playhead and darker played half verified in screenshot.', flush=True)
+    # Thin SVG strokes are antialiased onto different underlying layers. Check
+    # visible brightness contrast, not exact equality to the source RGB color.
+    def luminance(color):
+        return sum(channel * weight for channel, weight in zip(color, (.2126, .7152, .0722)))
+    ratio = luminance(played) / luminance(future)
+    assert .25 <= ratio <= .8, f'Played waveform contrast is insufficient: {ratio:.3f}, {played}, {future}'
+    white = sum(min(pixels.getpixel((center, y))) >= 230 for y in range(y1, y2))
+    assert white > (y2 - y1) * .8, 'The center playhead is not visibly drawn'
+    return {'played': played, 'future': future, 'brightnessRatio': round(ratio, 3)}
+
+
+def assert_waveform_visuals():
+    viewport = bounds(find('Waveform vor- oder zurückspulen'))
+    raw = adb('exec-out', 'screencap', '-p')
+    (OUT / 'waveform-visual-check.png').write_bytes(raw)
+    result = assert_waveform_pixels(Image.open(BytesIO(raw)).convert('RGB'), viewport)
+    print('Visible playhead and darker played half verified: ' + json.dumps(result), flush=True)
 
 
 def snapshot_storage():
@@ -301,7 +313,8 @@ try:
     (OUT / 'result.json').write_text(json.dumps({'status': 'passed', 'formats': ['mp3', 'm4a', 'flac'],
         'startupRetries': startup_retries,
         'pixelLauncherDialogs': launcher_dialogs,
-        'checks': ['native-waveform-1024', 'stable-cache', 'playing-seek', 'paused-waveform',
+        'checks': ['native-waveform-1024', 'visible-playhead', 'darker-played-waveform',
+                   'stable-cache', 'playing-seek', 'paused-waveform',
                    'previous-while-playing', 'queue-grip', 'native-next-after-reorder', 'playlist-grip']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)
 finally:

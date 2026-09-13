@@ -154,7 +154,7 @@ jobs:
           fi
 
       - name: Exercise real player gestures with Metro and local audio
-        # The inspector records known launcher boot dialogs separately from app errors.
+        # Record launcher boot dialogs and validate the actual antialiased waveform pixels.
         shell: bash
         run: |
           set -euo pipefail
