@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 PACKAGE = os.environ.get('PACKAGE_NAME', 'com.k1w1a0style.musikplayer.dev')
 OUT = Path('ci-logs/interaction')
 OUT.mkdir(parents=True, exist_ok=True)
+startup_retries = 0
 
 
 def adb(*args, check=True, data=None):
@@ -39,6 +40,7 @@ def matches(node, key):
 
 
 def find(key, timeout=20):
+    global startup_retries
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         tree = ui()
@@ -55,6 +57,14 @@ def find(key, timeout=20):
         if any(node.get('text') == 'Connected to:' for node in tree.iter('node')):
             for node in tree.iter('node'):
                 if node.get('content-desc') == 'Close':
+                    tap_node(node)
+                    break
+        if key == 'mini-player-open' and startup_retries == 0:
+            for node in tree.iter('node'):
+                if matches(node, 'hydration-retry-button'):
+                    startup_retries += 1
+                    screenshot('startup-before-retry')
+                    print('Cold startup degraded; exercising the visible hydration retry once.', flush=True)
                     tap_node(node)
                     break
         time.sleep(0.4)
@@ -178,6 +188,7 @@ def check_playback():
     tap('mini-player-open')
     find('soundcloud-swipe-hitbox')
     first_shape = wait_waveform(180000)
+    adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, 'reset')
     screenshot('01-waveform-playing')
     surface = find('Waveform vor- oder zurückspulen')
     before_seek = position_ms()
@@ -246,10 +257,12 @@ try:
     logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
     assert not re.search(r'Expected .onGestureHandlerEvent.|FATAL EXCEPTION|ErrorBoundary caught', logs), 'Runtime error in app'
     (OUT / 'result.json').write_text(json.dumps({'status': 'passed', 'formats': ['mp3', 'm4a', 'flac'],
+        'startupRetries': startup_retries,
         'checks': ['native-waveform-1024', 'stable-cache', 'playing-seek', 'paused-waveform',
                    'previous-while-playing', 'queue-grip', 'native-next-after-reorder', 'playlist-grip']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)
 finally:
     screenshot('final')
     (OUT / 'logcat.txt').write_bytes(adb('logcat', '-d', '-v', 'threadtime', check=False))
+    (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, check=False))
     ui()

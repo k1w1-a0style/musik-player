@@ -129,6 +129,10 @@ jobs:
             exit 1
           fi
           timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          # Software GPU: retain the phone's logical layout at half the pixels.
+          # This avoids making cold startup compete with a 1080p CPU renderer.
+          adb shell wm size 540x1200
+          adb shell wm density 210
           adb shell input keyevent 82 || true
           adb logcat -c
 
