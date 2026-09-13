@@ -18,6 +18,7 @@ interface CrossfadeLayersProps<T> {
   duration?: number;
   delay?: number;
   style?: StyleProp<ViewStyle>;
+  fill?: boolean;
 }
 
 /**
@@ -27,7 +28,7 @@ interface CrossfadeLayersProps<T> {
  */
 const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
   duration = PLAYER_COLOR_CROSSFADE_MS, delay = PLAYER_COLOR_CROSSFADE_DELAY_MS,
-  style }: CrossfadeLayersProps<T>) => {
+  style, fill = false }: CrossfadeLayersProps<T>) => {
   const reduceMotion = useReducedMotion();
   const incoming = useMemo<CrossfadeSnapshot<T>>(
     () => ({ key: valueKey, value }),
@@ -73,7 +74,7 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
   const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
 
   return (
-    <View style={[styles.container, style]} testID={testID}>
+    <View style={[styles.container, fill && StyleSheet.absoluteFill, style]} testID={testID}>
       {outgoing ? (
         <Animated.View pointerEvents="none" accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
@@ -82,7 +83,7 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
           {renderLayer(outgoing.value)}
         </Animated.View>
       ) : null}
-      <Animated.View style={[styles.layer, { opacity: outgoing ? transition : 1 }]}
+      <Animated.View style={[styles.layer, fill && StyleSheet.absoluteFill, { opacity: outgoing ? transition : 1 }]}
         testID={`${testID}-active`}>
         {renderLayer(active.value)}
       </Animated.View>

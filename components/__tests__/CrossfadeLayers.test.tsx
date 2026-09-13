@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Text } from 'react-native';
+import { Animated, StyleSheet, Text } from 'react-native';
 import { act, render } from '@testing-library/react-native';
 import CrossfadeLayers, {
   PLAYER_COLOR_CROSSFADE_DELAY_MS,
@@ -21,6 +21,18 @@ describe('CrossfadeLayers', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  test('gives absolute overlays full bounds without changing flow-sized content', () => {
+    const { getByTestId, rerender } = render(
+      <CrossfadeLayers value="red" valueKey="red" renderLayer={renderValue} testID="overlay" fill />,
+    );
+    expect(StyleSheet.flatten(getByTestId('overlay').props.style))
+      .toMatchObject({ position: 'absolute', top: 0, bottom: 0 });
+    expect(StyleSheet.flatten(getByTestId('overlay-active').props.style))
+      .toMatchObject({ position: 'absolute', top: 0, bottom: 0 });
+    rerender(<CrossfadeLayers value="red" valueKey="red" renderLayer={renderValue} testID="overlay" />);
+    expect(StyleSheet.flatten(getByTestId('overlay-active').props.style).position).toBeUndefined();
   });
 
   test('keeps an outgoing visual layer while the incoming value fades in', () => {

@@ -11,6 +11,7 @@ import {
 } from './waveformExtractionLifecycle';
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceIdentity } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
+import { logWaveformTiming } from './waveformTelemetry';
 import {
   classifyWaveformContainer,
   type NativeWaveformDecision,
@@ -131,6 +132,9 @@ const acceptDecodedNativeResult = ({
     return null;
   }
   report('native-accepted', points.length);
+  if (typeof result.analysisDurationMs === 'number' && Number.isFinite(result.analysisDurationMs)) {
+    logWaveformTiming('analysis', result.analysisDurationMs, points.length);
+  }
   clearWaveformFailure(extractionKey);
   return waveform;
 };

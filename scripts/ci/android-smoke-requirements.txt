@@ -1,0 +1,2 @@
+# CI emulator inspection only; not an application/runtime dependency.
+uiautomator2==3.7.0

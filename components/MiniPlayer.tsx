@@ -74,7 +74,7 @@ MiniPlayerPlaybackProgress.displayName = 'MiniPlayerPlaybackProgress';
 const MiniPlayerAccentBorder = memo(({ color, radius, testID }: { color: string; radius: number; testID: string }) => (
   <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     <CrossfadeLayers value={color} valueKey={color} testID={`${testID}-transition`}
-      style={StyleSheet.absoluteFill}
+      fill
       renderLayer={layerColor => <View style={[StyleSheet.absoluteFill, styles.accentBorder,
         { borderColor: layerColor, borderRadius: radius }]} testID={`${testID}-fill`} />} />
   </View>

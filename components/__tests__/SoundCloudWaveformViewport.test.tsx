@@ -47,6 +47,10 @@ describe('SoundCloudWaveformViewport', () => {
 
     expect(getByTestId('soundcloud-waveform-unplayed-layer')).toBeTruthy();
     expect(getByTestId('soundcloud-waveform-played-layer')).toBeTruthy();
+    // Absolute strips must inherit the full viewport height, including the
+    // crossfade's active layer, or its clip/playhead collapse to zero height.
+    expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-accent-transition-active').props.style))
+      .toMatchObject({ position: 'absolute', top: 0, bottom: 0 });
     expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-played-clip').props.style).width).toBe(100);
     expect(StyleSheet.flatten(getByTestId('soundcloud-waveform-playhead').props.style).left).toBe(97);
   });

@@ -164,7 +164,9 @@ jobs:
             npx --no-install expo start --dev-client --localhost --port 8081 > ci-logs/metro.log 2>&1 &
           metro_pid=$!
           trap 'kill "$metro_pid" 2>/dev/null || true' EXIT
-          python3 scripts/ci/androidPlayerInteractionSmoke.py
+          python3 -m venv "$RUNNER_TEMP/player-smoke-venv"
+          "$RUNNER_TEMP/player-smoke-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+          "$RUNNER_TEMP/player-smoke-venv/bin/python" scripts/ci/androidPlayerInteractionSmoke.py
 
       - name: Upload APK and smoke diagnostics
         if: always()

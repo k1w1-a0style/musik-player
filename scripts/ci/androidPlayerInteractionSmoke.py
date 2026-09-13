@@ -5,6 +5,8 @@ Fixture setup seeds storage; all playback, scrubbing and reordering use Android
 input events. Never run against a physical device or a production package.
 """
 import json
+from collections import Counter
+from io import BytesIO
 import os
 from pathlib import Path
 import re
@@ -13,11 +15,14 @@ import subprocess
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+from PIL import Image
+import uiautomator2 as u2
 
 PACKAGE = os.environ.get('PACKAGE_NAME', 'com.k1w1a0style.musikplayer.dev')
 OUT = Path('ci-logs/interaction')
 OUT.mkdir(parents=True, exist_ok=True)
 startup_retries = 0
+device = None
 
 
 def adb(*args, check=True, data=None):
@@ -25,8 +30,10 @@ def adb(*args, check=True, data=None):
 
 
 def ui():
-    adb('shell', 'uiautomator', 'dump', '/sdcard/player-smoke.xml', check=False)
-    raw = adb('exec-out', 'cat', '/sdcard/player-smoke.xml', check=False)
+    # A scrolling timeline never becomes idle. The shell dump command can fail
+    # and leave yesterday's XML behind; use a fresh, non-idle snapshot instead.
+    assert device is not None
+    raw = device.dump_hierarchy(compressed=False, max_depth=80).encode()
     (OUT / 'latest-ui.xml').write_bytes(raw)
     try:
         return ET.fromstring(raw)
@@ -101,6 +108,23 @@ def screenshot(name):
     (OUT / (name + '.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
 
 
+def assert_waveform_visuals():
+    x1, y1, x2, y2 = bounds(find('Waveform vor- oder zurückspulen'))
+    pixels = Image.open(BytesIO(adb('exec-out', 'screencap', '-p'))).convert('RGB')
+    center = (x1 + x2) // 2
+    white = sum(min(pixels.getpixel((center, y))) >= 230 for y in range(y1, y2))
+    assert white > (y2 - y1) * .8, 'The center playhead is not visibly drawn'
+    def dominant(left, right):
+        colored = Counter(pixels.getpixel((x, y)) for x in range(left, right)
+                          for y in range(y1, y2)
+                          if max(pixels.getpixel((x, y))) - min(pixels.getpixel((x, y))) > 40)
+        assert colored, 'Waveform half has no colored pixels'
+        return colored.most_common(1)[0][0]
+    played, future = dominant(x1, center - 6), dominant(center + 6, x2)
+    assert all(abs(p - round(f * .55)) <= 4 for p, f in zip(played, future)), 'Played waveform is not darker'
+    print('Visible playhead and darker played half verified in screenshot.', flush=True)
+
+
 def snapshot_storage():
     with tempfile.TemporaryDirectory() as temp:
         db = Path(temp) / 'RKStorage'
@@ -133,8 +157,11 @@ def wait_waveform(duration_ms):
 
 
 def prepare():
+    global device
     assert PACKAGE.endswith('.dev')
     assert adb('shell', 'getprop', 'ro.kernel.qemu').strip() == b'1', 'Emulator only'
+    device = u2.connect()
+    device.jsonrpc.setConfigurator({'waitForIdleTimeout': 0, 'waitForSelectorTimeout': 0})
     adb('shell', 'am', 'force-stop', PACKAGE)
     adb('shell', 'pm', 'grant', PACKAGE, 'android.permission.READ_MEDIA_AUDIO')
     adb('shell', 'mkdir', '-p', '/sdcard/Music/player-smoke')
@@ -196,6 +223,7 @@ def check_playback():
     time.sleep(1)
     find('Waveform vor- oder zurückspulen')
     assert position_ms() > before_seek + 5000, 'Playing seek did not change position'
+    assert_waveform_visuals()
     screenshot('02-after-seek')
     # Previous must work while playing, even after more than three seconds.
     swipe(find('soundcloud-swipe-hitbox'))

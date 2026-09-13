@@ -72,7 +72,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
         { name: 'decrement', label: '10 Sekunden zurückspulen' }]}
       onAccessibilityAction={handleAccessibilityAction}>
       <CrossfadeLayers value={accent} valueKey={accent} testID="soundcloud-waveform-accent-transition"
-        style={StyleSheet.absoluteFill}
+        fill
         renderLayer={layerAccent => <SoundCloudWaveformLayers points={waveform.points}
           sourceKey={waveform.sourceKey} stripWidth={stripWidth} height={height}
           viewportCenter={viewportCenter} accent={layerAccent} translateX={motion.translateX}

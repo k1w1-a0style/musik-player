@@ -21,7 +21,7 @@ const MiniPlayerProgress: React.FC<MiniPlayerProgressProps> = ({ progress, accen
     >
       <CrossfadeLayers value={accent ?? theme.palette.primary}
         valueKey={accent ?? theme.palette.primary} testID="mini-player-progress-color-transition"
-        style={StyleSheet.absoluteFill}
+        fill
         renderLayer={color => <View style={[styles.fill,
           { width: `${clamped * 100}%`, backgroundColor: color }]}
           testID="mini-player-progress-fill" />} />
