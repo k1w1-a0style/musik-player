@@ -37,6 +37,8 @@ The first remote CI attempt found newly published advisories in build-tool depen
 
 The new Android interaction smoke seeds three generated MP3/M4A/FLAC fixtures through the supported storage hydration path, serves the normal app entry over Metro, then uses Android input gestures for playing/paused seek, previous while playing, queue grip, next after native reorder, and playlist grip. It verifies real 1,024-point envelopes and stable cached shapes and captures screenshots, runtime logs and MediaSession state. Fixture seeding is test setup; it does not claim to test the user's SAF picker flow.
 
+Replay `34786509283` reached normal app hydration in 3,062 ms and logged native analysis durations of 186–2,418 ms for the generated fixtures. A Pixel Launcher ANR dialog covered the app and blocked interaction verification. The inspector now records and closes that exact system-app dialog once; it does not dismiss an ANR from the music app. These measured fixture timings do not establish a bound for arbitrary user audio.
+
 ## Practical limits
 
 SoundCloud's published waveform architecture prepares and caches peaks before playback; the client receives a small ready-made representation. A local player must analyze a new file somewhere. Idle precomputation and persistent cache move that work away from interaction, but uncached files still require decoding. No universal one-second guarantee or zero-jank guarantee follows from emulator tests. Long mixes, slow document providers, Bluetooth and the user's actual hardware still need measurements. Migrating architecture or changing the audio engine is not justified by the listener error.

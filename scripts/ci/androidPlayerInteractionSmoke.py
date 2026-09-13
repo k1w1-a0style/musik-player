@@ -22,6 +22,7 @@ PACKAGE = os.environ.get('PACKAGE_NAME', 'com.k1w1a0style.musikplayer.dev')
 OUT = Path('ci-logs/interaction')
 OUT.mkdir(parents=True, exist_ok=True)
 startup_retries = 0
+launcher_dialogs = 0
 device = None
 
 
@@ -47,10 +48,23 @@ def matches(node, key):
 
 
 def find(key, timeout=20):
-    global startup_retries
+    global startup_retries, launcher_dialogs
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         tree = ui()
+        # Google's launcher can ANR during a cold software-rendered AVD boot.
+        # Record and close only this named system app, never a music-app ANR.
+        if any(node.get('resource-id') == 'android:id/alertTitle'
+               and node.get('text') == "Pixel Launcher isn't responding" for node in tree.iter('node')):
+            assert launcher_dialogs == 0, 'Pixel Launcher repeatedly stopped responding'
+            screenshot('startup-pixel-launcher-dialog')
+            for node in tree.iter('node'):
+                if node.get('resource-id') == 'android:id/aerr_close':
+                    launcher_dialogs += 1
+                    print('Closing the recorded Pixel Launcher system ANR dialog.', flush=True)
+                    tap_node(node)
+                    break
+            continue
         for node in tree.iter('node'):
             if matches(node, key) and node.get('bounds') != '[0,0][0,0]':
                 print('Found UI: ' + key, flush=True)
@@ -286,6 +300,7 @@ try:
     assert not re.search(r'Expected .onGestureHandlerEvent.|FATAL EXCEPTION|ErrorBoundary caught', logs), 'Runtime error in app'
     (OUT / 'result.json').write_text(json.dumps({'status': 'passed', 'formats': ['mp3', 'm4a', 'flac'],
         'startupRetries': startup_retries,
+        'pixelLauncherDialogs': launcher_dialogs,
         'checks': ['native-waveform-1024', 'stable-cache', 'playing-seek', 'paused-waveform',
                    'previous-while-playing', 'queue-grip', 'native-next-after-reorder', 'playlist-grip']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)

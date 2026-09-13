@@ -154,6 +154,7 @@ jobs:
           fi
 
       - name: Exercise real player gestures with Metro and local audio
+        # The inspector records known launcher boot dialogs separately from app errors.
         shell: bash
         run: |
           set -euo pipefail
