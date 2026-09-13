@@ -1,4 +1,4 @@
-name: Reviewed player performance APK and interactions
+name: Reviewed APK player interaction replay
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: manual-android-development-apk
@@ -15,16 +16,15 @@ concurrency:
 jobs:
   development-apk-smoke:
     if: >-
-      github.ref == 'refs/heads/codex' && github.event.head_commit.message == 'ci: build reviewed performance APK once'
-    name: Build, inspect, install and launch development APK
+      github.ref == 'refs/heads/codex' && github.event.head_commit.message == 'ci: verify player interactions against reviewed APK'
+    name: Verify reviewed APK with normal player interactions
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 25
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer.dev
       AVD_NAME: musik-player-api-35
       ANDROID_API: '35'
       EAS_BUILD_PROFILE: development
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
       - name: Checkout immutable build source
@@ -32,6 +32,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
@@ -39,13 +40,6 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
-        with:
-          eas-version: 20.0.0
-          packager: npm
-          token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -58,19 +52,18 @@ jobs:
           echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
           echo "${JAVA_HOME_17_X64}/bin" >> "$GITHUB_PATH"
 
-      - name: Build development APK with EAS locally
+      - name: Download and verify the reviewed native APK
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${EXPO_TOKEN:-}"
           mkdir -p artifacts ci-logs
-          eas build \
-            --platform android \
-            --profile development \
-            --local \
-            --non-interactive \
-            --output "$PWD/artifacts/musik-player-development.apk" \
-            2>&1 | tee android-development-build.log
+          gh run download 34721655108 --repo k1w1-a0style/musik-player --name android-development-apk-1 --dir reviewed-apk
+          cp reviewed-apk/artifacts/musik-player-development.apk artifacts/musik-player-development.apk
+          echo "99dd63c7f82caeec1167b1ae6efc691715ff1e2ab4832aa4b947d64c1736a5a4  artifacts/musik-player-development.apk" | sha256sum --check
+          git diff --exit-code 6da76fd032e7644f4182f5677beed109e12f7a69 HEAD -- modules app.config.js app.json eas.json
+          echo 6da76fd032e7644f4182f5677beed109e12f7a69 > ci-logs/apk-source-sha.txt
 
       - name: Inspect development APK
         shell: bash

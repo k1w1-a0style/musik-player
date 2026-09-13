@@ -44,11 +44,19 @@ def find(key, timeout=20):
         tree = ui()
         for node in tree.iter('node'):
             if matches(node, key) and node.get('bounds') != '[0,0][0,0]':
+                print('Found UI: ' + key, flush=True)
                 return node
         # Expo dev-client's first-launch introduction is outside the app.
         for node in tree.iter('node'):
             if node.get('text', '').lower() in ['continue', 'got it']:
                 tap_node(node)
+        # SDK 54 opens the developer menu after its introduction. Close only
+        # that identified menu; do not dismiss an application error dialog.
+        if any(node.get('text') == 'Connected to:' for node in tree.iter('node')):
+            for node in tree.iter('node'):
+                if node.get('content-desc') == 'Close':
+                    tap_node(node)
+                    break
         time.sleep(0.4)
     raise AssertionError('UI not found: ' + key)
 
