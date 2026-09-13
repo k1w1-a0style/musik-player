@@ -90,7 +90,9 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
       motion.setValue(-height + Math.max(0, Math.min(height, translationY)));
       dismissY.setValue(0);
     }
-    if (state === State.CANCELLED || state === State.FAILED) onRestore();
+    if (state === State.CANCELLED || state === State.FAILED) {
+      if (oldState === State.ACTIVE) onRestore();
+    }
     else if (state === State.END && oldState === State.ACTIVE) {
       if (shouldCloseSoundCloudQueue({ translationY, velocityY, height })) onClose();
       else onRestore();

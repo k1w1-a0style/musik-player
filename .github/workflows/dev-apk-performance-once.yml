@@ -154,7 +154,7 @@ jobs:
           fi
 
       - name: Exercise real player gestures with Metro and local audio
-        # Record launcher boot dialogs and validate the actual antialiased waveform pixels.
+        # Replay the queue tap after repairing passive gesture cancellation.
         shell: bash
         run: |
           set -euo pipefail

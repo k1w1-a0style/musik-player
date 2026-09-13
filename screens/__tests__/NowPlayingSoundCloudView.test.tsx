@@ -282,6 +282,18 @@ describe('NowPlayingSoundCloudView', () => {
     expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
   });
 
+  test.each([1, 3])('a passive queue header recognizer ending as %s cannot restore the sheet', state => {
+    const { getByTestId } = renderSoundCloudView();
+    fireEvent.press(getByTestId('soundcloud-open-queue'));
+    (Animated.spring as jest.Mock).mockClear();
+
+    fireEvent(getByTestId('soundcloud-queue-dismiss-gesture'), 'handlerStateChange', {
+      nativeEvent: { oldState: 2, state, translationY: 0 },
+    });
+
+    expect(Animated.spring).not.toHaveBeenCalled();
+  });
+
   test('closes the open queue by swiping its header down', () => {
     const { getByTestId, queryByTestId } = renderSoundCloudView();
     fireEvent.press(getByTestId('soundcloud-open-queue'));

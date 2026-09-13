@@ -12,6 +12,21 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test.each([State.CANCELLED, State.FAILED])(
+    'a passive vertical recognizer ending as %s preserves the opened queue position', state => {
+      const drag = new Animated.Value(0);
+      const changed = jest.fn();
+      const { result, unmount } = renderHook(() => useVerticalPlayerMotion({
+        drag, height: 800, onCollapse: jest.fn(), onOpenQueue: jest.fn(), reduceMotion: true,
+      }));
+      act(() => drag.setValue(-800));
+      drag.addListener(changed);
+      act(() => result.current.onStateChange(stateEvent({ oldState: State.BEGAN, state })));
+      expect(changed).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
+
   test('binds horizontal drag updates to a native animated event', () => {
     const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
       currentSongId: 'track-1',

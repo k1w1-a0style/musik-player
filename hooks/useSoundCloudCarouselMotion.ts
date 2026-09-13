@@ -241,7 +241,9 @@ export const useVerticalPlayerMotion = ({ drag, height, onCollapse, onOpenQueue,
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityY = 0 } = event.nativeEvent;
     if (state === State.CANCELLED || state === State.FAILED) {
-      animateBack();
+      // A button tap also ends a passive parent recognizer. It must not cancel
+      // the queue-open animation triggered by that same tap.
+      if (oldState === State.ACTIVE) animateBack();
     } else if (state === State.END && oldState === State.ACTIVE
       && shouldCollapseSoundCloudPlayer({ translationY, velocityY, height })) {
       if (reduceMotion) {
