@@ -8,7 +8,8 @@ permissions:
   actions: read
 jobs:
   inspect:
-    if: github.ref == 'refs/heads/codex' && github.event.head_commit.message == 'ci: inspect player drag failure'
+    if: >-
+      github.ref == 'refs/heads/codex' && github.event.head_commit.message == 'ci: inspect player drag failure'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
