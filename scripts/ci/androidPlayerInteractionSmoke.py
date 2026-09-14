@@ -273,10 +273,10 @@ def check_playback():
     tap('soundcloud-open-queue')
     second = find('queue-row-smoke-b')
     third = find('queue-row-smoke-c')
-    x1, y1, x2, y2 = bounds(second)
+    x1, y1, x2, y2 = bounds(find('queue-drag-handle-smoke-b'))
     _, z1, _, z2 = bounds(third)
-    # The visible grip is at the right edge of each row, inside its touch target.
-    x = x2 - 26
+    x = (x1 + x2) // 2
+    print('Queue grip bounds:', [x1, y1, x2, y2], 'target:', bounds(third), flush=True)
     adb('shell', 'input', 'swipe', str(x), str((y1 + y2) // 2), str(x), str((z1 + z2) // 2), '650')
     time.sleep(.8)
     assert bounds(find('queue-row-smoke-c'))[1] < bounds(find('queue-row-smoke-b'))[1], 'Queue grip did not reorder'
@@ -295,11 +295,12 @@ def check_playback():
     tap('open-playlist-smoke-list')
     first = find('playlist-detail-song-smoke-a')
     second = find('playlist-detail-song-smoke-b')
-    x1, y1, x2, y2 = bounds(first)
+    x1, y1, x2, y2 = bounds(find('playlist-detail-drag-handle-smoke-a'))
     _, z1, _, z2 = bounds(second)
-    # Playlist rows have a remove control followed by the visible grip.
-    adb('shell', 'input', 'swipe', str(x2 - 24), str((y1 + y2) // 2),
-        str(x2 - 24), str((z1 + z2) // 2), '650')
+    x = (x1 + x2) // 2
+    print('Playlist grip bounds:', [x1, y1, x2, y2], 'target:', bounds(second), flush=True)
+    adb('shell', 'input', 'swipe', str(x), str((y1 + y2) // 2),
+        str(x), str((z1 + z2) // 2), '650')
     time.sleep(.8)
     assert bounds(find('playlist-detail-song-smoke-b'))[1] < bounds(find('playlist-detail-song-smoke-a'))[1], 'Playlist grip did not reorder'
     screenshot('06-playlist-reordered')
@@ -321,4 +322,8 @@ finally:
     screenshot('final')
     (OUT / 'logcat.txt').write_bytes(adb('logcat', '-d', '-v', 'threadtime', check=False))
     (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, check=False))
-    ui()
+    for node in ui().iter('node'):
+        if any(part in node.get('resource-id', '') for part in
+               ['queue-row-', 'drag-handle-', 'playlist-detail-song-', 'soundcloud-queue-close']):
+            print('Final row:', {key: node.get(key) for key in
+                  ['resource-id', 'content-desc', 'bounds', 'enabled']}, flush=True)

@@ -91,6 +91,29 @@ describe('useProvidedMusicContextValues', () => {
     resetSleepTimerForTests();
     jest.clearAllMocks();
   });
+
+  test('forwards queue reordering through the provider and refreshes its callback', async () => {
+    const reorderQueue = jest.fn(async () => ({ status: 'noop' as const }));
+    const replacement = jest.fn(async () => ({ status: 'noop' as const }));
+    const { result, rerender } = renderHook(
+      ({ value }: { value: MusicContextValue }) => useProvidedMusicContextValues(value),
+      { initialProps: { value: { ...baseValue, reorderQueue } } },
+    );
+    const library = result.current.libraryValue;
+    const miniPlayer = result.current.miniPlayerValue;
+
+    expect(result.current.value.reorderQueue).toBe(reorderQueue);
+    expect(result.current.nowPlayingValue.reorderQueue).toBe(reorderQueue);
+    await act(async () => { await result.current.nowPlayingValue.reorderQueue?.(1, 2); });
+    expect(reorderQueue).toHaveBeenCalledWith(1, 2);
+
+    rerender({ value: { ...baseValue, reorderQueue: replacement } });
+    expect(result.current.value.reorderQueue).toBe(replacement);
+    expect(result.current.nowPlayingValue.reorderQueue).toBe(replacement);
+    expect(result.current.libraryValue).toBe(library);
+    expect(result.current.miniPlayerValue).toBe(miniPlayer);
+  });
+
   test('builds provided context values from the full music value', () => {
     const { getByTestId } = render(<ValuesProbe />);
 

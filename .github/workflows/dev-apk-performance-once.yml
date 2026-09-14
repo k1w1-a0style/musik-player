@@ -44,6 +44,28 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+
+      - name: Prove the queue context regression against the previous source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          npx jest --runInBand --coverage=false --colors=false --runTestsByPath contexts/__tests__/useProvidedMusicContextValues.test.tsx --testNamePattern 'forwards queue reordering'
+          reviewed_context="$RUNNER_TEMP/reviewed-useMusicContextValue.ts"
+          cp contexts/useMusicContextValue.ts "$reviewed_context"
+          trap 'cp "$reviewed_context" contexts/useMusicContextValue.ts' EXIT
+          git show 9bb47e3989f1ffcfd2fe17cd204560f858584817:contexts/useMusicContextValue.ts > contexts/useMusicContextValue.ts
+          set +e
+          npx jest --runInBand --coverage=false --colors=false --runTestsByPath contexts/__tests__/useProvidedMusicContextValues.test.tsx --testNamePattern 'forwards queue reordering' > ci-logs/queue-context-before.log 2>&1
+          baseline_status=$?
+          set -e
+          cat ci-logs/queue-context-before.log
+          test "$baseline_status" -eq 1
+          grep -F 'Received: undefined' ci-logs/queue-context-before.log
+          cp "$reviewed_context" contexts/useMusicContextValue.ts
+          trap - EXIT
+          git diff --exit-code -- contexts/useMusicContextValue.ts
+
       - name: Select JDK 17
         shell: bash
         run: |
@@ -154,7 +176,7 @@ jobs:
           fi
 
       - name: Exercise real player gestures with Metro and local audio
-        # Replay the queue tap after repairing passive gesture cancellation.
+        # Verify actual visible grips and native order after restoring the context callback.
         shell: bash
         run: |
           set -euo pipefail

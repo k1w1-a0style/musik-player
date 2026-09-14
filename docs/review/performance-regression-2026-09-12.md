@@ -15,6 +15,8 @@ Target: `codex`, starting at `d7634a71`. Android development client; Track Playe
 - **Queue latency:** native queue readback mapped each track through a linear library search, making large queues quadratic. It now builds one ID map. Independent native reads are batched into three stages while keeping the before/after consistency check and retry/recovery rules. Reorder continues to use `TrackPlayer.move`, without resetting audio. Queue dismissal also moves through a native animated event.
 - **Queue button/gesture race:** a passive parent recognizer ending in `FAILED`/`CANCELLED` reset the shared queue position even though it never owned a drag. This could override opening the queue by a button tap; the queue-header recognizer similarly could restore a sheet being closed. Both now restore only gestures that were actually `ACTIVE`. Four regression cases failed before the correction. This follows the Gesture Handler distinction between receiving touches (`BEGAN`) and recognizing a drag (`ACTIVE`).
 
+- **Queue grips missing in the real app:** `useMusicContextValue` dropped the incoming `reorderQueue` callback, so the actual provider disabled reordering and rendered no handles. The callback is now forwarded and included in memo dependencies. A provider-chain regression also verifies callback replacement without invalidating unrelated library/mini-player slices. The emulator inspector targets the actual handle bounds instead of assuming a grip exists at a row-edge coordinate.
+
 ## Measurement and verification
 
 Identical Android export options (`--no-bytecode --source-maps`), same dependency installation:
