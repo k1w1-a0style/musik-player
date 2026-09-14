@@ -44,6 +44,20 @@ Replay `34786509283` reached normal app hydration in 3,062 ms and logged native 
 
 Replay `34786969063` reached the actual playing waveform and passed the playing seek. Its screenshot confirms the repaired center line and darker played half. The original pixel assertion incorrectly required exact source RGB scaling despite antialiasing over the underlying unplayed layer. It now requires observable brightness contrast (played/future ≤ 0.8), colored pixels on both sides and a bright center line. The corrected check rejects the earlier screenshot with the missing clip. This loaded emulator run measured the first analysis at 8,263 ms; performance depends on concurrent load, so the faster preceding measurements are not a universal promise.
 
+## Completed Android acceptance run
+
+[Interaction run 34881404988](https://github.com/k1w1-a0style/musik-player/actions/runs/34881404988), source `45b21a98`, passed the normal app flow on Android 15 / API 35:
+
+- True 1,024-point waveforms for generated MP3, M4A and FLAC; identical persisted points after revisiting a track.
+- Bright center playhead and darker played half verified from actual pixels (observed brightness ratio 0.70).
+- Playing seek, paused forward/backward seek, waveform retained on pause, and previous-track swipe during playback.
+- Queue opens by tap; its visible grip moves B after C; the next native MediaSession track is C.
+- Playlist grip moves B before A; no reported gesture-listener error, app fatal exception or error-boundary failure.
+
+The provider-chain regression passed on the corrected source and failed with `Received: undefined` after substituting the previous context implementation. Source was restored and checked before the APK replay. The complete JavaScript gate passed 317 suites / 3,055 tests. Its remaining line-budget finding was resolved by grouping the adjacent playback actions in the context signature, result and dependencies; all non-whitespace tokens remain unchanged from the interaction-tested source. The temporary APK replay workflow is removed after acceptance.
+
+APK: `com.k1w1a0style.musikplayer.dev`, 149,903,669 bytes; native source `6da76fd0`, verified unchanged by the replay. SHA-256: `99dd63c7f82caeec1167b1ae6efc691715ff1e2ab4832aa4b947d64c1736a5a4`. This development client loads the current app JavaScript from Metro.
+
 ## Practical limits
 
 SoundCloud's published waveform architecture prepares and caches peaks before playback; the client receives a small ready-made representation. A local player must analyze a new file somewhere. Idle precomputation and persistent cache move that work away from interaction, but uncached files still require decoding. No universal one-second guarantee or zero-jank guarantee follows from emulator tests. Long mixes, slow document providers, Bluetooth and the user's actual hardware still need measurements. Migrating architecture or changing the audio engine is not justified by the listener error.
