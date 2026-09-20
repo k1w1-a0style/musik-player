@@ -177,6 +177,10 @@ jobs:
           "$RUNNER_TEMP/player-smoke-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
           "$RUNNER_TEMP/player-smoke-venv/bin/python" scripts/ci/androidPlayerInteractionSmoke.py
 
+      - name: Capture diagnostics even after an early emulator failure
+        if: always()
+        run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
+
       - name: Upload APK and smoke diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

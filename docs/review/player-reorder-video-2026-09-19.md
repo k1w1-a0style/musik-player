@@ -141,7 +141,36 @@ Fünf neue Fehlerfälle wurden zuerst am bisherigen Code reproduziert; danach
 bestanden alle 35 gezielten Gesten-/Cover-/Waveform-Tests, einschließlich spät
 eintreffender Fehler nach einem Trackwechsel oder Unmount. Diese deterministischen
 Tests prüfen die Zeitfolge; sie ersetzen keine native Android-Gestenprüfung.
-Die abschließende CI und Android-Prüfung für diesen Zusatz stehen noch aus.
+Die [CI für `16625bde`](https://github.com/k1w1-a0style/musik-player/actions/runs/35523113591)
+bestand anschließend mit 317 Suites, 3.072 JavaScript- und 125 nativen Tests.
+Die abschließende Android-Prüfung für diesen Zusatz steht noch aus.
+
+## Fortsetzung am 20. September
+
+Der [Android-Lauf für `16625bde`](https://github.com/k1w1-a0style/musik-player/actions/runs/35523176024)
+baute und prüfte die Development-APK erfolgreich. Versuch 1 installierte und
+startete sie, brach dann vor den Bedienprüfungen mit einer ungültigen JSON-Antwort
+von UIAutomator ab. Der anschließende Screenshot-Befehl endete mit Code 255;
+dadurch übersprang der bisherige `finally`-Block auch Logcat und Gfxinfo.
+Versuch 2 baute, installierte und startete ebenfalls erfolgreich, endete aber
+bereits beim Logcat-Auslesen mit Code 255 und einer abgeschnittenen Ausgabe.
+Diese Läufe sind keine erfolgreiche Android-Freigabe. Die genaue Ursache des
+ADB-/UIAutomator-Abbruchs ist mit den vorhandenen Daten noch nicht bewiesen.
+
+Die Diagnoseerfassung behandelt jetzt jeden ADB-Aufruf unabhängig und begrenzt
+seine Wartezeit. Exitcodes und Standardfehler werden mitgesichert. Ein kaputter
+Screenshot verhindert weder weitere Protokolle noch überdeckt er den ursprünglichen
+Testfehler. Ein zusätzlicher abschließender Workflow-Schritt erfasst Diagnosen
+auch bei einem Abbruch vor dem Interaktionstest. Die eigentlichen App-Prüfungen
+und die manuelle Development-Build-Freigabe bleiben erhalten.
+
+Der bisherige Abbruch der Diagnosekette wurde lokal nachgestellt. Drei
+Python-Regressionen prüfen Screenshot-Ausfall, Logcat-Timeout und einen nicht
+beschreibbaren Ausgabeort. Die 275 bestehenden Workflow-/Sicherheitsprüfungen
+bestanden nach der Änderung. Ein neuer Android-Lauf mit diesen Diagnosen ist nötig.
+
+Weiterhin offen bleibt die kalte Waveform-Berechnung. Die bisherigen Messungen
+belegen schnelle Cache-Treffer, aber keine allgemeine Ein-Sekunden-Erstanalyse.
 
 Der Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
 nicht. Eine **neue Development-APK** wurde aus `950b4e18` gebaut und der erweiterte

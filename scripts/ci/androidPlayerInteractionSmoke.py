@@ -17,6 +17,7 @@ import time
 import xml.etree.ElementTree as ET
 from PIL import Image
 import uiautomator2 as u2
+from androidSmokeDiagnostics import collect_diagnostics
 
 PACKAGE = os.environ.get('PACKAGE_NAME', 'com.k1w1a0style.musikplayer.dev')
 OUT = Path('ci-logs/interaction')
@@ -428,11 +429,12 @@ try:
                    'separate-cover-frames-mid-swipe', 'classic-cover-return']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)
 finally:
-    screenshot('final')
-    (OUT / 'logcat.txt').write_bytes(adb('logcat', '-d', '-v', 'threadtime', check=False))
-    (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, check=False))
-    for node in ui().iter('node'):
-        if any(part in node.get('resource-id', '') for part in
-               ['queue-row-', 'drag-handle-', 'playlist-detail-song-', 'soundcloud-queue-close']):
-            print('Final row:', {key: node.get(key) for key in
-                  ['resource-id', 'content-desc', 'bounds', 'enabled']}, flush=True)
+    collect_diagnostics(OUT, PACKAGE)
+    try:
+        for node in ui().iter('node'):
+            if any(part in node.get('resource-id', '') for part in
+                   ['queue-row-', 'drag-handle-', 'playlist-detail-song-', 'soundcloud-queue-close']):
+                print('Final row:', {key: node.get(key) for key in
+                      ['resource-id', 'content-desc', 'bounds', 'enabled']}, flush=True)
+    except Exception as error:
+        print('Final UI diagnostic unavailable: ' + str(error), flush=True)

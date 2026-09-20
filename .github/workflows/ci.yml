@@ -78,6 +78,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Android smoke diagnostic regression tests
+        run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
+
       - name: Tests with coverage
         shell: bash
         run: |
