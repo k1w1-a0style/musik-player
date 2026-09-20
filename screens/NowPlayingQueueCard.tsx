@@ -17,7 +17,12 @@ const getQueueItemLayout = (_: ArrayLike<Song> | null | undefined, index: number
   offset: SOUNDCLOUD_QUEUE_ROW_HEIGHT * index,
   index,
 });
-const getInitialQueueIndex = (currentIndex: number): number | undefined => currentIndex > 0 ? currentIndex : undefined;
+const getInitialQueueIndex = (currentIndex: number, queueLength: number, maxHeight: number,
+  showHeader: boolean): number | undefined => {
+  const availableHeight = maxHeight - (showHeader ? 64 : 0);
+  return currentIndex > 0 && queueLength * SOUNDCLOUD_QUEUE_ROW_HEIGHT > availableHeight
+    ? currentIndex : undefined;
+};
 
 interface NowPlayingQueueCardProps {
   queue: Song[];
@@ -72,7 +77,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
   );
   const { dragPreview, dragScrollCompensation, minShiftIndex,
     handleDragPosition, handleDragEnd } = useNowPlayingQueueDrag({
-    queueLength: queue.length, currentIndex, listRef, scrollOffsetRef, viewportHeightRef,
+    queueLength: queue.length, currentIndex, minimumReorderIndex: 0, listRef, scrollOffsetRef, viewportHeightRef,
   });
   const getScrollOffset = React.useCallback(() => scrollOffsetRef.current, []);
   const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -88,10 +93,10 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
         rowHeight: SOUNDCLOUD_QUEUE_ROW_HEIGHT }) : 0}
       dragScrollCompensation={dragPreview?.index === index ? dragScrollCompensation : undefined}
       title={displayTitle(item)} artist={displayArtist(item)} isCurrent={item.id === currentSongId}
-      canShift={canShiftQueue && (currentIndex < 0 || index > currentIndex)}
+      canShift={canShiftQueue}
       onPress={onPlayQueueItem} onShift={onQueueShift} accentColor={accentColor} colors={rowColors}
     />
-  ), [accentColor, canShiftQueue, currentIndex, currentSongId, dragPreview,
+  ), [accentColor, canShiftQueue, currentSongId, dragPreview,
     dragScrollCompensation, getScrollOffset, handleDragEnd, handleDragPosition, minShiftIndex,
     onPlayQueueItem, onQueueShift, queue.length, rowColors]);
   const upcomingCount = Math.max(0, queue.length - Math.max(0, currentIndex + 1));
@@ -100,7 +105,7 @@ const NowPlayingQueueCard: React.FC<NowPlayingQueueCardProps> = ({ queue, curren
     <View style={[styles.queueListFrame, { maxHeight }]} testID="now-playing-queue-list-frame">
       <NowPlayingQueueHeader visible={showHeader} upcomingCount={upcomingCount} accentColor={accentColor} colors={rowColors} />
       <FlatList ref={listRef} testID="now-playing-queue-list" data={queue} keyExtractor={buildSongKey}
-        initialScrollIndex={getInitialQueueIndex(currentIndex)}
+        initialScrollIndex={getInitialQueueIndex(currentIndex, queue.length, maxHeight, showHeader)}
         renderItem={renderQueueItem} onLayout={event => { viewportHeightRef.current = event.nativeEvent.layout.height; }}
         onScroll={handleScroll} scrollEventThrottle={16} nestedScrollEnabled scrollEnabled={!dragPreview}
         showsVerticalScrollIndicator getItemLayout={getQueueItemLayout} style={styles.queueList}

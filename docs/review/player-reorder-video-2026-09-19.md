@@ -1,0 +1,100 @@
+# Player: Videoanalyse und Reorder-Korrektur
+
+Ausgangsstand: `51c7fead3de637a88b20192c2d7d20ca08f7aef5`, Branch `codex`.
+
+## Beobachtungen
+
+Ausgewertet wurden die Bildfolge der Aufnahme vom 15. September (4:04 Minuten),
+die automatische deutsche Sprachtranskription, die beigefügten Laufzeitlogs sowie
+eine ältere SoundCloud-Aufnahme und zwei SoundCloud-Screenshots. Die automatische
+Transkription enthält Erkennungsfehler; Titelzuordnungen wurden an den Bildern geprüft.
+Eine SoundCloud-APK war nicht mehr verfügbar. Eine APK-Analyse oder Messung der
+aktuellen SoundCloud-Android-Version wird daher ausdrücklich nicht behauptet.
+
+| Stelle, ungefähr | Befund |
+| --- | --- |
+| 0:48–1:07 | Beim ersten Öffnen eines Tracks bleibt die Waveform lange eine Linie. Die Sprachbeschreibung bestätigt die fehlende Orientierung beim Spulen. |
+| 1:47–2:49 | Nach Queue-Bewegungen springt die aktive Markierung; angetippte Zeile und tatsächlich wiedergegebener Track stimmen nicht zuverlässig überein. |
+| 2:57 und 3:42 | Cover/Titel und angezeigte Decoder-Laufzeit passen nicht zusammen: 3:13 und 4:12 werden den falschen Tracks zugeordnet. |
+| 3:14–3:42 | Frühere und laufende Tracks lassen sich nicht mehr per Gedrückthalten verschieben. |
+| 3:52 | Die klassischen Cover teilen eine ortsfeste, abgerundete Maske; nur die Bilder darin wandern. |
+
+Die neuen Logs zeigen 59,063 Sekunden für das kalte Metro-Bundle, 5,347 Sekunden
+für die Hydration, ungefähr 13,2–20,5 Sekunden für erste native Waveform-Analysen
+und 0–1 Millisekunden für spätere Cache-Treffer. Metro und Audioanalyse sind
+unterschiedliche Vorgänge. Wiederholte identische `analysis`-Zeilen sind kein Beleg
+für mehrere Decoder: bisher loggte jeder wartende Aufrufer das gemeinsam erhaltene Ergebnis.
+
+## Nachgewiesene native Ursache
+
+RN Track Player 4.1.2 bindet KotlinAudio 2.1.0 ein. Dessen
+[`QueuedAudioPlayer.move`](https://github.com/doublesymmetry/KotlinAudio/blob/v2.1.0/kotlin-audio/src/main/java/com/doublesymmetry/kotlinaudio/players/QueuedAudioPlayer.kt)
+verschiebt die ExoPlayer-Quelle nach `toIndex`, verwendet bei einer Bewegung nach
+oben in seiner separaten Metadatenliste jedoch `toIndex - 1`.
+
+Beispiel: `A,B,C`, Bewegung `2 -> 1`.
+
+| Datenquelle | Ergebnis |
+| --- | --- |
+| Tatsächlich abgespielte ExoPlayer-Quellen | `A,C,B` |
+| KotlinAudio-Metadaten, RNTP `getQueue` / `getActiveTrack` | `C,A,B` |
+
+Der bestehende Recovery-Pfad liest diese bereits beschädigte Metadatenliste zurück.
+Deshalb verhindert „reconciled to native state“ weder ein falsches Cover noch einen
+falschen Titel. Der bisherige Emulatorablauf verschob ausschließlich nach unten.
+Seine Prüfung des MediaSession-Titels war ebenfalls nicht unabhängig von den
+fehlerhaften Metadaten.
+
+## Änderungen
+
+- Der versionsgebundene RNTP-Installationspatch ersetzt `player.move` durch
+  `moveQueueItemSafely`. Dieser verwendet die konsistenten öffentlichen
+  Add-/Remove-Operationen. Die gerade spielende MediaSource wird niemals entfernt;
+  beim Verschieben des aktiven Tracks werden stattdessen die dazwischenliegenden
+  inaktiven Einträge versetzt. Die Operation läuft synchron auf dem nativen Main-Thread.
+- Queue-Plan und beide Queue-Oberflächen erlauben auch frühere und aktive Tracks.
+  Die Auswahl bleibt an der Song-Identität gebunden. Kurze, vollständig passende
+  Listen starten oben, statt frühere Zeilen hinter einem anfänglichen Scrolloffset
+  zu verbergen.
+- Jedes klassische Cover besitzt seinen eigenen abgerundeten Rahmen und Schatten.
+  Ganze Karten bewegen sich mit Abstand über die Bildschirmbreite.
+- SoundCloud-Waveform: kommende Balken sind weiß, gespielte Balken behalten die
+  dunklere Akzentfarbe. Mittellinie und Waveform bleiben beim Pausieren erhalten.
+  Bis echte PCM-Daten vorliegen, bleibt die stabile Linie bestehen.
+- Eine geteilte Decoder-Ausführung erzeugt nur noch eine `analysis`-Timingzeile.
+  Ein bestehender Waveform-Cache wird nicht invalidiert.
+
+Die historische SoundCloud-Veröffentlichung beschreibt kleine, vorberechnete und
+gecachte Waveform-Daten; sie belegt nicht die Implementierung der heutigen Android-APK:
+[Waveform-Daten](https://developers.soundcloud.com/blog/waveforms-let-s-talk-about-them/),
+[Render-Ebenen](https://developers.soundcloud.com/blog/ios-waveform-rendering/).
+Die vorhandene lokale Vorberechnung und der Cache sind weiterhin entscheidend.
+Diese Änderung verspricht keine unbelegte Beschleunigung einer vollständigen
+Erstanalyse auf dem Handy. Die gemessenen 13–20 Sekunden bleiben ein offener
+Performancepunkt; die optische Korrektur und bereinigte Telemetrie lösen ihn nicht.
+
+## Prüfung und Grenzen
+
+- Die neuen Queue-/Cover-Regressionen schlugen vor der Korrektur fehl; danach
+  bestanden die 47 gezielten Tests.
+- Vollständiger Jest-Lauf mit Coverage: 317 Suites, 3.065 Tests bestanden.
+  TypeScript, ESLint und Komplexitätsprüfung bestanden ebenfalls.
+- Drei direkt mit Kotlin/JUnit ausgeführte Tests prüfen den tatsächlichen Helper,
+  einschließlich aller 64 Kombinationen aus aktivem, verschobenem und Zielindex
+  einer Vierer-Queue. Quelle, Titel, URI und Laufzeit bleiben zusammen; die aktive
+  MediaSource behält ihre Objektidentität.
+- Der vorhandene Android-Interaktionstest ist erweitert: Aufwärts-Drag, Long-Press,
+  aktiver Track an Anfang/Ende, Positionskontinuität, alle drei Dateiformate und
+  Playlist-Wiedergabe nach Reorder. Er vergleicht den Titel zusätzlich mit der
+  über RNTP `useProgress` gelesenen Decoder-Laufzeit. Drei unterschiedliche
+  Testfrequenzen erleichtern eine anschließende Hörkontrolle.
+- Ein zusätzlicher echter Touch-Ablauf hält den klassischen Cover-Swipe in der
+  Mitte fest und prüft die getrennten Kartenpositionen samt Abstand im Screenshot.
+- Der erweiterte Emulatorablauf ist vorbereitet, aber noch nicht ausgeführt.
+  JVM- und JavaScript-Tests ersetzen diese Android-Prüfung nicht.
+
+Der Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
+nicht. Vor der Gerätefreigabe muss eine **neue Development-APK** aus diesem Stand
+gebaut und der erweiterte Interaktionstest bestanden werden. Der vorhandene manuelle
+Workflow `android-emulator-smoke.yml` bleibt unverändert: Branch `codex`, Eingabe
+`BUILD_DEVELOPMENT_APK`. Es wurde kein Release-Build gestartet und kein Build-Gate geöffnet.

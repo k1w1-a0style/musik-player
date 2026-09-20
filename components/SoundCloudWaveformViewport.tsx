@@ -32,7 +32,7 @@ const clampPosition = (value: number, duration: number): number => {
 const WaveformTimeRow = ({ position, duration }: { position: number; duration: number }) => (
   <View pointerEvents="none" style={styles.timeRow}>
     <Text style={styles.time} testID="soundcloud-waveform-current-time">{formatTime(position)}</Text>
-    <Text style={styles.time}>{formatTime(duration)}</Text>
+    <Text style={styles.time} testID="soundcloud-waveform-total-time">{formatTime(duration)}</Text>
   </View>
 );
 

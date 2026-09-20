@@ -38,6 +38,10 @@ musicService.tracks[musicService.getCurrentTrackIndex()].originalItem
     fs.writeFileSync(path.join(serviceDir, 'MusicService.kt'), `
 import com.google.android.exoplayer2.ui.R as ExoPlayerR
     @MainThread
+    fun move(fromIndex: Int, toIndex: Int) {
+        player.move(fromIndex, toIndex);
+    }
+    @MainThread
     fun getRate(): Float = player.playbackSpeed
 `);
 
@@ -52,6 +56,11 @@ import com.google.android.exoplayer2.ui.R as ExoPlayerR
     expect(serviceContent.match(/fun getAudioSessionId\(/g)).toHaveLength(1);
     expect(serviceContent).toContain('ExoPlayer::class.java.isAssignableFrom(it.type)');
     expect(serviceContent).toContain('audioSessionId?.takeIf { it > 0 }');
+    expect(serviceContent).not.toContain('player.move(fromIndex, toIndex)');
+    expect(serviceContent).toContain('moveQueueItemSafely(');
+    expect(fs.readFileSync(path.join(serviceDir, 'SafeQueueMove.kt'), 'utf8')).toBe(
+      fs.readFileSync(path.resolve(__dirname, '..', 'android', 'SafeQueueMove.kt'), 'utf8'),
+    );
   });
 
 });

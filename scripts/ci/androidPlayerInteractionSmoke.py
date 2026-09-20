@@ -112,10 +112,53 @@ def swipe(node, backwards=False, duration=350):
     adb('shell', 'input', 'swipe', str(start), str(y), str(end), str(y), str(duration))
 
 
-def position_ms():
-    label = find('soundcloud-waveform-current-time').get('text', '')
+def time_ms(key):
+    label = find(key).get('text', '')
     parts = [int(part) for part in label.split(':')]
     return sum(value * (60 ** index) for index, value in enumerate(reversed(parts))) * 1000
+
+
+def position_ms():
+    return time_ms('soundcloud-waveform-current-time')
+
+
+def assert_native_track(letter, seconds):
+    find('Smoke ' + letter)
+    # useProgress reads ExoPlayer's decoded duration. MediaSession metadata and
+    # getQueue alone both reported the wrong title when KotlinAudio diverged.
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        actual = time_ms('soundcloud-waveform-total-time')
+        if abs(actual - seconds * 1000) <= 1000:
+            return
+        time.sleep(.5)
+    raise AssertionError(f'Cover/title {letter} is paired with native duration {actual}, expected {seconds * 1000}')
+
+
+def drag_row(prefix, source, target, handle_prefix=None):
+    row = find(prefix + source)
+    handle = find(handle_prefix + source) if handle_prefix else row
+    x1, y1, x2, y2 = bounds(handle)
+    _, t1, _, t2 = bounds(find(prefix + target))
+    x, start, end = (x1 + x2) // 2, (y1 + y2) // 2, (t1 + t2) // 2
+    if handle_prefix:
+        adb('shell', 'input', 'swipe', str(x), str(start), str(x), str(end), '650')
+    else:
+        # Keep the same finger down through activation and movement.
+        device.touch.down(x, start)
+        try:
+            time.sleep(.5)
+            for step in range(1, 9):
+                device.touch.move(x, round(start + (end - start) * step / 8))
+                time.sleep(.05)
+        finally:
+            device.touch.up(x, end)
+    time.sleep(.8)
+
+
+def assert_queue_order(ids):
+    positions = [bounds(find('queue-row-smoke-' + letter))[1] for letter in ids]
+    assert positions == sorted(positions) and len(set(positions)) == len(ids), f'Wrong queue order: {ids}, {positions}'
 
 
 def screenshot(name):
@@ -125,19 +168,21 @@ def screenshot(name):
 def assert_waveform_pixels(pixels, viewport):
     x1, y1, x2, y2 = viewport
     center = (x1 + x2) // 2
-    def dominant(left, right):
+    def dominant(left, right, upcoming=False):
         colored = Counter(pixels.getpixel((x, y)) for x in range(left, right)
                           for y in range(y1, y2)
-                          if max(pixels.getpixel((x, y))) - min(pixels.getpixel((x, y))) > 40)
-        assert colored, 'Waveform half has no colored pixels'
+                          if ((min(pixels.getpixel((x, y))) > 170
+                               and max(pixels.getpixel((x, y))) - min(pixels.getpixel((x, y))) < 25)
+                              if upcoming else max(pixels.getpixel((x, y))) - min(pixels.getpixel((x, y))) > 40))
+        assert colored, 'Upcoming waveform must be white; played waveform must retain its accent'
         return colored.most_common(1)[0][0]
-    played, future = dominant(x1, center - 6), dominant(center + 6, x2)
+    played, future = dominant(x1, center - 6), dominant(center + 6, x2, upcoming=True)
     # Thin SVG strokes are antialiased onto different underlying layers. Check
     # visible brightness contrast, not exact equality to the source RGB color.
     def luminance(color):
         return sum(channel * weight for channel, weight in zip(color, (.2126, .7152, .0722)))
     ratio = luminance(played) / luminance(future)
-    assert .25 <= ratio <= .8, f'Played waveform contrast is insufficient: {ratio:.3f}, {played}, {future}'
+    assert .15 <= ratio <= .8, f'Played waveform contrast is insufficient: {ratio:.3f}, {played}, {future}'
     white = sum(min(pixels.getpixel((center, y))) >= 230 for y in range(y1, y2))
     assert white > (y2 - y1) * .8, 'The center playhead is not visibly drawn'
     return {'played': played, 'future': future, 'brightnessRatio': round(ratio, 3)}
@@ -194,10 +239,10 @@ def prepare():
     fixtures = OUT / 'fixtures'
     fixtures.mkdir(exist_ok=True)
     songs = []
-    for letter, seconds, ext, codec in [('A', 180, 'mp3', 'libmp3lame'), ('B', 90, 'm4a', 'aac'), ('C', 120, 'flac', 'flac')]:
+    for letter, seconds, ext, codec, frequency in [('A', 180, 'mp3', 'libmp3lame', 330), ('B', 90, 'm4a', 'aac', 550), ('C', 120, 'flac', 'flac', 880)]:
         file = fixtures / (letter + '.' + ext)
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
-                        f'aevalsrc=0.5*sin(2*PI*440*t)*(0.2+0.8*abs(sin(2*PI*t/9))):s=44100:d={seconds}',
+                        f'aevalsrc=0.5*sin(2*PI*{frequency}*t)*(0.2+0.8*abs(sin(2*PI*t/9))):s=44100:d={seconds}',
                         '-ac', '2', '-c:a', codec, '-threads', '1', str(file)], check=True)
         remote = '/sdcard/Music/player-smoke/' + file.name
         adb('push', str(file), remote)
@@ -270,53 +315,117 @@ def check_playback():
     time.sleep(1)
     assert position_ms() < paused_position - 5000, 'Paused backward seek did not change position'
     tap('soundcloud-play-button')
+    assert_native_track('A', 180)
+    if position_ms() < 20000:
+        swipe(find('Waveform vor- oder zurückspulen'))
+        time.sleep(1)
+    before_reorder, started = position_ms(), time.monotonic()
     tap('soundcloud-open-queue')
-    second = find('queue-row-smoke-b')
-    third = find('queue-row-smoke-c')
-    x1, y1, x2, y2 = bounds(find('queue-drag-handle-smoke-b'))
-    _, z1, _, z2 = bounds(third)
-    x = (x1 + x2) // 2
-    print('Queue grip bounds:', [x1, y1, x2, y2], 'target:', bounds(third), flush=True)
-    adb('shell', 'input', 'swipe', str(x), str((y1 + y2) // 2), str(x), str((z1 + z2) // 2), '650')
-    time.sleep(.8)
-    assert bounds(find('queue-row-smoke-c'))[1] < bounds(find('queue-row-smoke-b'))[1], 'Queue grip did not reorder'
+    # Upward 2 -> 1 is the KotlinAudio regression the old downward-only smoke missed.
+    drag_row('queue-row-', 'smoke-c', 'smoke-b', 'queue-drag-handle-')
+    assert_queue_order('acb')
+    # Moving the playing row must leave its decoder and position intact.
+    drag_row('queue-row-', 'smoke-a', 'smoke-b')
+    assert_queue_order('cba')
+    # Every row remains draggable when the playing item is last.
+    drag_row('queue-row-', 'smoke-b', 'smoke-c', 'queue-drag-handle-')
+    assert_queue_order('bca')
+    drag_row('queue-row-', 'smoke-a', 'smoke-b')
+    assert_queue_order('abc')
+    drag_row('queue-row-', 'smoke-c', 'smoke-b', 'queue-drag-handle-')
+    assert_queue_order('acb')
     screenshot('04-queue-reordered')
     tap('soundcloud-queue-close')
+    assert_native_track('A', 180)
+    after_reorder = position_ms()
+    assert before_reorder - 1000 <= after_reorder <= before_reorder + (time.monotonic() - started) * 1000 + 2000, 'Reorder reset or jumped the playing audio'
     swipe(find('soundcloud-swipe-hitbox'))
-    find('Smoke C')
+    assert_native_track('C', 120)
     wait_waveform(120000)
     screenshot('05-third-format')
     # Native MediaSession confirms the new queue order actually drives playback.
     session = adb('shell', 'dumpsys', 'media_session').decode(errors='replace')
     (OUT / 'media-session.txt').write_text(session)
     assert 'Smoke C' in session, 'Native session did not switch to the reordered track'
+    swipe(find('soundcloud-swipe-hitbox'))
+    assert_native_track('B', 90)
     tap('now-playing-close')
     tap('library-tab-playlists')
     tap('open-playlist-smoke-list')
-    first = find('playlist-detail-song-smoke-a')
-    second = find('playlist-detail-song-smoke-b')
-    x1, y1, x2, y2 = bounds(find('playlist-detail-drag-handle-smoke-a'))
-    _, z1, _, z2 = bounds(second)
-    x = (x1 + x2) // 2
-    print('Playlist grip bounds:', [x1, y1, x2, y2], 'target:', bounds(second), flush=True)
-    adb('shell', 'input', 'swipe', str(x), str((y1 + y2) // 2),
-        str(x), str((z1 + z2) // 2), '650')
-    time.sleep(.8)
+    drag_row('playlist-detail-song-', 'smoke-a', 'smoke-b', 'playlist-detail-drag-handle-')
     assert bounds(find('playlist-detail-song-smoke-b'))[1] < bounds(find('playlist-detail-song-smoke-a'))[1], 'Playlist grip did not reorder'
+    drag_row('playlist-detail-song-', 'smoke-c', 'smoke-b')
+    assert bounds(find('playlist-detail-song-smoke-c'))[1] < bounds(find('playlist-detail-song-smoke-b'))[1], 'Playlist long press did not reorder upwards'
     screenshot('06-playlist-reordered')
+    tap('playlist-detail-song-smoke-c')
+    tap('mini-player-open')
+    assert_native_track('C', 120)
+    swipe(find('soundcloud-swipe-hitbox'))
+    assert_native_track('B', 90)
+
+
+def check_classic_cover_pages():
+    tap('soundcloud-swipe-hitbox')
+    find('soundcloud-play-button')
+    tap('now-playing-close')
+    adb('shell', 'input', 'keyevent', '4')  # Playlist -> library.
+    tap('library-open-menu')
+    tap('library-menu-item-einstellungen')
+    for _ in range(4):
+        candidates = [node for node in ui().iter('node') if matches(node, 'settings-player-layout-classic')
+                      and node.get('bounds') != '[0,0][0,0]']
+        if candidates:
+            tap_node(candidates[0])
+            break
+        x1, y1, x2, y2 = bounds(find('settings-scroll'))
+        x = (x1 + x2) // 2
+        adb('shell', 'input', 'swipe', str(x), str(int(y1 + (y2-y1)*.8)),
+            str(x), str(int(y1 + (y2-y1)*.25)), '500')
+    else:
+        raise AssertionError('Classic player setting not reachable')
+    adb('shell', 'input', 'keyevent', '4')
+    tap('mini-player-open')
+    find('Smoke B')
+    viewport = bounds(find('now-playing-cover-pager'))
+    initial = bounds(find('now-playing-cover-card'))
+    assert viewport[2] - viewport[0] > initial[2] - initial[0] + 24, 'Cover still owns the shared viewport'
+    x1, y1, x2, y2 = viewport
+    x, y = int(x1 + (x2-x1)*.8), (y1+y2)//2
+    end = int(x1 + (x2-x1)*.35)
+    device.touch.down(x, y)
+    try:
+        for step in range(1, 9):
+            device.touch.move(round(x + (end-x)*step/8), y)
+            time.sleep(.05)
+        current = bounds(find('now-playing-cover-card'))
+        upcoming = bounds(find('now-playing-cover-next-card'))
+        assert current[2] < initial[2] - 30, 'Current cover frame did not move with the image'
+        assert upcoming[0] > current[2] + 12, 'Covers still slide inside a single shared window'
+        screenshot('07-classic-cover-mid-swipe')
+    finally:
+        device.touch.up(end, y)
+    find('Smoke A')
+    swipe(find('now-playing-cover-pager'), backwards=True)
+    find('Smoke B')
+    screenshot('08-classic-cover-return')
 
 
 try:
     prepare()
     check_playback()
+    check_classic_cover_pages()
     logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
     assert not re.search(r'Expected .onGestureHandlerEvent.|FATAL EXCEPTION|ErrorBoundary caught', logs), 'Runtime error in app'
+    assert '[PlaybackQueue] Reorder failed' not in logs, 'Native queue rejected a drag'
     (OUT / 'result.json').write_text(json.dumps({'status': 'passed', 'formats': ['mp3', 'm4a', 'flac'],
         'startupRetries': startup_retries,
         'pixelLauncherDialogs': launcher_dialogs,
         'checks': ['native-waveform-1024', 'visible-playhead', 'darker-played-waveform',
                    'stable-cache', 'playing-seek', 'paused-waveform',
-                   'previous-while-playing', 'queue-grip', 'native-next-after-reorder', 'playlist-grip']}, indent=2))
+                   'previous-while-playing', 'queue-grip-upwards', 'queue-long-press', 'active-track-move',
+                   'last-active-track-reorder', 'native-duration-after-reorder', 'playlist-grip',
+                   'playlist-long-press', 'playlist-playback-after-reorder',
+                   'separate-cover-frames-mid-swipe', 'classic-cover-return']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)
 finally:
     screenshot('final')

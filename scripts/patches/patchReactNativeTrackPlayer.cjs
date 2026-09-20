@@ -110,8 +110,6 @@ if (!content.includes(audioSessionMethod)) {
   content = content.replace(audioSessionInsertionPoint, audioSessionMethod + audioSessionInsertionPoint);
 }
 
-fs.writeFileSync(moduleKtPath, content, 'utf8');
-
 let serviceContent = fs.readFileSync(serviceKtPath, 'utf8');
 if (!serviceContent.includes('import com.google.android.exoplayer2.ExoPlayer')) {
   const importPoint = 'import com.google.android.exoplayer2.ui.R as ExoPlayerR';
@@ -162,6 +160,28 @@ if (!serviceContent.includes(serviceAudioSessionMethod)) {
   }
   serviceContent = serviceContent.replace(serviceInsertionPoint, serviceAudioSessionMethod + serviceInsertionPoint);
 }
+const originalMove = `    @MainThread
+    fun move(fromIndex: Int, toIndex: Int) {
+        player.move(fromIndex, toIndex);
+    }`;
+const safeMove = `    @MainThread
+    fun move(fromIndex: Int, toIndex: Int) {
+        moveQueueItemSafely(
+            player.items, player.currentIndex, fromIndex, toIndex,
+            add = { items, index -> player.add(items, index) },
+            remove = { indexes -> player.remove(indexes) },
+        )
+    }`;
+if (!serviceContent.includes(safeMove)) {
+  if (!serviceContent.includes(originalMove)) {
+    console.error(`[patch-react-native-track-player] ERROR: Expected queue move method was not found. ${PATTERN_NOT_FOUND_HINT}`);
+    process.exit(1);
+  }
+  serviceContent = serviceContent.replace(originalMove, safeMove);
+}
+fs.copyFileSync(path.join(__dirname, 'android', 'SafeQueueMove.kt'),
+  path.join(path.dirname(serviceKtPath), 'SafeQueueMove.kt'));
+fs.writeFileSync(moduleKtPath, content, 'utf8');
 fs.writeFileSync(serviceKtPath, serviceContent, 'utf8');
 
-console.log('[patch-react-native-track-player] Applied nullability and player audio-session patches for react-native-track-player@4.1.2.');
+console.log('[patch-react-native-track-player] Applied nullability, audio-session and queue identity patches for react-native-track-player@4.1.2.');

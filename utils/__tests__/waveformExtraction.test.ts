@@ -10,6 +10,9 @@ import {
 import { getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 import type { NativeWaveformResult } from '../waveformTypes';
+import { logWaveformTiming } from '../waveformTelemetry';
+
+jest.mock('../waveformTelemetry', () => ({ logWaveformTiming: jest.fn() }));
 
 const mockedSystemAudio = SystemAudio as typeof SystemAudio & {
   extractWaveformPeaks?: jest.Mock;
@@ -34,6 +37,7 @@ const dynamicPeaks = [0.04, 0.88, 0.12, 0.76, 0.2, 0.92, 0.34, 0.68, 0.16, 0.84]
 
 describe('waveformExtraction', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     resetWaveformExtractionLifecycleForTests();
     jest.useRealTimers();
     mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue(null);
@@ -207,6 +211,21 @@ describe('waveformExtraction', () => {
       });
       expect(waveform?.points).toHaveLength(8);
       expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledWith('file:///preferred.mp3', 8);
+    });
+
+    test('logs one analysis when foreground and preloads share the same decoder', async () => {
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: dynamicPeaks, analysis: 'decoded-pcm-v1', analysisDurationMs: 16576,
+      });
+      const results = await Promise.all([
+        extractNativeWaveform(baseSong, 1000, { priority: 'preload' }),
+        extractNativeWaveform(baseSong, 1000),
+        extractNativeWaveform(baseSong, 1000),
+      ]);
+      expect(results.every(result => result?.source === 'native')).toBe(true);
+      expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+      expect(logWaveformTiming).toHaveBeenCalledTimes(1);
+      expect(logWaveformTiming).toHaveBeenCalledWith('analysis', 16576, dynamicPeaks.length);
     });
 
     test('returns null when the sourceKey no longer matches after native extraction', async () => {

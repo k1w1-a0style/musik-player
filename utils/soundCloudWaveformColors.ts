@@ -8,9 +8,9 @@ export const getSoundCloudWaveformColors = (accent: string): { unplayed: string;
   const min = Math.min(...rgb);
   const suitable = rgb.length === 3 && max >= 140 && max - min >= 65
     && (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) >= 85;
-  const unplayed = suitable ? accent : SOUNDCLOUD_PLAYER_COLORS.accent;
+  const playedAccent = suitable ? accent : SOUNDCLOUD_PLAYER_COLORS.accent;
   const played = '#' + [1, 3, 5].map(offset =>
-    Math.round(parseInt(unplayed.slice(offset, offset + 2), 16) * 0.55).toString(16).padStart(2, '0'),
+    Math.round(parseInt(playedAccent.slice(offset, offset + 2), 16) * 0.55).toString(16).padStart(2, '0'),
   ).join('');
-  return { unplayed, played };
+  return { unplayed: SOUNDCLOUD_PLAYER_COLORS.waveformRest, played };
 };

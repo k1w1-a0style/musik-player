@@ -20,6 +20,8 @@ android {
   testOptions {
     unitTests.includeAndroidResources = true
   }
+  // Compile the exact helper installed into RNTP, rather than a test copy.
+  sourceSets.test.java.srcDir '../../../scripts/patches/android'
 }
 
 dependencies {

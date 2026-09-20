@@ -98,7 +98,7 @@ test.each([
   jest.useRealTimers();
 });
 
-test('renders drag handles for upcoming tracks only', () => {
+test('renders drag handles for every queue track', () => {
   const onPlayQueueItem = jest.fn();
   const onQueueShift = jest.fn();
   const { getByTestId, getByText, queryByTestId } = render(
@@ -113,7 +113,7 @@ test('renders drag handles for upcoming tracks only', () => {
     />,
   );
 
-  expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
+  expect(queryByTestId('queue-drag-handle-s1')).toBeTruthy();
   expect(getByTestId('queue-drag-handle-s2')).toBeTruthy();
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
   expect(getByTestId('queue-artwork-s2').props.source.uri).toBe('file:///two.jpg');
@@ -219,12 +219,12 @@ test('uses display title fallback for placeholder queue titles', () => {
 });
 
 
-test('does not expose drag handles before the current track', () => {
+test('allows sorting tracks before and at the current track', () => {
   const { getByTestId, queryByTestId } = render(
     <NowPlayingQueueCard
       queue={queue}
       currentSongId="s2"
-      maxHeight={240}
+      maxHeight={400}
       onPlayQueueItem={jest.fn()}
       onQueueShift={jest.fn()}
       canShiftQueue
@@ -232,10 +232,10 @@ test('does not expose drag handles before the current track', () => {
     />,
   );
 
-  expect(queryByTestId('queue-drag-handle-s1')).toBeNull();
-  expect(queryByTestId('queue-drag-handle-s2')).toBeNull();
+  expect(queryByTestId('queue-drag-handle-s1')).toBeTruthy();
+  expect(queryByTestId('queue-drag-handle-s2')).toBeTruthy();
   expect(getByTestId('queue-drag-handle-s3')).toBeTruthy();
-  expect(getByTestId('now-playing-queue-list').props.initialScrollIndex).toBe(1);
+  expect(getByTestId('now-playing-queue-list').props.initialScrollIndex).toBeUndefined();
 });
 
 test.each(['light', 'dark'] as const)('renders queue card and preview row with %s app theme without crashing', appearance => {

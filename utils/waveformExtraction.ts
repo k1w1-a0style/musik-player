@@ -54,6 +54,14 @@ interface NativeWaveformCancellationApi {
   cancelWaveformExtraction?: (requestId: string) => boolean;
 }
 
+const recordNativeAnalysis = (result: NativeWaveformResult | null): NativeWaveformResult | null => {
+  if (result?.analysis === 'decoded-pcm-v1' && typeof result.analysisDurationMs === 'number'
+    && Number.isFinite(result.analysisDurationMs)) {
+    logWaveformTiming('analysis', result.analysisDurationMs, result.points.length);
+  }
+  return result;
+};
+
 const runScheduledNativeExtraction = (
   extractor: NativeWaveformExtractor,
   cancellationApi: NativeWaveformCancellationApi,
@@ -67,14 +75,14 @@ const runScheduledNativeExtraction = (
     extractionKey,
     async nativeSignal => {
       if (!cancellationApi.hasNativeWaveformCancellation || !cancellationApi.cancelWaveformExtraction) {
-        return extractor(uri, pointCount);
+        return recordNativeAnalysis(await extractor(uri, pointCount));
       }
       const requestId = nextWaveformRequestId();
       const cancel = () => { cancellationApi.cancelWaveformExtraction?.(requestId); };
       nativeSignal.addEventListener('abort', cancel, { once: true });
       try {
         if (nativeSignal.aborted) cancel();
-        return await extractor(uri, pointCount, requestId);
+        return recordNativeAnalysis(await extractor(uri, pointCount, requestId));
       } finally {
         nativeSignal.removeEventListener('abort', cancel);
       }
@@ -132,9 +140,6 @@ const acceptDecodedNativeResult = ({
     return null;
   }
   report('native-accepted', points.length);
-  if (typeof result.analysisDurationMs === 'number' && Number.isFinite(result.analysisDurationMs)) {
-    logWaveformTiming('analysis', result.analysisDurationMs, points.length);
-  }
   clearWaveformFailure(extractionKey);
   return waveform;
 };

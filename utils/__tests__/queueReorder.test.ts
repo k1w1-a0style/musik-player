@@ -22,12 +22,30 @@ test('reorders only upcoming queue items after the current song', () => {
   expect(plan?.selectedSong?.id).toBe('current');
 });
 
-test('does not move the active item', () => {
-  expect(buildQueueReorderPlan({ queue, currentSongId: 'current', fromIndex: 0, toIndex: 2 })).toBeNull();
+test('moving the active item preserves its identity at its new position', () => {
+  const plan = buildQueueReorderPlan({ queue, currentSongId: 'current', fromIndex: 0, toIndex: 2 });
+  expect(plan?.queue.map(song => song.id)).toEqual(['one', 'two', 'current', 'three']);
+  expect(plan?.currentIndex).toBe(2);
+  expect(plan?.selectedSong).toBe(queue[0]);
 });
 
-test('clamps target before current item to first upcoming position', () => {
+test('allows moving a track before the active item without changing the active song', () => {
   const plan = buildQueueReorderPlan({ queue, currentSongId: 'current', fromIndex: 2, toIndex: 0 });
+  expect(plan?.queue.map(song => song.id)).toEqual(['two', 'current', 'one', 'three']);
+  expect(plan?.currentIndex).toBe(1);
+  expect(plan?.selectedSong).toBe(queue[0]);
+});
 
-  expect(plan?.queue.map(song => song.id)).toEqual(['current', 'two', 'one', 'three']);
+test('allows sorting while the last track is active', () => {
+  const plan = buildQueueReorderPlan({ queue, currentSongId: 'three', fromIndex: 1, toIndex: 0 });
+  expect(plan?.queue.map(song => song.id)).toEqual(['one', 'current', 'two', 'three']);
+  expect(plan?.selectedSong).toBe(queue[3]);
+});
+
+test.each([NaN, Infinity, -Infinity, -1, 5, 1.5])('rejects invalid source index %s', fromIndex => {
+  expect(buildQueueReorderPlan({ queue, fromIndex, toIndex: 0 })).toBeNull();
+});
+
+test.each([NaN, Infinity, -Infinity, -1, 5, 1.5])('rejects invalid target index %s', toIndex => {
+  expect(buildQueueReorderPlan({ queue, fromIndex: 1, toIndex })).toBeNull();
 });

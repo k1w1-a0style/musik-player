@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Animated } from 'react-native';
+import { Animated, Dimensions, StyleSheet } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 import NowPlayingCoverArtwork from '../NowPlayingCoverArtwork';
 
@@ -33,6 +33,10 @@ const previousSong = { id: 's0', title: 'Zero', artist: 'Artist' };
 const nextSong = { id: 's2', title: 'Two', artist: 'Artist' };
 
 describe('NowPlayingCoverArtwork', () => {
+  beforeEach(() => {
+    Dimensions.set({ window: { width: 360, height: 800, scale: 1, fontScale: 1 },
+      screen: { width: 360, height: 800, scale: 1, fontScale: 1 } });
+  });
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -74,6 +78,16 @@ describe('NowPlayingCoverArtwork', () => {
     expect(getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
     expect(getByTestId('now-playing-cover-previous-image').props.source).toEqual({ uri: 'file:///previous.jpg' });
     expect(getByTestId('now-playing-cover-next-image').props.source).toEqual({ uri: 'file:///next.jpg' });
+    const viewport = StyleSheet.flatten(getByTestId('now-playing-cover-pager').props.style);
+    const card = StyleSheet.flatten(getByTestId('now-playing-cover-card').props.style);
+    expect(viewport.borderRadius ?? 0).toBe(0);
+    expect(viewport.backgroundColor).toBeUndefined();
+    expect(viewport.width).toBeGreaterThan(160);
+    expect(card.borderRadius).toBe(22);
+    expect(card.overflow).toBe('hidden');
+    const page = StyleSheet.flatten(getByTestId('now-playing-cover-current-page').props.style);
+    expect(page.width).toBe(viewport.width);
+    expect(page.width - card.width).toBeGreaterThanOrEqual(24);
   });
 
   test('dispatches an allowed left swipe before the native animation finishes', () => {
@@ -90,7 +104,7 @@ describe('NowPlayingCoverArtwork', () => {
 
     act(() => {
       fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 2 },
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 2 },
       });
     });
 
@@ -124,7 +138,7 @@ describe('NowPlayingCoverArtwork', () => {
 
     act(() => {
       fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60, translationY: 1 },
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 1 },
       });
     });
     rerender(<NowPlayingCoverArtwork {...initialProps}
@@ -156,7 +170,7 @@ describe('NowPlayingCoverArtwork', () => {
 
     act(() => {
       fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -60 },
+        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140 },
       });
     });
 

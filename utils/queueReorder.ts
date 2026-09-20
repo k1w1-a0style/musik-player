@@ -47,31 +47,19 @@ export const buildQueueReorderPlan = ({
   const currentIndex = normalizedCurrentSongId
     ? queue.findIndex(song => normalizeSongId(song.id) === normalizedCurrentSongId)
     : 0;
-  const lockIndex = currentIndex >= 0 ? currentIndex : 0;
-
-  const safeFrom = Math.floor(fromIndex);
-  const safeToRaw = Math.floor(toIndex);
-  if (safeFrom <= lockIndex || safeFrom >= queue.length) return null;
-
-  const minTarget = lockIndex + 1;
-  const maxTarget = queue.length - 1;
-  const safeTo = Math.max(minTarget, Math.min(maxTarget, safeToRaw));
-  if (safeFrom === safeTo) return {
-    queue: queue.slice(),
-    fromIndex: safeFrom,
-    toIndex: safeTo,
-    currentIndex: lockIndex,
-    selectedSong: queue[lockIndex],
-    changed: false,
-  };
-
-  const nextQueue = moveArrayItem(queue, safeFrom, safeTo);
+  if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)
+    || fromIndex < 0 || toIndex < 0 || fromIndex >= queue.length || toIndex >= queue.length) return null;
+  const selectedSong = queue[currentIndex];
+  const nextQueue = moveArrayItem(queue, fromIndex, toIndex);
+  const nextCurrentIndex = currentIndex < 0 ? -1 : currentIndex === fromIndex ? toIndex
+    : fromIndex < currentIndex && toIndex >= currentIndex ? currentIndex - 1
+      : fromIndex > currentIndex && toIndex <= currentIndex ? currentIndex + 1 : currentIndex;
   return {
     queue: nextQueue,
-    fromIndex: safeFrom,
-    toIndex: safeTo,
-    currentIndex: lockIndex,
-    selectedSong: nextQueue[lockIndex],
-    changed: true,
+    fromIndex,
+    toIndex,
+    currentIndex: nextCurrentIndex,
+    selectedSong,
+    changed: fromIndex !== toIndex,
   };
 };

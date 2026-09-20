@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Animated, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Disc3 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -106,10 +106,26 @@ const StaticCoverArtwork = ({ song, artworkUri, isPlaying, accent, coverSize }:
   );
 };
 
+const CoverPage = ({ pageWidth, accent, ...props }: CoverCardProps & {
+  pageWidth: number; accent: string;
+}) => (
+  <View style={[styles.coverPage, { width: pageWidth }]}
+    testID={`now-playing-cover-${props.role}-page`}>
+    {props.song || props.role === 'current' ? (
+      <View style={[styles.coverShadow, { width: props.coverSize, height: props.coverSize,
+        shadowColor: accent, backgroundColor: props.backgroundColor }]}>
+        <CoverCard {...props} />
+      </View>
+    ) : null}
+  </View>
+);
+
 const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousArtworkUri,
   nextArtworkUri, isPlaying, accent, coverSize, onSwipeLeft, onSwipeRight,
   canSwipeLeft = true, canSwipeRight = true }: NowPlayingCoverArtworkProps) => {
   const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const pageWidth = Math.max(coverSize + 32, width);
   const reduceMotion = useReducedMotion();
   const [transitionSnapshot, setTransitionSnapshot] = useState<CoverTransitionSnapshot | null>(null);
   const holdTransitionPages = React.useCallback(() => setTransitionSnapshot({
@@ -121,7 +137,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
     nextArtworkUri,
   }), [artworkUri, nextArtworkUri, nextSong, previousArtworkUri, previousSong, song]);
   const releaseTransitionPages = React.useCallback(() => setTransitionSnapshot(null), []);
-  const motion = useHorizontalTrackMotion({ currentSongId: song?.id, panelWidth: coverSize,
+  const motion = useHorizontalTrackMotion({ currentSongId: song?.id, panelWidth: pageWidth,
     onNext: onSwipeLeft ?? noop, onPrevious: onSwipeRight ?? noop,
     hasNext: isNextPageAvailable({ nextSong, canSwipeLeft, onSwipeLeft }),
     hasPrevious: isPreviousPageAvailable({ previousSong, canSwipeRight, onSwipeRight }),
@@ -135,32 +151,29 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
     previousArtworkUri,
     nextArtworkUri,
   };
-  const trackTranslateX = useMemo(() => Animated.add(motion.constrainedDrag, -coverSize),
-    [coverSize, motion.constrainedDrag]);
-  const cardProps = { coverSize, backgroundColor: theme.palette.surface,
+  const trackTranslateX = useMemo(() => Animated.add(motion.constrainedDrag, -pageWidth),
+    [pageWidth, motion.constrainedDrag]);
+  const cardProps = { coverSize, pageWidth, accent, backgroundColor: theme.palette.surface,
     primaryColor: theme.palette.primary };
   return (
-    <View style={[styles.coverShadow, { width: coverSize, height: coverSize,
-      shadowColor: accent, backgroundColor: theme.palette.surface }]}
+    <View style={[styles.pagerViewport, { width: pageWidth, height: coverSize + 32 }]}
       testID="now-playing-cover-pager">
-      <View style={styles.pagerViewport}>
         <PanGestureHandler testID="now-playing-cover-swipe-gesture"
           activeOffsetX={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           failOffsetY={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
-          <Animated.View style={[styles.coverTrack, { width: coverSize * 3,
+          <Animated.View style={[styles.coverTrack, { width: pageWidth * 3,
             transform: [{ translateX: trackTranslateX }] }]} testID="now-playing-cover-track">
-            <CoverCard role="previous" song={displayed.previousSong}
+            <CoverPage role="previous" song={displayed.previousSong}
               artworkUri={displayed.previousArtworkUri}
               isPlaying={false} {...cardProps} />
-            <CoverCard role="current" song={displayed.song} artworkUri={displayed.artworkUri}
+            <CoverPage role="current" song={displayed.song} artworkUri={displayed.artworkUri}
               isPlaying={isPlaying}
               {...cardProps} />
-            <CoverCard role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
+            <CoverPage role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
               isPlaying={false} {...cardProps} />
           </Animated.View>
         </PanGestureHandler>
-      </View>
     </View>
   );
 };
@@ -177,9 +190,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  pagerViewport: { flex: 1, overflow: 'hidden', borderRadius: 22 },
+  pagerViewport: { overflow: 'hidden' },
+  coverPage: { alignItems: 'center', justifyContent: 'center' },
   coverTrack: { height: '100%', flexDirection: 'row' },
-  coverCard: { overflow: 'hidden' },
+  coverCard: { overflow: 'hidden', borderRadius: 22 },
   coverImage: { width: '100%', height: '100%' },
   discFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   discFallbackPlaying: { opacity: 0.95, transform: [{ scale: 1.02 }] },
