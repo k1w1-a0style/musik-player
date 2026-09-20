@@ -31,6 +31,7 @@ interface PlaylistDetailSongRowProps {
   onDragEnd: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onRemove: (song: Song) => void;
+  onPlay: (song: Song) => void;
 }
 
 const SongArtwork = React.memo(({ song, title, backgroundColor, textColor }: {
@@ -67,7 +68,7 @@ const usePlaylistRowAccessibilityAction = (index: number, songCount: number,
 
 const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffsetY,
   dragScrollCompensation,
-  canReorder, getScrollOffset, onDragPosition, onDragEnd, onReorder, onRemove,
+  canReorder, getScrollOffset, onDragPosition, onDragEnd, onReorder, onRemove, onPlay,
 }: PlaylistDetailSongRowProps) => {
   const { theme } = useAppTheme();
   const canDrag = canReorder && songCount > 1;
@@ -95,8 +96,9 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
       transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
       testID={`playlist-detail-drag-surface-${song.id}`}>
       <Pressable testID={`playlist-detail-song-${song.id}`}
-        accessible accessibilityRole="adjustable"
-        accessibilityLabel={`${title} von ${artist}. Position ${index + 1} von ${songCount}`}
+        onPress={() => { if (!drag.dragging) onPlay(song); }}
+        accessible accessibilityRole="button"
+        accessibilityLabel={`${title} von ${artist} abspielen. Position ${index + 1} von ${songCount}`}
         accessibilityHint={canDrag ? 'Die Zeile lange drücken und ziehen oder den Griff rechts verwenden.' : undefined}
         accessibilityActions={canDrag ? [{ name: 'decrement', label: 'Nach oben verschieben' },
           { name: 'increment', label: 'Nach unten verschieben' }] : undefined}
@@ -123,7 +125,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           </Animated.View>
         </PanGestureHandler>
         <Pressable accessibilityRole="button" accessibilityLabel={`${title} aus Playlist entfernen`}
-          onPress={() => onRemove(song)} style={[styles.removeSongButton,
+          onPress={event => { event?.stopPropagation?.(); onRemove(song); }} style={[styles.removeSongButton,
             { backgroundColor: theme.palette.surface, borderColor: theme.palette.error }]}
           testID={`playlist-detail-remove-song-${song.id}`}>
           <Trash2 color={theme.palette.error} size={18} />
@@ -132,8 +134,10 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           <PanGestureHandler enabled={canDrag} activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
             {...drag.handleGestureHandlers} testID={`playlist-detail-drag-handle-${song.id}`}>
             <Animated.View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}>
-              <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
-                size={21} />
+              <Pressable style={styles.dragHandle} onPress={event => event.stopPropagation()}>
+                <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
+                  size={21} />
+              </Pressable>
             </Animated.View>
           </PanGestureHandler>
         ) : null}

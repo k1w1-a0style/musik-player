@@ -9,12 +9,13 @@ let mockSongs: Song[] = [];
 let mockPlaylists: Playlist[] = [];
 let mockMoveSongInPlaylistEnabled = true;
 const mockGoBack = jest.fn();
+const mockNavigate = jest.fn();
 const mockDeletePlaylist = jest.fn();
 const mockRenamePlaylist = jest.fn();
 const mockAddSongToPlaylist = jest.fn();
 const mockRemoveSongFromPlaylist = jest.fn();
 const mockMoveSongInPlaylist = jest.fn();
-const mockPlayPlaylist = jest.fn(async () => undefined);
+const mockPlaySong = jest.fn(async () => ({ status: 'applied' }));
 
 const mockAppTheme = {
   palette: {
@@ -36,7 +37,7 @@ const mockAppTheme = {
 };
 
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ goBack: mockGoBack }),
+  useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
   useRoute: () => ({ params: { playlistId: mockPlaylistId } }),
 }));
 
@@ -59,7 +60,7 @@ jest.mock('../../contexts/MusicContext', () => ({
     addSongToPlaylist: mockAddSongToPlaylist,
     removeSongFromPlaylist: mockRemoveSongFromPlaylist,
     moveSongInPlaylist: mockMoveSongInPlaylistEnabled ? mockMoveSongInPlaylist : undefined,
-    playPlaylist: mockPlayPlaylist,
+    playSong: mockPlaySong,
     songs: mockSongs,
   }),
 }));
@@ -110,7 +111,8 @@ beforeEach(() => {
   mockRemoveSongFromPlaylist.mockClear();
   mockMoveSongInPlaylist.mockClear();
   mockGoBack.mockClear();
-  mockPlayPlaylist.mockClear();
+  mockNavigate.mockClear();
+  mockPlaySong.mockReset().mockResolvedValue({ status: 'applied' });
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockSongs = [
     song('song-a', { title: 'Alpha', artist: 'Artist A' }),
@@ -146,12 +148,30 @@ test('renders playlist name, valid song count, and contained songs in playlist o
   expect(getByText('Artist A')).toBeTruthy();
 });
 
-test('plays the playlist through the existing playlist playback action', () => {
+test('plays the playlist in its displayed order and opens the player', async () => {
   const { getByTestId } = render(<PlaylistDetail />);
 
-  fireEvent.press(getByTestId('playlist-detail-play-button'));
+  await act(async () => fireEvent.press(getByTestId('playlist-detail-play-button')));
 
-  expect(mockPlayPlaylist).toHaveBeenCalledWith('playlist-1');
+  expect(mockPlaySong).toHaveBeenCalledWith(mockSongs[1], [mockSongs[1], mockSongs[0]]);
+  expect(mockNavigate).toHaveBeenCalledWith('NowPlaying');
+});
+
+test('tapping a playlist row plays that song with the latest reordered queue', async () => {
+  const screen = render(<PlaylistDetail />);
+  mockPlaylists = [playlist('playlist-1', ['song-c', 'song-b', 'missing', 'song-a'])];
+  screen.rerender(<PlaylistDetail />);
+  await act(async () => fireEvent.press(screen.getByTestId('playlist-detail-song-song-b')));
+  expect(mockPlaySong).toHaveBeenCalledWith(mockSongs[1], [mockSongs[2], mockSongs[1], mockSongs[0]]);
+  expect(mockNavigate).toHaveBeenCalledWith('NowPlaying');
+});
+
+test('does not open the player when the native playlist selection fails', async () => {
+  mockPlaySong.mockResolvedValueOnce({ status: 'failed' });
+  const screen = render(<PlaylistDetail />);
+  await act(async () => fireEvent.press(screen.getByTestId('playlist-detail-song-song-a')));
+  expect(mockPlaySong).toHaveBeenCalled();
+  expect(mockNavigate).not.toHaveBeenCalled();
 });
 
 test('moves songs atomically through the playlist reorder action', () => {
@@ -202,6 +222,8 @@ test('long-pressing a playlist row activates native drag reordering', () => {
 
   expect(mockMoveSongInPlaylist).toHaveBeenCalledWith('playlist-1', 'song-b',
     { targetSongId: 'song-a' });
+  expect(mockPlaySong).not.toHaveBeenCalled();
+  expect(mockNavigate).not.toHaveBeenCalled();
 });
 
 test('ignores accessibility reorder actions at playlist boundaries', () => {
@@ -382,7 +404,7 @@ test('shows empty state for an empty playlist and disables play action', () => {
   expect(queryByTestId('playlist-detail-drag-handle-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
   fireEvent.press(playButton);
-  expect(mockPlayPlaylist).not.toHaveBeenCalled();
+  expect(mockPlaySong).not.toHaveBeenCalled();
 });
 
 test('shows missing song warning without rendering missing songs', () => {

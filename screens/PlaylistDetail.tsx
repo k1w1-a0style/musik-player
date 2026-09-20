@@ -18,7 +18,9 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { AppStackParamList } from '../types/navigation';
+import { APP_STACK_ROUTES } from '../types/routes';
 import type { Song } from '../types/Song';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
 import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
@@ -40,7 +42,7 @@ const PlaylistDetail: React.FC = () => {
     addSongToPlaylist,
     removeSongFromPlaylist,
     moveSongInPlaylist,
-    playPlaylist,
+    playSong,
     songs,
   } = useLibraryMusicContext();
   const playlistId = route.params.playlistId;
@@ -80,6 +82,14 @@ const PlaylistDetail: React.FC = () => {
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
+  const handlePlaySong = useCallback((song: Song) => {
+    void runPlaybackUiAction('playlist-play-song', async () => {
+      const result = await playSong(song, playlistSongs);
+      if (result.status === 'applied' || result.status === 'noop') {
+        navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING);
+      }
+    }, { dropIfPending: true });
+  }, [navigation, playSong, playlistSongs]);
   const canMoveSongs = typeof moveSongInPlaylist === 'function';
   const trimmedDraftName = draftName.trim();
   const renameDisabled = !playlist || trimmedDraftName.length === 0 || trimmedDraftName === playlist.name;
@@ -182,9 +192,9 @@ const PlaylistDetail: React.FC = () => {
         rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
       }) : 0}
       dragScrollCompensation={dragPreview?.index === index ? dragScrollCompensation : undefined}
-      onReorder={handleReorder} onRemove={confirmRemoveSong} />
+      onReorder={handleReorder} onRemove={confirmRemoveSong} onPlay={handlePlaySong} />
   ), [canMoveSongs, confirmRemoveSong, dragPreview, getScrollOffset, handleDragEnd,
-    handleDragPosition, handleReorder, dragScrollCompensation, playlistSongs.length]);
+    handleDragPosition, handleReorder, handlePlaySong, dragScrollCompensation, playlistSongs.length]);
 
   if (!playlist) {
     return (
@@ -229,7 +239,7 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityLabel={`Playlist ${playlist.name} abspielen`}
                 accessibilityState={{ disabled: playDisabled }}
                 disabled={playDisabled}
-                onPress={() => void playPlaylist(playlist.id)}
+                onPress={() => handlePlaySong(playlistSongs[0])}
                 style={[
                   styles.playButton,
                   {

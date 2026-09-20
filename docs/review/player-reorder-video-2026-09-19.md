@@ -90,8 +90,28 @@ Performancepunkt; die optische Korrektur und bereinigte Telemetrie lösen ihn ni
   Testfrequenzen erleichtern eine anschließende Hörkontrolle.
 - Ein zusätzlicher echter Touch-Ablauf hält den klassischen Cover-Swipe in der
   Mitte fest und prüft die getrennten Kartenpositionen samt Abstand im Screenshot.
-- Der erweiterte Emulatorablauf ist vorbereitet, aber noch nicht ausgeführt.
-  JVM- und JavaScript-Tests ersetzen diese Android-Prüfung nicht.
+- Die GitHub-CI für `08682de5` bestand mit 3.065 JavaScript- und 125 nativen Tests.
+- Der [erste neue APK-/Android-Lauf](https://github.com/k1w1-a0style/musik-player/actions/runs/35488715068)
+  baute, prüfte, installierte und startete die neue Development-APK erfolgreich.
+  Im Android-35-Emulator bestanden Waveform-Farben/Mittelpunkt, Spulen während
+  Wiedergabe und Pause, Zurück-Swipe, stabiler Cache, alle fünf Queue-Drags
+  einschließlich Aufwärtsbewegung und laufendem Track sowie die anschließende
+  unabhängige Decoder-Laufzeitprüfung für A, C und B. Keine Reorder-Fehlermeldung.
+  Auch Playlist-Griff und Playlist-Long-Press funktionierten.
+- Danach stoppte der Test: Eine Playlist-Zeile hatte keinen `onPress`-Aufruf;
+  der dort vom Test gesuchte Mini-Player gehört außerdem nur zur Bibliotheksseite.
+  Kurzes Antippen startet jetzt den gewählten Song mit der aktuell angezeigten
+  Playlist-Reihenfolge und öffnet nach bestätigter Wiedergabe den Player.
+  Der Abspielen-Button nutzt denselben Pfad. Die drei betroffenen Regressionen
+  schlugen vor der Korrektur fehl; danach bestanden alle 24 Playlist-Screen-Tests.
+- Der erneute vollständige Android-Ablauf einschließlich Playlist-Wiedergabe
+  und getrennten Coverrahmen steht noch aus. Der erste Lauf ist ausdrücklich
+  kein vollständiger Pass.
+
+Die kalten PCM-Analysen dauerten in diesem softwaregerenderten Emulatorlauf
+0,289 / 5,219 / 21,218 Sekunden; späteres Wiederöffnen traf den Cache mit 0 ms.
+Hydration: 4,771 Sekunden, ohne Startup-Retry. Die große Streuung belegt weiterhin
+keine garantierte kurze Erstanalyse auf dem Handy.
 
 Der Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
 nicht. Vor der Gerätefreigabe muss eine **neue Development-APK** aus diesem Stand

@@ -358,7 +358,7 @@ def check_playback():
     assert bounds(find('playlist-detail-song-smoke-c'))[1] < bounds(find('playlist-detail-song-smoke-b'))[1], 'Playlist long press did not reorder upwards'
     screenshot('06-playlist-reordered')
     tap('playlist-detail-song-smoke-c')
-    tap('mini-player-open')
+    find('soundcloud-swipe-hitbox')
     assert_native_track('C', 120)
     swipe(find('soundcloud-swipe-hitbox'))
     assert_native_track('B', 90)
