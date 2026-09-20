@@ -101,3 +101,79 @@ test('stale progress cannot snap a released seek backwards before native confirm
   expect(onPreviewPosition).toHaveBeenLastCalledWith(null);
   hook.unmount();
 });
+
+describe('failed waveform seek recovery', () => {
+  const makeSeek = () => {
+    let reject!: (error: Error) => void;
+    const promise = new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise; });
+    return { promise, reject };
+  };
+  const renderMotion = (onSeek: (position: number) => Promise<void>) => {
+    const onPreviewPosition = jest.fn();
+    const hook = renderHook<ReturnType<typeof useSoundCloudWaveformMotion>, { position: number; key: string }>(
+      ({ position, key }) => useSoundCloudWaveformMotion({
+      progressRatio: position / 100_000, safeDuration: 100_000, safePosition: position,
+      isPlaying: false, travelWidth: 1_000, viewportCenter: 200, waveformKey: key,
+      onSeek, onPreviewPosition,
+    }), { initialProps: { position: 50_000, key: 'track' } });
+    const seek = async (translationX: number) => {
+      act(() => hook.result.current.onStateChange(stateEvent({ state: State.BEGAN })));
+      await act(async () => hook.result.current.onStateChange(stateEvent({
+        oldState: State.ACTIVE, state: State.END, translationX,
+      })));
+    };
+    const offset = () => (hook.result.current.translateX as unknown as { __getValue: () => number }).__getValue();
+    return { ...hook, onPreviewPosition, seek, offset };
+  };
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test('returns immediately to the latest native position after a rejected seek', async () => {
+    const request = makeSeek();
+    const hook = renderMotion(() => request.promise);
+    await hook.seek(-250);
+    hook.rerender({ position: 51_000, key: 'track' });
+    expect(hook.offset()).toBe(-550);
+    await act(async () => request.reject(new Error('seek blocked')));
+    expect(hook.onPreviewPosition).toHaveBeenLastCalledWith(null);
+    expect(hook.offset()).toBe(-310);
+    hook.unmount();
+  });
+
+  test('an older rejected seek cannot clear a newer seek preview', async () => {
+    const first = makeSeek();
+    const second = makeSeek();
+    const onSeek = jest.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const hook = renderMotion(onSeek);
+    await hook.seek(-250);
+    await hook.seek(100);
+    await act(async () => first.reject(new Error('old seek blocked')));
+    expect(hook.onPreviewPosition).toHaveBeenLastCalledWith(65_000);
+    expect(hook.offset()).toBe(-450);
+    await act(async () => second.reject(new Error('latest seek blocked')));
+    expect(hook.onPreviewPosition).toHaveBeenLastCalledWith(null);
+    expect(hook.offset()).toBe(-300);
+    hook.unmount();
+  });
+
+  test.each(['track-change', 'unmount'])('ignores a late rejection after %s', async action => {
+    const request = makeSeek();
+    const hook = renderMotion(() => request.promise);
+    await hook.seek(-250);
+    if (action === 'unmount') hook.unmount();
+    else {
+      hook.rerender({ position: 10_000, key: 'other-track' });
+      expect(hook.offset()).toBe(100);
+    }
+    hook.onPreviewPosition.mockClear();
+    await act(async () => request.reject(new Error('late seek blocked')));
+    expect(hook.onPreviewPosition).not.toHaveBeenCalled();
+    if (action !== 'unmount') hook.unmount();
+  });
+});

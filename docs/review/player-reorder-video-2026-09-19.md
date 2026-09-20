@@ -104,17 +104,48 @@ Performancepunkt; die optische Korrektur und bereinigte Telemetrie lösen ihn ni
   Playlist-Reihenfolge und öffnet nach bestätigter Wiedergabe den Player.
   Der Abspielen-Button nutzt denselben Pfad. Die drei betroffenen Regressionen
   schlugen vor der Korrektur fehl; danach bestanden alle 24 Playlist-Screen-Tests.
-- Der erneute vollständige Android-Ablauf einschließlich Playlist-Wiedergabe
-  und getrennten Coverrahmen steht noch aus. Der erste Lauf ist ausdrücklich
-  kein vollständiger Pass.
+- Der [erneute vollständige Android-Ablauf für `950b4e18`](https://github.com/k1w1-a0style/musik-player/actions/runs/35504936605)
+  bestand einschließlich Playlist-Wiedergabe in der verschobenen Reihenfolge
+  und der getrennten Coverrahmen mitten im gehaltenen Finger-Swipe. Die
+  [zugehörige CI](https://github.com/k1w1-a0style/musik-player/actions/runs/35504836517)
+  bestand mit 317 Suites, 3.067 JavaScript- und 125 nativen Tests.
+  Der erste, oben beschriebene Lauf bleibt ausdrücklich ein Teilnachweis.
 
 Die kalten PCM-Analysen dauerten in diesem softwaregerenderten Emulatorlauf
 0,289 / 5,219 / 21,218 Sekunden; späteres Wiederöffnen traf den Cache mit 0 ms.
 Hydration: 4,771 Sekunden, ohne Startup-Retry. Die große Streuung belegt weiterhin
 keine garantierte kurze Erstanalyse auf dem Handy.
 
+Im vollständig bestandenen zweiten Lauf dauerten die drei kalten Analysen
+0,167 / 4,571 / 16,361 Sekunden, die Cache-Treffer 0–1 ms.
+Hydration: 3,708 Sekunden, ebenfalls ohne Startup-Retry. Ein Dialog des
+**Pixel Launcher** wurde protokolliert geschlossen; es war kein ANR der Musik-App.
+Die Emulatorwerte sind kein Geschwindigkeitsversprechen für das Nutzergerät.
+
+## Angrenzende Gesten- und Fehlerpfade
+
+Die zusätzlich beauftragte Prüfung fand zwei zusammenhängende Fehlerbereiche:
+
+- Ein nie aktiv gewordener horizontaler Recognizer konnte mit `FAILED` oder
+  `CANCELLED` einen bereits laufenden Trackwechsel zurücksetzen. Das gab den
+  eingefrorenen Titel-/Cover-Snapshot zu früh frei. Nur der Abbruch einer zuvor
+  tatsächlich aktiven Wischgeste startet jetzt die Rückwärtsanimation.
+- Ein vom Playback-Callback abgewiesener Seek ließ die Vorschau bis zu 2,5 Sekunden
+  auf der nicht bestätigten Position stehen. Jetzt wird unmittelbar die zuletzt
+  bekannte Wiedergabeposition verwendet. Nur die noch zugehörige Anfrage darf
+  ihre Vorschau zurücksetzen: ältere Fehler überschreiben weder neuere Seeks noch
+  einen anderen Track. Beim Trackwechsel wird auch die Zeichenposition sofort
+  synchronisiert, statt bis zur nächsten Fortschrittsabfrage den alten Wert zu zeigen.
+
+Fünf neue Fehlerfälle wurden zuerst am bisherigen Code reproduziert; danach
+bestanden alle 35 gezielten Gesten-/Cover-/Waveform-Tests, einschließlich spät
+eintreffender Fehler nach einem Trackwechsel oder Unmount. Diese deterministischen
+Tests prüfen die Zeitfolge; sie ersetzen keine native Android-Gestenprüfung.
+Die abschließende CI und Android-Prüfung für diesen Zusatz stehen noch aus.
+
 Der Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
-nicht. Vor der Gerätefreigabe muss eine **neue Development-APK** aus diesem Stand
-gebaut und der erweiterte Interaktionstest bestanden werden. Der vorhandene manuelle
+nicht. Eine **neue Development-APK** wurde aus `950b4e18` gebaut und der erweiterte
+Interaktionstest bestanden. Die zusätzlichen Fehlerpfad-Korrekturen betreffen
+JavaScript. Der vorhandene manuelle
 Workflow `android-emulator-smoke.yml` bleibt unverändert: Branch `codex`, Eingabe
 `BUILD_DEVELOPMENT_APK`. Es wurde kein Release-Build gestartet und kein Build-Gate geöffnet.

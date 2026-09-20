@@ -181,7 +181,9 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
     if (state === State.CANCELLED || state === State.FAILED) {
-      switching.animateBack();
+      // A tap or a child waveform gesture can fail this passive recognizer
+      // while an earlier track switch is still animating.
+      if (oldState === State.ACTIVE) switching.animateBack();
     } else if (state === State.END && oldState === State.ACTIVE) {
       if (switching.switchingRef.current) return;
       const wantsNext = translationX < 0;

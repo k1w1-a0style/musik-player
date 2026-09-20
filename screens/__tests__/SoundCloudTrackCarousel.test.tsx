@@ -86,7 +86,8 @@ describe('SoundCloudTrackCarousel gestures', () => {
     unmount();
   });
 
-  test('freezes artwork, title and waveform source until the page transition finishes', () => {
+  test.each([State.CANCELLED, State.FAILED])(
+    'keeps the page frozen when a passive recognizer ends as %s during a track switch', state => {
     let finishTrackAnimation: ((result: { finished: boolean }) => void) | undefined;
     (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mockImplementation((_value, config) => ({
       start: callback => {
@@ -131,6 +132,9 @@ describe('SoundCloudTrackCarousel gestures', () => {
     rerender(<SoundCloudTrackCarousel {...initialProps} currentSong={songs[2]}
       previousSong={songs[1]} nextSong={afterNext} currentArtworkUri={songs[2].cover}
       previousArtworkUri={songs[1].cover} nextArtworkUri={undefined} />);
+    fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
+      nativeEvent: { oldState: State.BEGAN, state },
+    });
     expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('current');
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
 

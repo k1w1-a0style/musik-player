@@ -44,15 +44,26 @@ const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, 
   }, [progressValue, sync]);
   const latestSync = useRef(sync);
   latestSync.current = sync;
+  const resetToPlayback = useCallback(() => {
+    releaseHold();
+    latestSync.current();
+  }, [releaseHold]);
   const holdAt = useCallback((ratio: number) => {
     releaseHold();
-    heldSeek.current = { position: ratio * safeDuration, expires: Date.now() + 2500 };
+    const held = { position: ratio * safeDuration, expires: Date.now() + 2500 };
+    heldSeek.current = held;
     progressValue.setValue(ratio);
     onPreviewPosition?.(ratio * safeDuration);
-    holdTimer.current = setTimeout(() => { releaseHold(); latestSync.current(); }, 2500);
-  }, [onPreviewPosition, progressValue, releaseHold, safeDuration]);
-  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current); }, []);
-  return { progressValue, draggingRef, sync, holdAt, releaseHold };
+    holdTimer.current = setTimeout(resetToPlayback, 2500);
+    // Only this request owns the preview. A late failure must not roll back a
+    // newer seek, another track, or a component that has already unmounted.
+    return () => { if (heldSeek.current === held) resetToPlayback(); };
+  }, [onPreviewPosition, progressValue, releaseHold, resetToPlayback, safeDuration]);
+  useEffect(() => () => {
+    heldSeek.current = null;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+  }, []);
+  return { progressValue, draggingRef, sync, holdAt, releaseHold, resetToPlayback };
 };
 
 interface SoundCloudWaveformMotionOptions extends PlaybackProgressMotionOptions {
@@ -65,7 +76,7 @@ interface SoundCloudWaveformMotionOptions extends PlaybackProgressMotionOptions 
 
 export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safePosition, isPlaying,
   travelWidth, viewportCenter, waveformKey, onSeek, onPreviewPosition }: SoundCloudWaveformMotionOptions) => {
-  const { progressValue, draggingRef, sync, holdAt, releaseHold } = usePlaybackProgressMotion({
+  const { progressValue, draggingRef, sync, holdAt, releaseHold, resetToPlayback } = usePlaybackProgressMotion({
     progressRatio, safeDuration, safePosition, isPlaying, onPreviewPosition });
   const gestureX = useRef(new Animated.Value(0)).current;
   const startRatioRef = useRef(progressRatio);
@@ -73,8 +84,8 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
   useEffect(() => {
     gestureX.setValue(0);
     draggingRef.current = false;
-    releaseHold();
-  }, [draggingRef, gestureX, releaseHold, waveformKey]);
+    resetToPlayback();
+  }, [draggingRef, gestureX, resetToPlayback, waveformKey]);
   const baseTranslate = useMemo(() => progressValue.interpolate({ inputRange: [0, 1],
     outputRange: [viewportCenter, viewportCenter - travelWidth], extrapolate: 'clamp' }),
   [progressValue, travelWidth, viewportCenter]);
@@ -107,8 +118,9 @@ export const useSoundCloudWaveformMotion = ({ progressRatio, safeDuration, safeP
     if (commit && safeDuration > 0) {
       // Keep the released position until the native progress poll confirms it.
       // Otherwise the next stale poll visibly snaps the strip back after seek.
-      holdAt(nextRatio);
+      const rollback = holdAt(nextRatio);
       void Promise.resolve().then(() => onSeek(nextRatio * safeDuration)).catch(error => {
+        rollback();
         console.warn('[WaveformSeek] Seek failed.', error);
       });
     } else { releaseHold(); sync(); }
