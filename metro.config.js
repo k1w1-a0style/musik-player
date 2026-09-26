@@ -2,8 +2,8 @@ const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 const { disableTypes: disableImageSizeTypes } = require('image-size');
 
-// `image-size@1.2.1` is pulled in by Metro and has no published patched
-// release for the ICNS/JXL/HEIF infinite-loop advisories. Metro only needs its
+// Metro 0.83.3 needs image-size's 1.x synchronous file API; the published
+// security fixes start at 2.0.3 with a different file API. Metro only needs its
 // ordinary web/mobile image handlers, so fail closed on the vulnerable parser
 // families even when malicious bytes are disguised behind a .png/.jpg name.
 disableImageSizeTypes(['heif', 'icns', 'jxl', 'jxl-stream']);

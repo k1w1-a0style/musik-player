@@ -176,7 +176,25 @@ belegen schnelle Cache-Treffer, aber keine allgemeine Ein-Sekunden-Erstanalyse.
 
 Die [CI des Diagnose-Fixes `1b9c07a`](https://github.com/k1w1-a0style/musik-player/actions/runs/35543124986)
 ist vollständig bestanden. Der [Android-Durchlauf mit diesem Fix](https://github.com/k1w1-a0style/musik-player/actions/runs/36244287044)
-wurde für denselben unveränderlichen Commit gestartet; sein Ergebnis steht noch aus.
+bestand Build, APK-Prüfung, Installation und Start. Beide Diagnoseerfassungen
+meldeten keine Fehler. Wiedergabe, Seek in beiden Zuständen, Waveform-Pixelprüfung,
+Trackwechsel und der erste Queue-Drag bestanden. Der nächste Reihenfolgevergleich
+scheiterte an vermischten UI-Aufnahmen: C wurde noch auf y=223 gelesen, B später
+ebenfalls auf y=223. Die abschließende XML-Aufnahme und der Screenshot zeigen
+korrekt C/B/A auf y=134/223/313. Es wurden kein App-Fatal, ErrorBoundary-Fehler
+oder abgewiesener nativer Queue-Drag in den erfassten Logs gefunden.
+
+Die Reihenfolgeprüfung liest jetzt alle Zeilen aus derselben Aufnahme und
+wartet begrenzt auf eindeutige, nicht überlappende Zeilen. Das gilt auch für
+Playlist-Reorders. Vier Python-Fälle prüfen den Aufnahmewechsel, die laufende
+Animation, eine bleibend falsche Reihenfolge und doppelte Zeilen-IDs. Drei davon
+schlugen am vorherigen Testcode fehl; anschließend bestanden alle sieben
+Python-Tests einschließlich Diagnosefehlern. Der vollständige Gerätetest muss
+mit der korrigierten Prüfung erneut laufen.
+
+Kalte PCM-Zeiten dieses Laufs: 0,482 / 5,814 / 19,163 Sekunden; Cache-Treffer
+0 ms, Hydration 4,336 Sekunden. Das bestätigt weiterhin die Streuung der
+Erstanalyse und ist kein Nachweis einer allgemeinen Ein-Sekunden-Latenz.
 
 Beim Vorladen der Waveforms wurden zwei reproduzierbare Lücken gefunden:
 Eine vor dem Start zurückgestellte Anfrage wurde ohne neue Library-Änderung
@@ -199,6 +217,27 @@ die vollständige Coverage-Prüfung mit 318 Suites / 3.076 Tests sowie TypeScrip
 ESLint und die Komplexitätsprüfung bestanden lokal.
 Diese Korrektur vermeidet unnötige kalte Aufrufe nach verdrängtem Vorladen;
 sie ändert weder den nativen Decoder noch dessen gemessene Laufzeit.
+
+Die [erste CI für diesen Vorlade-Fix](https://github.com/k1w1-a0style/musik-player/actions/runs/36244729754)
+stoppte vor den Tests an geänderten npm-Advisory-Source-IDs. Der erneute Audit
+enthält dieselben zwei GHSAs für `image-size@1.2.1`, jetzt mit 1239766 bzw.
+1239765. Die offizielle Advisory-Aktualisierung vom 24. September nennt 2.0.3
+als gepatcht; npm bietet 2.0.4 an, aber keine gepatchte 1.x-Version. Metro 0.83.3
+ruft weiterhin die entfernte synchrone Dateipfad-API auf. Ein erzwungener Wechsel
+auf 2.x würde daher den Asset-Build brechen.
+Die bestehende Ausnahme wurde nach Prüfung der identischen GHSAs auf die neuen
+Source-IDs aktualisiert, mit unveränderter Paketversion und unverändertem
+Ablaufdatum 20. November. Die Inhaltsprüfung blockiert weiterhin ICNS, HEIF,
+JXL und JXL-Stream; ihr Test und die Audit-Policy-Tests bestanden (16 Tests).
+Der aktuelle Audit besteht diese Policy mit 0 Critical, 1 dokumentierten High
+und 3 Moderate-Einträgen. Die drei Moderate-Einträge gehen auf
+`decode-uri-component` über `query-string` / `@react-navigation/core` zurück;
+sie sind keine zusätzlichen Ausnahmefreigaben.
+
+Quellen: [ICNS-Advisory](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr),
+[JXL/HEIF-Advisory](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq),
+veröffentlichte npm-Metadaten von `image-size@2.0.4` und der installierte
+Metro-Asset-Code in `metro@0.83.3`.
 
 Der ursprüngliche Decoder-Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
 nicht. Eine **neue Development-APK** wurde aus `950b4e18` gebaut und der erweiterte

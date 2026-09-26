@@ -8,16 +8,16 @@
         "1.2.1"
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/378",
-      "reason": "Build-tool-only Expo/Metro dependency with no published patched release. Metro startup explicitly disables the vulnerable ICNS, JXL/JXL-stream and HEIF parser families by content type while preserving supported PNG/JPEG assets.",
-      "reviewedOn": "2026-08-22",
+      "reason": "Build-tool-only Expo/Metro dependency. Patched releases start at 2.0.3, whose file API is incompatible with Metro 0.83.3's synchronous path-based calls; no patched 1.x release is published. Metro startup explicitly disables ICNS, JXL/JXL-stream and HEIF parsers by content type while preserving PNG/JPEG assets.",
+      "reviewedOn": "2026-09-26",
       "expiresOn": "2026-11-20",
       "advisories": [
         {
-          "source": 1138808,
+          "source": 1239766,
           "url": "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr"
         },
         {
-          "source": 1138809,
+          "source": 1239765,
           "url": "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq"
         }
       ]

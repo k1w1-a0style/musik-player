@@ -157,9 +157,25 @@ def drag_row(prefix, source, target, handle_prefix=None):
     time.sleep(.8)
 
 
+def assert_row_order(keys):
+    deadline = time.monotonic() + 8
+    positions = []
+    while time.monotonic() < deadline:
+        # All rows must come from one frame. Separate find() calls can combine
+        # a pre-animation C position with the final B position and falsely fail.
+        tree = ui()
+        rows = [[node for node in tree.iter('node') if matches(node, key)] for key in keys]
+        if all(len(found) == 1 for found in rows):
+            positions = [bounds(found[0]) for found in rows]
+            if all(len(rect) == 4 and rect[2] > rect[0] and rect[3] > rect[1] for rect in positions):
+                if all(left[3] <= right[1] for left, right in zip(positions, positions[1:])):
+                    return
+        time.sleep(.4)
+    raise AssertionError(f'Wrong row order: {keys}, {positions}')
+
+
 def assert_queue_order(ids):
-    positions = [bounds(find('queue-row-smoke-' + letter))[1] for letter in ids]
-    assert positions == sorted(positions) and len(set(positions)) == len(ids), f'Wrong queue order: {ids}, {positions}'
+    assert_row_order(['queue-row-smoke-' + letter for letter in ids])
 
 
 def screenshot(name):
@@ -354,9 +370,9 @@ def check_playback():
     tap('library-tab-playlists')
     tap('open-playlist-smoke-list')
     drag_row('playlist-detail-song-', 'smoke-a', 'smoke-b', 'playlist-detail-drag-handle-')
-    assert bounds(find('playlist-detail-song-smoke-b'))[1] < bounds(find('playlist-detail-song-smoke-a'))[1], 'Playlist grip did not reorder'
+    assert_row_order(['playlist-detail-song-smoke-b', 'playlist-detail-song-smoke-a'])
     drag_row('playlist-detail-song-', 'smoke-c', 'smoke-b')
-    assert bounds(find('playlist-detail-song-smoke-c'))[1] < bounds(find('playlist-detail-song-smoke-b'))[1], 'Playlist long press did not reorder upwards'
+    assert_row_order(['playlist-detail-song-smoke-c', 'playlist-detail-song-smoke-b'])
     screenshot('06-playlist-reordered')
     tap('playlist-detail-song-smoke-c')
     find('soundcloud-swipe-hitbox')
