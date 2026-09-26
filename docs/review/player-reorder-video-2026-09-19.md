@@ -270,7 +270,12 @@ zusätzlich streng geordnete Ober- und Unterkanten. Die exakten Android-Koordina
 reproduzierten den Fehlschlag lokal vor der Korrektur. Ein zweiter neuer Fall
 weist zwei Pixel Überlappung zurück. Anschließend bestanden alle neun Python-Tests;
 falsche Reihenfolge, doppelte IDs und größere Animationsüberlappungen bleiben Fehler.
-Der App-Code ist unverändert. Eine erneute vollständige Android-Abnahme steht aus.
+Der App-Code blieb dabei unverändert. Der anschließende
+[Android-Lauf #37](https://github.com/k1w1-a0style/musik-player/actions/runs/36260441920)
+auf `74fe7da` bestand alle 17 Bedienprüfungen, ohne Startup-Retry oder
+Pixel-Launcher-Dialog. Die [CI desselben Standes](https://github.com/k1w1-a0style/musik-player/actions/runs/36260335351)
+bestand ebenfalls. Kalte native Analysen: 5.610 / 3.452 / 443 ms,
+Cache-Treffer 0 ms; Hydration 3.689 ms.
 
 Für den vorhandenen Ubuntu-/Termux-Checkout startet der Development-Client so:
 
@@ -287,3 +292,29 @@ Die neue Development-APK installieren und mit diesem Metro-Server verbinden.
 Der APK-/Emulator-Nachweis ersetzt keine Messung mit den eigenen Musikdateien auf
 dem Galaxy A50. Besonders lange, noch ungecachte Dateien bleiben ein offener
 Performance-Prüfpunkt.
+
+## Native Cold-Waveform-Optimierung am 27. September
+
+Die zusätzliche Anforderung betrifft ausdrücklich die Erstanalyse ohne
+Waveform-Cache. Als überprüfbare Hypothese wird der synchrone Abfragezyklus des
+Codecs durch Androids Callback-Modus ersetzt. Ein kurzer eigener Handler-Thread
+übermittelt verfügbare Puffer; Dateizugriff, Codec-Aufrufe und RMS-Berechnung
+bleiben auf einem einzigen Analyse-Worker serialisiert. Jeder Ausgabepuffer wird
+auch im Fehlerfall zurückgegeben. Abbruch wird während ereignisloser Wartezeit
+spätestens beim nächsten 25-ms-Poll geprüft, ein Decoder-Stillstand nach fünf
+Sekunden abgewiesen. Beide Threads behalten Hintergrundpriorität.
+
+PCM-Auswertung, Punktzahl, Cacheformat, Decoder-Auswahl und vollständige
+Dateiabdeckung bleiben unverändert. Es werden keine Paketgrößen als Lautstärke
+verwendet und keine Peaks erfunden. Die alte Schleife aus `74fe7da` ist nur im
+Android-Testquellensatz als Vergleichsreferenz enthalten.
+
+Der manuelle Android-Lauf führt zusätzlich einen nativen Vergleich aus:
+dieselben erzeugten MP3-/M4A-/FLAC-Dateien, vier frische Analysen je Variante,
+abwechselnde Reihenfolge, alle 1.024 Punkte gegengeprüft (maximal 0,01 Abweichung)
+und ein Abbruch-/Thread-Aufräumtest. Beide Varianten umgehen den App-Waveform-Cache;
+der Betriebssystem-Dateicache wird nicht geleert. Einzelwerte und Mediane werden
+im Workflow-Artefakt gesichert. Die anschließende normale App-Bedienprüfung bleibt
+erhalten. Eine Beschleunigung ist erst nach Auswertung dieser Messung bestätigt.
+
+API-Grundlage: [Android MediaCodec, asynchrone Pufferverarbeitung](https://developer.android.com/reference/android/media/MediaCodec#data-processing).

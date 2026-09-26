@@ -162,6 +162,31 @@ jobs:
             exit 1
           fi
 
+      - name: Compare uncached native waveform decoders on the same Android device
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          adb shell am force-stop "$PACKAGE_NAME"
+          python3 scripts/ci/coldWaveformBenchmark.py generate modules/expo-system-audio/android/src/androidTest/assets/waveform
+          cp package.json "$RUNNER_TEMP/waveform-benchmark-package.json"
+          env -u EXPO_TOKEN EXPO_NO_TELEMETRY=1 EXPO_OFFLINE=1 npx --no-install expo prebuild --platform android --no-install
+          cp "$RUNNER_TEMP/waveform-benchmark-package.json" package.json
+          adb logcat -c
+          set +e
+          (cd android && ./gradlew :expo-system-audio:connectedDebugAndroidTest --no-daemon --console=plain) \
+            2>&1 | tee ci-logs/waveform-benchmark-gradle.log
+          benchmark_status=${PIPESTATUS[0]}
+          set -e
+          adb logcat -d -v brief -s 'WaveformBenchmark:I' '*:S' > ci-logs/waveform-benchmark-logcat.txt
+          if test -d modules/expo-system-audio/android/build/outputs/androidTest-results; then
+            cp -R modules/expo-system-audio/android/build/outputs/androidTest-results ci-logs/waveform-benchmark-junit
+          fi
+          test "$benchmark_status" -eq 0
+          python3 scripts/ci/coldWaveformBenchmark.py collect ci-logs/waveform-benchmark-logcat.txt \
+            > ci-logs/waveform-benchmark.json
+          cat ci-logs/waveform-benchmark.json
+
       - name: Exercise real player gestures with Metro and local audio
         shell: bash
         run: |
