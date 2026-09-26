@@ -143,7 +143,8 @@ eintreffender Fehler nach einem Trackwechsel oder Unmount. Diese deterministisch
 Tests prüfen die Zeitfolge; sie ersetzen keine native Android-Gestenprüfung.
 Die [CI für `16625bde`](https://github.com/k1w1-a0style/musik-player/actions/runs/35523113591)
 bestand anschließend mit 317 Suites, 3.072 JavaScript- und 125 nativen Tests.
-Die abschließende Android-Prüfung für diesen Zusatz steht noch aus.
+Die abschließende Android-Prüfung für diesen Zusatz stand zu diesem Zeitpunkt noch aus;
+die nachfolgenden Abschnitte dokumentieren die Fortsetzung.
 
 ## Fortsetzung am 20. September
 
@@ -245,3 +246,44 @@ Interaktionstest bestanden. Die zusätzlichen Fehlerpfad-Korrekturen betreffen
 JavaScript. Der vorhandene manuelle
 Build-Einstieg in `android-emulator-smoke.yml` bleibt erhalten: Branch `codex`, Eingabe
 `BUILD_DEVELOPMENT_APK`. Es wurde kein Release-Build gestartet und kein Build-Gate geöffnet.
+
+## Abschlussprüfung des fortgesetzten Arbeitsstands
+
+Geprüfter Code: `08fe3fecd36e437169663d5faa2e0b7b4eea2aa5` auf `codex`.
+Die [vollständige CI](https://github.com/k1w1-a0style/musik-player/actions/runs/36259235486)
+bestand am 26. September: 318 Suites / 3.076 JavaScript-Tests mit Coverage,
+125 native Tests und sieben Python-Tests. TypeScript, Lint, Komplexität,
+Expo-Kompatibilität, Manifest- und Audit-Policy-Prüfung bestanden ebenfalls.
+
+Der [Android-Lauf #36](https://github.com/k1w1-a0style/musik-player/actions/runs/36259516056)
+verwendete denselben unveränderlichen Quellstand. Build, APK-Prüfung, Installation,
+Start, Waveform-Pixeltest und Seek-Prüfungen bestanden. Der erste Queue-Vergleich
+zeigte eine zu strenge Bedingung im neuen Test: Android meldete die korrekte
+Reihenfolge A/C/B mit Grenzen 134–224, 223–312 und 313–402. Die ersten beiden
+Zeilen überlappen damit in den gemeldeten Koordinaten um einen Pixel. Die Zeilen
+sind 68 dp hoch, bei 210 dpi entspricht das 89,25 physischen Pixeln. Screenshot
+und XML zeigen die korrekte Anordnung, beide Diagnoseerfassungen waren fehlerfrei.
+Es wurden keine App-Fatals, ErrorBoundary- oder nativen Reorder-Fehler gefunden.
+
+Die Prüfung erlaubt jetzt genau einen Pixel Grenzüberlappung und verlangt
+zusätzlich streng geordnete Ober- und Unterkanten. Die exakten Android-Koordinaten
+reproduzierten den Fehlschlag lokal vor der Korrektur. Ein zweiter neuer Fall
+weist zwei Pixel Überlappung zurück. Anschließend bestanden alle neun Python-Tests;
+falsche Reihenfolge, doppelte IDs und größere Animationsüberlappungen bleiben Fehler.
+Der App-Code ist unverändert. Eine erneute vollständige Android-Abnahme steht aus.
+
+Für den vorhandenen Ubuntu-/Termux-Checkout startet der Development-Client so:
+
+```sh
+cd ~/musik-player
+git switch codex
+git pull --ff-only origin codex
+npm ci --no-audit --no-fund
+EAS_BUILD_PROFILE=development EXPO_NO_TELEMETRY=1 npx expo start --dev-client --lan
+```
+
+Die neue Development-APK installieren und mit diesem Metro-Server verbinden.
+`--clear` gehört nicht zum regulären Start; der vorhandene Metro-Cache bleibt nutzbar.
+Der APK-/Emulator-Nachweis ersetzt keine Messung mit den eigenen Musikdateien auf
+dem Galaxy A50. Besonders lange, noch ungecachte Dateien bleiben ein offener
+Performance-Prüfpunkt.

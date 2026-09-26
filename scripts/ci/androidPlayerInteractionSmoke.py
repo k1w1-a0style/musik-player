@@ -168,7 +168,12 @@ def assert_row_order(keys):
         if all(len(found) == 1 for found in rows):
             positions = [bounds(found[0]) for found in rows]
             if all(len(rect) == 4 and rect[2] > rect[0] and rect[3] > rect[1] for rect in positions):
-                if all(left[3] <= right[1] for left, right in zip(positions, positions[1:])):
+                # UIAutomator can report adjacent settled rows with a one-pixel
+                # boundary overlap at fractional display density (API 35/210 dpi).
+                # Keep both edges ordered and reject any larger overlap.
+                if all(left[1] < right[1] and left[3] < right[3]
+                       and left[3] <= right[1] + 1
+                       for left, right in zip(positions, positions[1:])):
                     return
         time.sleep(.4)
     raise AssertionError(f'Wrong row order: {keys}, {positions}')

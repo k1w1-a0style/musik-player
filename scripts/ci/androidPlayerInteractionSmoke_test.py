@@ -55,6 +55,20 @@ class RowOrderTest(unittest.TestCase):
         self.snapshot.side_effect = [rows('cba', [223, 223, 313]), rows('cba'), rows('cba')]
         self.assert_order()
 
+    def test_accepts_the_single_pixel_boundary_overlap_reported_by_android(self):
+        tree = rows('acb')
+        # Exact final bounds from API 35 at 210 dpi in Android run #36.
+        for node, rect in zip(tree.iter('node'), [
+                '[11,134][530,224]', '[11,223][530,312]', '[11,313][530,402]']):
+            node.set('bounds', rect)
+        self.snapshot.return_value = tree
+        self.namespace['assert_queue_order']('acb')
+
+    def test_rejects_more_than_one_pixel_of_boundary_overlap(self):
+        self.snapshot.return_value = rows('cba', [134, 221, 313])
+        with self.assertRaises(AssertionError):
+            self.assert_order()
+
     def test_wrong_order_still_fails_with_a_bounded_wait(self):
         self.snapshot.return_value = rows('acb')
         with self.assertRaisesRegex(AssertionError, 'Wrong.*order'):
