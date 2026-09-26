@@ -216,6 +216,12 @@ export const extractNativeWaveform = async (
       extractionKey, report, recordFailures,
     });
   } catch (error) {
+    // The scheduler may cancel this waiter to serve another source. Only an
+    // abort from our caller is terminal; speculative work can retry later.
+    if (isAbortError(error) && !options?.signal?.aborted) {
+      report('native-scheduler-preempted', 0);
+      return null;
+    }
     return handleNativeExtractionError(error, extractionKey, report, recordFailures);
   }
 };

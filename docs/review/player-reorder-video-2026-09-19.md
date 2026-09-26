@@ -172,9 +172,37 @@ bestanden nach der Änderung. Ein neuer Android-Lauf mit diesen Diagnosen ist n�
 Weiterhin offen bleibt die kalte Waveform-Berechnung. Die bisherigen Messungen
 belegen schnelle Cache-Treffer, aber keine allgemeine Ein-Sekunden-Erstanalyse.
 
-Der Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
+## Fortsetzung am 26. September
+
+Die [CI des Diagnose-Fixes `1b9c07a`](https://github.com/k1w1-a0style/musik-player/actions/runs/35543124986)
+ist vollständig bestanden. Der [Android-Durchlauf mit diesem Fix](https://github.com/k1w1-a0style/musik-player/actions/runs/36244287044)
+wurde für denselben unveränderlichen Commit gestartet; sein Ergebnis steht noch aus.
+
+Beim Vorladen der Waveforms wurden zwei reproduzierbare Lücken gefunden:
+Eine vor dem Start zurückgestellte Anfrage wurde ohne neue Library-Änderung
+nicht wieder aufgenommen. Eine bereits laufende, vom Scheduler verdrängte
+Anfrage wurde sogar als endgültig versucht markiert. Beide Fälle ließen den
+Titel trotz späterer Leerlaufzeit ohne vorbereitete Waveform.
+
+Der Scheduler-Abbruch wird jetzt von einer Kündigung durch den Aufrufer
+unterschieden. Das Library-Vorladen setzt verdrängte oder zurückgestellte
+Arbeit nach 1,5 Sekunden fort und prüft dabei erneut den Cache. Es bleibt
+seriell, hält höchstens einen Wiederholungs-Timer und endet bei Wiedergabe,
+Hintergrundwechsel oder Metadatenarbeit. Echte Decoderfehler werden weiterhin
+nur einmal versucht; die angrenzenden Track-Preloads behalten ihr Verhalten.
+
+Zwei Integrationstests mit dem echten JS-Scheduler und Cache schlugen zuerst
+wegen der ausbleibenden Waveform fehl und bestanden nach der Korrektur.
+Zwei weitere Fälle prüfen Abbruch des geplanten Wiederholungsversuchs und
+einmaliges Behandeln echter Decoderfehler. Alle 71 betroffenen Tests, anschließend
+die vollständige Coverage-Prüfung mit 318 Suites / 3.076 Tests sowie TypeScript,
+ESLint und die Komplexitätsprüfung bestanden lokal.
+Diese Korrektur vermeidet unnötige kalte Aufrufe nach verdrängtem Vorladen;
+sie ändert weder den nativen Decoder noch dessen gemessene Laufzeit.
+
+Der ursprüngliche Decoder-Fix verändert nativen Code. Ein Metro-Reload der alten Development-APK reicht
 nicht. Eine **neue Development-APK** wurde aus `950b4e18` gebaut und der erweiterte
 Interaktionstest bestanden. Die zusätzlichen Fehlerpfad-Korrekturen betreffen
 JavaScript. Der vorhandene manuelle
-Workflow `android-emulator-smoke.yml` bleibt unverändert: Branch `codex`, Eingabe
+Build-Einstieg in `android-emulator-smoke.yml` bleibt erhalten: Branch `codex`, Eingabe
 `BUILD_DEVELOPMENT_APK`. Es wurde kein Release-Build gestartet und kein Build-Gate geöffnet.

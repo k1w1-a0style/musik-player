@@ -30,6 +30,7 @@ export type NativeWaveformDecision =
   | 'native-source-key-changed'
   | 'native-timeout'
   | 'native-scheduler-unavailable'
+  | 'native-scheduler-preempted'
   | 'native-error'
   | 'native-accepted';
 
