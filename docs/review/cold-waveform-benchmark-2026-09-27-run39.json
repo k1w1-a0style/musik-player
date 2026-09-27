@@ -1,0 +1,93 @@
+{
+  "runUrl": "https://github.com/k1w1-a0style/musik-player/actions/runs/36350842733",
+  "sourceSha": "d494baea19c9816661c44ea9f9b380186b1dbc90",
+  "baselineSourceSha": "74fe7da771c92160bc525a88fdb7ad11c9a7cf56",
+  "device": "Android API 35 x86_64 emulator, GitHub-hosted runner",
+  "fixtures": {
+    "A.mp3": {
+      "durationSeconds": 180,
+      "sampleRate": 44100,
+      "channels": 2
+    },
+    "B.m4a": {
+      "durationSeconds": 90,
+      "sampleRate": 44100,
+      "channels": 2
+    },
+    "C.flac": {
+      "durationSeconds": 120,
+      "sampleRate": 44100,
+      "channels": 2
+    }
+  },
+  "method": "fresh decoder and no waveform cache; alternating order; shared OS file cache",
+  "results": [
+    {
+      "file": "A.mp3",
+      "baselineMs": [
+        2969,
+        2789,
+        2792,
+        2566
+      ],
+      "candidateMs": [
+        2685,
+        2580,
+        2857,
+        2604
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 2790.5,
+      "candidateMedianMs": 2644.5,
+      "speedup": 1.055
+    },
+    {
+      "file": "B.m4a",
+      "baselineMs": [
+        1581,
+        1558,
+        1612,
+        1619
+      ],
+      "candidateMs": [
+        1693,
+        1677,
+        1412,
+        1742
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 1596.5,
+      "candidateMedianMs": 1685.0,
+      "speedup": 0.947
+    },
+    {
+      "file": "C.flac",
+      "baselineMs": [
+        648,
+        651,
+        678,
+        713
+      ],
+      "candidateMs": [
+        635,
+        693,
+        614,
+        706
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 664.5,
+      "candidateMedianMs": 664.0,
+      "speedup": 1.001
+    }
+  ],
+  "limitations": [
+    "Same native implementation as run 38; this run verifies the new JavaScript preparation and cover fixes.",
+    "Four repeats per variant on one emulator, not a physical Galaxy A50.",
+    "Shared OS file cache; no app waveform cache.",
+    "The separate full-app run measured native analyses of 26557, 22185 and 3476 ms under playback/software-rendering load. Cache hits measured 0 ms.",
+    "Between-run timing changes are not evidence of a JavaScript regression or a device-wide speedup."
+  ]
+}
