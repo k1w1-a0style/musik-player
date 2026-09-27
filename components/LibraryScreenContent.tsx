@@ -1,5 +1,6 @@
 import React from 'react';
-import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
+import type { LibraryImportStatusProps } from './LibraryImportStatus';
+import LibraryPreparationStatus from './LibraryPreparationStatus';
 import LibraryMenuModal, { type LibraryMenuModalProps } from './LibraryMenuModal';
 import SongActionMenuModal from './SongActionMenuModal';
 import SongPlaylistPickerModal from './SongPlaylistPickerModal';
@@ -42,7 +43,7 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
     <LibraryTabs {...tabsProps} />
 
     {showSearchBar && <LibrarySearchBar {...searchBarProps} />}
-    {showImportStatus && <LibraryImportStatus {...importStatusProps} />}
+    <LibraryPreparationStatus visible={showImportStatus} {...importStatusProps} />
 
     <LibraryTabContent {...tabContentProps} />
 

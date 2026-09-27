@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setWaveformStatus, resetWaveformStatusForTests } from './waveformStatus';
 import {
   isSongWaveform,
   isWaveformSourceIdentity,
@@ -27,10 +28,14 @@ const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentit
 const rememberWaveform = (waveform: SongWaveform): void => {
   memoryWaveforms.delete(waveform.sourceKey);
   memoryWaveforms.set(waveform.sourceKey, waveform);
+  if (waveform.source === 'native') setWaveformStatus(waveform.sourceFingerprint, 'ready');
   while (memoryWaveforms.size > MAX_MEMORY_WAVEFORMS) {
     const oldestSourceKey = memoryWaveforms.keys().next().value as string | undefined;
     if (!oldestSourceKey) break;
+    const evicted = memoryWaveforms.get(oldestSourceKey)!;
     memoryWaveforms.delete(oldestSourceKey);
+    if (cachedIndex && !cachedIndex.some(identity => sameIdentity(identity, evicted)))
+      setWaveformStatus(evicted.sourceFingerprint, 'pending');
   }
 };
 
@@ -166,6 +171,9 @@ export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> =
 
     const stale = next.slice(MAX_PERSISTED_WAVEFORMS);
     await Promise.all(stale.map(entry => AsyncStorage.removeItem(keyForSource(entry.sourceKey))));
+    for (const entry of stale) {
+      if (!memoryWaveforms.has(entry.sourceKey)) setWaveformStatus(entry.sourceFingerprint, 'pending');
+    }
   });
 };
 
@@ -174,4 +182,5 @@ export const resetWaveformCacheStateForTests = (): void => {
   cacheInitialization = null;
   cachedIndex = null;
   memoryWaveforms.clear();
+  resetWaveformStatusForTests();
 };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { shouldCollapseSoundCloudPlayer, shouldCommitSoundCloudSwipe,
@@ -28,10 +28,11 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
   const animationFinishedRef = useRef(false);
   const transitionStartedRef = useRef(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recenterPendingRef = useRef(false);
+  const [recenterRevision, setRecenterRevision] = useState(0);
   songIdRef.current = currentSongId;
   const clearReset = useCallback(() => {
-    if (!resetTimerRef.current) return;
-    clearTimeout(resetTimerRef.current);
+    if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
     resetTimerRef.current = null;
   }, []);
   const endTransition = useCallback(() => {
@@ -39,14 +40,26 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
     transitionStartedRef.current = false;
     onTransitionEnd?.();
   }, [onTransitionEnd]);
-  const resetToCurrentTrack = useCallback(() => {
-    clearReset();
-    drag.stopAnimation();
+  const centerTrack = useCallback(() => {
     drag.setValue(0);
     animationFinishedRef.current = false;
     switchingRef.current = false;
+  }, [drag]);
+  const resetToCurrentTrack = useCallback(() => {
+    if (recenterPendingRef.current) return;
+    clearReset();
+    drag.stopAnimation();
+    if (transitionStartedRef.current) {
+      // First commit the new page data. Recentring a native animation while
+      // React still holds the old pages briefly brings the old cover back.
+      recenterPendingRef.current = true;
+      endTransition();
+      setRecenterRevision(revision => revision + 1);
+      return;
+    }
+    centerTrack();
     endTransition();
-  }, [clearReset, drag, endTransition]);
+  }, [centerTrack, clearReset, drag, endTransition]);
   const animateBack = useCallback(() => {
     clearReset();
     animationFinishedRef.current = false;
@@ -64,6 +77,11 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
       });
   }, [clearReset, drag, endTransition, reduceMotion]);
   useLayoutEffect(() => {
+    if (recenterPendingRef.current) {
+      recenterPendingRef.current = false;
+      centerTrack();
+      return;
+    }
     if (dispatchBeforeAnimation && switchingRef.current) {
       if (currentSongId !== originSongIdRef.current && animationFinishedRef.current)
         resetToCurrentTrack();
@@ -71,11 +89,9 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
     }
     clearReset();
     drag.stopAnimation();
-    drag.setValue(0);
-    animationFinishedRef.current = false;
-    switchingRef.current = false;
+    centerTrack();
     endTransition();
-  }, [clearReset, currentSongId, dispatchBeforeAnimation, drag, endTransition, resetToCurrentTrack]);
+  }, [centerTrack, clearReset, currentSongId, dispatchBeforeAnimation, drag, endTransition, recenterRevision, resetToCurrentTrack]);
   useEffect(() => () => {
     clearReset();
     drag.stopAnimation();

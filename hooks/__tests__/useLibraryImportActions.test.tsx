@@ -11,6 +11,11 @@ import {
   getPartialScanImportAlert,
 } from '../../utils/libraryImportFlow';
 import { TimeoutError } from '../../utils/withTimeout';
+import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
+
+jest.mock('../../utils/libraryWaveformPreparation', () => ({
+  clearWaveformPreparation: jest.fn(), prepareLibraryWaveforms: jest.fn().mockResolvedValue(undefined),
+}));
 
 const folder = (id: string, enabled = true): ScanFolder => ({
   id,
@@ -108,6 +113,8 @@ test('uses scan folder import on android when active scan folders exist', async 
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
+  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('existing'), song('scan-song')],
+    { signal: expect.any(AbortSignal) });
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setLoading).toHaveBeenNthCalledWith(1, true);

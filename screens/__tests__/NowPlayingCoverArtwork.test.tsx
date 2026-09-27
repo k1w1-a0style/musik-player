@@ -176,4 +176,30 @@ describe('NowPlayingCoverArtwork', () => {
 
     expect(onSwipeLeft).not.toHaveBeenCalled();
   });
+
+  test('commits the incoming cover before recentering and retains its loaded image', () => {
+    let finishAnimation: ((result: { finished: boolean }) => void) | undefined;
+    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: callback => { finishAnimation = callback; }, stop: jest.fn(), reset: jest.fn(),
+    }));
+    const props = { song, nextSong, artworkUri: 'file:///one.jpg', nextArtworkUri: 'file:///two.jpg',
+      isPlaying: true, accent: '#123456', coverSize: 160, swipeEnabled: true, onSwipeLeft: jest.fn() };
+    const view = render(<NowPlayingCoverArtwork {...props} />);
+    const incomingImage = view.getByTestId('now-playing-cover-next-image');
+    act(() => fireEvent(view.getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
+      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 0 },
+    }));
+    view.rerender(<NowPlayingCoverArtwork {...props} song={nextSong} previousSong={song}
+      nextSong={null} artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" />);
+    const coversAtRecenter: string[] = [];
+    const setValue = Animated.Value.prototype.setValue;
+    jest.spyOn(Animated.Value.prototype, 'setValue').mockImplementation(function (this: Animated.Value, value: number) {
+      if (value === 0) coversAtRecenter.push(view.getByTestId('now-playing-cover-image').props.source.uri);
+      return setValue.call(this, value);
+    });
+    act(() => finishAnimation?.({ finished: true }));
+    expect(coversAtRecenter.length).toBeGreaterThan(0);
+    expect(coversAtRecenter.every(uri => uri === 'file:///two.jpg')).toBe(true);
+    expect(view.getByTestId('now-playing-cover-image')).toBe(incomingImage);
+  });
 });

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
@@ -97,6 +98,8 @@ export const useLibraryScanFolderImportFlow = ({
     } catch (error) {
       console.warn('[Import] Failed to persist scan folder updates after import.', error);
     }
+    ensureCurrentImport(generation);
+    await prepareLibraryWaveforms(scanResult.update.songs, { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromScanFolders };

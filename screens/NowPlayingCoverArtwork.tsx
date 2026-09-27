@@ -139,8 +139,10 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
   const releaseTransitionPages = React.useCallback(() => setTransitionSnapshot(null), []);
   const motion = useHorizontalTrackMotion({ currentSongId: song?.id, panelWidth: pageWidth,
     onNext: onSwipeLeft ?? noop, onPrevious: onSwipeRight ?? noop,
-    hasNext: isNextPageAvailable({ nextSong, canSwipeLeft, onSwipeLeft }),
-    hasPrevious: isPreviousPageAvailable({ previousSong, canSwipeRight, onSwipeRight }),
+    hasNext: transitionSnapshot ? Boolean(transitionSnapshot.nextSong)
+      : isNextPageAvailable({ nextSong, canSwipeLeft, onSwipeLeft }),
+    hasPrevious: transitionSnapshot ? Boolean(transitionSnapshot.previousSong)
+      : isPreviousPageAvailable({ previousSong, canSwipeRight, onSwipeRight }),
     reduceMotion, dispatchBeforeAnimation: true, onTransitionStart: holdTransitionPages,
     onTransitionEnd: releaseTransitionPages });
   const displayed = transitionSnapshot ?? {
@@ -164,13 +166,17 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
           <Animated.View style={[styles.coverTrack, { width: pageWidth * 3,
             transform: [{ translateX: trackTranslateX }] }]} testID="now-playing-cover-track">
-            <CoverPage role="previous" song={displayed.previousSong}
+            <CoverPage key={displayed.previousSong?.id === displayed.nextSong?.id
+              ? `previous:${displayed.previousSong?.id}` : displayed.previousSong?.id ?? 'empty-previous'}
+              role="previous" song={displayed.previousSong}
               artworkUri={displayed.previousArtworkUri}
               isPlaying={false} {...cardProps} />
-            <CoverPage role="current" song={displayed.song} artworkUri={displayed.artworkUri}
+            <CoverPage key={displayed.song?.id ?? 'empty-current'}
+              role="current" song={displayed.song} artworkUri={displayed.artworkUri}
               isPlaying={isPlaying}
               {...cardProps} />
-            <CoverPage role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
+            <CoverPage key={displayed.nextSong?.id ?? 'empty-next'}
+              role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
               isPlaying={false} {...cardProps} />
           </Animated.View>
         </PanGestureHandler>

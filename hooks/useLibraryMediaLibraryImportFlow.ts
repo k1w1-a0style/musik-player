@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryAlertCopy } from './useLibraryAlerts';
@@ -84,6 +85,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     setImportStatus(mediaProgress.savingStatus);
     const result = buildMediaLibraryImportResult(songs, mediaResult.songs);
     applyImportedSongsUpdate(result.update, generation);
+    await prepareLibraryWaveforms(result.update.songs, { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromMediaLibrary };

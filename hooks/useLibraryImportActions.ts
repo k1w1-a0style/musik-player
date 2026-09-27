@@ -1,4 +1,6 @@
 import { useCallback } from 'react';
+import { clearWaveformPreparation } from '../utils/libraryWaveformPreparation';
+import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
@@ -97,6 +99,8 @@ export const useLibraryImportActions = ({
 
   const importFromDevice = useCallback(async (): Promise<void> => {
     const generation = startImport();
+    clearWaveformPreparation();
+    beginMetadataRefreshActivity();
     setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
@@ -111,6 +115,7 @@ export const useLibraryImportActions = ({
     } catch (error) {
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
+      endMetadataRefreshActivity();
       finishImport(generation);
     }
   }, [finishImport, importFromMediaLibrary, importFromScanFolders, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, startImport]);

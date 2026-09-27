@@ -8,6 +8,7 @@ import { buildSongKey } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
+import SongWaveformStatus from './SongWaveformStatus';
 
 interface SongCardProps {
   song: Song;
@@ -17,6 +18,11 @@ interface SongCardProps {
   isPlaying: boolean;
   variant?: LibrarySongCardVariant;
 }
+
+const sameWaveformSource = (left: Song, right: Song): boolean =>
+  left.uri === right.uri && left.fileInfo?.uri === right.fileInfo?.uri
+  && left.fileInfo?.size === right.fileInfo?.size && left.fileInfo?.importedAt === right.fileInfo?.importedAt
+  && left.duration === right.duration && left.audioInfo?.durationMs === right.audioInfo?.durationMs;
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
@@ -35,9 +41,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     setCoverFailed(false);
   }, [song.id, song.cover, song.coverInfo?.uri]);
 
-  const handlePress = useCallback(() => {
-    onPressSong(song);
-  }, [onPressSong, song]);
+  const handlePress = useCallback(() => onPressSong(song), [onPressSong, song]);
 
   const handleInfoPress = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation();
@@ -125,6 +129,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
             {metadataLabel}
           </Text>
         ) : null}
+        <SongWaveformStatus song={song} />
       </Pressable>
     );
   }
@@ -177,6 +182,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           </Text>
         ) : null}
       </View>
+      <SongWaveformStatus song={song} />
       {infoButton}
     </Pressable>
   );
@@ -189,8 +195,7 @@ const SongCard = memo(
     && prev.song.title === next.song.title
     && prev.song.artist === next.song.artist
     && prev.song.album === next.song.album
-    && prev.song.duration === next.song.duration
-    && prev.song.audioInfo?.durationMs === next.song.audioInfo?.durationMs
+    && sameWaveformSource(prev.song, next.song)
     && prev.song.audioInfo?.codec === next.song.audioInfo?.codec
     && prev.song.fileInfo?.extension === next.song.fileInfo?.extension
     && prev.song.fileInfo?.container === next.song.fileInfo?.container

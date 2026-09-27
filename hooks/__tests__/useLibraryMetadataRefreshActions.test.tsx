@@ -12,6 +12,12 @@ import {
 } from '../../utils/libraryImportFlow';
 import { OperationAbortError, TimeoutError } from '../../utils/withTimeout';
 import { MetadataRefreshPartialError } from '../../utils/songMetadataRefresh';
+import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
+
+jest.mock('../../utils/libraryWaveformPreparation', () => ({
+  clearWaveformPreparation: jest.fn(), prepareLibraryWaveforms: jest.fn().mockResolvedValue(undefined),
+  getWaveformPreparationState: () => ({ status: 'completed' }),
+}));
 
 const song = (id: string, title = id): Song => ({
   id,
@@ -148,6 +154,7 @@ test('refreshes metadata, applies updated songs and shows completion alert', asy
   const refreshCopy = getMetadataRefreshFlowCopy();
   expect(withTimeoutCalls).toHaveBeenCalledWith(expect.any(Function), 100, refreshCopy.timeoutMessage);
   expect(setSongs).toHaveBeenCalledWith([song('updated', 'Fresh')]);
+  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('updated', 'Fresh')], { signal: expect.any(AbortSignal) });
   expect(showAlert).toHaveBeenCalledWith(getMetadataRefreshCompleteAlert(1, 2, 3));
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setLoading).toHaveBeenNthCalledWith(1, true);

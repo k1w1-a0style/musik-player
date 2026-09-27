@@ -128,4 +128,21 @@ describe('waveformPreload', () => {
       'file:///preload-song.mp3', 1024,
     );
   });
+
+  test('gives a queued cold preload its full decode budget after a slow foreground track', async () => {
+    const current = { ...song, id: 'current', uri: 'file:///current.mp3' };
+    extractor.extractWaveformPeaks.mockImplementation(() =>
+      new Promise(resolve => setTimeout(() => resolve(decoded), 20_000)));
+    const foreground = extractNativeWaveform(current, 90_000);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const next = preloadSongWaveform(song);
+    await jest.advanceTimersByTimeAsync(20_000);
+    await expect(foreground).resolves.toMatchObject({ source: 'native' });
+    await jest.advanceTimersByTimeAsync(20_000);
+
+    await expect(next).resolves.toMatchObject({ source: 'native' });
+    await expect(getCachedWaveform(getWaveformSourceIdentity(song)))
+      .resolves.toMatchObject({ source: 'native' });
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+  });
 });

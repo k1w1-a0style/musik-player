@@ -1,4 +1,4 @@
-import { OperationAbortError, throwIfAborted } from './withTimeout';
+import { OperationAbortError, TimeoutError, throwIfAborted } from './withTimeout';
 
 export const WAVEFORM_EXTRACTION_DEBOUNCE_MS = 120;
 export const WAVEFORM_FAILURE_BACKOFF_MS = 30_000;
@@ -16,6 +16,7 @@ export type WaveformExtractionPriority = 'foreground' | 'preload' | 'background'
 interface WaveformScheduleOptions {
   priority?: WaveformExtractionPriority;
   rejoinDetached?: boolean;
+  timeoutMs?: number;
 }
 
 export class WaveformSchedulerUnavailableError extends Error {
@@ -38,6 +39,8 @@ interface Pending {
   waiterPriorities: Map<WaveformExtractionPriority, number>;
   settled: boolean;
   generation: number;
+  started: boolean;
+  startListeners: Set<() => void>;
 }
 
 interface Flight {
@@ -139,6 +142,9 @@ function startPending(pending: Pending): void {
     controller,
   };
   activeFlight = flight;
+  pending.started = true;
+  pending.startListeners.forEach(start => start());
+  pending.startListeners.clear();
 
   void nativePromise
     .then(
@@ -178,6 +184,8 @@ const makePending = (
     waiterPriorities: new Map(),
     settled: false,
     generation: lifecycleGeneration,
+    started: false,
+    startListeners: new Set(),
   };
 };
 
@@ -245,6 +253,7 @@ const awaitPending = (
   pending: Pending,
   signal: AbortSignal,
   priority: WaveformExtractionPriority,
+  timeoutMs?: number,
 ): Promise<NativeResult> => {
   throwIfAborted(signal);
   pending.waiters += 1;
@@ -252,17 +261,20 @@ const awaitPending = (
 
   return new Promise<NativeResult>((resolve, reject) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (): boolean => {
       if (settled) return false;
       settled = true;
       pending.waiters -= 1;
       removeWaiterPriority(pending, priority);
       signal.removeEventListener('abort', abort);
+      if (timer !== undefined) clearTimeout(timer);
+      pending.startListeners.delete(startTimeout);
       return true;
     };
-    const abort = () => {
+    const cancelWaiter = (reason: Error) => {
       if (!finish()) return;
-      reject(signal.reason instanceof Error ? signal.reason : new OperationAbortError());
+      reject(reason);
 
       if (pending.waiters !== 0) return;
       if (pendingLatest === pending) {
@@ -272,8 +284,19 @@ const awaitPending = (
       }
       if (activeFlight?.pending === pending) detachActiveFlight(activeFlight);
     };
+    const abort = () => cancelWaiter(
+      signal.reason instanceof Error ? signal.reason : new OperationAbortError(),
+    );
+    // Queue time is not decode time. Keep the deadline attached to each waiter
+    // so a stuck old APK still detaches into the bounded native-flight fallback.
+    const startTimeout = () => {
+      if (settled || timeoutMs === undefined) return;
+      timer = setTimeout(() => cancelWaiter(new TimeoutError('Waveform extraction timed out')), timeoutMs);
+    };
 
     signal.addEventListener('abort', abort, { once: true });
+    if (pending.started) startTimeout();
+    else pending.startListeners.add(startTimeout);
     pending.promise.then(
       value => { if (finish()) resolve(value); },
       error => { if (finish()) reject(error); },
@@ -301,16 +324,16 @@ export const scheduleNativeWaveformExtraction = (
   throwIfAborted(signal);
   const priority = options.priority ?? 'foreground';
   if (activeFlight?.key === sourceKey) {
-    return awaitPending(activeFlight.pending, signal, priority);
+    return awaitPending(activeFlight.pending, signal, priority, options.timeoutMs);
   }
   if (pendingLatest?.key === sourceKey) {
-    return awaitPending(pendingLatest, signal, priority);
+    return awaitPending(pendingLatest, signal, priority, options.timeoutMs);
   }
   const detachedSameSource = options.rejoinDetached === false
     ? undefined
     : findDetachedFlight(sourceKey);
   if (detachedSameSource) {
-    return awaitPending(detachedSameSource.pending, signal, priority);
+    return awaitPending(detachedSameSource.pending, signal, priority, options.timeoutMs);
   }
 
   if (activeFlight && priorityRank(priority) > priorityRank(activeFlight.pending.priority)) {
@@ -332,7 +355,7 @@ export const scheduleNativeWaveformExtraction = (
   const pending = makePending(sourceKey, operation, priority);
   pendingLatest = pending;
   armPending(pending);
-  return awaitPending(pending, signal, priority);
+  return awaitPending(pending, signal, priority, options.timeoutMs);
 };
 
 export const getWaveformFailureBackoff = (sourceKey: string): FailureBackoff['reason'] | null => {

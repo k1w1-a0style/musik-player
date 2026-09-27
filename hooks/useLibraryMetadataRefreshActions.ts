@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { clearWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import { refreshSongsFromId3 } from '../utils/songMetadataRefresh';
 import { MANUAL_METADATA_REFRESH_SOFT_BUDGET_MS } from '../utils/libraryOperationTimeouts';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
@@ -7,9 +8,11 @@ import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout'
 import {
   buildMetadataRefreshAvailabilityResult,
   getMetadataUpdateStoppedAlert,
+  getMetadataRefreshCompleteAlert,
 } from '../utils/libraryImportFlow';
 import type {
   MetadataRefreshGeneration,
+  MetadataRefreshSongsResult,
   UseLibraryMetadataRefreshActionsOptions,
   UseLibraryMetadataRefreshActionsResult,
 } from './libraryMetadataRefreshActionTypes';
@@ -24,6 +27,15 @@ export type {
 
 type MetadataRefreshAlert = UseLibraryMetadataRefreshActionsOptions['showAlert'];
 type IsCurrentRefresh = (generation: MetadataRefreshGeneration) => boolean;
+
+const prepareRefreshedWaveforms = async (result: MetadataRefreshSongsResult, generation: MetadataRefreshGeneration,
+  ensureCurrentRefresh: (generation: MetadataRefreshGeneration) => void, showAlert: MetadataRefreshAlert): Promise<void> => {
+  if (!result.completed) return;
+  await prepareLibraryWaveforms(result.songs, { signal: generation.controller.signal });
+  ensureCurrentRefresh(generation);
+  if (getWaveformPreparationState().status !== 'cancelled')
+    showAlert(getMetadataRefreshCompleteAlert(result.updated, result.skipped, result.failed));
+};
 
 const reportMetadataRefreshFailure = ({
   error,
@@ -95,6 +107,7 @@ export const useLibraryMetadataRefreshActions = ({
     }
 
     const generation = startRefresh();
+    clearWaveformPreparation();
     setLoading(true);
     // Prioritize the manual refresh: pause background cover/audio-info backfills
     // so they do not compete for native SAF/tag IO while the user-triggered scan runs.
@@ -107,7 +120,8 @@ export const useLibraryMetadataRefreshActions = ({
       if (result.failed > 0 && (result.errorDetails?.length ?? 0) > 0) {
         console.warn(`[LibraryRefresh] ${result.failed} track(s) could not be read:`, result.errorDetails);
       }
-      applyMetadataRefreshResult(result, generation);
+      applyMetadataRefreshResult(result, generation, !result.completed);
+      await prepareRefreshedWaveforms(result, generation, ensureCurrentRefresh, showAlert);
       completeMetadataRefreshOperation(result.completed ? 'completed' : 'resumable');
     } catch (error) {
       reportMetadataRefreshFailure({
@@ -122,7 +136,7 @@ export const useLibraryMetadataRefreshActions = ({
       endMetadataRefreshActivity();
       finishRefresh(generation);
     }
-  }, [applyMetadataRefreshResult, finishRefresh, importTimeoutMs, isCurrentRefresh, isRefreshActive, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
+  }, [applyMetadataRefreshResult, ensureCurrentRefresh, finishRefresh, importTimeoutMs, isCurrentRefresh, isRefreshActive, runMetadataRefresh, setLoading, setMenuOpen, showAlert, songs.length, startRefresh]);
 
   return {
     refreshMetadataFromFiles,

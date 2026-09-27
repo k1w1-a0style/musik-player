@@ -8,7 +8,7 @@ import {
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../waveformExtraction';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
-import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
+import { resetWaveformExtractionLifecycleForTests, WAVEFORM_EXTRACTION_DEBOUNCE_MS } from '../waveformExtractionLifecycle';
 import type { NativeWaveformResult } from '../waveformTypes';
 import { logWaveformTiming } from '../waveformTelemetry';
 
@@ -147,7 +147,7 @@ describe('waveformExtraction', () => {
       mockedSystemAudio.extractWaveformPeaks = jest.fn((_uri: string, _pointCount?: number) => new Promise<{ points: number[]; durationMs?: number } | null>(() => undefined));
 
       const extraction = extractNativeWaveform(baseSong, 1000);
-      await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
+      await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
 
       await expect(extraction).resolves.toBeNull();
     });

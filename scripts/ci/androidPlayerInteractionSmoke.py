@@ -432,10 +432,25 @@ def check_classic_cover_pages():
     screenshot('08-classic-cover-return')
 
 
+def check_library_preparation():
+    adb('shell', 'input', 'keyevent', '4')
+    tap('library-open-menu')
+    tap('Metadaten aktualisieren')
+    # This is the real menu action, including metadata IO and the subsequent
+    # serial preparation. All three fixture shapes were decoded earlier.
+    find('Metadaten aktualisiert', timeout=60)
+    tap('android:id/button1')
+    counts = find('library-waveform-preparation-counts').get('text', '')
+    assert counts == '3/3 · 3 bereit · 0 nicht verfügbar', counts
+    find('Waveform-Vorbereitung abgeschlossen')
+    screenshot('09-library-waveform-preparation')
+
+
 try:
     prepare()
     check_playback()
     check_classic_cover_pages()
+    check_library_preparation()
     logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
     assert not re.search(r'Expected .onGestureHandlerEvent.|FATAL EXCEPTION|ErrorBoundary caught', logs), 'Runtime error in app'
     assert '[PlaybackQueue] Reorder failed' not in logs, 'Native queue rejected a drag'
@@ -447,7 +462,8 @@ try:
                    'previous-while-playing', 'queue-grip-upwards', 'queue-long-press', 'active-track-move',
                    'last-active-track-reorder', 'native-duration-after-reorder', 'playlist-grip',
                    'playlist-long-press', 'playlist-playback-after-reorder',
-                   'separate-cover-frames-mid-swipe', 'classic-cover-return']}, indent=2))
+                   'separate-cover-frames-mid-swipe', 'classic-cover-return',
+                   'metadata-and-waveform-preparation']}, indent=2))
     print('Android player interaction smoke passed.', flush=True)
 finally:
     collect_diagnostics(OUT, PACKAGE)

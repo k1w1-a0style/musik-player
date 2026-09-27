@@ -45,6 +45,12 @@ interface TrackTransitionSnapshot {
   nextArtworkUri?: string;
 }
 
+const getPageAvailability = (snapshot: TrackTransitionSnapshot | null, previousSong: Song | null | undefined,
+  nextSong: Song | null | undefined, canSwipeToNext: boolean) => ({
+  hasPrevious: Boolean(snapshot ? snapshot.previousSong : previousSong),
+  hasNext: snapshot ? Boolean(snapshot.nextSong) : hasNextTrack(nextSong, canSwipeToNext),
+});
+
 const CarouselChrome = ({ children }: { children?: React.ReactNode }) => {
   if (!children) return null;
   return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{children}</View>;
@@ -71,8 +77,9 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     previousArtworkUri, previousSong]);
   const releaseTransitionPages = useCallback(() => setTransitionSnapshot(null), []);
   const horizontal = useHorizontalTrackMotion({ currentSongId: currentSong?.id, panelWidth,
-    onNext: onSwipeToNext, onPrevious: onSwipeToPrevious, hasPrevious: Boolean(previousSong),
-    hasNext: hasNextTrack(nextSong, canSwipeToNext), reduceMotion, dispatchBeforeAnimation: true,
+    onNext: onSwipeToNext, onPrevious: onSwipeToPrevious,
+    ...getPageAvailability(transitionSnapshot, previousSong, nextSong, canSwipeToNext),
+    reduceMotion, dispatchBeforeAnimation: true,
     onTransitionStart: holdTransitionPages, onTransitionEnd: releaseTransitionPages });
   const vertical = useVerticalPlayerMotion({ drag: verticalDrag, height: Math.max(1, height),
     onCollapse, onOpenQueue, onQueuePreviewStart, onQueuePreviewEnd, reduceMotion });

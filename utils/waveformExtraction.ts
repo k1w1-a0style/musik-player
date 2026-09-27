@@ -1,6 +1,6 @@
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
-import { isAbortError, isTimeoutError, withTimeout } from './withTimeout';
+import { isAbortError, isTimeoutError } from './withTimeout';
 import {
   clearWaveformFailure,
   getWaveformFailureBackoff,
@@ -12,6 +12,7 @@ import {
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceIdentity } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
 import { logWaveformTiming } from './waveformTelemetry';
+import { getWaveformStatus, setWaveformStatus } from './waveformStatus';
 import {
   classifyWaveformContainer,
   type NativeWaveformDecision,
@@ -70,33 +71,32 @@ const runScheduledNativeExtraction = (
   extractionKey: string,
   signal?: AbortSignal,
   priority: WaveformExtractionPriority = 'foreground',
-): Promise<NativeWaveformResult | null> => withTimeout(
-  waiterSignal => scheduleNativeWaveformExtraction(
+): Promise<NativeWaveformResult | null> => scheduleNativeWaveformExtraction(
     extractionKey,
     async nativeSignal => {
-      if (!cancellationApi.hasNativeWaveformCancellation || !cancellationApi.cancelWaveformExtraction) {
-        return recordNativeAnalysis(await extractor(uri, pointCount));
-      }
-      const requestId = nextWaveformRequestId();
-      const cancel = () => { cancellationApi.cancelWaveformExtraction?.(requestId); };
+      setWaveformStatus(extractionKey, 'analyzing');
+      const canCancel = cancellationApi.hasNativeWaveformCancellation && cancellationApi.cancelWaveformExtraction;
+      const requestId = canCancel ? nextWaveformRequestId() : undefined;
+      const cancel = () => {
+        setWaveformStatus(extractionKey, 'pending');
+        if (requestId) cancellationApi.cancelWaveformExtraction?.(requestId);
+      };
       nativeSignal.addEventListener('abort', cancel, { once: true });
       try {
-        if (nativeSignal.aborted) cancel();
-        return recordNativeAnalysis(await extractor(uri, pointCount, requestId));
+        if (nativeSignal.aborted) { cancel(); return null; }
+        return recordNativeAnalysis(await (requestId
+          ? extractor(uri, pointCount, requestId) : extractor(uri, pointCount)));
       } finally {
         nativeSignal.removeEventListener('abort', cancel);
       }
     },
-    waiterSignal,
+    signal ?? new AbortController().signal,
     {
       priority,
+      timeoutMs: WAVEFORM_EXTRACTION_TIMEOUT_MS,
       rejoinDetached: !cancellationApi.hasNativeWaveformCancellation
         || !cancellationApi.cancelWaveformExtraction,
     },
-  ),
-  WAVEFORM_EXTRACTION_TIMEOUT_MS,
-  'Waveform extraction timed out',
-  { signal },
 );
 
 const acceptDecodedNativeResult = ({
@@ -211,10 +211,13 @@ export const extractNativeWaveform = async (
     const result = await runScheduledNativeExtraction(
       extractor, cancellationApi, uri, pointCount, extractionKey, options?.signal, priority,
     );
-    return acceptDecodedNativeResult({
+    const waveform = acceptDecodedNativeResult({
       result, song, durationMs, pointCount, sourceKey, sourceFingerprint,
       extractionKey, report, recordFailures,
     });
+    if (!waveform) setWaveformStatus(extractionKey, 'unavailable');
+    else if (getWaveformStatus(extractionKey) === 'analyzing') setWaveformStatus(extractionKey, 'pending');
+    return waveform;
   } catch (error) {
     // The scheduler may cancel this waiter to serve another source. Only an
     // abort from our caller is terminal; speculative work can retry later.
@@ -222,6 +225,8 @@ export const extractNativeWaveform = async (
       report('native-scheduler-preempted', 0);
       return null;
     }
+    if (!isAbortError(error) && !(error instanceof WaveformSchedulerUnavailableError))
+      setWaveformStatus(extractionKey, 'unavailable');
     return handleNativeExtractionError(error, extractionKey, report, recordFailures);
   }
 };
