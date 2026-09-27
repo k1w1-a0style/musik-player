@@ -318,3 +318,50 @@ im Workflow-Artefakt gesichert. Die anschließende normale App-Bedienprüfung bl
 erhalten. Eine Beschleunigung ist erst nach Auswertung dieser Messung bestätigt.
 
 API-Grundlage: [Android MediaCodec, asynchrone Pufferverarbeitung](https://developer.android.com/reference/android/media/MediaCodec#data-processing).
+
+### Messergebnis und Android-Abnahme
+
+Der [Android-Lauf #38](https://github.com/k1w1-a0style/musik-player/actions/runs/36278311647)
+für `6255f34521ca4f658b9fef5ae2db69fcfcdeecd4` bestand Build, Paket- und
+Signaturprüfung, beide nativen Instrumentierungstests und alle 17 Bedienprüfungen.
+Kein Startup-Retry, kein Pixel-Launcher-Dialog und keine Fehler der Diagnoseerfassung.
+Die geprüften Screenshots zeigen die Waveform mit Mittelmarkierung und unterschiedlicher
+Färbung sowie getrennte Coverkarten während des gehaltenen Swipes. In den gesicherten
+Logcats wurden keine App-Fatals, App-ANRs, ErrorBoundary- oder Reorder-Fehler gefunden.
+
+Der kontrollierte Decodervergleich ergab folgende Mediane aus vier frischen
+Analysen pro Variante auf demselben Android-35-Emulator:
+
+| Datei | Dauer | Bisherige Schleife | Callback-Decoder | Änderung der Laufzeit |
+| --- | ---: | ---: | ---: | ---: |
+| MP3 | 180 s | 2.557 ms | 2.206,5 ms | −13,7 % |
+| M4A/AAC | 90 s | 1.510 ms | 1.510,5 ms | praktisch unverändert |
+| FLAC | 120 s | 643,5 ms | 605,5 ms | −5,9 % |
+
+Die maximale Abweichung aller jeweils 1.024 Waveform-Punkte war **0**.
+Der reale Abbruchtest bestätigte das Freigeben des Codecs und seines Callback-Threads.
+Die [Einzelmessungen samt Methode und Quellständen](cold-waveform-benchmark-2026-09-27.json)
+sind dauerhaft im Repository abgelegt. Vier Wiederholungen auf einem Emulator
+belegen diese beobachteten Mediane, keine allgemeine Beschleunigung auf allen Geräten.
+
+**Verbleibende Grenze:** Im anschließenden vollständigen App-Lauf mit Wiedergabe
+und Software-Grafik betrugen die nativen Analysen 4.939 / 18.937 / 274 ms;
+erneutes Öffnen traf den Cache mit 0 ms. Hydration: 4.567 ms. Der isolierte
+Decodervergleich darf daher nicht als tatsächliche Wartezeit bei jeder App-Nutzung
+ausgegeben werden. Die unter Last weiterhin lange Erstanalyse ist mit dieser
+Änderung nicht vollständig gelöst; eine garantierte Ein-Sekunden-Waveform oder
+ein Zeitgewinn auf dem Galaxy A50 ist nicht nachgewiesen.
+
+Die [CI für denselben App-Stand](https://github.com/k1w1-a0style/musik-player/actions/runs/36278172207)
+bestand mit 318 Suites / 3.076 JavaScript-Tests, 125 nativen Unit-Tests und
+neun Python-Tests sowie den übrigen TypeScript-, Lint-, Manifest-, Expo- und
+Audit-Gates. Vier ergänzende Python-Tests prüfen die Auswertung der Messwerte:
+Median statt Ausreißer, korrekt gemeldete Verlangsamung, fehlendes Format und
+ungültige Zeiten bzw. veränderte Waveform. Alle 13 Python-Tests bestanden lokal.
+Dieser anschließende Nachweis-/Test-Commit verändert den geprüften App-Code nicht.
+
+Development-APK aus Lauf #38: 149.903.669 Bytes, Paket
+`com.k1w1a0style.musikplayer.dev`, ARM64/ARMv7/x86/x86_64, Mindest-Android-API 24.
+SHA-256: `209240c16ac53f616559b30788d4e1789ab10b52d4d41f66923eb53ca4e1fd1c`.
+Wegen des nativen Decoderwechsels ist diese APK zu installieren; ein reiner
+Metro-Reload einer älteren APK übernimmt die Änderung nicht.

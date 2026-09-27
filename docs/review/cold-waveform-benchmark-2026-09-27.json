@@ -1,0 +1,91 @@
+{
+  "runUrl": "https://github.com/k1w1-a0style/musik-player/actions/runs/36278311647",
+  "sourceSha": "6255f34521ca4f658b9fef5ae2db69fcfcdeecd4",
+  "baselineSourceSha": "74fe7da771c92160bc525a88fdb7ad11c9a7cf56",
+  "device": "Android API 35 x86_64 emulator, GitHub-hosted runner",
+  "fixtures": {
+    "A.mp3": {
+      "durationSeconds": 180,
+      "sampleRate": 44100,
+      "channels": 2
+    },
+    "B.m4a": {
+      "durationSeconds": 90,
+      "sampleRate": 44100,
+      "channels": 2
+    },
+    "C.flac": {
+      "durationSeconds": 120,
+      "sampleRate": 44100,
+      "channels": 2
+    }
+  },
+  "method": "fresh decoder and no waveform cache; alternating order; shared OS file cache",
+  "results": [
+    {
+      "file": "A.mp3",
+      "baselineMs": [
+        3080,
+        2586,
+        2528,
+        2154
+      ],
+      "candidateMs": [
+        2337,
+        2176,
+        2237,
+        2174
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 2557.0,
+      "candidateMedianMs": 2206.5,
+      "speedup": 1.159
+    },
+    {
+      "file": "B.m4a",
+      "baselineMs": [
+        1520,
+        1502,
+        1518,
+        1373
+      ],
+      "candidateMs": [
+        1530,
+        1751,
+        1478,
+        1491
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 1510.0,
+      "candidateMedianMs": 1510.5,
+      "speedup": 1.0
+    },
+    {
+      "file": "C.flac",
+      "baselineMs": [
+        649,
+        638,
+        620,
+        660
+      ],
+      "candidateMs": [
+        577,
+        558,
+        786,
+        634
+      ],
+      "maxPointDelta": 0,
+      "points": 1024,
+      "baselineMedianMs": 643.5,
+      "candidateMedianMs": 605.5,
+      "speedup": 1.063
+    }
+  ],
+  "limitations": [
+    "Four repeats per variant on one emulator, not a physical Galaxy A50.",
+    "Shared OS file cache; no app waveform cache.",
+    "The separate full-app run still measured native analyses of 4939, 18937 and 274 ms under playback/software-rendering load."
+  ]
+}
