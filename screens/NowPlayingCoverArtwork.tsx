@@ -143,7 +143,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
       : isNextPageAvailable({ nextSong, canSwipeLeft, onSwipeLeft }),
     hasPrevious: transitionSnapshot ? Boolean(transitionSnapshot.previousSong)
       : isPreviousPageAvailable({ previousSong, canSwipeRight, onSwipeRight }),
-    reduceMotion, dispatchBeforeAnimation: true, onTransitionStart: holdTransitionPages,
+    reduceMotion, transitionDurationMs: 360, dispatchBeforeAnimation: true, onTransitionStart: holdTransitionPages,
     onTransitionEnd: releaseTransitionPages });
   const displayed = transitionSnapshot ?? {
     song: nullableSong(song),

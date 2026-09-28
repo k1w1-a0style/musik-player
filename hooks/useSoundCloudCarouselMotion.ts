@@ -11,6 +11,7 @@ interface TrackSwitchOptions {
   onNext: () => void | Promise<void>;
   onPrevious: () => void | Promise<void>;
   reduceMotion: boolean;
+  transitionDurationMs?: number;
   dispatchBeforeAnimation?: boolean;
   onTransitionStart?: () => void;
   onTransitionEnd?: () => void;
@@ -101,7 +102,8 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
 };
 
 const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPrevious,
-  reduceMotion, dispatchBeforeAnimation = false, onTransitionStart, onTransitionEnd }: TrackSwitchOptions) => {
+  reduceMotion, transitionDurationMs = 270, dispatchBeforeAnimation = false,
+  onTransitionStart, onTransitionEnd }: TrackSwitchOptions) => {
   const transition = useTrackTransitionState({ drag, currentSongId, reduceMotion,
     dispatchBeforeAnimation, onTransitionEnd });
   const { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
@@ -157,7 +159,7 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
       observeAction(invokeAction());
     }
     Animated.timing(drag, { toValue: direction === 'next' ? -panelWidth : panelWidth,
-      duration: 270, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+      duration: transitionDurationMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
       if (!finished) return animateBack();
       animationFinishedRef.current = true;
       animationSettled = true;
@@ -175,7 +177,8 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
     });
   }, [animateBack, animationFinishedRef, clearReset, dispatchBeforeAnimation, drag,
     onNext, onPrevious, onTransitionStart, originSongIdRef, panelWidth, reduceMotion,
-    resetTimerRef, resetToCurrentTrack, songIdRef, switchingRef, transitionStartedRef]);
+    resetTimerRef, resetToCurrentTrack, songIdRef, switchingRef, transitionDurationMs,
+    transitionStartedRef]);
   return { switchingRef, animateBack, complete };
 };
 
@@ -185,11 +188,11 @@ interface HorizontalMotionOptions extends Omit<TrackSwitchOptions, 'drag'> {
 }
 
 export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, onPrevious,
-  hasPrevious, hasNext, reduceMotion, dispatchBeforeAnimation, onTransitionStart,
+  hasPrevious, hasNext, reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart,
   onTransitionEnd }: HorizontalMotionOptions) => {
   const drag = useRef(new Animated.Value(0)).current;
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
-    reduceMotion, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
+    reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
   const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
     [{ nativeEvent: { translationX: drag } }],
     { useNativeDriver: true },
