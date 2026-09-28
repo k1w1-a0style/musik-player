@@ -20,34 +20,47 @@ interface TrackSwitchOptions {
 const TRACK_SWITCH_CONFIRMATION_GRACE_MS = 1_500;
 const TRACK_SWITCH_ACTION_TIMEOUT_MS = 8_000;
 
-const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
-  dispatchBeforeAnimation = false, onTransitionEnd }: Pick<TrackSwitchOptions, 'drag' | 'currentSongId'
-    | 'reduceMotion' | 'dispatchBeforeAnimation' | 'onTransitionEnd'>) => {
-  const switchingRef = useRef(false);
-  const songIdRef = useRef(currentSongId);
-  const originSongIdRef = useRef(currentSongId);
-  const animationFinishedRef = useRef(false);
-  const transitionStartedRef = useRef(false);
+const useTrackTransitionLifetime = (drag: Animated.Value) => {
+  const generationRef = useRef(0);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const recenterPendingRef = useRef(false);
-  const [recenterRevision, setRecenterRevision] = useState(0);
-  songIdRef.current = currentSongId;
   const clearReset = useCallback(() => {
     if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
     resetTimerRef.current = null;
   }, []);
+  useEffect(() => () => {
+    generationRef.current += 1;
+    clearReset();
+    drag.stopAnimation();
+  }, [clearReset, drag]);
+  return { generationRef, resetTimerRef, clearReset };
+};
+
+const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
+  dispatchBeforeAnimation = false, onTransitionEnd }: Pick<TrackSwitchOptions, 'drag' | 'currentSongId'
+    | 'reduceMotion' | 'dispatchBeforeAnimation' | 'onTransitionEnd'>) => {
+  const switchingRef = useRef(false);
+  const { generationRef, resetTimerRef, clearReset } = useTrackTransitionLifetime(drag);
+  const songIdRef = useRef(currentSongId);
+  const originSongIdRef = useRef(currentSongId);
+  const animationFinishedRef = useRef(false);
+  const transitionStartedRef = useRef(false);
+  const recenterPendingRef = useRef(false);
+  const [recenterRevision, setRecenterRevision] = useState(0);
+  songIdRef.current = currentSongId;
   const endTransition = useCallback(() => {
     if (!transitionStartedRef.current) return;
     transitionStartedRef.current = false;
     onTransitionEnd?.();
   }, [onTransitionEnd]);
   const centerTrack = useCallback(() => {
+    generationRef.current += 1;
     drag.setValue(0);
     animationFinishedRef.current = false;
     switchingRef.current = false;
-  }, [drag]);
+  }, [drag, generationRef]);
   const resetToCurrentTrack = useCallback(() => {
     if (recenterPendingRef.current) return;
+    generationRef.current += 1;
     clearReset();
     drag.stopAnimation();
     if (transitionStartedRef.current) {
@@ -60,8 +73,9 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
     }
     centerTrack();
     endTransition();
-  }, [centerTrack, clearReset, drag, endTransition]);
+  }, [centerTrack, clearReset, drag, endTransition, generationRef]);
   const animateBack = useCallback(() => {
+    const generation = ++generationRef.current;
     clearReset();
     animationFinishedRef.current = false;
     if (reduceMotion) {
@@ -72,11 +86,12 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
       return;
     }
     Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true })
-      .start(() => {
+      .start(({ finished }) => {
+        if (!finished || generation !== generationRef.current) return;
         switchingRef.current = false;
         endTransition();
       });
-  }, [clearReset, drag, endTransition, reduceMotion]);
+  }, [clearReset, drag, endTransition, generationRef, reduceMotion]);
   useLayoutEffect(() => {
     if (recenterPendingRef.current) {
       recenterPendingRef.current = false;
@@ -89,16 +104,37 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
       return;
     }
     clearReset();
+    generationRef.current += 1;
     drag.stopAnimation();
     centerTrack();
     endTransition();
-  }, [centerTrack, clearReset, currentSongId, dispatchBeforeAnimation, drag, endTransition, recenterRevision, resetToCurrentTrack]);
-  useEffect(() => () => {
-    clearReset();
-    drag.stopAnimation();
-  }, [clearReset, drag]);
+  }, [centerTrack, clearReset, currentSongId, dispatchBeforeAnimation, drag, endTransition, generationRef, recenterRevision, resetToCurrentTrack]);
   return { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
-    transitionStartedRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack };
+    transitionStartedRef, generationRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack };
+};
+
+const createTrackSwitchObserver = (transition: ReturnType<typeof useTrackTransitionState>, generation: number) => {
+  const { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
+    generationRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack } = transition;
+  let actionSettled = false;
+  const scheduleFallback = () => {
+    if (generation !== generationRef.current || !animationFinishedRef.current || !switchingRef.current) return;
+    if (songIdRef.current !== originSongIdRef.current) return resetToCurrentTrack();
+    clearReset();
+    resetTimerRef.current = setTimeout(() => {
+      if (generation !== generationRef.current) return;
+      resetTimerRef.current = null;
+      if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
+    }, actionSettled ? TRACK_SWITCH_CONFIRMATION_GRACE_MS : TRACK_SWITCH_ACTION_TIMEOUT_MS);
+  };
+  const observeAction = (result: void | Promise<void>) => {
+    void Promise.resolve(result).catch(() => undefined).finally(() => {
+      if (generation !== generationRef.current) return;
+      actionSettled = true;
+      scheduleFallback();
+    });
+  };
+  return { observeAction, scheduleFallback };
 };
 
 const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPrevious,
@@ -106,9 +142,12 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
   onTransitionStart, onTransitionEnd }: TrackSwitchOptions) => {
   const transition = useTrackTransitionState({ drag, currentSongId, reduceMotion,
     dispatchBeforeAnimation, onTransitionEnd });
-  const { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
-    transitionStartedRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack } = transition;
   const complete = useCallback((direction: 'next' | 'previous') => {
+    const { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
+      transitionStartedRef, generationRef, animateBack } = transition;
+    // Late playback promises and cancelled native animation callbacks belong
+    // only to the transition that created them, never to a subsequent swipe.
+    const generation = ++generationRef.current;
     switchingRef.current = true;
     originSongIdRef.current = songIdRef.current;
     animationFinishedRef.current = false;
@@ -120,36 +159,7 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
       switchingRef.current = false;
       return;
     }
-    let actionSettled = false;
-    let animationSettled = false;
-    const scheduleConfirmationFallback = () => {
-      if (!actionSettled || !animationSettled || !switchingRef.current) return;
-      if (songIdRef.current !== originSongIdRef.current) {
-        resetToCurrentTrack();
-        return;
-      }
-      clearReset();
-      resetTimerRef.current = setTimeout(() => {
-        resetTimerRef.current = null;
-        if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
-      }, TRACK_SWITCH_CONFIRMATION_GRACE_MS);
-    };
-    const scheduleActionWatchdog = () => {
-      if (actionSettled || !animationSettled || !switchingRef.current) return;
-      clearReset();
-      resetTimerRef.current = setTimeout(() => {
-        resetTimerRef.current = null;
-        if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
-      }, TRACK_SWITCH_ACTION_TIMEOUT_MS);
-    };
-    const observeAction = (result: void | Promise<void>) => {
-      void Promise.resolve(result)
-        .catch(() => undefined)
-        .finally(() => {
-          actionSettled = true;
-          scheduleConfirmationFallback();
-        });
-    };
+    const { observeAction, scheduleFallback } = createTrackSwitchObserver(transition, generation);
     // Give native playback the full page-transition window to prepare the next
     // track. The caller keeps the visible page data frozen until both sides
     // have settled, so an early active-track event cannot replace it mid-swipe.
@@ -160,26 +170,15 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
     }
     Animated.timing(drag, { toValue: direction === 'next' ? -panelWidth : panelWidth,
       duration: transitionDurationMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+      if (generation !== generationRef.current) return;
       if (!finished) return animateBack();
       animationFinishedRef.current = true;
-      animationSettled = true;
-      if (dispatchBeforeAnimation) {
-        if (songIdRef.current !== originSongIdRef.current) {
-          resetToCurrentTrack();
-          return;
-        }
-        if (actionSettled) scheduleConfirmationFallback();
-        else scheduleActionWatchdog();
-        return;
-      }
-      observeAction(invokeAction());
-      scheduleActionWatchdog();
+      if (!dispatchBeforeAnimation) observeAction(invokeAction());
+      scheduleFallback();
     });
-  }, [animateBack, animationFinishedRef, clearReset, dispatchBeforeAnimation, drag,
-    onNext, onPrevious, onTransitionStart, originSongIdRef, panelWidth, reduceMotion,
-    resetTimerRef, resetToCurrentTrack, songIdRef, switchingRef, transitionDurationMs,
-    transitionStartedRef]);
-  return { switchingRef, animateBack, complete };
+  }, [dispatchBeforeAnimation, drag, onNext, onPrevious, onTransitionStart, panelWidth,
+    reduceMotion, transition, transitionDurationMs]);
+  return { switchingRef: transition.switchingRef, animateBack: transition.animateBack, complete };
 };
 
 interface HorizontalMotionOptions extends Omit<TrackSwitchOptions, 'drag'> {

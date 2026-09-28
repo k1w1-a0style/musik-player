@@ -65,10 +65,9 @@ const writeIndex = async (entries: WaveformSourceIdentity[]): Promise<void> => {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(entries.slice(0, MAX_PERSISTED_WAVEFORMS)));
 };
 
-const readStoredWaveform = async (key: string): Promise<SongWaveform | null> => {
+const parseStoredWaveform = (key: string, raw: string | null): SongWaveform | null => {
+  if (!raw) return null;
   try {
-    const raw = await AsyncStorage.getItem(key);
-    if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!isSongWaveform(parsed)) return null;
     return key === keyForSource(parsed.sourceKey) ? parsed : null;
@@ -77,9 +76,16 @@ const readStoredWaveform = async (key: string): Promise<SongWaveform | null> => 
   }
 };
 
+const readStoredWaveform = async (key: string): Promise<SongWaveform | null> =>
+  parseStoredWaveform(key, await AsyncStorage.getItem(key));
+
 const listStoredWaveforms = async (): Promise<SongWaveform[]> => {
   const keys = (await AsyncStorage.getAllKeys()).filter(isPayloadKey);
-  const loaded = await Promise.all(keys.map(async key => ({ key, waveform: await readStoredWaveform(key) })));
+  if (keys.length === 0) return [];
+  // One native read for the cache, instead of a bridge call per waveform.
+  // A failed read aborts reconciliation before any saved shape is removed.
+  const records = await AsyncStorage.multiGet(keys);
+  const loaded = records.map(([key, raw]) => ({ key, waveform: parseStoredWaveform(key, raw) }));
   const invalidKeys = loaded.filter(item => !item.waveform).map(item => item.key);
   await Promise.all(invalidKeys.map(key => AsyncStorage.removeItem(key).catch(() => undefined)));
   return loaded.flatMap(item => item.waveform ? [item.waveform] : []);
@@ -139,7 +145,7 @@ export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promi
   const inMemory = peekCachedWaveform(identity);
   if (inMemory) return inMemory;
   await initializeCache();
-  const waveform = await readStoredWaveform(keyForSource(identity.sourceKey));
+  const waveform = await readStoredWaveform(keyForSource(identity.sourceKey)).catch(() => null);
   if (!waveform || !sameIdentity(waveform, identity)) return null;
   rememberWaveform(waveform);
   return waveform;

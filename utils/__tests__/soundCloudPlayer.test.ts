@@ -26,6 +26,11 @@ describe('SoundCloud player gesture math', () => {
     expect(shouldCommitSoundCloudSwipe({ translationX: -40, translationY: 2, velocityX: -200, width: 360 })).toBe(false);
   });
 
+  test.each([-1, 1])('a short swipe reversed toward the center does not change track (%s)', direction => {
+    expect(shouldCommitSoundCloudSwipe({ translationX: direction * 30, translationY: 2,
+      velocityX: -direction * 1_000, width: 360 })).toBe(false);
+  });
+
   test('collapse follows a deliberate downward drag or fling only', () => {
     expect(shouldCollapseSoundCloudPlayer({ translationY: 160, velocityY: 100, height: 700 })).toBe(true);
     expect(shouldCollapseSoundCloudPlayer({ translationY: 40, velocityY: 1100, height: 700 })).toBe(true);

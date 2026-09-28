@@ -14,6 +14,8 @@ const storage = AsyncStorage as typeof AsyncStorage & {
   __getStore(): Map<string, string>;
 };
 const originalSetItem = (AsyncStorage.setItem as jest.Mock).getMockImplementation();
+const originalGetItem = (AsyncStorage.getItem as jest.Mock).getMockImplementation();
+const originalMultiGet = (AsyncStorage.multiGet as jest.Mock).getMockImplementation();
 
 const identityFor = (sourceKey: string, seed = 1): WaveformSourceIdentity => ({
   sourceKey,
@@ -34,6 +36,8 @@ beforeEach(() => {
   resetWaveformCacheStateForTests();
   jest.clearAllMocks();
   (AsyncStorage.setItem as jest.Mock).mockImplementation(originalSetItem);
+  (AsyncStorage.getItem as jest.Mock).mockImplementation(originalGetItem);
+  (AsyncStorage.multiGet as jest.Mock).mockImplementation(originalMultiGet);
 });
 
 test('stores and reads a valid waveform', async () => {
@@ -133,6 +137,26 @@ test('reconstructs a corrupt index from validated payload records', async () => 
   await expect(getCachedWaveform(orphan)).resolves.toEqual(orphan);
 });
 
+test('preserves saved waveforms when index reconciliation hits a transient read failure', async () => {
+  const saved = waveformFor('saved');
+  await setCachedWaveform(saved);
+  resetWaveformCacheStateForTests();
+  const savedPayload = storage.__getStore().get(`${PREFIX}saved`);
+  const savedIndex = storage.__getStore().get(INDEX_KEY);
+  (AsyncStorage.multiGet as jest.Mock).mockImplementation(async () => {
+    throw new Error('temporary read failure');
+  });
+
+  await expect(setCachedWaveform(waveformFor('new', 2))).rejects.toThrow('temporary read failure');
+  expect(storage.__getStore().get(`${PREFIX}saved`)).toBe(savedPayload);
+  expect(storage.__getStore().get(INDEX_KEY)).toBe(savedIndex);
+
+  (AsyncStorage.multiGet as jest.Mock).mockImplementation(originalMultiGet);
+  await setCachedWaveform(waveformFor('new', 2));
+  resetWaveformCacheStateForTests();
+  await expect(getCachedWaveform(saved)).resolves.toEqual(saved);
+});
+
 test('keeps 256 waveforms on disk while memory stays bounded', async () => {
   const waveforms = Array.from({ length: 257 }, (_, index) => waveformFor(`source-${index}`, index + 1));
   for (const waveform of waveforms) await setCachedWaveform(waveform);
@@ -143,4 +167,21 @@ test('keeps 256 waveforms on disk while memory stays bounded', async () => {
   expect(index.at(-1)?.sourceKey).toBe('source-1');
   await expect(AsyncStorage.getItem(`${PREFIX}source-0`)).resolves.toBeNull();
   await expect(getCachedWaveform(waveforms[256])).resolves.toEqual(waveforms[256]);
+});
+
+test('cold index reconciliation keeps storage roundtrips bounded with 256 saved waveforms', async () => {
+  const waveforms = Array.from({ length: 256 }, (_, index) => waveformFor(`source-${index}`, index + 1));
+  for (const waveform of waveforms) storage.__getStore().set(`${PREFIX}${waveform.sourceKey}`, JSON.stringify(waveform));
+  storage.__getStore().set(INDEX_KEY, JSON.stringify(waveforms.map(({ sourceKey, sourceFingerprint }) =>
+    ({ sourceKey, sourceFingerprint }))));
+
+  await setCachedWaveform(waveforms[255]);
+
+  const readCalls = (AsyncStorage.getItem as jest.Mock).mock.calls.length
+    + (AsyncStorage.multiGet as jest.Mock).mock.calls.length;
+  expect(readCalls).toBeLessThanOrEqual(4);
+  resetWaveformCacheStateForTests();
+  await expect(getCachedWaveform(waveforms[0])).resolves.toEqual(waveforms[0]);
+  const index = JSON.parse(storage.__getStore().get(INDEX_KEY) ?? '[]');
+  expect(index).toHaveLength(256);
 });

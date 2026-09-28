@@ -38,7 +38,8 @@ export const shouldCommitSoundCloudSwipe = ({
   const hasHorizontalIntent = horizontalDistance >= 18
     && horizontalDistance > Math.abs(translationY) * 1.2;
   const passesDistance = horizontalDistance >= width * 0.26;
-  const passesVelocity = Math.abs(velocityX) >= 850;
+  const passesVelocity = Math.abs(velocityX) >= 850
+    && Math.sign(velocityX) === Math.sign(translationX);
   return hasHorizontalIntent && (passesDistance || passesVelocity);
 };
 
