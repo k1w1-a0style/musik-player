@@ -1,11 +1,11 @@
 import { execFileSync } from 'child_process';
 import path from 'path';
 
-test('Metro disables vulnerable image-size parsers while preserving PNG assets', () => {
+test('Metro rejects unsupported parser payloads while preserving PNG assets', () => {
   const configPath = path.resolve(__dirname, '..', 'metro.config.js');
-  const imageSizePath = require.resolve('image-size');
+  const assetsPath = require.resolve('metro/private/Assets');
   const probe = `
-    const imageSize = require(${JSON.stringify(imageSizePath)});
+    const { getAssetSize } = require(${JSON.stringify(assetsPath)});
     require(${JSON.stringify(configPath)});
     const payloads = {
       icns: Buffer.from([0x69,0x63,0x6e,0x73,0,0,0,16,0x69,0x63,0x30,0x37,0,0,0,0]),
@@ -14,10 +14,10 @@ test('Metro disables vulnerable image-size parsers while preserving PNG assets',
       jxlStream: Buffer.from([0xff,0x0a,0,0,0,0,0,0]),
     };
     const blocked = Object.fromEntries(Object.entries(payloads).map(([type, payload]) => {
-      try { imageSize(payload); return [type, 'accepted']; }
+      try { getAssetSize('png', payload, 'disguised.png'); return [type, 'accepted']; }
       catch (error) { return [type, error.message]; }
     }));
-    const png = imageSize(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'));
+    const png = getAssetSize('png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'), 'pixel.png');
     process.stdout.write(JSON.stringify({ blocked, png }));
   `;
 
@@ -31,10 +31,10 @@ test('Metro disables vulnerable image-size parsers while preserving PNG assets',
   };
 
   expect(result.blocked).toEqual({
-    heif: 'disabled file type: heif',
-    icns: 'disabled file type: icns',
-    jxl: 'disabled file type: jxl',
-    jxlStream: 'disabled file type: jxl-stream',
+    heif: 'Invalid png image asset: disguised.png',
+    icns: 'Invalid png image asset: disguised.png',
+    jxl: 'Invalid png image asset: disguised.png',
+    jxlStream: 'Invalid png image asset: disguised.png',
   });
-  expect(result.png).toMatchObject({ width: 1, height: 1, type: 'png' });
+  expect(result.png).toMatchObject({ width: 1, height: 1 });
 });

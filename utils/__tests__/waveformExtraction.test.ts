@@ -3,6 +3,7 @@ import type { Song } from '../../types/Song';
 import {
   buildImmediateWaveform,
   extractNativeWaveform,
+  getWaveformExtractionTimeoutMs,
   hasUsefulNativeShape,
   resolveWaveformUri,
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
@@ -102,6 +103,12 @@ describe('waveformExtraction', () => {
   });
 
   describe('extractNativeWaveform', () => {
+    test.each([
+      [Number.NaN, 25_000], [0, 25_000], [-1, 25_000], [60_000, 25_000],
+      [303_000, 60_600], [7_200_000, 120_000], [Number.POSITIVE_INFINITY, 25_000],
+    ])('bounds the deadline for duration %s at %s ms', (duration, expected) => {
+      expect(getWaveformExtractionTimeoutMs(duration)).toBe(expected);
+    });
     test('returns null without a URI', async () => {
       await expect(extractNativeWaveform({ id: 'no-uri', title: 'No URI', artist: 'Nobody' }, 1000)).resolves.toBeNull();
       expect(mockedSystemAudio.extractWaveformPeaks).not.toHaveBeenCalled();
@@ -150,6 +157,18 @@ describe('waveformExtraction', () => {
       await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
 
       await expect(extraction).resolves.toBeNull();
+    });
+
+    test('keeps a 29-second cold decode of a five-minute song instead of timing it out', async () => {
+      jest.useFakeTimers();
+      mockedSystemAudio.extractWaveformPeaks = jest.fn(() => new Promise<NativeWaveformResult>(resolve => {
+        setTimeout(() => resolve({ points: dynamicPeaks, analysis: 'decoded-pcm-v1',
+          durationMs: 303_000, analysisDurationMs: 29_409 }), 29_409);
+      }));
+      const extraction = extractNativeWaveform({ ...baseSong, duration: 303_000 }, 303_000);
+      await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS + 29_410);
+      await expect(extraction).resolves.toMatchObject({ source: 'native' });
+      expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledTimes(1);
     });
 
     test('cancels native work by request id when the JS waiter aborts', async () => {

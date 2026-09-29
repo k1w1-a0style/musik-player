@@ -15,8 +15,8 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
   const { theme } = useAppTheme();
   const running = preparation.status === 'running';
   const resumable = preparation.status === 'cancelled' || preparation.failed > 0;
-  const label = running ? 'Waveforms vorbereiten' : preparation.status === 'cancelled'
-    ? 'Vorbereitung angehalten' : 'Waveform-Vorbereitung abgeschlossen';
+  const label = running ? 'Titel werden vorbereitet' : preparation.status === 'cancelled'
+    ? 'Vorbereitung angehalten' : 'Vorbereitung abgeschlossen';
   const action = running ? cancelWaveformPreparation : resumable
     ? () => { void resumeWaveformPreparation(); } : dismissWaveformPreparation;
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass,
@@ -38,7 +38,7 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
         width: `${preparation.total ? preparation.processed / preparation.total * 100 : 0}%` }]} />
     </View>
     {running ? <Text numberOfLines={1} style={{ color: theme.palette.text.secondary }}>{preparation.currentTitle}</Text> : null}
-    <Text style={[styles.legend, { color: theme.palette.text.muted }]}>✓ Waveform bereit · ○ ausstehend · ! nicht verfügbar</Text>
+    <Text style={[styles.legend, { color: theme.palette.text.muted }]}>Abgedunkelte Titel werden nach der Vorbereitung freigegeben.</Text>
   </View>;
 };
 const styles = StyleSheet.create({

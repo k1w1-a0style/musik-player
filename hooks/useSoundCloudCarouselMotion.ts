@@ -205,13 +205,16 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
       if (oldState === State.ACTIVE && !switching.switchingRef.current) switching.animateBack();
     } else if (state === State.END && oldState === State.ACTIVE) {
       if (switching.switchingRef.current) return;
+      // Native gesture events do not update the JS Animated.Value. Synchronize
+      // before freezing pages: that React render would otherwise replay zero.
+      drag.setValue(translationX);
       const wantsNext = translationX < 0;
       const allowed = wantsNext ? hasNext : hasPrevious;
       if (allowed && shouldCommitSoundCloudSwipe({ translationX, translationY, velocityX, width: panelWidth }))
         switching.complete(wantsNext ? 'next' : 'previous');
       else switching.animateBack();
     }
-  }, [hasNext, hasPrevious, panelWidth, switching]);
+  }, [drag, hasNext, hasPrevious, panelWidth, switching]);
   const constrainedDrag = useMemo(() => drag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
     outputRange: [hasNext ? -panelWidth : -panelWidth * 0.12, 0,
       hasPrevious ? panelWidth : panelWidth * 0.12], extrapolate: 'clamp' }),

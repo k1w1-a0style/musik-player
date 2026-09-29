@@ -20,6 +20,14 @@ import {
 } from './waveformDecision';
 
 export const WAVEFORM_EXTRACTION_TIMEOUT_MS = 25_000;
+export const getWaveformExtractionTimeoutMs = (durationMs: number): number =>
+  Number.isFinite(durationMs) && durationMs > 0
+    ? Math.max(WAVEFORM_EXTRACTION_TIMEOUT_MS, Math.min(120_000, Math.ceil(durationMs / 5)))
+    : WAVEFORM_EXTRACTION_TIMEOUT_MS;
+
+const resolveWaveformDurationMs = (song: Song | null | undefined, durationMs: number): number =>
+  song?.duration && Number.isFinite(song.duration) && song.duration > 0 ? song.duration : durationMs;
+
 let waveformRequestSequence = 0;
 
 const nextWaveformRequestId = (): string =>
@@ -69,6 +77,7 @@ const runScheduledNativeExtraction = (
   uri: string,
   pointCount: number,
   extractionKey: string,
+  durationMs: number,
   signal?: AbortSignal,
   priority: WaveformExtractionPriority = 'foreground',
 ): Promise<NativeWaveformResult | null> => scheduleNativeWaveformExtraction(
@@ -93,7 +102,9 @@ const runScheduledNativeExtraction = (
     signal ?? new AbortController().signal,
     {
       priority,
-      timeoutMs: WAVEFORM_EXTRACTION_TIMEOUT_MS,
+      // Full PCM decoding on slower devices can exceed 25 s for ordinary songs.
+      // Keep a bounded duration-based deadline; cancellation still wins on skip.
+      timeoutMs: getWaveformExtractionTimeoutMs(durationMs),
       rejoinDetached: !cancellationApi.hasNativeWaveformCancellation
         || !cancellationApi.cancelWaveformExtraction,
     },
@@ -209,7 +220,8 @@ export const extractNativeWaveform = async (
 
   try {
     const result = await runScheduledNativeExtraction(
-      extractor, cancellationApi, uri, pointCount, extractionKey, options?.signal, priority,
+      extractor, cancellationApi, uri, pointCount, extractionKey,
+      resolveWaveformDurationMs(song, durationMs), options?.signal, priority,
     );
     const waveform = acceptDecodedNativeResult({
       result, song, durationMs, pointCount, sourceKey, sourceFingerprint,

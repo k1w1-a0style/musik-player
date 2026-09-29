@@ -5,6 +5,8 @@ import { useLibraryPlaybackActions } from '../useLibraryPlaybackActions';
 import type { LibraryAlbumViewMode } from '../../types/LibraryView';
 import type { Song } from '../../types/Song';
 
+jest.mock('../../utils/songPreparation', () => ({ getPreparedSongs: (songs: Song[]) => songs }));
+
 const mockShuffleItems = jest.fn((items: Song[]) => [...items].reverse());
 
 jest.mock('../../utils/libraryShuffle', () => ({

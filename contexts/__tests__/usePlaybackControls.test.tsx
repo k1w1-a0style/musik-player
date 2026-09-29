@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Text } from 'react-native';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
-import TrackPlayer, { State } from 'react-native-track-player';
+import TrackPlayer, { State, usePlayWhenReady } from 'react-native-track-player';
 import {
   clampVolume,
   getNextRepeatMode,
@@ -54,6 +54,7 @@ describe('usePlaybackControls', () => {
   beforeEach(() => {
     resetSeekControllerForTests();
     jest.clearAllMocks();
+    jest.mocked(usePlayWhenReady).mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -201,6 +202,39 @@ describe('usePlaybackControls', () => {
     jest.useRealTimers();
   });
 
+  test.each([State.Buffering, State.Loading, State.Ready])(
+    'keeps the pause control through %s after a seek has resolved', async state => {
+      jest.useFakeTimers();
+      const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+      usePlaybackState.mockReturnValue({ state: State.Playing });
+      jest.mocked(usePlayWhenReady).mockReturnValue(true);
+      const hook = renderHook(() => usePlaybackControls());
+      await act(async () => { await hook.result.current.seekTo(5000); });
+      usePlaybackState.mockReturnValue({ state });
+      hook.rerender({});
+      await act(async () => { jest.advanceTimersByTime(2000); });
+      expect(hook.result.current.isPlaying).toBe(true);
+
+      // A genuine remote pause must still win even if the decoder is buffering.
+      jest.mocked(usePlayWhenReady).mockReturnValue(false);
+      hook.rerender({});
+      expect(hook.result.current.isPlaying).toBe(false);
+      hook.unmount();
+    },
+  );
+
+  test('uses native playing intent during a track change without a seek', () => {
+    const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
+    usePlaybackState.mockReturnValue({ state: State.Loading });
+    jest.mocked(usePlayWhenReady).mockReturnValue(true);
+    const hook = renderHook(() => usePlaybackControls());
+    expect(hook.result.current.isPlaying).toBe(true);
+    usePlaybackState.mockReturnValue({ state: State.Ended });
+    hook.rerender({});
+    expect(hook.result.current.isPlaying).toBe(false);
+    hook.unmount();
+  });
+
   test('keeps visible paused intent while seek-pending playback state loads', async () => {
     jest.useFakeTimers();
     const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
@@ -335,7 +369,7 @@ describe('usePlaybackControls', () => {
   });
 
 
-  test('keeps seek pending until the latest rapid seek commit settles', async () => {
+  test('keeps playing through rapid seeks until native intent actually pauses', async () => {
     jest.useFakeTimers();
     const usePlaybackState = (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState;
     usePlaybackState.mockReturnValueOnce({ state: State.Playing });
@@ -398,6 +432,9 @@ describe('usePlaybackControls', () => {
     });
     rerender(<PlaybackControlsProbe />);
 
+    expect(getByTestId('is-playing').props.children).toBe('true');
+    jest.mocked(usePlayWhenReady).mockReturnValue(false);
+    rerender(<PlaybackControlsProbe />);
     expect(getByTestId('is-playing').props.children).toBe('false');
   });
 

@@ -1,11 +1,31 @@
 import {
   getQueuePreviewOffset,
+  getTrackPageKeys,
   resolveSoundCloudSeekRatio,
   shouldCommitSoundCloudSwipe,
   shouldCollapseSoundCloudPlayer,
   shouldCloseSoundCloudQueue,
   shouldOpenSoundCloudQueue,
 } from '../soundCloudPlayer';
+
+describe('track page identity', () => {
+  test('keeps the incoming cover mounted when it becomes current', () => {
+    const before = getTrackPageKeys({ previousId: 'a', currentId: 'b', nextId: 'c' });
+    const after = getTrackPageKeys({ previousId: 'b', currentId: 'c', nextId: 'd' });
+    expect(after.current).toBe(before.next);
+    expect(after.previous).toBe(before.current);
+  });
+
+  test('distinguishes the same neighbor shown on both sides of a two-track queue', () => {
+    const keys = getTrackPageKeys({ previousId: 'a', currentId: 'b', nextId: 'a' });
+    expect(new Set(Object.values(keys)).size).toBe(3);
+    expect(keys.next).toBe('a');
+  });
+
+  test('gives empty pages distinct identities', () => {
+    expect(new Set(Object.values(getTrackPageKeys({}))).size).toBe(3);
+  });
+});
 
 describe('SoundCloud player gesture math', () => {
   test('seeking moves the timeline opposite to the waveform drag', () => {

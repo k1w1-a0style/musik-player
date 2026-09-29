@@ -7,6 +7,7 @@ import { clearWaveformFailure } from './waveformExtractionLifecycle';
 import { setWaveformStatus } from './waveformStatus';
 import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
+import { markSongPrepared } from './songPreparationStore';
 
 export interface WaveformPreparationState {
   status: 'idle' | 'running' | 'cancelled' | 'completed';
@@ -74,13 +75,23 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
 };
 
 const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boolean> => {
-  try { return await prepareSong(song, signal); }
+  try {
+    const ready = await prepareSong(song, signal);
+    if (ready) await markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
+      console.warn('[Preparation] Completion could not be persisted.', error);
+    });
+    return ready;
+  }
   catch (error) {
     if (isAbortError(error) || signal.aborted) throw error;
     setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'unavailable');
     return false;
   }
 };
+
+/** A row retry joins the scheduler without replacing or cancelling the library batch. */
+export const retrySongPreparation = (song: Song): Promise<boolean> =>
+  prepareSongSafely(song, new AbortController().signal);
 
 /** Explicit import/refresh preparation: serial, cancellable, cache-backed and resumable. */
 export const prepareLibraryWaveforms = async (

@@ -6,6 +6,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useHorizontalTrackMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
+import { getTrackPageKeys } from '../utils/soundCloudPlayer';
 
 interface NowPlayingCoverArtworkProps {
   song?: Song | null;
@@ -155,6 +156,8 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
   };
   const trackTranslateX = useMemo(() => Animated.add(motion.constrainedDrag, -pageWidth),
     [pageWidth, motion.constrainedDrag]);
+  const pageKeys = getTrackPageKeys({ currentId: displayed.song?.id,
+    previousId: displayed.previousSong?.id, nextId: displayed.nextSong?.id });
   const cardProps = { coverSize, pageWidth, accent, backgroundColor: theme.palette.surface,
     primaryColor: theme.palette.primary };
   return (
@@ -166,16 +169,15 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
           <Animated.View style={[styles.coverTrack, { width: pageWidth * 3,
             transform: [{ translateX: trackTranslateX }] }]} testID="now-playing-cover-track">
-            <CoverPage key={displayed.previousSong?.id === displayed.nextSong?.id
-              ? `previous:${displayed.previousSong?.id}` : displayed.previousSong?.id ?? 'empty-previous'}
+            <CoverPage key={pageKeys.previous}
               role="previous" song={displayed.previousSong}
               artworkUri={displayed.previousArtworkUri}
               isPlaying={false} {...cardProps} />
-            <CoverPage key={displayed.song?.id ?? 'empty-current'}
+            <CoverPage key={pageKeys.current}
               role="current" song={displayed.song} artworkUri={displayed.artworkUri}
               isPlaying={isPlaying}
               {...cardProps} />
-            <CoverPage key={displayed.nextSong?.id ?? 'empty-next'}
+            <CoverPage key={pageKeys.next}
               role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
               isPlaying={false} {...cardProps} />
           </Animated.View>

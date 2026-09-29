@@ -16,6 +16,9 @@ import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
+import { useSongPreparation } from '../hooks/useSongPreparation';
+import SongWaveformStatus from '../components/SongWaveformStatus';
+import type { WaveformStatus } from '../utils/waveformStatus';
 
 export const PLAYLIST_DETAIL_ROW_HEIGHT = 68;
 
@@ -66,11 +69,26 @@ const usePlaylistRowAccessibilityAction = (index: number, songCount: number,
   [index, onReorder, songCount],
 );
 
+const SongText = ({ song, preparation }: { song: Song; preparation: WaveformStatus }) => {
+  const { theme } = useAppTheme();
+  return <View style={styles.songTextWrap}>
+    <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
+      {displayTitle(song)}
+    </Text>
+    <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+      {displayArtist(song)}
+    </Text>
+    <SongWaveformStatus song={song} status={preparation} />
+  </View>;
+};
+
 const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffsetY,
   dragScrollCompensation,
   canReorder, getScrollOffset, onDragPosition, onDragEnd, onReorder, onRemove, onPlay,
 }: PlaylistDetailSongRowProps) => {
   const { theme } = useAppTheme();
+  const preparation = useSongPreparation(song);
+  const prepared = preparation === 'ready';
   const canDrag = canReorder && songCount > 1;
   const drag = useQueueRowDrag({
     index,
@@ -96,7 +114,9 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
       transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
       testID={`playlist-detail-drag-surface-${song.id}`}>
       <Pressable testID={`playlist-detail-song-${song.id}`}
-        onPress={() => { if (!drag.dragging) onPlay(song); }}
+        onPress={() => { if (prepared && !drag.dragging) onPlay(song); }}
+        disabled={!prepared}
+        accessibilityState={{ disabled: !prepared, busy: preparation === 'analyzing' }}
         accessible accessibilityRole="button"
         accessibilityLabel={`${title} von ${artist} abspielen. Position ${index + 1} von ${songCount}`}
         accessibilityHint={canDrag ? 'Die Zeile lange drücken und ziehen oder den Griff rechts verwenden.' : undefined}
@@ -110,18 +130,11 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           pressed && !drag.dragging && styles.songRowPressed]}>
         <PanGestureHandler enabled={canDrag} activateAfterLongPress={340}
           {...drag.longPressGestureHandlers} testID={`playlist-detail-long-press-drag-${song.id}`}>
-          <Animated.View style={styles.longPressArea}>
+          <Animated.View style={[styles.longPressArea, !prepared && styles.preparing]}>
             <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
             <SongArtwork song={song} title={title} backgroundColor={theme.palette.surfaceElevated}
               textColor={theme.palette.text.muted} />
-            <View style={styles.songTextWrap}>
-              <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-                {artist}
-              </Text>
-            </View>
+            <SongText song={song} preparation={preparation} />
           </Animated.View>
         </PanGestureHandler>
         <Pressable accessibilityRole="button" accessibilityLabel={`${title} aus Playlist entfernen`}
@@ -148,6 +161,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
 
 const styles = StyleSheet.create({
   animatedRow: { zIndex: 1 },
+  preparing: { opacity: 0.5 },
   animatedRowDragging: { zIndex: 20, elevation: 9 },
   songRow: {
     flex: 1,

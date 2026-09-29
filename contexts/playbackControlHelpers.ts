@@ -34,7 +34,10 @@ export const toggleTrackPlayerPlayback = async (): Promise<void> => {
   await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     const state = (await TrackPlayer.getPlaybackState()).state;
     assertHydrationCurrent();
-    if (state === State.Playing) {
+    const transient = state === State.Buffering || state === State.Loading || state === State.Ready;
+    const wantsPlay = transient ? await TrackPlayer.getPlayWhenReady() : state === State.Playing;
+    assertHydrationCurrent();
+    if (wantsPlay) {
       await TrackPlayer.pause();
       return;
     }

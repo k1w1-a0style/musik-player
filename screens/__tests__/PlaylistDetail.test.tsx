@@ -3,6 +3,10 @@ import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import PlaylistDetail from '../PlaylistDetail';
 import type { Playlist, Song } from '../../types/Song';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { markSongPrepared, resetSongPreparationForTests } from '../../utils/songPreparationStore';
+import { getWaveformSourceIdentity } from '../../utils/waveformGenerator';
+import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
 
 let mockPlaylistId = 'playlist-1';
 let mockSongs: Song[] = [];
@@ -102,7 +106,8 @@ const emitNativeGesture = (node: { props: { onGestureHandlerEvent: NativeGesture
   handler(event);
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  resetSongPreparationForTests(); resetWaveformCacheStateForTests(); await AsyncStorage.clear();
   mockPlaylistId = 'playlist-1';
   mockMoveSongInPlaylistEnabled = true;
   mockDeletePlaylist.mockClear();
@@ -120,10 +125,28 @@ beforeEach(() => {
     song('song-c', { title: 'Gamma', artist: 'Artist C' }),
   ];
   mockPlaylists = [playlist('playlist-1', ['song-b', 'song-a'], { name: 'Road Mix' })];
+  await Promise.all(mockSongs.map(item => markSongPrepared(getWaveformSourceIdentity(item).sourceFingerprint)));
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+test('playlist play skips pending tracks and unlocks a row when preparation finishes', async () => {
+  resetSongPreparationForTests(); await AsyncStorage.clear();
+  await markSongPrepared(getWaveformSourceIdentity(mockSongs[0]).sourceFingerprint);
+  const view = render(<PlaylistDetail />);
+  expect(view.getByTestId('playlist-detail-song-song-b')).toBeDisabled();
+  expect(view.getByTestId('song-preparation-progress-song-b')).toBeTruthy();
+  fireEvent.press(view.getByTestId('playlist-detail-song-song-b'));
+  expect(mockPlaySong).not.toHaveBeenCalled();
+  await act(async () => fireEvent.press(view.getByTestId('playlist-detail-play-button')));
+  expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[0], [mockSongs[0]]);
+  await act(async () => markSongPrepared(getWaveformSourceIdentity(mockSongs[1]).sourceFingerprint));
+  expect(view.getByTestId('playlist-detail-song-song-b')).toBeEnabled();
+  expect(view.queryByTestId('song-preparation-progress-song-b')).toBeNull();
+  await act(async () => fireEvent.press(view.getByTestId('playlist-detail-song-song-b')));
+  expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[1], [mockSongs[1], mockSongs[0]]);
 });
 
 test('renders playlist name, valid song count, and contained songs in playlist order', () => {

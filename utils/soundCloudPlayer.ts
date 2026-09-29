@@ -3,6 +3,16 @@ import { WAVEFORM_CACHE_POINT_COUNT } from './waveformTypes';
 export const SOUNDCLOUD_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const SOUNDCLOUD_QUEUE_ROW_HEIGHT = 68;
 
+export const getTrackPageKeys = ({ currentId, previousId, nextId }: {
+  currentId?: string;
+  previousId?: string;
+  nextId?: string;
+}): { current: string; previous: string; next: string } => ({
+  current: currentId ?? 'empty-current',
+  previous: previousId === nextId ? `previous:${previousId}` : previousId ?? 'empty-previous',
+  next: nextId ?? 'empty-next',
+});
+
 const clampUnit = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));

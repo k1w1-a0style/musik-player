@@ -12,6 +12,40 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test.each([-140, 140])('hands the final native drag position %s to the transition render', translationX => {
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(), stop: jest.fn(), reset: jest.fn(),
+    }));
+    const positionsAtSnapshot: number[] = [];
+    const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
+      currentSongId: 'track-1', panelWidth: 360, onNext: jest.fn(), onPrevious: jest.fn(),
+      hasPrevious: true, hasNext: true, reduceMotion: false, dispatchBeforeAnimation: true,
+      onTransitionStart: () => positionsAtSnapshot.push(
+        (result.current.drag as Animated.Value & { __getValue(): number }).__getValue(),
+      ),
+    }));
+    try {
+      // Native Animated.event updates the UI node, not the JS value used by a React render.
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.ACTIVE, state: State.END, translationX, translationY: 0,
+      })));
+      expect(positionsAtSnapshot).toEqual([translationX]);
+      expect(timing).toHaveBeenCalledWith(result.current.drag, expect.objectContaining({
+        toValue: Math.sign(translationX) * 360,
+        duration: 270,
+        useNativeDriver: true,
+      }));
+      const easing = timing.mock.calls[0][1].easing!;
+      // The remaining movement slows down as the incoming cover reaches center.
+      expect(easing(0)).toBe(0);
+      expect(easing(0.5)).toBeGreaterThan(0.5);
+      expect(easing(1)).toBe(1);
+    } finally {
+      unmount();
+      jest.restoreAllMocks();
+    }
+  });
+
   test.each([State.CANCELLED, State.FAILED])(
     'a second gesture ending as %s cannot reverse an ongoing track switch', state => {
       let finishAnimation!: (result: { finished: boolean }) => void;

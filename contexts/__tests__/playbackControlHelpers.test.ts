@@ -111,6 +111,16 @@ describe('playbackControlHelpers', () => {
     expect(TrackPlayer.play).toHaveBeenCalled();
   });
 
+  test.each([State.Buffering, State.Loading, State.Ready] as const)(
+    'allows pausing during %s using native playing intent', async state => {
+      jest.spyOn(TrackPlayer, 'getPlaybackState').mockResolvedValueOnce({ state });
+      jest.spyOn(TrackPlayer, 'getPlayWhenReady').mockResolvedValueOnce(true);
+      await toggleTrackPlayerPlayback();
+      expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+      expect(TrackPlayer.play).not.toHaveBeenCalled();
+    },
+  );
+
   test.each([State.Playing, State.Paused])(
     'does not mutate playback when hydration changes during the %s state read',
     async state => {
@@ -145,6 +155,27 @@ describe('playbackControlHelpers', () => {
 
     expect(TrackPlayer[mutation]).toHaveBeenCalledTimes(1);
     expect(TrackPlayer[mutation === 'play' ? 'pause' : 'play']).not.toHaveBeenCalled();
+  });
+
+  test('does not toggle after hydration changes during the native play-intent read', async () => {
+    publishReadyGate();
+    const readStarted = deferred<void>();
+    const releaseRead = deferred<boolean>();
+    jest.spyOn(TrackPlayer, 'getPlaybackState').mockResolvedValueOnce({ state: State.Buffering });
+    jest.spyOn(TrackPlayer, 'getPlayWhenReady').mockImplementationOnce(async () => {
+      readStarted.resolve();
+      return releaseRead.promise;
+    });
+
+    const toggle = toggleTrackPlayerPlayback();
+    await readStarted.promise;
+    const nextOwner = acquireNativeHydrationGate();
+    publishNativeHydrationGate(nextOwner, 'loading');
+    releaseRead.resolve(true);
+
+    await expect(toggle).rejects.toBeInstanceOf(NativeMutationHydrationStaleError);
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
   });
 
   test('seeks using milliseconds input', async () => {

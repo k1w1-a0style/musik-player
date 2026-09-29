@@ -4,6 +4,9 @@ import { fireEvent, render } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import SongCard from '../SongCard';
 
+// These layout/cover tests render already prepared library entries.
+jest.mock('../../hooks/useSongPreparation', () => ({ useSongPreparation: () => 'ready' }));
+
 const mockAppTheme = {
   palette: {
     surfaceGlass: 'rgba(18, 20, 26, 0.76)',

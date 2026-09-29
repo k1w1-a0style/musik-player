@@ -4,6 +4,7 @@ import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import type { Song } from '../types/Song';
 import { shuffleItems } from '../utils/libraryShuffle';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
+import { getPreparedSongs } from '../utils/songPreparation';
 
 export type PlaySong = (song: Song, queue: Song[]) => unknown;
 export type HandleSongPress = (song: Song, queue: Song[]) => void;
@@ -28,13 +29,15 @@ export const useLibraryPlaybackActions = ({
   songsForActiveList,
 }: UseLibraryPlaybackActionsOptions): UseLibraryPlaybackActionsResult => {
   const handleShufflePress = useCallback(() => {
-    if (songsForActiveList.length === 0) return;
-    const shuffled = shuffleItems(songsForActiveList);
+    const prepared = getPreparedSongs(songsForActiveList);
+    if (prepared.length === 0) return;
+    const shuffled = shuffleItems(prepared);
     void runPlaybackUiAction('library-shuffle-play', () => playSong(shuffled[0], shuffled), { dropIfPending: true });
   }, [playSong, songsForActiveList]);
 
   const handlePlayActiveList = useCallback(() => {
-    if (songsForActiveList[0]) handleSongPress(songsForActiveList[0], songsForActiveList);
+    const prepared = getPreparedSongs(songsForActiveList);
+    if (prepared[0]) handleSongPress(prepared[0], prepared);
   }, [handleSongPress, songsForActiveList]);
 
   const toggleAlbumView = useCallback(() => {

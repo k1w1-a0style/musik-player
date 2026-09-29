@@ -113,6 +113,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
       onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), onOpenQueue: jest.fn(), renderPage,
     };
     const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);
+    const incomingArtwork = getByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true });
     expect(getByTestId('soundcloud-track-swipe-gesture').props.enabled).toBe(true);
 
     act(() => {
@@ -144,6 +145,7 @@ describe('SoundCloudTrackCarousel gestures', () => {
     expect(onSwipeToNext).toHaveBeenCalledTimes(1);
     expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[2].cover);
+    expect(getByTestId('soundcloud-carousel-current-artwork') === incomingArtwork).toBe(true);
     expect(getByTestId('soundcloud-track-swipe-gesture').props.enabled).toBe(true);
     unmount();
   });

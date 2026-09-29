@@ -9,6 +9,8 @@ import { getSongArtworkUri } from '../utils/songArtwork';
 import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 import SongWaveformStatus from './SongWaveformStatus';
+import { useSongPreparation } from '../hooks/useSongPreparation';
+import type { WaveformStatus } from '../utils/waveformStatus';
 
 interface SongCardProps {
   song: Song;
@@ -24,8 +26,19 @@ const sameWaveformSource = (left: Song, right: Song): boolean =>
   && left.fileInfo?.size === right.fileInfo?.size && left.fileInfo?.importedAt === right.fileInfo?.importedAt
   && left.duration === right.duration && left.audioInfo?.durationMs === right.audioInfo?.durationMs;
 
+const SongMetadata = ({ song, preparation, label, color, tile = false }: {
+  song: Song; preparation: WaveformStatus; label: string | null; color: string; tile?: boolean;
+}) => {
+  if (preparation !== 'ready') return <SongWaveformStatus song={song} status={preparation} />;
+  if (!label) return null;
+  return <Text style={[tile ? styles.tileMetadata : styles.metadata, { color }]} numberOfLines={1}
+    testID={`song-card-meta-${song.id.trim() || buildSongKey(song)}`}>{label}</Text>;
+};
+
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
+  const preparation = useSongPreparation(song);
+  const prepared = preparation === 'ready';
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(song); const artworkSource = useMemo(
     () => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
@@ -41,7 +54,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     setCoverFailed(false);
   }, [song.id, song.cover, song.coverInfo?.uri]);
 
-  const handlePress = useCallback(() => onPressSong(song), [onPressSong, song]);
+  const handlePress = useCallback(() => { if (prepared) onPressSong(song); }, [onPressSong, prepared, song]);
 
   const handleInfoPress = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation();
@@ -73,7 +86,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     </View>
   );
 
-  const infoButton = onInfoSong ? (
+  const infoButton = onInfoSong && prepared ? (
     <Pressable
       testID={`song-card-info-${songTestId}`}
       accessibilityRole="button"
@@ -101,13 +114,15 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         testID={`song-card-${songTestId}`}
         accessibilityRole="button"
         accessibilityLabel={`${song.title} von ${song.artist}`}
-        accessibilityState={{ selected: isCurrent }}
+        accessibilityState={{ selected: isCurrent, disabled: !prepared, busy: preparation === 'analyzing' }}
+        disabled={!prepared}
         onPress={handlePress}
         style={({ pressed }) => [
           styles.tileContainer,
           isCurrent && { backgroundColor: selectedColors.background },
           isCurrent && styles.tileCurrent,
           pressed && styles.pressed,
+          !prepared && styles.preparing,
         ]}
       >
         <View>
@@ -120,16 +135,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         <Text style={[styles.tileArtist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
           {song.artist}
         </Text>
-        {metadataLabel ? (
-          <Text
-            style={[styles.tileMetadata, { color: theme.palette.text.muted }]}
-            numberOfLines={1}
-            testID={`song-card-meta-${songTestId}`}
-          >
-            {metadataLabel}
-          </Text>
-        ) : null}
-        <SongWaveformStatus song={song} />
+        <SongMetadata song={song} preparation={preparation} label={metadataLabel}
+          color={theme.palette.text.muted} tile />
       </Pressable>
     );
   }
@@ -141,7 +148,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       testID={`song-card-${songTestId}`}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} von ${song.artist}`}
-      accessibilityState={{ selected: isCurrent }}
+      accessibilityState={{ selected: isCurrent, disabled: !prepared, busy: preparation === 'analyzing' }}
+      disabled={!prepared}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.container,
@@ -149,6 +157,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         isBanner && styles.bannerContainer,
         isCurrent && { backgroundColor: selectedColors.background },
         pressed && styles.pressed,
+        !prepared && styles.preparing,
       ]}
     >
       <View
@@ -172,17 +181,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         <Text style={[styles.artist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
           {song.artist}
         </Text>
-        {metadataLabel ? (
-          <Text
-            style={[styles.metadata, { color: theme.palette.text.muted }]}
-            numberOfLines={1}
-            testID={`song-card-meta-${songTestId}`}
-          >
-            {metadataLabel}
-          </Text>
-        ) : null}
+        <SongMetadata song={song} preparation={preparation} label={metadataLabel}
+          color={theme.palette.text.muted} />
       </View>
-      <SongWaveformStatus song={song} />
       {infoButton}
     </Pressable>
   );
@@ -220,6 +221,7 @@ const styles = StyleSheet.create({
   },
   bannerContainer: { minHeight: 84, paddingVertical: 10 },
   pressed: { opacity: 0.72 },
+  preparing: { opacity: 0.5 },
   activeRail: { width: 3, height: 30, borderRadius: 3, backgroundColor: 'transparent' },
   cover: {
     width: 44,

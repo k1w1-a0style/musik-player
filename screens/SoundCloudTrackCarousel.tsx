@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
+import { getTrackPageKeys } from '../utils/soundCloudPlayer';
 import SoundCloudCarouselPanel from './SoundCloudCarouselPanel';
 import type { SoundCloudCarouselRenderPage } from './soundCloudCarouselTypes';
 
@@ -85,6 +86,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
     onCollapse, onOpenQueue, onQueuePreviewStart, onQueuePreviewEnd, reduceMotion });
   const displayed = transitionSnapshot ?? { currentSong, previousSong: nullableSong(previousSong),
     nextSong: nullableSong(nextSong), currentArtworkUri, previousArtworkUri, nextArtworkUri };
+  const pageKeys = getTrackPageKeys({ currentId: displayed.currentSong?.id,
+    previousId: displayed.previousSong?.id, nextId: displayed.nextSong?.id });
   const trackTranslateX = useMemo(
     () => Animated.add(horizontal.constrainedDrag, -panelWidth),
     [horizontal.constrainedDrag, panelWidth],
@@ -106,17 +109,17 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
             <Animated.View style={styles.carouselViewport} collapsable={false}>
               <Animated.View testID="soundcloud-track-carousel"
                 style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
-                <View style={{ width: panelWidth }}>
+                <View key={pageKeys.previous} style={{ width: panelWidth }}>
                   <SoundCloudCarouselPanel song={displayed.previousSong} role="previous"
                     artworkUri={displayed.previousArtworkUri} paused={!isPlaying}
                     topInset={topInset} bottomInset={bottomInset} />
                 </View>
-                <View style={{ width: panelWidth }}>
+                <View key={pageKeys.current} style={{ width: panelWidth }}>
                   <SoundCloudCarouselPanel song={displayed.currentSong} role="current"
                     artworkUri={displayed.currentArtworkUri} paused={!isPlaying}
                     topInset={topInset} bottomInset={bottomInset} />
                 </View>
-                <View style={{ width: panelWidth }}>
+                <View key={pageKeys.next} style={{ width: panelWidth }}>
                   <SoundCloudCarouselPanel song={displayed.nextSong} role="next"
                     artworkUri={displayed.nextArtworkUri} paused={!isPlaying}
                     topInset={topInset} bottomInset={bottomInset} />

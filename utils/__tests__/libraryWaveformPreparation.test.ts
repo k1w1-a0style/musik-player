@@ -5,8 +5,9 @@ import { getCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform }
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 import { cancelWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms,
-  resetWaveformPreparationForTests, resumeWaveformPreparation } from '../libraryWaveformPreparation';
+  resetWaveformPreparationForTests, resumeWaveformPreparation, retrySongPreparation } from '../libraryWaveformPreparation';
 import { getWaveformStatus } from '../waveformStatus';
+import { resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 
 const audio = SystemAudio as typeof SystemAudio & { extractWaveformPeaks: jest.Mock };
 const song = (id: string): Song => ({ id, title: id, artist: 'Artist', uri: `file:///${id}.mp3`, duration: 90_000 });
@@ -15,6 +16,7 @@ const decoded = { points: [0.04, 0.8, 0.1, 1, 0.4, 0.9, 0.2, 0.5], durationMs: 9
 
 beforeEach(async () => {
   resetWaveformPreparationForTests(); resetWaveformExtractionLifecycleForTests(); resetWaveformCacheStateForTests();
+  resetSongPreparationForTests();
   await AsyncStorage.clear();
   jest.useFakeTimers();
   audio.extractWaveformPeaks = jest.fn().mockResolvedValue(decoded);
@@ -68,4 +70,23 @@ test('an external cancel during a queued analysis stops the same preparation', a
   await jest.advanceTimersByTimeAsync(500);
   expect(audio.extractWaveformPeaks).not.toHaveBeenCalled();
   expect(getWaveformPreparationState()).toMatchObject({ status: 'cancelled', processed: 0 });
+});
+
+test('a row retry completes without cancelling the running library batch', async () => {
+  const first = song('batch-first'); const second = song('batch-second'); const retried = song('retry');
+  let finishFirst!: (value: typeof decoded) => void;
+  audio.extractWaveformPeaks.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
+  const batch = prepareLibraryWaveforms([first, second]);
+  await jest.advanceTimersByTimeAsync(240);
+  const retry = retrySongPreparation(retried);
+  await jest.advanceTimersByTimeAsync(240);
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'running', total: 2, processed: 0 });
+  finishFirst(decoded);
+  await jest.advanceTimersByTimeAsync(2000);
+  await expect(retry).resolves.toBe(true);
+  await batch;
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 2, processed: 2, ready: 2 });
+  for (const item of [first, second, retried]) {
+    expect(wasSongPrepared(getWaveformSourceIdentity(item).sourceFingerprint)).toBe(true);
+  }
 });

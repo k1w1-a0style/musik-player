@@ -153,6 +153,7 @@ const TrackPlayer = {
   registerPlaybackService: jest.fn(),
   // Hooks
   usePlaybackState: jest.fn(() => ({ state })),
+  usePlayWhenReady: jest.fn(() => playWhenReady),
   useProgress: jest.fn(() => ({ position: 0, duration: 0, buffered: 0 })),
   // Test helpers
   __reset: () => {
@@ -188,5 +189,6 @@ module.exports = {
   Event,
   AppKilledPlaybackBehavior,
   usePlaybackState: TrackPlayer.usePlaybackState,
+  usePlayWhenReady: TrackPlayer.usePlayWhenReady,
   useProgress: TrackPlayer.useProgress,
 };

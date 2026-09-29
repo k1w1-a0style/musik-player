@@ -5,6 +5,10 @@ import { useLibrarySongRenderer } from '../useLibrarySongRenderer';
 import type { Song } from '../../types/Song';
 import { runPlaybackUiAction } from '../../utils/playbackUiActions';
 
+jest.mock('../../utils/songPreparation', () => ({
+  isSongPrepared: () => true, getPreparedSongs: (songs: Song[]) => songs,
+}));
+
 type CapturedProps = {
   song: Song;
   isCurrent: boolean;

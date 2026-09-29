@@ -8,6 +8,11 @@ import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../../utils/libraryPlaylists';
 import { buildSongCardSong } from '../../utils/libraryRendererHelpers';
 
+// Renderer routing fixtures represent prepared entries; gating is exercised separately.
+jest.mock('../../utils/songPreparation', () => ({
+  isSongPrepared: () => true, getPreparedSongs: (songs: Song[]) => songs,
+}));
+
 type MockSongCardProps = {
   song: Song;
   isCurrent: boolean;
