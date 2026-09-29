@@ -135,12 +135,14 @@ describe('NowPlayingCoverArtwork', () => {
       onSwipeLeft,
     };
     const { getByTestId, rerender } = render(<NowPlayingCoverArtwork {...initialProps} />);
+    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(true);
 
     act(() => {
       fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
         nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 1 },
       });
     });
+    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(false);
     rerender(<NowPlayingCoverArtwork {...initialProps}
       song={nextSong} previousSong={song} nextSong={{ id: 's3', title: 'Three', artist: 'Artist' }}
       artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" nextArtworkUri="file:///three.jpg" />);
@@ -151,6 +153,7 @@ describe('NowPlayingCoverArtwork', () => {
     act(() => finishAnimation?.({ finished: true }));
 
     expect(getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///two.jpg' });
+    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(true);
   });
 
   test('resets instead of finishing a left swipe when left swipes are disabled', () => {

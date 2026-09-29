@@ -160,7 +160,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
   return (
     <View style={[styles.pagerViewport, { width: pageWidth, height: coverSize + 32 }]}
       testID="now-playing-cover-pager">
-        <PanGestureHandler testID="now-playing-cover-swipe-gesture"
+        <PanGestureHandler testID="now-playing-cover-swipe-gesture" enabled={!transitionSnapshot}
           activeOffsetX={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           failOffsetY={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>

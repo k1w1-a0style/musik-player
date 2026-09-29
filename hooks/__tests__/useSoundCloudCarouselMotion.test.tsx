@@ -12,6 +12,36 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test.each([State.CANCELLED, State.FAILED])(
+    'a second gesture ending as %s cannot reverse an ongoing track switch', state => {
+      let finishAnimation!: (result: { finished: boolean }) => void;
+      jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+        start: callback => { finishAnimation = callback!; }, stop: jest.fn(), reset: jest.fn(),
+      }));
+      const spring = jest.spyOn(Animated, 'spring');
+      const onNext = jest.fn(() => new Promise<void>(() => undefined));
+      const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
+        currentSongId: 'track-1', panelWidth: 360, onNext, onPrevious: jest.fn(),
+        hasPrevious: true, hasNext: true, reduceMotion: false, dispatchBeforeAnimation: true,
+      }));
+      try {
+        act(() => result.current.onStateChange(stateEvent({
+          oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 0,
+        })));
+        act(() => result.current.onStateChange(stateEvent({
+          oldState: State.ACTIVE, state, translationX: 12, translationY: 0,
+        })));
+        expect(spring).not.toHaveBeenCalled();
+        act(() => finishAnimation({ finished: true }));
+        expect(onNext).toHaveBeenCalledTimes(1);
+        expect(spring).not.toHaveBeenCalled();
+      } finally {
+        unmount();
+        jest.restoreAllMocks();
+      }
+    },
+  );
+
   test('a timed-out action settling late cannot roll back a newer track transition', async () => {
     jest.useFakeTimers();
     let settleFirst!: () => void;

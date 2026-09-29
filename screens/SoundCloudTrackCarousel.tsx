@@ -98,7 +98,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
         <Animated.View style={[styles.player, { opacity: vertical.opacity,
           transform: [{ translateY: vertical.translateY }, { scale: vertical.scale }] }]}
           testID="soundcloud-collapsible-player">
-          <PanGestureHandler testID="soundcloud-track-swipe-gesture" activeOffsetX={[-18, 18]}
+          <PanGestureHandler testID="soundcloud-track-swipe-gesture" enabled={!transitionSnapshot}
+            activeOffsetX={[-18, 18]}
             failOffsetY={[-18, 18]} waitFor={waveformGestureRef}
             onGestureEvent={horizontal.onGestureEvent}
             onHandlerStateChange={horizontal.onStateChange}>
