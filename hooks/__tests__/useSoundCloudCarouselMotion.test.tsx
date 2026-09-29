@@ -14,7 +14,8 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 describe('SoundCloud carousel gesture listeners', () => {
   test('follows native dragging and recenters when playback changes the track externally', () => {
     const events = jest.spyOn(Animated, 'event');
-    const { result, rerender, unmount } = renderHook(({ currentSongId }) => useHorizontalTrackMotion({
+    const { result, rerender, unmount } = renderHook<ReturnType<typeof useHorizontalTrackMotion>,
+      { currentSongId: string }>(({ currentSongId }) => useHorizontalTrackMotion({
       currentSongId, panelWidth: 360, onNext: jest.fn(), onPrevious: jest.fn(),
       hasPrevious: true, hasNext: true, reduceMotion: false,
     }), { initialProps: { currentSongId: 'track-1' } });
