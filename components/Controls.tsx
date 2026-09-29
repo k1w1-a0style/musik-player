@@ -194,7 +194,6 @@ interface ControlRailProps extends AccentProps {
   repeatMode: RepeatMode;
   shuffle: boolean;
   isPlaying: boolean;
-  isBuffering: boolean;
   onAccentColor: string;
   primaryTextColor: string;
   mutedTextColor: string;
@@ -224,7 +223,7 @@ const ControlRail: React.FC<ControlRailProps> = props => {
       <PreviousControl disabled={!props.currentSong} onPress={props.previous} color={props.primaryTextColor} />
       <PlayPauseControl
         isPlaying={props.isPlaying}
-        disabled={!props.currentSong || props.isBuffering}
+        disabled={!props.currentSong}
         onPress={props.togglePlayPause}
         accentColor={props.accentColor}
         accentDarkColor={props.accentDarkColor}
@@ -268,7 +267,6 @@ const Controls: React.FC<ControlsProps> = ({ accentColor, accentDarkColor, onAcc
             repeatMode={music.repeatMode}
             shuffle={music.shuffle}
             isPlaying={music.isPlaying}
-            isBuffering={music.isBuffering}
             accentColor={layerColors.accentColor}
             accentDarkColor={layerColors.accentDarkColor}
             onAccentColor={layerColors.onAccentColor}

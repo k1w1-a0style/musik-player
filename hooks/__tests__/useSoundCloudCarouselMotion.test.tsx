@@ -12,6 +12,30 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test('follows native dragging and recenters when playback changes the track externally', () => {
+    const events = jest.spyOn(Animated, 'event');
+    const { result, rerender, unmount } = renderHook(({ currentSongId }) => useHorizontalTrackMotion({
+      currentSongId, panelWidth: 360, onNext: jest.fn(), onPrevious: jest.fn(),
+      hasPrevious: true, hasNext: true, reduceMotion: false,
+    }), { initialProps: { currentSongId: 'track-1' } });
+    try {
+      const mapping = events.mock.calls[0][0][0] as { nativeEvent: { translationX: Animated.Value } };
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.BEGAN, state: State.ACTIVE, translationX: -20,
+      })));
+      act(() => mapping.nativeEvent.translationX.setValue(-90));
+      const readPosition = () => (result.current.constrainedDrag as typeof result.current.constrainedDrag
+        & { __getValue(): number }).__getValue();
+      expect(readPosition()).toBe(-90);
+
+      rerender({ currentSongId: 'track-2' });
+      expect(readPosition()).toBe(0);
+    } finally {
+      unmount();
+      jest.restoreAllMocks();
+    }
+  });
+
   test.each([-140, 140])('a late native gesture reset cannot move a released cover at %s', translationX => {
     const events = jest.spyOn(Animated, 'event');
     jest.spyOn(Animated, 'timing').mockImplementation(() => ({

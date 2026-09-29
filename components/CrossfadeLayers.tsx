@@ -46,7 +46,6 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
     if (outgoing && !reduceMotion) return;
 
     generationRef.current += 1;
-    const generation = generationRef.current;
     transition.stopAnimation();
     setActive(incoming);
 
@@ -58,6 +57,18 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
 
     setOutgoing(active);
     transition.setValue(0);
+  }, [active, duration, incoming, outgoing, reduceMotion, transition]);
+
+  useEffect(() => {
+    if (!outgoing) return;
+    if (reduceMotion || duration <= 0) {
+      transition.setValue(1);
+      setOutgoing(null);
+      return;
+    }
+    // Both opacity-bound views must be committed before their native driver
+    // starts, otherwise a slow render can consume the fade while unattached.
+    const generation = generationRef.current;
     Animated.timing(transition, {
       toValue: 1,
       duration,
@@ -67,9 +78,8 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
     }).start(({ finished }) => {
       if (finished && generationRef.current === generation) setOutgoing(null);
     });
-  }, [active, delay, duration, incoming, outgoing, reduceMotion, transition]);
-
-  useEffect(() => () => transition.stopAnimation(), [transition]);
+    return () => transition.stopAnimation();
+  }, [delay, duration, outgoing, reduceMotion, transition]);
 
   const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
 
