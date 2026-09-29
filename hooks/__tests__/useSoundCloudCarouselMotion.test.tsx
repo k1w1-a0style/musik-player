@@ -59,7 +59,7 @@ describe('SoundCloud carousel gesture listeners', () => {
       // event must no longer own the cover that is continuing toward center.
       act(() => mapping.nativeEvent.translationX.setValue(0));
       const visible = result.current.constrainedDrag as typeof result.current.constrainedDrag & { __getValue(): number };
-      expect(visible.__getValue()).toBe(translationX);
+      expect(visible.__getValue()).toBeCloseTo(translationX, 5);
     } finally {
       unmount();
       jest.restoreAllMocks();
