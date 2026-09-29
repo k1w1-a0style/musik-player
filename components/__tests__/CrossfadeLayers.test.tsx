@@ -70,6 +70,24 @@ describe('CrossfadeLayers', () => {
     expect(getByTestId('value-blue')).toBeTruthy();
   });
 
+  test('starts native fading after both visual layers have committed', () => {
+    const mountedAtStart: boolean[] = [];
+    const view = render(<CrossfadeLayers value="red" valueKey="red"
+      renderLayer={renderValue} testID="color-transition" />);
+    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(() => mountedAtStart.push(Boolean(
+        view.queryByTestId('color-transition-outgoing', { includeHiddenElements: true })
+        && view.queryByTestId('value-blue'),
+      ))),
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+
+    view.rerender(<CrossfadeLayers value="blue" valueKey="blue"
+      renderLayer={renderValue} testID="color-transition" />);
+
+    expect(mountedAtStart).toEqual([true]);
+  });
+
   test('switches without an outgoing layer when reduced motion is enabled', () => {
     mockReduceMotion = true;
     const timing = jest.spyOn(Animated, 'timing');

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import Controls from '../Controls';
 
 const mockUseMusicContext = jest.fn();
@@ -117,6 +117,17 @@ describe('Controls', () => {
     const { getByTestId } = render(<Controls />);
 
     expect(getByTestId('controls-play-pause').props.accessibilityLabel).toBe(expectedLabel);
+  });
+
+  test.each([true, false])('allows play intent changes while buffering with isPlaying=%s', async isPlaying => {
+    const context = makeCtx({ isPlaying, isBuffering: true });
+    mockUseMusicContext.mockReturnValue(context);
+    const { getByTestId } = render(<Controls />);
+    const button = getByTestId('controls-play-pause');
+
+    expect(button.props.accessibilityState?.disabled).toBe(false);
+    await act(async () => fireEvent.press(button));
+    expect(context.togglePlayPause).toHaveBeenCalledTimes(1);
   });
 
   test.each([

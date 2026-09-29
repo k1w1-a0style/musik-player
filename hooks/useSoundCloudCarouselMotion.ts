@@ -190,35 +190,60 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   hasPrevious, hasNext, reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart,
   onTransitionEnd }: HorizontalMotionOptions) => {
   const drag = useRef(new Animated.Value(0)).current;
+  const gestureDrag = useRef(new Animated.Value(0)).current;
+  const followGesture = useRef(new Animated.Value(0)).current;
+  // Gesture resets and the released-cover animation must have separate native
+  // inputs. Disabling Android's recognizer can deliver a final zero event.
+  const visibleDrag = useMemo(() => Animated.add(
+    Animated.multiply(gestureDrag, followGesture),
+    Animated.multiply(drag, Animated.subtract(1, followGesture)),
+  ), [drag, followGesture, gestureDrag]);
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
     reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
+  useLayoutEffect(() => {
+    if (!switching.switchingRef.current) followGesture.setValue(0);
+  }, [currentSongId, followGesture, switching.switchingRef]);
   const onGestureEvent = useMemo(() => Animated.event<PanGestureHandlerGestureEvent['nativeEvent']>(
-    [{ nativeEvent: { translationX: drag } }],
+    [{ nativeEvent: { translationX: gestureDrag } }],
     { useNativeDriver: true },
-  ), [drag]);
+  ), [gestureDrag]);
+  const handOffGesture = useCallback((position: number) => {
+    drag.setValue(position);
+    followGesture.setValue(0);
+  }, [drag, followGesture]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
+    if (state === State.BEGAN || state === State.ACTIVE) {
+      if (!switching.switchingRef.current) {
+        gestureDrag.setValue(translationX);
+        followGesture.setValue(1);
+      }
+      return;
+    }
     if (state === State.CANCELLED || state === State.FAILED) {
       // A tap or a child waveform gesture can fail this passive recognizer
       // while an earlier track switch is still animating. A second cancelled
       // gesture must not replace that transition with a return spring.
-      if (oldState === State.ACTIVE && !switching.switchingRef.current) switching.animateBack();
+      if (oldState === State.ACTIVE && !switching.switchingRef.current) {
+        handOffGesture(translationX);
+        switching.animateBack();
+      }
     } else if (state === State.END && oldState === State.ACTIVE) {
       if (switching.switchingRef.current) return;
-      // Native gesture events do not update the JS Animated.Value. Synchronize
-      // before freezing pages: that React render would otherwise replay zero.
-      drag.setValue(translationX);
+      // Capture the release before freezing pages and stop following native
+      // gesture events. They may still arrive after the recognizer is disabled.
+      handOffGesture(translationX);
       const wantsNext = translationX < 0;
       const allowed = wantsNext ? hasNext : hasPrevious;
       if (allowed && shouldCommitSoundCloudSwipe({ translationX, translationY, velocityX, width: panelWidth }))
         switching.complete(wantsNext ? 'next' : 'previous');
       else switching.animateBack();
     }
-  }, [drag, hasNext, hasPrevious, panelWidth, switching]);
-  const constrainedDrag = useMemo(() => drag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
+  }, [followGesture, gestureDrag, handOffGesture, hasNext, hasPrevious, panelWidth, switching]);
+  const constrainedDrag = useMemo(() => visibleDrag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
     outputRange: [hasNext ? -panelWidth : -panelWidth * 0.12, 0,
       hasPrevious ? panelWidth : panelWidth * 0.12], extrapolate: 'clamp' }),
-  [drag, hasNext, hasPrevious, panelWidth]);
+  [visibleDrag, hasNext, hasPrevious, panelWidth]);
   return { drag, constrainedDrag, onGestureEvent, onStateChange };
 };
 

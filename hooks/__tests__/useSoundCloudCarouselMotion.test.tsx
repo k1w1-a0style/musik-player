@@ -12,6 +12,60 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test('follows native dragging and recenters when playback changes the track externally', () => {
+    const events = jest.spyOn(Animated, 'event');
+    const { result, rerender, unmount } = renderHook<ReturnType<typeof useHorizontalTrackMotion>,
+      { currentSongId: string }>(({ currentSongId }) => useHorizontalTrackMotion({
+      currentSongId, panelWidth: 360, onNext: jest.fn(), onPrevious: jest.fn(),
+      hasPrevious: true, hasNext: true, reduceMotion: false,
+    }), { initialProps: { currentSongId: 'track-1' } });
+    try {
+      const mapping = events.mock.calls[0][0][0] as { nativeEvent: { translationX: Animated.Value } };
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.BEGAN, state: State.ACTIVE, translationX: -20,
+      })));
+      act(() => mapping.nativeEvent.translationX.setValue(-90));
+      const readPosition = () => (result.current.constrainedDrag as typeof result.current.constrainedDrag
+        & { __getValue(): number }).__getValue();
+      expect(readPosition()).toBe(-90);
+
+      rerender({ currentSongId: 'track-2' });
+      expect(readPosition()).toBe(0);
+    } finally {
+      unmount();
+      jest.restoreAllMocks();
+    }
+  });
+
+  test.each([-140, 140])('a late native gesture reset cannot move a released cover at %s', translationX => {
+    const events = jest.spyOn(Animated, 'event');
+    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(), stop: jest.fn(), reset: jest.fn(),
+    }));
+    const { result, unmount } = renderHook(() => useHorizontalTrackMotion({
+      currentSongId: 'track-1', panelWidth: 360, onNext: jest.fn(), onPrevious: jest.fn(),
+      hasPrevious: true, hasNext: true, reduceMotion: false, dispatchBeforeAnimation: true,
+    }));
+    try {
+      const mapping = events.mock.calls[0][0][0] as { nativeEvent: { translationX: Animated.Value } };
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.BEGAN, state: State.ACTIVE, translationX,
+      })));
+      act(() => mapping.nativeEvent.translationX.setValue(translationX));
+      act(() => result.current.onStateChange(stateEvent({
+        oldState: State.ACTIVE, state: State.END, translationX, translationY: 0,
+      })));
+      // Android can reset the disabled recognizer after END. Its last native
+      // event must no longer own the cover that is continuing toward center.
+      act(() => mapping.nativeEvent.translationX.setValue(0));
+      const visible = result.current.constrainedDrag as typeof result.current.constrainedDrag & { __getValue(): number };
+      expect(visible.__getValue()).toBeCloseTo(translationX, 5);
+    } finally {
+      unmount();
+      jest.restoreAllMocks();
+    }
+  });
+
   test.each([-140, 140])('hands the final native drag position %s to the transition render', translationX => {
     const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
       start: jest.fn(), stop: jest.fn(), reset: jest.fn(),

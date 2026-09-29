@@ -74,7 +74,6 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     if (paletteLoading) return;
     if (outgoing && !reduceMotion) return;
     transitionGeneration.current += 1;
-    const generation = transitionGeneration.current;
     transition.stopAnimation();
     setActive(incoming);
     if (reduceMotion) {
@@ -84,6 +83,17 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     }
     setOutgoing(active);
     transition.setValue(0);
+  }, [active, incoming, outgoing, paletteLoading, reduceMotion, transition]);
+
+  useEffect(() => {
+    if (!outgoing) return;
+    if (reduceMotion) {
+      transition.setValue(1);
+      setOutgoing(null);
+      return;
+    }
+    // Start after the incoming and outgoing native views have been attached.
+    const generation = transitionGeneration.current;
     Animated.timing(transition, {
       toValue: 1,
       duration: BACKDROP_CROSSFADE_MS,
@@ -93,9 +103,8 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     }).start(({ finished }) => {
       if (finished && transitionGeneration.current === generation) setOutgoing(null);
     });
-  }, [active, incoming, outgoing, paletteLoading, reduceMotion, transition]);
-
-  useEffect(() => () => transition.stopAnimation(), [transition]);
+    return () => transition.stopAnimation();
+  }, [outgoing, reduceMotion, transition]);
 
   const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
 
