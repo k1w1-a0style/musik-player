@@ -85,4 +85,22 @@ describe('NowPlayingBackdrop', () => {
     act(() => finishes[1]({ finished: true }));
     expect(queryByTestId('now-playing-cover-backdrop-outgoing')).toBeNull();
   });
+
+  test('attaches both artwork layers before starting the native background fade', () => {
+    const mountedAtStart: boolean[] = [];
+    const view = render(<NowPlayingBackdrop gradientColors={['#111111', '#222222']}
+      accent="#333333" glowLeft={20} artworkUri="file:///one.jpg" />);
+    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(() => mountedAtStart.push(Boolean(
+        view.queryByTestId('now-playing-cover-backdrop-outgoing')
+        && view.getByTestId('now-playing-cover-backdrop').props.source.uri === 'file:///two.jpg',
+      ))),
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+
+    view.rerender(<NowPlayingBackdrop gradientColors={['#444444', '#555555']}
+      accent="#666666" glowLeft={20} artworkUri="file:///two.jpg" />);
+
+    expect(mountedAtStart).toEqual([true]);
+  });
 });
