@@ -1,6 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 import type { Song } from '../types/Song';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro registers bundled images through a static require.
 export const KIWI_MUSIC_ARTWORK = require('../assets/icon.png') as number;
 
 const normalizeArtworkUri = (value?: string): string | undefined => {
