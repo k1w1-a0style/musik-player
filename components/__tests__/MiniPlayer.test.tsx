@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image } from 'react-native';
+import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
 import { fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer, { shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
 
@@ -113,10 +114,10 @@ describe('MiniPlayer', () => {
   });
 
   test('falls back when cover image errors', () => {
-    const { UNSAFE_getByType, UNSAFE_queryByType } = render(<MiniPlayer onOpen={jest.fn()} />);
+    const { UNSAFE_getByType } = render(<MiniPlayer onOpen={jest.fn()} />);
     const img = UNSAFE_getByType(Image);
     fireEvent(img, 'error');
-    expect(UNSAFE_queryByType(Image)).toBeNull();
+    expect(UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
   });
 
   test('disabled next tap does not open mini player and does not skip', () => {

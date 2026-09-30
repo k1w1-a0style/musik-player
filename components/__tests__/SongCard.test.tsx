@@ -3,6 +3,7 @@ import { Image } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import SongCard from '../SongCard';
+import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
 
 // These layout/cover tests render already prepared library entries.
 jest.mock('../../hooks/useSongPreparation', () => ({ useSongPreparation: () => 'ready' }));
@@ -41,13 +42,13 @@ describe('SongCard', () => {
   const song = { id: '1', title: 'Track', artist: 'Artist', cover: 'file:///broken.jpg' };
 
   test('falls back when cover image errors', () => {
-    const { UNSAFE_getByType, UNSAFE_queryByType } = render(
+    const { UNSAFE_getByType } = render(
       <SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,
     );
 
     fireEvent(UNSAFE_getByType(Image), 'error');
 
-    expect(UNSAFE_queryByType(Image)).toBeNull();
+    expect(UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
   });
 
   test('calls stable song press handler with the row song', () => {

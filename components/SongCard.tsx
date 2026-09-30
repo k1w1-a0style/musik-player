@@ -1,11 +1,11 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
-import { CircleEllipsis, Music2 } from 'lucide-react-native';
+import { CircleEllipsis } from 'lucide-react-native';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { buildSongKey } from '../utils/libraryPresentation';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
 import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 import SongWaveformStatus from './SongWaveformStatus';
@@ -41,7 +41,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   const prepared = preparation === 'ready';
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(song); const artworkSource = useMemo(
-    () => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
+    () => getArtworkSource(coverFailed ? undefined : artworkUri), [artworkUri, coverFailed]);
   const songTestId = song.id.trim() || buildSongKey(song); const metadataLabel = getSongCardMetadataLabel(song);
   const selectedColors = useMemo(() => ({
     accent: theme.palette.primary,
@@ -61,9 +61,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     onInfoSong?.(song);
   }, [onInfoSong, song]);
 
-  const showCover = artworkSource !== null && !coverFailed;
-  const iconSize = variant === 'banner' ? 24 : variant === 'tile' ? 26 : 17;
-
   const cover = (
     <View
       style={[
@@ -77,12 +74,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       ]}
       testID={`song-card-cover-${songTestId}`}
     >
-      {showCover ? (
-        <Image source={artworkSource!} style={styles.coverImage} onError={() => setCoverFailed(true)}
-          resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
-      ) : (
-        <Music2 color={isCurrent ? selectedColors.accent : theme.palette.text.muted} size={iconSize} />
-      )}
+      <Image source={artworkSource} style={styles.coverImage}
+        onError={artworkUri && !coverFailed ? () => setCoverFailed(true) : undefined}
+        resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
     </View>
   );
 

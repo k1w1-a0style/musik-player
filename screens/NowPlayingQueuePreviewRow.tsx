@@ -5,6 +5,7 @@ import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDrag';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
+import { getArtworkSource } from '../utils/songArtwork';
 
 export { resolveQueueReorderTargetIndex } from '../utils/soundCloudPlayer';
 
@@ -40,17 +41,11 @@ interface NowPlayingQueuePreviewRowProps {
 
 const getZeroScrollOffset = (): number => 0;
 
-const QueueArtwork = ({ id, artworkUri, title, colors }: { id: string; artworkUri?: string;
-  title: string; colors: NowPlayingQueueColors }) => {
-  const artworkSource = React.useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
-  if (artworkSource) return <Image source={artworkSource} style={styles.queueArtwork} resizeMode="cover"
-    resizeMethod="resize" fadeDuration={0} accessible={false} testID={`queue-artwork-${id}`} />;
-  return (
-    <View style={[styles.queueArtwork, styles.queueArtworkFallback, { backgroundColor: colors.surfaceElevated }]}
-      testID={`queue-artwork-fallback-${id}`}>
-      <Text style={[styles.queueArtworkLetter, { color: colors.textMuted }]}>{title.trim().charAt(0).toUpperCase() || '♪'}</Text>
-    </View>
-  );
+const QueueArtwork = ({ id, artworkUri }: { id: string; artworkUri?: string }) => {
+  const artworkSource = React.useMemo(() => getArtworkSource(artworkUri), [artworkUri]);
+  return <Image source={artworkSource} style={styles.queueArtwork} resizeMode="cover"
+    resizeMethod="resize" fadeDuration={0} accessible={false}
+    testID={artworkUri ? `queue-artwork-${id}` : `queue-artwork-fallback-${id}`} />;
 };
 
 const PlayingBadge = ({ id, visible, accentColor, textColor }: { id: string; visible: boolean;
@@ -125,7 +120,7 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
           <Animated.View style={styles.longPressArea}>
             <View style={[styles.queueAccent, { backgroundColor: rowColors.border },
               isCurrent && { backgroundColor: resolvedAccentColor }]} testID={`queue-accent-bar-${id}`} />
-            <QueueArtwork id={id} artworkUri={artworkUri} title={title} colors={rowColors} />
+            <QueueArtwork id={id} artworkUri={artworkUri} />
             <View style={styles.queueTextWrap}>
               <Text style={[styles.queueTitle, { color: rowColors.textPrimary }, isCurrent && styles.queueTitleActive]}
                 numberOfLines={1} ellipsizeMode="tail">{title}</Text>
@@ -151,8 +146,6 @@ const styles = StyleSheet.create({
   queueItemDragging: { opacity: 0.97 }, queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 32, borderRadius: 3 },
   queueArtwork: { width: 52, height: 52, borderRadius: 3 },
-  queueArtworkFallback: { alignItems: 'center', justifyContent: 'center' },
-  queueArtworkLetter: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 19 },
   queueTextWrap: { flex: 1 }, queueTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
   queueTitleActive: { fontWeight: '700' },
   queueArtist: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 2 },

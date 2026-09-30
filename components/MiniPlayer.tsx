@@ -1,12 +1,12 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
-import { Disc3, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
+import { ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
 import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
@@ -91,7 +91,8 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width);
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
-  const artworkSource = useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
+  const artworkSource = useMemo(() => getArtworkSource(coverFailed ? undefined : artworkUri),
+    [artworkUri, coverFailed]);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const displayArtistName = currentSong ? displayArtist(currentSong) : '';
   const effectivePalette = useMemo(
@@ -123,7 +124,6 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   }, [canSkipNext, next]);
 
   if (!currentSong) return null;
-  const showCover = artworkSource !== null && !coverFailed;
 
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
@@ -133,12 +133,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         accessibilityLabel="Wiedergabe öffnen">
         <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated,
           borderColor: appTheme.palette.border }]}>
-          {showCover ? (
-            <Image source={artworkSource!} style={styles.thumbImage} accessible={false}
-              resizeMethod="resize" fadeDuration={0} onError={() => setCoverFailed(true)} />
-          ) : (
-            <Disc3 color={coverAccentMuted} size={18} />
-          )}
+          <Image source={artworkSource} style={styles.thumbImage} accessible={false}
+            resizeMethod="resize" fadeDuration={0}
+            onError={artworkUri && !coverFailed ? () => setCoverFailed(true) : undefined} />
           <MiniPlayerAccentBorder color={coverAccentMuted} radius={10} testID="mini-player-thumb-accent-border" />
         </View>
 
