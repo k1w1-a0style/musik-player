@@ -1,6 +1,7 @@
+import { getCachedWaveformForSong } from './waveformSourceCache';
 import { useSyncExternalStore } from 'react';
 import type { Song } from '../types/Song';
-import { getCachedWaveform, setCachedWaveform } from './waveformCache';
+import { setCachedWaveform } from './waveformCache';
 import { extractNativeWaveform } from './waveformExtraction';
 import { getWaveformSourceIdentity } from './waveformGenerator';
 import { clearWaveformFailure } from './waveformExtractionLifecycle';
@@ -49,7 +50,7 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
   clearWaveformFailure(identity.sourceFingerprint);
   while (true) {
     throwIfAborted(signal);
-    const cached = await getCachedWaveform(identity);
+    const cached = await getCachedWaveformForSong(song);
     throwIfAborted(signal);
     if (cached?.source === 'native') return true;
     let deferred = false;

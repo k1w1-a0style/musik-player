@@ -1,5 +1,6 @@
+import { getCachedWaveformForSong } from './waveformSourceCache';
 import type { Song } from '../types/Song';
-import { getCachedWaveform, peekCachedWaveform, setCachedWaveform } from './waveformCache';
+import { peekCachedWaveform, setCachedWaveform } from './waveformCache';
 import { extractNativeWaveform, resolveWaveformUri } from './waveformExtraction';
 import {
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
@@ -58,7 +59,7 @@ const loadPreloadedWaveform = async (
   priority: WaveformPreloadPriority,
 ): Promise<SongWaveform | null> => {
   const identity = getWaveformSourceIdentity(song);
-  const cached = await getCachedWaveform(identity).catch(() => null);
+  const cached = await getCachedWaveformForSong(song).catch(() => null);
   if (cached?.source === 'native') return cached;
 
   // A foreground request may have completed while persistent storage was read.

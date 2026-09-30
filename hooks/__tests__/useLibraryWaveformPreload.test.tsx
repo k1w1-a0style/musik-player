@@ -2,7 +2,8 @@ import { act, renderHook } from '@testing-library/react-native';
 import { AppState, InteractionManager } from 'react-native';
 import { useLibraryWaveformPreload } from '../useLibraryWaveformPreload';
 import { extractNativeWaveform } from '../../utils/waveformExtraction';
-import { getCachedWaveform, setCachedWaveform } from '../../utils/waveformCache';
+import { setCachedWaveform } from '../../utils/waveformCache';
+import { getCachedWaveformForSong } from '../../utils/waveformSourceCache';
 import { buildNativeWaveform } from '../../utils/waveformGenerator';
 import type { Song } from '../../types/Song';
 
@@ -10,8 +11,9 @@ jest.mock('../../utils/waveformExtraction', () => ({
   ...jest.requireActual('../../utils/waveformExtraction'), extractNativeWaveform: jest.fn(),
 }));
 jest.mock('../../utils/waveformCache', () => ({
-  MAX_PERSISTED_WAVEFORMS: 256, getCachedWaveform: jest.fn(), setCachedWaveform: jest.fn(),
+  MAX_PERSISTED_WAVEFORMS: 256, setCachedWaveform: jest.fn(),
 }));
+jest.mock('../../utils/waveformSourceCache', () => ({ getCachedWaveformForSong: jest.fn() }));
 const songs: Song[] = ['a', 'b'].map(id => ({ id, title: id, artist: 'CI', uri: `file:///${id}.mp3`, duration: 60000 }));
 const flush = async () => { await act(async () => { await jest.advanceTimersByTimeAsync(1500); }); };
 beforeEach(() => {
@@ -21,7 +23,7 @@ beforeEach(() => {
     if (typeof callback === 'function') callback();
     return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() } as never;
   });
-  (getCachedWaveform as jest.Mock).mockResolvedValue(null);
+  (getCachedWaveformForSong as jest.Mock).mockResolvedValue(null);
   (setCachedWaveform as jest.Mock).mockResolvedValue(undefined);
   (extractNativeWaveform as jest.Mock).mockImplementation(async (song: Song) =>
     buildNativeWaveform(song, { points: Array(16).fill(0.5), analysis: 'decoded-pcm-v1' }, 60000));
@@ -29,7 +31,7 @@ beforeEach(() => {
 afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); });
 
 test('prepares imported songs once at background priority and reuses a disk hit', async () => {
-  (getCachedWaveform as jest.Mock).mockResolvedValueOnce({ source: 'native' });
+  (getCachedWaveformForSong as jest.Mock).mockResolvedValueOnce({ source: 'native' });
   const hook = renderHook(() => useLibraryWaveformPreload(songs, true));
   expect(extractNativeWaveform).not.toHaveBeenCalled();
   await flush();

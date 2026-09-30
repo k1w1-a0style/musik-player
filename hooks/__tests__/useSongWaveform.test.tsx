@@ -115,6 +115,7 @@ describe('useSongWaveform lifecycle', () => {
 
     expect(hook.result.current.waveformReady).toBe(false);
     expect(hook.result.current.loadingNative).toBe(true);
+    expect(hook.result.current.waveform.points.every(point => point === 0)).toBe(true);
     await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(hook.result.current.waveformReady).toBe(false);
 
@@ -169,6 +170,53 @@ describe('useSongWaveform lifecycle', () => {
     await flush();
     expect(hook.result.current.waveformReady).toBe(true);
     hook.unmount();
+  });
+
+  test('song duration backfill does not replace an active decoder or its completed shape', async () => {
+    const native = deferred<NativeResult>();
+    const currentSong = song('metadata-backfill');
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
+    const hook = renderHook<ReturnType<typeof useSongWaveform>, { current: Song }>(
+      ({ current }) => useSongWaveform({ song: current, durationMs: current.duration ?? 0 }),
+      { initialProps: { current: currentSong } },
+    );
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const originalKey = hook.result.current.sourceKey;
+    const enriched = { ...currentSong, duration: 120000, audioInfo: { durationMs: 120000 } };
+    hook.rerender({ current: enriched });
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.sourceKey).toBe(originalKey);
+    native.resolve(decoded(peaks, 120000));
+    await flush();
+    const finished = hook.result.current.waveform;
+    expect(hook.result.current.waveformReady).toBe(true);
+    hook.rerender({ current: { ...enriched, duration: 121000, title: 'Updated title' } });
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(hook.result.current.waveform).toBe(finished);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
+
+  test('persisted waveform survives restart with enriched duration metadata', async () => {
+    const currentSong = song('persistent-backfill');
+    extractor.extractWaveformPeaks.mockResolvedValue(decoded(peaks, 120000));
+    const first = renderHook(() => useSongWaveform({ song: currentSong, durationMs: 0 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const finished = first.result.current.waveform;
+    expect(first.result.current.waveformReady).toBe(true);
+    first.unmount();
+    await flush();
+    resetWaveformCacheStateForTests();
+    resetWaveformExtractionLifecycleForTests();
+    const second = renderHook(() => useSongWaveform({
+      song: { ...currentSong, duration: 120000, audioInfo: { durationMs: 120000 } }, durationMs: 120000,
+    }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(second.result.current.waveformReady).toBe(true);
+    expect(second.result.current.waveform).toEqual(finished);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    second.unmount();
   });
 
   test('unmount immediately releases the JS waiter without error telemetry', async () => {

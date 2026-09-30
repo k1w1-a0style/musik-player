@@ -1,13 +1,14 @@
 import type { Song } from '../types/Song';
-import { getWaveformSourceIdentity } from './waveformGenerator';
+import { getCompatibleWaveformSourceIdentities } from './waveformGenerator';
 import { getWaveformStatus, type WaveformStatus } from './waveformStatus';
 import { wasSongPrepared } from './songPreparationStore';
 
 export const getSongPreparationStatus = (song: Song): WaveformStatus => {
-  const { sourceFingerprint } = getWaveformSourceIdentity(song);
+  const identities = getCompatibleWaveformSourceIdentities(song);
+  const { sourceFingerprint } = identities[0];
   const status = getWaveformStatus(sourceFingerprint);
   if (status === 'unavailable') return status;
-  return wasSongPrepared(sourceFingerprint) ? 'ready' : status;
+  return identities.some(identity => wasSongPrepared(identity.sourceFingerprint)) ? 'ready' : status;
 };
 
 export const isSongPrepared = (song: Song): boolean => getSongPreparationStatus(song) === 'ready';

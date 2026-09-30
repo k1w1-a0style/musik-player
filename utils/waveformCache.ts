@@ -151,7 +151,16 @@ export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promi
   return waveform;
 };
 
-export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> => {
+const removeReplacedWaveform = async (replaced: WaveformSourceIdentity, current: WaveformSourceIdentity): Promise<void> => {
+  if (replaced.sourceKey === current.sourceKey) return;
+  const key = keyForSource(replaced.sourceKey);
+  const stored = await readStoredWaveform(key);
+  if (stored && sameIdentity(stored, replaced)) await AsyncStorage.removeItem(key);
+  const memory = memoryWaveforms.get(replaced.sourceKey);
+  if (memory && sameIdentity(memory, replaced)) memoryWaveforms.delete(replaced.sourceKey);
+};
+
+export const setCachedWaveform = async (waveform: SongWaveform, replaced?: WaveformSourceIdentity): Promise<void> => {
   if (!isSongWaveform(waveform)) return;
   // Make the finalized shape available to remounts immediately. Persistence is
   // still serialized below, but a slow storage write must not trigger a second
@@ -165,7 +174,8 @@ export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> =
     await AsyncStorage.setItem(payloadKey, JSON.stringify(waveform));
 
     const identity = { sourceKey: waveform.sourceKey, sourceFingerprint: waveform.sourceFingerprint };
-    const next = [identity, ...existing.filter(entry => entry.sourceKey !== waveform.sourceKey)];
+    const next = [identity, ...existing.filter(entry => entry.sourceKey !== waveform.sourceKey
+      && (!replaced || !sameIdentity(entry, replaced)))];
     try {
       await writeIndex(next);
       cachedIndex = next.slice(0, MAX_PERSISTED_WAVEFORMS);
@@ -180,6 +190,8 @@ export const setCachedWaveform = async (waveform: SongWaveform): Promise<void> =
     for (const entry of stale) {
       if (!memoryWaveforms.has(entry.sourceKey)) setWaveformStatus(entry.sourceFingerprint, 'pending');
     }
+    // Retire the old entry only after the new payload and index are durable.
+    if (replaced) await removeReplacedWaveform(replaced, identity).catch(() => undefined);
   });
 };
 

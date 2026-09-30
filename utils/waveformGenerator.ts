@@ -42,14 +42,19 @@ const encodeIdentityPart = (value: string | number): string => {
   return `${encoded.length}:${encoded}`;
 };
 
-export const getWaveformCanonicalIdentity = (song: Song | null | undefined): string => {
+const buildCanonicalIdentity = (song: Song | null | undefined, duration: number): string => {
   if (!song) return [WAVEFORM_VERSION, 'no-song'].map(encodeIdentityPart).join('|');
   const uri = song.fileInfo?.uri ?? song.uri ?? '';
   const size = song.fileInfo?.size ?? 0;
   const importedAt = song.fileInfo?.importedAt ?? 0;
-  const duration = song.duration ?? song.audioInfo?.durationMs ?? 0;
   return [WAVEFORM_VERSION, song.id, uri, size, importedAt, duration].map(encodeIdentityPart).join('|');
 };
+
+// Duration is derived metadata: discovering it must not cancel decoding or
+// invalidate a finalized shape. Keep the v6 zero-duration layout so existing
+// unknown-duration cache entries remain directly reusable.
+export const getWaveformCanonicalIdentity = (song: Song | null | undefined): string =>
+  buildCanonicalIdentity(song, 0);
 
 export const createWaveformSourceIdentity = (
   canonicalIdentity: string,
@@ -62,6 +67,13 @@ export const createWaveformSourceIdentity = (
 export const getWaveformSourceIdentity = (song: Song | null | undefined): WaveformSourceIdentity =>
   createWaveformSourceIdentity(getWaveformCanonicalIdentity(song));
 
+/** Exact legacy v6 identities only; URI, size and import revision still match. */
+export const getCompatibleWaveformSourceIdentities = (song: Song | null | undefined): WaveformSourceIdentity[] => {
+  const durations = new Set([0, song?.duration ?? 0, song?.audioInfo?.durationMs ?? 0]);
+  return [...durations].filter(duration => Number.isFinite(duration) && duration >= 0)
+    .map(duration => createWaveformSourceIdentity(buildCanonicalIdentity(song, duration)));
+};
+
 export const clampWaveformPoint = (value: number): number => {
   if (!Number.isFinite(value)) return 0.08;
   return Math.max(0.04, Math.min(1, value));
@@ -70,7 +82,7 @@ export const clampWaveformPoint = (value: number): number => {
 export const normalizeWaveformPoints = (points: readonly number[], targetCount = DEFAULT_WAVEFORM_POINT_COUNT): number[] => {
   const safeTarget = Math.max(8, Math.min(WAVEFORM_CACHE_POINT_COUNT, Math.floor(targetCount)));
   const safePoints = points.map(clampWaveformPoint);
-  if (safePoints.length === 0) return buildSyntheticPoints('empty', safeTarget);
+  if (safePoints.length === 0) return Array(safeTarget).fill(0);
   if (safePoints.length === safeTarget) return safePoints;
 
   return Array.from({ length: safeTarget }, (_, index) => {
@@ -84,28 +96,6 @@ export const normalizeWaveformPoints = (points: readonly number[], targetCount =
   });
 };
 
-const nextSeed = (seed: number, salt: number): number => Math.imul(seed ^ salt, FNV_PRIME) >>> 0;
-
-const buildSyntheticPoints = (identity: string, count: number): number[] => {
-  const identityHash = hashWaveformIdentity(identity) || 1;
-  let seed = identityHash;
-  const phaseA = (identityHash % 628) / 100;
-  const phaseB = ((identityHash >>> 8) % 628) / 100;
-  const tempoA = 0.19 + ((identityHash >>> 4) % 17) / 100;
-  const tempoB = 0.37 + ((identityHash >>> 12) % 23) / 100;
-
-  return Array.from({ length: count }, (_, index) => {
-    seed = nextSeed(seed, index + 0x9e3779b9);
-    const noise = ((seed % 1000) / 1000) - 0.5;
-    const slow = 0.5 + 0.5 * Math.sin(index * tempoA + phaseA);
-    const fast = 0.5 + 0.5 * Math.sin(index * tempoB + phaseB);
-    const transient = ((seed >>> 11) % 13 === 0) ? 0.32 : 0;
-    const valley = ((seed >>> 17) % 11 === 0) ? -0.22 : 0;
-    const value = 0.10 + slow * 0.34 + fast * 0.22 + noise * 0.20 + transient + valley;
-    return clampWaveformPoint(value);
-  });
-};
-
 export const buildFallbackWaveform = (
   song: Song | null | undefined,
   durationMs: number,
@@ -114,7 +104,7 @@ export const buildFallbackWaveform = (
   const sourceIdentity = getWaveformSourceIdentity(song);
   return {
     version: WAVEFORM_VERSION,
-    points: buildSyntheticPoints(sourceIdentity.sourceFingerprint, pointCount),
+    points: Array.from({ length: pointCount }, () => 0),
     durationMs: Number.isFinite(durationMs) && durationMs > 0 ? durationMs : song?.duration ?? song?.audioInfo?.durationMs ?? 0,
     ...sourceIdentity,
     source: 'fallback',

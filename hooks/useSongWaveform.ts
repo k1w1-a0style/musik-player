@@ -1,6 +1,7 @@
+import { getCachedWaveformForSong } from '../utils/waveformSourceCache';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Song } from '../types/Song';
-import { getCachedWaveform, peekCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
+import { peekCachedWaveform, setCachedWaveform } from '../utils/waveformCache';
 import { buildImmediateWaveform, extractNativeWaveform, resolveWaveformUri } from '../utils/waveformExtraction';
 import { getWaveformSourceIdentity, normalizeWaveformPoints } from '../utils/waveformGenerator';
 import type { WaveformSourceDiagnostics } from '../utils/waveformDecision';
@@ -50,7 +51,7 @@ const cacheWaveformObserved = (waveform: SongWaveform): void => {
 };
 
 const getCachedWaveformUntilAbort = (
-  identity: WaveformSourceIdentity,
+  song: Song | null,
   signal: AbortSignal,
 ): Promise<SongWaveform | null> => new Promise(resolve => {
   let settled = false;
@@ -63,7 +64,7 @@ const getCachedWaveformUntilAbort = (
   const abort = () => finish(null);
   signal.addEventListener('abort', abort, { once: true });
   if (signal.aborted) abort();
-  void getCachedWaveform(identity).then(finish, () => finish(null));
+  void getCachedWaveformForSong(song).then(finish, () => finish(null));
 });
 
 const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
@@ -111,7 +112,7 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
 
     setResolved(null);
     void (async () => {
-      const cached = await getCachedWaveformUntilAbort(requestedIdentity, controller.signal);
+      const cached = await getCachedWaveformUntilAbort(requestedSong, controller.signal);
       if (!active) return;
       if (cached?.source === 'native') return commit(cached);
       const racedMemoryHit = peekCachedWaveform(requestedIdentity);

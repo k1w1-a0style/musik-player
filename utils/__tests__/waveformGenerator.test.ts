@@ -15,7 +15,7 @@ const song = {
   duration: 123000,
 };
 
-test('builds deterministic fallback waveform points and full source identity', () => {
+test('builds a flat fallback without invented peaks and full source identity', () => {
   const first = buildFallbackWaveform(song, 123000, 16);
   const second = buildFallbackWaveform(song, 123000, 16);
   const identity = getWaveformSourceIdentity(song);
@@ -26,6 +26,7 @@ test('builds deterministic fallback waveform points and full source identity', (
   expect(first.sourceFingerprint).toMatch(/^wf6:[0-9a-f]{32}$/);
   expect(first.points).toHaveLength(16);
   expect(first.points).toEqual(second.points);
+  expect(first.points).toEqual(Array(16).fill(0));
   expect(first.points.every(point => point >= 0 && point <= 1)).toBe(true);
 });
 
@@ -56,4 +57,22 @@ test('builds native waveform with normalized points and full source identity', (
   expect(waveform).toMatchObject(getWaveformSourceIdentity(song));
   expect(waveform.points).toHaveLength(12);
   expect(waveform.durationMs).toBe(123000);
+});
+
+test('empty waveform data stays flat', () => {
+  expect(normalizeWaveformPoints([], 16)).toEqual(Array(16).fill(0));
+});
+
+test('duration and metadata backfill preserve the physical source identity', () => {
+  const original = getWaveformSourceIdentity({ ...song, duration: undefined });
+  expect(getWaveformSourceIdentity(song)).toEqual(original);
+  expect(getWaveformSourceIdentity({ ...song, duration: 124000, audioInfo: { durationMs: 125000 }, title: 'New title' })).toEqual(original);
+});
+
+test.each([
+  { ...song, uri: 'file:///different.mp3' },
+  { ...song, fileInfo: { size: 8192 } },
+  { ...song, fileInfo: { importedAt: 43 } },
+])('physical source changes invalidate identity: %j', changed => {
+  expect(getWaveformSourceIdentity(changed)).not.toEqual(getWaveformSourceIdentity(song));
 });

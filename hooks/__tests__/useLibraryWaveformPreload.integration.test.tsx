@@ -85,3 +85,78 @@ test('a real decoder failure is attempted once instead of polling indefinitely',
   expect(await getCachedWaveform(getWaveformSourceIdentity(librarySong))).toBeNull();
   hook.unmount();
 });
+
+test('metadata backfill preserves a running native preload', async () => {
+  let finish!: (value: NativeResult) => void;
+  native.extractWaveformPeaks.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finish(null); return true; });
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, true), { initialProps: { current: songs } },
+  );
+  await flush(1620);
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  const enriched = { ...librarySong, duration: 61000, audioInfo: { durationMs: 61000 }, title: 'Updated', cover: 'file:///cover.jpg' };
+  hook.rerender({ current: [enriched] });
+  await flush(2000);
+  expect(native.cancelWaveformExtraction).not.toHaveBeenCalled();
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  finish(decoded);
+  await flush(2000);
+  expect(await getCachedWaveform(getWaveformSourceIdentity(enriched))).toMatchObject({ source: 'native' });
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  hook.unmount();
+});
+
+test('newly discovered duration wakes an idle preloader', async () => {
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, true),
+    { initialProps: { current: [{ ...librarySong, duration: undefined }] } },
+  );
+  await flush(3000);
+  expect(native.extractWaveformPeaks).not.toHaveBeenCalled();
+  hook.rerender({ current: songs });
+  await flush(1620);
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  expect(await getCachedWaveform(getWaveformSourceIdentity(librarySong))).toMatchObject({ source: 'native' });
+  hook.unmount();
+});
+
+test('a changed physical source cancels the old decoder and prepares the replacement', async () => {
+  let finish!: (value: NativeResult) => void;
+  native.extractWaveformPeaks.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finish(null); return true; });
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, true), { initialProps: { current: songs } },
+  );
+  await flush(1620);
+  const changed = { ...librarySong, uri: 'file:///replacement.mp3' };
+  hook.rerender({ current: [changed] });
+  await flush(1700);
+  expect(native.cancelWaveformExtraction).toHaveBeenCalledTimes(1);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([librarySong.uri, changed.uri]);
+  expect(await getCachedWaveform(getWaveformSourceIdentity(changed))).toMatchObject({ source: 'native' });
+  expect(await getCachedWaveform(getWaveformSourceIdentity(librarySong))).toBeNull();
+  hook.unmount();
+});
+
+test('new duration queues a follow-up pass without cancelling another active track', async () => {
+  let finish!: (value: NativeResult) => void;
+  const unknown: Song = { id: 'unknown', title: 'Unknown', artist: 'CI', uri: 'file:///unknown.mp3' };
+  native.extractWaveformPeaks.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finish(null); return true; });
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, true),
+    { initialProps: { current: [unknown, librarySong] } },
+  );
+  await flush(1620);
+  const enriched = { ...unknown, duration: 60000 };
+  hook.rerender({ current: [enriched, librarySong] });
+  await flush(2000);
+  expect(native.cancelWaveformExtraction).not.toHaveBeenCalled();
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  finish(decoded);
+  await flush(1700);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([librarySong.uri, unknown.uri]);
+  expect(await getCachedWaveform(getWaveformSourceIdentity(enriched))).toMatchObject({ source: 'native' });
+  hook.unmount();
+});
