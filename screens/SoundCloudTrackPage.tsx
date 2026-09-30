@@ -24,7 +24,7 @@ const ActiveWaveform = React.memo(({ song, isPlaying, accent, onSeek, gestureHan
     : { ...source, points: normalizeWaveformPoints(source.points, SOUNDCLOUD_WAVEFORM_POINT_COUNT) }, [source]);
   return <SoundCloudWaveformViewport waveform={waveform} ready={waveformReady}
     currentPosition={position} duration={duration} loading={loadingNative} onRetry={retry}
-    isPlaying={isPlaying} onSeek={onSeek} accent={accent}
+    isPlaying={isPlaying} onSeek={onSeek} accent={accent} height={108}
     gestureHandlerRef={gestureHandlerRef} />;
 });
 
