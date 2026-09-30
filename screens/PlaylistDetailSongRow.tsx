@@ -15,7 +15,7 @@ import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDr
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
 import { useSongPreparation } from '../hooks/useSongPreparation';
 import SongWaveformStatus from '../components/SongWaveformStatus';
 import type { WaveformStatus } from '../utils/waveformStatus';
@@ -37,25 +37,11 @@ interface PlaylistDetailSongRowProps {
   onPlay: (song: Song) => void;
 }
 
-const SongArtwork = React.memo(({ song, title, backgroundColor, textColor }: {
-  song: Song;
-  title: string;
-  backgroundColor: string;
-  textColor: string;
-}) => {
+const SongArtwork = React.memo(({ song }: { song: Song }) => {
   const uri = getSongArtworkUri(song);
-  const source = React.useMemo(() => uri ? { uri } : null, [uri]);
-  if (source) {
-    return <Image source={source} resizeMode="cover" resizeMethod="resize" fadeDuration={0}
-      style={styles.artwork} accessible={false} testID={`playlist-detail-artwork-${song.id}`} />;
-  }
-  return (
-    <View style={[styles.artwork, styles.artworkFallback, { backgroundColor }]}>
-      <Text style={[styles.artworkLetter, { color: textColor }]}>
-        {title.charAt(0).toUpperCase() || '♪'}
-      </Text>
-    </View>
-  );
+  const source = React.useMemo(() => getArtworkSource(uri), [uri]);
+  return <Image source={source} resizeMode="cover" resizeMethod="resize" fadeDuration={0}
+    style={styles.artwork} accessible={false} testID={`playlist-detail-artwork-${song.id}`} />;
 });
 
 const usePlaylistRowAccessibilityAction = (index: number, songCount: number,
@@ -132,8 +118,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           {...drag.longPressGestureHandlers} testID={`playlist-detail-long-press-drag-${song.id}`}>
           <Animated.View style={[styles.longPressArea, !prepared && styles.preparing]}>
             <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
-            <SongArtwork song={song} title={title} backgroundColor={theme.palette.surfaceElevated}
-              textColor={theme.palette.text.muted} />
+            <SongArtwork song={song} />
             <SongText song={song} preparation={preparation} />
           </Animated.View>
         </PanGestureHandler>
@@ -178,8 +163,6 @@ const styles = StyleSheet.create({
   songRowPressed: { opacity: 0.76 },
   songIndex: { width: 24, textAlign: 'right', fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12 },
   artwork: { width: 50, height: 50, borderRadius: 5 },
-  artworkFallback: { alignItems: 'center', justifyContent: 'center' },
-  artworkLetter: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 18 },
   songTextWrap: { flex: 1, minWidth: 0 },
   songTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14 },
   songSubtitle: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 2 },

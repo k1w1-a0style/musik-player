@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import type { PickedTagCover } from '../utils/tagCoverPicker';
+import { KIWI_MUSIC_ARTWORK } from '../utils/songArtwork';
 
 interface TagEditorCoverControlsProps {
   canPick: boolean;
@@ -72,9 +73,8 @@ const TagEditorCoverControls: React.FC<TagEditorCoverControlsProps> = ({
               <Image source={{ uri: previewUri }} style={styles.coverPreview} testID="cover-preview-image" />
             ) : (
               <View style={styles.coverPreviewPlaceholder} testID="cover-preview-placeholder">
-                <Text style={[styles.coverPreviewPlaceholderText, { color: theme.palette.text.muted }]}>
-                  Kein Cover
-                </Text>
+                <Image source={KIWI_MUSIC_ARTWORK} style={styles.coverPreview} resizeMethod="resize"
+                  fadeDuration={0} accessible={false} />
               </View>
             )}
           </View>
@@ -159,8 +159,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   coverPreview: { width: '100%', height: '100%' },
-  coverPreviewPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  coverPreviewPlaceholderText: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 12, textAlign: 'center' },
+  coverPreviewPlaceholder: { flex: 1 },
   previewTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, textAlign: 'center' },
   disabledButton: { opacity: 0.5 },
   pressed: { opacity: 0.72 },

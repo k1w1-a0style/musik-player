@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
 import type { SoundCloudCarouselPageRole } from './soundCloudCarouselTypes';
 
 interface SoundCloudCarouselPanelProps {
@@ -18,9 +18,10 @@ interface SoundCloudCarouselPanelProps {
 const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
   topInset = 0, bottomInset = 0 }: SoundCloudCarouselPanelProps) => {
   const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song);
+  const hasSong = song !== null;
   const artworkSource = useMemo(
-    () => resolvedArtworkUri ? { uri: resolvedArtworkUri } : null,
-    [resolvedArtworkUri],
+    () => hasSong || resolvedArtworkUri ? getArtworkSource(resolvedArtworkUri) : null,
+    [hasSong, resolvedArtworkUri],
   );
 
   return (
@@ -32,7 +33,7 @@ const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
         bottom: Math.max(bottomInset + 78, 90),
       }]} testID={`soundcloud-carousel-${role}-artwork-frame`}>
         {artworkSource ? (
-          <Image source={artworkSource} resizeMode="cover" resizeMethod="resize"
+          <Image source={artworkSource} resizeMode={resolvedArtworkUri ? 'cover' : 'contain'} resizeMethod="resize"
             fadeDuration={0} accessible={false} style={styles.panelArtwork} blurRadius={paused ? 28 : 0}
             testID={`soundcloud-carousel-${role}-artwork`} />
         ) : <View style={[StyleSheet.absoluteFill, styles.emptyArtwork]} />}

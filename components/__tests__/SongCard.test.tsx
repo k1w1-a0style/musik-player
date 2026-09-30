@@ -41,13 +41,13 @@ describe('SongCard', () => {
   const song = { id: '1', title: 'Track', artist: 'Artist', cover: 'file:///broken.jpg' };
 
   test('falls back when cover image errors', () => {
-    const { UNSAFE_getByType, UNSAFE_queryByType } = render(
+    const { UNSAFE_getByType } = render(
       <SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,
     );
 
     fireEvent(UNSAFE_getByType(Image), 'error');
 
-    expect(UNSAFE_queryByType(Image)).toBeNull();
+    expect(UNSAFE_getByType(Image).props.source).toBe(require('../../assets/icon.png'));
   });
 
   test('calls stable song press handler with the row song', () => {

@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Animated, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { Disc3 } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useHorizontalTrackMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
 import { getTrackPageKeys } from '../utils/soundCloudPlayer';
+import { KIWI_MUSIC_ARTWORK, getSongArtworkUri } from '../utils/songArtwork';
 
 interface NowPlayingCoverArtworkProps {
   song?: Song | null;
@@ -43,7 +43,6 @@ interface CoverCardProps {
   isPlaying: boolean;
   coverSize: number;
   backgroundColor: string;
-  primaryColor: string;
 }
 
 const GESTURE_ACTIVATION_OFFSET = 12;
@@ -67,11 +66,12 @@ const getFallbackTestId = (role: CoverRole): string => role === 'current'
   : `now-playing-cover-${role}-fallback`;
 
 const CoverCard = React.memo(({ role, song, artworkUri, isPlaying, coverSize,
-  backgroundColor, primaryColor }: CoverCardProps) => {
+  backgroundColor }: CoverCardProps) => {
   const [coverFailed, setCoverFailed] = useState(false);
-  const artworkSource = useMemo(() => artworkUri ? { uri: artworkUri } : null, [artworkUri]);
+  const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song);
+  const artworkSource = useMemo(() => resolvedArtworkUri ? { uri: resolvedArtworkUri } : null, [resolvedArtworkUri]);
 
-  useEffect(() => setCoverFailed(false), [artworkUri, song?.id]);
+  useEffect(() => setCoverFailed(false), [resolvedArtworkUri, song?.id]);
 
   return (
     <View style={[styles.coverCard, { width: coverSize, height: coverSize, backgroundColor }]}
@@ -83,7 +83,8 @@ const CoverCard = React.memo(({ role, song, artworkUri, isPlaying, coverSize,
       ) : (
         <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}
           testID={getFallbackTestId(role)}>
-          <Disc3 color={primaryColor} size={Math.floor(coverSize * 0.55)} />
+          <Image source={KIWI_MUSIC_ARTWORK} style={styles.coverImage} resizeMode="cover"
+            resizeMethod="resize" fadeDuration={0} accessible={false} />
         </View>
       )}
     </View>
@@ -96,7 +97,6 @@ const StaticCoverArtwork = ({ song, artworkUri, isPlaying, accent, coverSize }:
   const cardProps = {
     coverSize,
     backgroundColor: theme.palette.surface,
-    primaryColor: theme.palette.primary,
   };
   return (
     <View style={[styles.coverShadow, { width: coverSize, height: coverSize,
@@ -158,8 +158,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
     [pageWidth, motion.constrainedDrag]);
   const pageKeys = getTrackPageKeys({ currentId: displayed.song?.id,
     previousId: displayed.previousSong?.id, nextId: displayed.nextSong?.id });
-  const cardProps = { coverSize, pageWidth, accent, backgroundColor: theme.palette.surface,
-    primaryColor: theme.palette.primary };
+  const cardProps = { coverSize, pageWidth, accent, backgroundColor: theme.palette.surface };
   return (
     <View style={[styles.pagerViewport, { width: pageWidth, height: coverSize + 32 }]}
       testID="now-playing-cover-pager">

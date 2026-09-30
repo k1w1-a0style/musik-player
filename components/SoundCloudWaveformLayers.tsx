@@ -12,7 +12,7 @@ interface WaveformBarsProps {
   color: string;
 }
 
-const BAR_WIDTH = 1.5;
+const BAR_WIDTH = 1.35;
 
 export const buildSoundCloudWaveformPath = (
   points: readonly number[],
