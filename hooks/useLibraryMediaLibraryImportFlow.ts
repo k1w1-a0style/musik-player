@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
+import { getImportedPreparationSongs } from '../utils/libraryImportSources';
+import { publishImportFileProgress } from '../utils/libraryImportProgress';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryAlertCopy } from './useLibraryAlerts';
@@ -46,7 +48,8 @@ export const useLibraryMediaLibraryImportFlow = ({
   ensureCurrentImport,
   applyImportedSongsUpdate,
 }: UseLibraryMediaLibraryImportFlowOptions) => {
-  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration): Promise<void> => {
+  const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration,
+    refreshExisting = true): Promise<void> => {
     ensureCurrentImport(generation);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await requestMediaLibraryPermissionsAsync();
@@ -75,7 +78,8 @@ export const useLibraryMediaLibraryImportFlow = ({
     if (!shouldImport) return;
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
     const mediaResult = await withTimeoutImpl(
-      signal => enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length, { signal }),
+      signal => enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length,
+        { signal, existingSongs: songs, refreshExisting, onFileProgress: publishImportFileProgress }),
       importTimeoutMs,
       importCopy.metadataImportTimeoutMessage,
       { signal: generation.controller.signal },
@@ -85,7 +89,8 @@ export const useLibraryMediaLibraryImportFlow = ({
     setImportStatus(mediaProgress.savingStatus);
     const result = buildMediaLibraryImportResult(songs, mediaResult.songs);
     applyImportedSongsUpdate(result.update, generation);
-    await prepareLibraryWaveforms(result.update.songs, { signal: generation.controller.signal });
+    await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, result.update.songs),
+      { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromMediaLibrary };

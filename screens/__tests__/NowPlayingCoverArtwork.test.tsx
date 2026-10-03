@@ -180,7 +180,7 @@ describe('NowPlayingCoverArtwork', () => {
     expect(onSwipeLeft).not.toHaveBeenCalled();
   });
 
-  test('commits the incoming cover before recentering and retains its loaded image', () => {
+  test('commits the incoming cover with its layout offset and retains its loaded image', () => {
     let finishAnimation: ((result: { finished: boolean }) => void) | undefined;
     jest.spyOn(Animated, 'timing').mockImplementation(() => ({
       start: callback => { finishAnimation = callback; }, stop: jest.fn(), reset: jest.fn(),
@@ -194,15 +194,9 @@ describe('NowPlayingCoverArtwork', () => {
     }));
     view.rerender(<NowPlayingCoverArtwork {...props} song={nextSong} previousSong={song}
       nextSong={null} artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" />);
-    const coversAtRecenter: string[] = [];
-    const setValue = Animated.Value.prototype.setValue;
-    jest.spyOn(Animated.Value.prototype, 'setValue').mockImplementation(function (this: Animated.Value, value: number) {
-      if (value === 0) coversAtRecenter.push(view.getByTestId('now-playing-cover-image').props.source.uri);
-      return setValue.call(this, value);
-    });
     act(() => finishAnimation?.({ finished: true }));
-    expect(coversAtRecenter.length).toBeGreaterThan(0);
-    expect(coversAtRecenter.every(uri => uri === 'file:///two.jpg')).toBe(true);
+    // The gesture-handler mock forwards its own testID onto the child track.
+    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-swipe-gesture').props.style).left).toBe(360);
     expect(view.getByTestId('now-playing-cover-image')).toBe(incomingImage);
   });
 });

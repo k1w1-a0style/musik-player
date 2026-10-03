@@ -30,6 +30,7 @@ internal object CallbackPcmWaveformDecoder {
     pointCount: Int,
     durationUs: Long,
     cancellation: AtomicBoolean,
+    onProgress: (Long) -> Unit = {},
   ): List<Double> {
     checkCancellation(cancellation)
     val envelope = PcmWaveformEnvelope(pointCount, durationUs)
@@ -103,6 +104,7 @@ internal object CallbackPcmWaveformDecoder {
                 pcm.position(event.offset)
                 pcm.limit(event.offset + event.size)
                 envelope.addPcm16(pcm.slice().order(ByteOrder.nativeOrder()), event.timeUs, sampleRate, channels)
+                onProgress(event.timeUs)
               }
               outputEnded = event.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
             } finally {

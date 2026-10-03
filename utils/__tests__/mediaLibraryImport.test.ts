@@ -18,6 +18,32 @@ jest.mock('../coverCache', () => ({
 }));
 
 describe('mediaLibraryImport', () => {
+  test('adding a folder skips known audio before metadata and cover reads, including overlapping SAF trees', async () => {
+    const authority = 'content://com.android.externalstorage.documents';
+    const oldUri = `${authority}/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3`;
+    const alias = `${authority}/tree/primary%3A/document/primary%3AMusic%2Fa.mp3`;
+    const newUri = `${authority}/tree/primary%3A/document/primary%3AMusic%2Fb.mp3`;
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([alias, newUri, newUri]);
+    (parseId3FromUri as jest.Mock).mockClear();
+    const result = await mediaImport.importSongsFromSources({
+      platformOs: 'android',
+      scanFolders: [{ id: 'new', name: 'New', uri: `${authority}/tree/primary%3A`, enabled: true, addedAt: 2 }],
+      existingSongs: [{ id: 'old', title: 'Old', artist: 'Artist', uri: oldUri }],
+    } as mediaImport.ImportSongsOptions);
+    expect(result.songs.map(song => song.uri)).toEqual([newUri]);
+    expect(parseId3FromUri).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
+
+  test('a normal folder scan imports tags and cover together', async () => {
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue(['content://music/new.mp3']);
+    (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'Tagged title', album: 'Tagged album', cover: 'data:image/jpeg;base64,abc' });
+    const result = await mediaImport.importSongsFromSources({ platformOs: 'android',
+      scanFolders: [{ id: 'new', name: 'New', uri: 'content://music', enabled: true, addedAt: 2 }] });
+    expect(result.songs[0]).toMatchObject({ title: 'Tagged title', album: 'Tagged album', cover: 'file:///cover.jpg',
+      coverInfo: { embeddedArtworkChecked: true } });
+  });
   beforeEach(() => {
     jest.useRealTimers();
     mediaImport.resetSafTimedOutUrisForTests();

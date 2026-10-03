@@ -165,7 +165,10 @@ declare class ExpoSystemAudioModule extends NativeModule {
   acknowledgeAudioTagRecoveryOutcomes?(operationIds: string[]): Promise<boolean>;
 }
 
-declare class ExpoSystemAudioWaveformModule extends NativeModule {
+declare class ExpoSystemAudioWaveformModule extends NativeModule<{
+  onWaveformProgress: (event: { requestId: string; progress: number }) => void;
+}> {
+  supportsWaveformProgress?: boolean;
   extractWaveformPeaks?(uri: string, pointCount?: number, requestId?: string): Promise<WaveformPeaksResult | null>;
   cancelWaveformExtraction?(requestId: string): boolean;
 }
@@ -284,6 +287,11 @@ export const SystemAudio = {
   hasNativeMetadataFastPath,
   hasNativeWaveformExtraction,
   hasNativeWaveformCancellation,
+
+  subscribeWaveformProgress(listener: (event: { requestId: string; progress: number }) => void): { remove: () => void } | null {
+    return waveformNative?.supportsWaveformProgress
+      ? waveformNative.addListener('onWaveformProgress', listener) : null;
+  },
 
   async eqInit(audioSessionId: number): Promise<EqInitResult | null> {
     return native && Number.isInteger(audioSessionId) && audioSessionId > 0

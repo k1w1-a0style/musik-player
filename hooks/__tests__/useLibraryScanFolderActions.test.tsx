@@ -44,6 +44,7 @@ const HookHarness = ({
   setActiveTab = jest.fn(),
   setMenuOpen = jest.fn(),
   showAlert = jest.fn(),
+  onFolderAdded,
 }: HookHarnessProps) => {
   const options: UseLibraryScanFolderActionsOptions = {
     scanFolders,
@@ -53,6 +54,7 @@ const HookHarness = ({
     showAlert,
     platformOs,
     requestDirectoryPermissionsAsync,
+    onFolderAdded,
   };
 
   const actions = useLibraryScanFolderActions(options);
@@ -117,6 +119,7 @@ test('onAddScanFolder shows cancelled alert when picker has no granted uri', asy
 });
 
 test('onAddScanFolder persists added folder and activates folders tab', async () => {
+  const onFolderAdded = jest.fn().mockResolvedValue(undefined);
   const setScanFolders = jest.fn();
   const setActiveTab = jest.fn();
   const setMenuOpen = jest.fn();
@@ -124,7 +127,8 @@ test('onAddScanFolder persists added folder and activates folders tab', async ()
     kind: 'added',
     update: { scanFolders: [folder('a'), folder('b')], activeTab: 'folders' },
   });
-  const screen = render(<HookHarness setScanFolders={setScanFolders} setActiveTab={setActiveTab} setMenuOpen={setMenuOpen} />);
+  const screen = render(<HookHarness setScanFolders={setScanFolders} setActiveTab={setActiveTab}
+    setMenuOpen={setMenuOpen} onFolderAdded={onFolderAdded} />);
 
   fireEvent.press(screen.getByText('add'));
 
@@ -137,6 +141,7 @@ test('onAddScanFolder persists added folder and activates folders tab', async ()
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setScanFolders).toHaveBeenCalledWith([folder('a'), folder('b')]);
   expect(setActiveTab).toHaveBeenCalledWith('folders');
+  expect(onFolderAdded).toHaveBeenCalledWith(expect.objectContaining({ uri: 'content://music' }));
 });
 
 test('onAddScanFolder shows duplicate alert when persistence reports duplicate', async () => {

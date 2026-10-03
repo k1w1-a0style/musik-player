@@ -131,7 +131,8 @@ describe('V6.6 accessibility patch', () => {
     const library = render(<LibraryMenuModal {...libraryProps} />);
 
     expect(library.getByTestId('library-menu-backdrop').props.accessible).toBe(false);
-    expect(library.getByText('Metadaten aktualisieren')).toBeTruthy();
+    expect(library.getByText('Importieren / Rescan')).toBeTruthy();
+    expect(library.queryByText('Metadaten aktualisieren')).toBeNull();
     expect(library.getByText('Einstellungen')).toBeTruthy();
   });
 

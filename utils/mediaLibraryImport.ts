@@ -10,6 +10,8 @@ import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOp
 import { OperationAbortError, throwIfAborted } from './withTimeout';
 import { EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 import { isSupportedAudioCandidate, normalizeAudioCandidateMimeType } from './audioImportCandidates';
+import { createImportSourceSelection, getImportSourceKey, preserveImportedSource } from './libraryImportSources';
+import { createImportFileProgressReporter, type ImportFileProgress } from './libraryImportProgress';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -57,6 +59,7 @@ export interface ImportScanResult {
   errorDetails?: ImportErrorDetail[];
   sourceSummary: Array<{ source: 'media-library' | 'saf'; imported: number; skipped: number; errors: number }>;
   folderUpdates?: ScanFolder[];
+  reusedCount?: number;
 }
 
 export interface SafDirectoryScanProgress {
@@ -73,6 +76,9 @@ export interface ImportSongsOptions {
   readId3Tags?: boolean;
   signal?: AbortSignal;
   onSafProgress?: (progress: SafDirectoryScanProgress) => void;
+  onFileProgress?: (progress: ImportFileProgress) => void;
+  existingSongs?: Song[];
+  refreshExisting?: boolean;
 }
 
 interface BuildSongSource {
@@ -96,6 +102,9 @@ interface BuildSongOptions {
 interface ImportEnrichmentOptions extends BuildSongOptions {
   readId3Tags?: boolean;
   signal?: AbortSignal;
+  existingSongs?: Song[];
+  refreshExisting?: boolean;
+  onFileProgress?: (progress: ImportFileProgress) => void;
 }
 
 interface SafImportOptions extends ImportEnrichmentOptions {
@@ -700,13 +709,17 @@ export const enrichMediaLibraryAssets = async (
   const errors: string[] = [];
   const errorDetails: ImportErrorDetail[] = [];
   const seenErrorDetails = new Set<string>();
-  const queue = [...assets];
+  const selection = createImportSourceSelection(options);
+  const queue = assets.filter(asset => selection.include(asset.uri));
+  const progress = createImportFileProgressReporter(options.onFileProgress, signal);
+  progress.addFiles(queue.length);
 
   const workers = Array.from({ length: ID3_CONCURRENT_READERS }, async () => {
     while (queue.length > 0) {
       throwIfAborted(signal);
       const asset = queue.shift();
       if (!asset) break;
+      progress.start(asset.uri);
       try {
         const assetMimeType = (asset as { mimeType?: string }).mimeType;
         const assetExtension = deriveExtension(asset.filename ?? asset.uri);
@@ -718,7 +731,7 @@ export const enrichMediaLibraryAssets = async (
         throwIfAborted(signal);
         const audioInfo = await getNativeAudioInfo(asset.uri);
         throwIfAborted(signal);
-        songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({
+        const imported = await buildSongFromImportSource(mergeAudioInfoIntoSource({
           id: asset.id,
           uri: asset.uri,
           filename: asset.filename,
@@ -726,11 +739,14 @@ export const enrichMediaLibraryAssets = async (
           mimeType: assetMimeType,
           size: (asset as { fileSize?: number }).fileSize,
           source: 'media-library',
-        }, audioInfo), tags, { loadNativeCover }));
+        }, audioInfo), tags, { loadNativeCover });
+        songs.push(preserveImportedSource(imported, selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)));
         throwIfAborted(signal);
       } catch (error) {
         errors.push(asset.uri);
         addImportErrorDetail(asset.uri, 'songBuild', error, true, errorDetails, seenErrorDetails);
+      } finally {
+        progress.finish(asset.uri);
       }
     }
   });
@@ -739,7 +755,8 @@ export const enrichMediaLibraryAssets = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, errorDetails, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + (songs.length - dedupedSongs.length), errors: errors.length }] };
+  const reusedCount = selection.getReusedCount();
+  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
 export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
@@ -751,11 +768,38 @@ export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}
   return result;
 };
 
+const buildSafSong = async (uri: string, tags: Id3Tags, options: SafImportOptions): Promise<Song> => {
+  const audioInfo = await getNativeAudioInfo(uri);
+  throwIfAborted(options.signal);
+  return buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo),
+    tags, { loadNativeCover: options.loadNativeCover ?? true });
+};
+
+const importSafFile = async (uri: string, options: SafImportOptions,
+  recordError: (error: unknown, recoverable: boolean) => void): Promise<Song | null> => {
+  try {
+    const tags = await readId3TagsIfEnabled(uri, options.readId3Tags ?? true, options.signal,
+      { extension: deriveExtension(uri) });
+    throwIfAborted(options.signal);
+    return await buildSafSong(uri, tags, options);
+  } catch (error) {
+    throwIfAborted(options.signal);
+    recordError(error, true);
+    try {
+      return await buildSafSong(uri, {}, options);
+    } catch (fallbackError) {
+      throwIfAborted(options.signal);
+      recordError(fallbackError, false);
+      return null;
+    }
+  }
+};
+
 export const scanFromSafFolders = async (
   folders: ScanFolder[],
   options: SafImportOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true, signal, onProgress, readTimeoutMs } = options;
+  const { signal, onProgress, readTimeoutMs } = options;
   throwIfAborted(signal);
   const songs: Song[] = [];
   const errors: string[] = [];
@@ -765,6 +809,8 @@ export const scanFromSafFolders = async (
   const timedOutDirectoryUris = new Set<string>();
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
+  const selection = createImportSourceSelection(options);
+  const progress = createImportFileProgressReporter(options.onFileProgress, signal);
 
   const recordImportError = (uri: string): void => {
     addNormalizedSafError(uri, errors, seenErrors);
@@ -796,36 +842,24 @@ export const scanFromSafFolders = async (
     else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
     else folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
 
-    const queue = [...files];
+    const queue = files.filter(selection.include);
+    progress.addFiles(queue.length);
     const workers = Array.from({ length: Math.min(SAF_ID3_CONCURRENT_READERS, queue.length || 1) }, async () => {
       while (queue.length > 0) {
         throwIfAborted(signal);
         const uri = queue.shift();
         if (!uri) return;
+        progress.start(uri);
         try {
-          const tags = await readId3TagsIfEnabled(uri, readId3Tags, signal, { extension: deriveExtension(uri) });
+          const imported = await importSafFile(uri, options, (error, recoverable) => {
+            recordImportError(uri);
+            addImportErrorDetail(uri, 'songBuild', error, recoverable, errorDetails, seenErrorDetails);
+          });
           throwIfAborted(signal);
-          const audioInfo = await getNativeAudioInfo(uri);
-          throwIfAborted(signal);
-          songs.push(await buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo), tags, { loadNativeCover }));
-          throwIfAborted(signal);
-        } catch (primaryError) {
-          throwIfAborted(signal);
-          recordImportError(uri);
-          addImportErrorDetail(uri, 'songBuild', primaryError, true, errorDetails, seenErrorDetails);
-          try {
-            const audioInfo = await getNativeAudioInfo(uri);
-            throwIfAborted(signal);
-            songs.push(await buildSongFromImportSource(
-              mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo),
-              {},
-              { loadNativeCover },
-            ));
-            throwIfAborted(signal);
-          } catch (fallbackError) {
-            throwIfAborted(signal);
-            addImportErrorDetail(uri, 'songBuild', fallbackError, false, errorDetails, seenErrorDetails);
-          }
+          if (imported) songs.push(preserveImportedSource(imported,
+            selection.previousSources.get(getImportSourceKey(uri) ?? uri)));
+        } finally {
+          progress.finish(uri);
         }
       }
     });
@@ -835,20 +869,24 @@ export const scanFromSafFolders = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, errorDetails, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
+  const reusedCount = selection.getReusedCount();
+  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {
-  const { scanFolders = [], platformOs, loadNativeCovers, readId3Tags, signal, onSafProgress } = options;
+  const { scanFolders = [], platformOs, loadNativeCovers, readId3Tags, signal, onSafProgress,
+    existingSongs, refreshExisting, onFileProgress } = options;
   throwIfAborted(signal);
   const activeSafFolders = scanFolders.filter(folder => folder.enabled);
   if (platformOs === 'android' && activeSafFolders.length > 0) {
     return scanFromSafFolders(activeSafFolders, {
-      loadNativeCover: loadNativeCovers ?? false,
-      readId3Tags: readId3Tags ?? false,
+      loadNativeCover: loadNativeCovers ?? true,
+      readId3Tags: readId3Tags ?? true,
+      existingSongs, refreshExisting, onFileProgress,
       signal,
       onProgress: onSafProgress,
     });
   }
-  return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers ?? true, readId3Tags: readId3Tags ?? true, signal });
+  return scanFromMediaLibrary({ loadNativeCover: loadNativeCovers ?? true, readId3Tags: readId3Tags ?? true,
+    signal, existingSongs, refreshExisting, onFileProgress });
 };

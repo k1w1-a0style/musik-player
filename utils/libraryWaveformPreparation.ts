@@ -8,7 +8,8 @@ import { clearWaveformFailure } from './waveformExtractionLifecycle';
 import { setWaveformStatus } from './waveformStatus';
 import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
-import { markSongPrepared } from './songPreparationStore';
+import { loadPreparedSources, markSongPrepared } from './songPreparationStore';
+import { isSongPrepared } from './songPreparation';
 
 export interface WaveformPreparationState {
   status: 'idle' | 'running' | 'cancelled' | 'completed';
@@ -17,9 +18,10 @@ export interface WaveformPreparationState {
   ready: number;
   failed: number;
   currentTitle: string;
+  currentFingerprint: string;
 }
 const idle: WaveformPreparationState = {
-  status: 'idle', total: 0, processed: 0, ready: 0, failed: 0, currentTitle: '',
+  status: 'idle', total: 0, processed: 0, ready: 0, failed: 0, currentTitle: '', currentFingerprint: '',
 };
 let state = idle;
 let active: AbortController | null = null;
@@ -50,6 +52,8 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
   clearWaveformFailure(identity.sourceFingerprint);
   while (true) {
     throwIfAborted(signal);
+    // Completed sources stay completed even after the bounded cache evicts them.
+    if (isSongPrepared(song)) return true;
     const cached = await getCachedWaveformForSong(song);
     throwIfAborted(signal);
     if (cached?.source === 'native') return true;
@@ -108,9 +112,10 @@ export const prepareLibraryWaveforms = async (
   beginMetadataRefreshActivity();
   publish({ ...idle, status: 'running', total: songs.length });
   try {
+    await loadPreparedSources();
     for (const song of songs) {
       throwIfAborted(controller.signal);
-      publish({ ...state, currentTitle: song.title });
+      publish({ ...state, currentTitle: song.title, currentFingerprint: getWaveformSourceIdentity(song).sourceFingerprint });
       const ready = await prepareSongSafely(song, controller.signal);
       throwIfAborted(controller.signal);
       publish({ ...state, processed: state.processed + 1,

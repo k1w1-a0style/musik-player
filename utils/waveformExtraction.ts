@@ -12,7 +12,7 @@ import {
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceIdentity } from './waveformGenerator';
 import { DEFAULT_WAVEFORM_POINT_COUNT, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
 import { logWaveformTiming } from './waveformTelemetry';
-import { getWaveformStatus, setWaveformStatus } from './waveformStatus';
+import { getWaveformStatus, setWaveformProgress, setWaveformStatus } from './waveformStatus';
 import {
   classifyWaveformContainer,
   type NativeWaveformDecision,
@@ -61,6 +61,8 @@ type NativeWaveformExtractor = (
 interface NativeWaveformCancellationApi {
   hasNativeWaveformCancellation?: boolean;
   cancelWaveformExtraction?: (requestId: string) => boolean;
+  subscribeWaveformProgress?: (listener: (event: { requestId: string; progress: number }) => void)
+    => { remove: () => void } | null;
 }
 
 const recordNativeAnalysis = (result: NativeWaveformResult | null): NativeWaveformResult | null => {
@@ -86,6 +88,9 @@ const runScheduledNativeExtraction = (
       setWaveformStatus(extractionKey, 'analyzing');
       const canCancel = cancellationApi.hasNativeWaveformCancellation && cancellationApi.cancelWaveformExtraction;
       const requestId = canCancel ? nextWaveformRequestId() : undefined;
+      const progressSubscription = requestId ? cancellationApi.subscribeWaveformProgress?.(event => {
+        if (!nativeSignal.aborted && event.requestId === requestId) setWaveformProgress(extractionKey, event.progress);
+      }) : null;
       const cancel = () => {
         setWaveformStatus(extractionKey, 'pending');
         if (requestId) cancellationApi.cancelWaveformExtraction?.(requestId);
@@ -96,6 +101,7 @@ const runScheduledNativeExtraction = (
         return recordNativeAnalysis(await (requestId
           ? extractor(uri, pointCount, requestId) : extractor(uri, pointCount)));
       } finally {
+        progressSubscription?.remove();
         nativeSignal.removeEventListener('abort', cancel);
       }
     },

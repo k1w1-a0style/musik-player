@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { libraryImportMessages } from '../utils/libraryImportMessages';
+import LibraryMetadataScanProgress from './LibraryMetadataScanProgress';
 import {
   useMetadataRefreshOperation,
   canResumeMetadataRefresh,
@@ -198,6 +199,7 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCan
           labelColor={theme.palette.text.onPrimary}
         />
       </View>
+      <LibraryMetadataScanProgress />
       <RefreshCounters
         visible={isRunning || isCancelling || showResume}
         processed={operation.processed}

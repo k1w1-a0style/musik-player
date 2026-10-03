@@ -109,11 +109,13 @@ test('uses scan folder import on android when active scan folders exist', async 
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')], platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function) }));
+  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')],
+    platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function),
+    existingSongs: [song('existing')], refreshExisting: true, onFileProgress: expect.any(Function) }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
-  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('existing'), song('scan-song')],
+  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('scan-song')],
     { signal: expect.any(AbortSignal) });
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
   expect(setMenuOpen).toHaveBeenCalledWith(false);
@@ -338,7 +340,9 @@ test('uses media library import when no active scan folders exist', async () => 
   expect(importSongsFromSourcesImpl).not.toHaveBeenCalled();
   expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
   expect(confirmLibraryImportImpl).toHaveBeenCalledWith(1, 0);
-  expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0, { signal: expect.any(AbortSignal) });
+  expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0,
+    { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: true,
+      onFileProgress: expect.any(Function) });
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('media-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
 });

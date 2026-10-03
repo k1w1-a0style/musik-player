@@ -166,7 +166,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
           activeOffsetX={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           failOffsetY={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
-          <Animated.View style={[styles.coverTrack, { width: pageWidth * 3,
+          <Animated.View style={[styles.coverTrack, { width: pageWidth * 3, left: motion.pageOffset,
             transform: [{ translateX: trackTranslateX }] }]} testID="now-playing-cover-track">
             <CoverPage key={pageKeys.previous}
               role="previous" song={displayed.previousSong}

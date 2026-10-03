@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { clearWaveformPreparation } from '../utils/libraryWaveformPreparation';
+import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
@@ -97,25 +98,27 @@ export const useLibraryImportActions = ({
     applyImportedSongsUpdate,
   });
 
-  const importFromDevice = useCallback(async (): Promise<void> => {
+  const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
     const generation = startImport();
     clearWaveformPreparation();
+    clearImportFileProgress();
     beginMetadataRefreshActivity();
     setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
     try {
       setImportStatus(importCopy.preparingStatus);
-      const activeFolders = getEnabledScanFolders(scanFolders);
+      const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
       if (shouldImportFromScanFolders(activeFolders, platformOs)) {
-        await importFromScanFolders(activeFolders, generation);
+        await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? true);
       } else {
-        await importFromMediaLibrary(importCopy, generation);
+        await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? true);
       }
     } catch (error) {
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
       endMetadataRefreshActivity();
+      if (isCurrentImport(generation)) clearImportFileProgress();
       finishImport(generation);
     }
   }, [finishImport, importFromMediaLibrary, importFromScanFolders, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, startImport]);

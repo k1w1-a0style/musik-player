@@ -15,6 +15,15 @@ const waveform: SongWaveform = {
 };
 
 describe('SoundCloudWaveformViewport', () => {
+  test('fits a high-resolution cached envelope into two screen widths without thinning its bars', () => {
+    const view = render(<SoundCloudWaveformViewport waveform={{ ...waveform, points: Array(1024).fill(0.6) }}
+      currentPosition={25_000} duration={100_000} isPlaying={false} onSeek={jest.fn()} interactive={false} />);
+    fireEvent(view.getByTestId('soundcloud-waveform-surface'), 'layout', {
+      nativeEvent: { layout: { width: 360, height: 116, x: 0, y: 0 } },
+    });
+    expect(StyleSheet.flatten(view.getByTestId('soundcloud-waveform-unplayed-layer').props.style).width).toBe(720);
+    expect(StyleSheet.flatten(view.getByTestId('soundcloud-waveform-surface').props.style).height).toBe(116);
+  });
   test('binds the gesture event to an animated surface', () => {
     const { getByTestId } = render(
       <SoundCloudWaveformViewport

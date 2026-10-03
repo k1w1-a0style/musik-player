@@ -63,7 +63,7 @@ describe('mediaLibraryImport dedupe', () => {
     expect(result.skipped).toEqual([{ asset: expect.objectContaining({ id: 'a2' }), reason: 'duplicate-uri' }]);
   });
 
-  test('enrichMediaLibraryAssets dedupes songs after metadata enrichment', async () => {
+  test('enrichMediaLibraryAssets dedupes sources before metadata enrichment', async () => {
     const result = await enrichMediaLibraryAssets(
       [
         mediaAsset('a1', 'file:///Music/Song.mp3?token=1', 'Song.mp3') as any,

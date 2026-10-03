@@ -24,6 +24,7 @@ interface UseLibraryAddScanFolderFlowOptions extends LibraryScanFolderAlertActio
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   platformOs: string;
   requestDirectoryPermissionsAsync: RequestDirectoryPermissions;
+  onFolderAdded?: (folder: ScanFolder) => Promise<void>;
 }
 
 export const useLibraryAddScanFolderFlow = ({
@@ -33,6 +34,7 @@ export const useLibraryAddScanFolderFlow = ({
   platformOs,
   requestDirectoryPermissionsAsync,
   applyScanFolderStateUpdate,
+  onFolderAdded,
 }: UseLibraryAddScanFolderFlowOptions): (() => Promise<void>) =>
   useCallback(async (): Promise<void> => {
     setMenuOpen(false);
@@ -58,11 +60,13 @@ export const useLibraryAddScanFolderFlow = ({
       }
 
       applyScanFolderStateUpdate(addResult.update);
+      await onFolderAdded?.(folder);
     } catch {
       showAlert(getScanFolderUnavailableAlert());
     }
   }, [
     applyScanFolderStateUpdate,
+    onFolderAdded,
     platformOs,
     requestDirectoryPermissionsAsync,
     scanFolders,

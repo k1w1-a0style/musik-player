@@ -116,7 +116,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           isCurrent && { backgroundColor: selectedColors.background },
           isCurrent && styles.tileCurrent,
           pressed && styles.pressed,
-          !prepared && styles.preparing,
+          !prepared && preparation !== 'analyzing' && styles.preparing,
         ]}
       >
         <View>
@@ -151,7 +151,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         isBanner && styles.bannerContainer,
         isCurrent && { backgroundColor: selectedColors.background },
         pressed && styles.pressed,
-        !prepared && styles.preparing,
+        !prepared && preparation !== 'analyzing' && styles.preparing,
       ]}
     >
       <View

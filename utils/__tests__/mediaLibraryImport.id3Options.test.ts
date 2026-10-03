@@ -133,7 +133,7 @@ test('SAF scan passes abort signal to ID3 reads', async () => {
 });
 
 
-test('SAF import from default sources skips ID3 for faster initial import', async () => {
+test('SAF import includes metadata and cover checks in its default scan', async () => {
   (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue(['content://root/Fast%20Song.mp3']);
   (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Slow ID3 Title' });
 
@@ -142,9 +142,9 @@ test('SAF import from default sources skips ID3 for faster initial import', asyn
     platformOs: 'android',
   });
 
-  expect(parseId3FromUri).not.toHaveBeenCalled();
-  expect(result.songs[0].title).toBe('Fast Song');
-  expect(result.songs[0].coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
+  expect(parseId3FromUri).toHaveBeenCalledTimes(1);
+  expect(result.songs[0].title).toBe('Slow ID3 Title');
+  expect(result.songs[0].coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: true });
 });
 
 test('SAF scan recursively keeps Huawei-like uppercase and encoded audio entries while skipping bad children', async () => {

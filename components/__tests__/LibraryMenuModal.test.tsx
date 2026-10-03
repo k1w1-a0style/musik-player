@@ -46,10 +46,10 @@ const defaultProps = {
 const renderMenu = (patch: Partial<typeof defaultProps> = {}) => render(<LibraryMenuModal {...defaultProps} {...patch} />);
 
 test('renders menu actions', () => {
-  const { getByText } = renderMenu();
+  const { getByText, queryByText } = renderMenu();
 
   expect(getByText('Importieren / Rescan')).toBeTruthy();
-  expect(getByText('Metadaten aktualisieren')).toBeTruthy();
+  expect(queryByText('Metadaten aktualisieren')).toBeNull();
   expect(getByText('Ordner hinzufügen')).toBeTruthy();
   expect(getByText('Aktive Scan-Ordner: 2')).toBeTruthy();
   expect(getByText('Equalizer')).toBeTruthy();
@@ -66,36 +66,35 @@ test('calls menu action callbacks', () => {
   const { getByText } = renderMenu({ onImport, onRefreshMetadata, onAddFolder, onShowFolders, onOpenSettings, onOpenEqualizer });
 
   fireEvent.press(getByText('Importieren / Rescan'));
-  fireEvent.press(getByText('Metadaten aktualisieren'));
   fireEvent.press(getByText('Ordner hinzufügen'));
   fireEvent.press(getByText('Aktive Scan-Ordner: 2'));
   fireEvent.press(getByText('Equalizer'));
   fireEvent.press(getByText('Einstellungen'));
 
   expect(onImport).toHaveBeenCalledTimes(1);
-  expect(onRefreshMetadata).toHaveBeenCalledTimes(1);
+  expect(onRefreshMetadata).not.toHaveBeenCalled();
   expect(onAddFolder).toHaveBeenCalledTimes(1);
   expect(onShowFolders).toHaveBeenCalledTimes(1);
   expect(onOpenEqualizer).toHaveBeenCalledTimes(1);
   expect(onOpenSettings).toHaveBeenCalledTimes(1);
 });
 
-test('disables import and metadata actions while loading', () => {
-  const { getByTestId } = renderMenu({ loading: true });
+test('disables import and adding folders while loading', () => {
+  const { getByTestId, getByLabelText } = renderMenu({ loading: true });
 
   expect(getByTestId('library-menu-item-importieren-rescan').props.accessibilityState.disabled).toBe(true);
-  expect(getByTestId('library-menu-item-metadaten-aktualisieren').props.accessibilityState.disabled).toBe(true);
+  expect(getByLabelText('Ordner hinzufügen').props.accessibilityState.disabled).toBe(true);
 });
 
-test('disables metadata action without songs', () => {
+test('allows the combined scan in an empty library', () => {
   const { getByTestId } = renderMenu({ hasSongs: false });
-
-  expect(getByTestId('library-menu-item-metadaten-aktualisieren').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-importieren-rescan').props.accessibilityState.disabled).toBe(false);
 });
 
-test('renders Fortsetzen label when refresh is resumable', () => {
+test('keeps one scan action even after a legacy metadata refresh was resumable', () => {
   const { getByText, queryByText } = renderMenu({ canResumeRefresh: true });
-  expect(getByText('Metadaten-Update fortsetzen')).toBeTruthy();
+  expect(getByText('Importieren / Rescan')).toBeTruthy();
+  expect(queryByText('Metadaten-Update fortsetzen')).toBeNull();
   expect(queryByText('Metadaten aktualisieren')).toBeNull();
 });
 

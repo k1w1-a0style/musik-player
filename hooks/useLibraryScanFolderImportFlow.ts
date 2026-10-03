@@ -11,6 +11,8 @@ import {
   getScanImportProgressCopy,
 } from '../utils/libraryImportFlow';
 import { isTimeoutError } from '../utils/withTimeout';
+import { getImportedPreparationSongs } from '../utils/libraryImportSources';
+import { publishImportFileProgress } from '../utils/libraryImportProgress';
 
 const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
 
@@ -46,7 +48,8 @@ export const useLibraryScanFolderImportFlow = ({
   ensureCurrentImport,
   applyImportedSongsUpdate,
 }: UseLibraryScanFolderImportFlowOptions) => {
-  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration): Promise<void> => {
+  const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration,
+    refreshExisting = true): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
@@ -64,7 +67,9 @@ export const useLibraryScanFolderImportFlow = ({
     let result: Awaited<ReturnType<typeof importSongsFromSourcesImpl>>;
     try {
       result = await withTimeoutImpl(
-        signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal, onSafProgress: publishSafProgress }),
+        signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
+          onSafProgress: publishSafProgress, onFileProgress: publishImportFileProgress,
+          existingSongs: songs, refreshExisting }),
         importTimeoutMs,
         scanProgress.timeoutMessage,
         { signal: generation.controller.signal },
@@ -87,7 +92,7 @@ export const useLibraryScanFolderImportFlow = ({
         console.warn('[Import] Failed to persist scan folder updates after empty import.', error);
       }
       ensureCurrentImport(generation);
-      showAlert(scanResult.alert);
+      if (!result.reusedCount) showAlert(scanResult.alert);
       return;
     }
     if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
@@ -99,7 +104,8 @@ export const useLibraryScanFolderImportFlow = ({
       console.warn('[Import] Failed to persist scan folder updates after import.', error);
     }
     ensureCurrentImport(generation);
-    await prepareLibraryWaveforms(scanResult.update.songs, { signal: generation.controller.signal });
+    await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, scanResult.update.songs),
+      { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromScanFolders };

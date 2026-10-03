@@ -44,5 +44,5 @@ export interface UseLibraryImportActionsOptions {
 }
 
 export interface UseLibraryImportActionsResult {
-  importFromDevice: () => Promise<void>;
+  importFromDevice: (options?: { folders?: ScanFolder[]; refreshExisting?: boolean }) => Promise<void>;
 }

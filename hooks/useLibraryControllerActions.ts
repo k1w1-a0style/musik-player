@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
@@ -44,19 +44,13 @@ export interface UseLibraryControllerActionsResult {
 }
 
 export const useLibraryControllerActions = ({
-  searchOpen,
-  scanFolders,
-  setActiveTab,
-  setImportStatus,
-  setLoading,
-  setMenuOpen,
-  setQuery,
-  setScanFolders,
-  setSearchOpen,
-  setSongs,
-  applySongMetadataPatches,
-  songs,
+  searchOpen, scanFolders, setActiveTab, setImportStatus, setLoading, setMenuOpen,
+  setQuery, setScanFolders, setSearchOpen, setSongs, applySongMetadataPatches, songs,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
+  const importActionRef = useRef<ReturnType<typeof useLibraryImportActions>['importFromDevice'] | null>(null);
+  const scanAddedFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
+    await importActionRef.current?.({ folders: [folder], refreshExisting: false });
+  }, []);
   const { openPlaylistDetail, openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } =
     useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
@@ -81,6 +75,7 @@ export const useLibraryControllerActions = ({
       setMenuOpen,
       setScanFolders,
       showAlert,
+      onFolderAdded: scanAddedFolder,
     });
 
   const { importFromDevice } = useLibraryImportActions({
@@ -94,6 +89,7 @@ export const useLibraryControllerActions = ({
     showAlert,
     songs,
   });
+  importActionRef.current = importFromDevice;
 
   const { refreshMetadataFromFiles, cancelRefresh, resumeMetadataRefresh } = useLibraryMetadataRefreshActions({
     setImportStatus,

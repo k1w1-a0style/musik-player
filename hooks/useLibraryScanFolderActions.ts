@@ -19,6 +19,7 @@ export interface UseLibraryScanFolderActionsOptions {
   showAlert: (alert: LibraryAlertCopy) => void;
   platformOs?: string;
   requestDirectoryPermissionsAsync?: RequestDirectoryPermissions;
+  onFolderAdded?: (folder: ScanFolder) => Promise<void>;
 }
 
 export interface UseLibraryScanFolderActionsResult {
@@ -36,6 +37,7 @@ export const useLibraryScanFolderActions = ({
   showAlert,
   platformOs = Platform.OS,
   requestDirectoryPermissionsAsync = StorageAccessFramework.requestDirectoryPermissionsAsync,
+  onFolderAdded,
 }: UseLibraryScanFolderActionsOptions): UseLibraryScanFolderActionsResult => {
   const { applyScanFolderStateUpdate } = useLibraryScanFolderStateUpdate({ setScanFolders, setActiveTab });
 
@@ -52,6 +54,7 @@ export const useLibraryScanFolderActions = ({
     platformOs,
     requestDirectoryPermissionsAsync,
     applyScanFolderStateUpdate,
+    onFolderAdded,
   });
 
   const { persistChangedFolderUpdates, removeFolder } = useLibraryScanFolderPersistenceActions({

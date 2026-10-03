@@ -176,7 +176,7 @@ describe('NowPlayingSoundCloudView', () => {
       currentPosition: 1_000,
       duration: 120_000,
       isPlaying: true,
-      height: 108,
+      height: 116,
       ready: true,
     }));
   });

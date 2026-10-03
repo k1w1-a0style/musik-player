@@ -36,7 +36,7 @@ const useTrackTransitionLifetime = (drag: Animated.Value) => {
 };
 
 const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
-  dispatchBeforeAnimation = false, onTransitionEnd }: Pick<TrackSwitchOptions, 'drag' | 'currentSongId'
+  onTransitionEnd }: Pick<TrackSwitchOptions, 'drag' | 'currentSongId'
     | 'reduceMotion' | 'dispatchBeforeAnimation' | 'onTransitionEnd'>) => {
   const switchingRef = useRef(false);
   const { generationRef, resetTimerRef, clearReset } = useTrackTransitionLifetime(drag);
@@ -44,8 +44,9 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
   const originSongIdRef = useRef(currentSongId);
   const animationFinishedRef = useRef(false);
   const transitionStartedRef = useRef(false);
-  const recenterPendingRef = useRef(false);
-  const [recenterRevision, setRecenterRevision] = useState(0);
+  const pageOffsetRef = useRef(0);
+  const targetDragRef = useRef(0);
+  const [pageOffset, setPageOffset] = useState(0);
   songIdRef.current = currentSongId;
   const endTransition = useCallback(() => {
     if (!transitionStartedRef.current) return;
@@ -54,38 +55,37 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
   }, [onTransitionEnd]);
   const centerTrack = useCallback(() => {
     generationRef.current += 1;
-    drag.setValue(0);
+    drag.setValue(-pageOffsetRef.current);
     animationFinishedRef.current = false;
     switchingRef.current = false;
   }, [drag, generationRef]);
   const resetToCurrentTrack = useCallback(() => {
-    if (recenterPendingRef.current) return;
+    if (!switchingRef.current) return;
     generationRef.current += 1;
     clearReset();
     drag.stopAnimation();
-    if (transitionStartedRef.current) {
-      // First commit the new page data. Recentring a native animation while
-      // React still holds the old pages briefly brings the old cover back.
-      recenterPendingRef.current = true;
-      endTransition();
-      setRecenterRevision(revision => revision + 1);
-      return;
-    }
-    centerTrack();
+    // Native Animated writes bypass React's UI mounting batch. Even a layout
+    // effect can reset the transform before the reordered image views arrive.
+    // Keep the native endpoint and commit its compensating layout offset in
+    // the SAME React update that releases/reorders the already-loaded pages.
+    pageOffsetRef.current = -targetDragRef.current;
+    setPageOffset(pageOffsetRef.current);
+    animationFinishedRef.current = false;
+    switchingRef.current = false;
     endTransition();
-  }, [centerTrack, clearReset, drag, endTransition, generationRef]);
+  }, [clearReset, drag, endTransition, generationRef]);
   const animateBack = useCallback(() => {
     const generation = ++generationRef.current;
     clearReset();
     animationFinishedRef.current = false;
     if (reduceMotion) {
       drag.stopAnimation();
-      drag.setValue(0);
+      drag.setValue(-pageOffsetRef.current);
       switchingRef.current = false;
       endTransition();
       return;
     }
-    Animated.spring(drag, { toValue: 0, tension: 150, friction: 22, useNativeDriver: true })
+    Animated.spring(drag, { toValue: -pageOffsetRef.current, tension: 150, friction: 22, useNativeDriver: true })
       .start(({ finished }) => {
         if (!finished || generation !== generationRef.current) return;
         switchingRef.current = false;
@@ -93,12 +93,7 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
       });
   }, [clearReset, drag, endTransition, generationRef, reduceMotion]);
   useLayoutEffect(() => {
-    if (recenterPendingRef.current) {
-      recenterPendingRef.current = false;
-      centerTrack();
-      return;
-    }
-    if (dispatchBeforeAnimation && switchingRef.current) {
+    if (switchingRef.current) {
       if (currentSongId !== originSongIdRef.current && animationFinishedRef.current)
         resetToCurrentTrack();
       return;
@@ -108,9 +103,10 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
     drag.stopAnimation();
     centerTrack();
     endTransition();
-  }, [centerTrack, clearReset, currentSongId, dispatchBeforeAnimation, drag, endTransition, generationRef, recenterRevision, resetToCurrentTrack]);
+  }, [centerTrack, clearReset, currentSongId, drag, endTransition, generationRef, resetToCurrentTrack]);
   return { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
-    transitionStartedRef, generationRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack };
+    transitionStartedRef, generationRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack,
+    pageOffset, pageOffsetRef, targetDragRef };
 };
 
 const createTrackSwitchObserver = (transition: ReturnType<typeof useTrackTransitionState>, generation: number) => {
@@ -151,11 +147,15 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
     switchingRef.current = true;
     originSongIdRef.current = songIdRef.current;
     animationFinishedRef.current = false;
-    const invokeAction = (): void | Promise<void> => direction === 'next' ? onNext() : onPrevious();
+    const invokeAction = (): Promise<void> => {
+      try { return Promise.resolve(direction === 'next' ? onNext() : onPrevious()); }
+      catch (error) { return Promise.reject(error); }
+    };
+    transition.targetDragRef.current = (direction === 'next' ? -panelWidth : panelWidth) - transition.pageOffsetRef.current;
     if (reduceMotion) {
       drag.stopAnimation();
-      drag.setValue(0);
-      void invokeAction();
+      drag.setValue(-transition.pageOffsetRef.current);
+      void invokeAction().catch(() => undefined);
       switchingRef.current = false;
       return;
     }
@@ -168,7 +168,7 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
       onTransitionStart?.();
       observeAction(invokeAction());
     }
-    Animated.timing(drag, { toValue: direction === 'next' ? -panelWidth : panelWidth,
+    Animated.timing(drag, { toValue: transition.targetDragRef.current,
       duration: transitionDurationMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
       if (generation !== generationRef.current) return;
       if (!finished) return animateBack();
@@ -178,7 +178,8 @@ const useTrackSwitchAnimation = ({ drag, currentSongId, panelWidth, onNext, onPr
     });
   }, [dispatchBeforeAnimation, drag, onNext, onPrevious, onTransitionStart, panelWidth,
     reduceMotion, transition, transitionDurationMs]);
-  return { switchingRef: transition.switchingRef, animateBack: transition.animateBack, complete };
+  return { switchingRef: transition.switchingRef, animateBack: transition.animateBack, complete,
+    pageOffset: transition.pageOffset, pageOffsetRef: transition.pageOffsetRef };
 };
 
 interface HorizontalMotionOptions extends Omit<TrackSwitchOptions, 'drag'> {
@@ -192,14 +193,18 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   const drag = useRef(new Animated.Value(0)).current;
   const gestureDrag = useRef(new Animated.Value(0)).current;
   const followGesture = useRef(new Animated.Value(0)).current;
-  // Gesture resets and the released-cover animation must have separate native
-  // inputs. Disabling Android's recognizer can deliver a final zero event.
-  const visibleDrag = useMemo(() => Animated.add(
-    Animated.multiply(gestureDrag, followGesture),
-    Animated.multiply(drag, Animated.subtract(1, followGesture)),
-  ), [drag, followGesture, gestureDrag]);
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
     reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
+  const constrainedGesture = useMemo(() => gestureDrag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
+    outputRange: [hasNext ? -panelWidth : -panelWidth * 0.12, 0,
+      hasPrevious ? panelWidth : panelWidth * 0.12], extrapolate: 'clamp' }),
+  [gestureDrag, hasNext, hasPrevious, panelWidth]);
+  // Only gesture input is bounded/rebased. Released native animation endpoints
+  // stay untouched while React commits the pages and their layout offset.
+  const visibleDrag = useMemo(() => Animated.add(
+    Animated.multiply(Animated.subtract(constrainedGesture, switching.pageOffset), followGesture),
+    Animated.multiply(drag, Animated.subtract(1, followGesture)),
+  ), [constrainedGesture, drag, followGesture, switching.pageOffset]);
   useLayoutEffect(() => {
     if (!switching.switchingRef.current) followGesture.setValue(0);
   }, [currentSongId, followGesture, switching.switchingRef]);
@@ -208,9 +213,11 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
     { useNativeDriver: true },
   ), [gestureDrag]);
   const handOffGesture = useCallback((position: number) => {
-    drag.setValue(position);
+    const bounded = Math.max(-panelWidth, Math.min(panelWidth, position));
+    const allowed = bounded < 0 ? hasNext : hasPrevious;
+    drag.setValue((allowed ? bounded : bounded * 0.12) - switching.pageOffsetRef.current);
     followGesture.setValue(0);
-  }, [drag, followGesture]);
+  }, [drag, followGesture, hasNext, hasPrevious, panelWidth, switching.pageOffsetRef]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
     if (state === State.BEGAN || state === State.ACTIVE) {
@@ -240,11 +247,7 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
       else switching.animateBack();
     }
   }, [followGesture, gestureDrag, handOffGesture, hasNext, hasPrevious, panelWidth, switching]);
-  const constrainedDrag = useMemo(() => visibleDrag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
-    outputRange: [hasNext ? -panelWidth : -panelWidth * 0.12, 0,
-      hasPrevious ? panelWidth : panelWidth * 0.12], extrapolate: 'clamp' }),
-  [visibleDrag, hasNext, hasPrevious, panelWidth]);
-  return { drag, constrainedDrag, onGestureEvent, onStateChange };
+  return { drag, constrainedDrag: visibleDrag, pageOffset: switching.pageOffset, onGestureEvent, onStateChange };
 };
 
 export const useVerticalPlayerMotion = ({ drag, height, onCollapse, onOpenQueue,

@@ -53,3 +53,13 @@ test('persists changed folder error updates and returns refreshed folders', asyn
   expect(updateScanFolderImpl).toHaveBeenCalledWith('b', { lastError: 'new' });
   expect(getScanFoldersImpl).toHaveBeenCalledTimes(1);
 });
+
+test('persists scan errors for a newly added folder even when the import closure predates it', async () => {
+  const added = folder({ id: 'new' });
+  const updated = { ...added, lastError: 'Teilweise nicht lesbar' };
+  const getScanFoldersImpl = jest.fn().mockResolvedValueOnce([added]).mockResolvedValueOnce([updated]);
+  const updateScanFolderImpl = jest.fn().mockResolvedValue(undefined);
+  await expect(persistChangedFolderErrorUpdates([], [updated], { getScanFoldersImpl, updateScanFolderImpl }))
+    .resolves.toEqual([updated]);
+  expect(updateScanFolderImpl).toHaveBeenCalledWith('new', { lastError: 'Teilweise nicht lesbar' });
+});

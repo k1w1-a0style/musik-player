@@ -7,7 +7,7 @@ import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionL
 import { cancelWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms,
   resetWaveformPreparationForTests, resumeWaveformPreparation, retrySongPreparation } from '../libraryWaveformPreparation';
 import { getWaveformStatus } from '../waveformStatus';
-import { resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
+import { markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 
 const audio = SystemAudio as typeof SystemAudio & { extractWaveformPeaks: jest.Mock };
 const song = (id: string): Song => ({ id, title: id, artist: 'Artist', uri: `file:///${id}.mp3`, duration: 90_000 });
@@ -24,6 +24,18 @@ beforeEach(async () => {
 afterEach(() => {
   resetWaveformPreparationForTests(); resetWaveformExtractionLifecycleForTests(); resetWaveformCacheStateForTests();
   jest.useRealTimers();
+});
+
+test('a previously prepared track is not decoded again after cache eviction and restart', async () => {
+  const existing = song('previously-prepared');
+  await markSongPrepared(getWaveformSourceIdentity(existing).sourceFingerprint);
+  resetSongPreparationForTests();
+  resetWaveformCacheStateForTests();
+  const task = prepareLibraryWaveforms([existing, song('new')]);
+  await jest.advanceTimersByTimeAsync(1000);
+  await task;
+  expect(audio.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///new.mp3']);
+  expect(getWaveformPreparationState()).toMatchObject({ ready: 2, failed: 0 });
 });
 
 test('prepares uncached songs once, keeps cached songs, and continues after an unreadable song', async () => {

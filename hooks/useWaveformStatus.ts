@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Song } from '../types/Song';
 import { getCachedWaveformForSong } from '../utils/waveformSourceCache';
 import { getWaveformSourceIdentity } from '../utils/waveformGenerator';
-import { getWaveformStatus, subscribeWaveformStatus } from '../utils/waveformStatus';
+import { getWaveformProgress, getWaveformStatus, subscribeWaveformStatus } from '../utils/waveformStatus';
+
+export const useWaveformProgress = (sourceFingerprint: string) => {
+  const subscribe = useCallback((listener: () => void) =>
+    subscribeWaveformStatus(sourceFingerprint, listener), [sourceFingerprint]);
+  const snapshot = useCallback(() => getWaveformProgress(sourceFingerprint), [sourceFingerprint]);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+};
 
 /** Reads persisted readiness without starting a decoder for each visible row. */
 export const useWaveformStatus = (song: Song) => {

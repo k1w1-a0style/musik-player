@@ -12,6 +12,7 @@ import { getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests, WAVEFORM_EXTRACTION_DEBOUNCE_MS } from '../waveformExtractionLifecycle';
 import type { NativeWaveformResult } from '../waveformTypes';
 import { logWaveformTiming } from '../waveformTelemetry';
+import { getWaveformProgress } from '../waveformStatus';
 
 jest.mock('../waveformTelemetry', () => ({ logWaveformTiming: jest.fn() }));
 
@@ -44,6 +45,7 @@ describe('waveformExtraction', () => {
     mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue(null);
     mockedSystemAudio.hasNativeWaveformCancellation = false;
     mockedSystemAudio.cancelWaveformExtraction = jest.fn().mockReturnValue(false);
+    delete (mockedSystemAudio as { subscribeWaveformProgress?: unknown }).subscribeWaveformProgress;
   });
 
   afterEach(() => {
@@ -103,6 +105,28 @@ describe('waveformExtraction', () => {
   });
 
   describe('extractNativeWaveform', () => {
+    test('only the current native request updates progress and its listener is removed on completion', async () => {
+      jest.useFakeTimers();
+      const remove = jest.fn();
+      let receive!: (event: { requestId: string; progress: number }) => void;
+      let finish!: (value: NativeWaveformResult) => void;
+      mockedSystemAudio.hasNativeWaveformCancellation = true;
+      mockedSystemAudio.subscribeWaveformProgress = listener => { receive = listener; return { remove }; };
+      mockedSystemAudio.extractWaveformPeaks = jest.fn(() => new Promise<NativeWaveformResult>(resolve => { finish = resolve; }));
+      const task = extractNativeWaveform(baseSong, 123_000);
+      await jest.advanceTimersByTimeAsync(120);
+      const requestId = mockedSystemAudio.extractWaveformPeaks.mock.calls[0][2] as string;
+      const fingerprint = getWaveformSourceIdentity(baseSong).sourceFingerprint;
+      receive({ requestId: 'another-track', progress: 0.8 });
+      expect(getWaveformProgress(fingerprint)).toBeNull();
+      receive({ requestId, progress: 0.43 });
+      expect(getWaveformProgress(fingerprint)).toBe(0.43);
+      receive({ requestId, progress: 0.2 });
+      expect(getWaveformProgress(fingerprint)).toBe(0.43);
+      finish({ points: dynamicPeaks, analysis: 'decoded-pcm-v1' });
+      await task;
+      expect(remove).toHaveBeenCalledTimes(1);
+    });
     test.each([
       [Number.NaN, 25_000], [0, 25_000], [-1, 25_000], [60_000, 25_000],
       [303_000, 60_600], [7_200_000, 120_000], [Number.POSITIVE_INFINITY, 25_000],

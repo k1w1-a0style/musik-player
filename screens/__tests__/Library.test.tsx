@@ -241,9 +241,11 @@ describe('Library', () => {
     view.unmount();
   });
 
-  test('metadata refresh action updates songs and reports result', async () => {
+  test('the single scan action updates existing metadata without a second metadata pass', async () => {
     const refreshedSongs = [{ id: 's1', title: 'Fresh Song', artist: 'Artist', cover: 'file:///broken.jpg' }];
-    mockRefreshSongsFromId3.mockResolvedValueOnce({ songs: refreshedSongs, updated: 1, skipped: 0, failed: 0, errors: [] });
+    Object.defineProperty(Platform, 'OS', { value: 'android' });
+    mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
+    mockImportSongs.mockResolvedValueOnce({ songs: refreshedSongs, skipped: [], errors: [], sourceSummary: [] });
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
     const view = render(<Library />);
@@ -251,11 +253,30 @@ describe('Library', () => {
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     openOverflowMenu(getByLabelText);
-    fireEvent.press(getByText('Metadaten aktualisieren'));
+    expect(view.queryByText('Metadaten aktualisieren')).toBeNull();
+    pressImportMenuItem(getByText);
 
-    await waitFor(() => expect(mockRefreshSongsFromId3).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1' })])));
-    expect(mockSetSongs).toHaveBeenCalledWith(refreshedSongs);
-    expect(Alert.alert).toHaveBeenCalledWith('Metadaten aktualisiert', '1 Titel aktualisiert. 0 übersprungen. 0 fehlgeschlagen.');
+    await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1', title: 'Fresh Song' })])));
+    expect(mockImportSongs).toHaveBeenCalledTimes(1);
+    expect(mockRefreshSongsFromId3).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  test('adding a folder scans only that folder without refreshing existing sources', async () => {
+    Object.defineProperty(Platform, 'OS', { value: 'android' });
+    const previous = { id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true };
+    mockGetScanFolders.mockResolvedValueOnce([previous]);
+    mockRequestDirPermissions.mockResolvedValueOnce({ granted: true, directoryUri: 'content://new-folder' });
+    mockAddScanFolder.mockImplementationOnce(async folder => [previous, folder]);
+    const view = render(<Library />);
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+    openOverflowMenu(view.getByLabelText);
+    fireEvent.press(view.getByText('Ordner hinzufügen'));
+    await waitFor(() => expect(mockImportSongs).toHaveBeenCalled());
+    expect(mockImportSongs).toHaveBeenCalledTimes(1);
+    expect(mockImportSongs.mock.calls[0][0]).toMatchObject({
+      scanFolders: [expect.objectContaining({ uri: 'content://new-folder' })], refreshExisting: false,
+    });
     view.unmount();
   });
 

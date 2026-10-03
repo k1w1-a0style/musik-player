@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { FolderPlus, ListMusic, Music, RefreshCw, Settings, SlidersHorizontal } from 'lucide-react-native';
+import { FolderPlus, ListMusic, Music, Settings, SlidersHorizontal } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
 import LibraryMenuItem from './LibraryMenuItem';
@@ -25,12 +25,9 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   visible,
   loading,
   isReady,
-  hasSongs,
   activeFolders,
-  canResumeRefresh,
   onClose,
   onImport,
-  onRefreshMetadata,
   onAddFolder,
   onShowFolders,
   onOpenSettings,
@@ -58,13 +55,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           testID="library-menu-card"
         >
           <LibraryMenuItem icon={Music} label="Importieren / Rescan" onPress={onImport} disabled={loading || !isReady} />
-          <LibraryMenuItem
-            icon={RefreshCw}
-            label={canResumeRefresh ? 'Metadaten-Update fortsetzen' : 'Metadaten aktualisieren'}
-            onPress={onRefreshMetadata}
-            disabled={loading || !isReady || !hasSongs}
-          />
-          <LibraryMenuItem icon={FolderPlus} label="Ordner hinzufügen" onPress={onAddFolder} />
+          <LibraryMenuItem icon={FolderPlus} label="Ordner hinzufügen" onPress={onAddFolder} disabled={loading || !isReady} />
           <LibraryMenuItem icon={ListMusic} label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={onShowFolders} muted />
           <View style={[styles.divider, { backgroundColor: theme.palette.border }]} testID="library-menu-section-divider" />
           <LibraryMenuItem icon={SlidersHorizontal} label="Equalizer" onPress={onOpenEqualizer} />

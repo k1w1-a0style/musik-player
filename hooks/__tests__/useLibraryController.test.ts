@@ -347,6 +347,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     setMenuOpen: mockScreenState.setMenuOpen,
     setScanFolders: mockStoredState.setScanFolders,
     showAlert: mockAlerts.showAlert,
+    onFolderAdded: expect.any(Function),
   });
   expect(useLibraryImportActions).toHaveBeenCalledWith({
     persistChangedFolderUpdates: mockScanFolderActions.persistChangedFolderUpdates,

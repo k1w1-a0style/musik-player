@@ -108,7 +108,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
             onHandlerStateChange={horizontal.onStateChange}>
             <Animated.View style={styles.carouselViewport} collapsable={false}>
               <Animated.View testID="soundcloud-track-carousel"
-                style={[styles.track, { width: panelWidth * 3, transform: [{ translateX: trackTranslateX }] }]}>
+                style={[styles.track, { width: panelWidth * 3, left: horizontal.pageOffset,
+                  transform: [{ translateX: trackTranslateX }] }]}>
                 <View key={pageKeys.previous} style={{ width: panelWidth }}>
                   <SoundCloudCarouselPanel song={displayed.previousSong} role="previous"
                     artworkUri={displayed.previousArtworkUri} paused={!isPlaying}

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSoundCloudWaveformMotion } from '../hooks/useSoundCloudWaveformMotion';
@@ -7,6 +7,7 @@ import { formatTime } from '../utils/musicParser';
 import type { SongWaveform } from '../utils/waveformTypes';
 import SoundCloudWaveformLayers from './SoundCloudWaveformLayers';
 import CrossfadeLayers from './CrossfadeLayers';
+import { normalizeWaveformPoints } from '../utils/waveformGenerator';
 
 interface SoundCloudWaveformViewportProps {
   waveform: SongWaveform;
@@ -38,7 +39,7 @@ const WaveformTimeRow = ({ position, duration }: { position: number; duration: n
 
 const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({ waveform,
   currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.accent,
-  height = 108, interactive = true, ready = true, loading = false, onRetry, showProgress = true, gestureHandlerRef,
+  height = 116, interactive = true, ready = true, loading = false, onRetry, showProgress = true, gestureHandlerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
@@ -47,8 +48,12 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : waveform.durationMs;
   const safePosition = clampPosition(currentPosition, safeDuration);
   const progressRatio = safeDuration > 0 ? safePosition / safeDuration : 0;
-  const stripWidth = Math.max(viewportWidth * 2.7, Math.max(1, waveform.points.length - 1) * 2 + 2);
-  const travelWidth = Math.max(1, stripWidth - 3);
+  // Display density belongs to the viewport, not the 1024-point storage cache.
+  // A song spans two screens, with a fixed playhead and normal-width bars.
+  const stripWidth = viewportWidth * 2;
+  const displayedPoints = useMemo(() => normalizeWaveformPoints(waveform.points, Math.floor(stripWidth / 3)),
+    [stripWidth, waveform.points]);
+  const travelWidth = Math.max(1, stripWidth - 1.5);
   const viewportCenter = viewportWidth / 2;
   const motion = useSoundCloudWaveformMotion({ progressRatio, safeDuration, safePosition,
     isPlaying, travelWidth, viewportCenter, waveformKey: waveform.sourceKey, onSeek,
@@ -73,7 +78,7 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       onAccessibilityAction={handleAccessibilityAction}>
       <CrossfadeLayers value={accent} valueKey={accent} testID="soundcloud-waveform-accent-transition"
         fill
-        renderLayer={layerAccent => <SoundCloudWaveformLayers points={waveform.points}
+        renderLayer={layerAccent => <SoundCloudWaveformLayers points={displayedPoints}
           sourceKey={waveform.sourceKey} stripWidth={stripWidth} height={height}
           viewportCenter={viewportCenter} accent={layerAccent} translateX={motion.translateX}
           ready={ready} showProgress={showProgress} />} />

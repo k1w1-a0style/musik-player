@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SongCard from '../SongCard';
 import { getWaveformSourceIdentity } from '../../utils/waveformGenerator';
 import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
-import { setWaveformStatus } from '../../utils/waveformStatus';
+import { setWaveformProgress, setWaveformStatus } from '../../utils/waveformStatus';
 import { markSongPrepared, resetSongPreparationForTests } from '../../utils/songPreparationStore';
 import { retrySongPreparation } from '../../utils/libraryWaveformPreparation';
 
@@ -33,6 +33,9 @@ test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, 
 
   act(() => setWaveformStatus(fingerprint, 'analyzing'));
   expect(row().props.accessibilityState.busy).toBe(true);
+  expect(StyleSheet.flatten(row().props.style).opacity ?? 1).toBe(1);
+  act(() => setWaveformProgress(fingerprint, 0.43));
+  expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(43);
   await act(async () => { await markSongPrepared(fingerprint); });
   expect(row().props.accessibilityState.disabled).toBe(false);
   expect(view.queryByTestId('song-preparation-progress-pending')).toBeNull();

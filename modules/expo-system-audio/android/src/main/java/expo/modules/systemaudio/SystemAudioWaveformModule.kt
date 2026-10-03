@@ -64,13 +64,15 @@ class SystemAudioWaveformModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudioWaveform")
+    Constants("supportsWaveformProgress" to true)
+    Events("onWaveformProgress")
 
     AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String?, promise: Promise ->
       val cancellation = cancellationRegistry.register(requestId)
       // Register before dispatch, so queued obsolete work can be cancelled too.
       analysisScope.launch {
         try {
-          promise.resolve(extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation))
+          promise.resolve(extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation, requestId))
         } finally {
           cancellationRegistry.complete(requestId, cancellation)
         }
@@ -92,6 +94,7 @@ class SystemAudioWaveformModule : Module() {
     uri: String,
     requestedPoints: Int,
     cancellation: AtomicBoolean,
+    requestId: String?,
   ): Map<String, Any?>? {
     val pointCount = requestedPoints.coerceIn(MIN_WAVEFORM_POINTS, MAX_WAVEFORM_POINTS)
     val extractor = MediaExtractor()
@@ -106,9 +109,17 @@ class SystemAudioWaveformModule : Module() {
       val durationMs = readDurationMs(uri, format, cancellation)
         ?.takeIf { it > 0 }
         ?: return null
-      val peaks = readDecodedPcmEnvelope(extractor, format, pointCount, durationMs, cancellation)
+      val progress = WaveformProgressReporter(durationMs * 1000L) { ratio ->
+        if (!cancellation.get() && !requestId.isNullOrBlank()) {
+          sendEvent("onWaveformProgress", mapOf("requestId" to requestId, "progress" to ratio))
+        }
+      }
+      val peaks = readDecodedPcmEnvelope(extractor, format, pointCount, durationMs, cancellation) { positionUs ->
+        progress.update(positionUs, SystemClock.elapsedRealtime())
+      }
       throwIfCancelled(cancellation)
       if (peaks.isEmpty()) return null
+      progress.complete()
       mapOf(
         "points" to peaks,
         "durationMs" to durationMs,
@@ -187,14 +198,15 @@ class SystemAudioWaveformModule : Module() {
     pointCount: Int,
     durationMs: Long,
     cancellation: AtomicBoolean,
+    onProgress: (Long) -> Unit,
   ): List<Double> {
     if (durationMs > Long.MAX_VALUE / 1000L) return emptyList()
     val durationUs = durationMs * 1000L
     val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return emptyList()
     return if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation)
+      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation, onProgress)
     } else {
-      CallbackPcmWaveformDecoder.decode(extractor, inputFormat, mime, pointCount, durationUs, cancellation)
+      CallbackPcmWaveformDecoder.decode(extractor, inputFormat, mime, pointCount, durationUs, cancellation, onProgress)
     }
   }
 
@@ -204,6 +216,7 @@ class SystemAudioWaveformModule : Module() {
     pointCount: Int,
     durationUs: Long,
     cancellation: AtomicBoolean,
+    onProgress: (Long) -> Unit,
   ): List<Double> {
     if (format.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
       != AudioFormat.ENCODING_PCM_16BIT) return emptyList()
@@ -222,6 +235,7 @@ class SystemAudioWaveformModule : Module() {
       buffer.position(0)
       buffer.limit(size)
       envelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
+      onProgress(presentationTimeUs)
       if (!extractor.advance()) break
     }
     return envelope.normalizedPoints()

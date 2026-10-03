@@ -12,6 +12,61 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test('next, next, previous and cancelled gestures stay centered without rebasing native endpoints', () => {
+    let finish!: (event: { finished: boolean }) => void;
+    jest.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+      start: callback => { (value as Animated.Value).setValue(config.toValue as number); finish = callback!; },
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+    jest.spyOn(Animated, 'spring').mockImplementation((value, config) => ({
+      start: callback => { (value as Animated.Value).setValue(config.toValue as number); callback?.({ finished: true }); },
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+    const view = renderHook(({ id }: { id: string }) => useHorizontalTrackMotion({ currentSongId: id,
+      panelWidth: 360, hasNext: true, hasPrevious: true, reduceMotion: false,
+      dispatchBeforeAnimation: true, onNext: jest.fn(), onPrevious: jest.fn() }), { initialProps: { id: 'a' } });
+    const position = () => view.result.current.pageOffset
+      + (view.result.current.constrainedDrag as Animated.AnimatedAddition<number> & { __getValue(): number }).__getValue();
+    try {
+      for (const [id, translationX, expectedOffset] of [['b', -140, 360], ['c', -140, 720], ['b', 140, 360]] as const) {
+        act(() => view.result.current.onStateChange(stateEvent({ state: State.ACTIVE, translationX })));
+        expect(position()).toBeCloseTo(translationX, 5);
+        act(() => view.result.current.onStateChange(stateEvent({ oldState: State.ACTIVE, state: State.END,
+          translationX, translationY: 0 })));
+        // Either playback or the native animation can finish first.
+        if (id === 'c') { act(() => finish({ finished: true })); view.rerender({ id }); }
+        else { view.rerender({ id }); act(() => finish({ finished: true })); }
+        expect(view.result.current.pageOffset).toBe(expectedOffset);
+        expect(position()).toBe(0);
+      }
+      act(() => view.result.current.onStateChange(stateEvent({ state: State.ACTIVE, translationX: -30 })));
+      act(() => view.result.current.onStateChange(stateEvent({ oldState: State.ACTIVE, state: State.CANCELLED,
+        translationX: -30 })));
+      expect(position()).toBe(0);
+    } finally { view.unmount(); jest.restoreAllMocks(); }
+  });
+  test('a confirmed swipe never resets the native endpoint while React reorders the loaded pages', () => {
+    let finish!: (event: { finished: boolean }) => void;
+    let nativeDrag!: Animated.Value;
+    jest.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+      start: callback => {
+        nativeDrag = value as Animated.Value;
+        nativeDrag.setValue(config.toValue as number);
+        finish = callback!;
+      }, stop: jest.fn(), reset: jest.fn(),
+    }));
+    const view = renderHook(({ id }: { id: string }) => useHorizontalTrackMotion({ currentSongId: id,
+      panelWidth: 360, hasNext: true, hasPrevious: true, reduceMotion: false,
+      dispatchBeforeAnimation: true, onNext: jest.fn(), onPrevious: jest.fn() }), { initialProps: { id: 'a' } });
+    act(() => view.result.current.onStateChange(stateEvent({ oldState: State.ACTIVE, state: State.END,
+      translationX: -140, translationY: 0 })));
+    view.rerender({ id: 'b' });
+    const writes = jest.spyOn(nativeDrag, 'setValue');
+    act(() => finish({ finished: true }));
+    expect(writes).not.toHaveBeenCalled();
+    view.unmount();
+    jest.restoreAllMocks();
+  });
   test('follows native dragging and recenters when playback changes the track externally', () => {
     const events = jest.spyOn(Animated, 'event');
     const { result, rerender, unmount } = renderHook<ReturnType<typeof useHorizontalTrackMotion>,
