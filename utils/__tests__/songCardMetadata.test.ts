@@ -31,4 +31,12 @@ describe('songCardMetadata', () => {
     expect(getSongCardMetadataLabel({ fileInfo: { mimeType: 'audio/flac' } })).toBe('FLAC');
     expect(getSongCardMetadataLabel({})).toBeNull();
   });
+
+  test('includes known kbps and ignores invalid bitrate without inventing a value', () => {
+    expect(getSongCardMetadataLabel({ duration: 185_000, audioInfo: { bitrate: 319.8 },
+      fileInfo: { extension: 'mp3' } })).toBe('3:05 • MP3 • 320 kbps');
+    for (const bitrate of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(getSongCardMetadataLabel({ audioInfo: { bitrate } })).toBeNull();
+    }
+  });
 });

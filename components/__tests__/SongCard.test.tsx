@@ -151,6 +151,15 @@ describe('SongCard', () => {
     expect(getByTestId('song-card-meta-meta-tile').props.children).toBe('1:02 • FLAC');
   });
 
+  test('updates a row when only its bitrate is backfilled', () => {
+    const onPressSong = jest.fn();
+    const base = { id: 'bitrate', title: 'Track', artist: 'Artist', fileInfo: { extension: 'mp3' } };
+    const view = render(<SongCard song={base} onPressSong={onPressSong} isCurrent={false} isPlaying={false} />);
+    view.rerender(<SongCard song={{ ...base, audioInfo: { bitrate: 320 } }}
+      onPressSong={onPressSong} isCurrent={false} isPlaying={false} />);
+    expect(view.getByTestId('song-card-meta-bitrate').props.children).toBe('MP3 • 320 kbps');
+  });
+
   test('omits metadata row when no duration or format is available', () => {
     const { queryByTestId } = render(
       <SongCard song={{ id: 'plain', title: 'Plain Track', artist: 'Artist' }} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />,

@@ -51,6 +51,8 @@ export const getSongCardMetadataLabel = (song: Pick<Song, 'audioInfo' | 'duratio
   const parts = [
     formatSongCardDuration(getSongCardDurationMs(song)),
     getSongCardFormatLabel(song),
+    typeof song.audioInfo?.bitrate === 'number' && Number.isFinite(song.audioInfo.bitrate)
+      && song.audioInfo.bitrate > 0 ? `${Math.round(song.audioInfo.bitrate)} kbps` : null,
   ].filter((part): part is string => Boolean(part));
 
   return parts.length > 0 ? parts.join(' • ') : null;

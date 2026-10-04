@@ -2,7 +2,8 @@ import type { Song } from '../types/Song';
 import { isDemoSong } from './libraryDemoSongs';
 import { buildSongKey, displayAlbum, displayArtist, displayTitle, normalizeLibraryText } from './libraryPresentation';
 
-export const SONG_ROW_HEIGHT = 62;
+// Includes the individual card's bottom gap; keep FlatList offsets accurate.
+export const SONG_ROW_HEIGHT = 106;
 
 export const getLibrarySongItemLayout = (
   _: ArrayLike<Song> | null | undefined,

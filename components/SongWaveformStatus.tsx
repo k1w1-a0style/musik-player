@@ -56,16 +56,20 @@ const SongWaveformStatus = ({ song, status }: { song: Song; status: WaveformStat
         }}>
         <Text style={[styles.action, { color: theme.palette.primary }]}>{status === 'unavailable' ? 'Erneut' : 'Starten'}</Text>
       </Pressable> : null}
+      <Text style={[styles.percent, { color: theme.palette.text.secondary }]}
+        testID={`song-preparation-percent-${song.id}`}>{running && progress !== null
+          ? `${Math.round(progress * 100)} %` : status === 'pending' ? '0 %' : running ? 'Scan…' : 'Fehler'}</Text>
     </View>
-    <PreparationBar running={running} color={theme.palette.primary} trackColor={theme.palette.border}
-      songId={song.id} progress={progress} />
+    <PreparationBar running={running} color={theme.palette.primary} trackColor={theme.palette.borderStrong}
+      songId={song.id} progress={running ? progress : status === 'pending' ? 0 : null} />
   </View>;
 };
 const styles = StyleSheet.create({
-  status: { alignSelf: 'stretch', gap: 3, marginTop: 2 },
+  status: { alignSelf: 'stretch', gap: 4, marginTop: 5 },
   caption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: { flex: 1, fontSize: 10 }, action: { fontSize: 10, fontWeight: '600' },
-  track: { height: 5, borderRadius: 2.5, overflow: 'hidden' },
+  percent: { fontSize: 10, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  track: { height: 7, borderRadius: 3.5, overflow: 'hidden' },
   fill: { height: '100%', width: '100%' },
 });
 export default React.memo(SongWaveformStatus);

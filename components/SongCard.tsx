@@ -10,7 +10,6 @@ import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 import SongWaveformStatus from './SongWaveformStatus';
 import { useSongPreparation } from '../hooks/useSongPreparation';
-import type { WaveformStatus } from '../utils/waveformStatus';
 
 interface SongCardProps {
   song: Song;
@@ -26,10 +25,9 @@ const sameWaveformSource = (left: Song, right: Song): boolean =>
   && left.fileInfo?.size === right.fileInfo?.size && left.fileInfo?.importedAt === right.fileInfo?.importedAt
   && left.duration === right.duration && left.audioInfo?.durationMs === right.audioInfo?.durationMs;
 
-const SongMetadata = ({ song, preparation, label, color, tile = false }: {
-  song: Song; preparation: WaveformStatus; label: string | null; color: string; tile?: boolean;
+const SongMetadata = ({ song, label, color, tile = false }: {
+  song: Song; label: string | null; color: string; tile?: boolean;
 }) => {
-  if (preparation !== 'ready') return <SongWaveformStatus song={song} status={preparation} />;
   if (!label) return null;
   return <Text style={[tile ? styles.tileMetadata : styles.metadata, { color }]} numberOfLines={1}
     testID={`song-card-meta-${song.id.trim() || buildSongKey(song)}`}>{label}</Text>;
@@ -113,24 +111,28 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         onPress={handlePress}
         style={({ pressed }) => [
           styles.tileContainer,
+          { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
           isCurrent && { backgroundColor: selectedColors.background },
           isCurrent && styles.tileCurrent,
           pressed && styles.pressed,
-          !prepared && preparation !== 'analyzing' && styles.preparing,
         ]}
       >
-        <View>
-          {cover}
-          {infoButton}
+        <View testID={`song-card-content-${songTestId}`}
+          style={[styles.tileContent, !prepared && preparation !== 'analyzing' && styles.preparing]}>
+          <View>
+            {cover}
+            {infoButton}
+          </View>
+          <Text style={[styles.tileTitle, { color: isCurrent ? selectedColors.text : theme.palette.text.primary }]} numberOfLines={1}>
+            {song.title}
+          </Text>
+          <Text style={[styles.tileArtist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+            {song.artist}
+          </Text>
+          <SongMetadata song={song} label={metadataLabel}
+            color={theme.palette.text.muted} tile />
         </View>
-        <Text style={[styles.tileTitle, { color: isCurrent ? selectedColors.text : theme.palette.text.primary }]} numberOfLines={1}>
-          {song.title}
-        </Text>
-        <Text style={[styles.tileArtist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-          {song.artist}
-        </Text>
-        <SongMetadata song={song} preparation={preparation} label={metadataLabel}
-          color={theme.palette.text.muted} tile />
+        <SongWaveformStatus song={song} status={preparation} />
       </Pressable>
     );
   }
@@ -147,38 +149,41 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       onPress={handlePress}
       style={({ pressed }) => [
         styles.container,
-        { borderBottomColor: theme.palette.border },
+        { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
         isBanner && styles.bannerContainer,
         isCurrent && { backgroundColor: selectedColors.background },
         pressed && styles.pressed,
-        !prepared && preparation !== 'analyzing' && styles.preparing,
       ]}
     >
-      <View
-        style={[
-          styles.activeRail,
-          isCurrent && { backgroundColor: selectedColors.rail },
-          isPlaying && { backgroundColor: selectedColors.accent },
-        ]}
-      />
-      {cover}
-      <View style={styles.infoContainer}>
-        <Text
+      <View testID={`song-card-content-${songTestId}`}
+        style={[styles.rowContent, !prepared && preparation !== 'analyzing' && styles.preparing]}>
+        <View
           style={[
-            isBanner ? styles.bannerTitle : styles.title,
-            { color: isCurrent ? selectedColors.text : theme.palette.text.primary },
+            styles.activeRail,
+            isCurrent && { backgroundColor: selectedColors.rail },
+            isPlaying && { backgroundColor: selectedColors.accent },
           ]}
-          numberOfLines={1}
-        >
-          {song.title}
-        </Text>
-        <Text style={[styles.artist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
-          {song.artist}
-        </Text>
-        <SongMetadata song={song} preparation={preparation} label={metadataLabel}
-          color={theme.palette.text.muted} />
+        />
+        {cover}
+        <View style={styles.infoContainer}>
+          <Text
+            style={[
+              isBanner ? styles.bannerTitle : styles.title,
+              { color: isCurrent ? selectedColors.text : theme.palette.text.primary },
+            ]}
+            numberOfLines={1}
+          >
+            {song.title}
+          </Text>
+          <Text style={[styles.artist, { color: theme.palette.text.secondary }]} numberOfLines={1}>
+            {song.artist}
+          </Text>
+          <SongMetadata song={song} label={metadataLabel}
+            color={theme.palette.text.muted} />
+        </View>
+        {infoButton}
       </View>
-      {infoButton}
+      <SongWaveformStatus song={song} status={preparation} />
     </Pressable>
   );
 };
@@ -192,6 +197,7 @@ const SongCard = memo(
     && prev.song.album === next.song.album
     && sameWaveformSource(prev.song, next.song)
     && prev.song.audioInfo?.codec === next.song.audioInfo?.codec
+    && prev.song.audioInfo?.bitrate === next.song.audioInfo?.bitrate
     && prev.song.fileInfo?.extension === next.song.fileInfo?.extension
     && prev.song.fileInfo?.container === next.song.fileInfo?.container
     && prev.song.fileInfo?.mimeType === next.song.fileInfo?.mimeType
@@ -205,15 +211,16 @@ const SongCard = memo(
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: 62,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
+    height: 98,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    justifyContent: 'center',
   },
-  bannerContainer: { minHeight: 84, paddingVertical: 10 },
+  rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bannerContainer: { height: 112, paddingVertical: 10 },
   pressed: { opacity: 0.72 },
   preparing: { opacity: 0.5 },
   activeRail: { width: 3, height: 30, borderRadius: 3, backgroundColor: 'transparent' },
@@ -244,7 +251,9 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  tileContainer: { flex: 1, maxWidth: '50%', paddingVertical: 8, paddingHorizontal: 4, gap: 6 },
+  tileContainer: { flex: 1, maxWidth: '50%', padding: 8, gap: 6, marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth, borderRadius: 14 },
+  tileContent: { gap: 6 },
   tileCurrent: { borderRadius: 12 },
   tileTitle: { fontSize: 13, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
   tileArtist: { fontSize: 11, fontFamily: staticTokens.fonts.body },

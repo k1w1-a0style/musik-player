@@ -195,7 +195,7 @@ describe('NowPlayingSoundCloudView', () => {
       onOpenTrackInfo,
     });
 
-    expect(getByTestId('soundcloud-carousel-current-artwork').props.blurRadius).toBe(28);
+    expect(getByTestId('soundcloud-carousel-current-artwork').props.blurRadius).toBe(0);
     expect(getByTestId('active-waveform')).toBeTruthy();
     expect(queryByTestId('soundcloud-paused-progress')).toBeNull();
     fireEvent.press(getByTestId('soundcloud-track-info-chip'));

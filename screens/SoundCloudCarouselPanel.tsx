@@ -34,7 +34,7 @@ const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
       }]} testID={`soundcloud-carousel-${role}-artwork-frame`}>
         {artworkSource ? (
           <Image source={artworkSource} resizeMode={resolvedArtworkUri ? 'cover' : 'contain'} resizeMethod="resize"
-            fadeDuration={0} accessible={false} style={styles.panelArtwork} blurRadius={paused ? 28 : 0}
+            fadeDuration={0} accessible={false} style={styles.panelArtwork} blurRadius={0}
             testID={`soundcloud-carousel-${role}-artwork`} />
         ) : <View style={[StyleSheet.absoluteFill, styles.emptyArtwork]} />}
         <View pointerEvents="none" style={[styles.artworkShade, paused && styles.pausedShade]} />

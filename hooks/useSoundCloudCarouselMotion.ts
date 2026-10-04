@@ -17,7 +17,6 @@ interface TrackSwitchOptions {
   onTransitionEnd?: () => void;
 }
 
-const TRACK_SWITCH_CONFIRMATION_GRACE_MS = 1_500;
 const TRACK_SWITCH_ACTION_TIMEOUT_MS = 8_000;
 
 const useTrackTransitionLifetime = (drag: Animated.Value) => {
@@ -112,7 +111,6 @@ const useTrackTransitionState = ({ drag, currentSongId, reduceMotion,
 const createTrackSwitchObserver = (transition: ReturnType<typeof useTrackTransitionState>, generation: number) => {
   const { switchingRef, songIdRef, originSongIdRef, animationFinishedRef,
     generationRef, resetTimerRef, clearReset, resetToCurrentTrack, animateBack } = transition;
-  let actionSettled = false;
   const scheduleFallback = () => {
     if (generation !== generationRef.current || !animationFinishedRef.current || !switchingRef.current) return;
     if (songIdRef.current !== originSongIdRef.current) return resetToCurrentTrack();
@@ -121,12 +119,11 @@ const createTrackSwitchObserver = (transition: ReturnType<typeof useTrackTransit
       if (generation !== generationRef.current) return;
       resetTimerRef.current = null;
       if (switchingRef.current && songIdRef.current === originSongIdRef.current) animateBack();
-    }, actionSettled ? TRACK_SWITCH_CONFIRMATION_GRACE_MS : TRACK_SWITCH_ACTION_TIMEOUT_MS);
+    }, TRACK_SWITCH_ACTION_TIMEOUT_MS);
   };
   const observeAction = (result: void | Promise<void>) => {
     void Promise.resolve(result).catch(() => undefined).finally(() => {
       if (generation !== generationRef.current) return;
-      actionSettled = true;
       scheduleFallback();
     });
   };
@@ -193,18 +190,25 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
   const drag = useRef(new Animated.Value(0)).current;
   const gestureDrag = useRef(new Animated.Value(0)).current;
   const followGesture = useRef(new Animated.Value(0)).current;
+  const gesturePageOffset = useRef(new Animated.Value(0)).current;
+  const nextResistance = useRef(new Animated.Value(hasNext ? 1 : 0.12)).current;
+  const previousResistance = useRef(new Animated.Value(hasPrevious ? 1 : 0.12)).current;
   const switching = useTrackSwitchAnimation({ drag, currentSongId, panelWidth, onNext, onPrevious,
     reduceMotion, transitionDurationMs, dispatchBeforeAnimation, onTransitionStart, onTransitionEnd });
-  const constrainedGesture = useMemo(() => gestureDrag.interpolate({ inputRange: [-panelWidth, 0, panelWidth],
-    outputRange: [hasNext ? -panelWidth : -panelWidth * 0.12, 0,
-      hasPrevious ? panelWidth : panelWidth * 0.12], extrapolate: 'clamp' }),
-  [gestureDrag, hasNext, hasPrevious, panelWidth]);
+  const constrainedGesture = useMemo(() => Animated.add(
+    Animated.multiply(gestureDrag.interpolate({ inputRange: [-panelWidth, 0],
+      outputRange: [-panelWidth, 0], extrapolate: 'clamp' }), nextResistance),
+    Animated.multiply(gestureDrag.interpolate({ inputRange: [0, panelWidth],
+      outputRange: [0, panelWidth], extrapolate: 'clamp' }), previousResistance),
+  ), [gestureDrag, nextResistance, panelWidth, previousResistance]);
   // Only gesture input is bounded/rebased. Released native animation endpoints
   // stay untouched while React commits the pages and their layout offset.
+  // Keep this entire graph stable: replacing an Animated node restores the
+  // Android view's transform defaults before its new node is attached.
   const visibleDrag = useMemo(() => Animated.add(
-    Animated.multiply(Animated.subtract(constrainedGesture, switching.pageOffset), followGesture),
+    Animated.multiply(Animated.subtract(constrainedGesture, gesturePageOffset), followGesture),
     Animated.multiply(drag, Animated.subtract(1, followGesture)),
-  ), [constrainedGesture, drag, followGesture, switching.pageOffset]);
+  ), [constrainedGesture, drag, followGesture, gesturePageOffset]);
   useLayoutEffect(() => {
     if (!switching.switchingRef.current) followGesture.setValue(0);
   }, [currentSongId, followGesture, switching.switchingRef]);
@@ -218,13 +222,21 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
     drag.setValue((allowed ? bounded : bounded * 0.12) - switching.pageOffsetRef.current);
     followGesture.setValue(0);
   }, [drag, followGesture, hasNext, hasPrevious, panelWidth, switching.pageOffsetRef]);
+  const beginGesture = useCallback((position: number) => {
+    if (switching.switchingRef.current) return;
+    // These values affect only finger-following input. Update them before
+    // following starts, without reconnecting the released native graph.
+    gesturePageOffset.setValue(switching.pageOffsetRef.current);
+    nextResistance.setValue(hasNext ? 1 : 0.12);
+    previousResistance.setValue(hasPrevious ? 1 : 0.12);
+    gestureDrag.setValue(position);
+    followGesture.setValue(1);
+  }, [followGesture, gestureDrag, gesturePageOffset, hasNext, hasPrevious,
+    nextResistance, previousResistance, switching.pageOffsetRef, switching.switchingRef]);
   const onStateChange = useCallback((event: PanGestureHandlerStateChangeEvent) => {
     const { oldState, state, translationX = 0, translationY = 0, velocityX = 0 } = event.nativeEvent;
     if (state === State.BEGAN || state === State.ACTIVE) {
-      if (!switching.switchingRef.current) {
-        gestureDrag.setValue(translationX);
-        followGesture.setValue(1);
-      }
+      beginGesture(translationX);
       return;
     }
     if (state === State.CANCELLED || state === State.FAILED) {
@@ -246,7 +258,7 @@ export const useHorizontalTrackMotion = ({ currentSongId, panelWidth, onNext, on
         switching.complete(wantsNext ? 'next' : 'previous');
       else switching.animateBack();
     }
-  }, [followGesture, gestureDrag, handOffGesture, hasNext, hasPrevious, panelWidth, switching]);
+  }, [beginGesture, handOffGesture, hasNext, hasPrevious, panelWidth, switching]);
   return { drag, constrainedDrag: visibleDrag, pageOffset: switching.pageOffset, onGestureEvent, onStateChange };
 };
 

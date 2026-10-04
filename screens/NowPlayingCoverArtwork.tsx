@@ -7,6 +7,7 @@ import { useHorizontalTrackMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
 import { getTrackPageKeys } from '../utils/soundCloudPlayer';
 import { KIWI_MUSIC_ARTWORK, getSongArtworkUri } from '../utils/songArtwork';
+import CoverPagerTrack from '../components/CoverPagerTrack';
 
 interface NowPlayingCoverArtworkProps {
   song?: Song | null;
@@ -166,8 +167,9 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
           activeOffsetX={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           failOffsetY={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
           onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
-          <Animated.View style={[styles.coverTrack, { width: pageWidth * 3, left: motion.pageOffset,
-            transform: [{ translateX: trackTranslateX }] }]} testID="now-playing-cover-track">
+          <Animated.View style={styles.gestureViewport} collapsable={false}>
+          <CoverPagerTrack style={styles.coverTrack} width={pageWidth * 3} pageOffset={motion.pageOffset}
+            translateX={trackTranslateX} testID="now-playing-cover-track">
             <CoverPage key={pageKeys.previous}
               role="previous" song={displayed.previousSong}
               artworkUri={displayed.previousArtworkUri}
@@ -179,6 +181,7 @@ const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousA
             <CoverPage key={pageKeys.next}
               role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
               isPlaying={false} {...cardProps} />
+          </CoverPagerTrack>
           </Animated.View>
         </PanGestureHandler>
     </View>
@@ -198,6 +201,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   pagerViewport: { overflow: 'hidden' },
+  gestureViewport: { width: '100%', height: '100%' },
   coverPage: { alignItems: 'center', justifyContent: 'center' },
   coverTrack: { height: '100%', flexDirection: 'row' },
   coverCard: { overflow: 'hidden', borderRadius: 22 },

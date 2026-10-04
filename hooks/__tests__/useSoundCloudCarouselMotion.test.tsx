@@ -12,6 +12,48 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 );
 
 describe('SoundCloud carousel gesture listeners', () => {
+  test('retains the native transform graph while committing an incoming centered page', () => {
+    let finish!: (event: { finished: boolean }) => void;
+    jest.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+      start: callback => { (value as Animated.Value).setValue(config.toValue as number); finish = callback!; },
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+    const view = renderHook(({ id, hasNext, hasPrevious }: { id: string; hasNext: boolean; hasPrevious: boolean }) =>
+      useHorizontalTrackMotion({ currentSongId: id, panelWidth: 360, hasNext, hasPrevious, reduceMotion: false,
+        dispatchBeforeAnimation: true, onNext: jest.fn(), onPrevious: jest.fn() }),
+    { initialProps: { id: 'a', hasNext: true, hasPrevious: false } });
+    const nativeTransform = view.result.current.constrainedDrag;
+    try {
+      act(() => view.result.current.onStateChange(stateEvent({ oldState: State.ACTIVE, state: State.END,
+        translationX: -320, translationY: 0 })));
+      view.rerender({ id: 'b', hasNext: false, hasPrevious: true });
+      act(() => finish({ finished: true }));
+      // Replacing this node detaches AnimatedProps on Android and restores
+      // the transform defaults even if the endpoint Value was never reset.
+      expect(view.result.current.constrainedDrag).toBe(nativeTransform);
+    } finally { view.unmount(); jest.restoreAllMocks(); }
+  });
+
+  test('holds the incoming cover when active-track confirmation arrives after two seconds', async () => {
+    jest.useFakeTimers();
+    jest.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+      start: callback => { (value as Animated.Value).setValue(config.toValue as number); callback?.({ finished: true }); },
+      stop: jest.fn(), reset: jest.fn(),
+    }));
+    const spring = jest.spyOn(Animated, 'spring');
+    const view = renderHook(({ id }: { id: string }) => useHorizontalTrackMotion({ currentSongId: id,
+      panelWidth: 360, hasNext: true, hasPrevious: true, reduceMotion: false,
+      dispatchBeforeAnimation: true, onNext: jest.fn(async () => undefined), onPrevious: jest.fn() }),
+    { initialProps: { id: 'a' } });
+    try {
+      await act(async () => view.result.current.onStateChange(stateEvent({ oldState: State.ACTIVE, state: State.END,
+        translationX: -320, translationY: 0 })));
+      act(() => jest.advanceTimersByTime(2_000));
+      expect(spring).not.toHaveBeenCalled();
+      view.rerender({ id: 'b' });
+      expect(view.result.current.pageOffset).toBe(360);
+    } finally { view.unmount(); jest.restoreAllMocks(); jest.useRealTimers(); }
+  });
   test('next, next, previous and cancelled gestures stay centered without rebasing native endpoints', () => {
     let finish!: (event: { finished: boolean }) => void;
     jest.spyOn(Animated, 'timing').mockImplementation((value, config) => ({

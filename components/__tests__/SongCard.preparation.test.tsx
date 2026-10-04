@@ -25,15 +25,18 @@ test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, 
   const onPress = jest.fn();
   const view = render(<SongCard song={song} onPressSong={onPress} isCurrent={false} isPlaying={false} variant={variant} />);
   const row = () => view.getByTestId('song-card-pending');
+  const content = () => view.getByTestId('song-card-content-pending');
   expect(row().props.accessibilityState.disabled).toBe(true);
-  expect(StyleSheet.flatten(row().props.style).opacity).toBeLessThan(1);
+  expect(StyleSheet.flatten(content().props.style).opacity).toBeLessThan(1);
+  expect(StyleSheet.flatten(row().props.style).opacity ?? 1).toBe(1);
   fireEvent.press(row());
   expect(onPress).not.toHaveBeenCalled();
   expect(view.getByTestId('song-preparation-progress-pending')).toBeTruthy();
+  expect(content().findAllByProps({ testID: 'song-preparation-progress-pending' })).toHaveLength(0);
 
   act(() => setWaveformStatus(fingerprint, 'analyzing'));
   expect(row().props.accessibilityState.busy).toBe(true);
-  expect(StyleSheet.flatten(row().props.style).opacity ?? 1).toBe(1);
+  expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
   act(() => setWaveformProgress(fingerprint, 0.43));
   expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(43);
   await act(async () => { await markSongPrepared(fingerprint); });

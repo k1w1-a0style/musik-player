@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SongWaveformStatus from '../SongWaveformStatus';
 import { getWaveformSourceIdentity, buildNativeWaveform } from '../../utils/waveformGenerator';
 import { resetWaveformCacheStateForTests, setCachedWaveform } from '../../utils/waveformCache';
-import { setWaveformStatus } from '../../utils/waveformStatus';
+import { setWaveformProgress, setWaveformStatus } from '../../utils/waveformStatus';
 import { useSongPreparation } from '../../hooks/useSongPreparation';
 import { resetSongPreparationForTests } from '../../utils/songPreparationStore';
 import type { Song } from '../../types/Song';
@@ -20,6 +20,21 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 const song = { id: 'one', title: 'One', artist: 'Artist', uri: 'file:///one.mp3', duration: 1000 };
 beforeEach(async () => { resetWaveformCacheStateForTests(); resetSongPreparationForTests(); await AsyncStorage.clear(); });
 afterEach(() => resetWaveformCacheStateForTests());
+
+test('shows independent progress for the running track and zero for a waiting track', () => {
+  const second = { ...song, id: 'two', title: 'Two', uri: 'file:///two.mp3' };
+  const firstFingerprint = getWaveformSourceIdentity(song).sourceFingerprint;
+  const secondFingerprint = getWaveformSourceIdentity(second).sourceFingerprint;
+  const view = render(<><Status song={song} /><Status song={second} /></>);
+  act(() => { setWaveformStatus(firstFingerprint, 'analyzing'); setWaveformProgress(firstFingerprint, 0.42); });
+  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('42 %');
+  expect(view.getByTestId('song-preparation-progress-one').props.accessibilityValue.now).toBe(42);
+  expect(view.getByTestId('song-preparation-percent-two').props.children).toBe('0 %');
+  expect(view.getByTestId('song-preparation-progress-two').props.accessibilityValue.now).toBe(0);
+  act(() => { setWaveformStatus(secondFingerprint, 'analyzing'); setWaveformProgress(secondFingerprint, 0.68); });
+  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('42 %');
+  expect(view.getByTestId('song-preparation-percent-two').props.children).toBe('68 %');
+});
 
 test('updates the row for running/ready and does not carry readiness to a changed source', async () => {
   const view = render(<Status song={song} />);

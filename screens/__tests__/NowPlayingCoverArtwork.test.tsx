@@ -196,7 +196,7 @@ describe('NowPlayingCoverArtwork', () => {
       nextSong={null} artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" />);
     act(() => finishAnimation?.({ finished: true }));
     // The gesture-handler mock forwards its own testID onto the child track.
-    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-swipe-gesture').props.style).left).toBe(360);
+    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-track').props.style).left).toBe(360);
     expect(view.getByTestId('now-playing-cover-image')).toBe(incomingImage);
   });
 });

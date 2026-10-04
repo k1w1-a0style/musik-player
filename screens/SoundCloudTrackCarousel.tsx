@@ -5,6 +5,7 @@ import { useHorizontalTrackMotion, useVerticalPlayerMotion } from '../hooks/useS
 import type { Song } from '../types/Song';
 import { getTrackPageKeys } from '../utils/soundCloudPlayer';
 import SoundCloudCarouselPanel from './SoundCloudCarouselPanel';
+import CoverPagerTrack from '../components/CoverPagerTrack';
 import type { SoundCloudCarouselRenderPage } from './soundCloudCarouselTypes';
 
 export type { SoundCloudCarouselPageRole } from './soundCloudCarouselTypes';
@@ -107,9 +108,8 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
             onGestureEvent={horizontal.onGestureEvent}
             onHandlerStateChange={horizontal.onStateChange}>
             <Animated.View style={styles.carouselViewport} collapsable={false}>
-              <Animated.View testID="soundcloud-track-carousel"
-                style={[styles.track, { width: panelWidth * 3, left: horizontal.pageOffset,
-                  transform: [{ translateX: trackTranslateX }] }]}>
+              <CoverPagerTrack testID="soundcloud-track-carousel" style={styles.track}
+                width={panelWidth * 3} pageOffset={horizontal.pageOffset} translateX={trackTranslateX}>
                 <View key={pageKeys.previous} style={{ width: panelWidth }}>
                   <SoundCloudCarouselPanel song={displayed.previousSong} role="previous"
                     artworkUri={displayed.previousArtworkUri} paused={!isPlaying}
@@ -125,7 +125,7 @@ const SoundCloudTrackCarousel: React.FC<SoundCloudTrackCarouselProps> = ({ curre
                     artworkUri={displayed.nextArtworkUri} paused={!isPlaying}
                     topInset={topInset} bottomInset={bottomInset} />
                 </View>
-              </Animated.View>
+              </CoverPagerTrack>
               <View style={styles.currentPage} testID="soundcloud-current-page-layer">
                 {renderPage({ song: displayed.currentSong, role: 'current' })}
               </View>
