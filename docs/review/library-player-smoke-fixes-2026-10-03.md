@@ -42,15 +42,53 @@ Base: `codex` at `ebb5381670f425055fcce7bfe94a770a52456b08`.
 
 ## Verification
 
-- 3,170 tests / 327 suites, including coverage thresholds, passed.
+- 3,173 tests / 327 suites, including coverage thresholds, passed.
 - TypeScript, ESLint without warnings, complexity and source-NUL gates passed.
 - Expo dependency compatibility passed using its offline compatibility list.
-- Native Kotlin compilation and Android unit tests run in the unchanged CI
-  after this commit is pushed. The three new Kotlin reporter tests cover
-  throttling, monotonic progress, completion and unknown duration.
-- A freshly built native APK is required for PCM percentage events. Older APKs
-  remain compatible and display indeterminate preparation instead.
+- A separate native build with Node 20 and Java 17 passed Kotlin compilation,
+  all 128 Android unit tests in 15 suites, and release APK assembly for
+  arm64-v8a, armeabi-v7a, x86 and x86_64. New Architecture remains disabled.
+  The three new Kotlin reporter tests cover throttling, monotonic progress,
+  completion and unknown duration.
+- Strict inspection of the built APK passed: package and label, ZIP integrity,
+  native ABIs, manifest permissions and APK v2 signature. Its AndroidX Core
+  app-private signature permission is now allowed by its exact release
+  package name; unrelated package names remain rejected by regression tests.
+- The preview APK contains PCM percentage events. Older APKs remain compatible
+  and display indeterminate preparation instead.
 
-The JavaScript tests establish the transition handoff contract. Android video
-and the user's A50 smoke test are still needed to assess visible smoothness;
-these tests alone are not evidence of a flawless device transition.
+## Native smoke results and remaining checks
+
+- The APK updated the previous smoke installation without uninstalling it.
+- On Android 15, adding the first folder imported and prepared its two tracks.
+  Adding a second folder prepared only its one new track; the previous tracks
+  remained ready. Tags and embedded covers were imported in the same flow,
+  with no separate metadata menu action. Restarting kept the prepared state.
+- Recordings show the current waveform scan row and its advancing progress
+  bar. Synthetic tracks with distinct covers were used; no user library was
+  modified.
+- Visible cover-animation smoothness is still unverified. Recording and
+  foreground control on the Android 15 test instance produced display/task
+  switching and black frames. A fresh Android 14 attempt was started, but
+  did not complete before the interrupted session. These recordings cannot
+  establish either success or a remaining app animation defect.
+- The JavaScript tests establish the transition handoff contract. Stable
+  Android video and the user's A50 smoke test remain necessary before calling
+  the cover transition flawless. SoundCloud's shorter display span is covered
+  by rendering tests; its full native visual check remains open.
+
+## Build artifact and CI status
+
+- Runtime source: `b8cfb8bda8f2e3d293bd0d5bc9811700e8ec4668`.
+- Artifact: `kiwi-music-codex-b8cfb8b-smoke.apk`, 94,990,197 bytes.
+- SHA-256:
+  `71280bacd99fca37422dc0d4abd29e21273e9a4c6051622a953613ad2b8524ab`.
+- The subsequent permission-gate and report correction changes no app runtime
+  code and requires no rebuild of this APK.
+- [GitHub CI run 37158944216](https://github.com/k1w1-a0style/musik-player/actions/runs/37158944216)
+  failed at the production dependency audit before tests or native compilation:
+  21 high findings, no critical findings, rooted in `braces` and `node-forge`.
+  No audit exceptions, forced dependency upgrades or weaker gates were added.
+- [EAS preview run 37159293632](https://github.com/k1w1-a0style/musik-player/actions/runs/37159293632)
+  uploaded the project but failed its build request before compilation.
+  The successful separate native build above supplied the smoke APK.

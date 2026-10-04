@@ -21,6 +21,9 @@ const ALLOWED_ANDROID_PERMISSIONS = Object.freeze([
   'android.permission.VIBRATE',
   'android.permission.POST_NOTIFICATIONS',
   'android.permission.READ_EXTERNAL_STORAGE',
+  // AndroidX Core protects non-exported receivers with this app-private,
+  // signature-only permission. Allow the exact release package, no wildcard.
+  'com.k1w1a0style.musikplayer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION',
 ]);
 
 const FORBIDDEN_ANDROID_PERMISSIONS = Object.freeze([

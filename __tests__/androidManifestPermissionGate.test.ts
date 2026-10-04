@@ -50,6 +50,21 @@ describe('generated AndroidManifest permission gate', () => {
     expect(result.stdout).toContain('Generated AndroidManifest permission gate passed.');
   });
 
+  it('accepts the release app private AndroidX receiver permission', () => {
+    const result = runGate([...requiredPermissions,
+      'com.k1w1a0style.musikplayer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']);
+    expect(result.status).toBe(0);
+  });
+
+  it.each(['com.other.app', 'com.k1w1a0style.musikplayer.dev'])(
+    'rejects another package receiver permission: %s', packageName => {
+      const result = runGate([...requiredPermissions,
+        `${packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('unexpected permission outside the release allowlist');
+    },
+  );
+
   it('accepts legacy read access only when capped at Android 12L', () => {
     const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
