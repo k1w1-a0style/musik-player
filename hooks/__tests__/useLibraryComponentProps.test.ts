@@ -65,7 +65,8 @@ const baseOptions: UseLibraryComponentPropsOptions = {
 };
 
 test('returns library component props', () => {
-  const { result } = renderHook(() => useLibraryComponentProps(baseOptions));
+  const { result, rerender } = renderHook(({ loading }: { loading: boolean }) => useLibraryComponentProps({ ...baseOptions, loading }),
+    { initialProps: { loading: false } });
 
   expect(result.current.showImportStatus).toBe(false);
   expect(result.current.showSearchBar).toBe(true);
@@ -83,7 +84,8 @@ test('returns library component props', () => {
     onChangeText: fn,
     value: 'abc',
   });
-  expect(result.current.importStatusProps).toEqual({ status: 'Import läuft' });
+  expect(result.current.importStatusProps).toEqual({ status: 'Import läuft', scanning: false,
+    onCancelRefresh: undefined, onResumeRefresh: undefined });
   expect(result.current.tabContentProps.activeTab).toBe('tracks');
   expect(result.current.tabContentProps.activeFolders).toBe(1);
   expect(result.current.tabContentProps.emptyMessage).toBe('Leer');
@@ -92,4 +94,6 @@ test('returns library component props', () => {
   expect(result.current.menuModalProps.visible).toBe(true);
   expect(result.current.menuModalProps.hasSongs).toBe(true);
   expect(result.current.menuModalProps.onClose).toBe(fn);
+  rerender({ loading: true });
+  expect(result.current.importStatusProps.scanning).toBe(true);
 });

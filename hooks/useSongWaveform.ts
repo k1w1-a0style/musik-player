@@ -70,6 +70,13 @@ const getCachedWaveformUntilAbort = (
 const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
   left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
 
+const waitForDecoderSlot = (signal: AbortSignal): Promise<void> => new Promise(resolve => {
+  const finish = () => { clearTimeout(timer); signal.removeEventListener('abort', finish); resolve(); };
+  const timer = setTimeout(finish, 150);
+  signal.addEventListener('abort', finish, { once: true });
+  if (signal.aborted) finish();
+});
+
 const useResolvedWaveform = ({ song, durationMs, canExtractNative,
   sourceIdentity, onWaveformDecision, retryCount }: WaveformResolutionOptions): ResolvedWaveform | null => {
   const songRef = useRef(song);
@@ -117,10 +124,22 @@ const useResolvedWaveform = ({ song, durationMs, canExtractNative,
       if (cached?.source === 'native') return commit(cached);
       const racedMemoryHit = peekCachedWaveform(requestedIdentity);
       if (racedMemoryHit?.source === 'native') return commit(racedMemoryHit);
-      const native = await extractNativeWaveform(requestedSong, durationRef.current, {
-        pointCount: WAVEFORM_CACHE_POINT_COUNT, signal: controller.signal,
-        onDecision: onWaveformDecision,
-      });
+      let native: SongWaveform | null = null;
+      let deferred = false;
+      do {
+        deferred = false;
+        const published = peekCachedWaveform(requestedIdentity);
+        if (published?.source === 'native') { native = published; break; }
+        native = await extractNativeWaveform(requestedSong, durationRef.current, {
+          pointCount: WAVEFORM_CACHE_POINT_COUNT, signal: controller.signal,
+          onDecision: decision => {
+            deferred = decision.decision === 'native-scheduler-unavailable'
+              || decision.decision === 'native-scheduler-preempted';
+            onWaveformDecision(decision);
+          },
+        });
+        if (active && !native && deferred) await waitForDecoderSlot(controller.signal);
+      } while (active && !native && deferred);
       if (!active) return;
       commit(native, 'native');
       if (native) cacheWaveformObserved(native);

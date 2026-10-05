@@ -11,6 +11,7 @@ import {
 
 export interface LibraryImportStatusProps {
   status?: string | null;
+  scanning?: boolean;
   onCancelRefresh?: () => void;
   onResumeRefresh?: () => void;
 }
@@ -135,13 +136,13 @@ const RefreshErrors = ({
   );
 };
 
-const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCancelRefresh, onResumeRefresh }) => {
+const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelRefresh, onResumeRefresh }) => {
   const { theme } = useAppTheme();
   const operation = useMetadataRefreshOperation();
   const isRunning = operation.status === 'running';
   const isCancelling = operation.status === 'cancelling';
   const showResume = canResumeMetadataRefresh(operation);
-  const showSpinner = isRunning || isCancelling;
+  const showSpinner = scanning || isRunning || isCancelling;
   const baseStatus = status ?? (STATUS_LABEL_BY_STATE[operation.status] || libraryImportMessages.importRunning);
 
   return (
@@ -156,7 +157,7 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCan
       testID="library-import-status"
     >
       <View style={styles.statusRow}>
-        {showSpinner ? <ActivityIndicator color={theme.palette.primary} size="small" /> : <View style={styles.spinnerSlot} />}
+        {showSpinner ? <ActivityIndicator testID="library-import-scan-animation" color={theme.palette.primary} size="small" /> : <View style={styles.spinnerSlot} />}
         <Text style={[styles.statusText, { color: theme.palette.text.secondary }]} testID="library-import-status-text">
           {baseStatus}
         </Text>

@@ -162,7 +162,7 @@ test('scan folder import publishes throttled SAF scan progress statuses', async 
   fireEvent.press(screen.getByText('import'));
 
   await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('scan-song')]));
-  expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 0 Titel gefunden');
+  expect(setImportStatus).toHaveBeenCalledWith('Ordner wird auf neue oder geänderte Titel geprüft…');
   expect(setImportStatus).not.toHaveBeenCalledWith('Scan läuft… 1 Ordner gelesen, 1 Titel gefunden');
   expect(setImportStatus).toHaveBeenCalledWith('Scan läuft… 2 Ordner gelesen, 2 Titel gefunden');
   dateNowSpy.mockRestore();

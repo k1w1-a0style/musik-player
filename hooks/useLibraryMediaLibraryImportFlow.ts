@@ -87,9 +87,9 @@ export const useLibraryMediaLibraryImportFlow = ({
     ensureCurrentImport(generation);
     const mediaProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
     setImportStatus(mediaProgress.savingStatus);
-    const result = buildMediaLibraryImportResult(songs, mediaResult.songs);
+    const result = buildMediaLibraryImportResult(songs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs]);
     applyImportedSongsUpdate(result.update, generation);
-    await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, result.update.songs),
+    if (mediaResult.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, result.update.songs),
       { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 

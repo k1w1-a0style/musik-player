@@ -402,7 +402,7 @@ describe('useSongWaveform lifecycle', () => {
     await flush();
   });
 
-  test('circuit capacity keeps a line and retries when native capacity recovers', async () => {
+  test('circuit capacity keeps loading and automatically retries when native capacity recovers', async () => {
     const firstNative = deferred<NativeResult>();
     const secondNative = deferred<NativeResult>();
     const firstSong = song('circuit-one');
@@ -423,24 +423,20 @@ describe('useSongWaveform lifecycle', () => {
     const onDecision = jest.fn();
     const blocked = renderHook(() => useSongWaveform({ song: blockedSong, durationMs: 1000, onWaveformDecision: onDecision }));
     await flush();
-    expect(blocked.result.current.loadingNative).toBe(false);
+    expect(blocked.result.current.loadingNative).toBe(true);
     expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS);
     expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
     expect(getWaveformFailureBackoff(extractionKeyFor(blockedSong))).toBeNull();
-    blocked.unmount();
-
     firstNative.resolve(decoded());
-    await flush();
-    const recovered = renderHook(() => useSongWaveform({ song: blockedSong, durationMs: 1000 }));
-    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    await flush(150 + WAVEFORM_EXTRACTION_DEBOUNCE_MS);
     expect(extractor.extractWaveformPeaks)
       .toHaveBeenCalledTimes(MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS + 1);
-    expect(recovered.result.current.waveform).toMatchObject({ source: 'native' });
-    expect(recovered.result.current.waveformReady).toBe(true);
+    expect(blocked.result.current.waveform).toMatchObject({ source: 'native' });
+    expect(blocked.result.current.waveformReady).toBe(true);
 
     first.unmount();
     second.unmount();
-    recovered.unmount();
+    blocked.unmount();
     secondNative.resolve(null);
     await flush();
   });

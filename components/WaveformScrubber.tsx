@@ -103,6 +103,44 @@ const WaveformVisual = ({ ready, points, svgWidth, sourceKey, restColor, accent,
   );
 };
 
+const useHeldWaveformSeek = (animatedRatio: Animated.Value, baseRatioRef: React.MutableRefObject<number>,
+  setPreviewPosition: React.Dispatch<React.SetStateAction<number | null>>, onSeek: (position: number) => void,
+  draggingRef: React.MutableRefObject<boolean>, latestRatioRef: React.MutableRefObject<number>) => {
+  const heldSeekRef = useRef<{ position: number; expires: number } | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseHeldSeek = useCallback(() => {
+    heldSeekRef.current = null;
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+    setPreviewPosition(null);
+  }, [setPreviewPosition]);
+  useEffect(() => () => {
+    heldSeekRef.current = null;
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+  }, []);
+  const holdSeek = useCallback((position: number) => {
+    releaseHeldSeek();
+    const held = { position, expires: Date.now() + 2500 };
+    heldSeekRef.current = held;
+    setPreviewPosition(position);
+    const rollback = () => {
+      if (heldSeekRef.current !== held) return;
+      releaseHeldSeek();
+      animatedRatio.setValue(baseRatioRef.current);
+    };
+    holdTimerRef.current = setTimeout(rollback, 2500);
+    try { void Promise.resolve(onSeek(position)).catch(rollback); }
+    catch { rollback(); }
+  }, [animatedRatio, baseRatioRef, onSeek, releaseHeldSeek, setPreviewPosition]);
+  const cancelInteraction = useCallback(() => {
+    draggingRef.current = false;
+    latestRatioRef.current = baseRatioRef.current;
+    animatedRatio.setValue(baseRatioRef.current);
+    releaseHeldSeek();
+  }, [animatedRatio, baseRatioRef, draggingRef, latestRatioRef, releaseHeldSeek]);
+  return { heldSeekRef, releaseHeldSeek, holdSeek, cancelInteraction };
+};
+
 const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPosition, duration,
   ready = true, onSeek, onSeekPreview, accent, restColor, height = 58 }) => {
   const { theme } = useAppTheme();
@@ -119,23 +157,29 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
   const baseRatioRef = useRef(baseRatio);
   baseRatioRef.current = baseRatio;
   const animatedRatio = useRef(new Animated.Value(baseRatio)).current;
+  const { heldSeekRef, releaseHeldSeek, holdSeek, cancelInteraction } = useHeldWaveformSeek(
+    animatedRatio, baseRatioRef, setPreviewPosition, onSeek, draggingRef, latestRatioRef);
 
   const bars = useMemo(() => {
     const points = waveform.points.length > 0 ? waveform.points : [0.08];
     return { points, svgWidth: points.length * 3 + Math.max(0, points.length - 1) * 2 };
   }, [waveform.points]);
   useEffect(() => {
+    releaseHeldSeek();
     draggingRef.current = false;
     latestRatioRef.current = baseRatioRef.current;
     animatedRatio.setValue(baseRatioRef.current);
     setPreviewPosition(null);
-  }, [animatedRatio, waveform.sourceKey]);
+  }, [animatedRatio, releaseHeldSeek, waveform.sourceKey]);
 
   useEffect(() => {
     if (draggingRef.current) return;
+    const held = heldSeekRef.current;
+    if (held && Date.now() < held.expires && Math.abs(safePosition - held.position) > 750) return;
+    if (held) releaseHeldSeek();
     latestRatioRef.current = baseRatio;
     animatedRatio.setValue(baseRatio);
-  }, [animatedRatio, baseRatio]);
+  }, [animatedRatio, baseRatio, heldSeekRef, releaseHeldSeek, safePosition]);
 
   const publishPreview = useCallback((ratio: number, force = false) => {
     const position = ratio * safeDuration;
@@ -153,29 +197,21 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
   }, [animatedRatio, publishPreview]);
 
   const startInteraction = useCallback((event: GestureResponderEvent) => {
+    releaseHeldSeek();
     const ratio = ratioFromEvent(event, widthRef.current);
     draggingRef.current = true;
     latestRatioRef.current = ratio;
     lastPreviewAtRef.current = 0;
     animatedRatio.setValue(ratio);
     publishPreview(ratio, true);
-  }, [animatedRatio, publishPreview]);
+  }, [animatedRatio, publishPreview, releaseHeldSeek]);
 
   const finishInteraction = useCallback(() => {
     const finalRatio = latestRatioRef.current;
     draggingRef.current = false;
     animatedRatio.setValue(finalRatio);
-    if (safeDuration > 0) onSeek(finalRatio * safeDuration);
-    setPreviewPosition(null);
-  }, [animatedRatio, onSeek, safeDuration]);
-
-  const cancelInteraction = useCallback(() => {
-    const base = baseRatioRef.current;
-    draggingRef.current = false;
-    latestRatioRef.current = base;
-    animatedRatio.setValue(base);
-    setPreviewPosition(null);
-  }, [animatedRatio]);
+    if (safeDuration > 0) holdSeek(finalRatio * safeDuration);
+  }, [animatedRatio, holdSeek, safeDuration]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.max(0, Math.round(event.nativeEvent.layout.width));

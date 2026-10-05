@@ -11,7 +11,9 @@ export const useWaveformPreload = (song: Song | null | undefined): void => {
   const { sourceKey, sourceFingerprint } = identity;
 
   useEffect(() => {
-    void preloadSongWaveform(songRef.current).catch(() => undefined);
+    const controller = new AbortController();
+    void preloadSongWaveform(songRef.current, { signal: controller.signal }).catch(() => undefined);
+    return () => controller.abort();
   }, [sourceFingerprint, sourceKey]);
 };
 
@@ -29,16 +31,16 @@ export const useAdjacentWaveformPreload = (
   const previousIdentity = getWaveformSourceIdentity(previousSong);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     const targets = songsRef.current;
     void (async () => {
-      await preloadSongWaveform(targets.nextSong, { priority: 'preload' }).catch(() => null);
-      if (active) {
-        await preloadSongWaveform(targets.previousSong, { priority: 'background' })
+      await preloadSongWaveform(targets.nextSong, { priority: 'preload', signal: controller.signal }).catch(() => null);
+      if (!controller.signal.aborted) {
+        await preloadSongWaveform(targets.previousSong, { priority: 'background', signal: controller.signal })
           .catch(() => null);
       }
     })().catch(() => undefined);
-    return () => { active = false; };
+    return () => controller.abort();
   }, [
     nextIdentity.sourceFingerprint,
     nextIdentity.sourceKey,

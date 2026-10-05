@@ -95,11 +95,11 @@ export const useLibraryComponentProps = ({
     setQuery,
   }), [query, setQuery]);
 
-  const importStatusProps = useMemo(() => buildLibraryImportStatusProps({
+  const importStatusProps = useMemo(() => ({ ...buildLibraryImportStatusProps({
     importStatus,
     cancelMetadataRefresh,
     resumeMetadataRefresh,
-  }), [importStatus, cancelMetadataRefresh, resumeMetadataRefresh]);
+  }), scanning: loading }), [importStatus, cancelMetadataRefresh, resumeMetadataRefresh, loading]);
 
   const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
     loading,

@@ -61,6 +61,8 @@ export interface ImportScanResult {
   sourceSummary: Array<{ source: 'media-library' | 'saf'; imported: number; skipped: number; errors: number }>;
   folderUpdates?: ScanFolder[];
   reusedCount?: number;
+  /** Cheap revision migration of known tracks, without metadata/audio analysis. */
+  revisionUpdates?: Song[];
 }
 
 export interface SafDirectoryScanProgress {
@@ -723,7 +725,9 @@ export const enrichMediaLibraryAssets = async (
       if (!asset) break;
       const revision = await readImportFileRevision(asset.uri, {
         size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
-      }, signal);
+      }, signal, { previous: selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)?.fileInfo,
+        verifyContent: options.refreshExisting });
+      await yieldToEventLoop();
       if (!selection.include(asset.uri, revision)) continue;
       progress.addFiles(1);
       progress.start(asset.uri);
@@ -763,7 +767,9 @@ export const enrichMediaLibraryAssets = async (
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   const reusedCount = selection.getReusedCount();
-  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount, sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
+  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount,
+    ...(selection.getRevisionUpdates().length ? { revisionUpdates: selection.getRevisionUpdates() } : {}),
+    sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
 export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}): Promise<ImportScanResult> => {
@@ -800,6 +806,11 @@ const importSafFile = async (uri: string, options: SafImportOptions,
       return null;
     }
   }
+};
+
+const importReuseSummary = (selection: ReturnType<typeof createImportSourceSelection>) => {
+  const revisionUpdates = selection.getRevisionUpdates();
+  return { reusedCount: selection.getReusedCount(), ...(revisionUpdates.length ? { revisionUpdates } : {}) };
 };
 
 export const scanFromSafFolders = async (
@@ -855,7 +866,10 @@ export const scanFromSafFolders = async (
         throwIfAborted(signal);
         const uri = queue.shift();
         if (!uri) return;
-        const revision = await readImportFileRevision(uri, {}, signal);
+        const revision = await readImportFileRevision(uri, {}, signal,
+          { previous: selection.previousSources.get(getImportSourceKey(uri) ?? uri)?.fileInfo,
+            verifyContent: options.refreshExisting });
+        await yieldToEventLoop();
         if (!selection.include(uri, revision)) continue;
         progress.addFiles(1);
         progress.start(uri);
@@ -880,8 +894,8 @@ export const scanFromSafFolders = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  const reusedCount = selection.getReusedCount();
-  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount, sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
+  return { songs: dedupedSongs, skipped, errors, errorDetails, ...importReuseSummary(selection),
+    sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {

@@ -4,6 +4,10 @@ import { parseId3FromUri } from '../id3Parser';
 import SystemAudio from 'expo-system-audio';
 import * as mediaImport from '../mediaLibraryImport';
 import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
+import { getWaveformSourceIdentity } from '../waveformGenerator';
+
+const mockFileInfo = jest.fn();
+jest.mock('expo-file-system', () => ({ File: jest.fn().mockImplementation(() => ({ info: mockFileInfo })) }));
 
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 123, md5: 'stable-file-hash' })),
@@ -18,6 +22,47 @@ jest.mock('../coverCache', () => ({
 }));
 
 describe('mediaLibraryImport', () => {
+  test('unchanged SAF files migrate their revision once without reading audio or invalidating the waveform', async () => {
+    const uri = 'content://music/known.mp3';
+    const previous = { id: 'known', title: 'Known', artist: 'Artist', uri, duration: 200_000,
+      fileInfo: { uri, size: 20_000_000, contentHash: 'stable-file-hash', importedAt: 2000 } };
+    mockFileInfo.mockReturnValue({ exists: true, size: 20_000_000, modificationTime: 1500 });
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([uri]);
+    const options = { platformOs: 'android',
+      scanFolders: [{ id: 'music', name: 'Music', uri: 'content://music', enabled: true, addedAt: 2 }],
+      existingSongs: [previous] };
+    const first = await mediaImport.importSongsFromSources(options);
+    expect(first).toMatchObject({ songs: [], reusedCount: 1,
+      revisionUpdates: [{ fileInfo: { modificationTime: 1500, importedAt: 2000 } }] });
+    expect(getWaveformSourceIdentity(first.revisionUpdates![0])).toEqual(getWaveformSourceIdentity(previous));
+    const second = await mediaImport.importSongsFromSources({ ...options, existingSongs: first.revisionUpdates });
+    expect(second).toMatchObject({ songs: [], reusedCount: 1 });
+    expect(second.revisionUpdates).toBeUndefined();
+    expect(getInfoAsync).not.toHaveBeenCalled();
+    expect(parseId3FromUri).not.toHaveBeenCalled();
+    expect(SystemAudio.extractAudioInfo).not.toHaveBeenCalled();
+    expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+  });
+
+  test('a changed SAF modification date imports the track and invalidates its prepared audio', async () => {
+    const uri = 'content://music/changed.mp3';
+    const previous = { id: 'changed', title: 'Old title', artist: 'Artist', uri, duration: 200_000,
+      fileInfo: { uri, size: 20_000_000, contentHash: 'stable-file-hash', importedAt: 2000, modificationTime: 1500 } };
+    mockFileInfo.mockReturnValue({ exists: true, size: 20_000_000, modificationTime: 3000 });
+    (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([uri]);
+    (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'New title' });
+    const result = await mediaImport.importSongsFromSources({ platformOs: 'android',
+      scanFolders: [{ id: 'music', name: 'Music', uri: 'content://music', enabled: true, addedAt: 2 }],
+      existingSongs: [previous] });
+    expect(result.songs).toHaveLength(1);
+    expect(result.songs[0]).toMatchObject({ id: previous.id, title: 'New title',
+      fileInfo: { modificationTime: 3000, size: 20_000_000 } });
+    expect(getWaveformSourceIdentity(result.songs[0])).not.toEqual(getWaveformSourceIdentity(previous));
+    expect(getInfoAsync).not.toHaveBeenCalled();
+    expect(parseId3FromUri).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1);
+  });
+
   test('adding a folder skips known audio before metadata and cover reads, including overlapping SAF trees', async () => {
     const authority = 'content://com.android.externalstorage.documents';
     const oldUri = `${authority}/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3`;
@@ -45,6 +90,9 @@ describe('mediaLibraryImport', () => {
       coverInfo: { embeddedArtworkChecked: true } });
   });
   beforeEach(() => {
+    mockFileInfo.mockReset();
+    (getInfoAsync as jest.Mock).mockClear();
+    (parseId3FromUri as jest.Mock).mockClear();
     (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'stable-file-hash' });
     jest.useRealTimers();
     mediaImport.resetSafTimedOutUrisForTests();

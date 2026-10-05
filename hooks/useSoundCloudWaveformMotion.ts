@@ -36,7 +36,7 @@ const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, 
     const predicted = Math.min(safeDuration, safePosition + PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS);
     Animated.timing(progressValue, { toValue: predicted / safeDuration,
       duration: PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS,
-      easing: Easing.linear, useNativeDriver: true }).start();
+      easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
   }, [isPlaying, progressRatio, progressValue, releaseHold, safeDuration, safePosition]);
   useEffect(() => {
     sync();

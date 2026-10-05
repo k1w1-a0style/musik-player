@@ -7,6 +7,7 @@ import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImp
 
 const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProps & { visible: boolean }) => {
   const preparation = useWaveformPreparation();
+  if (visible && props.scanning && preparation.status !== 'running') return <LibraryImportStatus {...props} />;
   if (preparation.status === 'idle') return visible ? <LibraryImportStatus {...props} /> : null;
   if (preparation.status === 'completed' && preparation.failed === 0) return null;
   return <WaveformPreparationPanel preparation={preparation} />;

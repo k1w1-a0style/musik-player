@@ -26,22 +26,29 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
   const seen = new Set<string>();
   let reused = 0;
   let duplicates = 0;
+  const revisionUpdates: Song[] = [];
   const include = (uri: string, revision?: ImportFileRevision): boolean => {
     const key = getImportSourceKey(uri) ?? uri;
     if (seen.has(key)) { duplicates += 1; return false; }
     seen.add(key);
     const previous = previousSources.get(key);
     if (!options.refreshExisting && previous && (!revision || sameImportFileRevision(previous.fileInfo ?? {}, revision))) {
+      if (revision && Object.entries(revision).some(([field, value]) => value !== undefined
+        && previous.fileInfo?.[field as keyof SongFileInfo] !== value)) {
+        revisionUpdates.push({ ...previous, fileInfo: { ...previous.fileInfo, ...revision } });
+      }
       reused += 1; return false;
     }
     return true;
   };
-  return { previousSources, include, getReusedCount: () => reused, getSkippedCount: () => reused + duplicates };
+  return { previousSources, include, getRevisionUpdates: () => revisionUpdates,
+    getReusedCount: () => reused, getSkippedCount: () => reused + duplicates };
 };
 
 const changedRevision = (previous: SongFileInfo = {}, current: SongFileInfo = {}): boolean =>
+  previous.contentHash !== undefined && current.contentHash !== undefined
+    ? previous.contentHash !== current.contentHash :
   (previous.size !== undefined && current.size !== undefined && previous.size !== current.size)
-  || (previous.contentHash !== undefined && current.contentHash !== undefined && previous.contentHash !== current.contentHash)
   || (previous.modificationTime !== undefined && current.modificationTime !== undefined && previous.modificationTime !== current.modificationTime);
 
 /** A metadata rescan must not manufacture a new audio revision. */

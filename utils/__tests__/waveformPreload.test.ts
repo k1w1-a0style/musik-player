@@ -51,6 +51,49 @@ describe('waveformPreload', () => {
     jest.useRealTimers();
   });
 
+  test('cancels an obsolete preload without cancelling another consumer of the same track', async () => {
+    const controller = new AbortController();
+    const other = new AbortController();
+    const native = deferred<typeof decoded>();
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
+    const first = preloadSongWaveform(song, { signal: controller.signal });
+    const shared = preloadSongWaveform(song, { signal: other.signal });
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    controller.abort();
+    await expect(first).resolves.toBeNull();
+    native.resolve(decoded);
+    await expect(shared).resolves.toMatchObject({ source: 'native' });
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  });
+
+  test('promoting an adjacent track in the same turn reuses its running decoder', async () => {
+    const adjacent = new AbortController();
+    const current = new AbortController();
+    const native = deferred<typeof decoded>();
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
+    const first = preloadSongWaveform(song, { signal: adjacent.signal });
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    adjacent.abort();
+    const promoted = preloadSongWaveform(song, { signal: current.signal });
+    await expect(first).resolves.toBeNull();
+    native.resolve(decoded);
+    await expect(promoted).resolves.toMatchObject({ source: 'native' });
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  });
+
+  test('an abandoned preload does not publish its late result', async () => {
+    const controller = new AbortController();
+    const native = deferred<typeof decoded>();
+    extractor.extractWaveformPeaks.mockReturnValue(native.promise);
+    const pending = preloadSongWaveform(song, { signal: controller.signal });
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    controller.abort();
+    await expect(pending).resolves.toBeNull();
+    native.resolve(decoded);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    await expect(getCachedWaveform(getWaveformSourceIdentity(song))).resolves.toBeNull();
+  });
+
   test('warms one canonical native waveform and reuses it on later requests', async () => {
     const first = preloadSongWaveform(song);
     const duplicate = preloadSongWaveform(song);

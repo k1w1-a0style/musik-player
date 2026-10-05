@@ -44,6 +44,13 @@ test('renders provided status text', () => {
   expect(getByText('Metadaten werden gelesen…')).toBeTruthy();
 });
 
+test('animates a regular folder scan independently of the metadata refresh operation', () => {
+  const view = render(<LibraryImportStatus status="Ordner wird geprüft…" scanning />);
+  expect(view.getByTestId('library-import-scan-animation')).toBeTruthy();
+  view.rerender(<LibraryImportStatus status="Alles aktuell" scanning={false} />);
+  expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
+});
+
 test('renders fallback status when none is provided', () => {
   const { getByText } = render(<LibraryImportStatus status={null} />);
   expect(getByText('Import läuft…')).toBeTruthy();

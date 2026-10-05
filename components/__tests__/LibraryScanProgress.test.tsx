@@ -17,6 +17,13 @@ jest.mock('../../utils/libraryWaveformPreparation', () => ({
 
 beforeEach(() => { clearImportFileProgress(); resetWaveformStatusForTests(); });
 
+test('a previous completed preparation does not hide a new folder discovery scan', () => {
+  (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'completed', failed: 0, ready: 3 });
+  const view = render(<LibraryPreparationStatus visible scanning status="Ordner wird geprüft…" />);
+  expect(view.getByTestId('library-import-scan-animation')).toBeTruthy();
+  expect(view.getByText('Ordner wird geprüft…')).toBeTruthy();
+});
+
 test('does not add either top progress bar while metadata is being read', () => {
   const view = render(<LibraryImportStatus status="Dateien prüfen…" />);
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();

@@ -72,6 +72,25 @@ describe('WaveformScrubber seek semantics', () => {
     expect(onSeek).toHaveBeenCalledWith(80_000);
   });
 
+  test('holds the requested seek position through stale progress samples until native playback catches up', () => {
+    const onSeek = jest.fn(() => new Promise<void>(() => undefined));
+    const props = { waveform, duration: 100_000, accent: 'red', onSeek };
+    const view = render(<WaveformScrubber {...props} currentPosition={10_000} />);
+    const surface = view.getByTestId('waveform-scrubber').findByProps({ accessibilityRole: 'adjustable' });
+    act(() => {
+      surface.props.onLayout(layout);
+      surface.props.onResponderGrant(touchAt(160));
+      surface.props.onResponderRelease();
+    });
+    expect(view.getAllByText('1:20').length).toBeGreaterThan(0);
+    view.rerender(<WaveformScrubber {...props} currentPosition={10_500} />);
+    expect(view.getAllByText('1:20').length).toBeGreaterThan(0);
+    view.rerender(<WaveformScrubber {...props} currentPosition={80_500} />);
+    expect(view.getAllByText('1:20').length).toBeGreaterThan(0);
+    view.rerender(<WaveformScrubber {...props} currentPosition={81_500} />);
+    expect(view.getAllByText('1:21').length).toBeGreaterThan(0);
+  });
+
   test('preview callback is separate from the native seek commit callback', () => {
     const onSeek = jest.fn();
     const onSeekPreview = jest.fn();

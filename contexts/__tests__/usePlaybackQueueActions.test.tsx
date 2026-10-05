@@ -60,6 +60,8 @@ const QueueActionsProbe = () => {
       <Text testID="shuffle">{String(shuffle)}</Text>
       <Text testID="action-status">{actionStatus}</Text>
       <Button testID="play-s2" title="play" onPress={() => void playSong(songs[1]).then(result => setActionStatus(result.status))} />
+      <Button testID="play-s1" title="play one" onPress={() => void playSong(songs[0]).then(result => setActionStatus(result.status))} />
+      <Button testID="play-s3" title="play three" onPress={() => void playSong(songs[2]).then(result => setActionStatus(result.status))} />
       <Button testID="shuffle-button" title="shuffle" onPress={() => void toggleShuffle().then(result => setActionStatus(result.status))} />
     </>
   );
@@ -82,6 +84,18 @@ describe('usePlaybackQueueActions', () => {
 
     await persistRequestedSongId({ id: 'other', title: 'Other', artist: 'A', uri: 'file:///other.mp3' }, songs);
     expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBeNull();
+  });
+
+  test('rapid queued track choices play only the latest target', async () => {
+    const view = render(<QueueActionsProbe />);
+    await act(async () => {
+      fireEvent.press(view.getByTestId('play-s2'));
+      fireEvent.press(view.getByTestId('play-s3'));
+      fireEvent.press(view.getByTestId('play-s1'));
+    });
+    await waitFor(() => expect(view.getByTestId('current').props.children).toBe('s1'));
+    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    expect(await storage.get(StorageKeys.CURRENT_SONG_ID)).toBe('s1');
   });
 
   test('plays a song by rebuilding the native queue', async () => {

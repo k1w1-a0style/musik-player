@@ -32,7 +32,7 @@ describe('useAdjacentWaveformPreload', () => {
 
     renderHook(() => useAdjacentWaveformPreload(next, previous));
     expect(mockedPreload).toHaveBeenCalledTimes(1);
-    expect(mockedPreload).toHaveBeenNthCalledWith(1, next, { priority: 'preload' });
+    expect(mockedPreload).toHaveBeenNthCalledWith(1, next, { priority: 'preload', signal: expect.any(AbortSignal) });
 
     await act(async () => {
       nextPreload.resolve(null);
@@ -40,7 +40,7 @@ describe('useAdjacentWaveformPreload', () => {
     });
 
     expect(mockedPreload).toHaveBeenCalledTimes(2);
-    expect(mockedPreload).toHaveBeenNthCalledWith(2, previous, { priority: 'background' });
+    expect(mockedPreload).toHaveBeenNthCalledWith(2, previous, { priority: 'background', signal: expect.any(AbortSignal) });
   });
 
   test('single-song preload restarts only when the audio identity changes', () => {
@@ -58,6 +58,6 @@ describe('useAdjacentWaveformPreload', () => {
     const second = song('second');
     hook.rerender({ target: second });
     expect(mockedPreload).toHaveBeenCalledTimes(2);
-    expect(mockedPreload).toHaveBeenLastCalledWith(second);
+    expect(mockedPreload).toHaveBeenLastCalledWith(second, { signal: expect.any(AbortSignal) });
   });
 });
