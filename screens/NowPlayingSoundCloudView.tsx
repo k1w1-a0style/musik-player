@@ -14,6 +14,7 @@ import type { SoundCloudCarouselRenderPageArgs } from './soundCloudCarouselTypes
 
 interface NowPlayingSoundCloudViewProps {
   currentSong: Song | null;
+  onSelectSong?: (song: Song) => void | Promise<void>;
   previousSong?: Song | null;
   nextSong?: Song | null;
   artworkUri?: string;
@@ -138,7 +139,8 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
       <NowPlayingBackdrop gradientColors={props.gradientColors} accent={props.accent}
         glowLeft={width / 2 - 130} artworkUri={props.artworkUri}
         paletteLoading={props.paletteLoading} />
-      <SoundCloudTrackCarousel currentSong={props.currentSong} previousSong={props.previousSong}
+      <SoundCloudTrackCarousel currentSong={props.currentSong} queue={props.queue}
+        onSelectSong={props.onSelectSong} wrapToStart={props.repeatMode === 'all'} previousSong={props.previousSong}
         nextSong={props.nextSong} currentArtworkUri={props.artworkUri}
         previousArtworkUri={props.previousArtworkUri} nextArtworkUri={props.nextArtworkUri}
         isPlaying={props.isPlaying} topInset={props.topInset} bottomInset={props.bottomInset}

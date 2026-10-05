@@ -6,6 +6,8 @@ import { storage } from '../../utils/storage';
 
 jest.mock('../../utils/storage', () => ({
   storage: {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(true),
     getAppAppearance: jest.fn().mockResolvedValue('dark'),
     getAppThemeSkin: jest.fn().mockResolvedValue('graphite'),
     setAppAppearance: jest.fn().mockResolvedValue(undefined),
@@ -237,4 +239,19 @@ describe('AppThemeContext', () => {
     await waitFor(() => expect(mockedStorage.setAppThemeSkin).toHaveBeenNthCalledWith(3, 'neon-cover'));
     expect(getByTestId('theme-state').props.children).toBe('dark|neon-cover|neon-cover-dark|hydrated');
   });
+});
+
+
+test('persists the bass pulse switch and hydrates it after remount', async () => {
+  const { result, unmount } = renderHook(() => useAppTheme(), { wrapper: AppThemeProvider });
+  await waitFor(() => expect(result.current.isBassPulseHydrated).toBe(true));
+  expect(result.current.bassPulseEnabled).toBe(true);
+  act(() => result.current.setBassPulseEnabled?.(false));
+  expect(result.current.bassPulseEnabled).toBe(false);
+  await waitFor(() => expect(storage.set).toHaveBeenCalledWith('coverBassPulse', false));
+  unmount();
+  (storage.get as jest.Mock).mockResolvedValueOnce(false);
+  const next = renderHook(() => useAppTheme(), { wrapper: AppThemeProvider });
+  await waitFor(() => expect(next.result.current.isBassPulseHydrated).toBe(true));
+  expect(next.result.current.bassPulseEnabled).toBe(false);
 });

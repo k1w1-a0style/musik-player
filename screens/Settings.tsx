@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
@@ -140,7 +140,7 @@ const Settings: React.FC = () => {
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
-
+        <CoverBassPulseSetting />
         <View
           testID="settings-theme-preview"
           style={[
@@ -168,6 +168,23 @@ const Settings: React.FC = () => {
   );
 };
 
+const CoverBassPulseSetting = () => {
+  const { theme, bassPulseEnabled, setBassPulseEnabled } = useAppTheme();
+  const { fonts, radii, spacing } = theme.tokens;
+  return <View style={[styles.option, styles.bassOption, {
+    backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border,
+    borderRadius: radii.card, gap: spacing.xs, padding: spacing.md,
+  }]}>
+    <View style={styles.bassCopy}>
+      <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Cover zum Bass bewegen</Text>
+      <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Das Cover pulsiert passend zur Basslinie. Nur in der klassischen Player-Ansicht.</Text>
+    </View>
+    <Switch testID="settings-cover-bass-pulse" accessibilityLabel="Cover zum Bass bewegen"
+      value={bassPulseEnabled ?? false} onValueChange={setBassPulseEnabled}
+      trackColor={{ false: theme.palette.borderStrong, true: theme.palette.primary }} />
+  </View>;
+};
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {},
@@ -189,6 +206,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
+  bassOption: { flexDirection: 'row', alignItems: 'center' },
+  bassCopy: { flex: 1, gap: 5 },
   preview: {
     borderWidth: 1,
   },

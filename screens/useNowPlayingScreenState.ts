@@ -57,6 +57,33 @@ export const getAdjacentNowPlayingSongs = (
   };
 };
 
+const useNowPlayingTrackNavigation = ({ playbackQueue, currentSong, repeatMode, playSong, next }:
+  Pick<ReturnType<typeof useNowPlayingMusicContext>, 'playbackQueue' | 'currentSong' | 'repeatMode' | 'playSong' | 'next'>) => {
+  const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
+  const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
+
+  const swipeToSong = useCallback(async (song: Song) => {
+    const result = await playSong(song, playbackQueue);
+    if (result.status !== 'applied' && result.status !== 'noop') {
+      throw new Error('Track navigation was not confirmed');
+    }
+  }, [playSong, playbackQueue]);
+
+  const swipeToNext = useCallback(() => {
+    if (!canSwipeToNext) return Promise.resolve();
+    return runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
+  }, [canSwipeToNext, next]);
+
+  const swipeToPrevious = useCallback(() => {
+    if (!adjacentSongs.previousSong) return Promise.resolve();
+    return runPlaybackUiAction(
+      'now-playing-previous-track', skipToPreviousTrackSafely, { dropIfPending: true },
+    );
+  }, [adjacentSongs.previousSong]);
+
+  return { canSwipeToNext, adjacentSongs, swipeToSong, swipeToNext, swipeToPrevious };
+};
+
 export const useNowPlayingScreenState = () => {
   const insets = useSafeAreaInsets();
   const {
@@ -88,20 +115,8 @@ export const useNowPlayingScreenState = () => {
     () => savePlaybackQueueAsPlaylist(saveQueueAsPlaylist, playbackQueue),
     [playbackQueue, saveQueueAsPlaylist],
   );
-  const canSwipeToNext = canSkipToNextInQueue({ currentSong, playbackQueue, repeatMode });
-  const adjacentSongs = getAdjacentNowPlayingSongs(playbackQueue, currentSong, repeatMode);
-
-  const swipeToNext = useCallback(() => {
-    if (!canSwipeToNext) return Promise.resolve();
-    return runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
-  }, [canSwipeToNext, next]);
-
-  const swipeToPrevious = useCallback(() => {
-    if (!adjacentSongs.previousSong) return Promise.resolve();
-    return runPlaybackUiAction(
-      'now-playing-previous-track', skipToPreviousTrackSafely, { dropIfPending: true },
-    );
-  }, [adjacentSongs.previousSong]);
+  const { canSwipeToNext, adjacentSongs, swipeToSong, swipeToNext, swipeToPrevious } =
+    useNowPlayingTrackNavigation({ playbackQueue, currentSong, repeatMode, playSong, next });
 
   return {
     currentSong,
@@ -123,6 +138,7 @@ export const useNowPlayingScreenState = () => {
     controlsMode,
     controlsModeHydrated,
     swipeToNext,
+    swipeToSong,
     swipeToPrevious,
     canSwipeToNext,
     shuffle, toggleShuffle,

@@ -180,7 +180,7 @@ beforeEach(() => {
 test('returns stable song layout and key extractor helpers', () => {
   const screen = render(<HookHarness />);
 
-  expect(screen.getByTestId('layout').props.children).toBe(JSON.stringify({ length: 106, offset: 212, index: 2 }));
+  expect(screen.getByTestId('layout').props.children).toBe(JSON.stringify({ length: 88, offset: 176, index: 2 }));
   expect(screen.getByTestId('key').props.children).toBe('key-song');
 });
 

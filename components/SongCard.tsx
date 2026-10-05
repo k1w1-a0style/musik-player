@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
-import { CircleEllipsis } from 'lucide-react-native';
+import { AudioLines, CircleEllipsis } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -75,6 +76,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       <Image source={artworkSource} style={styles.coverImage}
         onError={artworkUri && !coverFailed ? () => setCoverFailed(true) : undefined}
         resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
+      {isPlaying ? <View style={[styles.playingBadge, { backgroundColor: theme.palette.primary }]}>
+        <AudioLines size={11} color={theme.palette.surface} />
+      </View> : null}
     </View>
   );
 
@@ -112,13 +116,13 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         style={({ pressed }) => [
           styles.tileContainer,
           { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
-          isCurrent && { backgroundColor: selectedColors.background },
+          isCurrent && { backgroundColor: selectedColors.background, borderColor: selectedColors.accent },
           isCurrent && styles.tileCurrent,
           pressed && styles.pressed,
         ]}
       >
         <View testID={`song-card-content-${songTestId}`}
-          style={[styles.tileContent, !prepared && preparation !== 'analyzing' && styles.preparing]}>
+          style={[styles.tileContent, !prepared && styles.preparing]}>
           <View>
             {cover}
             {infoButton}
@@ -151,12 +155,14 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         styles.container,
         { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
         isBanner && styles.bannerContainer,
-        isCurrent && { backgroundColor: selectedColors.background },
+        isCurrent && { backgroundColor: selectedColors.background, borderColor: selectedColors.accent },
         pressed && styles.pressed,
       ]}
     >
+      <LinearGradient pointerEvents="none" colors={[theme.palette.surfaceElevated, theme.palette.surface]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardSheen} />
       <View testID={`song-card-content-${songTestId}`}
-        style={[styles.rowContent, !prepared && preparation !== 'analyzing' && styles.preparing]}>
+        style={[styles.rowContent, !prepared && styles.preparing]}>
         <View
           style={[
             styles.activeRail,
@@ -211,19 +217,22 @@ const SongCard = memo(
 
 const styles = StyleSheet.create({
   container: {
-    height: 98,
-    paddingVertical: 9,
+    height: 82,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    marginBottom: 8,
+    marginBottom: 6,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
+    overflow: 'hidden',
     justifyContent: 'center',
   },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bannerContainer: { height: 112, paddingVertical: 10 },
+  bannerContainer: { height: 100, paddingVertical: 6 },
   pressed: { opacity: 0.72 },
   preparing: { opacity: 0.5 },
-  activeRail: { width: 3, height: 30, borderRadius: 3, backgroundColor: 'transparent' },
+  activeRail: { position: 'absolute', left: -10, width: 3, height: 34, borderRadius: 3, backgroundColor: 'transparent' },
+  cardSheen: { ...StyleSheet.absoluteFillObject, opacity: 0.42 },
+  playingBadge: { position: 'absolute', right: 2, bottom: 2, width: 17, height: 17, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
   cover: {
     width: 44,
     height: 44,

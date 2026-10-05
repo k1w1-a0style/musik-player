@@ -13,6 +13,8 @@ export interface WaveformSourceIdentity {
 export interface SongWaveform extends WaveformSourceIdentity {
   version: number;
   points: number[];
+  /** Decoded bass energy (35–160 Hz), uniformly spaced over durationMs. */
+  bassPoints?: number[];
   durationMs: number;
   source: WaveformSource;
   generatedAt: number;
@@ -20,6 +22,8 @@ export interface SongWaveform extends WaveformSourceIdentity {
 
 export interface NativeWaveformResult {
   points: number[];
+  /** Decoded bass energy (35–160 Hz), uniformly spaced over durationMs. */
+  bassPoints?: number[];
   durationMs?: number;
   analysis?: 'decoded-pcm-v1';
   analysisDurationMs?: number;

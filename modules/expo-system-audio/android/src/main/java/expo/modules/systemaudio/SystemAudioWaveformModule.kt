@@ -114,7 +114,8 @@ class SystemAudioWaveformModule : Module() {
           sendEvent("onWaveformProgress", mapOf("requestId" to requestId, "progress" to ratio))
         }
       }
-      val peaks = readDecodedPcmEnvelope(extractor, format, pointCount, durationMs, cancellation) { positionUs ->
+      val bassEnvelope = PcmBassEnvelope(durationMs * 1000L)
+      val peaks = readDecodedPcmEnvelope(extractor, format, pointCount, durationMs, cancellation, bassEnvelope) { positionUs ->
         progress.update(positionUs, SystemClock.elapsedRealtime())
       }
       throwIfCancelled(cancellation)
@@ -122,6 +123,7 @@ class SystemAudioWaveformModule : Module() {
       progress.complete()
       mapOf(
         "points" to peaks,
+        "bassPoints" to bassEnvelope.normalizedPoints(),
         "durationMs" to durationMs,
         "analysis" to ANALYSIS_VERSION,
         "analysisDurationMs" to (SystemClock.elapsedRealtime() - startedAt),
@@ -198,15 +200,16 @@ class SystemAudioWaveformModule : Module() {
     pointCount: Int,
     durationMs: Long,
     cancellation: AtomicBoolean,
+    bassEnvelope: PcmBassEnvelope,
     onProgress: (Long) -> Unit,
   ): List<Double> {
     if (durationMs > Long.MAX_VALUE / 1000L) return emptyList()
     val durationUs = durationMs * 1000L
     val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return emptyList()
     return if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation, onProgress)
+      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation, bassEnvelope, onProgress)
     } else {
-      CallbackPcmWaveformDecoder.decode(extractor, inputFormat, mime, pointCount, durationUs, cancellation, onProgress)
+      CallbackPcmWaveformDecoder.decode(extractor, inputFormat, mime, pointCount, durationUs, cancellation, onProgress, bassEnvelope)
     }
   }
 
@@ -216,6 +219,7 @@ class SystemAudioWaveformModule : Module() {
     pointCount: Int,
     durationUs: Long,
     cancellation: AtomicBoolean,
+    bassEnvelope: PcmBassEnvelope,
     onProgress: (Long) -> Unit,
   ): List<Double> {
     if (format.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
@@ -235,6 +239,7 @@ class SystemAudioWaveformModule : Module() {
       buffer.position(0)
       buffer.limit(size)
       envelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
+      bassEnvelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
       onProgress(presentationTimeUs)
       if (!extractor.advance()) break
     }

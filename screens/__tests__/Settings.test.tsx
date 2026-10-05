@@ -16,6 +16,7 @@ import {
 } from '../../utils/nowPlayingControlsMode';
 
 const mockSetAppearance = jest.fn();
+const mockSetBassPulse = jest.fn();
 const mockSetSkin = jest.fn();
 const mockSetNowPlayingPlayerLayout = jest.fn();
 let mockAppearance: AppAppearance = 'dark';
@@ -38,6 +39,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
     isHydrated: true,
     setAppearance: mockSetAppearance,
     setSkin: mockSetSkin,
+    bassPulseEnabled: true, setBassPulseEnabled: mockSetBassPulse,
   }),
 }));
 
@@ -159,4 +161,12 @@ describe('Settings', () => {
     expect(previewStyle.padding).toBe(activeTheme.tokens.spacing.md);
     expect(previewStyle.gap).toBe(activeTheme.tokens.spacing.md);
   });
+});
+
+
+test('bass pulse can be switched off from Settings', () => {
+  const view = render(<Settings />);
+  expect(view.getByTestId('settings-cover-bass-pulse').props.value).toBe(true);
+  fireEvent(view.getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
+  expect(mockSetBassPulse).toHaveBeenCalledWith(false);
 });

@@ -59,6 +59,7 @@ const SoundCloudNowPlayingContent = ({ state }: { state: NowPlayingState }) => (
       isPlaying={state.isPlaying}
       onSeek={state.seekTo}
       onTogglePlayback={state.togglePlayPause}
+      onSelectSong={state.swipeToSong}
       onSwipeToNext={state.swipeToNext}
       onSwipeToPrevious={state.swipeToPrevious}
       canSwipeToNext={state.canSwipeToNext}
@@ -96,6 +97,7 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
   }, []);
   const renderPlayer = useCallback(() => (
     <NowPlayingPlayerPanel
+      queue={state.queue} onSelectSong={state.swipeToSong} wrapToStart={state.repeatMode === 'all'}
       currentSong={state.currentSong} previousSong={state.previousSong} nextSong={state.nextSong}
       artworkUri={state.artworkUri} previousArtworkUri={state.previousArtworkUri}
       nextArtworkUri={state.nextArtworkUri} isPlaying={state.isPlaying}

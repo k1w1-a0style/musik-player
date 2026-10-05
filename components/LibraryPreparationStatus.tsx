@@ -14,10 +14,10 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
 
 const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPreparationState }) => {
   const { theme } = useAppTheme();
-  const trackProgress = useWaveformProgress(preparation.currentFingerprint);
   const running = preparation.status === 'running';
   const resumable = preparation.status === 'cancelled' || preparation.failed > 0;
-  const label = running ? 'Titel werden vorbereitet' : preparation.status === 'cancelled'
+  const complete = preparation.status === 'completed' && preparation.failed === 0;
+  const label = complete ? `${preparation.ready} Titel bereit` : running ? 'Titel werden vorbereitet' : preparation.status === 'cancelled'
     ? 'Vorbereitung angehalten' : 'Vorbereitung abgeschlossen';
   const action = running ? cancelWaveformPreparation : resumable
     ? () => { void resumeWaveformPreparation(); } : dismissWaveformPreparation;
@@ -30,6 +30,15 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
         <Text style={{ color: theme.palette.primary }}>{running ? 'Abbrechen' : resumable ? 'Fortsetzen' : 'Schließen'}</Text>
       </Pressable>
     </View>
+    {!complete ? <WaveformPreparationDetails preparation={preparation} /> : null}
+  </View>;
+};
+
+const WaveformPreparationDetails = ({ preparation }: { preparation: WaveformPreparationState }) => {
+  const { theme } = useAppTheme();
+  const trackProgress = useWaveformProgress(preparation.currentFingerprint);
+  const running = preparation.status === 'running';
+  return <>
     <Text style={{ color: theme.palette.text.secondary }} testID="library-waveform-preparation-counts">
       {`${preparation.processed}/${preparation.total} · ${preparation.ready} bereit · ${preparation.failed} nicht verfügbar`}
     </Text>
@@ -50,10 +59,10 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
         width: trackProgress === null ? '25%' : `${trackProgress * 100}%` }]} />
     </View> : null}
     <Text style={[styles.legend, { color: theme.palette.text.muted }]}>Abgedunkelte Titel werden nach der Vorbereitung freigegeben.</Text>
-  </View>;
+    </>;
 };
 const styles = StyleSheet.create({
-  box: { marginHorizontal: 20, marginBottom: 8, padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
+  box: { marginHorizontal: 8, marginBottom: 8, padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12 },
   action: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 6 },
   track: { height: 4, borderRadius: 2, overflow: 'hidden' }, fill: { height: '100%' }, legend: { fontSize: 10 },

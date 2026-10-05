@@ -36,12 +36,13 @@ test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, 
 
   act(() => setWaveformStatus(fingerprint, 'analyzing'));
   expect(row().props.accessibilityState.busy).toBe(true);
-  expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
+  expect(StyleSheet.flatten(content().props.style).opacity).toBeLessThan(1);
   act(() => setWaveformProgress(fingerprint, 0.43));
   expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(43);
   await act(async () => { await markSongPrepared(fingerprint); });
   expect(row().props.accessibilityState.disabled).toBe(false);
-  expect(view.queryByTestId('song-preparation-progress-pending')).toBeNull();
+  expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(100);
+  expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
   expect(view.queryByText('✓')).toBeNull();
   fireEvent.press(row());
   expect(onPress).toHaveBeenCalledWith(song);

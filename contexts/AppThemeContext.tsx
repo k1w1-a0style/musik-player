@@ -19,6 +19,9 @@ export interface AppThemeContextValue {
   isHydrated: boolean;
   setAppearance: (appearance: AppAppearance) => void;
   setSkin: (skin: AppThemeSkin) => void;
+  bassPulseEnabled?: boolean;
+  isBassPulseHydrated?: boolean;
+  setBassPulseEnabled?: (enabled: boolean) => void;
 }
 
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
@@ -31,6 +34,12 @@ const loadAppAppearance = (): Promise<AppAppearance> => storage.getAppAppearance
 const persistAppAppearance = (appearance: AppAppearance): Promise<void> => storage.setAppAppearance(appearance);
 const loadAppThemeSkin = (): Promise<AppThemeSkin> => storage.getAppThemeSkin();
 const persistAppThemeSkin = (skin: AppThemeSkin): Promise<void> => storage.setAppThemeSkin(skin);
+
+const normalizeBassPulse = (value: boolean): boolean => value === true;
+const loadBassPulse = async (): Promise<boolean> => (await storage.get('coverBassPulse')) !== false;
+const persistBassPulse = async (value: boolean): Promise<void> => {
+  if (!await storage.set('coverBassPulse', value)) throw new Error('Cover pulse preference could not be saved');
+};
 
 export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) => {
   const {
@@ -56,6 +65,10 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
     label: 'app-theme-skin',
   });
 
+  const { value: bassPulseEnabled, setValue: setBassPulseEnabled, isHydrated: isBassPulseHydrated }
+    = useHydratedStoredPreference({ defaultValue: true, load: loadBassPulse, persist: persistBassPulse,
+      normalize: normalizeBassPulse, label: 'cover-bass-pulse' });
+
   const value = useMemo<AppThemeContextValue>(() => ({
     appearance,
     skin,
@@ -63,7 +76,8 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
     isHydrated: isAppearanceHydrated && isSkinHydrated,
     setAppearance,
     setSkin,
-  }), [appearance, isAppearanceHydrated, isSkinHydrated, setAppearance, setSkin, skin]);
+    bassPulseEnabled, isBassPulseHydrated, setBassPulseEnabled,
+  }), [appearance, bassPulseEnabled, isAppearanceHydrated, isBassPulseHydrated, isSkinHydrated, setAppearance, setBassPulseEnabled, setSkin, skin]);
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;
 };

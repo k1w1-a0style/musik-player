@@ -10,10 +10,10 @@ import { getWaveformSourceIdentity } from '../utils/waveformGenerator';
 import { useWaveformProgress } from '../hooks/useWaveformStatus';
 
 const LABELS = { pending: 'Vorbereitung ausstehend', analyzing: 'Wird vorbereitet…',
-  ready: '', unavailable: 'Vorbereitung fehlgeschlagen' } as const;
+  ready: 'Bereit', unavailable: 'Vorbereitung fehlgeschlagen' } as const;
 
-const PreparationBar = ({ running, color, trackColor, songId, progress }: {
-  running: boolean; color: string; trackColor: string; songId: string; progress: number | null;
+const PreparationBar = ({ running, ready, color, trackColor, songId, progress }: {
+  running: boolean; ready: boolean; color: string; trackColor: string; songId: string; progress: number | null;
 }) => {
   const reduceMotion = useReducedMotion();
   const pulse = useRef(new Animated.Value(0.4)).current;
@@ -28,14 +28,14 @@ const PreparationBar = ({ running, color, trackColor, songId, progress }: {
     animation.start();
     return () => animation.stop();
   }, [pulse, reduceMotion, running, progress]);
-  return <View accessibilityRole="progressbar" accessibilityLabel={running ? 'Track wird vorbereitet' : 'Track wartet auf Vorbereitung'}
+  return <View accessibilityRole="progressbar" accessibilityLabel={ready ? 'Track fertig gescannt' : running ? 'Track wird vorbereitet' : 'Track wartet auf Vorbereitung'}
     accessibilityState={{ busy: running }}
     accessibilityValue={progress === null ? { text: running ? 'Wird vorbereitet' : 'Ausstehend' }
       : { min: 0, max: 100, now: Math.round(progress * 100) }}
-    style={[styles.track, { backgroundColor: trackColor }]}
+    style={[styles.track, ready && styles.readyTrack, { backgroundColor: trackColor }]}
     testID={`song-preparation-progress-${songId}`}>
-    {running ? <Animated.View style={[styles.fill, { backgroundColor: color,
-      width: progress === null ? '35%' : `${progress * 100}%`,
+    {running || ready ? <Animated.View style={[styles.fill, { backgroundColor: color,
+      width: ready ? '100%' : progress === null ? '35%' : `${progress * 100}%`,
       opacity: reduceMotion || progress !== null ? 1 : pulse }]} /> : null}
   </View>;
 };
@@ -43,12 +43,12 @@ const PreparationBar = ({ running, color, trackColor, songId, progress }: {
 const SongWaveformStatus = ({ song, status }: { song: Song; status: WaveformStatus }) => {
   const { theme } = useAppTheme();
   const progress = useWaveformProgress(getWaveformSourceIdentity(song).sourceFingerprint);
-  if (status === 'ready') return null;
+  const ready = status === 'ready';
   const running = status === 'analyzing';
   return <View style={styles.status} testID={`song-waveform-status-${song.id}`}>
-    <View style={styles.caption}>
+    <View style={[styles.caption, ready && styles.readyCaption]}>
       <Text style={[styles.label, { color: theme.palette.text.secondary }]} numberOfLines={1}>{LABELS[status]}</Text>
-      {!running ? <Pressable hitSlop={8} accessibilityRole="button"
+      {!running && !ready ? <Pressable hitSlop={8} accessibilityRole="button"
         accessibilityLabel={`Vorbereitung für ${song.title} ${status === 'unavailable' ? 'erneut versuchen' : 'starten'}`}
         onPress={event => {
           event?.stopPropagation?.();
@@ -58,18 +58,20 @@ const SongWaveformStatus = ({ song, status }: { song: Song; status: WaveformStat
       </Pressable> : null}
       <Text style={[styles.percent, { color: theme.palette.text.secondary }]}
         testID={`song-preparation-percent-${song.id}`}>{running && progress !== null
-          ? `${Math.round(progress * 100)} %` : status === 'pending' ? '0 %' : running ? 'Scan…' : 'Fehler'}</Text>
+          ? `${Math.min(99, Math.floor(progress * 100))} %` : ready ? '100 %' : status === 'pending' ? '0 %' : running ? 'Scan…' : 'Fehler'}</Text>
     </View>
-    <PreparationBar running={running} color={theme.palette.primary} trackColor={theme.palette.borderStrong}
-      songId={song.id} progress={running ? progress : status === 'pending' ? 0 : null} />
+    <PreparationBar running={running} ready={ready} color={theme.palette.primary} trackColor={theme.palette.borderStrong}
+      songId={song.id} progress={ready ? 1 : running ? progress === null ? null : Math.min(0.99, progress) : status === 'pending' ? 0 : null} />
   </View>;
 };
 const styles = StyleSheet.create({
-  status: { alignSelf: 'stretch', gap: 4, marginTop: 5 },
+  status: { alignSelf: 'stretch', gap: 3, marginTop: 5 },
+  readyCaption: { opacity: 0.6 },
+  readyTrack: { opacity: 0.45 },
   caption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: { flex: 1, fontSize: 10 }, action: { fontSize: 10, fontWeight: '600' },
   percent: { fontSize: 10, fontVariant: ['tabular-nums'], fontWeight: '600' },
-  track: { height: 7, borderRadius: 3.5, overflow: 'hidden' },
+  track: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
   fill: { height: '100%', width: '100%' },
 });
 export default React.memo(SongWaveformStatus);

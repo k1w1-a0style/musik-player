@@ -4,228 +4,64 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import { State } from 'react-native-gesture-handler';
 import SoundCloudTrackCarousel from '../SoundCloudTrackCarousel';
 
-const songs = [
-  { id: 'previous', title: 'Previous', artist: 'Artist', cover: 'file:///previous.jpg' },
-  { id: 'current', title: 'Current', artist: 'Artist', cover: 'file:///current.jpg' },
-  { id: 'next', title: 'Next', artist: 'Artist', cover: 'file:///next.jpg' },
-];
-
-const renderCarousel = (props: Partial<React.ComponentProps<typeof SoundCloudTrackCarousel>> = {}) => {
-  const defaults: React.ComponentProps<typeof SoundCloudTrackCarousel> = {
-    currentSong: songs[1],
-    previousSong: songs[0],
-    nextSong: songs[2],
-    currentArtworkUri: songs[1].cover,
-    previousArtworkUri: songs[0].cover,
-    nextArtworkUri: songs[2].cover,
-    isPlaying: true,
-    topInset: 0,
-    bottomInset: 0,
-    verticalDrag: new Animated.Value(0),
-    canSwipeToNext: true,
-    onSwipeToNext: jest.fn(),
-    onSwipeToPrevious: jest.fn(),
-    onCollapse: jest.fn(),
-    onOpenQueue: jest.fn(),
-    renderPage: ({ role }) => <View testID={`page-content-${role}`} />,
-  };
-  return render(<SoundCloudTrackCarousel {...defaults} {...props} />);
+jest.mock('../../components/NativeTrackPager', () => {
+  const { View: V } = jest.requireActual('react-native');
+  return ({ songs, renderPage, ...props }: { songs: { id: string }[]; renderPage: (song: unknown) => React.ReactNode }) =>
+    <V {...props}>{songs.map(song => <V key={song.id}>{renderPage(song)}</V>)}</V>;
+});
+const songs = [0, 1, 2].map(id => ({ id: String(id), title: `Track ${id}`, artist: 'Artist', cover: `file:///${id}.jpg` }));
+const defaults = {
+  currentSong: songs[1], previousSong: songs[0], nextSong: songs[2], queue: songs,
+  isPlaying: true, topInset: 0, bottomInset: 0, verticalDrag: new Animated.Value(0),
+  onSwipeToNext: jest.fn(), onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), onOpenQueue: jest.fn(),
+  renderPage: ({ role }: { role: string }) => <View testID={`page-content-${role}`} />,
 };
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+    start: (cb?: (result: { finished: boolean }) => void) => cb?.({ finished: true }), stop: jest.fn(), reset: jest.fn(),
+  }) as Animated.CompositeAnimation);
+});
+afterEach(() => jest.restoreAllMocks());
 
-describe('SoundCloudTrackCarousel gestures', () => {
-  test('never passes a native Animated event object to a host View listener', () => {
-    const { getByTestId } = renderCarousel();
-    for (const id of ['soundcloud-collapse-gesture', 'soundcloud-track-swipe-gesture']) {
-      const listener = getByTestId(id).props.onGestureHandlerEvent;
-      expect(listener === undefined || typeof listener === 'function').toBe(true);
-    }
+test('both artwork and track page content belong to the native pager', () => {
+  const view = render(<SoundCloudTrackCarousel {...defaults} />);
+  expect(view.getByTestId('soundcloud-track-carousel')).toBeTruthy();
+  expect(view.getByTestId('page-content-current')).toBeTruthy();
+  expect(view.getByTestId('page-content-next')).toBeTruthy();
+  expect(view.getByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true }).props.fadeDuration).toBe(0);
+  expect(view.queryByTestId('now-playing-cover-bass-pulse')).toBeNull();
+});
+
+test('incoming cover view survives the active track acknowledgement', () => {
+  const view = render(<SoundCloudTrackCarousel {...defaults} />);
+  const incoming = view.getByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true });
+  view.rerender(<SoundCloudTrackCarousel {...defaults} currentSong={songs[2]} previousSong={songs[1]} nextSong={null} />);
+  expect(view.getByTestId('soundcloud-carousel-current-artwork')).toBe(incoming);
+});
+
+test('routes page selection to the actual selected song', () => {
+  const select = jest.fn();
+  const view = render(<SoundCloudTrackCarousel {...defaults} onSelectSong={select} />);
+  act(() => view.getByTestId('soundcloud-track-carousel').props.onSelectSong(songs[2]));
+  expect(select).toHaveBeenCalledWith(songs[2]);
+});
+
+test('preserves downward collapse and upward queue gestures', () => {
+  const view = render(<SoundCloudTrackCarousel {...defaults} />);
+  fireEvent(view.getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
+    nativeEvent: { oldState: State.ACTIVE, state: State.END, translationY: 60, velocityY: 1100 },
   });
-
-  beforeEach(() => {
-    jest.useFakeTimers();
-    jest.spyOn(Animated, 'timing').mockImplementation((_value, _config) => ({
-      start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: true }),
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
-    jest.spyOn(Animated, 'spring').mockImplementation((_value, _config) => ({
-      start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: true }),
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
-    jest.spyOn(Animated, 'loop').mockImplementation(() => ({
-      start: jest.fn(),
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
+  expect(defaults.onCollapse).toHaveBeenCalledTimes(1);
+  fireEvent(view.getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
+    nativeEvent: { oldState: State.ACTIVE, state: State.END, translationY: -70, translationX: 2, velocityY: -1000 },
   });
+  expect(defaults.onOpenQueue).toHaveBeenCalledTimes(1);
+});
 
-  afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
-    jest.restoreAllMocks();
-  });
-
-  test('commits a fast horizontal page swipe once', () => {
-    const onSwipeToNext = jest.fn();
-    const { getByTestId, unmount } = renderCarousel({ onSwipeToNext });
-
-    act(() => {
-      fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: {
-          oldState: State.ACTIVE,
-          state: State.END,
-          translationX: -80,
-          translationY: 4,
-          velocityX: -1_000,
-        },
-      });
-    });
-
-    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
-    unmount();
-  });
-
-  test.each([State.CANCELLED, State.FAILED])(
-    'keeps the page frozen when a passive recognizer ends as %s during a track switch', state => {
-    let finishTrackAnimation: ((result: { finished: boolean }) => void) | undefined;
-    (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mockImplementation((_value, config) => ({
-      start: callback => {
-        if (config.duration === 270) {
-          finishTrackAnimation = callback;
-          return;
-        }
-        callback?.({ finished: true });
-      },
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
-    const onSwipeToNext = jest.fn();
-    const afterNext = { id: 'after-next', title: 'After next', artist: 'Artist' };
-    const renderPage: React.ComponentProps<typeof SoundCloudTrackCarousel>['renderPage'] = ({ role, song }) => (
-      <View testID={`page-content-${role}`} accessibilityLabel={song?.id} />
-    );
-    const initialProps: React.ComponentProps<typeof SoundCloudTrackCarousel> = {
-      currentSong: songs[1], previousSong: songs[0], nextSong: songs[2],
-      currentArtworkUri: songs[1].cover, previousArtworkUri: songs[0].cover,
-      nextArtworkUri: songs[2].cover,
-      isPlaying: true, topInset: 0, bottomInset: 0, verticalDrag: new Animated.Value(0),
-      onSwipeToNext, onSwipeToPrevious: jest.fn(), onCollapse: jest.fn(), onOpenQueue: jest.fn(), renderPage,
-    };
-    const { getByTestId, rerender, unmount } = render(<SoundCloudTrackCarousel {...initialProps} />);
-    const incomingArtwork = getByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true });
-    expect(getByTestId('soundcloud-track-swipe-gesture').props.enabled).toBe(true);
-
-    act(() => {
-      fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: {
-          oldState: State.ACTIVE,
-          state: State.END,
-          translationX: -80,
-          translationY: 4,
-          velocityX: -1_000,
-        },
-      });
-    });
-
-    expect(finishTrackAnimation).toEqual(expect.any(Function));
-    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
-    expect(getByTestId('soundcloud-track-swipe-gesture').props.enabled).toBe(false);
-
-    rerender(<SoundCloudTrackCarousel {...initialProps} currentSong={songs[2]}
-      previousSong={songs[1]} nextSong={afterNext} currentArtworkUri={songs[2].cover}
-      previousArtworkUri={songs[1].cover} nextArtworkUri={undefined} />);
-    fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
-      nativeEvent: { oldState: State.BEGAN, state },
-    });
-    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('current');
-    expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
-
-    act(() => finishTrackAnimation?.({ finished: true }));
-    expect(onSwipeToNext).toHaveBeenCalledTimes(1);
-    expect(getByTestId('page-content-current').props.accessibilityLabel).toBe('next');
-    expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[2].cover);
-    expect(getByTestId('soundcloud-carousel-current-artwork') === incomingArtwork).toBe(true);
-    expect(getByTestId('soundcloud-track-swipe-gesture').props.enabled).toBe(true);
-    unmount();
-  });
-
-  test('blocks a next swipe when there is no queue candidate', () => {
-    const onSwipeToNext = jest.fn();
-    const { getByTestId, queryByTestId, unmount } = renderCarousel({
-      nextSong: null, nextArtworkUri: undefined, canSwipeToNext: false, onSwipeToNext,
-    });
-
-    act(() => {
-      fireEvent(getByTestId('soundcloud-track-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: {
-          oldState: State.ACTIVE,
-          state: State.END,
-          translationX: -180,
-          translationY: 2,
-          velocityX: -1_100,
-        },
-      });
-    });
-
-    expect(onSwipeToNext).not.toHaveBeenCalled();
-    expect(queryByTestId('soundcloud-carousel-next-artwork', { includeHiddenElements: true })).toBeNull();
-    unmount();
-  });
-
-  test('collapses after a deliberate downward fling and renders only one stationary page', () => {
-    const onCollapse = jest.fn();
-    const { getByTestId, queryByTestId, unmount } = renderCarousel({ onCollapse });
-    const hidden = { includeHiddenElements: true };
-
-    expect(getByTestId('page-content-current')).toBeTruthy();
-    expect(queryByTestId('page-content-previous', hidden)).toBeNull();
-    expect(queryByTestId('page-content-next', hidden)).toBeNull();
-    expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
-
-    act(() => {
-      fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
-        nativeEvent: {
-          oldState: State.ACTIVE,
-          state: State.END,
-          translationY: 60,
-          velocityY: 1_100,
-        },
-      });
-    });
-
-    expect(onCollapse).toHaveBeenCalledTimes(1);
-    unmount();
-  });
-
-  test('opens the queue after an upward fling', () => {
-    const onOpenQueue = jest.fn();
-    const { getByTestId, unmount } = renderCarousel({ onOpenQueue });
-
-    act(() => {
-      fireEvent(getByTestId('soundcloud-collapse-gesture'), 'handlerStateChange', {
-        nativeEvent: {
-          oldState: State.ACTIVE,
-          state: State.END,
-          translationX: 2,
-          translationY: -70,
-          velocityY: -1_000,
-        },
-      });
-    });
-
-    expect(onOpenQueue).toHaveBeenCalledTimes(1);
-    unmount();
-  });
-
-  test('keeps artwork static except for the explicit pager transition', () => {
-    const { unmount } = renderCarousel();
-    const driftConfigs = (Animated.timing as jest.MockedFunction<typeof Animated.timing>).mock.calls
-      .map(([, config]) => config)
-      .filter(config => (config.duration ?? 0) >= 9_000);
-
-    expect(driftConfigs).toHaveLength(0);
-    expect(Animated.loop).not.toHaveBeenCalled();
-    unmount();
-  });
+test('keeps waveform gesture priority without a second horizontal animation graph', () => {
+  const ref = React.createRef<unknown>();
+  const view = render(<SoundCloudTrackCarousel {...defaults} waveformGestureRef={ref} />);
+  expect(view.getByTestId('soundcloud-track-carousel').props.waitFor).toBe(ref);
+  expect(view.queryByTestId('soundcloud-track-swipe-gesture')).toBeNull();
 });

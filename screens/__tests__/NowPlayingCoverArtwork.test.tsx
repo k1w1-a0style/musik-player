@@ -1,202 +1,75 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
-import { Animated, Dimensions, StyleSheet } from 'react-native';
-import { State } from 'react-native-gesture-handler';
+import { Dimensions, Image, StyleSheet } from 'react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingCoverArtwork from '../NowPlayingCoverArtwork';
+import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
 
-jest.mock('../../contexts/AppThemeContext', () => ({
-  useAppTheme: () => ({
-    appearance: 'dark',
-    skin: 'graphite',
-    isHydrated: true,
-    setAppearance: jest.fn(),
-    setSkin: jest.fn(),
-    theme: {
-      palette: {
-        surface: '#101218',
-        primary: '#D8DEE8',
-      },
-    },
-  }),
-}));
+const mockTheme = { theme: { palette: { surface: '#101218' } }, bassPulseEnabled: false, isBassPulseHydrated: true };
+let mockReducedMotion = false;
+jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => mockTheme }));
+jest.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => mockReducedMotion }));
+jest.mock('../../components/CoverBassPulse', () => {
+  const { View } = jest.requireActual('react-native');
+  return ({ children, enabled }: { children: React.ReactNode; enabled: boolean }) => <View testID={enabled ? "bass-pulse" : "bass-static"}>{children}</View>;
+});
+jest.mock('../../components/NativeTrackPager', () => {
+  const { View } = jest.requireActual('react-native');
+  return ({ songs, renderPage, ...props }: { songs: { id: string }[]; renderPage: (song: unknown) => React.ReactNode }) =>
+    <View {...props}>{songs.map(song => <View key={song.id}>{renderPage(song)}</View>)}</View>;
+});
+const songs = [0, 1, 2].map(id => ({ id: String(id), title: `Track ${id}`, artist: 'Artist', cover: `file:///${id}.jpg` }));
+const defaults = { song: songs[1], previousSong: songs[0], nextSong: songs[2], queue: songs,
+  isPlaying: true, accent: '#00ffff', coverSize: 160, swipeEnabled: true };
+beforeEach(() => {
+  mockTheme.bassPulseEnabled = false;
+  mockReducedMotion = false;
+  Dimensions.set({ window: { width: 360, height: 800, scale: 1, fontScale: 1 },
+    screen: { width: 360, height: 800, scale: 1, fontScale: 1 } });
+});
 
-jest.mock('lucide-react-native', () => ({
-  Disc3: 'Disc3',
-}));
+test('static cover remains available without swipe callbacks', () => {
+  const view = render(<NowPlayingCoverArtwork song={songs[1]} isPlaying={false} accent="#123456" coverSize={160} />);
+  expect(view.getByTestId('now-playing-cover-card')).toBeTruthy();
+  expect(view.queryByTestId('now-playing-cover-track')).toBeNull();
+});
 
-jest.mock('../../hooks/useReducedMotion', () => ({
-  useReducedMotion: () => false,
-}));
+test('uses a native queue pager with separately preloaded cover images', () => {
+  const view = render(<NowPlayingCoverArtwork {...defaults} />);
+  expect(view.getByTestId('now-playing-cover-track').props.songs).toBeUndefined();
+  const viewport = StyleSheet.flatten(view.getByTestId('now-playing-cover-pager').props.style);
+  expect(viewport.width).toBe(360);
+  expect(viewport.width - 160).toBeGreaterThanOrEqual(32);
+  expect(view.getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
+  expect(view.getByTestId('now-playing-cover-previous-image').props.source).toEqual({ uri: 'file:///0.jpg' });
+  expect(view.getByTestId('now-playing-cover-next-image').props.source).toEqual({ uri: 'file:///2.jpg' });
+});
 
-const song = { id: 's1', title: 'One', artist: 'Artist' };
-const previousSong = { id: 's0', title: 'Zero', artist: 'Artist' };
-const nextSong = { id: 's2', title: 'Two', artist: 'Artist' };
+test('incoming image view survives playback acknowledgement', () => {
+  const view = render(<NowPlayingCoverArtwork {...defaults} />);
+  const incoming = view.getByTestId('now-playing-cover-next-image');
+  view.rerender(<NowPlayingCoverArtwork {...defaults} song={songs[2]} previousSong={songs[1]} nextSong={null} />);
+  expect(view.getByTestId('now-playing-cover-image')).toBe(incoming);
+  expect(view.getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///2.jpg' });
+});
 
-describe('NowPlayingCoverArtwork', () => {
-  beforeEach(() => {
-    Dimensions.set({ window: { width: 360, height: 800, scale: 1, fontScale: 1 },
-      screen: { width: 360, height: 800, scale: 1, fontScale: 1 } });
-  });
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+test('failed and missing artwork uses the Kiwi logo', () => {
+  const view = render(<NowPlayingCoverArtwork song={songs[1]} isPlaying={false} accent="#123456" coverSize={160} />);
+  fireEvent(view.getByTestId('now-playing-cover-image'), 'error');
+  expect(view.UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+});
 
-  test('renders cover card without swipe handlers by default', () => {
-    const { getByTestId } = render(
-      <NowPlayingCoverArtwork
-        song={song}
-        isPlaying={false}
-        accent="#123456"
-        coverSize={160}
-      />,
-    );
+test('bass pulse is mounted only for the enabled current cover', () => {
+  mockTheme.bassPulseEnabled = true;
+  const view = render(<NowPlayingCoverArtwork {...defaults} />);
+  expect(view.getAllByTestId('bass-pulse')).toHaveLength(1);
+  mockTheme.bassPulseEnabled = false;
+  view.rerender(<NowPlayingCoverArtwork {...defaults} isPlaying={false} />);
+  expect(view.queryByTestId('bass-pulse')).toBeNull();
+});
 
-    const card = getByTestId('now-playing-cover-card');
-    expect(card.props.onMoveShouldSetResponder).toBeUndefined();
-    expect(getByTestId('now-playing-cover-fallback')).toBeTruthy();
-  });
-
-  test('wraps the optimized cover image in a swipe gesture surface when enabled', () => {
-    const { getByTestId } = render(
-      <NowPlayingCoverArtwork
-        song={song}
-        previousSong={previousSong}
-        nextSong={nextSong}
-        artworkUri="file:///cover.jpg"
-        previousArtworkUri="file:///previous.jpg"
-        nextArtworkUri="file:///next.jpg"
-        isPlaying
-        accent="#123456"
-        coverSize={160}
-        swipeEnabled
-        onSwipeLeft={jest.fn()}
-        onSwipeRight={jest.fn()}
-      />,
-    );
-
-    expect(getByTestId('now-playing-cover-swipe-gesture')).toBeTruthy();
-    expect(getByTestId('now-playing-cover-image').props.resizeMethod).toBe('resize');
-    expect(getByTestId('now-playing-cover-previous-image').props.source).toEqual({ uri: 'file:///previous.jpg' });
-    expect(getByTestId('now-playing-cover-next-image').props.source).toEqual({ uri: 'file:///next.jpg' });
-    const viewport = StyleSheet.flatten(getByTestId('now-playing-cover-pager').props.style);
-    const card = StyleSheet.flatten(getByTestId('now-playing-cover-card').props.style);
-    expect(viewport.borderRadius ?? 0).toBe(0);
-    expect(viewport.backgroundColor).toBeUndefined();
-    expect(viewport.width).toBeGreaterThan(160);
-    expect(card.borderRadius).toBe(22);
-    expect(card.overflow).toBe('hidden');
-    const page = StyleSheet.flatten(getByTestId('now-playing-cover-current-page').props.style);
-    expect(page.width).toBe(viewport.width);
-    expect(page.width - card.width).toBeGreaterThanOrEqual(24);
-  });
-
-  test('dispatches an allowed left swipe before the native animation finishes', () => {
-    const onSwipeLeft = jest.fn();
-    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
-      start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: true }),
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
-    const { getByTestId } = render(
-      <NowPlayingCoverArtwork song={song} nextSong={nextSong} isPlaying accent="#123456" coverSize={160}
-        swipeEnabled canSwipeLeft onSwipeLeft={onSwipeLeft} />,
-    );
-
-    act(() => {
-      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 2 },
-      });
-    });
-
-    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
-    timing.mockRestore();
-  });
-
-  test('keeps the three cover pages frozen until the animated track switch settles', () => {
-    const onSwipeLeft = jest.fn();
-    let finishAnimation: ((result: { finished: boolean }) => void) | undefined;
-    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
-      start: (callback?: (result: { finished: boolean }) => void) => { finishAnimation = callback; },
-      stop: jest.fn(),
-      reset: jest.fn(),
-    }) as Animated.CompositeAnimation);
-    const initialProps = {
-      song,
-      previousSong,
-      nextSong,
-      artworkUri: 'file:///one.jpg',
-      previousArtworkUri: 'file:///zero.jpg',
-      nextArtworkUri: 'file:///two.jpg',
-      isPlaying: true,
-      accent: '#123456',
-      coverSize: 160,
-      swipeEnabled: true,
-      canSwipeLeft: true,
-      onSwipeLeft,
-    };
-    const { getByTestId, rerender } = render(<NowPlayingCoverArtwork {...initialProps} />);
-    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(true);
-
-    act(() => {
-      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 1 },
-      });
-    });
-    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(false);
-    rerender(<NowPlayingCoverArtwork {...initialProps}
-      song={nextSong} previousSong={song} nextSong={{ id: 's3', title: 'Three', artist: 'Artist' }}
-      artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" nextArtworkUri="file:///three.jpg" />);
-
-    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
-    expect(getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///one.jpg' });
-
-    act(() => finishAnimation?.({ finished: true }));
-
-    expect(getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///two.jpg' });
-    expect(getByTestId('now-playing-cover-swipe-gesture').props.enabled).toBe(true);
-  });
-
-  test('resets instead of finishing a left swipe when left swipes are disabled', () => {
-    const onSwipeLeft = jest.fn();
-    const { getByTestId } = render(
-      <NowPlayingCoverArtwork
-        song={song}
-        nextSong={nextSong}
-        isPlaying
-        accent="#123456"
-        coverSize={160}
-        swipeEnabled
-        canSwipeLeft={false}
-        onSwipeLeft={onSwipeLeft}
-      />,
-    );
-
-    act(() => {
-      fireEvent(getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-        nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140 },
-      });
-    });
-
-    expect(onSwipeLeft).not.toHaveBeenCalled();
-  });
-
-  test('commits the incoming cover with its layout offset and retains its loaded image', () => {
-    let finishAnimation: ((result: { finished: boolean }) => void) | undefined;
-    jest.spyOn(Animated, 'timing').mockImplementation(() => ({
-      start: callback => { finishAnimation = callback; }, stop: jest.fn(), reset: jest.fn(),
-    }));
-    const props = { song, nextSong, artworkUri: 'file:///one.jpg', nextArtworkUri: 'file:///two.jpg',
-      isPlaying: true, accent: '#123456', coverSize: 160, swipeEnabled: true, onSwipeLeft: jest.fn() };
-    const view = render(<NowPlayingCoverArtwork {...props} />);
-    const incomingImage = view.getByTestId('now-playing-cover-next-image');
-    act(() => fireEvent(view.getByTestId('now-playing-cover-swipe-gesture'), 'handlerStateChange', {
-      nativeEvent: { oldState: State.ACTIVE, state: State.END, translationX: -140, translationY: 0 },
-    }));
-    view.rerender(<NowPlayingCoverArtwork {...props} song={nextSong} previousSong={song}
-      nextSong={null} artworkUri="file:///two.jpg" previousArtworkUri="file:///one.jpg" />);
-    act(() => finishAnimation?.({ finished: true }));
-    // The gesture-handler mock forwards its own testID onto the child track.
-    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-track').props.style).left).toBe(360);
-    expect(view.getByTestId('now-playing-cover-image')).toBe(incomingImage);
-  });
+test('reduced motion suppresses the bass animation', () => {
+  mockTheme.bassPulseEnabled = true;
+  mockReducedMotion = true;
+  const view = render(<NowPlayingCoverArtwork {...defaults} />);
+  expect(view.queryByTestId('bass-pulse')).toBeNull();
 });

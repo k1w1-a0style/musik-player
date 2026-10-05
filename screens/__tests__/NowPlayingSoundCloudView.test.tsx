@@ -210,19 +210,17 @@ describe('NowPlayingSoundCloudView', () => {
     expect(getByTestId('soundcloud-next-button').props.accessibilityState.disabled).toBe(true);
   });
 
-  test('slides three full-panel artworks but keeps one metadata and waveform layer stationary', () => {
+  test('keeps artwork and metadata together on native pages with one active waveform', () => {
     const { getByTestId, getByText, queryByText, getAllByTestId } = renderSoundCloudView({ isPlaying: true });
     const hidden = { includeHiddenElements: true };
 
-    expect(getByTestId('soundcloud-carousel-previous-artwork', hidden).props.source.uri).toBe(songs[0].cover);
     expect(getByTestId('soundcloud-carousel-current-artwork').props.source.uri).toBe(songs[1].cover);
     expect(getByTestId('soundcloud-carousel-next-artwork', hidden).props.source.uri).toBe(songs[2].cover);
     expect(getByText('Track title')).toBeTruthy();
-    expect(queryByText('Previous track', hidden)).toBeNull();
-    expect(queryByText('Next track', hidden)).toBeNull();
+    expect(queryByText('Next track')).toBeNull();
+    expect(getByText('Next track', hidden)).toBeTruthy();
     expect(getAllByTestId('active-waveform')).toHaveLength(1);
-    expect(getByTestId('soundcloud-current-page-layer')).toBeTruthy();
-    expect(getByTestId('soundcloud-carousel-previous-panel', hidden).props.importantForAccessibility)
+    expect(getByTestId('soundcloud-track-carousel-page-song-2-2', hidden).props.importantForAccessibility)
       .toBe('no-hide-descendants');
     expect(StyleSheet.flatten(getByTestId('soundcloud-carousel-current-artwork-frame').props.style))
       .toMatchObject({ position: 'absolute', top: 62, right: 0, bottom: 90, left: 0, borderRadius: 30 });

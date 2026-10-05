@@ -1,13 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Animated, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { useHorizontalTrackMotion } from '../hooks/useSoundCloudCarouselMotion';
 import type { Song } from '../types/Song';
-import { getTrackPageKeys } from '../utils/soundCloudPlayer';
 import { KIWI_MUSIC_ARTWORK, getSongArtworkUri } from '../utils/songArtwork';
-import CoverPagerTrack from '../components/CoverPagerTrack';
+import NativeTrackPager from '../components/NativeTrackPager';
+import CoverBassPulse from '../components/CoverBassPulse';
 
 interface NowPlayingCoverArtworkProps {
   song?: Song | null;
@@ -20,6 +18,9 @@ interface NowPlayingCoverArtworkProps {
   accent: string;
   coverSize: number;
   swipeEnabled?: boolean;
+  queue?: Song[];
+  onSelectSong?: (song: Song) => void | Promise<void>;
+  wrapToStart?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   canSwipeLeft?: boolean;
@@ -27,15 +28,6 @@ interface NowPlayingCoverArtworkProps {
 }
 
 type CoverRole = 'previous' | 'current' | 'next';
-
-interface CoverTransitionSnapshot {
-  song: Song | null;
-  previousSong: Song | null;
-  nextSong: Song | null;
-  artworkUri?: string;
-  previousArtworkUri?: string;
-  nextArtworkUri?: string;
-}
 
 interface CoverCardProps {
   role: CoverRole;
@@ -45,16 +37,6 @@ interface CoverCardProps {
   coverSize: number;
   backgroundColor: string;
 }
-
-const GESTURE_ACTIVATION_OFFSET = 12;
-const noop = (): void => undefined;
-const nullableSong = (song: Song | null | undefined): Song | null => song ?? null;
-const isNextPageAvailable = ({ nextSong, canSwipeLeft, onSwipeLeft }:
-  Pick<NowPlayingCoverArtworkProps, 'nextSong' | 'canSwipeLeft' | 'onSwipeLeft'>): boolean =>
-  Boolean(nextSong && canSwipeLeft && onSwipeLeft);
-const isPreviousPageAvailable = ({ previousSong, canSwipeRight, onSwipeRight }:
-  Pick<NowPlayingCoverArtworkProps, 'previousSong' | 'canSwipeRight' | 'onSwipeRight'>): boolean =>
-  Boolean(previousSong && canSwipeRight && onSwipeRight);
 
 const getCardTestId = (role: CoverRole): string => role === 'current'
   ? 'now-playing-cover-card'
@@ -110,82 +92,53 @@ const StaticCoverArtwork = ({ song, artworkUri, isPlaying, accent, coverSize }:
 
 const CoverPage = ({ pageWidth, accent, ...props }: CoverCardProps & {
   pageWidth: number; accent: string;
-}) => (
-  <View style={[styles.coverPage, { width: pageWidth }]}
+}) => {
+  const { bassPulseEnabled, isBassPulseHydrated } = useAppTheme();
+  const reduceMotion = useReducedMotion();
+  const artwork = props.song || props.role === 'current' ? (
+    <View style={[styles.coverShadow, { width: props.coverSize, height: props.coverSize,
+      shadowColor: accent, backgroundColor: props.backgroundColor }]}>
+      <CoverCard {...props} />
+    </View>
+  ) : null;
+  return <View style={[styles.coverPage, { width: pageWidth }]}
     testID={`now-playing-cover-${props.role}-page`}>
-    {props.song || props.role === 'current' ? (
-      <View style={[styles.coverShadow, { width: props.coverSize, height: props.coverSize,
-        shadowColor: accent, backgroundColor: props.backgroundColor }]}>
-        <CoverCard {...props} />
-      </View>
-    ) : null}
-  </View>
-);
+    <CoverBassPulse song={props.song} isPlaying={props.isPlaying}
+      enabled={Boolean(bassPulseEnabled && isBassPulseHydrated && !reduceMotion && props.role === 'current')}>
+      {artwork}
+    </CoverBassPulse>
+  </View>;
+};
 
 const ClassicCoverPager = ({ song, previousSong, nextSong, artworkUri, previousArtworkUri,
-  nextArtworkUri, isPlaying, accent, coverSize, onSwipeLeft, onSwipeRight,
-  canSwipeLeft = true, canSwipeRight = true }: NowPlayingCoverArtworkProps) => {
+  nextArtworkUri, isPlaying, accent, coverSize, onSwipeLeft, onSwipeRight, queue,
+  onSelectSong, wrapToStart = false }: NowPlayingCoverArtworkProps) => {
   const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const pageWidth = Math.max(coverSize + 32, width);
   const reduceMotion = useReducedMotion();
-  const [transitionSnapshot, setTransitionSnapshot] = useState<CoverTransitionSnapshot | null>(null);
-  const holdTransitionPages = React.useCallback(() => setTransitionSnapshot({
-    song: nullableSong(song),
-    previousSong: nullableSong(previousSong),
-    nextSong: nullableSong(nextSong),
-    artworkUri,
-    previousArtworkUri,
-    nextArtworkUri,
-  }), [artworkUri, nextArtworkUri, nextSong, previousArtworkUri, previousSong, song]);
-  const releaseTransitionPages = React.useCallback(() => setTransitionSnapshot(null), []);
-  const motion = useHorizontalTrackMotion({ currentSongId: song?.id, panelWidth: pageWidth,
-    onNext: onSwipeLeft ?? noop, onPrevious: onSwipeRight ?? noop,
-    hasNext: transitionSnapshot ? Boolean(transitionSnapshot.nextSong)
-      : isNextPageAvailable({ nextSong, canSwipeLeft, onSwipeLeft }),
-    hasPrevious: transitionSnapshot ? Boolean(transitionSnapshot.previousSong)
-      : isPreviousPageAvailable({ previousSong, canSwipeRight, onSwipeRight }),
-    reduceMotion, transitionDurationMs: 360, dispatchBeforeAnimation: true, onTransitionStart: holdTransitionPages,
-    onTransitionEnd: releaseTransitionPages });
-  const displayed = transitionSnapshot ?? {
-    song: nullableSong(song),
-    previousSong: nullableSong(previousSong),
-    nextSong: nullableSong(nextSong),
-    artworkUri,
-    previousArtworkUri,
-    nextArtworkUri,
-  };
-  const trackTranslateX = useMemo(() => Animated.add(motion.constrainedDrag, -pageWidth),
-    [pageWidth, motion.constrainedDrag]);
-  const pageKeys = getTrackPageKeys({ currentId: displayed.song?.id,
-    previousId: displayed.previousSong?.id, nextId: displayed.nextSong?.id });
-  const cardProps = { coverSize, pageWidth, accent, backgroundColor: theme.palette.surface };
-  return (
-    <View style={[styles.pagerViewport, { width: pageWidth, height: coverSize + 32 }]}
-      testID="now-playing-cover-pager">
-        <PanGestureHandler testID="now-playing-cover-swipe-gesture" enabled={!transitionSnapshot}
-          activeOffsetX={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
-          failOffsetY={[-GESTURE_ACTIVATION_OFFSET, GESTURE_ACTIVATION_OFFSET]}
-          onGestureEvent={motion.onGestureEvent} onHandlerStateChange={motion.onStateChange}>
-          <Animated.View style={styles.gestureViewport} collapsable={false}>
-          <CoverPagerTrack style={styles.coverTrack} width={pageWidth * 3} pageOffset={motion.pageOffset}
-            translateX={trackTranslateX} testID="now-playing-cover-track">
-            <CoverPage key={pageKeys.previous}
-              role="previous" song={displayed.previousSong}
-              artworkUri={displayed.previousArtworkUri}
-              isPlaying={false} {...cardProps} />
-            <CoverPage key={pageKeys.current}
-              role="current" song={displayed.song} artworkUri={displayed.artworkUri}
-              isPlaying={isPlaying}
-              {...cardProps} />
-            <CoverPage key={pageKeys.next}
-              role="next" song={displayed.nextSong} artworkUri={displayed.nextArtworkUri}
-              isPlaying={false} {...cardProps} />
-          </CoverPagerTrack>
-          </Animated.View>
-        </PanGestureHandler>
-    </View>
-  );
+  const songs = useMemo(() => queue?.length ? queue : [previousSong, song, nextSong]
+    .filter((item): item is Song => Boolean(item)), [nextSong, previousSong, queue, song]);
+  const selectSong = React.useCallback((selected: Song) => {
+    if (onSelectSong) return onSelectSong(selected);
+    if (selected.id === previousSong?.id) return onSwipeRight?.();
+    return onSwipeLeft?.();
+  }, [onSelectSong, onSwipeLeft, onSwipeRight, previousSong?.id]);
+  const renderPage = React.useCallback((item: Song) => {
+    const role: CoverRole = item.id === song?.id ? 'current'
+      : item.id === previousSong?.id ? 'previous' : 'next';
+    const uri = role === 'current' ? artworkUri : role === 'previous' ? previousArtworkUri
+      : item.id === nextSong?.id ? nextArtworkUri : getSongArtworkUri(item);
+    return <CoverPage role={role} song={item} artworkUri={uri} isPlaying={role === 'current' && isPlaying}
+      coverSize={coverSize} pageWidth={pageWidth} accent={accent} backgroundColor={theme.palette.surface} />;
+  }, [accent, artworkUri, coverSize, isPlaying, nextArtworkUri, nextSong?.id, pageWidth,
+    previousArtworkUri, previousSong?.id, song?.id, theme.palette.surface]);
+  return <View style={[styles.pagerViewport, { width: pageWidth, height: coverSize + 32 }]}
+    testID="now-playing-cover-pager">
+    <NativeTrackPager songs={songs} currentSongId={song?.id} width={pageWidth}
+      onSelectSong={selectSong} renderPage={renderPage} wrapToStart={wrapToStart}
+      reduceMotion={reduceMotion} testID="now-playing-cover-track" style={styles.gestureViewport} />
+  </View>;
 };
 
 const NowPlayingCoverArtwork: React.FC<NowPlayingCoverArtworkProps> = props => props.swipeEnabled
@@ -202,7 +155,7 @@ const styles = StyleSheet.create({
   },
   pagerViewport: { overflow: 'hidden' },
   gestureViewport: { width: '100%', height: '100%' },
-  coverPage: { alignItems: 'center', justifyContent: 'center' },
+  coverPage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   coverTrack: { height: '100%', flexDirection: 'row' },
   coverCard: { overflow: 'hidden', borderRadius: 22 },
   coverImage: { width: '100%', height: '100%' },

@@ -8,6 +8,9 @@ import NowPlayingTitleRow from './NowPlayingTitleRow';
 
 interface NowPlayingPlayerPanelProps {
   currentSong: Song | null;
+  queue?: Song[];
+  onSelectSong?: (song: Song) => void | Promise<void>;
+  wrapToStart?: boolean;
   previousSong?: Song | null;
   nextSong?: Song | null;
   artworkUri?: string;
@@ -35,7 +38,7 @@ interface NowPlayingPlayerPanelProps {
 }
 
 const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
-  currentSong,
+  currentSong, queue, onSelectSong, wrapToStart,
   previousSong,
   nextSong,
   artworkUri,
@@ -64,7 +67,7 @@ const NowPlayingPlayerPanel: React.FC<NowPlayingPlayerPanelProps> = ({
   <View style={styles.playerPage} testID="now-playing-player-panel">
     <View style={[styles.coverArea, { height: coverAreaHeight }]}> 
       <NowPlayingCoverArtwork
-        song={currentSong}
+        song={currentSong} queue={queue} onSelectSong={onSelectSong} wrapToStart={wrapToStart}
         previousSong={previousSong}
         nextSong={nextSong}
         artworkUri={artworkUri}

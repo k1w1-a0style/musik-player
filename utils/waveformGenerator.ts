@@ -120,6 +120,9 @@ export const buildNativeWaveform = (
 ): SongWaveform => ({
   version: WAVEFORM_VERSION,
   points: normalizeWaveformPoints(result.points, pointCount).map(point => Math.round(point * 1000) / 1000),
+  ...(Array.isArray(result.bassPoints) && result.bassPoints.length > 0 && result.bassPoints.length <= 24_000
+    && result.bassPoints.every(point => Number.isFinite(point) && point >= 0 && point <= 1)
+    ? { bassPoints: result.bassPoints.map(point => Math.round(point * 1000) / 1000) } : {}),
   durationMs: Number.isFinite(result.durationMs) && (result.durationMs ?? 0) > 0 ? result.durationMs as number : fallbackDurationMs,
   ...getWaveformSourceIdentity(song),
   source: 'native',

@@ -144,7 +144,7 @@ test('playlist play skips pending tracks and unlocks a row when preparation fini
   expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[0], [mockSongs[0]]);
   await act(async () => markSongPrepared(getWaveformSourceIdentity(mockSongs[1]).sourceFingerprint));
   expect(view.getByTestId('playlist-detail-song-song-b')).toBeEnabled();
-  expect(view.queryByTestId('song-preparation-progress-song-b')).toBeNull();
+  expect(view.getByTestId('song-preparation-progress-song-b').props.accessibilityValue.now).toBe(100);
   await act(async () => fireEvent.press(view.getByTestId('playlist-detail-song-song-b')));
   expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[1], [mockSongs[1], mockSongs[0]]);
 });

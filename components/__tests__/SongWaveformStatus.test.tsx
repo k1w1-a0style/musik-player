@@ -43,7 +43,8 @@ test('updates the row for running/ready and does not carry readiness to a change
   expect(view.getByLabelText('Track wird vorbereitet').props.accessibilityState.busy).toBe(true);
   await act(async () => setCachedWaveform(buildNativeWaveform(song,
     { points: [0.1, 0.8, 0.2, 0.9, 0.1, 0.7, 0.3, 0.5], analysis: 'decoded-pcm-v1' }, 1000, 1024)));
-  expect(view.queryByTestId('song-waveform-status-one')).toBeNull();
+  expect(view.getByTestId('song-preparation-progress-one').props.accessibilityValue.now).toBe(100);
+  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('100 %');
   expect(view.queryByText('✓')).toBeNull();
   view.rerender(<Status song={{ ...song, uri: 'file:///replacement.mp3' }} />);
   expect(view.getByText('Vorbereitung ausstehend')).toBeTruthy();
@@ -55,5 +56,14 @@ test('recognizes a persisted waveform after the memory cache was cleared', async
   resetWaveformCacheStateForTests();
   resetSongPreparationForTests();
   const view = render(<Status song={song} />);
-  await waitFor(() => expect(view.queryByTestId('song-waveform-status-one')).toBeNull());
+  await waitFor(() => expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('100 %'));
+});
+
+
+test('does not claim completion until the final waveform is ready', () => {
+  const view = render(<Status song={song} />);
+  act(() => { setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'analyzing');
+    setWaveformProgress(getWaveformSourceIdentity(song).sourceFingerprint, 1); });
+  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('99 %');
+  expect(view.getByTestId('song-preparation-progress-one').props.accessibilityValue.now).toBe(99);
 });
