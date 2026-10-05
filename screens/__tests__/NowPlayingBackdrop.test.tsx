@@ -38,20 +38,13 @@ describe('NowPlayingBackdrop', () => {
     rerender(<NowPlayingBackdrop gradientColors={['#444444', '#555555']} accent="#666666"
       glowLeft={20} artworkUri="file:///two.jpg" paletteLoading />);
 
-    expect(getByTestId('now-playing-cover-backdrop').props.source).toEqual({ uri: 'file:///one.jpg' });
-    expect(queryByTestId('now-playing-cover-backdrop-outgoing')).toBeNull();
-    expect(timing).not.toHaveBeenCalled();
-
-    rerender(<NowPlayingBackdrop gradientColors={['#444444', '#555555']} accent="#666666"
-      glowLeft={20} artworkUri="file:///two.jpg" paletteLoading={false} />);
-
     expect(getByTestId('now-playing-cover-backdrop').props.source).toEqual({ uri: 'file:///two.jpg' });
     expect(getByTestId('now-playing-cover-backdrop-outgoing').props.source)
       .toEqual({ uri: 'file:///one.jpg' });
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       toValue: 1,
-      delay: 120,
-      duration: 1800,
+      delay: 0,
+      duration: 1000,
       useNativeDriver: true,
     }));
 
@@ -60,28 +53,28 @@ describe('NowPlayingBackdrop', () => {
     expect(queryByTestId('now-playing-cover-backdrop-outgoing')).toBeNull();
   });
 
-  test('does not reset an unfinished background blend on a rapid track change', () => {
+  test('retargets a rapid cover change without waiting for the old fade', () => {
     const finishes: Array<(result: { finished: boolean }) => void> = [];
-    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
-      start: callback => { if (callback) finishes.push(callback); },
-      stop: jest.fn(), reset: jest.fn(),
-    }));
+    let transition!: Animated.Value;
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(value => {
+      transition = value as Animated.Value;
+      return { start: callback => { if (callback) finishes.push(callback); },
+        stop: jest.fn(), reset: jest.fn() };
+    });
     const backdrop = (artwork: string, color: string) => (
       <NowPlayingBackdrop gradientColors={[color, '#111111']} accent={color}
-        glowLeft={20} artworkUri={`file:///${artwork}.jpg`} />
-    );
+        glowLeft={20} artworkUri={`file:///${artwork}.jpg`} />);
     const { rerender, getByTestId, queryByTestId } = render(backdrop('one', '#111111'));
     rerender(backdrop('two', '#222222'));
+    act(() => transition.setValue(0.5));
     rerender(backdrop('three', '#333333'));
-    expect(timing).toHaveBeenCalledTimes(1);
-    expect(getByTestId('now-playing-cover-backdrop').props.source.uri).toBe('file:///two.jpg');
-    expect(getByTestId('now-playing-cover-backdrop-outgoing').props.source.uri).toBe('file:///one.jpg');
-
-    act(() => finishes[0]({ finished: true }));
     expect(timing).toHaveBeenCalledTimes(2);
     expect(getByTestId('now-playing-cover-backdrop').props.source.uri).toBe('file:///three.jpg');
-    expect(getByTestId('now-playing-cover-backdrop-outgoing').props.source.uri).toBe('file:///two.jpg');
-
+    expect(getByTestId('now-playing-cover-backdrop-outgoing').props.source.uri).toBe('file:///one.jpg');
+    expect(getByTestId('now-playing-cover-backdrop-outgoing-1').props.source.uri).toBe('file:///two.jpg');
+    expect(StyleSheet.flatten(getByTestId('now-playing-cover-backdrop-outgoing-1-layer').props.style).opacity).toBe(0.5);
+    act(() => finishes[0]({ finished: true }));
+    expect(queryByTestId('now-playing-cover-backdrop-outgoing')).not.toBeNull();
     act(() => finishes[1]({ finished: true }));
     expect(queryByTestId('now-playing-cover-backdrop-outgoing')).toBeNull();
   });

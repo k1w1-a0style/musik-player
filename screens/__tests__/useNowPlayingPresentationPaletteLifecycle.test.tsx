@@ -52,7 +52,7 @@ describe('useNowPlayingPresentation palette lifecycle', () => {
     jest.restoreAllMocks();
   });
 
-  test('retains the previous palette only while the new artwork is loading', async () => {
+  test('starts the new song color immediately while its palette is loading', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let rejectSecond: (error: Error) => void = () => undefined;
 
@@ -81,7 +81,7 @@ describe('useNowPlayingPresentation palette lifecycle', () => {
     rerender(<Probe song={secondSong} />);
 
     expect(getByTestId('loading').props.children).toBe('true');
-    expect(getByTestId('accent').props.children).toBe(firstAccent);
+    expect(getByTestId('accent').props.children).toBe(secondFallbackAccent);
 
     await act(async () => {
       rejectSecond(new Error('palette extraction failed'));

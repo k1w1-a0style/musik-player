@@ -35,6 +35,7 @@ const WaveformBars = React.memo(({ points, sourceKey, width, height, color }: Wa
   const path = useMemo(() => buildSoundCloudWaveformPath(points, width, height), [height, points, width]);
   return (
     <Svg width={width} height={height} testID={`soundcloud-waveform-bars-${sourceKey}`}>
+      <Path d={path} fill="none" stroke={SOUNDCLOUD_PLAYER_COLORS.waveformOutline} strokeWidth={BAR_WIDTH + 2} strokeLinecap="round" />
       <Path d={path} fill="none" stroke={color} strokeWidth={BAR_WIDTH} strokeLinecap="round" />
     </Svg>
   );

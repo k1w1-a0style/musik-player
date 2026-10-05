@@ -21,49 +21,35 @@ const song = { id: 'one', title: 'One', artist: 'Artist', uri: 'file:///one.mp3'
 beforeEach(async () => { resetWaveformCacheStateForTests(); resetSongPreparationForTests(); await AsyncStorage.clear(); });
 afterEach(() => resetWaveformCacheStateForTests());
 
-test('shows independent progress for the running track and zero for a waiting track', () => {
-  const second = { ...song, id: 'two', title: 'Two', uri: 'file:///two.mp3' };
-  const firstFingerprint = getWaveformSourceIdentity(song).sourceFingerprint;
-  const secondFingerprint = getWaveformSourceIdentity(second).sourceFingerprint;
+test('only animates the currently scanned track and shows no percentages or bars', () => {
+  const second = { ...song, id: 'two', uri: 'file:///two.mp3' };
   const view = render(<><Status song={song} /><Status song={second} /></>);
-  act(() => { setWaveformStatus(firstFingerprint, 'analyzing'); setWaveformProgress(firstFingerprint, 0.42); });
-  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('42 %');
-  expect(view.getByTestId('song-preparation-progress-one').props.accessibilityValue.now).toBe(42);
-  expect(view.getByTestId('song-preparation-percent-two').props.children).toBe('0 %');
-  expect(view.getByTestId('song-preparation-progress-two').props.accessibilityValue.now).toBe(0);
-  act(() => { setWaveformStatus(secondFingerprint, 'analyzing'); setWaveformProgress(secondFingerprint, 0.68); });
-  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('42 %');
-  expect(view.getByTestId('song-preparation-percent-two').props.children).toBe('68 %');
+  expect(view.queryByTestId('song-scan-animation-one')).toBeNull();
+  expect(view.queryByTestId('song-scan-animation-two')).toBeNull();
+  act(() => { setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'analyzing');
+    setWaveformProgress(getWaveformSourceIdentity(song).sourceFingerprint, 0.42); });
+  expect(view.getByTestId('song-scan-animation-one')).toBeTruthy();
+  expect(view.queryByTestId('song-scan-animation-two')).toBeNull();
+  expect(view.queryByTestId('song-preparation-percent-one')).toBeNull();
+  expect(view.queryByTestId('song-preparation-progress-one')).toBeNull();
 });
 
-test('updates the row for running/ready and does not carry readiness to a changed source', async () => {
+test('keeps animating until finalized, then removes the animation; changed sources wait again', async () => {
   const view = render(<Status song={song} />);
-  expect(view.getByText('Vorbereitung ausstehend')).toBeTruthy();
-  act(() => setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'analyzing'));
-  expect(view.getByLabelText('Track wird vorbereitet').props.accessibilityState.busy).toBe(true);
+  act(() => { setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'analyzing');
+    setWaveformProgress(getWaveformSourceIdentity(song).sourceFingerprint, 1); });
+  expect(view.getByTestId('song-scan-animation-one')).toBeTruthy();
   await act(async () => setCachedWaveform(buildNativeWaveform(song,
     { points: [0.1, 0.8, 0.2, 0.9, 0.1, 0.7, 0.3, 0.5], analysis: 'decoded-pcm-v1' }, 1000, 1024)));
-  expect(view.queryByTestId('song-preparation-progress-one')).toBeNull();
-  expect(view.queryByTestId('song-preparation-percent-one')).toBeNull();
-  expect(view.queryByText('✓')).toBeNull();
+  expect(view.queryByTestId('song-waveform-status-one')).toBeNull();
   view.rerender(<Status song={{ ...song, uri: 'file:///replacement.mp3' }} />);
-  expect(view.getByText('Vorbereitung ausstehend')).toBeTruthy();
+  expect(view.queryByTestId('song-scan-animation-one')).toBeNull();
 });
 
 test('recognizes a persisted waveform after the memory cache was cleared', async () => {
   await setCachedWaveform(buildNativeWaveform(song,
     { points: [0.1, 0.8, 0.2, 0.9, 0.1, 0.7, 0.3, 0.5], analysis: 'decoded-pcm-v1' }, 1000, 1024));
-  resetWaveformCacheStateForTests();
-  resetSongPreparationForTests();
+  resetWaveformCacheStateForTests(); resetSongPreparationForTests();
   const view = render(<Status song={song} />);
-  await waitFor(() => expect(view.queryByTestId('song-preparation-percent-one')).toBeNull());
-});
-
-
-test('does not claim completion until the final waveform is ready', () => {
-  const view = render(<Status song={song} />);
-  act(() => { setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'analyzing');
-    setWaveformProgress(getWaveformSourceIdentity(song).sourceFingerprint, 1); });
-  expect(view.getByTestId('song-preparation-percent-one').props.children).toBe('99 %');
-  expect(view.getByTestId('song-preparation-progress-one').props.accessibilityValue.now).toBe(99);
+  await waitFor(() => expect(view.queryByTestId('song-waveform-status-one')).toBeNull());
 });

@@ -1,13 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import React from 'react';
+import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-export const PLAYER_COLOR_CROSSFADE_DELAY_MS = 120;
-export const PLAYER_COLOR_CROSSFADE_MS = 1800;
-
-interface CrossfadeSnapshot<T> {
-  key: string;
-  value: T;
-}
+import { useColorCrossfade, PLAYER_COLOR_CROSSFADE_DELAY_MS, PLAYER_COLOR_CROSSFADE_MS } from '../hooks/useColorCrossfade';
+export { PLAYER_COLOR_CROSSFADE_DELAY_MS, PLAYER_COLOR_CROSSFADE_MS } from '../hooks/useColorCrossfade';
 
 interface CrossfadeLayersProps<T> {
   value: T;
@@ -28,71 +23,20 @@ interface CrossfadeLayersProps<T> {
 const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
   duration = PLAYER_COLOR_CROSSFADE_MS, delay = PLAYER_COLOR_CROSSFADE_DELAY_MS,
   style, fill = false }: CrossfadeLayersProps<T>) => {
-  const incoming = useMemo<CrossfadeSnapshot<T>>(
-    () => ({ key: valueKey, value }),
-    [value, valueKey],
-  );
-  const [active, setActive] = useState(incoming);
-  const [outgoing, setOutgoing] = useState<CrossfadeSnapshot<T> | null>(null);
-  const transition = useRef(new Animated.Value(1)).current;
-  const generationRef = useRef(0);
-
-  useEffect(() => {
-    if (incoming.key === active.key) return;
-    // Finish the current blend before moving to the latest requested value.
-    // This avoids a visible opacity jump during very fast track changes.
-    if (outgoing) return;
-
-    generationRef.current += 1;
-    transition.stopAnimation();
-    setActive(incoming);
-
-    if (duration <= 0) {
-      transition.setValue(1);
-      setOutgoing(null);
-      return;
-    }
-
-    setOutgoing(active);
-    transition.setValue(0);
-  }, [active, duration, incoming, outgoing, transition]);
-
-  useEffect(() => {
-    if (!outgoing) return;
-    if (duration <= 0) {
-      transition.setValue(1);
-      setOutgoing(null);
-      return;
-    }
-    // Both opacity-bound views must be committed before their native driver
-    // starts, otherwise a slow render can consume the fade while unattached.
-    const generation = generationRef.current;
-    Animated.timing(transition, {
-      toValue: 1,
-      duration,
-      delay,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
-      isInteraction: false,
-    }).start(({ finished }) => {
-      if (finished && generationRef.current === generation) setOutgoing(null);
-    });
-    return () => transition.stopAnimation();
-  }, [delay, duration, outgoing, transition]);
-
-  const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
+  const { active, outgoing, transition } = useColorCrossfade(value, valueKey, duration, delay);
 
   return (
     <View style={[styles.container, fill && StyleSheet.absoluteFill, style]} testID={testID}>
-      {outgoing ? (
+      {outgoing.length ? (
         <Animated.View pointerEvents="none" accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
-          style={[StyleSheet.absoluteFill, styles.layer, { opacity: outgoingOpacity }]}
+          style={[StyleSheet.absoluteFill, styles.layer, { opacity: 1 }]}
           testID={`${testID}-outgoing`}>
-          {renderLayer(outgoing.value)}
+          {outgoing.map((layer, index) => <View key={`${layer.key}:${index}`}
+            style={[styles.layer, index > 0 && StyleSheet.absoluteFill, { opacity: index === 0 ? 1 : layer.weight / outgoing.slice(0, index + 1).reduce((sum, item) => sum + item.weight, 0) }]}>{renderLayer(layer.value)}</View>)}
         </Animated.View>
       ) : null}
-      <Animated.View style={[styles.layer, fill && StyleSheet.absoluteFill, { opacity: outgoing ? transition : 1 }]}
+      <Animated.View style={[styles.layer, fill && StyleSheet.absoluteFill, { opacity: outgoing.length ? transition : 1 }]}
         testID={`${testID}-active`}>
         {renderLayer(active.value)}
       </Animated.View>

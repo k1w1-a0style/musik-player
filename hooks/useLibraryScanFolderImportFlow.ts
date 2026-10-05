@@ -49,7 +49,7 @@ export const useLibraryScanFolderImportFlow = ({
   applyImportedSongsUpdate,
 }: UseLibraryScanFolderImportFlowOptions) => {
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration,
-    refreshExisting = true): Promise<void> => {
+    refreshExisting = false): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);

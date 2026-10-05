@@ -19,6 +19,7 @@ export const SOUNDCLOUD_PLAYER_COLORS = {
   foreground: '#ffffff',
   actionLabel: 'rgba(255,255,255,0.78)',
   waveformRest: '#ededed',
+  waveformOutline: 'rgba(0,0,0,0.85)',
   waveformPlayhead: '#ffffff',
   waveformPlayheadOutline: 'rgba(0,0,0,0.78)',
   waveformTime: 'rgba(255,255,255,0.82)',

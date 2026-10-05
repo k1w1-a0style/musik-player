@@ -110,10 +110,12 @@ export const prepareLibraryWaveforms = async (
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
   beginMetadataRefreshActivity();
-  publish({ ...idle, status: 'running', total: songs.length });
   try {
     await loadPreparedSources();
-    for (const song of songs) {
+    throwIfAborted(controller.signal);
+    const pendingSongs = songs.filter(song => !isSongPrepared(song));
+    publish({ ...idle, status: pendingSongs.length ? 'running' : 'completed', total: pendingSongs.length });
+    for (const song of pendingSongs) {
       throwIfAborted(controller.signal);
       publish({ ...state, currentTitle: song.title, currentFingerprint: getWaveformSourceIdentity(song).sourceFingerprint });
       const ready = await prepareSongSafely(song, controller.signal);

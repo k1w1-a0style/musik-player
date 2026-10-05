@@ -32,7 +32,6 @@ const Settings: React.FC = () => {
   const optionSubtitleTokenStyle = { fontFamily: fonts.body };
   const sectionTokenStyle = { gap: spacing.sm };
   const sectionTitleTokenStyle = { fontFamily: fonts.heading };
-
   const renderAppearanceOption = (option: AppAppearance) => {
     const selected = option === appearance;
     return (
@@ -125,7 +124,9 @@ const Settings: React.FC = () => {
         <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
           Wähle Darstellung, Oberfläche und Player-Ansicht. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
         </Text>
-
+        <View style={[styles.section, sectionTokenStyle]}>
+          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
+          <CoverBassPulseSetting /></View>
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}
@@ -140,7 +141,6 @@ const Settings: React.FC = () => {
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
-        <CoverBassPulseSetting />
         <View
           testID="settings-theme-preview"
           style={[
@@ -171,15 +171,15 @@ const Settings: React.FC = () => {
 const CoverBassPulseSetting = () => {
   const { theme, bassPulseEnabled, setBassPulseEnabled } = useAppTheme();
   const { fonts, radii, spacing } = theme.tokens;
-  return <View style={[styles.option, styles.bassOption, {
+  return <View testID="settings-cover-bass-pulse-option" style={[styles.option, styles.bassOption, {
     backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border,
     borderRadius: radii.card, gap: spacing.xs, padding: spacing.md,
   }]}>
     <View style={styles.bassCopy}>
-      <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Cover zum Bass bewegen</Text>
-      <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Das Cover pulsiert passend zur Basslinie. Nur in der klassischen Player-Ansicht.</Text>
+      <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Cover-Puls zum Bass</Text>
+      <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>An: Das Cover bewegt sich zu Bass und Kickdrum. Aus: Das Cover bleibt ruhig. Gilt nur für die normale Player-Ansicht.</Text>
     </View>
-    <Switch testID="settings-cover-bass-pulse" accessibilityLabel="Cover zum Bass bewegen"
+    <Switch testID="settings-cover-bass-pulse" accessibilityLabel="Cover-Puls zum Bass"
       value={bassPulseEnabled ?? false} onValueChange={setBassPulseEnabled}
       trackColor={{ false: theme.palette.borderStrong, true: theme.palette.primary }} />
   </View>;

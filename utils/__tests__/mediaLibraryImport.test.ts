@@ -1,4 +1,4 @@
-import { StorageAccessFramework } from 'expo-file-system/legacy';
+import { getInfoAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import { cacheBase64Cover } from '../coverCache';
 import { parseId3FromUri } from '../id3Parser';
 import SystemAudio from 'expo-system-audio';
@@ -6,7 +6,7 @@ import * as mediaImport from '../mediaLibraryImport';
 import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 
 jest.mock('expo-file-system/legacy', () => ({
-  getInfoAsync: jest.fn(async () => ({ exists: true, size: 123 })),
+  getInfoAsync: jest.fn(async () => ({ exists: true, size: 123, md5: 'stable-file-hash' })),
   StorageAccessFramework: { readDirectoryAsync: jest.fn(async () => []) },
 }));
 jest.mock('../id3Parser', () => ({ parseId3FromUri: jest.fn(async () => ({})) }));
@@ -28,7 +28,7 @@ describe('mediaLibraryImport', () => {
     const result = await mediaImport.importSongsFromSources({
       platformOs: 'android',
       scanFolders: [{ id: 'new', name: 'New', uri: `${authority}/tree/primary%3A`, enabled: true, addedAt: 2 }],
-      existingSongs: [{ id: 'old', title: 'Old', artist: 'Artist', uri: oldUri }],
+      existingSongs: [{ id: 'old', title: 'Old', artist: 'Artist', uri: oldUri, fileInfo: { size: 123, contentHash: 'stable-file-hash' } }],
     } as mediaImport.ImportSongsOptions);
     expect(result.songs.map(song => song.uri)).toEqual([newUri]);
     expect(parseId3FromUri).toHaveBeenCalledTimes(1);
@@ -45,6 +45,7 @@ describe('mediaLibraryImport', () => {
       coverInfo: { embeddedArtworkChecked: true } });
   });
   beforeEach(() => {
+    (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'stable-file-hash' });
     jest.useRealTimers();
     mediaImport.resetSafTimedOutUrisForTests();
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockReset();
@@ -1165,4 +1166,29 @@ test('buildSongFromImportSource strips m4b extension and placeholder artist segm
   expect(result.artist).toBe('Unbekannt');
   expect(result.fileInfo?.extension).toBe('m4b');
   expect(result.fileInfo?.mimeType).toBe('audio/mp4');
+});
+
+test('a repeat scan skips tags and audio analysis, but a same-size file edit is imported with a new preparation revision', async () => {
+  jest.clearAllMocks();
+  const file = 'content://root/track.mp3';
+  const folders = [{ id: 'f', name: 'Music', uri: 'content://root', enabled: true, addedAt: 1 }];
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([file]);
+  (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'original' });
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Original' });
+  const first = await mediaImport.scanFromSafFolders(folders);
+  jest.clearAllMocks();
+  const same = await mediaImport.scanFromSafFolders(folders, { existingSongs: first.songs });
+  expect(same.songs).toEqual([]);
+  expect(same.reusedCount).toBe(1);
+  expect(parseId3FromUri).not.toHaveBeenCalled();
+  expect(SystemAudio.extractAudioInfo).not.toHaveBeenCalled();
+  expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+  (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'changed-tags' });
+  (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Changed' });
+  const changed = await mediaImport.scanFromSafFolders(folders, { existingSongs: first.songs });
+  expect(changed.songs[0].id).toBe(first.songs[0].id);
+  expect(changed.songs[0].title).toBe('Changed');
+  expect(changed.songs[0].fileInfo?.size).toBe(123);
+  expect(changed.songs[0].fileInfo!.importedAt!).toBeGreaterThan(first.songs[0].fileInfo!.importedAt!);
+  expect(parseId3FromUri).toHaveBeenCalledTimes(1);
 });

@@ -6,7 +6,6 @@ import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
 import { formatTime } from '../utils/musicParser';
 import type { SongWaveform } from '../utils/waveformTypes';
 import SoundCloudWaveformLayers from './SoundCloudWaveformLayers';
-import CrossfadeLayers from './CrossfadeLayers';
 import { normalizeWaveformPoints } from '../utils/waveformGenerator';
 
 interface SoundCloudWaveformViewportProps {
@@ -76,12 +75,10 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
       accessibilityActions={[{ name: 'increment', label: '10 Sekunden vorspulen' },
         { name: 'decrement', label: '10 Sekunden zurückspulen' }]}
       onAccessibilityAction={handleAccessibilityAction}>
-      <CrossfadeLayers value={accent} valueKey={accent} testID="soundcloud-waveform-accent-transition"
-        fill
-        renderLayer={layerAccent => <SoundCloudWaveformLayers points={displayedPoints}
-          sourceKey={waveform.sourceKey} stripWidth={stripWidth} height={height}
-          viewportCenter={viewportCenter} accent={layerAccent} translateX={motion.translateX}
-          ready={ready} showProgress={showProgress} />} />
+      <SoundCloudWaveformLayers points={displayedPoints}
+        sourceKey={waveform.sourceKey} stripWidth={stripWidth} height={height}
+        viewportCenter={viewportCenter} accent={accent} translateX={motion.translateX}
+        ready={ready} showProgress={showProgress} />
     </Animated.View>
   );
   return (

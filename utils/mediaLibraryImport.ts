@@ -11,6 +11,7 @@ import { OperationAbortError, throwIfAborted } from './withTimeout';
 import { EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 import { isSupportedAudioCandidate, normalizeAudioCandidateMimeType } from './audioImportCandidates';
 import { createImportSourceSelection, getImportSourceKey, preserveImportedSource } from './libraryImportSources';
+import { readImportFileRevision } from './importFileRevision';
 import { createImportFileProgressReporter, type ImportFileProgress } from './libraryImportProgress';
 
 const PAGE_SIZE = 200;
@@ -89,6 +90,8 @@ interface BuildSongSource {
   mimeType?: string;
   source: 'media-library' | 'saf';
   size?: number;
+  modificationTime?: number;
+  contentHash?: string;
   bitrateBps?: number;
   sampleRateHz?: number;
   channels?: number;
@@ -257,7 +260,7 @@ const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoR
   durationMs: preferPositiveNumber(source.durationMs, audioInfo?.durationMs),
   mimeType: source.mimeType ?? audioInfo?.mimeType,
   audioMimeType: audioInfo?.mimeType,
-  size: preferPositiveNumber(source.size, audioInfo?.sizeBytes),
+  size: preferPositiveNumber(audioInfo?.sizeBytes, source.size),
   bitrateBps: preferPositiveNumber(source.bitrateBps, audioInfo?.bitrateBps),
   sampleRateHz: preferPositiveNumber(source.sampleRateHz, audioInfo?.sampleRateHz),
   channels: preferPositiveNumber(source.channels, audioInfo?.channels),
@@ -327,8 +330,8 @@ export const buildSongFromImportSource = async (
       container: extension,
       mimeType: deriveMimeType(source.mimeType, extension),
       size,
-      source: source.source,
-      importedAt,
+      modificationTime: source.modificationTime, contentHash: source.contentHash,
+      source: source.source, importedAt,
     },
     audioInfo: {
       codec: source.audioMimeType ?? extension,
@@ -710,15 +713,19 @@ export const enrichMediaLibraryAssets = async (
   const errorDetails: ImportErrorDetail[] = [];
   const seenErrorDetails = new Set<string>();
   const selection = createImportSourceSelection(options);
-  const queue = assets.filter(asset => selection.include(asset.uri));
+  const queue = [...assets];
   const progress = createImportFileProgressReporter(options.onFileProgress, signal);
-  progress.addFiles(queue.length);
 
   const workers = Array.from({ length: ID3_CONCURRENT_READERS }, async () => {
     while (queue.length > 0) {
       throwIfAborted(signal);
       const asset = queue.shift();
       if (!asset) break;
+      const revision = await readImportFileRevision(asset.uri, {
+        size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
+      }, signal);
+      if (!selection.include(asset.uri, revision)) continue;
+      progress.addFiles(1);
       progress.start(asset.uri);
       try {
         const assetMimeType = (asset as { mimeType?: string }).mimeType;
@@ -737,7 +744,7 @@ export const enrichMediaLibraryAssets = async (
           filename: asset.filename,
           durationMs: durationSecondsToMs(asset.duration),
           mimeType: assetMimeType,
-          size: (asset as { fileSize?: number }).fileSize,
+          ...revision,
           source: 'media-library',
         }, audioInfo), tags, { loadNativeCover });
         songs.push(preserveImportedSource(imported, selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)));
@@ -842,13 +849,15 @@ export const scanFromSafFolders = async (
     else if (folderErrors.length > 0) folderUpdates.push({ ...folder, lastError: 'Teilweise nicht lesbar' });
     else folderUpdates.push(folder.lastError ? { ...folder, lastError: undefined } : folder);
 
-    const queue = files.filter(selection.include);
-    progress.addFiles(queue.length);
+    const queue = [...files];
     const workers = Array.from({ length: Math.min(SAF_ID3_CONCURRENT_READERS, queue.length || 1) }, async () => {
       while (queue.length > 0) {
         throwIfAborted(signal);
         const uri = queue.shift();
         if (!uri) return;
+        const revision = await readImportFileRevision(uri, {}, signal);
+        if (!selection.include(uri, revision)) continue;
+        progress.addFiles(1);
         progress.start(uri);
         try {
           const imported = await importSafFile(uri, options, (error, recoverable) => {
@@ -856,7 +865,9 @@ export const scanFromSafFolders = async (
             addImportErrorDetail(uri, 'songBuild', error, recoverable, errorDetails, seenErrorDetails);
           });
           throwIfAborted(signal);
-          if (imported) songs.push(preserveImportedSource(imported,
+          if (imported) songs.push(preserveImportedSource({ ...imported,
+            fileInfo: { ...imported.fileInfo, modificationTime: revision.modificationTime,
+              contentHash: revision.contentHash, size: imported.fileInfo?.size ?? revision.size } },
             selection.previousSources.get(getImportSourceKey(uri) ?? uri)));
         } finally {
           progress.finish(uri);

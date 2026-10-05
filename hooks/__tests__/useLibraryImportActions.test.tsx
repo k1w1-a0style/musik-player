@@ -111,7 +111,7 @@ test('uses scan folder import on android when active scan folders exist', async 
 
   await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')],
     platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function),
-    existingSongs: [song('existing')], refreshExisting: true, onFileProgress: expect.any(Function) }));
+    existingSongs: [song('existing')], refreshExisting: false, onFileProgress: expect.any(Function) }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
@@ -341,7 +341,7 @@ test('uses media library import when no active scan folders exist', async () => 
   expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
   expect(confirmLibraryImportImpl).toHaveBeenCalledWith(1, 0);
   expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0,
-    { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: true,
+    { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: false,
       onFileProgress: expect.any(Function) });
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('media-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');

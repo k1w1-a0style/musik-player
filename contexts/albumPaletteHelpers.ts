@@ -42,6 +42,15 @@ const readMemoryPalette = (artworkUri: string): PaletteResult | null => {
   return cached;
 };
 
+export const getCachedAlbumPalette = (artworkUri: string): PaletteResult | null =>
+  readMemoryPalette(artworkUri);
+
+/** Never displace a foreground request to warm an adjacent cover. */
+export const warmAlbumPalette = async (artworkUri: string | undefined): Promise<void> => {
+  if (!artworkUri || paletteMemoryCache.has(artworkUri) || activePaletteExtraction || queuedPaletteRequest) return;
+  await extractAlbumPalette(artworkUri);
+};
+
 const rememberPalette = (artworkUri: string, palette: PaletteResult): void => {
   paletteMemoryCache.delete(artworkUri);
   paletteMemoryCache.set(artworkUri, palette);

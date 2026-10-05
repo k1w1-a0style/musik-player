@@ -1,3 +1,4 @@
+import { useAdjacentCoverPalettes } from '../hooks/useAdjacentCoverPalettes';
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -117,6 +118,8 @@ export const useNowPlayingScreenState = () => {
   );
   const { canSwipeToNext, adjacentSongs, swipeToSong, swipeToNext, swipeToPrevious } =
     useNowPlayingTrackNavigation({ playbackQueue, currentSong, repeatMode, playSong, next });
+
+  useAdjacentCoverPalettes(adjacentSongs.nextSong, adjacentSongs.previousSong, paletteLoading);
 
   return {
     currentSong,

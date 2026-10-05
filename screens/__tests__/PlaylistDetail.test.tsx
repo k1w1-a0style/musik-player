@@ -137,7 +137,8 @@ test('playlist play skips pending tracks and unlocks a row when preparation fini
   await markSongPrepared(getWaveformSourceIdentity(mockSongs[0]).sourceFingerprint);
   const view = render(<PlaylistDetail />);
   expect(view.getByTestId('playlist-detail-song-song-b')).toBeDisabled();
-  expect(view.getByTestId('song-preparation-progress-song-b')).toBeTruthy();
+  expect(view.queryByTestId('song-preparation-progress-song-b')).toBeNull();
+  expect(view.queryByTestId('song-preparation-percent-song-b')).toBeNull();
   fireEvent.press(view.getByTestId('playlist-detail-song-song-b'));
   expect(mockPlaySong).not.toHaveBeenCalled();
   await act(async () => fireEvent.press(view.getByTestId('playlist-detail-play-button')));

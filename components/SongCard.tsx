@@ -34,6 +34,9 @@ const SongMetadata = ({ song, label, color, tile = false }: {
     testID={`song-card-meta-${song.id.trim() || buildSongKey(song)}`}>{label}</Text>;
 };
 
+const EmptySongInfoSlot = ({ variant }: { variant: LibrarySongCardVariant }) =>
+  <View style={[styles.infoButton, variant === 'tile' && styles.tileInfoButton]} />;
+
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
   const preparation = useSongPreparation(song);
@@ -102,7 +105,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     >
       <CircleEllipsis color={theme.palette.text.muted} size={17} />
     </Pressable>
-  ) : null;
+  ) : <EmptySongInfoSlot variant={variant} />;
 
   if (variant === 'tile') {
     return (
@@ -137,8 +140,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <SongMetadata song={song} label={metadataLabel}
             color={theme.palette.text.muted} tile />
         </View>
+        <SongWaveformStatus song={song} status={preparation} />
       </Pressable>
-      <SongWaveformStatus song={song} status={preparation} />
       </View>
     );
   }
@@ -192,8 +195,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         </View>
         {infoButton}
       </View>
+      <SongWaveformStatus song={song} status={preparation} />
     </Pressable>
-    <SongWaveformStatus song={song} status={preparation} />
     </View>
   );
 };
@@ -220,8 +223,8 @@ const SongCard = memo(
 );
 
 const styles = StyleSheet.create({
-  slot: { height: 82, marginBottom: 6 },
-  bannerSlot: { height: 100 },
+  slot: { height: 70, marginBottom: 6 },
+  bannerSlot: { height: 88 },
   tileSlot: { flex: 1, maxWidth: '50%', marginBottom: 10 },
   container: {
     flex: 1,
@@ -266,7 +269,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  tileContainer: { padding: 8, gap: 6,
+  tileContainer: { position: 'relative', overflow: 'hidden', padding: 8, gap: 6,
     borderWidth: StyleSheet.hairlineWidth, borderRadius: 14 },
   tileContent: { gap: 6 },
   tileCurrent: { borderRadius: 12 },

@@ -4,6 +4,7 @@ import type { Song } from '../types/Song';
 import {
   extractAlbumPalette,
   getAlbumPaletteArtworkUri,
+  getCachedAlbumPalette,
 } from './albumPaletteHelpers';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 
@@ -42,6 +43,8 @@ export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteStat
     }
 
     if (resolution?.artworkUri !== currentArtworkUri) {
+      const cached = getCachedAlbumPalette(currentArtworkUri);
+      if (cached) return { palette: mergeNativeAndFallbackPalette(cached, currentSong), isLoading: false };
       return { palette: null, isLoading: true };
     }
 

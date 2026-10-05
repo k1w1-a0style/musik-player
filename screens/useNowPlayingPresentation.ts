@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import type { ColorValue } from 'react-native';
 import type { PaletteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
@@ -32,26 +32,14 @@ interface NowPlayingPresentationState {
 export const useNowPlayingPresentation = ({
   currentSong,
   palette,
-  paletteLoading = false,
 }: UseNowPlayingPresentationArgs): NowPlayingPresentationState => {
   const appTheme = useOptionalAppTheme()?.theme ?? getAppTheme();
-
-  // Retain the last palette only across a confirmed async loading transition.
-  // A terminal null (no artwork, extraction failure, rejection or timeout)
-  // clears the ref so the current song's deterministic fallback takes over.
-  const lastNativePaletteRef = useRef<PaletteResult | null>(null);
-  if (palette !== null) {
-    lastNativePaletteRef.current = palette;
-  } else if (!paletteLoading) {
-    lastNativePaletteRef.current = null;
-  }
-  const resolvedPalette = palette ?? (paletteLoading ? lastNativePaletteRef.current : null);
 
   // Native palette wins per-field, JS fallback fills the gaps so the gradient
   // is never the hard black/green brand color and stays deterministic per song.
   const effectivePalette = useMemo(
-    () => mergeNativeAndFallbackPalette(resolvedPalette, currentSong),
-    [resolvedPalette, currentSong],
+    () => mergeNativeAndFallbackPalette(palette, currentSong),
+    [palette, currentSong],
   );
   const accent = effectivePalette.vibrant ?? effectivePalette.dominant ?? appTheme.palette.accent;
   const accentDark = effectivePalette.darkVibrant ?? effectivePalette.darkMuted ?? appTheme.palette.backgroundDeep;

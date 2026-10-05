@@ -127,6 +127,8 @@ const songFileInfoSchema = z.object({
   container: z.string().optional(),
   mimeType: z.string().optional(),
   size: z.number().optional(),
+  modificationTime: z.number().optional(),
+  contentHash: z.string().optional(),
   source: z.string().optional(),
   importedAt: z.number().optional(),
 }).passthrough();

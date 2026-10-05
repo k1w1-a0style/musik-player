@@ -1,4 +1,5 @@
-import type { Song } from '../types/Song';
+import type { Song, SongFileInfo } from '../types/Song';
+import { sameImportFileRevision, type ImportFileRevision } from './importFileRevision';
 
 /** SAF tree grants can differ while referring to the same physical document. */
 export const getImportSourceKey = (uri?: string): string | undefined => {
@@ -25,24 +26,31 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
   const seen = new Set<string>();
   let reused = 0;
   let duplicates = 0;
-  const include = (uri: string): boolean => {
+  const include = (uri: string, revision?: ImportFileRevision): boolean => {
     const key = getImportSourceKey(uri) ?? uri;
     if (seen.has(key)) { duplicates += 1; return false; }
     seen.add(key);
-    if (!options.refreshExisting && previousSources.has(key)) { reused += 1; return false; }
+    const previous = previousSources.get(key);
+    if (!options.refreshExisting && previous && (!revision || sameImportFileRevision(previous.fileInfo ?? {}, revision))) {
+      reused += 1; return false;
+    }
     return true;
   };
   return { previousSources, include, getReusedCount: () => reused, getSkippedCount: () => reused + duplicates };
 };
 
+const changedRevision = (previous: SongFileInfo = {}, current: SongFileInfo = {}): boolean =>
+  (previous.size !== undefined && current.size !== undefined && previous.size !== current.size)
+  || (previous.contentHash !== undefined && current.contentHash !== undefined && previous.contentHash !== current.contentHash)
+  || (previous.modificationTime !== undefined && current.modificationTime !== undefined && previous.modificationTime !== current.modificationTime);
+
 /** A metadata rescan must not manufacture a new audio revision. */
 export const preserveImportedSource = (song: Song, previous?: Song): Song => {
   if (!previous) return song;
-  const sizeChanged = previous.fileInfo?.size !== undefined && song.fileInfo?.size !== undefined
-    && previous.fileInfo.size !== song.fileInfo.size;
+  const changed = changedRevision(previous.fileInfo, song.fileInfo);
   return { ...song, id: previous.id, uri: previous.uri ?? song.uri,
     fileInfo: { ...song.fileInfo, uri: previous.fileInfo?.uri ?? previous.uri ?? song.uri,
-      importedAt: sizeChanged ? song.fileInfo?.importedAt
+      importedAt: changed ? Math.max(song.fileInfo?.importedAt ?? Date.now(), (previous.fileInfo?.importedAt ?? 0) + 1)
         : previous.fileInfo?.importedAt ?? song.fileInfo?.importedAt } };
 };
 

@@ -122,7 +122,7 @@ describe('useNowPlayingPresentation', () => {
     expect(['#FFFFFF', '#0A0B0C']).toContain(getByTestId('foreground').props.children);
   });
 
-  test('does not mix a retained partial native palette with the new song fallback while artwork loads', async () => {
+  test('uses the new song fallback immediately while its artwork palette loads', async () => {
     let resolveFirst: (value: { dominant: string }) => void = () => undefined;
     let resolveSecond: (value: { dominant: string }) => void = () => undefined;
     jest
@@ -156,8 +156,8 @@ describe('useNowPlayingPresentation', () => {
 
     rerender(<TransitionProbe currentSong={secondSong} />);
 
-    expect(getByTestId('accent').props.children).toBe(firstVisibleAccent);
-    expect(getByTestId('accent').props.children).not.toBe(secondFallbackAccent);
+    expect(getByTestId('accent').props.children).toBe(secondFallbackAccent);
+    expect(getByTestId('accent').props.children).not.toBe(firstVisibleAccent);
 
     await act(async () => {
       resolveSecond({ dominant: '#222222' });

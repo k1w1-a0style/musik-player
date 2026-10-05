@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import LibraryMetadataScanProgress from '../LibraryMetadataScanProgress';
+import LibraryImportStatus from '../LibraryImportStatus';
 import LibraryPreparationStatus from '../LibraryPreparationStatus';
 import { clearImportFileProgress, publishImportFileProgress } from '../../utils/libraryImportProgress';
 import { cancelWaveformPreparation, resumeWaveformPreparation, useWaveformPreparation } from '../../utils/libraryWaveformPreparation';
@@ -17,18 +17,17 @@ jest.mock('../../utils/libraryWaveformPreparation', () => ({
 
 beforeEach(() => { clearImportFileProgress(); resetWaveformStatusForTests(); });
 
-test('shows a current metadata title and completed-file progress, then clears the scan', () => {
-  const view = render(<LibraryMetadataScanProgress />);
+test('does not add either top progress bar while metadata is being read', () => {
+  const view = render(<LibraryImportStatus status="Dateien prüfen…" />);
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
   act(() => publishImportFileProgress({ currentTitle: 'Current.mp3', processed: 1, total: 3 }));
-  expect(view.getByText('1/3 · Current.mp3')).toBeTruthy();
-  expect(view.getByTestId('library-metadata-scan-progress').props.accessibilityValue).toEqual({ min: 0, max: 3, now: 1 });
-  expect(view.getByTestId('library-metadata-current-track').props.accessibilityValue).toEqual({ text: 'Wird gelesen' });
+  expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
+  expect(view.queryByTestId('library-metadata-current-track')).toBeNull();
   act(clearImportFileProgress);
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
 });
 
-test('keeps only a compact scan control; percentages belong below unfinished tracks', () => {
+test('keeps only a compact scan control; only unfinished tracks animate', () => {
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'running', total: 3,
     processed: 1, ready: 1, failed: 0, currentTitle: 'Current', currentFingerprint: 'current-source' });
   const view = render(<LibraryPreparationStatus visible />);

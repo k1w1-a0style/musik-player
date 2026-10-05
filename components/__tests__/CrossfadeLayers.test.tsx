@@ -102,39 +102,36 @@ describe('CrossfadeLayers', () => {
     expect(queryByTestId('color-transition-outgoing', { includeHiddenElements: true })).not.toBeNull();
     expect(getByTestId('value-blue')).toBeTruthy();
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      duration: 1800,
+      duration: 1000,
       useNativeDriver: true,
     }));
   });
 
-  test('finishes the visible color blend before fading to the latest requested track', () => {
+  test('retargets immediately from the visible mixture and ignores stale completions', () => {
     const finishes: Array<(result: { finished: boolean }) => void> = [];
-    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
-      start: callback => { if (callback) finishes.push(callback); },
-      stop: jest.fn(), reset: jest.fn(),
-    }));
+    let transition!: Animated.Value;
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(value => {
+      transition = value as Animated.Value;
+      return { start: callback => { if (callback) finishes.push(callback); },
+        stop: jest.fn(), reset: jest.fn() };
+    });
     const layer = (color: string) => <CrossfadeLayers value={color} valueKey={color}
       renderLayer={renderValue} testID="color-transition" />;
     const { rerender, getByTestId, queryByTestId } = render(layer('red'));
-
     rerender(layer('blue'));
+    act(() => transition.setValue(0.5));
     rerender(layer('green'));
-    rerender(layer('gold'));
-
-    expect(timing).toHaveBeenCalledTimes(1);
-    expect(getByTestId('value-red', { includeHiddenElements: true })).toBeTruthy();
-    expect(getByTestId('value-blue')).toBeTruthy();
-    expect(queryByTestId('value-gold')).toBeNull();
-
-    act(() => finishes[0]({ finished: true }));
     expect(timing).toHaveBeenCalledTimes(2);
-    expect(queryByTestId('value-red', { includeHiddenElements: true })).toBeNull();
-    expect(queryByTestId('value-green', { includeHiddenElements: true })).toBeNull();
+    expect(getByTestId('value-green')).toBeTruthy();
+    expect(getByTestId('value-red', { includeHiddenElements: true })).toBeTruthy();
     expect(getByTestId('value-blue', { includeHiddenElements: true })).toBeTruthy();
+    rerender(layer('gold'));
+    expect(timing).toHaveBeenCalledTimes(3);
     expect(getByTestId('value-gold')).toBeTruthy();
-
-    act(() => finishes[1]({ finished: true }));
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ delay: 0 }));
+    act(() => finishes[0]({ finished: true }));
+    expect(getByTestId('color-transition-outgoing', { includeHiddenElements: true })).toBeTruthy();
+    act(() => finishes[2]({ finished: true }));
     expect(queryByTestId('color-transition-outgoing')).toBeNull();
-    expect(getByTestId('value-gold')).toBeTruthy();
   });
 });

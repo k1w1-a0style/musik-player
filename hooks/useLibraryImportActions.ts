@@ -110,9 +110,9 @@ export const useLibraryImportActions = ({
       setImportStatus(importCopy.preparingStatus);
       const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
       if (shouldImportFromScanFolders(activeFolders, platformOs)) {
-        await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? true);
+        await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? false);
       } else {
-        await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? true);
+        await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? false);
       }
     } catch (error) {
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import type { ColorValue, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
-import { PLAYER_COLOR_CROSSFADE_DELAY_MS, PLAYER_COLOR_CROSSFADE_MS } from '../components/CrossfadeLayers';
+import { useColorCrossfade } from '../hooks/useColorCrossfade';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -53,7 +53,6 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   accent,
   glowLeft,
   artworkUri,
-  paletteLoading = false,
 }) => {
   const { theme } = useAppTheme();
   const overlayColors = getNowPlayingBackdropOverlayColors(theme.appearance);
@@ -61,46 +60,17 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     () => buildSnapshot({ gradientColors, accent, glowLeft, artworkUri }),
     [accent, artworkUri, glowLeft, gradientColors],
   );
-  const [active, setActive] = useState(incoming);
-  const [outgoing, setOutgoing] = useState<BackdropSnapshot | null>(null);
-  const transition = useRef(new Animated.Value(1)).current;
-  const transitionGeneration = useRef(0);
-
-  useEffect(() => {
-    if (incoming.key === active.key) return;
-    if (paletteLoading) return;
-    if (outgoing) return;
-    transitionGeneration.current += 1;
-    transition.stopAnimation();
-    setActive(incoming);
-    setOutgoing(active);
-    transition.setValue(0);
-  }, [active, incoming, outgoing, paletteLoading, transition]);
-
-  useEffect(() => {
-    if (!outgoing) return;
-    // Start after the incoming and outgoing native views have been attached.
-    const generation = transitionGeneration.current;
-    Animated.timing(transition, {
-      toValue: 1,
-      duration: PLAYER_COLOR_CROSSFADE_MS,
-      delay: PLAYER_COLOR_CROSSFADE_DELAY_MS,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
-      isInteraction: false,
-    }).start(({ finished }) => {
-      if (finished && transitionGeneration.current === generation) setOutgoing(null);
-    });
-    return () => transition.stopAnimation();
-  }, [outgoing, transition]);
+  const { active, outgoing, transition } = useColorCrossfade(incoming, incoming.key);
 
   return (
     <>
-      {outgoing ? (
-        <BackdropLayer snapshot={outgoing} opacity={1}
-          artworkTestId="now-playing-cover-backdrop-outgoing" />
-      ) : null}
-      <BackdropLayer snapshot={active} opacity={outgoing ? transition : 1}
+      {outgoing.map((layer, index) => {
+        const accumulated = outgoing.slice(0, index + 1).reduce((sum, item) => sum + item.weight, 0);
+        return <BackdropLayer key={`${layer.key}:${index}`} snapshot={layer.value}
+          opacity={index === 0 ? 1 : layer.weight / accumulated}
+          artworkTestId={`now-playing-cover-backdrop-outgoing${index ? `-${index}` : ''}`} />;
+      })}
+      <BackdropLayer snapshot={active.value} opacity={outgoing.length ? transition : 1}
         artworkTestId="now-playing-cover-backdrop" />
       <LinearGradient colors={overlayColors} style={StyleSheet.absoluteFill} pointerEvents="none" />
     </>

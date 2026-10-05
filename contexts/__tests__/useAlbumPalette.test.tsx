@@ -3,7 +3,7 @@ import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { useAlbumPaletteState } from '../useAlbumPalette';
-import { resetAlbumPaletteSingleFlightForTests } from '../albumPaletteHelpers';
+import { extractAlbumPalette, resetAlbumPaletteSingleFlightForTests } from '../albumPaletteHelpers';
 import {
   buildJsFallbackPalette,
   mergeNativeAndFallbackPalette,
@@ -241,4 +241,13 @@ describe('useAlbumPalette', () => {
     expect(readPalette(getByTestId('palette').props.children)).toEqual(secondEffectivePalette);
     expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
   });
+});
+
+test('makes an adjacent cached cover palette available synchronously on track switch', async () => {
+  jest.spyOn(SystemAudio, 'extractPalette').mockResolvedValue({ vibrant: '#e055aa' });
+  await extractAlbumPalette(secondSongWithCover.cover);
+  const view = render(<PaletteProbe song={secondSongWithCover} />);
+  expect(readPalette(view.getByTestId('palette').props.children)?.vibrant).toBe('#e055aa');
+  view.unmount();
+  resetAlbumPaletteSingleFlightForTests();
 });

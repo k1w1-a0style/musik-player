@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { libraryImportMessages } from '../utils/libraryImportMessages';
-import LibraryMetadataScanProgress from './LibraryMetadataScanProgress';
 import {
   useMetadataRefreshOperation,
   canResumeMetadataRefresh,
@@ -109,33 +108,6 @@ const RefreshAction = ({
   );
 };
 
-interface RefreshCountersProps {
-  visible: boolean;
-  processed: number;
-  total: number;
-  updated: number;
-  skipped: number;
-  failed: number;
-  color: string;
-}
-
-const RefreshCounters = ({
-  visible,
-  processed,
-  total,
-  updated,
-  skipped,
-  failed,
-  color,
-}: RefreshCountersProps): React.ReactElement | null => {
-  if (!visible || total <= 0) return null;
-  return (
-    <Text style={[styles.detailsText, { color }]} testID="library-import-status-counters">
-      {`${processed}/${total} · ${updated} aktualisiert · ${skipped} übersprungen · ${failed} fehlgeschlagen`}
-    </Text>
-  );
-};
-
 const RefreshErrors = ({
   errorDetails,
   color,
@@ -199,16 +171,6 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, onCan
           labelColor={theme.palette.text.onPrimary}
         />
       </View>
-      <LibraryMetadataScanProgress />
-      <RefreshCounters
-        visible={isRunning || isCancelling || showResume}
-        processed={operation.processed}
-        total={operation.total}
-        updated={operation.updated}
-        skipped={operation.skipped}
-        failed={operation.failed}
-        color={theme.palette.text.secondary}
-      />
       <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />
     </View>
   );

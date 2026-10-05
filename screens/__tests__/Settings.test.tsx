@@ -170,3 +170,15 @@ test('bass pulse can be switched off from Settings', () => {
   fireEvent(view.getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
   expect(mockSetBassPulse).toHaveBeenCalledWith(false);
 });
+
+test('places the optional classic cover pulse at the top of the settings', () => {
+  const { getByTestId, getByText } = render(<Settings />);
+  expect(getByText('Cover-Puls zum Bass')).toBeTruthy();
+  expect(getByText('Wiedergabe')).toBeTruthy();
+  const option = getByTestId('settings-cover-bass-pulse-option');
+  const appearance = getByTestId('settings-appearance-dark');
+  const content = getByTestId('settings-scroll').findAllByType('View');
+  expect(content.indexOf(option)).toBeLessThan(content.indexOf(appearance));
+  fireEvent(getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
+  expect(mockSetBassPulse).toHaveBeenCalledWith(false);
+});

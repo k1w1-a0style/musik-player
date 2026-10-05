@@ -5,6 +5,9 @@ export interface SongFileInfo {
   container?: string;
   mimeType?: string;
   size?: number;
+  /** Source revision, separate from the import time. */
+  modificationTime?: number;
+  contentHash?: string;
   source?: string;
   importedAt?: number;
 }

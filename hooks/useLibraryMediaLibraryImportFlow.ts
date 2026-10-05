@@ -49,7 +49,7 @@ export const useLibraryMediaLibraryImportFlow = ({
   applyImportedSongsUpdate,
 }: UseLibraryMediaLibraryImportFlowOptions) => {
   const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration,
-    refreshExisting = true): Promise<void> => {
+    refreshExisting = false): Promise<void> => {
     ensureCurrentImport(generation);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await requestMediaLibraryPermissionsAsync();

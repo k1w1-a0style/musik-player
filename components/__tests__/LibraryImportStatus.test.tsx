@@ -59,11 +59,13 @@ test('shows abort button while the refresh is running and calls back', () => {
   expect(onCancel).toHaveBeenCalledTimes(1);
 });
 
-test('shows live counters while running', () => {
+test('keeps the scan header compact without counters or progress bars', () => {
   beginMetadataRefreshOperation(83, 0);
   updateMetadataRefreshProgress({ processed: 67, updated: 60, skipped: 5, failed: 2 });
-  const { getByTestId } = render(<LibraryImportStatus status="läuft" />);
-  expect(getByTestId('library-import-status-counters').props.children).toContain('67/83');
+  const { queryByTestId } = render(<LibraryImportStatus status="läuft" />);
+  expect(queryByTestId('library-import-status-counters')).toBeNull();
+  expect(queryByTestId('library-metadata-scan-progress')).toBeNull();
+  expect(queryByTestId('library-metadata-current-track')).toBeNull();
 });
 
 test('shows resume button when refresh paused with partial progress', () => {

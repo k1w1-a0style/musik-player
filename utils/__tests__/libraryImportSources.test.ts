@@ -27,3 +27,22 @@ test('metadata refresh preserves prepared audio identity and track references', 
   expect(getWaveformSourceIdentity(replaced).sourceFingerprint)
     .not.toBe(getWaveformSourceIdentity(old).sourceFingerprint);
 });
+
+test('skips unchanged revisions but includes changed tags, file size and new sources', () => {
+  const previous = { ...old, fileInfo: { ...old.fileInfo, modificationTime: 100, contentHash: 'old-hash' } };
+  const selection = createImportSourceSelection({ existingSongs: [previous] });
+  expect(selection.include(newUri, { size: 1000, modificationTime: 100 })).toBe(false);
+  expect(selection.getReusedCount()).toBe(1);
+  const changed = createImportSourceSelection({ existingSongs: [previous] });
+  expect(changed.include(newUri, { size: 1000, modificationTime: 101 })).toBe(true);
+  const changedHash = createImportSourceSelection({ existingSongs: [previous] });
+  expect(changedHash.include(newUri, { size: 1000, contentHash: 'new-hash' })).toBe(true);
+  const changedSize = createImportSourceSelection({ existingSongs: [previous] });
+  expect(changedSize.include(newUri, { size: 2000, modificationTime: 100 })).toBe(true);
+});
+
+test('same-size replacement receives a new preparation identity', () => {
+  const previous = { ...old, fileInfo: { ...old.fileInfo, modificationTime: 100 } };
+  const incoming = { ...previous, fileInfo: { ...previous.fileInfo, modificationTime: 101, importedAt: 20 } };
+  expect(getWaveformSourceIdentity(preserveImportedSource(incoming, previous))).not.toEqual(getWaveformSourceIdentity(previous));
+});
