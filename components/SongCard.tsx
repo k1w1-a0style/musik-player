@@ -106,6 +106,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
 
   if (variant === 'tile') {
     return (
+      <View style={styles.tileSlot} testID={`song-card-slot-${songTestId}`}>
       <Pressable
         testID={`song-card-${songTestId}`}
         accessibilityRole="button"
@@ -136,14 +137,16 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <SongMetadata song={song} label={metadataLabel}
             color={theme.palette.text.muted} tile />
         </View>
-        <SongWaveformStatus song={song} status={preparation} />
       </Pressable>
+      <SongWaveformStatus song={song} status={preparation} />
+      </View>
     );
   }
 
   const isBanner = variant === 'banner';
 
   return (
+    <View style={[styles.slot, isBanner && styles.bannerSlot]} testID={`song-card-slot-${songTestId}`}>
     <Pressable
       testID={`song-card-${songTestId}`}
       accessibilityRole="button"
@@ -189,8 +192,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         </View>
         {infoButton}
       </View>
-      <SongWaveformStatus song={song} status={preparation} />
     </Pressable>
+    <SongWaveformStatus song={song} status={preparation} />
+    </View>
   );
 };
 
@@ -216,18 +220,20 @@ const SongCard = memo(
 );
 
 const styles = StyleSheet.create({
+  slot: { height: 82, marginBottom: 6 },
+  bannerSlot: { height: 100 },
+  tileSlot: { flex: 1, maxWidth: '50%', marginBottom: 10 },
   container: {
-    height: 82,
+    flex: 1,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    marginBottom: 6,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
     overflow: 'hidden',
     justifyContent: 'center',
   },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bannerContainer: { height: 100, paddingVertical: 6 },
+  bannerContainer: { paddingVertical: 6 },
   pressed: { opacity: 0.72 },
   preparing: { opacity: 0.5 },
   activeRail: { position: 'absolute', left: -10, width: 3, height: 34, borderRadius: 3, backgroundColor: 'transparent' },
@@ -260,7 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  tileContainer: { flex: 1, maxWidth: '50%', padding: 8, gap: 6, marginBottom: 10,
+  tileContainer: { padding: 8, gap: 6,
     borderWidth: StyleSheet.hairlineWidth, borderRadius: 14 },
   tileContent: { gap: 6 },
   tileCurrent: { borderRadius: 12 },

@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export const PLAYER_COLOR_CROSSFADE_DELAY_MS = 120;
-export const PLAYER_COLOR_CROSSFADE_MS = 760;
+export const PLAYER_COLOR_CROSSFADE_MS = 1800;
 
 interface CrossfadeSnapshot<T> {
   key: string;
@@ -29,7 +28,6 @@ interface CrossfadeLayersProps<T> {
 const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
   duration = PLAYER_COLOR_CROSSFADE_MS, delay = PLAYER_COLOR_CROSSFADE_DELAY_MS,
   style, fill = false }: CrossfadeLayersProps<T>) => {
-  const reduceMotion = useReducedMotion();
   const incoming = useMemo<CrossfadeSnapshot<T>>(
     () => ({ key: valueKey, value }),
     [value, valueKey],
@@ -43,13 +41,13 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
     if (incoming.key === active.key) return;
     // Finish the current blend before moving to the latest requested value.
     // This avoids a visible opacity jump during very fast track changes.
-    if (outgoing && !reduceMotion) return;
+    if (outgoing) return;
 
     generationRef.current += 1;
     transition.stopAnimation();
     setActive(incoming);
 
-    if (reduceMotion || duration <= 0) {
+    if (duration <= 0) {
       transition.setValue(1);
       setOutgoing(null);
       return;
@@ -57,11 +55,11 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
 
     setOutgoing(active);
     transition.setValue(0);
-  }, [active, duration, incoming, outgoing, reduceMotion, transition]);
+  }, [active, duration, incoming, outgoing, transition]);
 
   useEffect(() => {
     if (!outgoing) return;
-    if (reduceMotion || duration <= 0) {
+    if (duration <= 0) {
       transition.setValue(1);
       setOutgoing(null);
       return;
@@ -73,13 +71,14 @@ const CrossfadeLayers = <T,>({ value, valueKey, renderLayer, testID,
       toValue: 1,
       duration,
       delay,
-      easing: Easing.inOut(Easing.cubic),
+      easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
+      isInteraction: false,
     }).start(({ finished }) => {
       if (finished && generationRef.current === generation) setOutgoing(null);
     });
     return () => transition.stopAnimation();
-  }, [delay, duration, outgoing, reduceMotion, transition]);
+  }, [delay, duration, outgoing, transition]);
 
   const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
 

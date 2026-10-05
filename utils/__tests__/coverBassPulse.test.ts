@@ -1,6 +1,11 @@
 import { getCoverBassScale, hasBassEnvelope, MAX_COVER_BASS_SCALE } from '../coverBassPulse';
 import { buildNativeWaveform } from '../waveformGenerator';
 
+test('ordinary bass energy produces a visible pulse rather than a subpixel change', () => {
+  expect(getCoverBassScale([0.35], 1000, 100)).toBeGreaterThanOrEqual(1.03);
+  expect(getCoverBassScale([0.03], 1000, 100)).toBe(1);
+});
+
 test('only decoded bass peaks enlarge the cover, at the corresponding playback time', () => {
   expect(getCoverBassScale([0, 1, 0, 0.5], 2000, 100)).toBe(1);
   expect(getCoverBassScale([0, 1, 0, 0.5], 2000, 600)).toBeCloseTo(MAX_COVER_BASS_SCALE);

@@ -76,17 +76,20 @@ const CoverCard = React.memo(({ role, song, artworkUri, isPlaying, coverSize,
 
 const StaticCoverArtwork = ({ song, artworkUri, isPlaying, accent, coverSize }:
   NowPlayingCoverArtworkProps) => {
-  const { theme } = useAppTheme();
+  const { theme, bassPulseEnabled, isBassPulseHydrated } = useAppTheme();
   const cardProps = {
     coverSize,
     backgroundColor: theme.palette.surface,
   };
   return (
-    <View style={[styles.coverShadow, { width: coverSize, height: coverSize,
-      shadowColor: accent, backgroundColor: theme.palette.surface }]}>
-      <CoverCard role="current" song={song} artworkUri={artworkUri} isPlaying={isPlaying}
-        {...cardProps} />
-    </View>
+    <CoverBassPulse song={song} isPlaying={isPlaying}
+      enabled={Boolean(song && bassPulseEnabled && isBassPulseHydrated)}>
+      <View style={[styles.coverShadow, { width: coverSize, height: coverSize,
+        shadowColor: accent, backgroundColor: theme.palette.surface }]}>
+        <CoverCard role="current" song={song} artworkUri={artworkUri} isPlaying={isPlaying}
+          {...cardProps} />
+      </View>
+    </CoverBassPulse>
   );
 };
 
@@ -94,7 +97,6 @@ const CoverPage = ({ pageWidth, accent, ...props }: CoverCardProps & {
   pageWidth: number; accent: string;
 }) => {
   const { bassPulseEnabled, isBassPulseHydrated } = useAppTheme();
-  const reduceMotion = useReducedMotion();
   const artwork = props.song || props.role === 'current' ? (
     <View style={[styles.coverShadow, { width: props.coverSize, height: props.coverSize,
       shadowColor: accent, backgroundColor: props.backgroundColor }]}>
@@ -104,7 +106,7 @@ const CoverPage = ({ pageWidth, accent, ...props }: CoverCardProps & {
   return <View style={[styles.coverPage, { width: pageWidth }]}
     testID={`now-playing-cover-${props.role}-page`}>
     <CoverBassPulse song={props.song} isPlaying={props.isPlaying}
-      enabled={Boolean(bassPulseEnabled && isBassPulseHydrated && !reduceMotion && props.role === 'current')}>
+      enabled={Boolean(bassPulseEnabled && isBassPulseHydrated && props.role === 'current')}>
       {artwork}
     </CoverBassPulse>
   </View>;

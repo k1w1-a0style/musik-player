@@ -1,10 +1,10 @@
 import React from 'react';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import LibraryMetadataScanProgress from '../LibraryMetadataScanProgress';
 import LibraryPreparationStatus from '../LibraryPreparationStatus';
 import { clearImportFileProgress, publishImportFileProgress } from '../../utils/libraryImportProgress';
-import { useWaveformPreparation } from '../../utils/libraryWaveformPreparation';
-import { resetWaveformStatusForTests, setWaveformProgress, setWaveformStatus } from '../../utils/waveformStatus';
+import { cancelWaveformPreparation, resumeWaveformPreparation, useWaveformPreparation } from '../../utils/libraryWaveformPreparation';
+import { resetWaveformStatusForTests } from '../../utils/waveformStatus';
 
 jest.mock('../../contexts/AppThemeContext', () => ({
   useAppTheme: () => ({ theme: { palette: { primary: '#eee', surfaceGlass: '#222', border: '#333',
@@ -28,12 +28,20 @@ test('shows a current metadata title and completed-file progress, then clears th
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
 });
 
-test('the current waveform title shows its own decoded PCM percentage', () => {
+test('keeps only a compact scan control; percentages belong below unfinished tracks', () => {
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'running', total: 3,
     processed: 1, ready: 1, failed: 0, currentTitle: 'Current', currentFingerprint: 'current-source' });
-  setWaveformStatus('current-source', 'analyzing');
   const view = render(<LibraryPreparationStatus visible />);
-  expect(view.getByTestId('library-current-track-progress').props.accessibilityValue.text).toBe('Wird vorbereitet');
-  act(() => setWaveformProgress('current-source', 0.43));
-  expect(view.getByTestId('library-current-track-progress').props.accessibilityValue).toEqual({ min: 0, max: 100, now: 43 });
+  expect(view.getByText('Medien-Scan läuft')).toBeTruthy();
+  expect(view.queryByTestId('library-current-track-progress')).toBeNull();
+  expect(view.queryByTestId('library-waveform-preparation-counts')).toBeNull();
+  fireEvent.press(view.getByText('Abbrechen'));
+  expect(cancelWaveformPreparation).toHaveBeenCalled();
+  (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'cancelled', failed: 0 });
+  view.rerender(<LibraryPreparationStatus visible />);
+  fireEvent.press(view.getByText('Fortsetzen'));
+  expect(resumeWaveformPreparation).toHaveBeenCalled();
+  (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'completed', failed: 0, ready: 3 });
+  view.rerender(<LibraryPreparationStatus visible />);
+  expect(view.queryByTestId('library-waveform-preparation')).toBeNull();
 });

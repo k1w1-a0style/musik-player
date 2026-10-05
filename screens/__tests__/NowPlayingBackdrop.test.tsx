@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
-import { Animated } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import NowPlayingBackdrop from '../NowPlayingBackdrop';
 
 jest.mock('../../contexts/AppThemeContext', () => ({
@@ -51,7 +51,7 @@ describe('NowPlayingBackdrop', () => {
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       toValue: 1,
       delay: 120,
-      duration: 760,
+      duration: 1800,
       useNativeDriver: true,
     }));
 
@@ -102,5 +102,20 @@ describe('NowPlayingBackdrop', () => {
       accent="#666666" glowLeft={20} artworkUri="file:///two.jpg" />);
 
     expect(mountedAtStart).toEqual([true]);
+  });
+
+  test('keeps the old color opaque beneath the incoming color at the blend midpoint', () => {
+    let transition!: Animated.Value;
+    jest.spyOn(Animated, 'timing').mockImplementation(value => {
+      transition = value as Animated.Value;
+      return { start: jest.fn(), stop: jest.fn(), reset: jest.fn() };
+    });
+    const view = render(<NowPlayingBackdrop gradientColors={['#111111', '#222222']}
+      accent="#333333" glowLeft={20} artworkUri="file:///one.jpg" />);
+    view.rerender(<NowPlayingBackdrop gradientColors={['#444444', '#555555']}
+      accent="#666666" glowLeft={20} artworkUri="file:///two.jpg" />);
+    act(() => transition.setValue(0.5));
+    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-backdrop-outgoing-layer').props.style).opacity).toBe(1);
+    expect(StyleSheet.flatten(view.getByTestId('now-playing-cover-backdrop-layer').props.style).opacity).toBe(0.5);
   });
 });

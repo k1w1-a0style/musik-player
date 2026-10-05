@@ -33,6 +33,8 @@ test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, 
   expect(onPress).not.toHaveBeenCalled();
   expect(view.getByTestId('song-preparation-progress-pending')).toBeTruthy();
   expect(content().findAllByProps({ testID: 'song-preparation-progress-pending' })).toHaveLength(0);
+  expect(row().findAllByProps({ testID: 'song-preparation-progress-pending' })).toHaveLength(0);
+  expect(view.getByTestId('song-card-slot-pending').findAllByProps({ testID: 'song-preparation-progress-pending' })).not.toHaveLength(0);
 
   act(() => setWaveformStatus(fingerprint, 'analyzing'));
   expect(row().props.accessibilityState.busy).toBe(true);
@@ -41,7 +43,7 @@ test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, 
   expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(43);
   await act(async () => { await markSongPrepared(fingerprint); });
   expect(row().props.accessibilityState.disabled).toBe(false);
-  expect(view.getByTestId('song-preparation-progress-pending').props.accessibilityValue.now).toBe(100);
+  expect(view.queryByTestId('song-preparation-progress-pending')).toBeNull();
   expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
   expect(view.queryByText('✓')).toBeNull();
   fireEvent.press(row());
@@ -73,5 +75,5 @@ test('a known preparation failure takes priority over historical completion', as
   setWaveformStatus(fingerprint, 'unavailable');
   const view = render(<SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />);
   expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).toBe(true);
-  expect(view.getByText('Vorbereitung fehlgeschlagen')).toBeTruthy();
+  expect(view.getByText('Scan fehlgeschlagen')).toBeTruthy();
 });

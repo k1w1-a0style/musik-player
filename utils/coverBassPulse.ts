@@ -1,6 +1,6 @@
 import type { SongWaveform } from './waveformTypes';
 
-export const MAX_COVER_BASS_SCALE = 1.055;
+export const MAX_COVER_BASS_SCALE = 1.08;
 export const BASS_PULSE_STEP_MS = 50;
 
 export const hasBassEnvelope = (waveform: SongWaveform | null | undefined): waveform is SongWaveform & { bassPoints: number[] } =>
@@ -15,5 +15,8 @@ export const getCoverBassScale = (points: readonly number[], durationMs: number,
   const energy = points[index];
   if (!Number.isFinite(energy) || energy <= 0.08) return 1;
   const bass = Math.max(0, Math.min(1, (energy - 0.08) / 0.92));
-  return 1 + (MAX_COVER_BASS_SCALE - 1) * bass * bass;
+  // Ordinary mastered music contains much less bass energy than a pure bass
+  // tone. Make those real beats visible without amplifying silence/treble
+  // residue or exceeding the cover's safe bounds.
+  return 1 + (MAX_COVER_BASS_SCALE - 1) * Math.sqrt(bass);
 };

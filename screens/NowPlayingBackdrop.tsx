@@ -3,8 +3,8 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 import type { ColorValue, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import { getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
+import { PLAYER_COLOR_CROSSFADE_DELAY_MS, PLAYER_COLOR_CROSSFADE_MS } from '../components/CrossfadeLayers';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -21,9 +21,6 @@ interface BackdropSnapshot extends NowPlayingBackdropProps {
   artworkSource: ImageSourcePropType | null;
 }
 
-const BACKDROP_CROSSFADE_DELAY_MS = 120;
-const BACKDROP_CROSSFADE_MS = 760;
-
 const buildSnapshot = ({ gradientColors, accent, glowLeft, artworkUri }: NowPlayingBackdropProps): BackdropSnapshot => ({
   gradientColors,
   accent,
@@ -35,10 +32,11 @@ const buildSnapshot = ({ gradientColors, accent, glowLeft, artworkUri }: NowPlay
 
 const BackdropLayer = ({ snapshot, opacity, artworkTestId }: {
   snapshot: BackdropSnapshot;
-  opacity: number | Animated.AnimatedInterpolation<number>;
+  opacity: number | Animated.Value;
   artworkTestId: string;
 }) => (
-  <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
+  <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}
+    testID={`${artworkTestId}-layer`}>
     {snapshot.artworkSource ? (
       <Animated.Image source={snapshot.artworkSource} resizeMode="cover" resizeMethod="resize"
         fadeDuration={0} blurRadius={28} accessible={false} style={styles.coverBackdrop}
@@ -58,7 +56,6 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   paletteLoading = false,
 }) => {
   const { theme } = useAppTheme();
-  const reduceMotion = useReducedMotion();
   const overlayColors = getNowPlayingBackdropOverlayColors(theme.appearance);
   const incoming = useMemo(
     () => buildSnapshot({ gradientColors, accent, glowLeft, artworkUri }),
@@ -72,46 +69,35 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
   useEffect(() => {
     if (incoming.key === active.key) return;
     if (paletteLoading) return;
-    if (outgoing && !reduceMotion) return;
+    if (outgoing) return;
     transitionGeneration.current += 1;
     transition.stopAnimation();
     setActive(incoming);
-    if (reduceMotion) {
-      transition.setValue(1);
-      setOutgoing(null);
-      return;
-    }
     setOutgoing(active);
     transition.setValue(0);
-  }, [active, incoming, outgoing, paletteLoading, reduceMotion, transition]);
+  }, [active, incoming, outgoing, paletteLoading, transition]);
 
   useEffect(() => {
     if (!outgoing) return;
-    if (reduceMotion) {
-      transition.setValue(1);
-      setOutgoing(null);
-      return;
-    }
     // Start after the incoming and outgoing native views have been attached.
     const generation = transitionGeneration.current;
     Animated.timing(transition, {
       toValue: 1,
-      duration: BACKDROP_CROSSFADE_MS,
-      delay: BACKDROP_CROSSFADE_DELAY_MS,
-      easing: Easing.inOut(Easing.cubic),
+      duration: PLAYER_COLOR_CROSSFADE_MS,
+      delay: PLAYER_COLOR_CROSSFADE_DELAY_MS,
+      easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
+      isInteraction: false,
     }).start(({ finished }) => {
       if (finished && transitionGeneration.current === generation) setOutgoing(null);
     });
     return () => transition.stopAnimation();
-  }, [outgoing, reduceMotion, transition]);
-
-  const outgoingOpacity = useMemo(() => Animated.subtract(1, transition), [transition]);
+  }, [outgoing, transition]);
 
   return (
     <>
       {outgoing ? (
-        <BackdropLayer snapshot={outgoing} opacity={outgoingOpacity}
+        <BackdropLayer snapshot={outgoing} opacity={1}
           artworkTestId="now-playing-cover-backdrop-outgoing" />
       ) : null}
       <BackdropLayer snapshot={active} opacity={outgoing ? transition : 1}

@@ -67,9 +67,18 @@ test('bass pulse is mounted only for the enabled current cover', () => {
   expect(view.queryByTestId('bass-pulse')).toBeNull();
 });
 
-test('reduced motion suppresses the bass animation', () => {
+test('the explicit bass switch enables the effect even when Android reduces system animations', () => {
   mockTheme.bassPulseEnabled = true;
   mockReducedMotion = true;
   const view = render(<NowPlayingCoverArtwork {...defaults} />);
+  expect(view.getAllByTestId('bass-pulse')).toHaveLength(1);
+});
+
+test('also pulses a single classic cover without swipe pages', () => {
+  mockTheme.bassPulseEnabled = true;
+  const view = render(<NowPlayingCoverArtwork {...defaults} swipeEnabled={false} />);
+  expect(view.getAllByTestId('bass-pulse')).toHaveLength(1);
+  mockTheme.bassPulseEnabled = false;
+  view.rerender(<NowPlayingCoverArtwork {...defaults} swipeEnabled={false} isPlaying={false} />);
   expect(view.queryByTestId('bass-pulse')).toBeNull();
 });
