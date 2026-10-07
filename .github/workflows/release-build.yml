@@ -113,11 +113,7 @@ jobs:
     timeout-minutes: 60
 
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
       WORKFLOW_VERSION: "407"
 
     steps:
@@ -158,6 +154,10 @@ jobs:
           ARTIFACT_EXT="apk"
           echo "ARTIFACT_EXT=${ARTIFACT_EXT}" >> "$GITHUB_ENV"
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
 
       - name: Detect package manager / lockfile
@@ -320,11 +320,22 @@ jobs:
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
+
+      - name: Verify EAS auth
+        shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
           eas whoami
 
       - name: Export Android signing files (production only)
         if: inputs.profile == 'production'
         shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
         run: |
           set -euo pipefail
           mkdir -p ci-logs
@@ -380,6 +391,7 @@ jobs:
 
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
 
       - name: Download Android Artifact
@@ -418,6 +430,7 @@ jobs:
           fi
           echo "artifact_path=${OUT}" >> "$GITHUB_OUTPUT"
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GH_PROFILE_8777ED: ${{ needs.resolve.outputs.profile }}
           GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
 

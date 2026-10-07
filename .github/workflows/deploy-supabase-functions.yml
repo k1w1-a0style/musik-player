@@ -25,8 +25,6 @@ jobs:
     timeout-minutes: 45
 
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RAW_JOB_ID: ${{ github.event.inputs.job_id }}
 
     steps:
@@ -38,6 +36,9 @@ jobs:
 
       - name: Validate Job ID
         shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
@@ -67,7 +68,15 @@ jobs:
         with:
           eas-version: 16.32.0
           packager: npm
-          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify EAS auth
+        shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${EXPO_TOKEN:-}"
+          eas whoami
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -82,11 +91,15 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"status\":\"building\",\"github_run_id\":\"${GH_RUN_ID_DFF96A}\"}"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_RUN_ID_DFF96A: ${{ github.run_id }}
 
       - name: Run EAS Build
         id: eas
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
@@ -114,6 +127,8 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"status\":\"completed\",\"eas_build_id\":\"${GH_BUILD_ID_E68394}\"}"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
 
       - name: Update Build Status - Failed
@@ -127,4 +142,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"status\":\"error\",\"github_run_id\":\"${GH_RUN_ID_DFF96A}\"}"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_RUN_ID_DFF96A: ${{ github.run_id }}

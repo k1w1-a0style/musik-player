@@ -83,7 +83,6 @@ jobs:
       contents: write
 
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
       EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
       EXPO_OWNER_INPUT: ${{ inputs.expo_owner }}
@@ -106,6 +105,8 @@ jobs:
       - name: Validate secrets
         id: validate_inputs
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
@@ -274,6 +275,8 @@ jobs:
 
       - name: Verify EAS auth (whoami)
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           eas whoami
@@ -281,6 +284,7 @@ jobs:
       - name: EAS project:init (link/create)
         shell: bash
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_PROJECT_ID_INPUT: ${{ steps.validate_inputs.outputs.eas_project_id }}
           EXPO_OWNER_INPUT: ${{ steps.validate_inputs.outputs.expo_owner }}
         run: |
@@ -300,7 +304,7 @@ jobs:
             eas project:init --non-interactive --force "${OWNER_ARGS[@]}"
             if [ ! -f eas-project.json ]; then
               echo "::warning::eas-project.json not found after project:init. Trying to read projectId from expo config..."
-              npx --yes expo config --json > /tmp/expo-config.json
+              env -u EXPO_TOKEN -u GITHUB_TOKEN -u GH_TOKEN npx --no-install expo config --json > /tmp/expo-config.json
               PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
               if [ -z "${PROJECT_ID}" ]; then
                 echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."
@@ -363,6 +367,7 @@ jobs:
           LOCK_PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
           LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
           INSTALL_MODE: ${{ steps.install_deps.outputs.mode }}
+          TOKEN_VALIDATION_OUTCOME: ${{ steps.validate_inputs.outcome }}
         run: |
           set -euo pipefail
 
@@ -382,7 +387,7 @@ jobs:
             echo "- Lockfile: ${SUMMARY_LOCKFILE}"
             echo "- Dependency install mode: ${SUMMARY_MODE}"
             echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"
+            echo "- EXPO_TOKEN validation: ${TOKEN_VALIDATION_OUTCOME:-unknown}"
             echo ""
             echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,2 @@
+# Unified patch context encodes an empty source line as a single space.
+scripts/patches/**/*.patch whitespace=-blank-at-eol

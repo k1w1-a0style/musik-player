@@ -147,7 +147,6 @@ jobs:
       contents: write
 
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "20.0.0"
       WORKFLOW_VERSION: "409"
 
@@ -347,6 +346,8 @@ jobs:
 
       - name: Verify EAS auth
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
@@ -379,12 +380,13 @@ jobs:
 
           if [ "${PROFILE}" = "development" ]; then
             echo "📦 Ensuring expo-dev-client for development builds..."
-            npx --yes expo install expo-dev-client --fix || npx --yes expo install expo-dev-client
+            env -u GITHUB_TOKEN -u GH_TOKEN -u EXPO_TOKEN npx --yes expo install expo-dev-client --fix \
+              || env -u GITHUB_TOKEN -u GH_TOKEN -u EXPO_TOKEN npx --yes expo install expo-dev-client
           fi
 
           if [ "${HAS_LOCKFILE}" != "true" ] || [ ! -f "${LOCKFILE_PATH:-package-lock.json}" ]; then
             echo "::warning::No npm lockfile found. Generating package-lock.json (best effort)."
-            npm install --package-lock-only --no-audit --no-fund
+            env -u GITHUB_TOKEN -u GH_TOKEN -u EXPO_TOKEN npm install --package-lock-only --no-audit --no-fund
           fi
 
           # Determine if package.json / package-lock.json / .npmrc changed (modified or untracked)
@@ -439,12 +441,7 @@ jobs:
     timeout-minutes: 180
 
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "20.0.0"
-
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
       RAW_JOB_ID: ${{ inputs.job_id }}
 
     steps:
@@ -522,6 +519,10 @@ jobs:
             fi
           fi
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
           GH_PROFILE_8777ED: ${{ inputs.profile }}
 
       - name: Checkout
@@ -728,6 +729,8 @@ jobs:
 
       - name: Verify EAS auth
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           eas whoami | tee ci-logs/eas-whoami.log
@@ -736,6 +739,7 @@ jobs:
         if: ${{ inputs.profile == 'production' }}
         shell: bash
         env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
           WORKFLOW_REF: ${{ needs.authorize.outputs.ref }}
         run: |
@@ -765,6 +769,8 @@ jobs:
         if: ${{ inputs.profile == 'production' }}
         shell: bash
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
         run: |
           set -euo pipefail
@@ -841,6 +847,8 @@ jobs:
           JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${PROFILE}" "${RUN_ID}" "${TS}" "${SOURCE_COMMIT_SHA}")"
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_RUN_ID_DFF96A: ${{ github.run_id }}
           GH_PROFILE_8777ED: ${{ inputs.profile }}
 
@@ -874,6 +882,7 @@ jobs:
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GH_PROFILE_8777ED: ${{ inputs.profile }}
           GH_PLATFORM_A5C067: ${{ inputs.platform }}
 
@@ -920,6 +929,7 @@ jobs:
           echo "artifact_name=eas-${GH_PLATFORM_A5C067}-${GH_PROFILE_8777ED}-${GH_RUN_NUMBER_DA38B2}-${ARTIFACT_EXT}" >> "${GITHUB_OUTPUT}"
           ls -lah "${ARTIFACT_DIR}"
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GH_PROFILE_8777ED: ${{ inputs.profile }}
           GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
           GH_PLATFORM_A5C067: ${{ inputs.platform }}
@@ -1074,6 +1084,8 @@ jobs:
           JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4],source_commit_sha:process.argv[5]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}" "${SOURCE_COMMIT_SHA}")"
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_RUN_ID_DFF96A: ${{ github.run_id }}
           GH_BUILD_ID_E68394: ${{ steps.eas.outputs.build_id }}
           GH_BUILD_URL_8BCACD: ${{ steps.eas.outputs.build_url }}
@@ -1090,5 +1102,7 @@ jobs:
           JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${RUN_ID}" "${ERR}" "${TS}" "${SOURCE_COMMIT_SHA}")"
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${VALIDATED_JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_RUN_ID_DFF96A: ${{ github.run_id }}
           GH_REPOSITORY_39E62C: ${{ github.repository }}

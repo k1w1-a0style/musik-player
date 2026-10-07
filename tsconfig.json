@@ -3,9 +3,16 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
-      "expo-system-audio": ["./modules/expo-system-audio/index.ts"]
-    }
+      "expo-system-audio": [
+        "./modules/expo-system-audio/index.ts"
+      ]
+    },
+    "types": [
+      "react",
+      "react-native",
+      "jest",
+      "node"
+    ]
   }
 }
