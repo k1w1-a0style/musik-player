@@ -223,7 +223,27 @@ test('30 rapid Next taps resolve one native target without dropping taps', async
 test('mixed Next/Previous taps preserve deltas and repeat-all boundaries', async () => {
   await seed(songs.slice(0, 3), 1); await TrackPlayer.setRepeatMode(RepeatMode.Queue);
   await Promise.all([skipToNextSafely(), skipToNextSafely(), skipToPreviousTrackSafely()]);
-  expect(await TrackPlayer.getActiveTrackIndex()).toBe(0);
+  expect(await TrackPlayer.getActiveTrackIndex()).toBe(2);
+});
+
+test.each([
+  { repeat: RepeatMode.Queue, taps: 1, expected: 2 },
+  { repeat: RepeatMode.Queue, taps: 4, expected: 2 },
+  { repeat: RepeatMode.Off, taps: 1, expected: 0 },
+  { repeat: RepeatMode.Track, taps: 1, expected: 0 },
+])('explicit Previous from the first track respects repeat $repeat with $taps taps', async ({ repeat, taps, expected }) => {
+  await seed(songs.slice(0, 3));
+  await TrackPlayer.setRepeatMode(repeat);
+  await Promise.all(Array.from({ length: taps }, () => skipToPreviousTrackSafely()));
+  expect(await TrackPlayer.getActiveTrackIndex()).toBe(expected);
+});
+
+test('two Previous taps at the repeat-all start restart after three seconds then wrap', async () => {
+  await seed(songs.slice(0, 3));
+  await TrackPlayer.setRepeatMode(RepeatMode.Queue);
+  (TrackPlayer.getProgress as jest.Mock).mockResolvedValueOnce({ position: 5, duration: 100, buffered: 10 });
+  await Promise.all([skipToPreviousOrRestart(), skipToPreviousOrRestart()]);
+  expect(await TrackPlayer.getActiveTrackIndex()).toBe(2);
 });
 
 test('two previous taps after three seconds restart once then navigate back', async () => {

@@ -34,7 +34,10 @@ const resolveNavigationTarget = (
     else if (intent.direction > 0) {
       target = target + 1 < length ? target + 1 : repeatAll ? 0 : target;
       restart = false;
-    } else { target = Math.max(0, target - 1); restart = target === index; }
+    } else {
+      target = target > 0 ? target - 1 : repeatAll ? length - 1 : target;
+      restart = target === index;
+    }
     position = 0;
   }
   return { target, restart };
