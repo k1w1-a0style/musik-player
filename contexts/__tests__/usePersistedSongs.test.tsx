@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { AppState, Text, type AppStateStatus } from 'react-native';
-import { act, render, waitFor } from '@testing-library/react-native';
+import { act, render, renderHook, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedSongs } from '../usePersistedSongs';
 import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
@@ -82,6 +82,7 @@ describe('usePersistedSongs', () => {
     await AsyncStorage.clear();
     jest.clearAllMocks();
   });
+  afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
 
   test('does not persist before ready', async () => {
     render(<PersistedSongsProbe ready={false} />);
@@ -97,6 +98,81 @@ describe('usePersistedSongs', () => {
     await waitFor(async () => {
       expect(await storage.get(StorageKeys.SONGS)).toEqual(songs);
     });
+  });
+
+  test('flushes the latest accepted library when readiness closes inside the debounce', async () => {
+    jest.useFakeTimers();
+    const original = Array.from({ length: 100 }, (_, index) => ({ ...songs[0], id: `s${index}` }));
+    const edited = original.map((song, index) => index ? song : { ...song, title: 'Accepted edit' });
+    await storage.set(StorageKeys.SONGS, original);
+    const persistedRefs = { current: { [StorageKeys.SONGS]: JSON.stringify(original) } };
+    const setSongs = jest.fn();
+    const view = renderHook<ReturnType<typeof usePersistedSongs>, { ready: boolean; currentSongs: Song[] }>(
+      ({ ready, currentSongs }) => usePersistedSongs(ready, currentSongs, setSongs, persistedRefs),
+      { initialProps: { ready: true, currentSongs: original } });
+    view.rerender({ ready: true, currentSongs: edited });
+    view.rerender({ ready: false, currentSongs: edited });
+    await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+    expect(await storage.get(StorageKeys.SONGS)).toEqual(edited);
+    view.unmount();
+    jest.useRealTimers();
+  });
+
+  test('a recovery flush settles older background preparation before committing the newest snapshot', async () => {
+    jest.useFakeTimers();
+    const preparation = createDeferred<void>();
+    const originalPrepare = musicPersistenceHelpers.prepareSongsForPersistence;
+    jest.spyOn(musicPersistenceHelpers, 'prepareSongsForPersistence').mockImplementation(async (...args) => {
+      if (args[0][0].title === 'Older') await preparation.promise;
+      return originalPrepare(...args);
+    });
+    let onAppState!: (state: AppStateStatus) => void;
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      onAppState = listener;
+      return { remove: jest.fn() };
+    });
+    const older = Array.from({ length: 100 }, (_, index) => ({ ...songs[0], id: `s${index}`, title: 'Older' }));
+    const newest = older.map(song => ({ ...song, title: 'Newest' }));
+    const persistedRefs = { current: {} };
+    const setSongs = jest.fn();
+    const view = renderHook<ReturnType<typeof usePersistedSongs>, { ready: boolean; currentSongs: Song[] }>(
+      ({ ready, currentSongs }) => usePersistedSongs(ready, currentSongs, setSongs, persistedRefs),
+      { initialProps: { ready: true, currentSongs: older } });
+    await act(async () => { onAppState('background'); });
+    view.rerender({ ready: true, currentSongs: newest });
+    view.rerender({ ready: false, currentSongs: newest });
+    let settled = false;
+    const flush = view.result.current().then(result => { settled = true; return result; });
+    await act(async () => { await Promise.resolve(); });
+    expect(settled).toBe(false);
+    await act(async () => { preparation.resolve(); await flush; });
+    expect(await flush).toEqual({ status: 'idle' });
+    expect(await storage.get(StorageKeys.SONGS)).toEqual(newest);
+    view.unmount();
+    jest.useRealTimers();
+  });
+
+  test.each(['readiness', 'unmount'])('a %s flush retains the in-flight latest snapshot and its covers until preparation settles', async event => {
+    jest.useFakeTimers();
+    const preparation = createDeferred<void>();
+    const originalPrepare = musicPersistenceHelpers.prepareSongsForPersistence;
+    jest.spyOn(musicPersistenceHelpers, 'prepareSongsForPersistence').mockImplementation(async (...args) => {
+      await preparation.promise;
+      return originalPrepare(...args);
+    });
+    const currentSongs = Array.from({ length: 100 }, (_, index) => ({ ...songs[0], id: `s${index}` }));
+    const persistedRefs = { current: {} };
+    const setSongs = jest.fn();
+    const view = renderHook<ReturnType<typeof usePersistedSongs>, { ready: boolean }>(
+      ({ ready }) => usePersistedSongs(ready, currentSongs, setSongs, persistedRefs),
+      { initialProps: { ready: true } });
+    await act(async () => { jest.advanceTimersByTime(350); });
+    if (event === 'unmount') view.unmount();
+    else view.rerender({ ready: false });
+    expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).not.toHaveBeenCalled();
+    await act(async () => { preparation.resolve(); });
+    await waitFor(async () => expect(await storage.get(StorageKeys.SONGS)).toEqual(currentSongs));
+    expect((createCoverCacheProtection as jest.Mock).mock.results[0].value.release).toHaveBeenCalledTimes(1);
   });
 
   test('coalesces 600-song updates before preparation and stores only the newest snapshot', async () => {

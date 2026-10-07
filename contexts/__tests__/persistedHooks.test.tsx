@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { usePersistedSetting } from '../usePersistedSetting';
 import { usePersistedSongs } from '../usePersistedSongs';
+import { createSongPersistenceTask } from '../songPersistenceTask';
 import { StorageKeys } from '../../utils/storage';
 import type { Song } from '../../types/Song';
 import {
@@ -104,16 +105,16 @@ describe('persisted hooks', () => {
     const setSongsState = jest.fn();
     helpers.prepareSongsForPersistence.mockReturnValueOnce(prepareResult);
 
-    const { unmount } = render(<PersistedSongsProbe setSongsState={setSongsState} />);
+    const task = createSongPersistenceTask(songs, setSongsState, { current: {} });
+    const finished = task.start();
     await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledTimes(1));
     const releasedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
 
-    unmount();
+    task.cancel();
     expect(releasedProtection.release).toHaveBeenCalledTimes(1);
 
     resolvePrepare({ sanitizedSongs: sanitized, coversChanged: true });
-    await Promise.resolve();
-    await Promise.resolve();
+    await expect(finished).resolves.toEqual({ status: 'dropped' });
 
     expect(setSongsState).not.toHaveBeenCalled();
     expect(helpers.persistIfChanged).not.toHaveBeenCalled();
@@ -135,16 +136,16 @@ describe('persisted hooks', () => {
     const setSongsState = jest.fn();
     helpers.prepareSongsForPersistence.mockReturnValueOnce(prepareResult);
 
-    const { unmount } = render(<PersistedSongsProbe setSongsState={setSongsState} />);
+    const task = createSongPersistenceTask(songs, setSongsState, { current: {} });
+    const finished = task.start();
     await waitFor(() => expect(helpers.prepareSongsForPersistence).toHaveBeenCalledTimes(1));
     const releasedProtection = cleanupHelpers.createCoverCacheProtection.mock.results[0].value;
 
-    unmount();
+    task.cancel();
     expect(releasedProtection.release).toHaveBeenCalledTimes(1);
 
     resolvePrepare({ sanitizedSongs: sanitized, coversChanged: false });
-    await Promise.resolve();
-    await Promise.resolve();
+    await expect(finished).resolves.toEqual({ status: 'dropped' });
 
     expect(setSongsState).not.toHaveBeenCalled();
     expect(helpers.persistIfChanged).not.toHaveBeenCalled();

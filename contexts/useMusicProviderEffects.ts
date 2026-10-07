@@ -39,15 +39,19 @@ export interface MusicProviderEffectsArgs {
   setEqPreset: Dispatch<SetStateAction<EqPresetName | 'custom'>>;
 }
 
-const usePlaylistPersistenceCoordinator = () => {
-  const persistedRefs = useRef<Record<string, string>>({});
+const useStorageHydrationBarrier = (
+  persistedRefs: MutableRefObject<Record<string, string>>,
+  flushSongsForHydration: () => ReturnType<typeof waitForPersistQueueIdle>,
+) => {
   const beforeStorageHydration = useCallback(async (): Promise<BeforeStorageHydrationResult> => {
+    const songResult = await flushSongsForHydration();
+    if (songResult.status === 'failed') return { status: 'retry-required', error: songResult.error };
     const result = await waitForPersistQueueIdle(StorageKeys.PLAYLISTS, persistedRefs.current);
     return result.status === 'failed'
       ? { status: 'retry-required', error: result.error }
       : { status: 'ready' };
-  }, []);
-  return { persistedRefs, beforeStorageHydration };
+  }, [flushSongsForHydration, persistedRefs]);
+  return beforeStorageHydration;
 };
 
 export const useMusicProviderEffects = ({
@@ -81,7 +85,22 @@ export const useMusicProviderEffects = ({
   eqPreset,
   setEqPreset,
 }: MusicProviderEffectsArgs): void => {
-  const { persistedRefs, beforeStorageHydration } = usePlaylistPersistenceCoordinator();
+  const persistedRefs = useRef<Record<string, string>>({});
+  const flushSongsForHydration = useMusicPersistence({
+    isReady,
+    libraryHydrationReady,
+    volume,
+    shuffle,
+    repeatMode,
+    eqEnabled,
+    eqBands,
+    eqPreset,
+    playlists,
+    songs,
+    setSongsState,
+    persistedRefs,
+  });
+  const beforeStorageHydration = useStorageHydrationBarrier(persistedRefs, flushSongsForHydration);
 
   useMusicHydration({
     songsRef,
@@ -112,20 +131,5 @@ export const useMusicProviderEffects = ({
     baseQueueContextRef,
     setCurrentSong: currentSongSetter,
     persistCurrentSongId,
-  });
-
-  useMusicPersistence({
-    isReady,
-    libraryHydrationReady,
-    volume,
-    shuffle,
-    repeatMode,
-    eqEnabled,
-    eqBands,
-    eqPreset,
-    playlists,
-    songs,
-    setSongsState,
-    persistedRefs,
   });
 };

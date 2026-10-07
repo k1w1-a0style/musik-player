@@ -52,7 +52,7 @@ describe('music hydration failure fallback readiness', () => {
     expect(TrackPlayer.reset).toHaveBeenCalled();
     expect(removeSpy).toHaveBeenCalledWith(StorageKeys.CURRENT_SONG_ID);
     expect(args.setIsReady).not.toHaveBeenCalled();
-    expect(args.setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(args.setLibraryHydrationReady).not.toHaveBeenCalledWith(true);
     expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     warn.mockRestore();
     removeSpy.mockRestore();
@@ -101,10 +101,11 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.setIsReady).not.toHaveBeenCalled();
   });
 
-  test('routes an unverified native hydration through fallback without applying playback settings', async () => {
+  test.each([false, true])('keeps a verified library available after native hydration fails (fallback fails: %s)', async fallbackFails => {
     await storage.set(StorageKeys.SONGS, [{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
     await storage.set(StorageKeys.VOLUME, 0.25);
     (TrackPlayer.getQueue as jest.Mock).mockRejectedValueOnce(new Error('snapshot unavailable'));
+    if (fallbackFails) (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset unavailable'));
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const args = createRunMusicHydrationArgs(() => false);
 
@@ -115,11 +116,19 @@ describe('music hydration failure fallback readiness', () => {
     expect(args.nativeQueueRef.current).toEqual([]);
     expect(args.queueContextRef.current).toEqual([]);
     expect(args.baseQueueContextRef.current).toEqual([]);
-    expect(args.setPlaybackQueue).toHaveBeenLastCalledWith([]);
-    expect(args.setCurrentSong).toHaveBeenLastCalledWith(null);
-    expect(args.setShuffle).toHaveBeenLastCalledWith(false);
+    if (fallbackFails) {
+      expect(args.setPlaybackQueue).not.toHaveBeenCalled();
+      expect(args.setCurrentSong).not.toHaveBeenCalled();
+    } else {
+      expect(args.setPlaybackQueue).toHaveBeenLastCalledWith([]);
+      expect(args.setCurrentSong).toHaveBeenLastCalledWith(null);
+      expect(args.setShuffle).toHaveBeenLastCalledWith(false);
+    }
     expect(args.setIsReady).not.toHaveBeenCalled();
-    expect(args.setLibraryHydrationReady).toHaveBeenLastCalledWith(false);
+    expect(args.songsRef.current).toEqual([{ id: 's1', title: 'One', artist: 'A', uri: 'file:///s1.mp3' }]);
+    expect(args.setSongsState).toHaveBeenCalledWith(args.songsRef.current);
+    expect(args.setLibraryHydrationReady).toHaveBeenLastCalledWith(true);
+    expect(args.setLibraryHydrationReady).not.toHaveBeenCalledWith(false);
     expect(args.setHydrationStatus).toHaveBeenLastCalledWith('degraded');
     warn.mockRestore();
   });

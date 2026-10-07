@@ -73,7 +73,7 @@ describe('useMusicPersistence', () => {
     });
   });
 
-  test('persists playlists at library readiness without releasing other persistence', async () => {
+  test('persists library edits at library readiness even while playback is unavailable', async () => {
     render(<PersistenceProbe ready={false} libraryReady />);
 
     await waitFor(async () => {
@@ -82,6 +82,6 @@ describe('useMusicPersistence', () => {
       ]);
     });
     expect(await storage.get(StorageKeys.VOLUME)).toBeNull();
-    expect(await storage.get(StorageKeys.SONGS)).toBeNull();
+    await waitFor(async () => expect(await storage.get(StorageKeys.SONGS)).toEqual(songs));
   });
 });

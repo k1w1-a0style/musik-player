@@ -289,7 +289,7 @@ const runPrimaryMusicHydration = async ({
   const storageBarrier = await args.beforeStorageHydration?.();
   if (args.isCancelled()) return 'cancelled';
   if (storageBarrier?.status === 'retry-required') {
-    console.error('[MusicHydration:PlaylistPersistFailed] Retry blocked because the latest playlist snapshot was not persisted.', storageBarrier.error);
+    console.error('[MusicHydration:LibraryPersistFailed] Retry blocked because the latest library changes were not persisted.', storageBarrier.error);
     setLibraryHydrationReady?.(true);
     publishHydrationStatus(gateOwner, setHydrationStatus, 'retry-required');
     return 'retry-required';
@@ -349,7 +349,6 @@ const runMusicHydrationFallback = async (
   trackPlayerSetup: TrackPlayerSetupOutcome,
   error: unknown,
   gateOwner: NativeHydrationGateOwner | undefined,
-  setLibraryHydrationReady: RunMusicHydrationArgs['setLibraryHydrationReady'],
   setHydrationStatus: RunMusicHydrationArgs['setHydrationStatus'],
 ): Promise<{ completed: boolean; outcome: MusicHydrationOutcome }> => {
   if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
@@ -358,7 +357,8 @@ const runMusicHydrationFallback = async (
   await trackPlayerSetup;
   if (args.isCancelled()) return { completed: false, outcome: 'cancelled' };
   await applyHydrationFailureFallback(args, error);
-  if (!args.isCancelled()) setLibraryHydrationReady?.(false);
+  // Library readiness belongs to the verified storage phase. A failed native
+  // setup/reset must not close it; an unverified storage phase never opens it.
   const outcome = completeHydrationFallback(args.isCancelled, gateOwner, setHydrationStatus);
   return { completed: false, outcome };
 };
@@ -401,7 +401,7 @@ export const runMusicHydration = async ({
     completed = outcome === 'ready';
   } catch (error) {
     const fallback = await runMusicHydrationFallback(
-      args, trackPlayerSetup, error, gateOwner, setLibraryHydrationReady, setHydrationStatus,
+      args, trackPlayerSetup, error, gateOwner, setHydrationStatus,
     );
     completed = fallback.completed;
     outcome = fallback.outcome;

@@ -1,6 +1,6 @@
 # Startup- und Hydration-Architektur
 
-Stand: 2026-08-22
+Stand: 2026-10-08
 
 ## Ziel
 
@@ -12,8 +12,8 @@ Die App soll die gespeicherte Bibliothek so früh wie sicher möglich anzeigen, 
 | --- | --- | --- | --- |
 | SAF-Tag-Recovery | JS-Owner werden wiederhergestellt; ein nativer Read-only-Status überspringt die teure Recovery nur bei nachweislich leeren Journalen und ohne zurückgehaltene Ergebnisbelege. | Nein. | Tag-Schreiben bleibt bis erfolgreicher Recovery fail-closed und stößt bei Bedarf einen Retry an. |
 | Storage + Player-Setup | Persistierte Zustände werden gelesen, während TrackPlayer parallel initialisiert. Read-only-Storage-Aufrufe und die Legacy-Favoritenmigration starten ebenfalls parallel. | Nur solange noch keine sichere Bibliothek vorliegt. | Keine native Wiedergabe. |
-| Bibliothek | Songs werden sanitisiert, IDs normalisiert und Playlists bereinigt. Danach wird `libraryHydrationReady` gesetzt. | Nein. | Bibliothek und Navigation werden sichtbar; Playlist-Änderungen werden bereits serialisiert persistiert, native Aktionen bleiben gesperrt. |
-| Native Hydration | Queue-Wahrheit, aktueller Titel, Lautstärke, Repeat und Shuffle werden geprüft bzw. wiederhergestellt. | Normalerweise nein; ein bestätigter degradierter/retry-required Zustand zeigt den Recovery-Screen. | Erst `isReady` plus nativer Hydration-Gate-Status `ready` erlauben Playback-/Queue-Mutationen. |
+| Bibliothek | Songs werden sanitisiert, IDs normalisiert und Playlists bereinigt. Danach wird `libraryHydrationReady` gesetzt. | Nein. | Bibliothek und Navigation werden sichtbar; Song- und Playlist-Änderungen werden bereits serialisiert persistiert, native Aktionen bleiben gesperrt. |
+| Native Hydration | Queue-Wahrheit, aktueller Titel, Lautstärke, Repeat und Shuffle werden geprüft bzw. wiederhergestellt. | Nein, wenn die Bibliothek bereits verifiziert wurde. Playbackfehler erscheinen als Banner. | Erst `isReady` plus nativer Hydration-Gate-Status `ready` erlauben Playback-/Queue-Mutationen. |
 | Post-Start | Cover- und AudioInfo-Backfills laufen erst nach `isReady`. | Nein. | Hintergrund-Metadatenarbeit. |
 
 Die drei Bricolage-Schriften werden über das `expo-font`-Config-Plugin in den nativen Build
@@ -31,10 +31,12 @@ Sekundäre Screens (`NowPlaying`, Track-Info, Tag-Editor, Equalizer, Einstellung
 - Ein Fehler oder Timeout der Hintergrund-Recovery blockiert die normale App-Nutzung nicht, aber jeder spätere Tag-Schreibversuch bleibt ohne erfolgreiche On-Demand-Recovery gesperrt.
 - `libraryHydrationReady` ist nur eine UI-Freigabe. Native Playback-, Queue- und Current-Song-Aktionen richten sich ausschließlich nach `isReady` und dem generationsgebundenen nativen Hydration-Gate.
 - Hydration-Fallback und TrackPlayer-Setup laufen nie gleichzeitig gegeneinander.
-- Playlist-Persistenz startet mit `libraryHydrationReady`, weil Playlist-Änderungen in der sichtbaren Bibliothek bereits möglich sind. Ein serialisierter Latest-wins-Writer verhindert, dass ein älterer Snapshot eine frühe Änderung überschreibt.
-- Jede Retry-Generation setzt `libraryHydrationReady` zuerst auf `false` und wartet auf den Drain der gemeinsam genutzten Playlist-Persistenz-Queue; damit beginnen neue Storage-Reads erst nach allen älteren Playlist-Writes. Schlägt der neueste Write fehl, wird der Retry ohne Storage-Read als `retry-required` beendet, der In-Memory-Snapshot bleibt erhalten und die Playlist-Persistenz wird für einen erneuten Write wieder geöffnet. UI und Playlist-Persistenz bleiben sonst geschlossen, bis der neue Snapshot vollständig normalisiert und veröffentlicht ist.
-- Ein verifizierter Fehler-Fallback leert nur den nativen Playback-/Queue-Zustand. Die letzte Bibliothek einschließlich Playlists bleibt im Speicher, ihre UI- und Persistenz-Freigabe bleibt geschlossen und der Status wird `degraded`, bis ein Retry erfolgreich ist. Dadurch wird weder eine inkonsistente Library als `ready` veröffentlicht noch ein leerer Fallback über den gespeicherten Bestand geschrieben.
-- Playback-/Equalizer-/Song-Persistenz sowie Cover-/AudioInfo-Backfills starten nicht vor vollständiger Hydration.
+- Song- und Playlist-Persistenz starten mit `libraryHydrationReady`, weil Änderungen an der sichtbaren Bibliothek auch bei Playback-Ausfall möglich sind. Playback-/Equalizer-Einstellungen bleiben an `isReady` gebunden.
+- Jede Retry-Generation setzt `libraryHydrationReady` zuerst auf `false`. Vor neuen Storage-Reads wird der letzte akzeptierte Song-Snapshot ausdrücklich geflusht, einschließlich verzögerter Cover-Aufbereitung, bereits gestarteter Flushes und bestätigtem Storage-Commit. Anschließend wird die gemeinsame Playlist-Persistenz-Queue geleert. Ein leerer Storage-Writer allein belegt keinen fertigen Song-Flush, solange dessen Vorbereitung noch läuft.
+- Schlägt Vorbereitung oder Persistenz fehl, endet der Retry ohne Storage-Read als `retry-required`. Der aktuelle In-Memory-Snapshot bleibt erhalten; Bibliotheksbearbeitung und ihre Persistenz werden wieder geöffnet. Ein weiterer Retry versucht den aktuellen Snapshot erneut. Ein unverifizierter initialer Storage-Load öffnet die Bibliotheksfreigabe dagegen nicht.
+- Native Fehler-Fallbacks verändern ausschließlich Playback-/Queue-Zustand, soweit native Wahrheit verifiziert werden kann. Eine bereits erfolgreich hydrierte Bibliothek verliert ihre UI-/Persistenz-Freigabe durch fehlgeschlagenes Player-Setup, Queue-Readback oder Reset nicht. `isReady` bleibt dabei geschlossen und der Playbackstatus `degraded`. Laufende native Writer behalten ihre bestehende Sperre bis zur tatsächlichen Rückmeldung.
+- Bereits akzeptierte Songänderungen werden beim Schließen der Readiness oder Unmount auch dann weiter geflusht, wenn ihre Vorbereitung schon läuft. Ihr Cover-Schutz bleibt bis zum Ende dieser Vorbereitung erhalten. Supersedierte normale Aufgaben dürfen dagegen weder alten State veröffentlichen noch später einen alten Write starten.
+- Cover-/AudioInfo-Backfills starten nicht vor vollständiger nativer Hydration.
 
 ## Warum ein kalter Dev-Start länger dauert
 
@@ -73,4 +75,4 @@ Für einen belastbaren Vergleich:
 
 ## New Architecture
 
-`newArchEnabled=false` bleibt unverändert. Mit `react-native-track-player@4.1.2` ist das eine harte Repository-Regel und kein Hebel für die hier gefundenen JS-/Hydration-Blockaden. Der Upgrade-Pfad, Risiken und Exit-Kriterien stehen in [`new-architecture-compatibility-audit.md`](new-architecture-compatibility-audit.md) und [`trackplayer-new-architecture-options.md`](trackplayer-new-architecture-options.md). Eine Aktivierung gehört in einen separaten PR mit neuem Dev-Build sowie Foreground-, Background-, Notification-, App-Kill- und echten Android-Smoke-Tests.
+Der aktuelle Zielstand verwendet Expo SDK 57 / RN 0.86.3 mit New Architecture und `@rntp/player@5.12.1` hinter der lokalen Kompatibilitätsschicht `modules/playback-backend`. Der versionsgebundene Readiness-/Settlement-Patch bleibt erforderlich. Die frühere V4-Regel `newArchEnabled=false` ist nur für historische V4-Stände gültig; die native V4-Engine wird nicht wieder installiert. Migrationsnachweise und noch offene Hardwareprüfungen stehen in [`auftrag-1-2026-10-07.md`](../review/auftrag-1-2026-10-07.md).
