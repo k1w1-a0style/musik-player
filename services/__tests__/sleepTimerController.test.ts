@@ -21,6 +21,7 @@ import { getNativePlaybackWatchdogSnapshot, NativePlaybackTimeoutError } from '.
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
   __setState: (state: State) => void;
+  __setPlayWhenReady: (value: boolean) => void;
 };
 
 const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
@@ -90,6 +91,50 @@ describe('sleepTimerController', () => {
       expect(isSleepTimerActive()).toBe(false);
     },
   );
+
+  test.each([State.Paused, State.Stopped, State.Ready, State.None, State.Ended])(
+    'expiry clears native play intent even when playback state %s is not audible', async state => {
+      trackPlayerTestApi.__setState(state);
+      trackPlayerTestApi.__setPlayWhenReady(true);
+      startSleepTimer(15);
+      jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+      await expect(enforceExpiredSleepTimer()).resolves.toBe(true);
+      expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+      expect(await TrackPlayer.getPlayWhenReady()).toBe(false);
+      expect(isSleepTimerActive()).toBe(false);
+    },
+  );
+
+  test('a replacement timer invalidates expiry during a suppressed play-intent read', async () => {
+    const intent = createDeferred<boolean>();
+    const started = createDeferred<void>();
+    trackPlayerTestApi.__setState(State.Ready);
+    (TrackPlayer.getPlayWhenReady as jest.Mock).mockImplementationOnce(() => {
+      started.resolve(); return intent.promise;
+    });
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    const expiry = enforceExpiredSleepTimer();
+    await started.promise;
+    startSleepTimer(30);
+    intent.resolve(true);
+    await expect(expiry).resolves.toBe(false);
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    expect(isSleepTimerActive()).toBe(true);
+  });
+
+  test('a failed suppressed play-intent read retains the expiry for retry', async () => {
+    trackPlayerTestApi.__setState(State.Ready);
+    trackPlayerTestApi.__setPlayWhenReady(true);
+    (TrackPlayer.getPlayWhenReady as jest.Mock).mockRejectedValueOnce(new Error('intent unavailable'));
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    await expect(enforceExpiredSleepTimer()).rejects.toThrow('intent unavailable');
+    expect(isSleepTimerActive()).toBe(true);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(await TrackPlayer.getPlayWhenReady()).toBe(false);
+    expect(isSleepTimerActive()).toBe(false);
+  });
 
   test('reads final playback state only after an active queue rebuild completes', async () => {
     const rebuildStarted = createDeferred<void>();

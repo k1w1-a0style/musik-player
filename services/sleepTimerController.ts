@@ -69,7 +69,12 @@ export const pausePlaybackExplicitly = async (
     const state = (await TrackPlayer.getPlaybackState()).state;
     assertHydrationCurrent();
     if (!shouldPause()) return false;
-    if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
+    // V5 can be Ready while focus suppression prevents audible playback but
+    // playWhenReady is still true. Expiry must clear that resumable intent too.
+    const needsPause = PAUSABLE_ON_EXPIRY_STATES.has(state) || await TrackPlayer.getPlayWhenReady();
+    assertHydrationCurrent();
+    if (!shouldPause()) return false;
+    if (!needsPause) return true;
     await TrackPlayer.pause();
     return shouldPause();
   });
